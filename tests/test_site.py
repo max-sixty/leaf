@@ -1037,7 +1037,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         assert (
             page.evaluate(
                 """async () => {
-                const {focusDestination} = await import('/runtime/widget-elements.js');
+                const {focusDestination} = await import('/runtime/focus.js');
                 document.querySelector('[data-interaction-replay]').click();
                 focusDestination(document.querySelector('#bg-interactions-title'));
                 return document.activeElement?.id;

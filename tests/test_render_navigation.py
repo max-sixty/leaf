@@ -4848,11 +4848,16 @@ def test_the_g_chord_reaches_a_checkbox_a_widget_built(browser, serve):
     checkbox.evaluate("node => { node.id = 'soft-wrap'; }")
 
     page.keyboard.press("g")
-    chip = page.locator(f'{CHIPS}[data-lf-address-for="soft-wrap"]')
     code = address_code(page, "Control", "soft-wrap")
-    index = chip.evaluate(
-        "node => [...node.parentElement.children]"
-        ".filter(candidate => candidate.dataset.lfAddress).indexOf(node)"
+    # The repaint replaces address chips. Resolve and measure the current chip in
+    # one browser turn rather than retaining a handle across that replacement.
+    index = page.evaluate(
+        """selector => {
+          const node = document.querySelector(selector);
+          return [...node.parentElement.children]
+            .filter(candidate => candidate.dataset.lfAddress).indexOf(node);
+        }""",
+        f'{CHIPS}[data-lf-address-for="soft-wrap"]',
     )
     assert index >= 0
     for _ in range(index + 1):
@@ -5564,8 +5569,9 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
               line: `close ${id}`,
             }),
           });
-          invoke(row('outer', outer), 'x', () => outer.showModal());
-          invoke(row('inner', inner), 'x', () => inner.showModal());
+          const origin = {control: null, reading: null};
+          invoke(row('outer', outer), 'x', () => outer.showModal(), origin);
+          invoke(row('inner', inner), 'x', () => inner.showModal(), origin);
           inner.close();
           return current().does;
         }"""
@@ -5674,6 +5680,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
                 {id: 'test.bad-frame', returnFrame: () => ({active: () => true})},
                 'F8',
                 () => {},
+                {control: null, reading: null},
               );
               return 'accepted';
             } catch (error) {
@@ -6908,7 +6915,7 @@ def test_the_expanded_key_line_stands_down_for_a_page_press_and_another_command(
 def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser, serve):
     """A frame passes between one Tab and the next for every reader, and none for a test.
 
-    `renderLine` runs under `paintHere`'s frame, so it repaints the shortcut bar just after
+    `renderLine` runs under the shared repaint frame, so it repaints the shortcut bar just after
     focus lands somewhere — including on More, the line's own button. Clearing the line
     with `textContent = ""` took More out of the document, and removing a focused element
     blurs it; it came straight back as the same node, connected, with the reader dropped
@@ -6977,7 +6984,7 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
 def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser, serve):
     """A repaint that schedules the next one is a loop no surface reports.
 
-    `paintCoreControls` runs inside `paintHere` and writes what the More control
+    `paintCoreControls` runs inside the shared repaint and writes what the More control
     currently says, `aria-expanded` among it. The runtime watches `open` and
     `aria-expanded` over the whole document, because those two attributes are how both
     spellings of a disclosure keep which way they stand, and it repaints the line for
@@ -8118,7 +8125,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     # The picked group is the control on the other side: answered, so off both readings,
     # and the switch leaves it there. Read through the shortcut bar, because `markHere` paints
-    # inside `paintHere`'s frame — an absence read in the same round trip as the focus is
+    # inside the shared repaint frame — an absence read in the same round trip as the focus is
     # the frame before the paint, and stays green while a ring lands here a frame later.
     # The word is the other half of the same fact: with `standingIn` null the reading falls
     # through to the innermost item, which from a pick is the option and not the question.

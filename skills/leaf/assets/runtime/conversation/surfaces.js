@@ -12,7 +12,9 @@
    to the widget. Closing, filtering, or lazily withholding the datum removes the claim
    and restores the living-margin fallback. Deliberate travel may reveal or hydrate the
    datum, then runs the same reconciliation path to claim it. */
-import { renderPanel, setChildren } from "./reconcile.js";
+import { renderPanel } from "./reconcile.js";
+import { setChildren } from "../dom-children.js";
+import { removeConversationNode } from "./reaction-strips.js";
 import { reportPageError } from "../layer-client.js";
 import { containsAcross } from "../passages.js";
 import { renderThreadSurface } from "./inline.js";
@@ -68,7 +70,7 @@ function update() {
 
 function clearOutlets(outlets) {
   for (const outlet of outlets) {
-    setChildren(outlet, []);
+    setChildren(outlet, [], removeConversationNode);
     delete outlet.dataset.lfThreadSurface;
   }
 }

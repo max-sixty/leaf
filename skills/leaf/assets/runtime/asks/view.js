@@ -113,7 +113,7 @@ import {
   inChrome,
   TEXT_BLOCK,
 } from "../passages.js";
-import { scrollerFor } from "../navigation.js";
+import { scrollerFor } from "../reading-regions.js";
 import { el, reserve, reveal } from "../widget-elements.js";
 import {
   asksBtn,
@@ -136,9 +136,9 @@ import {
   documentFocused,
   focused,
   keys,
-  paintHere,
   paintKeys,
 } from "../keyboard/scopes.js";
+import { repaint } from "../repaint.js";
 import {
   itemSays,
   itemWord,
@@ -151,6 +151,7 @@ import { panelIsOpen, setPanel } from "../chrome-layout.js";
 import { scrollBehavior } from "../motion.js";
 import { announce } from "../notifications.js";
 import { availableCommands } from "../keyboard/dispatch.js";
+import { allThreads } from "../conversation/state.js";
 
 // Contextual actions for the Ask the reader is standing in. These share the address face
 // but not the g sequence's lifecycle: the ask view paints them whenever its semantic
@@ -275,14 +276,14 @@ export function syncAsks() {
     shortcutsOffered = offered;
     rowWalkOffered = walkOffered;
     paintKeys();
-  } else paintHere();
+  } else repaint();
 }
 // An answer can also change what text the page has — a retired slot leaves it — so
 // marks are repainted from the same signal, and a comment on text the user just
 // removed says so at once rather than at the next poll.
 document.addEventListener("lf-answered", () => {
   syncAsks();
-  paintAnchors();
+  paintAnchors(allThreads());
 });
 // Semantic package watchers consume this broad invalidation synchronously and may
 // update the package-owned answer read above. Reconcile the shared Ask surfaces after
@@ -734,13 +735,13 @@ function paintActionProjections() {
   }
   placement.paint(askActionLayer, chips);
 }
-addEventListener("scroll", () => reachableActionRoutes().length && paintHere(), {
+addEventListener("scroll", () => reachableActionRoutes().length && repaint(), {
   capture: true,
   passive: true,
 });
 // Resizing can make routes unreachable or put their controls under a covering tray.
 // Repaint unconditionally so either transition clears the prior projections.
-addEventListener("resize", paintHere);
+addEventListener("resize", repaint);
 // The ring that says so, painted from the focus rather than written where the reader was
 // put. The walk used to write it, and it then said where the walk had left them rather
 // than where they were: click away, work in the panel, come back tomorrow, and an ask

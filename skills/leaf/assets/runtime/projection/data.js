@@ -51,7 +51,8 @@
 
 import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
-import { renderPanel, setChildren } from "../conversation/reconcile.js";
+import { renderPanel } from "../conversation/reconcile.js";
+import { setChildren } from "../dom-children.js";
 
 // Runtime-supplied data is a third kind of page word: it is neither prose the author
 // put in the version nor apparatus the runtime asks the reader to operate. It belongs

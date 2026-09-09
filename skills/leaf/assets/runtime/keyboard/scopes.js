@@ -27,41 +27,14 @@ import {
   word,
 } from "./bindings.js";
 import { upFrom } from "../shadow.js";
+import { repaint } from "../repaint.js";
 
-// The frame that repaints where the reader is standing. The frame is the register's;
-// the painting is standing.js's, registered by leaf.js at boot. Every module that
-// declares keys imports this register, so the register imports no painter back.
-//
-// Coalesced to a frame: a focus move is a focusout then a focusin, and painting between
-// them would flash the scope of nowhere and drop the ring for a frame. The frame is also
-// what puts the first paint after every module has evaluated, which is what makes it the
-// boundary a declaration's rows are first read at (`keys`, below).
-let painter = null;
-export function paintsHere(paint) {
-  painter = paint;
-}
 // The scopes still owed a first paint. A declaration joins here and `reflectShortcuts`
 // takes it out again, so one reading is owed per declaration whether that reading stands
 // or refuses it. Transient by construction: `keys` schedules the frame that drains the set
 // in the same breath as it adds to it, and a `paintKeys` landing before that frame reads
 // the connected ones on its own way through.
 const unpainted = new Set();
-let herePending = false;
-export function paintHere() {
-  if (herePending) return;
-  herePending = true;
-  requestAnimationFrame(() => {
-    herePending = false;
-    // No default: a frame with nothing registered means leaf.js's body never ran — its
-    // first step registers the painter — and it fails here rather than painting nothing.
-    if (!painter)
-      throw new Error("leaf: leaf.js did not boot; nothing paints the standing chrome");
-    // Ahead of the painting, so an ambiguous scope is refused under its own title rather
-    // than under whichever surface reads its rows first.
-    for (const scope of unpainted) reflectShortcuts(scope);
-    painter();
-  });
-}
 
 // The scopes declared against an element — a WeakMap, so a scope leaves with the element
 // that owns it — and, for the shortcut reference dialog, their rows gathered under each title. A section is
@@ -206,7 +179,7 @@ export function keys(where, title, rows, options) {
   // losing it for a frame or claiming a set of keys this declaration has not been read
   // for.
   unpainted.add(scope);
-  paintHere();
+  repaint();
   return rows;
 }
 
@@ -280,13 +253,18 @@ function reflectShortcuts(scope) {
       scope.el.setAttribute("aria-keyshortcuts", shortcuts);
   } else scope.el.removeAttribute("aria-keyshortcuts");
 }
+// Ahead of standing content, so an ambiguous declaration is refused under its own title
+// rather than under whichever surface reads its rows first.
+export function reflectFirstScopes() {
+  for (const scope of unpainted) reflectShortcuts(scope);
+}
 export const paintKeys = () => {
   pruneScopedElements();
   for (const ref of scopeRefs) {
     const scoped = ref.deref();
     if (scoped?.isConnected) reflectShortcuts(elementScopes.get(scoped));
   }
-  paintHere();
+  repaint();
 };
 /** What a scope answers right now, as a listener hears it read out — key names rather than
  * the chips the eye reads, since a screen reader renders "esc" literally. Off the register,
@@ -341,7 +319,7 @@ const finishLabelPress = () => {
   press.held.classList.remove(FOCUS);
   press.held.classList.remove(FOCUS_VISIBLE);
   for (const node of press.within) node.classList.remove(FOCUS_WITHIN);
-  paintHere();
+  repaint();
   return press;
 };
 document.addEventListener(

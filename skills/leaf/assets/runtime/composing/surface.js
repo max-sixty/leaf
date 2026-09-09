@@ -51,10 +51,11 @@ import {
   NOTE,
   paintAnchors,
   resolveAnchor,
-  sameAnchor,
+  scrollToElement,
   visualActionAnchor,
   visualAt,
 } from "../anchors.js";
+import { sameAnchor } from "../anchor-coordinate.js";
 import { documentPoint, shownBox, shownParts, shownRect } from "../geometry.js";
 import {
   targetElement,
@@ -94,13 +95,14 @@ import {
   selectionAnchor,
   snapSelection,
 } from "./capture.js";
-import { paintHere } from "../keyboard/scopes.js";
+import { repaint } from "../repaint.js";
 import { letGo, takesLetters } from "../keyboard/page.js";
 import { closeVersionMenu, versionMenuIsOpen } from "../version.js";
 import { pointerAt } from "../pointer.js";
 import { anchorLabel } from "../conversation/messages.js";
 import { openPageThread } from "../living-margin.js";
-import { reactionsOn } from "../conversation/model.js";
+import { reactionsAt } from "../conversation/model.js";
+import { allThreads } from "../conversation/state.js";
 import { isDrawing } from "./drawing.js";
 import { readingRegionFor, shownRegionBounds } from "../reading-regions.js";
 
@@ -420,7 +422,7 @@ export function showFab(
     fabInput.setAttribute("aria-label", label ? `Comment on ${label}` : "Comment");
     // The tokens already standing on this very anchor read pressed, and a press on one
     // takes it back (reactHere): the bar is the strip's shape on the page.
-    paintReactionStanding(fabBar, reactionsOn(fabAnchor));
+    paintReactionStanding(fabBar, reactionsAt(allThreads(), fabAnchor));
     // A docked margin control can name an item whose rendered box is currently off
     // screen. `r` still needs the durable anchor so it can extend that existing item;
     // in that route the floating bar is never painted and placement is deliberately
@@ -437,8 +439,8 @@ export function showFab(
       fab.style.display = "none";
     }
   }
-  if (!sameAnchor(previous, fabAnchor)) paintAnchors();
-  paintHere(); // the c row names this anchor, so the line is one more rendering of it
+  if (!sameAnchor(previous, fabAnchor)) paintAnchors(allThreads());
+  repaint(); // the c row names this anchor, so the line is one more rendering of it
   if (!fabAnchor && returnFocus !== "none") {
     if (returnToPanel) threadsBox.focus({ preventScroll: true });
     else if (leavingBar && returnFocus === "target" && returnTarget?.isConnected)
@@ -492,6 +494,63 @@ export const fabReturnTo = () =>
       ? fabOrigin
       : visualActionAnchor(fabAnchor)
     : null;
+
+// Where a comment about this item is written: the composer, on the item, which is what a
+// click through the ⌥ aim already opens. It reached for the widget's own conversation seat
+// first for a while, on the reasoning that a widget holding a box for its conversation
+// should not be given a second one. That was the wrong shape. `commentOnTarget` writes
+// `{section: item.id}`, which is exactly the anchor `renderConversations` collects into
+// that seat — so the words land in the same conversation by either route, and the seat was
+// buying a focus landing at the price of five separate questions: escaping an
+// author-written id into a selector, whether the box can take focus at all (a settled
+// group's seat is inside `hidden="until-found"` and silently swallowed the press), which
+// box when the seat holds several threads, what design mode files, and where the reader
+// was already standing. One route answers all five by not asking them.
+//
+// Putting a thing in front of the reader before a box is opened about it, for whichever
+// route reaches that box: the item `c` names, and the passage a kept draft comes back to.
+// Both open on a coordinate the reader may have scrolled away from, and a box measured
+// against a passage off screen stands beside nothing.
+//
+// Only where it is not already in front of the reader. Travelling every time moved
+// the page under someone who could see the thing perfectly well: Tab leaves an item at an
+// edge (`block: nearest`), so centring took the page a third of a viewport with nothing on
+// screen to explain it — on the route this press exists for, and where the ⌥ aim it is the
+// twin of moves nothing at all. The travel is for the standing that has gone stale, focus
+// outliving the scroll that put it there: a box about something off screen is a box about
+// nothing the reader can see.
+//
+// What the page shows of it, which is the reading the aim's own paint takes
+// (`refreshAim`) — this being its keyboard twin, the two decide "is this in front of the
+// reader" the same way or they are not twins. An unclipped box alone is the box the item
+// would have: an item scrolled out of a board's sideways scroller still reports one
+// inside the window, so a gate reading that called it showing and opened the box on
+// something off screen, which the unconditional travel it replaced never did. Any part
+// showing is enough, which is also what keeps a box taller than the window from jumping
+// to its top under a reader halfway down it.
+//
+// A collapsed ancestor zeroes its descendants' boxes, so a thing inside a shut
+// disclosure is never showing and takes the travel, `reveal` with it. Standing on the
+// summary itself is the one motion this drops: the disclosure stays shut and the box
+// opens on it where it is, rather than springing it open and reflowing the page under
+// the reader who was looking at it.
+//
+// Instant, and before the box is measured. Placing reads the item's box, so that has to
+// be the box the item keeps; and opening focuses the textarea, whose scroll-into-view
+// cancels a glide already under way — which is what left the item flush against an edge
+// rather than framed, and is not `openComposer`'s to give up, three other presses opening
+// that box against a passage they have not moved.
+export function bringForward(item) {
+  if (!item) return;
+  const seen = shownRect(item, new Map());
+  if (!seen || seen.bottom <= BANNER_CLEAR) scrollToElement(item, "instant");
+}
+
+export function commentOnItem(item) {
+  bringForward(item);
+  commentOnTarget({ anchor: { section: item.id }, element: item });
+}
+
 // Every explicit target gesture ends here. The gesture has already resolved its stable
 // authored anchor; this command owns the one transition from that target into Comment.
 // Focusing the field drops any older browser selection, and an unsent draft follows the
@@ -624,7 +683,7 @@ function fabHoldsCapturedPassage() {
     reactionContextContains(document.activeElement)
   );
 }
-// Wired once the chrome is mounted (chrome.js): the box is selection.js's, an owner that
+// Wired once the chrome is mounted (leaf.js): the box is selection.js's, an owner that
 // imports this module back.
 export function wireFabInput() {
   fabInput.addEventListener("focus", () => {
@@ -645,7 +704,7 @@ let primaryPointerPressed = false;
 // to land after the drag had moved, and stayed a lie for a whole heartbeat when it
 // landed before. Only the crossing is painted: a drag growing a selection that already
 // stands says the same word, and repainting the chrome on every move of a drag would
-// put a whole `paintHere` inside every frame of one.
+// put a whole shared repaint inside every frame of one.
 let selectionStood = false;
 // What this drag has had inside the document, kept against a release that ends holding
 // something else. Only while both ends are still in it: `pageSelection` answers for the
@@ -723,7 +782,7 @@ document.addEventListener("selectionchange", () => {
     const stands = Boolean(pageSelection());
     if (stands !== selectionStood) {
       selectionStood = stands;
-      paintHere();
+      repaint();
     }
     return;
   }

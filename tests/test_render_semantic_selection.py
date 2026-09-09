@@ -483,8 +483,9 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
         "raises the button the key then presses"
     )
 
-    # The readout owns a live reading rather than the match snapshot from the keypress.
-    # New page text therefore changes its denominator without another search gesture.
+    # The readout's cached reading is refreshed on `lf-actions`, the runtime's broad
+    # source invalidation. New page text therefore changes its denominator without
+    # another search gesture.
     page.evaluate(
         """async () => {
           const extra = document.createElement('p');
@@ -596,6 +597,22 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     page.keyboard.press("Shift+n")
     assert page.evaluate(selected_in) == "first"
     position = page.locator(".lf-walk-position")
+    expect(position).to_have_text("Match 1 of 2")
+
+    # A page rewrite can split the text node under a captured match. Its old offsets
+    # then retire the walk rather than throwing from Range construction on every paint.
+    page.evaluate(
+        """async () => {
+          const selected = getSelection().getRangeAt(0);
+          selected.startContainer.splitText(selected.startOffset + 1);
+          const {paintHere} = await import('/runtime/keyboard/scopes.js');
+          paintHere();
+        }"""
+    )
+    expect(position).to_be_hidden()
+    page.keyboard.press("Shift+n")
+    expect(position).to_have_text("Match 2 of 2")
+    page.keyboard.press("n")
     expect(position).to_have_text("Match 1 of 2")
 
     composer = page.locator(".lf-fab-input")

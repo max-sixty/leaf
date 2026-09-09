@@ -366,9 +366,24 @@ function matchIdentity(query, segments) {
   return `${query}\u0000${parts.join(",")}`;
 }
 
+function matchIsRangeable(segments) {
+  return (
+    segments.length > 0 &&
+    segments.every(
+      ({ node, start, end }) =>
+        node.isConnected && start >= 0 && start <= end && end <= node.length,
+    )
+  );
+}
+
 function selectionIs(segments) {
   const selection = getSelection();
-  if (selection.rangeCount !== 1 || selection.isCollapsed) return false;
+  if (
+    selection.rangeCount !== 1 ||
+    selection.isCollapsed ||
+    !matchIsRangeable(segments)
+  )
+    return false;
   const selected = selection.getRangeAt(0);
   const match = rangeOf(segments);
   return (
@@ -381,6 +396,7 @@ function selectionIs(segments) {
 
 function matchWalkPosition(query) {
   if (!query || active < 0 || active >= matches.length) return null;
+  if (!matchIsRangeable(matches[active])) return null;
   // An open search owns its highlighted match. A repeated n/N search owns a native
   // selection instead; leaving that selection retires both its readout and refresh.
   if (!searching && !selectionIs(matches[active])) return null;
@@ -592,7 +608,7 @@ export function paintTargets() {
       hints.push({ chip, target: rect });
       drawnTargets.add(target);
     }
-  } else if (matches[active]) {
+  } else if (matches[active] && matchIsRangeable(matches[active])) {
     const owner = matchOwner(matches[active]);
     const clip = owner ? shownRect(owner, clips()) : null;
     if (clip)

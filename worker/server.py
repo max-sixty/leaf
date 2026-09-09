@@ -39,7 +39,7 @@ from leaf.revisioning import activate_source
 from leaf.served_state.page import full_state
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
-from leaf.service import PageTransaction, page_claim
+from leaf.service import PageTransaction, close_session_turn, page_claim
 from websockets.exceptions import WebSocketException
 
 PORT = 8080
@@ -323,9 +323,14 @@ class WebsiteCodexHost:
     ) -> bool:
         resumed = False
 
-        def attach(socket, _: dict) -> tuple[str, str]:
+        def attach(socket, result: dict) -> tuple[str, str]:
             nonlocal resumed
             resumed = True
+            status = result["thread"]["status"]["type"]
+            if status == "idle":
+                close_session_turn(thread_id)
+            elif status != "active":
+                raise RuntimeError(f"cannot deliver to a Codex task in {status} state")
             return self._start_turn(socket, page_dir, thread_id, process)
 
         try:

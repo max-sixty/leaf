@@ -84,8 +84,9 @@ def test_the_website_label_follows_the_script_contract_not_its_formatting():
     )
 
 
+@pytest.mark.parametrize(("status", "closes_turn"), [("active", False), ("idle", True)])
 def test_the_website_host_delivers_into_the_existing_codex_thread(
-    page_dir, tmp_path, monkeypatch
+    page_dir, tmp_path, monkeypatch, status, closes_turn
 ):
     host = website_server.WebsiteCodexHost(
         "codex",
@@ -104,8 +105,11 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
     def request(method, params, before_close=None):
         requests.append((method, params))
         if before_close is not None:
-            before_close("socket", {"thread": {"id": "hosted-thread"}})
-        return {"thread": {"id": "hosted-thread"}}
+            before_close(
+                "socket",
+                {"thread": {"id": "hosted-thread", "status": {"type": status}}},
+            )
+        return {"thread": {"id": "hosted-thread", "status": {"type": status}}}
 
     monkeypatch.setattr(host, "_request", request)
     started = []
@@ -113,6 +117,12 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         host,
         "_start_turn",
         lambda *args: started.append(args) or ("hosted-thread", "turn-2"),
+    )
+    closed = []
+    monkeypatch.setattr(
+        website_server,
+        "close_session_turn",
+        lambda *args: closed.append(args),
     )
 
     thread_id = host.attach(page_dir)
@@ -129,6 +139,7 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         )
     ]
     assert started == [("socket", page_dir, "hosted-thread", process)]
+    assert closed == ([("hosted-thread",)] if closes_turn else [])
 
 
 def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):

@@ -918,7 +918,6 @@ def prepare_codex_delivery(
     try:
         with PageTransaction(page_dir) as page:
             transition = page.take_claim(identity, lifetime)
-            page.close_turn(session_id)
             outstanding = {
                 item["event"]
                 for item in full_state(page_dir, page.events)["activity"][

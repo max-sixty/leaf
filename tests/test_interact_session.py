@@ -162,6 +162,36 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     assert Path(queue["payload"]).is_file()
 
 
+def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir):
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    first = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "make this editable"},
+    )
+    codex_model.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    codex_model.accept_codex_delivery("hosted-thread")
+    first_turn = service_model.page_claim(page_dir)["turn"]
+
+    second = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "also change the title"},
+    )
+    codex_model.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    codex_model.accept_codex_delivery("hosted-thread")
+
+    claim = service_model.page_claim(page_dir)
+    activity = page_state(page_dir)["activity"]
+    interactions = {
+        item["event"]: item
+        for item in activity["interactions"]
+        if item.get("event") in {first["id"], second["id"]}
+    }
+    assert claim["turn"] == first_turn
+    assert activity["counts"]["handling"] == 2
+    assert activity["counts"]["picked_up"] == 0
+    assert all(not item["dropped"] for item in interactions.values())
+
+
 def test_embedded_codex_delivery_retries_the_same_immutable_pointer(page_dir):
     events_model.append_event(
         page_dir,

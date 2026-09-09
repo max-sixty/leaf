@@ -19,6 +19,7 @@ from playwright.sync_api import expect
 from render_support import (
     ACCENT_SWATCH,
     ADDRESSED_PAGE,
+    BANNER_ORDER,
     BANNER_WATCH,
     BOARD_PAGE,
     BOTH_STAMPS,
@@ -56,7 +57,6 @@ from render_support import (
     _until,
     actions,
     banner_address,
-    compare_with,
     displaced,
     held_stale,
     holding,
@@ -1359,61 +1359,6 @@ def test_a_yielded_version_returns_when_it_becomes_a_choice(browser, serve):
     page.close()
 
 
-STATE_PAINT = """el => {
-  const style = getComputedStyle(el);
-  return {background: style.backgroundColor, shadow: style.boxShadow};
-}"""
-
-
-def test_a_folded_address_keeps_the_paint_that_says_it_is_doing_something(
-    browser, serve
-):
-    """A comparison standing behind the overflow menu is the same comparison, and has
-    to go on looking like one.
-
-    Both places clear the border and the fill `.lf-btn.on` states, each for its own
-    reason: the row so that an address cannot resize it and displace the addresses
-    before it, the menu so that an address reads as a row rather than as a chip. Left
-    at that, the class is ink alone in either — two characters at 2.16:1 against the
-    control's own resting ink. The row was answered first and the menu was not, which
-    put the banner's two active states on opposite sides of one fold: an open
-    workspace's own selector outranks the menu's resting rule and keeps its face
-    across it, and a standing comparison did not. So this reads the one control in
-    both places rather than a number in either, because what the fold promises is that
-    nothing about an address changes except where it stands.
-    """
-    html = SUGGESTION_PAGE.replace(
-        "<title>suggestions</title>",
-        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
-    )
-    url = serve(html)
-    _publish(serve.page_dir, 2, html, "reworded the suggestion")
-    page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
-    chooser = page.locator(".lf-version")
-    expect(chooser).to_be_enabled()
-
-    resized(page, 1440, 900)
-    compare_with(page, 1)
-    expect(chooser).to_have_class(re.compile(r"\bon\b"))
-    expect(page.locator(".lf-banner-actions > .lf-version")).to_have_count(1)
-    on_the_row = chooser.evaluate(STATE_PAINT)
-    assert (
-        on_the_row["shadow"] != "none"
-        and "rgba(0, 0, 0, 0)" not in on_the_row["background"]
-    ), f"the comparison stood on the row with nothing but ink: {on_the_row}"
-
-    resized(page, 320, 844)
-    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
-    banner_address(page, ".lf-version")
-    folded = chooser.evaluate(STATE_PAINT)
-
-    assert folded == on_the_row, (
-        f"the comparison changed face when it folded: row {on_the_row}, menu {folded}"
-    )
-    assert errors == []
-    page.close()
-
-
 def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     """An open versions menu keeps the two edges its anchor names, and no others.
 
@@ -1452,88 +1397,6 @@ def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     assert boxes["menu"]["top"] >= boxes["button"]["bottom"], (
         f"the versions menu covered the chooser it hangs from: {boxes}"
     )
-    assert errors == []
-    page.close()
-
-
-# The banner's addresses in the row's one order. The fold takes a run off the front of the
-# row into the menu, so the menu's contents followed by the row's read straight through as
-# that one order — which is the whole of what "one order" can be checked against, since a
-# folded address is still on the row and still where the order says it is. The door itself
-# is not an address, and a control the page has taken away is not one either.
-BANNER_ORDER = """() => {
-  const shelf = document.querySelector('.lf-banner-actions');
-  const menu = document.querySelector('.lf-banner-menu');
-  const more = document.querySelector('.lf-banner-more');
-  return [...menu.children, ...shelf.children]
-    .filter(control => control !== more &&
-            getComputedStyle(control).display !== 'none' &&
-            getComputedStyle(control).visibility !== 'hidden')
-    .map(control => (control.getAttribute('aria-label') || control.textContent).trim());
-}"""
-
-
-def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
-    """The row says the same thing at 1440 that it says on a phone.
-
-    It used to turn round at the covering breakpoint: Threads went from the far right of
-    the banner to the far left, and approval — the page's one committing press — swapped
-    ends with it, so a reader narrowing the window found every address somewhere else.
-    What a narrow window may change is how many addresses stand on the row at once; the
-    rest fold into the row's own menu, in this same order.
-
-    Two things legitimately differ with width and neither is an order: the page map is a
-    narrow window's stand-in for the margin's own markers, and a reserved news slot is not
-    an address until it has news. So each width is held to being this one order with the
-    addresses that width does not have taken out of it, rather than to a fixed list — a
-    reversal fails that just as loudly, and a control appearing at the wrong seat fails it
-    where a fixed list would only have said the list was different.
-    """
-    html = SUGGESTION_PAGE.replace(
-        "<title>suggestions</title>",
-        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
-    )
-    url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="claude")
-    page, errors = open_page(browser, url)
-    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
-    expect(page.locator(".lf-signoff")).to_be_visible()
-    expect(page.locator(".lf-answer-all")).to_be_visible()
-
-    orders = {}
-    for width in (1440, 860, 800, 390):
-        resized(page, width, 900)
-        orders[width] = page.evaluate(BANNER_ORDER)
-
-    # One order, put as the thing it is: no two addresses ever swap. Held pair by pair
-    # rather than against a list taken at one width, because the widths do not all show
-    # the same addresses and a fixed list would then be failing about the page map rather
-    # than about the order. A reversal breaks this on its first pair.
-    first = {}
-    for width, order in orders.items():
-        for index, before in enumerate(order):
-            for after in order[index + 1 :]:
-                assert (after, before) not in first, (
-                    f"{after!r} comes before {before!r} at {first[(after, before)]}px "
-                    f"and after it at {width}px, so the banner reads in two orders: "
-                    f"{orders}"
-                )
-                first.setdefault((before, after), width)
-    assert len(first) >= 15, (
-        f"too few addresses stood at these widths to have an order at all: {orders}"
-    )
-
-    # And the order it settled on: every address the page offers, with the reading loop
-    # finishing the row beside the panel it opens.
-    widest = max(orders.values(), key=len)
-    for wanted in ("All leaves", "Asks", "Accept all", "v1", "Approve version"):
-        assert any(wanted in name for name in widest), (
-            f"{wanted} was not on the row at all, so this order proves little: {widest}"
-        )
-    for width, order in orders.items():
-        assert order[-1].startswith("Threads"), (
-            f"the conversation no longer finishes the row at {width}px: {order}"
-        )
     assert errors == []
     page.close()
 

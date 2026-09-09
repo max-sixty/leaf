@@ -599,13 +599,15 @@ function landInThreadReply(thread) {
 
 const resolutionControl = (thread) =>
   thread?.querySelector(
-    ":scope > .lf-resolve, " +
+    ":scope > .lf-thread-head > .lf-resolve, " +
+      ":scope > .lf-resolve, " +
       ":scope > .lf-thread-actions > .lf-reopen, " +
       ":scope > .lf-conversation-resolved .lf-reopen",
   ) ?? null;
 
 const SHORTCUT_REFERENCE = {
   title: "In this reference",
+  escape: "inner",
   root: () => shortcutReferenceDialog,
   at: () => referenceOpen(),
   claims: EVERYTHING,
@@ -681,6 +683,7 @@ export const LESS_SHORTCUTS = {
 
 const SHORTCUT_SHELF = {
   title: "With more keyboard shortcuts",
+  escape: "inner",
   root: () => shortcutReferenceDialog,
   at: () => Boolean(shortcutBarExpanded()),
   rows: [LESS_SHORTCUTS],
@@ -700,7 +703,7 @@ const PAGE_MAP = {
   title: "In the page map",
   root: () => pageMapRung()?.root ?? document,
   when: () => Boolean(pageMapRung(false)),
-  at: () => !current() && Boolean(pageMapRung()),
+  at: () => Boolean(pageMapRung()),
   rows: [
     {
       id: "margin.back",
@@ -798,6 +801,7 @@ const RESPONSE_CLOSE = {
 const RESPONSE_OPTIONS_TITLE = "With other responses open";
 const RESPONSE_OPTIONS = {
   title: RESPONSE_OPTIONS_TITLE,
+  escape: "inner",
   at: () => responseOptionsAreOpen() && focused() === fabInput,
   // These two keys move into and out of the disclosure itself, including while the
   // field's return frame stands nearer than ordinary containing surfaces.
@@ -816,7 +820,7 @@ export function declareResponseOptionKeys() {
     fabOptions,
     RESPONSE_OPTIONS_TITLE,
     [RESPONSE_REACTION, RESPONSE_TAB, RESPONSE_MOVE, RESPONSE_ACTIVATE, RESPONSE_CLOSE],
-    { when: responseOptionsAreOpen },
+    { when: responseOptionsAreOpen, escape: "inner" },
   );
 }
 
@@ -1131,13 +1135,12 @@ export const REFERENCE = {
   run: () => shortcutBarMore.click(),
 };
 
-// The stack, innermost first, and the whole of what the runtime says about the order. The
-// Element scopes splice in where ELEMENTS stands. RETURN follows that placeholder in this
-// canonical list; the dispatcher places it at the dynamic boundary after the exact control
-// and before generic typing and ancestor rows, so an input can clear its own query before
-// leaving while a plain composer returns in the one Escape its entry earned. Every reading
-// starts from this stack: the dispatcher and line walk it inward, and the reference walks it
-// backwards, so a mode this list leaves out is one the reference never names.
+// The stack, innermost first, and the whole of what the runtime says about ordinary-key
+// order. Element scopes splice in where ELEMENTS stands. For Escape, the dispatcher reads
+// an explicit `escape: "inner"` on active modes and the exact focused element, then RETURN,
+// then every unmarked fallback; placement in this list grants no causal priority. Every
+// reading starts from these scopes, and the reference walks them backwards, so a mode this
+// list leaves out is one the reference never names.
 export const ELEMENTS = Symbol("the scopes of the focused element");
 // The list is assembled on first use rather than as this module evaluates: several of its
 // members — the g sequence, reactions, the selection chooser, the return stack, the version

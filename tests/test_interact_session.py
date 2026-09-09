@@ -914,6 +914,28 @@ def test_app_server_events_report_semantic_codex_progress():
     ) == {"turn": "turn-live", "activity": "Waiting for input in Codex"}
     assert events.read(
         {
+            "method": "item/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "item": {
+                    "id": "message-live",
+                    "type": "agentMessage",
+                    "text": "The page is ready for review.",
+                },
+            },
+        }
+    ) == {
+        "turn": "turn-live",
+        "reply": {
+            "item": "message-live",
+            "phase": None,
+            "text": "The page is ready for review.",
+            "complete": True,
+        },
+    }
+    assert events.read(
+        {
             "method": "turn/completed",
             "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
         }
@@ -934,17 +956,19 @@ def test_app_server_activity_throttles_stream_deltas(monkeypatch):
     last_update = 0.0
 
     for delta in ("one", " two", " three"):
+        message = {
+            "method": "item/agentMessage/delta",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "itemId": "message-live",
+                "delta": delta,
+            },
+        }
         last_update = codex_model.project_app_server_activity(
             events,
-            {
-                "method": "item/agentMessage/delta",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "turn-live",
-                    "itemId": "message-live",
-                    "delta": delta,
-                },
-            },
+            message,
+            events.read(message),
             last_update,
             lambda *args: updates.append(args),
             lambda *args: clears.append(args),

@@ -41,6 +41,7 @@ from render_support import (
     DIFF_LANDING,
     DIFF_PRESS,
     DIFF_ROW_PLACEMENT,
+    FEATURE_GALLERY,
     HOLD_MOTION,
     LONG_LINE_DIFF_PAGE,
     LONG_PAGE,
@@ -4221,6 +4222,32 @@ def test_a_block_change_emphasizes_the_words_that_moved(browser, serve):
         "lf-sug-del": 0,
         "lf-sug-ins": 0,
     }, "deciding must clear the emphasis with the slot it retires"
+    assert errors == []
+    page.close()
+
+
+def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
+    browser, serve
+):
+    """A changed span may cross a nested widget without painting its generated UI."""
+    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page.locator('[data-lf-margin-for="bg-route-ask"] [role="button"]').click()
+    addresses = page.locator("#bg-route > lf-option > .lf-address")
+    expect(addresses).to_have_text(["1", "2"])
+
+    assert page.locator("#bg-nested-change > lf-new > p").evaluate(
+        """node => [...(CSS.highlights.get('lf-sug-ins') ?? [])]
+          .some(range => range.intersectsNode(node.firstChild))"""
+    ), "the proposal has to carry word-level insertion emphasis"
+    assert addresses.evaluate_all(
+        """nodes => {
+          const ranges = [...(CSS.highlights.get('lf-sug-ins') ?? [])];
+          return nodes.map(node =>
+            ranges.some(range => range.intersectsNode(node.firstChild)));
+        }"""
+    ) == [False, False], (
+        "the authored change's emphasis crossed into the Ask's generated key hints"
+    )
     assert errors == []
     page.close()
 

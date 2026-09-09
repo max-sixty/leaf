@@ -67,7 +67,7 @@ import {
   rowSteps,
 } from "./presentation.js";
 import { el } from "../widget-elements.js";
-import { shadow, stack } from "./dispatch.js";
+import { lineOwner, shadow, stack } from "./dispatch.js";
 import { LESS_SHORTCUTS, REFERENCE } from "./page.js";
 import { referenceOpen, showReference } from "./reference.js";
 import { announce } from "../notifications.js";
@@ -127,6 +127,7 @@ const effectiveRow = (row, declared, active) => {
   return projected;
 };
 function lineRows(scopes) {
+  const escape = lineOwner("Escape");
   const named = new Set();
   const nearer = shadow();
   const rows = [];
@@ -139,12 +140,15 @@ function lineRows(scopes) {
     const reachable = scope.rows.flatMap((row) => {
       if (!row.line || (!scope.sequence && word(row.lineWhen) === false)) return [];
       const bound = bindings(row);
-      const active = bound.filter((k) => !named.has(k) && !nearer.takes(k));
+      const active = bound.filter((binding) =>
+        binding === "Escape"
+          ? escape?.visible && escape.scope === scope && escape.row === row
+          : !named.has(binding) && !nearer.takes(binding),
+      );
       return active.length ? [effectiveRow(row, bound, active)] : [];
     });
     for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
-      const bound = bindings(row);
-      for (const k of bound) named.add(k);
+      for (const binding of bindings(row)) named.add(binding);
       rows.push(row);
     }
     nearer.past(scope);

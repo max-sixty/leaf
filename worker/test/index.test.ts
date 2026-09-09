@@ -431,7 +431,9 @@ describe("product-site delivery", () => {
       new Request("https://leaf.page/examples/design-decision/api/state", {
         headers: {
           Cookie: `__Host-leaf-page=${sessionId}`,
-          "Leaf-Release": RELEASE,
+          // A release the edge is not serving, so the answer below tells a stamp
+          // of the deployed release apart from an echo of the request.
+          "Leaf-Release": "b".repeat(64),
         },
       }),
       environment(),

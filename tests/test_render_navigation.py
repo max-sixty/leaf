@@ -3449,6 +3449,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.wait_for_url(re.compile(r"#p2$"))
     expect(page.locator("#p2")).to_be_focused()
     assert errors == []
+    page.close()
 
 
 def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve):
@@ -3466,20 +3467,22 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
     )
     fixed_link_hint = page.locator(fixed_link_selector)
     expect(fixed_link_hint).to_be_visible()
-    fixed_link_top = fixed_link_hint.evaluate(
-        "node => node.getBoundingClientRect().top"
+    fixed_link_top = page.evaluate(
+        "selector => document.querySelector(selector).getBoundingClientRect().top",
+        fixed_link_selector,
     )
 
     page.keyboard.press("h")
+    expect(page.locator(f'{CHIPS}:not([data-lf-address-kind="Link"])')).to_have_count(0)
     expect(page.locator(".lf-notice")).to_be_visible()
-    expect(fixed_link_hint).to_be_visible()
-    page.wait_for_function(
-        """({selector, top}) => {
-          const node = document.querySelector(selector);
-          return node && Math.abs(node.getBoundingClientRect().top - top) <= 0.5;
-        }""",
-        arg={"selector": fixed_link_selector, "top": fixed_link_top},
+    assert (
+        page.evaluate(
+            "selector => document.querySelector(selector).getBoundingClientRect().top",
+            fixed_link_selector,
+        )
+        == fixed_link_top
     )
+    expect(page.locator(".lf-notice")).to_be_visible()
     assert errors == []
     page.close()
 

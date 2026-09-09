@@ -10,9 +10,10 @@
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
  * of the section it leads as its flex share, so the quiet spine describes the document
- * before its labels appear. A label stays at the row its destination owns. When those
- * exact positions leave too little room to show the whole outline, the dense posture
- * reveals one label at a time instead of inventing a second layout for the same route.
+ * before its labels appear. Crowded destinations are fitted together just enough for
+ * their labels to remain distinct; destination marker, label, and viewport lens all
+ * use that one fitted scale, so revealing the outline neither moves it nor withholds
+ * its words.
  * A destination inside a closed disclosure or inactive tab joins the margin map when it
  * joins the displayed document; the ordinary outline keeps its native fragment link.
  * The darker lens is the part of the document in the viewport.
@@ -48,6 +49,8 @@ customElements.define(
     #rows;
     #sections = [];
     #positions = [];
+    #mapPositions = [];
+    #mapHeight = 1;
     #shown = [];
     #contentStart = 0;
     #contentEnd = 1;
@@ -237,27 +240,137 @@ customElements.define(
           this.#shown[index] ? String(Math.max(1, next - this.#positions[index])) : "0",
         );
       });
-      this.#setLabelPosture();
+      this.#fitRows();
       this.#paint();
     }
 
-    #setLabelPosture() {
-      this.removeAttribute("data-lf-dense");
+    #fitRows() {
+      this.removeAttribute("data-lf-compact");
+      this.removeAttribute("data-lf-outline");
+      for (const { row } of this.#sections)
+        row.style.removeProperty("--lf-toc-row-shift");
+
+      this.#mapPositions = [];
       if (getComputedStyle(this.#rows).display !== "flex") return;
       const track = this.#rows.getBoundingClientRect();
-      const lineHeight = parseFloat(getComputedStyle(this.#nav).lineHeight);
-      const labelGap = Number.isFinite(lineHeight) ? lineHeight * 0.5 : 0;
-      let previousBottom = track.top - labelGap;
-      const crowded = this.#sections
-        .filter(({ row }) => !row.hasAttribute("data-lf-toc-hidden"))
-        .some(({ row, link }) => {
-          const top = row.getBoundingClientRect().top;
-          const bottom = top + link.getBoundingClientRect().height;
-          const overlaps = top < previousBottom + labelGap - 1;
-          previousBottom = bottom;
-          return overlaps || top < track.top - 1 || bottom > track.bottom + 1;
+      this.#mapHeight = track.height;
+
+      const readLabels = () => {
+        const labels = this.#sections.flatMap(({ row, link }, index) =>
+          this.#shown[index]
+            ? [
+                {
+                  index,
+                  ideal: row.getBoundingClientRect().top - track.top,
+                  height: link.getBoundingClientRect().height,
+                },
+              ]
+            : [],
+        );
+        const lineHeight = parseFloat(getComputedStyle(this.#nav).lineHeight);
+        const preferredGap = Number.isFinite(lineHeight) ? lineHeight * 0.5 : 0;
+        const labelHeight = labels.reduce((sum, label) => sum + label.height, 0);
+        const availableGap =
+          labels.length > 1 ? (track.height - labelHeight) / (labels.length - 1) : 0;
+        return {
+          labels,
+          labelHeight,
+          preferredGap,
+          gap: Math.max(0, Math.min(preferredGap, availableGap)),
+        };
+      };
+
+      let layout = readLabels();
+      if (
+        layout.labelHeight +
+          layout.preferredGap * Math.max(0, layout.labels.length - 1) >
+        track.height + 1
+      ) {
+        this.setAttribute("data-lf-compact", "");
+        layout = readLabels();
+      }
+      if (layout.labelHeight > track.height + 1) {
+        this.removeAttribute("data-lf-compact");
+        this.setAttribute("data-lf-outline", "");
+        return;
+      }
+
+      let prefix = 0;
+      for (const label of layout.labels) {
+        label.prefix = prefix;
+        prefix += label.height + layout.gap;
+      }
+      const occupiedHeight = Math.max(0, prefix - layout.gap);
+
+      // A row's collision-free top is its document-scale top minus the height of every
+      // label before it. Pool adjacent violations and share their correction, so a
+      // crowded group bends one monotone scale around its destinations instead of
+      // accumulating displacement below them.
+      const blocks = [];
+      layout.labels.forEach((label, at) => {
+        blocks.push({
+          start: at,
+          end: at,
+          top: label.ideal - label.prefix,
+          count: 1,
         });
-      if (crowded) this.setAttribute("data-lf-dense", "");
+        while (blocks.length > 1 && blocks.at(-2).top > blocks.at(-1).top) {
+          const next = blocks.pop();
+          const previous = blocks.pop();
+          const count = previous.count + next.count;
+          blocks.push({
+            start: previous.start,
+            end: next.end,
+            top: (previous.top * previous.count + next.top * next.count) / count,
+            count,
+          });
+        }
+      });
+
+      const slack = Math.max(0, track.height - occupiedHeight);
+      for (const block of blocks) {
+        const top = Math.max(0, Math.min(slack, block.top));
+        for (let at = block.start; at <= block.end; at += 1) {
+          const label = layout.labels[at];
+          const fitted = top + label.prefix;
+          const { row } = this.#sections[label.index];
+          row.style.setProperty("--lf-toc-row-shift", `${fitted - label.ideal}px`);
+          this.#mapPositions[label.index] = fitted;
+        }
+      }
+    }
+
+    #mapPosition(position) {
+      const anchors = this.#positions.flatMap((documentPosition, index) =>
+        this.#shown[index] && Number.isFinite(this.#mapPositions[index])
+          ? [{ documentPosition, mapPosition: this.#mapPositions[index] }]
+          : [],
+      );
+      if (!anchors.length) {
+        const total = Math.max(1, this.#contentEnd - this.#contentStart);
+        return (
+          Math.max(0, Math.min(1, (position - this.#contentStart) / total)) *
+          this.#mapHeight
+        );
+      }
+      if (position <= anchors[0].documentPosition) return anchors[0].mapPosition;
+      for (let index = 1; index < anchors.length; index += 1) {
+        const previous = anchors[index - 1];
+        const next = anchors[index];
+        if (position > next.documentPosition) continue;
+        const distance = Math.max(1, next.documentPosition - previous.documentPosition);
+        const progress = (position - previous.documentPosition) / distance;
+        return (
+          previous.mapPosition + progress * (next.mapPosition - previous.mapPosition)
+        );
+      }
+      const last = anchors.at(-1);
+      const distance = Math.max(1, this.#contentEnd - last.documentPosition);
+      const progress = Math.max(
+        0,
+        Math.min(1, (position - last.documentPosition) / distance),
+      );
+      return last.mapPosition + progress * (this.#mapHeight - last.mapPosition);
     }
 
     #documentTop(element) {
@@ -280,22 +393,15 @@ customElements.define(
 
     #paint() {
       if (!this.#rows || !this.#scroller || !this.#positions.length) return;
-      const total = Math.max(1, this.#contentEnd - this.#contentStart);
       const clear = parseFloat(getComputedStyle(this.#scroller).scrollPaddingTop) || 0;
       const visibleStart = this.#scroller.scrollTop + clear;
       const visibleEnd = this.#scroller.scrollTop + this.#scroller.clientHeight;
-      const start = Math.max(
-        0,
-        Math.min(1, (visibleStart - this.#contentStart) / total),
-      );
-      const end = Math.max(
-        start,
-        Math.min(1, (visibleEnd - this.#contentStart) / total),
-      );
-      this.#rows.style.setProperty("--lf-toc-window-start", `${start * 100}%`);
+      const start = this.#mapPosition(visibleStart);
+      const end = Math.max(start, this.#mapPosition(visibleEnd));
+      this.#rows.style.setProperty("--lf-toc-window-start", `${start}px`);
       this.#rows.style.setProperty(
         "--lf-toc-window-size",
-        `${Math.max(0.012, end - start) * 100}%`,
+        `${Math.max(this.#mapHeight * 0.012, end - start)}px`,
       );
 
       const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);

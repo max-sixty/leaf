@@ -282,7 +282,7 @@ does not remember where an Ask walk last landed.
 
 Startup order is load-bearing:
 
-1. Register the standing painter into the register's repaint frame, adopt the chrome
+1. Wire the shared repaint phases in `leaf.js`, adopt the chrome
    and marks sheets, and mount the chrome (`mountChrome`: the banner's arrangement,
    the parts into the document, the banner's reservations, then every owner's wiring
    of another owner's part).

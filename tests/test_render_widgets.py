@@ -2726,11 +2726,10 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     page.locator('lf-playground-control[name="title"] input').fill(
         "Checkout needs attention"
     )
-    expect(page.locator("#notification-card")).to_contain_text(
-        "Review the deployment run and current service health."
-    )
-    expect(page.locator("#notification-card")).not_to_contain_text(
-        "Deployment complete"
+    expect(playground).to_have_attribute("data-playground-tone", "urgent")
+    expect(playground).to_have_attribute("data-playground-compact", "true")
+    expect(page.locator("#notification-card")).to_have_accessible_name(
+        "Checkout needs attention"
     )
     with sending(page, "the notification configuration"):
         playground.get_by_role("button", name="Send configuration").click()

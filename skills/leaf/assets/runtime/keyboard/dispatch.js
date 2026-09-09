@@ -269,14 +269,16 @@ export function lineOwner(binding) {
 }
 
 // Reference invocation names a command directly, so another row on the same key does not
-// hide it; a nearer claim still does. Escape claims use Escape's semantic scope order.
-function unclaimed(scope, binding) {
+// hide it; a nearer claim still does. Resolve Escape claims once through its semantic
+// scope order, then let every row in the outer walk read the same result.
+function unclaimedScopes(binding) {
+  const unclaimed = new Set();
   const nearer = shadow();
-  for (const candidate of stack(binding)) {
-    if (candidate === scope) return !nearer.takes(binding);
-    nearer.past(candidate);
+  for (const scope of stack(binding)) {
+    if (!nearer.takes(binding)) unclaimed.add(scope);
+    nearer.past(scope);
   }
-  return false;
+  return unclaimed;
 }
 
 // ---------- the dispatcher ----------
@@ -352,12 +354,13 @@ function run(ev) {
 // exactly one live scope. Resolve it through the same innermost-first stack and the same
 // shadowing as a key press.
 function commandMatching(matches) {
+  const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow();
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!row.run || !live(row)) continue;
       const reachable = bindings(row).filter((binding) =>
-        binding === "Escape" ? unclaimed(scope, binding) : !nearer.takes(binding),
+        binding === "Escape" ? unclaimedEscape.has(scope) : !nearer.takes(binding),
       );
       const binding = commandEntries(row, reachable).find((command) =>
         matches(command, row),
@@ -382,12 +385,13 @@ export function activeRowLabel(rows) {
 // make every page command look unavailable merely because the chooser itself is standing.
 export function availableCommands() {
   const available = new Set();
+  const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow();
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!row.run || !live(row)) continue;
       const reachable = bindings(row).filter((binding) =>
-        binding === "Escape" ? unclaimed(scope, binding) : !nearer.takes(binding),
+        binding === "Escape" ? unclaimedEscape.has(scope) : !nearer.takes(binding),
       );
       for (const command of commandEntries(row, reachable))
         if (command.binding != null) available.add(command.id);

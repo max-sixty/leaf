@@ -16,6 +16,7 @@
    forgotten, and the forgetting is invisible until a page ships without it. */
 import { marksSheet, SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
+import { watchNativeLayers } from "./native-layers.js";
 import { setChildren } from "./conversation/reconcile.js";
 import { watchExternalLinks } from "./presentation.js";
 
@@ -32,6 +33,7 @@ export function shadowStage(host, nodes) {
   // from inside one is not composed, and a MutationObserver does not cross the
   // boundary either.
   watchDisclosures(root);
+  watchNativeLayers(root);
   const style = document.createElement("style");
   style.textContent = SHADOW_STARTUP_CSS + shadowRules;
   // Fragment hydration can add a sheet while the reader uses an existing control.

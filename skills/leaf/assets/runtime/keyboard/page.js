@@ -76,6 +76,7 @@ import {
   word,
 } from "./bindings.js";
 import {
+  shortcutReferenceDialog,
   shortcutReferenceClose,
   moveReference,
   moveCommand,
@@ -437,14 +438,6 @@ export function letGo() {
   return document.body.focus({ preventScroll: true });
 }
 
-// Auto popovers and modal dialogs already put Escape in the platform contract. When one
-// stands, let the browser dismiss the topmost layer and let that layer's toggle/close
-// event update Leaf state. Product modes with a nearer Escape row (the composer, the shortcut reference's
-// two-step shelf, a text box) still own their deliberate unwind step.
-function browserDismissesTopLayer() {
-  return Boolean(document.querySelector(":popover-open, dialog:modal"));
-}
-
 // The fallback Escape reading for state reached without a registered keyboard entry:
 // pointer-opened workspaces, captured targets, and ordinary focus traversal. Commanded
 // entries use the return stack and never infer their inverse from this resulting scene.
@@ -526,7 +519,7 @@ const BACK_OUT = {
   // thing the reader just chose. Keep both on the short line and leave this row in the full
   // reference until the target is gone.
   promoteEscape: () => !hasCapturedTarget() || reactionTokens().length === 0,
-  when: () => !current() && !browserDismissesTopLayer() && Boolean(rung()),
+  when: () => !current() && Boolean(rung()),
   run: () => rung().out(),
 };
 
@@ -605,6 +598,7 @@ const resolutionControl = (thread) =>
 
 const SHORTCUT_REFERENCE = {
   title: "In this reference",
+  root: () => shortcutReferenceDialog,
   at: () => referenceOpen(),
   claims: EVERYTHING,
   rows: [
@@ -679,6 +673,7 @@ export const LESS_SHORTCUTS = {
 
 const SHORTCUT_SHELF = {
   title: "With more keyboard shortcuts",
+  root: () => shortcutReferenceDialog,
   at: () => Boolean(shortcutBarExpanded()),
   rows: [LESS_SHORTCUTS],
 };
@@ -693,6 +688,7 @@ function pageMapRung(atFocus = true) {
 
 const PAGE_MAP = {
   title: "In the page map",
+  root: () => pageMapRung()?.root ?? document,
   when: () => Boolean(pageMapRung(false)),
   at: () => Boolean(pageMapRung()),
   rows: [
@@ -902,6 +898,7 @@ export function declareFindBoxKeys() {
 
 export const TYPING = {
   title: "In a text box",
+  root: focused,
   at: () => takesLetters(focused()),
   claims: TEXT_ENTRY,
   rows: [
@@ -930,6 +927,7 @@ export const TYPING = {
 // describes the open state readers first meet rather than inventing a third one.
 const THREAD = {
   title: "On a focused thread",
+  root: focused,
   when: () => threadList().length > 0,
   at: () => Boolean(focusedThread()),
   rows: [
@@ -986,6 +984,7 @@ const THREAD = {
 function standingOn(title, sel, rows) {
   return {
     title,
+    root: focused,
     at: () => {
       const el = focused();
       return Boolean(el?.matches?.(sel)) && !inChrome(el);
@@ -1156,6 +1155,7 @@ export function pageScopes() {
   // it. Whether the waiting filter is useful is `w`'s own condition, said on that row.
   const PANEL = {
     title: "In the thread panel",
+    root: focused,
     at: () => inPanel(),
     rows: [
       {

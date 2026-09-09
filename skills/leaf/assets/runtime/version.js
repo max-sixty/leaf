@@ -445,6 +445,7 @@ keys(
 // row (`version.close`), which runs the same close.
 export const VERSIONS = {
   title: "In the versions menu",
+  root: () => versionMenu,
   when: versionsOffered,
   at: versionMenuIsOpen,
   // A mode over the page suspends the page, which the two modes above this one always did

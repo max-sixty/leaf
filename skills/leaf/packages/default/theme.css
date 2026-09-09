@@ -90,7 +90,7 @@
     box-sizing: border-box;
     width: 100cqi;
     max-width: none;
-    height: calc(100vh - var(--lf-banner-h) - var(--lf-shortcut-bar-clear, 0px));
+    height: calc(100vh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px));
     margin: 0;
     padding: 0 var(--col-pad);
     left: 0;

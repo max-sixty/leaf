@@ -112,16 +112,15 @@ def test_postmortem_summary_is_addressable_and_baseline_aligned(browser, serve):
     page.close()
 
 
-def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
-    """An example that ships a companion log opens mid-conversation.
+def test_a_shipped_log_replays_its_example_state(browser, serve):
+    """An example that ships a companion log opens with its event state.
 
-    A thread is the one thing the corpus could not hold: it is log state, no markup
-    describes one, and `version export` drops the layer that draws it — so a static
-    copy cannot carry a thread however it is written, and for a long time nothing
-    under examples/ showed the comment loop at all. What an example *can* ship is
-    the log itself, beside it, exactly as one that wants a screenshot ships the
-    bytes beside it. `scripts/preview.py <example>` is then a page that opens on a
-    real exchange rather than an empty panel.
+    Threads and reader decisions are log state: markup alone cannot describe what
+    happened, and `version export` drops the layer that draws it. What an example
+    *can* ship is the log itself, beside it, exactly as one that wants a screenshot
+    ships the bytes beside it. `scripts/preview.py <example>` then opens with those
+    events replayed. A thread-bearing log opens mid-conversation; an action-only log
+    can replay a page-owned decision without inventing a conversation.
 
     The anchor in that log is the part that can rot quietly. It is captured from
     the mapped revision, and it has to name the same passage once the browser has
@@ -150,6 +149,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
     assert seeded, "no corpus source ships a log; this gate is reading nothing"
     drawn = []
     decided = []
+    replied = []
     read_as = {}  # widget id -> how it reads with the log's decision standing
 
     for example in seeded:
@@ -163,7 +163,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
             .split("\n")
             if line.strip()
         ]
-        assert len(events) >= 2, f"{example.stem}: a thread is a comment and a reply"
+        assert events, f"{example.stem}: the shipped log is empty"
 
         page, errors = open_page(browser, url)
         logged = events_model.read_events(serve.page_dir)
@@ -310,7 +310,7 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
             if datum := event["anchor"].get("datum"):
                 target = target.locator(f"[data-lf-datum={json.dumps(datum)}]")
             expect(target).to_have_class(re.compile(r"\blf-mark-el\b"))
-        # The exchange is both voices, and the mark is on the words the log named.
+        # Where the log carries an exchange, its agent voice reaches the thread.
         for event in quoted:
             quote = event["anchor"]["quote"]
             painted = re.sub(
@@ -325,7 +325,13 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
                 f"{example.stem}: `{quote}` is quoted in the shipped log and painted "
                 f"nowhere on the page; the mark reads {painted[:120]!r}"
             )
-        expect(page.locator(".lf-thread .lf-msg.claude")).not_to_have_count(0)
+        # An action-only log owes no thread: inventing one would misstate the history
+        # whose decisions this same gate is meant to replay.
+        if any(
+            event["kind"] == "reply" and event["author"] == "claude" for event in events
+        ):
+            replied.append(example.stem)
+            expect(page.locator(".lf-thread .lf-msg.claude")).not_to_have_count(0)
 
         # The other thing a log carries. A widget can arrive as a message's markup
         # rather than as authored page content, and it draws in the body the panel
@@ -470,6 +476,10 @@ def test_a_shipped_log_opens_its_example_on_a_live_thread(browser, serve):
         "question is seeded and the answer is not, so every sweep reads that "
         "widget untouched and nothing here exercises the panel's own fold."
     )
+    assert replied, (
+        "no shipped log carries an agent reply, so no example exercises the live "
+        "thread exchange that authored markup and static export cannot represent"
+    )
 
 
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
@@ -488,7 +498,7 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     # exactly those quotes; a seeded thread paints into the same highlight and
     # every example that ever ships one would read as painting text it does not
     # name. The seeded anchor has its own reader in
-    # test_a_shipped_log_opens_its_example_on_a_live_thread.
+    # test_a_shipped_log_replays_its_example_state.
     html = source.read_text()
     url = serve(source, seed_log=False)
     d = serve.page_dir

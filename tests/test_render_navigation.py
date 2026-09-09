@@ -324,11 +324,52 @@ def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
     page.close()
 
 
-def test_thread_travel_reveals_an_inactive_tab_in_its_pane_only(browser, serve):
+def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
+    browser, serve
+):
+    example = next(e for e in EXAMPLES if e.stem == "review-queue")
+    page, errors = open_page(browser, serve(example))
+    resized(page, 1100, 520)
+    queue = page.locator("#review-queue .lf-pane-body")
+    detail = page.locator("#review-detail .lf-pane-body")
+    links = queue.locator('nav[aria-label="Review items"] a')
+    assert links.count() == 8
+    assert page.get_by_role("tab").count() == 0
+    assert (
+        links.evaluate_all("els => new Set(els.map(el => el.hash)).size")
+        == page.locator("#review-items > section").count()
+    )
+
+    billing = links.filter(has_text="Billing reconciliation")
+    billing.scroll_into_view_if_needed()
+    billing.focus()
+    queue_before = queue.evaluate("el => el.scrollTop")
+    detail_before = detail.evaluate("el => el.scrollTop")
+    events_before = events_model.read_events(serve.page_dir)
+
+    page.keyboard.press("Enter")
+    page.wait_for_url(re.compile(r"#review-billing$"))
+    expect(page.locator("#review-billing")).to_be_in_viewport()
+    assert detail.evaluate("el => el.scrollTop") > detail_before
+    assert queue.evaluate("el => el.scrollTop") == queue_before
+    assert events_model.read_events(serve.page_dir) == events_before
+    assert errors == []
+    page.close()
+
+
+def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
     example = next(e for e in EXAMPLES if e.stem == "review-queue")
     page, errors = open_page(
         browser,
-        serve(example, anchored=[("review-cache", "old keys authoritative")]),
+        serve(
+            example,
+            anchored=[
+                (
+                    "review-cache",
+                    "The deploy copies active entries to the new key format before readers",
+                )
+            ],
+        ),
     )
     resized(page, 1400, 900)
     queue = page.locator("#review-queue .lf-pane-body")
@@ -340,14 +381,87 @@ def test_thread_travel_reveals_an_inactive_tab_in_its_pane_only(browser, serve):
     detail.evaluate("el => el.scrollTop = el.scrollHeight")
     detail_before = detail.evaluate("el => el.scrollTop")
     assert detail_before > 0
-    expect(page.locator("#review-cache")).to_be_hidden()
+    expect(page.locator("#review-cache")).not_to_be_in_viewport()
 
     page.locator(".lf-threads-toggle").click()
     page.locator(".lf-thread .lf-quote").click()
-    expect(page.locator("#review-cache")).to_be_visible()
     expect(page.locator("#review-cache")).to_be_in_viewport()
     assert detail.evaluate("el => el.scrollTop") < detail_before
     assert queue.evaluate("el => el.scrollTop") == queue_before
+    assert errors == []
+    page.close()
+
+
+def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyboard(
+    browser, serve
+):
+    example = next(e for e in EXAMPLES if e.stem == "review-queue")
+
+    seeded = serve(example)
+    first = seeded.replace("/versions/v2.html", "/versions/v1.html")
+    page, errors = open_page(browser, first)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
+    assert errors == []
+    page.close()
+
+    newest = serve(example, seed_log=False)
+    first = newest.replace("/versions/v2.html", "/versions/v1.html")
+    page, errors = open_page(browser, first)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/2")
+    expect(page.locator("#review-cache-auto")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#review-billing-legacy")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache")).to_contain_text(
+        "A failed copy leaves the old keys authoritative"
+    )
+    expect(page.locator("#review-billing-difference h4")).to_have_text(
+        "Open difference"
+    )
+    footer = page.locator("#review-detail > footer")
+    expect(footer).to_contain_text("This revision asks two release-blocking questions")
+    expect(footer).to_contain_text(
+        "submitted answers are incorporated in the next revision"
+    )
+
+    page.keyboard.press("a")
+    expect(page.locator("#review-cache-decision")).to_be_focused()
+    with sending(page, "the cache rollback decision"):
+        page.keyboard.press("1")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
+
+    page.keyboard.press("a")
+    expect(page.locator("#review-billing-decision")).to_be_focused()
+    with sending(page, "the billing reconciliation decision"):
+        page.keyboard.press("1")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
+    expect(footer).to_contain_text("This revision asks two release-blocking questions")
+
+    page.goto(live_url(newest))
+    page.wait_for_function(RENDERED)
+    expect(page.locator(".lf-version")).to_have_text("v2")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache")).to_contain_text(
+        "returns readers to the old keys automatically"
+    )
+    expect(page.locator("#review-billing-difference h4")).to_have_text(
+        "Legacy difference stays on its reporting path"
+    )
+    expect(page.locator("#review-detail > footer")).to_contain_text(
+        "This revision incorporates both answers"
+    )
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/0")
+
+    actions = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ]
+    assert [event["detail"]["options"] for event in actions] == [
+        ["review-cache-auto"],
+        ["review-billing-legacy"],
+    ]
     assert errors == []
     page.close()
 
@@ -749,6 +863,78 @@ def test_the_feature_gallery_exercises_an_inline_diff_thread(browser, serve):
     details.evaluate("element => { element.open = true; }")
     expect(thread).to_have_count(1)
     expect(markers).to_have_count(baseline)
+
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(
+        page.locator(
+            ".lf-margin-preview .lf-conversation-thread"
+            '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
+        )
+    ).to_be_focused()
+    page.keyboard.press("t")
+    expect(
+        page.locator(
+            ".lf-margin-preview .lf-conversation-thread"
+            '[data-thread="a554d5e884abffdb6494a2fb90b0634f"]'
+        )
+    ).to_be_focused()
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    assert errors == []
+    page.close()
+
+
+def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, serve):
+    """A contextual thread has one side and only lives while its anchor is visible."""
+    page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    card = page.locator(".lf-margin-preview")
+    expect(
+        card.locator(
+            '.lf-conversation-thread[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
+        )
+    ).to_be_focused()
+    owner = page.locator(
+        '.lf-margin-marker[data-lf-kinds~="comment"]'
+        '[aria-controls="lf-margin-preview"][aria-expanded="true"]:not([hidden])'
+    ).locator("xpath=..")
+    expect(owner).to_be_visible()
+    expect(card).to_have_attribute("data-lf-thread-placement", "right")
+
+    initial = owner.bounding_box()
+    assert initial["y"] + initial["height"] > 50
+    assert initial["y"] < 900
+    page.evaluate("distance => scrollBy(0, distance)", min(160, initial["y"] - 80))
+    page.wait_for_function(
+        """() => {
+          const owner = document.querySelector(
+            '.lf-margin-marker[data-lf-kinds~="comment"]' +
+            '[aria-controls="lf-margin-preview"][aria-expanded="true"]:not([hidden])'
+          )?.parentElement?.getBoundingClientRect();
+          return owner && owner.bottom > 50 && owner.top < innerHeight;
+        }"""
+    )
+    expect(card).to_be_visible()
+    expect(card).to_have_attribute("data-lf-thread-placement", "right")
+
+    page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
+    expect(card).to_be_hidden()
+
+    marker = page.locator(
+        '.lf-margin-marker[data-lf-kinds~="comment"]:not([hidden])'
+    ).first
+    marker.scroll_into_view_if_needed()
+    marker.click()
+    expect(card).to_be_visible()
+    page.evaluate("() => scrollTo(0, 0)")
+    expect(card).to_be_hidden()
 
     assert errors == []
     page.close()
@@ -1619,7 +1805,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
 
 
 def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
-    """t/T use page-local threads; g T promotes the focused one into the index."""
+    """t/T use page-local threads; panel search uses n/N for its found list."""
     page, errors = open_page(
         browser,
         serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
@@ -1654,7 +1840,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_visible()
     position = page.locator(".lf-walk-position")
     page.locator(".lf-threads").focus()
-    page.keyboard.press("t")
+    page.keyboard.press("n")
     expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_focused()
     expect(position).to_have_text("Thread 1 of 1 shown")
     expect(position.locator("xpath=parent::*")).to_have_class(
@@ -1897,12 +2083,20 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
           const own = el.getBoundingClientRect();
           const inset = parseFloat(getComputedStyle(el).paddingTop);
           const control = el.querySelector(':scope > .lf-resolve').getBoundingClientRect();
-          const head = el.querySelector(
+          const headNode = el.querySelector(
             ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
-          ).getBoundingClientRect();
+          );
+          const head = headNode.getBoundingClientRect();
+          const author = headNode.querySelector('b').getBoundingClientRect();
+          const bodyNode = el.querySelector(
+            ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-body'
+          );
+          const body = bodyNode.getBoundingClientRect();
           return {controlTop: control.top, expectedTop: own.top + inset,
                   controlBottom: control.bottom, headTop: head.top,
-                  headBottom: head.bottom};
+                  headBottom: head.bottom, authorBottom: author.bottom,
+                  bodyTop: body.top,
+                  bodyMargin: parseFloat(getComputedStyle(bodyNode).marginTop)};
         }"""
     )
     assert placement["controlTop"] == pytest.approx(placement["expectedTop"], abs=1)
@@ -1912,6 +2106,9 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     assert placement["headTop"] < placement["controlBottom"], (
         f"Resolve took a row above the first inline message: {placement}"
     )
+    assert placement["bodyTop"] - placement["authorBottom"] == pytest.approx(
+        placement["bodyMargin"], abs=1
+    ), f"the first inline message has extra space below its author: {placement}"
 
     clearances = thread.evaluate(
         """el => {
@@ -1936,8 +2133,9 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
 def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     browser, serve, long_thread
 ):
-    """Opening a thread by pointer is ready for a reply. Escape explicitly leaves
-    typing; only then does t navigate. The page mark follows both focus modes."""
+    """Pointer arrival opens one layer directly in its reply box. A thread reached by
+    t opens on its card, so c or Enter adds a second layer and Escape returns through
+    each one. The page mark follows both focus modes."""
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
     )
@@ -1988,11 +2186,24 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     assert "reply" in shortcut_bar_text(page)
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to thread")
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
     page.keyboard.press("t")
     expect(second).to_be_focused()
     wait_standing(page, "neighbouring block")
     page.keyboard.press("Enter")
     expect(second.locator("textarea")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(second).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.keyboard.press("Shift+t")
@@ -2006,6 +2217,9 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     # With Threads already open, the same page mark takes the indexed route and keeps
     # the panel's long-thread landing guarantees.
     page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     panel_thread = threads.first
@@ -6887,6 +7101,8 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator("body")).to_have_attribute("data-composer-shortcut-clicks", "1")
     expect(composer).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
     controls = page.locator(".lf-draft-controls[data-lf-for='plan']")
     controls.get_by_role("button", name="Edit").click()

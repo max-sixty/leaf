@@ -31,6 +31,7 @@ import { paintAcknowledgments, threadList } from "./reconcile.js";
 // saying so while the banner went on counting the Ask was one fact told two ways.
 let finding = "";
 let onlyNeedsYou = false;
+export const threadSearchActive = () => Boolean(finding);
 export const narrowed = () => Boolean(finding) || onlyNeedsYou;
 
 // What a search reads: everything the panel shows of a thread, plus the part of the page

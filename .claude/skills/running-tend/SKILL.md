@@ -96,7 +96,7 @@ you have. Sort on what the failure is.
 
 Run `/ui-sweep` before dependency maintenance. This is the discovery pass for visual
 and interaction behavior the suite has no stated invariant for yet. Follow its
-**Fix and pin** route: a reproduced defect becomes a tested repair, while a design
+**Reconcile** route: a reproduced defect becomes a tested repair, while a design
 judgment stays in the run report.
 
 ## Weekly: vendored browser dependencies

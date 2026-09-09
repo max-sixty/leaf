@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlencode, urljoin, urlsplit
 
 from leaf.render_gate.browser import launch_browser
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -69,6 +70,29 @@ def check(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
+def unpresented(url: str, reached: list[str], failures: list[str]) -> str:
+    """What a page that never presented has to say for the next reader of a red run.
+
+    Presentation is every later check's precondition, so the timeout is where this
+    gate stops, and the run log has held only the wait's own traceback: not the page
+    that stalled, and not how far it got. `PROFILE_SCRIPT` already records each
+    startup stamp as it lands, and the two stamps separate the two ways to stall —
+    an upgrade that never settled leaves none, while a first state read that never
+    answered leaves `upgraded` standing alone.
+    """
+    milestones = ", ".join(reached) if reached else "no startup milestone"
+    reported = f"; browser errors: {failures}" if failures else ""
+    return f"{url} never presented, reaching {milestones}{reported}"
+
+
+def await_presentation(page, url: str, failures: list[str]) -> None:
+    try:
+        page.locator("body[data-lf-presented]").wait_for(timeout=30_000)
+    except PlaywrightTimeout:
+        reached = page.evaluate("() => Object.keys(window.__leafStartup ?? {})")
+        raise RuntimeError(unpresented(url, reached, failures)) from None
+
+
 def activation_url(page_url: str, state: dict) -> str:
     """A canonical private read at the boundary named by passive state."""
     events = state.get("events") or []
@@ -96,7 +120,7 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
     url = urljoin(f"{ORIGIN}/", path.lstrip("/"))
     response = page.goto(url, wait_until="load", timeout=120_000)
     check(response is not None and response.ok, f"{url} did not load")
-    page.locator("body[data-lf-presented]").wait_for(timeout=30_000)
+    await_presentation(page, url, failures)
 
     identity = page.locator("script[data-lf-runtime]").evaluate(
         "script => ({layer: script.dataset.lfLayer, release: script.dataset.lfRelease})"
@@ -235,9 +259,10 @@ def verify_cross_tab_activation(browser) -> None:
     leader = context.new_page()
     follower = context.new_page()
     for page in (leader, follower):
+        page.add_init_script(PROFILE_SCRIPT)
         response = page.goto(url, wait_until="load", timeout=120_000)
         check(response is not None and response.ok, f"{url} did not load")
-        page.locator("body[data-lf-presented]").wait_for(timeout=30_000)
+        await_presentation(page, url, [])
     follower.evaluate(
         """() => {
           window.__leafActivated = 0;

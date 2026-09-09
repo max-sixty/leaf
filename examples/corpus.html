@@ -2567,7 +2567,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                 </li>
                 <li>
                   <a href="#review-cache"><strong>Cache migration</strong></a>
-                  <p>Needs rollback review · stored data · high risk</p>
+                  <p>Ready · automatic rollback · high risk</p>
                 </li>
                 <li>
                   <a href="#review-email"><strong>Receipt email</strong></a>
@@ -2579,7 +2579,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                 </li>
                 <li>
                   <a href="#review-search"><strong>Order search</strong></a>
-                  <p>Needs accessibility check · support workflow · low risk</p>
+                  <p>Accessibility reviewed · support workflow · low risk</p>
                 </li>
                 <li>
                   <a href="#review-worker"><strong>Settlement worker</strong></a>
@@ -2587,7 +2587,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                 </li>
                 <li>
                   <a href="#review-billing"><strong>Billing reconciliation</strong></a>
-                  <p>Needs sample comparison · monthly close · high risk</p>
+                  <p>Ready · legacy reporting path · high risk</p>
                 </li>
                 <li>
                   <a href="#review-webhook"><strong>Webhook delivery</strong></a>
@@ -2609,8 +2609,8 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
 
           <lf-pane id="review-detail" label="Selected item">
             <header><h2>Details</h2></header>
-            <lf-tabs id="review-items">
-              <lf-tab id="review-auth" label="Authentication retry">
+            <div id="review-items">
+              <section id="review-auth">
                 <h3>Authentication retry</h3>
                 <dl>
                   <dt>Status</dt>
@@ -2652,19 +2652,38 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                   credential data. Requests then follow the previous single-attempt
                   path.
                 </p>
-              </lf-tab>
-              <lf-tab id="review-cache" label="Cache migration">
+              </section>
+              <section id="review-cache">
                 <h3>Cache migration</h3>
                 <p>
                   The deploy copies active entries to the new key format before readers
-                  switch. A failed copy leaves the old keys authoritative.
+                  switch. It mirrors writes for 24 hours and returns readers to the old
+                  keys automatically if the post-switch counts diverge.
                 </p>
                 <pre><code>copy active keys
 verify counts
 switch readers
+mirror writes 24h
 expire old keys</code></pre>
-              </lf-tab>
-              <lf-tab id="review-email" label="Receipt email">
+                <lf-ask id="review-cache-decision">
+                  <h4>What should happen if post-switch verification fails?</h4>
+                  <p>
+                    Both choices keep the old keys available while the migration is
+                    checked.
+                  </p>
+                  <lf-options id="review-cache-rollback" choose settled>
+                    <lf-option id="review-cache-auto" chosen>
+                      <strong>Switch readers back automatically</strong> Mirror writes
+                      for 24 hours, then return to the old keys if counts diverge.
+                    </lf-option>
+                    <lf-option id="review-cache-hold">
+                      <strong>Stop for operator review</strong> Keep readers on the new
+                      keys until an operator inspects the mismatch.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </section>
+              <section id="review-email">
                 <h3>Receipt email</h3>
                 <p>
                   Refund receipts now show the original charge and the refunded amount
@@ -2675,8 +2694,8 @@ expire old keys</code></pre>
                   <li>Repeated refunds list each settlement separately.</li>
                   <li>Failed sends remain available for retry.</li>
                 </ul>
-              </lf-tab>
-              <lf-tab id="review-export" label="Ledger export">
+              </section>
+              <section id="review-export">
                 <h3>Ledger export</h3>
                 <p>
                   The exporter writes numeric amounts without display formatting and
@@ -2688,16 +2707,16 @@ expire old keys</code></pre>
                     Readers accept the previous schema until the new batch is verified.
                   </p>
                 </details>
-              </lf-tab>
-              <lf-tab id="review-search" label="Order search">
+              </section>
+              <section id="review-search">
                 <h3>Order search</h3>
                 <p>
                   Archived orders follow the existing filter instead of disappearing
                   when a customer narrows by status.
                 </p>
                 <p>Pagination retains the filter on every subsequent request.</p>
-              </lf-tab>
-              <lf-tab id="review-worker" label="Settlement worker">
+              </section>
+              <section id="review-worker">
                 <h3>Settlement worker</h3>
                 <p>
                   Jobs that fail validation leave the shared queue and enter a review
@@ -2705,8 +2724,8 @@ expire old keys</code></pre>
                 </p>
                 <pre><code>validate -> settle
         -> review</code></pre>
-              </lf-tab>
-              <lf-tab id="review-billing" label="Billing reconciliation">
+              </section>
+              <section id="review-billing">
                 <h3>Billing reconciliation</h3>
                 <p>
                   The close job compares settlement totals with the ledger before it
@@ -2720,16 +2739,33 @@ expire old keys</code></pre>
                   <li>A settlement converted into the reporting currency.</li>
                   <li>A late adjustment received during the comparison.</li>
                 </ul>
-                <details id="review-billing-difference">
-                  <summary>Open difference</summary>
+                <div id="review-billing-difference">
+                  <h4>Legacy difference stays on its reporting path</h4>
                   <p>
-                    One legacy invoice rounds tax before currency conversion. The sample
-                    must establish whether it belongs in the old reporting path or needs
-                    a corrected ledger entry.
+                    One legacy invoice rounds tax before currency conversion. It remains
+                    in the old reporting path, so the current run closes without
+                    changing the historical ledger entry.
                   </p>
-                </details>
-              </lf-tab>
-              <lf-tab id="review-webhook" label="Webhook delivery">
+                </div>
+                <lf-ask id="review-billing-decision">
+                  <h4>Where should the legacy invoice be reconciled?</h4>
+                  <p>
+                    The one-cent difference is confined to invoices created before the
+                    reporting migration.
+                  </p>
+                  <lf-options id="review-billing-path" choose settled>
+                    <lf-option id="review-billing-legacy" chosen>
+                      <strong>Keep it on the old reporting path</strong> Close the
+                      current run without changing the historical ledger entry.
+                    </lf-option>
+                    <lf-option id="review-billing-correct">
+                      <strong>Correct the ledger entry</strong> Move the invoice into
+                      the new path after finance approves the adjustment.
+                    </lf-option>
+                  </lf-options>
+                </lf-ask>
+              </section>
+              <section id="review-webhook">
                 <h3>Webhook delivery</h3>
                 <p>
                   Delivery attempts retain the event id across retries. Partners can
@@ -2739,11 +2775,13 @@ expire old keys</code></pre>
                   The retry schedule and signing secret remain unchanged. The release
                   adds the stable id to the documented request body.
                 </p>
-              </lf-tab>
-            </lf-tabs>
+              </section>
+            </div>
             <footer>
               <p>
-                Review closes when the cache rollback and billing sample are resolved.
+                <strong>Review closed.</strong> This revision incorporates both answers:
+                automatic cache rollback and the legacy billing reporting path. All
+                eight items are ready for the 2.8 release.
               </p>
             </footer>
           </lf-pane>

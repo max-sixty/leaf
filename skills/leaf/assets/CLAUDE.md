@@ -477,6 +477,9 @@ widget whose module changes text in a way the file cannot reproduce is fenced.
 `rememberPassageParts` indexes these boundaries before upgrade, and browser
 capture clips context to the same declared boundary after upgrade. A selection
 crossing a fence is not captured as a quote the file cannot later confirm.
+Each preserving owner also receives its source and document-order occurrence before
+upgrade. The file reader derives that same provenance for page markup and each frozen
+thread event, so anonymous owners and their nested widget boundaries remain distinct.
 
 Do not broaden the Python reader by guessing a module's DOM. Declare modelable
 words with `x-says`, `x-paints`, or the appropriate content key. Keep the widget
@@ -547,8 +550,12 @@ shortcut bar, `?` reference, control tooltips, and announcements are projections
 those objects.
 
 Treat that register as a product grammar, not a collection of locally convenient
-shortcuts. Before adding or changing a binding, survey the complete register for
-meaning, scope, native overlap, entry and exit symmetry, and focus restoration.
+shortcuts. A binding belongs only when its key is the canonical spelling for that action
+in the active scope. Reusing a key in a nearer scope must preserve that meaning; a
+familiar alternative or an unused key does not justify an alias, because every binding
+spends the scope's namespace. Before adding or changing a binding, survey the complete
+register for meaning, scope, native overlap, entry and exit symmetry, and focus
+restoration.
 Each generated hint names the exact visible control it activates. An aggregate location
 may expose each of its visible margin elements or focus itself; it never selects a descendant
 action for the reader. A press a widget built is one of those controls too, read off the
@@ -595,9 +602,11 @@ walks open asks. Both walks clamp at their first and last items. Keep these as s
 presses rather than prefix sequences; a walk is often repeated or held. The thread walk
 uses inline thread roots while Threads is closed and panel cards while it is open; only a
 thread with no page or widget-local inline address opens the complete index as a fallback.
-After Enter accepts a `/` page search, `n` selects its next match and `N` selects its
-previous match. Letters remain query text while the search input has focus; Tab and
-Shift-Tab walk its matches before acceptance.
+An active textual search in the thread panel instead owns `n`/`N`: those keys enter the
+found list from its container and then walk its matches, while `t`/`T` stands down so the
+motion has one spelling in that scope. For page search, Enter accepts the current match and
+`n`/`N` walks the next or previous one. Letters remain query text while a search input has
+focus; Tab and Shift-Tab walk page-search matches before acceptance.
 While the reader stands anywhere in an Ask, its widget's
 ordered actions keep a canonical binding where they declare one and otherwise take the
 next free `1`–`9`. Core projects that exact list into the shortcut bar and visible control
@@ -641,9 +650,10 @@ reading, and `g` opens its destinations. A surface holds the presses
 whose
 subject is that surface's own
 contents, because contents the reader is not looking at are not a thing to act
-on: `w` narrows the thread panel's list and `/` searches it, and both live in
-`PANEL`. The page's alphabet is small and every letter spent there is spent on
-every page, so a letter earns page scope only by acting on the page.
+on: `w` narrows the thread panel's list, while `/` searches it and `n`/`N` walk
+the results. Those bindings live in `PANEL`. The page's alphabet is small and every
+letter spent there is spent on every page, so a letter earns page scope only by acting
+on the page.
 
 A surface may also hold the contextual form of a page intent. `c` always means
 comment; its destination follows what the reader is standing on. From the Threads

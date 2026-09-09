@@ -1302,6 +1302,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding-inline-end: calc(max(28px, var(--aim-floor)) + 8px); }
   :is(.lf-thread, .lf-going):not(:has(> .lf-quote)):has(> .lf-resolve)
     > .lf-msg:first-of-type > .lf-msg-head {
+    align-items: last baseline;
     min-height: max(28px, var(--aim-floor));
     padding-inline-end: calc(max(28px, var(--aim-floor)) + 8px); }
   .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
@@ -1705,15 +1706,14 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding-inline: 12px; overflow: hidden; pointer-events: none;
     white-space: pre-wrap; }
   .lf-thread-transition-text { display: block; }
-  /* The conversation has its fixed position measured from its margin element: the card also
-     changes the document's container posture, and asking both layout systems to
-     resolve that boundary can leave the browser oscillating between the two. */
+  /* The conversation has its fixed position measured from its margin controls. JS
+     chooses a free side margin when one exists and otherwise overlays the document;
+     neither placement changes the page's container posture. */
   .lf-margin-preview[data-lf-thread] { position-anchor: auto; position-area: none;
     position-try-fallbacks: none;
     inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) auto auto
       var(--lf-thread-left, 8px);
-    width: min(var(--thread-card),
-      var(--lf-thread-width, calc(100vw - var(--lf-thread-left, 8px) - 8px)));
+    width: min(var(--lf-thread-width, var(--thread-card)), calc(100vw - 16px));
     max-height: var(--lf-thread-max-height,
       calc(100vh - var(--lf-banner-h) - 16px)); margin: 0; }
   .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
@@ -1920,13 +1920,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
   .lf-legend-tag { position: absolute; left: -1px; bottom: 100%; max-width: 40vw;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    padding: 0 5px; border-radius: 3px 3px 0 0; font-size: var(--t-6); line-height: 1.5;
+    padding: 0 5px; font-size: var(--t-6); line-height: 1.5;
     background: color-mix(in srgb, var(--accent) 12%, var(--card)); color: var(--accent);
     border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); border-bottom: 0; }
   /* Under the banner there is no room above the box, so the tag sits inside its
      corner instead. */
-  .lf-legend-box.lf-in .lf-legend-tag { bottom: auto; top: 0; border: 0;
-    border-radius: 0 0 3px 0; }
+  .lf-legend-box.lf-in .lf-legend-tag { bottom: auto; top: 0; border: 0; }
   .lf-banner:is(.lf-designing, .lf-drawing) {
     background: color-mix(in srgb, var(--accent) 14%, var(--veil)); }
   /* Document-anchored like the box it names (paintInspect adds the scroll), so the

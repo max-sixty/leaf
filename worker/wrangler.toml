@@ -44,7 +44,7 @@ name = "SOURCE_AGENT_RATE_LIMITER"
 namespace_id = "34302"
 
   [ratelimits.simple]
-  limit = 100
+  limit = 20
   period = 60
 
 [[migrations]]

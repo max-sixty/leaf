@@ -754,9 +754,15 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     composer = seat.locator(":scope > .lf-say textarea")
     words = "keep this first message" if draft else ""
     composer.fill(words)
-    selection = [3, 12, "backward"] if draft else [0, 0, "none"]
     composer.evaluate(
-        "(input, selection) => input.setSelectionRange(...selection)", selection
+        "(input, selection) => input.setSelectionRange(...selection)",
+        [3, 12, "backward"] if draft else [0, 0, "none"],
+    )
+    # Read the arrangement back rather than pinning the literal that made it: Chromium
+    # reports a collapsed selection as `forward` whichever direction set it, so the
+    # restored reading is compared with the one the browser actually held.
+    selection = composer.evaluate(
+        "input => [input.selectionStart, input.selectionEnd, input.selectionDirection]"
     )
     expect(composer).to_be_focused()
 

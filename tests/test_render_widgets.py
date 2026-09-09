@@ -6,10 +6,13 @@ from pathlib import Path
 
 import pytest
 from interact_support import append_command
+from leaf import conversation as conversation_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
+from leaf import service as service_model
+from leaf import session as session_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
@@ -2569,7 +2572,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     )
     actions = playground.locator(":scope > .lf-playground-actions")
 
-    resized(page, 1100, 700)
+    resized(page, 1100, 520)
     expect(workspace).to_have_attribute("data-lf-posture", "bounded")
     expect(actions).to_be_visible()
     bounded = page.evaluate(
@@ -2592,10 +2595,6 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
             askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
             furnitureEdgesTrimmed: [
               getComputedStyle(document.querySelector(
-                '#notification-workspace > header > :first-child')).marginTop,
-              getComputedStyle(document.querySelector(
-                '#notification-workspace > header > :last-child')).marginBottom,
-              getComputedStyle(document.querySelector(
                 '#notification-ask > :first-child')).marginTop,
             ].every(margin => margin === '0px'),
             authoredWords: leaf.wrote(playground).includes('Version 2.8.0'),
@@ -2617,6 +2616,10 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         "authoredWords": True,
         "spokenWords": True,
     }
+    assert bounded["controlsSize"][0] >= 250, (
+        "the page title and Ask should leave at least three control rows visible "
+        f"in the short workspace, got {bounded['controlsSize']}"
+    )
     # A short allocation scrolls the preview and instruction as successive blocks;
     # shrinking the preview's grid track would paint it underneath the instruction.
     content_boxes = preview.evaluate(
@@ -2668,7 +2671,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     assert preview_box["y"] + preview_box["height"] <= instruction_box["y"]
     page.locator(".lf-threads-toggle").click()
 
-    resized(page, 1100, 420)
+    resized(page, 1100, 300)
     expect(workspace).to_have_attribute("data-lf-posture", "flow")
     resized(page, 500, 900)
     expect(workspace).to_have_attribute("data-lf-posture", "flow")
@@ -2698,6 +2701,239 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         "stacked": True,
         "askDisplay": "block",
     }
+    assert errors == []
+    page.close()
+
+
+def test_notification_configuration_becomes_a_commentable_local_artifact(
+    browser, serve
+):
+    """The example's instruction is a complete task through Leaf's existing loop.
+
+    A playground action enters the ordinary event log, pickup and a work claim use the
+    same delivery projection as a host agent, and the agent writes a real local file.
+    The page exposes that file through data, then a reader comment changes the file and
+    remains anchored on the revised result.
+    """
+    source_path = (
+        Path(__file__).parents[1] / "examples" / "notification-playground.html"
+    )
+    source = source_path.read_text(encoding="utf-8")
+    page, errors = open_page(browser, live_url(serve(source_path)))
+    playground = page.locator("#notification-playground")
+
+    playground.get_by_role("button", name="Needs attention").click()
+    page.locator('lf-playground-control[name="title"] input').fill(
+        "Checkout needs attention"
+    )
+    expect(page.locator("#notification-card")).to_contain_text(
+        "Review the deployment run and current service health."
+    )
+    expect(page.locator("#notification-card")).not_to_contain_text(
+        "Deployment complete"
+    )
+    with sending(page, "the notification configuration"):
+        playground.get_by_role("button", name="Send configuration").click()
+    # A choose is replaceable until the host stamps its result. Keep that legitimate
+    # update route, but label it as sending configuration rather than creating twice.
+    expect(playground.get_by_role("button", name="Send configuration")).to_be_enabled()
+    action = next(
+        event
+        for event in reversed(sent_events(serve.page_dir))
+        if event.get("widget") == "notification-playground"
+    )
+    assert action["detail"]["values"] == {
+        "accent": "#b6533c",
+        "compact": True,
+        "radius": 10,
+        "show-owner": True,
+        "title": "Checkout needs attention",
+        "tone": "urgent",
+    }
+    assert action["detail"]["instruction"] == (
+        "Create deployment-notification.html, capture it as notification-artifact, "
+        "then revise this page with the generated source below Original configuration."
+    )
+
+    logged_action = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["id"] == action["id"]
+    )
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        session_model.record_pickup(
+            transaction,
+            [logged_action],
+            session="notification-agent",
+            turn="create-artifact",
+        )
+    session_model.cmd_ack(serve.page_dir, logged_action["seq"])
+    session_model.cmd_status(
+        serve.page_dir,
+        "working",
+        "creating deployment-notification.html",
+        on="notification-playground",
+    )
+    told(page)
+    expect(
+        page.locator('[data-lf-margin-for="notification-playground"] .lf-margin-marker')
+    ).to_have_attribute("aria-label", re.compile("creating deployment-notification"))
+
+    artifact = serve.page_dir / "deployment-notification.html"
+    first_artifact = """<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Checkout needs attention</title>
+<style>
+body { font-family: system-ui, sans-serif; }
+.notification { border-left: 5px solid #b6533c; border-radius: 10px; padding: 8px 12px; }
+</style>
+<article class="notification">
+  <h1>Checkout needs attention</h1>
+  <p>Version 2.8.0 changed the checkout service. Review the deployment run and current service health.</p>
+  <p><strong>Owner:</strong> Payments platform</p>
+</article>
+</html>
+"""
+    artifact.write_text(first_artifact, encoding="utf-8")
+    artifact_binding = """              <section id="notification-artifact" hidden>
+                <lf-source
+                  id="notification-artifact-source"
+                  source="notification-artifact"
+                  language="html"
+                ></lf-source>
+              </section>
+"""
+    result_source = (
+        source.replace(artifact_binding, "")
+        .replace(
+            '      <lf-workspace id="notification-workspace">',
+            """      <h1>Review the deployment notification</h1>
+      <details id="notification-configuration">
+        <summary>Original configuration</summary>
+        <lf-workspace id="notification-workspace">""",
+        )
+        .replace(
+            "      </lf-workspace>",
+            """        </lf-workspace>
+      </details>
+      <section id="notification-artifact">
+        <lf-source
+          id="notification-artifact-source"
+          source="notification-artifact"
+          language="html"
+        ></lf-source>
+      </section>""",
+            1,
+        )
+    )
+    data_model.cmd_data_capture(
+        serve.page_dir,
+        "notification-artifact",
+        artifact,
+        label="deployment-notification.html",
+    )
+    first_result = stamp_page(
+        serve.page_dir,
+        result_source,
+        "Created deployment-notification.html",
+        completes=("notification-playground",),
+    )
+    wait_for_revision(page, first_result["revision"])
+
+    source_widget = page.locator("#notification-artifact-source")
+    expect(source_widget).to_be_visible()
+    assert source_widget.evaluate(
+        "source => source.closest('lf-playground-preview') === null"
+    )
+    expect(source_widget.locator("code")).to_contain_text(
+        "<title>Checkout needs attention</title>"
+    )
+    expect(
+        page.locator('[data-lf-margin-for="notification-playground"]')
+    ).to_have_count(0)
+
+    configuration = page.locator("#notification-configuration")
+    expect(configuration).to_have_attribute("open", "")
+    configuration.locator(":scope > summary").click()
+    expect(configuration).not_to_have_attribute("open", "")
+    configuration.locator(":scope > summary").click()
+    receipt_copy = page.locator("#notification-card > p").first
+    expect(receipt_copy).to_be_visible()
+    receipt_copy.select_text()
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill(
+        "Add a link to the deployment run without changing this receipt copy."
+    )
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    comment = next(
+        event
+        for event in reversed(sent_events(serve.page_dir))
+        if event["kind"] == "comment"
+    )
+    assert comment["anchor"]["section"] == "notification-card"
+    assert comment["anchor"]["quote"] == (
+        "Version 2.8.0 changed the checkout service. Review the deployment run and "
+        "current service health."
+    )
+    logged_comment = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["id"] == comment["id"]
+    )
+
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        session_model.record_pickup(
+            transaction,
+            [logged_comment],
+            session="notification-agent",
+            turn="refine-artifact",
+        )
+    session_model.cmd_ack(serve.page_dir, logged_comment["seq"])
+    second_artifact = first_artifact.replace(
+        "</article>",
+        '  <footer><a href="/deployments/2.8.0">Open deployment run</a></footer>\n'
+        "</article>",
+    )
+    artifact.write_text(second_artifact, encoding="utf-8")
+    data_model.cmd_data_capture(
+        serve.page_dir,
+        "notification-artifact",
+        artifact,
+        label="deployment-notification.html",
+    )
+    refined_source = result_source.replace(
+        "<h1>Review the deployment notification</h1>",
+        "<h1>Deployment notification revised</h1>",
+    )
+    conversation_model.cmd_reply(
+        serve.page_dir,
+        comment["id"],
+        "Added the deployment-run link to the artifact.",
+        "",
+    )
+    refined = stamp_page(
+        serve.page_dir,
+        refined_source,
+        "Added the deployment-run link",
+    )
+    wait_for_revision(page, refined["revision"])
+
+    expect(page.locator("#notification-artifact-source code")).to_contain_text(
+        '<a href="/deployments/2.8.0">Open deployment run</a>'
+    )
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    marked = page.evaluate(
+        "() => [...CSS.highlights.get('lf-mark')].map(range => range.toString()).join('')"
+    )
+    assert " ".join(marked.split()) == (
+        "Version 2.8.0 changed the checkout service. Review the deployment run and "
+        "current service health."
+    )
+    assert artifact.read_text(encoding="utf-8") == second_artifact
     assert errors == []
     page.close()
 
@@ -2909,6 +3145,9 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
     playground = copy.locator("#notification-playground")
     expect(playground.locator(".lf-playground-actions")).to_be_hidden()
     expect(playground.locator("#notification-instruction")).to_contain_text(
+        "deployment-notification.html"
+    )
+    expect(playground.locator("#notification-card")).to_have_accessible_name(
         "Escalation sent"
     )
     expect(playground.locator("#notification-card")).to_be_visible()

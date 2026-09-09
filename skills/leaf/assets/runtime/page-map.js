@@ -103,7 +103,10 @@ function sheetControlKey(entry, control) {
   return `${entry.key}:${record.owner}:${record.key}`;
 }
 
-function syncSheetFace(button, { icon, glyph, label, visibleLabel = label }) {
+function syncSheetFace(
+  button,
+  { icon, glyph, label, visibleLabel = label, context = null },
+) {
   let face = button.querySelector(":scope > .lf-margin-kind");
   if (icon) {
     if (!(face instanceof SVGSVGElement) || face.dataset.lfIcon !== icon)
@@ -116,15 +119,32 @@ function syncSheetFace(button, { icon, glyph, label, visibleLabel = label }) {
   }
   let text = button.querySelector(":scope > .lf-page-map-action-label");
   if (!text) text = el("span", "lf-page-map-action-label");
-  if (text.textContent !== visibleLabel) text.textContent = visibleLabel;
+  let labelWord = text.querySelector(":scope > .lf-page-map-action-label-word");
+  let contextNode = text.querySelector(":scope > .lf-page-map-action-context");
+  if (!labelWord) labelWord = el("span", "lf-page-map-action-label-word");
+  if (labelWord.textContent !== visibleLabel) labelWord.textContent = visibleLabel;
+  if (context && !contextNode) contextNode = el("span", "lf-page-map-action-context");
+  if (!context) {
+    contextNode?.remove();
+    contextNode = null;
+  }
+  if (contextNode && contextNode.textContent !== context)
+    contextNode.textContent = context;
+  const labelParts = [labelWord, ...(contextNode ? [contextNode] : [])];
+  if (
+    text.childNodes.length !== labelParts.length ||
+    labelParts.some((node, index) => text.childNodes[index] !== node)
+  )
+    text.replaceChildren(...labelParts);
   if (
     button.childNodes.length !== 2 ||
     button.childNodes[0] !== face ||
     button.childNodes[1] !== text
   )
     button.replaceChildren(face, text);
-  if (button.getAttribute("aria-label") !== label)
-    button.setAttribute("aria-label", label);
+  const accessibleLabel = [label, context].filter(Boolean).join(", ");
+  if (button.getAttribute("aria-label") !== accessibleLabel)
+    button.setAttribute("aria-label", accessibleLabel);
 }
 
 function syncSheetItem(button, entry, item) {
@@ -138,6 +158,9 @@ function syncSheetItem(button, entry, item) {
     icon: faceFor(item).icon,
     label: `Open ${faceFor(item).label.toLowerCase()}: ${label}`,
     visibleLabel: label,
+    // Map rows stay one line unless their producer explicitly owes a second. Version
+    // comparisons do: their pair is provenance rather than part of the account.
+    context: item.mapContext,
   });
   button.disabled = false;
 }

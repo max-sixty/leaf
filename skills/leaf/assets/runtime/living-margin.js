@@ -81,8 +81,8 @@ import { chromeRoot } from "./chrome.js";
 import {
   comparisonBase,
   comparisonChanges,
-  comparisonEarlier,
-  toggleEarlier,
+  inlineComparison,
+  toggleInlineComparison,
   versionBtn,
 } from "./version.js";
 import { foldShelf } from "./banner-shelf.js";
@@ -671,9 +671,9 @@ const readingControl = (className) => offer("span", className);
 // panel is closed and the matching panel card while it is open. Any other reading is
 // asked what it discloses, and a single item
 // that answers has named the node and said which way it stands — the Change reading's
-// earlier words, folded into the block itself. An item answering nothing promises
-// nothing, which is what leaves a Change margin element over a block the comparison holds no
-// earlier reading for the plain travel it always was.
+// inline text diff. An item answering nothing promises nothing, which is what leaves a
+// Change margin element over a block the comparison cannot align for the plain travel it
+// always was.
 function syncReadingRelation(control, choice) {
   if (choice?.kind === "comment") {
     const opensInline = !panelIsOpen();
@@ -1057,25 +1057,27 @@ function collectEntries() {
   const base = comparisonBase();
   comparisonChanges().forEach((target, index) => {
     const account = `${itemWord(target)} changed${base == null ? "" : ` since v${base}`}`;
-    const earlier = comparisonEarlier(target);
+    const inline = inlineComparison(target);
+    const mapAccount = inline ? `${itemWord(target)} changed` : account;
     add(groups, target, {
       kind: "change",
       id: `change:${targetPath(target)}:${index}`,
-      text: trimmed(`${account} · ${itemSays(target)}`),
+      text: trimmed(`${mapAccount} · ${itemSays(target)}`),
       // A disclosure has to say what it holds, or its one word reports a fact and
       // promises nothing. The margin element's quieter line carries it, and a block the
       // comparison holds nothing for has none, so no margin element offers a press it has
       // not got.
-      ...(earlier ? { context: earlier.offer } : {}),
+      ...(inline ? { context: inline.offer, mapContext: inline.offer } : {}),
       // What a Change reading holds, where the comparison kept the base version's
-      // words for this block: pressing it folds them open under the block and says
-      // them, so the reader learns what changed without travelling to the other
-      // version and back. Where it kept none, the press is the travel it always was,
-      // and `discloses` answering null is what says so — to the margin element's relation, to
-      // the shortcut bar's word for the press, and to the reference.
-      discloses: () => comparisonEarlier(target),
+      // words for this block: pressing it splices dropped text into the current
+      // passage and paints additions there, so the reader learns what changed without
+      // travelling to the other version and back. Where it kept none, the press is the
+      // travel it always was, and `discloses` answering null is what says so — to the
+      // margin element's relation, to the shortcut bar's word for the press, and to the
+      // reference.
+      discloses: () => inlineComparison(target),
       activate: () => {
-        const said = toggleEarlier(target);
+        const said = toggleInlineComparison(target);
         revealTarget(target, said ? `${account} · ${said}` : account);
       },
     });

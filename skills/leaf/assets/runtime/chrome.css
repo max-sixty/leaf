@@ -538,30 +538,18 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   outline: var(--here-ring); --lf-here-ring: visual-target;
   outline-offset: calc(-1 * var(--here-ring-w)); }
 .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
-/* What the block said in the base version, folded open inside the block itself
-   (version.js). It stands on paper inside the wash the mark lays down, because the wash
-   says "these are the words now" and this is the one thing on the page that is not:
-   sharing the tint would put the version being read and the version it replaced on one
-   surface. The rule down its inside edge is the quotation gutter lf-specimen uses, for
-   the same reason — the page is exhibiting words rather than speaking them.
+/* A marked block becomes one inline text diff when its Change disclosure opens
+   (version.js). Its block wash steps back so the insertion highlight can identify only
+   the new text; a newly added block keeps the wash because every word is new.
 
-   `overflow: hidden` is the fold's, not the layout's: the room goes in and comes back at
-   FOLD_MS, and text spilling its own closing box is the jump the motion is there to
-   prevent. The box takes its width from what it holds, capped at the block's: a
-   paragraph fills the measure, and the head alone — which is the whole reading where the
-   base version had nothing here — is a short line rather than a bar of empty paper.
-
-   Only <del>: this reading carries no insertions, the block above being where they
-   are. It wears the tinted, struck pair a draft's history paints, so a removal looks
-   the same whichever of the two surfaces the reader met first. */
-.lf-earlier { display: block; overflow: hidden; margin-block-start: 10px;
-  width: max-content; max-width: 100%;
-  padding: 6px 0 6px 12px; border-inline-start: 2px solid var(--rule);
-  background: var(--paper); }
-.lf-earlier-head { display: block; margin-block-end: 3px;
-  font: 500 var(--t-6)/1.2 var(--sans); letter-spacing: .02em; color: var(--muted); }
-.lf-earlier-body { display: block; color: var(--ink-2); }
-.lf-earlier-body del { background: var(--del-tint); color: var(--danger-ink); }
+   The quiet version label and historical deletions wear `.lf-ui`, so comments, copies,
+   and the next comparison keep reading the current page. The margin and Page map name
+   the compared versions; only changed words appear in the visible passage. The deletion
+   inherits the document's face, keeping the diff one passage. */
+.lf-ins-block.lf-version-inline { background: transparent; box-shadow: none; }
+.lf-version-inline-deletion { font: inherit; line-height: inherit; }
+.lf-version-inline-deletion del { margin-inline-end: .28em;
+  background: var(--del-tint); color: var(--danger-ink); }
 /* The unanswered decision the reader is standing in (markHere), worn by the decision rather than
    by whichever of its controls holds the focus — they are standing in the whole thing,
    however they got there. Unanswered and not open: a widget whose own seat is
@@ -1777,6 +1765,10 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-page-map-action .lf-margin-kind { width: 16px; height: 16px;
     align-self: center; fill: none; stroke: currentColor; stroke-width: 1.5;
     stroke-linecap: round; stroke-linejoin: round; }
+  .lf-page-map-action-label { min-width: 0; }
+  .lf-page-map-action-label-word, .lf-page-map-action-context { display: block; }
+  .lf-page-map-action-context { margin-block-start: 2px; color: var(--muted);
+    font-size: var(--t-6); line-height: 1.25; }
   /* Inset, because a row here fills the list to its own edge and the list is a
      scroller: there is nothing outside the row for a ring to be drawn in, and an
      outset one is cut on both sides by the box it scrolls in. The layer's rule for

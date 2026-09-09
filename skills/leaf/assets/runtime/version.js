@@ -13,15 +13,15 @@
  * installs it; the arrival landing; the menu readings the composing surface and the
  * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
  * `comparisonChanges`, and the pair the margin's Change reading discloses with,
- * `comparisonEarlier` and `toggleEarlier`); and `readingBlock`, the block the decision
+ * `inlineComparison` and `toggleInlineComparison`); and `readingBlock`, the block the decision
  * walk and the keyboard reference start from.
  *
  * A comparison has two depths and both are this owner's. The marks say which blocks
- * changed; the earlier reading says what one of them changed from, folded open inside
- * the block itself. The second is per block and asked for, because a page's worth of
- * before-and-after opened at once is a diff view rather than the version the reader
- * chose to read. Nothing else shows a base version's words: this is the one place that
- * document is ever in hand.
+ * changed; the inline comparison splices dropped text into one of them and paints its
+ * added text in place. The second is per block and asked for, because a page's
+ * worth of before-and-after opened at once is a diff view rather than the version the
+ * reader chose to read. Nothing else shows a base version's words: this is the one place
+ * that document is ever in hand.
  *
  * One surface owns each destination. The version control opens the complete version list
  * with notes and comparison controls. There are no separate older/newer page keys. A
@@ -106,7 +106,6 @@ import {
   paintKeys,
   pruneScopedElements,
 } from "./keyboard/scopes.js";
-import { FOLD_MS, motion } from "./motion.js";
 import { notice } from "./notifications.js";
 import {
   authored,
@@ -117,6 +116,7 @@ import {
   inChrome,
   pageText,
   quoteFrom,
+  readingFrom,
   rangeOf,
   TEXT_BLOCK,
   textNodesUnder,
@@ -148,7 +148,7 @@ import {
   VERSION_PATH,
   versionUrl,
 } from "./storage.js";
-import { alignText, alignedNodes, sentenceUnits } from "./text-alignment.js";
+import { alignInlineText } from "./text-alignment.js";
 import {
   el,
   focusDestination,
@@ -825,8 +825,8 @@ const diffMarked = [];
 // nothing either, and for the reason the pass keys those by identity rather than by
 // words: the live one is upgraded and the base one is not, so their texts were never
 // each other's to compare.
-const diffEarlier = new Map(); // marked element -> the base version's words, or null
-const earlierOpen = new Map(); // marked element -> the node standing open under it
+const diffBefore = new Map(); // marked element -> the base version's words, or null
+const inlineOpen = new Map(); // marked element -> its generated nodes and highlight ranges
 // The comparison request that owns the page. Every request takes the next number and every
 // stop takes one too, so a base whose document lands after the reader has moved on is
 // dropped rather than painted over the base they are standing on now. Reachable because the
@@ -954,137 +954,148 @@ function applyDiff(doc, baseVersion, baseReading) {
   for (const block of diffMarked) {
     if (!block.id || block.closest(opaque)) continue;
     const baseBlock = doc.getElementById(block.id);
-    diffEarlier.set(block, baseBlock ? wrote(baseBlock) : null);
+    diffBefore.set(block, baseBlock ? wrote(baseBlock) : null);
   }
   return diffMarked.length;
 }
-// ---------- the earlier reading of a marked block ----------
-// Inside the block rather than beside it, because a text block is the only thing the
-// page reliably lets a sibling stand next to: an <li>'s parent takes list items and
-// nothing else. A span carrying `display: block` is content every one of them may hold.
-// `.lf-ui` is what keeps it out of the page — the anchor pass will not let a quote name
-// it, `wrote` does not read it into a block key, and a copy leaves it behind — and the
-// `lf-` id namespace is reserved from authored pages, so the name can only be this.
-const earlierId = (target) => `lf-earlier-${target.id}`;
+// ---------- one marked block's inline comparison ----------
+// `wrote` is the authority for the two texts. This companion reading keeps the same
+// normalized text with a boundary back into the authored text nodes, so a run the
+// alignment calls inserted can be painted in place. Generated labels and deletions wear
+// `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
+// current document rather than the temporary historical words on screen.
+const inlineId = (target) => `lf-version-inline-${target.id}`;
+const authoredReading = (target) =>
+  readingFrom(textNodesUnder(target, authored(target)));
 
-function earlierNode(target) {
-  const before = diffEarlier.get(target);
-  const node = el("span", "lf-ui lf-earlier");
-  node.id = earlierId(target);
-  // The head names the version the words below are from, so a reader arriving at one
-  // open block is told which without reading it off the chooser. A block the base
-  // version never had says that instead, being the one case with no words to show.
-  node.append(
-    el(
-      "span",
-      "lf-earlier-head",
-      before === null ? `New since v${diffBase}` : `v${diffBase}`,
-    ),
-  );
-  if (before !== null) {
-    const body = el("span", "lf-earlier-body");
-    // The `same` and `delete` halves alone, which join to reconstruct the base version
-    // exactly: this is the version the reader is *not* reading, so what it shows is
-    // that version's own paragraph, marked where the words did not survive. The
-    // `insert` half is the paragraph they are looking at, washed and two lines up, and
-    // saying it again here would make the reading twice as long to learn nothing.
-    // `wrote` on both sides, the reading the comparison decided by, so a word an
-    // upgrade generated is in neither the base document nor this one.
-    //
-    // A block the state half marked — a pick moved, a card carried — keeps every word
-    // it had, so nothing in it strikes. That is the answer rather than a third case.
-    body.append(
-      ...alignedNodes(
-        alignText(before, wrote(target), sentenceUnits).filter(
-          (run) => run.kind !== "insert",
-        ),
-      ),
-    );
-    node.append(body);
+function pointAt(target, reading, offset) {
+  if (!reading.units.length) return { node: target, offset: 0 };
+  return offset === reading.units.length
+    ? reading.units.at(-1).end
+    : reading.units[offset].start;
+}
+
+function insertAt(target, reading, offset, node) {
+  const point = pointAt(target, reading, offset);
+  if (point.node.nodeType === Node.ELEMENT_NODE) {
+    point.node.insertBefore(node, point.node.childNodes[point.offset] ?? null);
+    return;
   }
-  return node;
+  const text = point.node;
+  if (point.offset === 0) text.parentNode.insertBefore(node, text);
+  else if (point.offset === text.data.length)
+    text.parentNode.insertBefore(node, text.nextSibling);
+  else text.parentNode.insertBefore(node, text.splitText(point.offset));
 }
 
-// What the press reports. The move, not the words: revealTarget reports through the
-// banner's status line, which holds a moment's news, and a paragraph there is clipped
-// and a hover away. The words go where a reader can read them at their own pace and a
-// screen reader can reach them from the margin element's own `aria-controls` — into the block,
-// which is the whole of what this surface does.
-function earlierSaid(target) {
-  return diffEarlier.get(target) === null
+function rangeAt(reading, start, end) {
+  const first = reading.units[start];
+  const last = reading.units[end - 1];
+  if (!first || !last) return null;
+  const range = document.createRange();
+  range.setStart(first.start.node, first.start.offset);
+  range.setEnd(last.end.node, last.end.offset);
+  return range;
+}
+
+function paintInlineInsertions() {
+  const ranges = [...inlineOpen.values()].flatMap((entry) => entry.ranges);
+  if (ranges.length) CSS.highlights.set("lf-version-insert", new Highlight(...ranges));
+  else CSS.highlights.delete("lf-version-insert");
+}
+
+function openInlineComparison(target) {
+  const before = diffBefore.get(target);
+  const reading = authoredReading(target);
+  const current = currentVersionToken();
+  const label = el(
+    "span",
+    "lf-ui lf-quiet lf-version-inline-label",
+    before === null ? `New since v${diffBase}` : `v${diffBase} → ${current}`,
+  );
+  label.id = inlineId(target);
+  label.setAttribute(
+    "aria-label",
+    before === null
+      ? `New since version ${diffBase}`
+      : `Inline comparison from version ${diffBase} to ${current}`,
+  );
+
+  const nodes = [label];
+  const additions = [];
+  const insertions = [{ offset: 0, node: label }];
+  let afterOffset = 0;
+  let hasTextChange = false;
+  for (const run of before === null ? [] : alignInlineText(before, reading.text)) {
+    if (run.kind === "delete") {
+      const dropped = el("span", "lf-ui lf-version-inline-deletion");
+      dropped.append(el("del", "", run.text));
+      nodes.push(dropped);
+      insertions.push({ offset: afterOffset, node: dropped });
+      hasTextChange = true;
+    } else {
+      // The passage reading indexes characters by code point while DOM Range offsets
+      // are UTF-16. Keep the alignment cursor in the reading's units; an astral
+      // character must advance it once, not by the two code units String.length sees.
+      const length = [...run.text].length;
+      if (run.kind === "insert") {
+        additions.push([afterOffset, afterOffset + length]);
+        hasTextChange = true;
+      }
+      afterOffset += length;
+    }
+  }
+  insertions
+    .sort((left, right) => right.offset - left.offset)
+    .forEach(({ offset, node }) => insertAt(target, reading, offset, node));
+
+  const currentReading = authoredReading(target);
+  const ranges = additions
+    .map(([start, end]) => rangeAt(currentReading, start, end))
+    .filter(Boolean);
+  target.classList.toggle("lf-version-inline", hasTextChange);
+  inlineOpen.set(target, { nodes, ranges });
+  paintInlineInsertions();
+  layoutChanged(target);
+  return before === null
     ? `v${diffBase} had nothing here`
-    : `showing what v${diffBase} said`;
+    : `showing an inline diff from v${diffBase}`;
 }
 
-// Room going in and coming back, at the fold's own length. The reader asked for this
-// content change, so it may reflow what stands under it — provided they can watch it
-// happen rather than find the page moved. One pair of frames, played either way.
-function fold(node, opening) {
-  const style = getComputedStyle(node);
-  const open = {
-    height: `${node.getBoundingClientRect().height}px`,
-    marginTop: style.marginTop,
-    paddingTop: style.paddingTop,
-    paddingBottom: style.paddingBottom,
-    opacity: 1,
-  };
-  const shut = Object.fromEntries(Object.keys(open).map((key) => [key, "0px"]));
-  shut.opacity = 0;
-  return motion(node, opening ? [shut, open] : [open, shut], FOLD_MS);
+function closeInlineComparison(target) {
+  const entry = inlineOpen.get(target);
+  inlineOpen.delete(target);
+  target.classList.remove("lf-version-inline");
+  for (const node of entry?.nodes ?? []) node.remove();
+  paintInlineInsertions();
+  layoutChanged(target);
+  return `inline diff from v${diffBase} hidden`;
 }
 
-function openEarlier(target) {
-  // A reader who presses twice inside the fold's own length finds the last reading
-  // still folding out. It goes now rather than on its own promise: the two carry one
-  // id, and the margin element's `aria-controls` may not name the one that is leaving.
-  target.querySelector(":scope > .lf-earlier")?.remove();
-  const node = earlierNode(target);
-  target.append(node);
-  earlierOpen.set(target, node);
-  fold(node, true);
-  layoutChanged(node);
-  return earlierSaid(target);
-}
-
-function closeEarlier(target) {
-  const node = earlierOpen.get(target);
-  earlierOpen.delete(target);
-  const said = `v${diffBase} hidden`;
-  if (!node?.isConnected) return said;
-  const gone = () => {
-    node.remove();
-    layoutChanged(target);
-  };
-  // Straight off the promise: motion() holds the last frame until this reaction has
-  // made it true, so the room closes once rather than snapping shut and then closing.
-  const played = fold(node, false);
-  if (played) played.finished.then(gone);
-  else gone();
-  return said;
-}
-
-// What the comparison holds at a marked block, for the margin's reading of it: the
-// node it discloses, whether that node stands open, and the promise the margin element makes
-// — named here, where every other version word is. The promise is the shut one alone
-// because the layer hides a margin element's label while it is expanded, what it opened being
-// on screen by then. Null where the comparison holds nothing, which is what leaves a
-// Change margin element over an unidentifiable block the plain travel it always was, promising
-// nothing it cannot do.
-export const comparisonEarlier = (target) =>
-  diffOn && diffEarlier.has(target)
+// What a text-changing marked block holds for the margin's disclosure reading. A pure
+// state change remains marked but offers no empty prose comparison. The one controlled
+// id is a quiet label at the start of the block. It names the versions for assistive
+// reading while the margin and Page map carry that provenance visually, outside the
+// passage whose words are being compared.
+export const inlineComparison = (target) =>
+  diffOn &&
+  diffBefore.has(target) &&
+  (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target))
     ? {
-        id: earlierId(target),
-        open: earlierOpen.has(target),
-        offer: `Show what v${diffBase} said`,
+        id: inlineId(target),
+        open: inlineOpen.has(target),
+        offer: `v${diffBase} → ${currentVersionToken()}`,
       }
     : null;
 
 // The press, and the sentence to say about it — composed here, where the versions are
 // named. The event is the comparison's, because what changed is its standing
 // rendering: the same pass that reads the marks reads the margin element's relation back.
-export function toggleEarlier(target) {
-  if (!comparisonEarlier(target)) return null;
-  const said = earlierOpen.has(target) ? closeEarlier(target) : openEarlier(target);
+export function toggleInlineComparison(target) {
+  if (!inlineComparison(target)) return null;
+  const said = inlineOpen.has(target)
+    ? closeInlineComparison(target)
+    : openInlineComparison(target);
   document.dispatchEvent(new CustomEvent("lf-comparison"));
   return said;
 }
@@ -1167,15 +1178,10 @@ function setDiff(on, base) {
   if (on) diffBase = base;
   if (!on) {
     diffRequest++; // a stop outranks a comparison still on its way
-    // The earlier readings go in the frame the marks do. They are the comparison's
-    // rendering as much as the wash is, and one of them left folding out under a
-    // block nothing marks any more would be the comparison half gone.
-    for (const [target, node] of earlierOpen) {
-      node.remove();
-      layoutChanged(target);
-    }
-    earlierOpen.clear();
-    diffEarlier.clear();
+    // Inline diffs leave with the block marks. Historical words or insertion paint
+    // under a block nothing marks any more would leave half of the comparison behind.
+    for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
+    diffBefore.clear();
     for (const b of diffMarked) b.classList.remove("lf-ins-block");
     diffMarked.length = 0;
   }

@@ -2748,12 +2748,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-visual-actions",
         "lf-visual-action",
         "lf-action-target",
-        # A comparison's earlier reading stands inside the block it is about, which is
-        # as far into the page as the runtime writes: a text block's parent takes no
-        # sibling, so the words the base version had can live nowhere else.
-        "lf-earlier",
-        "lf-earlier-head",
-        "lf-earlier-body",
+        # A comparison's target paint and deletions stand inside the block they are
+        # about; a text block's parent may not accept a sibling beside it.
+        "lf-version-inline",
+        "lf-version-inline-deletion",
     }, (
         "the document-level class surface changed: widen the shared vocabulary on purpose"
     )

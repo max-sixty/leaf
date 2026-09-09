@@ -525,14 +525,48 @@ export const blockOf = (node) => blockAt(node) ?? upFrom(node);
 // never produces. (trim() removes exactly this class, so it needs no twin.)
 export const COLLAPSE =
   /[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
-export function quoteFrom(segments) {
+const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
+
+// The normalized reading and, when requested, one DOM span for each character in it.
+// A block boundary contributes the same collapsed space as authored whitespace, mapped
+// to the start of the segment after it. Text and its DOM route come from this one walk,
+// so a consumer that paints a reading cannot disagree with `quoteFrom` about its words.
+function readSegments(segments, mapCharacters) {
   let text = "";
+  const units = [];
+  let pendingSpace = null;
+  const push = (character, start, end) => {
+    if (COLLAPSIBLE.test(character)) {
+      if (text)
+        pendingSpace = pendingSpace
+          ? { start: pendingSpace.start, end }
+          : { start, end };
+      return;
+    }
+    if (pendingSpace) {
+      text += " ";
+      if (mapCharacters) units.push({ text: " ", ...pendingSpace });
+      pendingSpace = null;
+    }
+    text += character;
+    if (mapCharacters) units.push({ text: character, start, end });
+  };
   segments.forEach((seg, i) => {
-    if (i && blockOf(seg.node) !== blockOf(segments[i - 1].node)) text += " ";
-    text += seg.node.data.slice(seg.start, seg.end);
+    if (i && blockOf(seg.node) !== blockOf(segments[i - 1].node)) {
+      const point = { node: seg.node, offset: seg.start };
+      push(" ", point, point);
+    }
+    let offset = seg.start;
+    for (const character of seg.node.data.slice(seg.start, seg.end)) {
+      const end = offset + character.length;
+      push(character, { node: seg.node, offset }, { node: seg.node, offset: end });
+      offset = end;
+    }
   });
-  return [...text.replace(COLLAPSE, " ").trim()].join("");
+  return mapCharacters ? { text, units } : text;
 }
+export const quoteFrom = (segments) => readSegments(segments, false);
+export const readingFrom = (segments) => readSegments(segments, true);
 // Cutting one to length is the caller's business and always by code point: half a surrogate
 // pair is a character no UTF-8 file can hold, and a quote is written to one.
 export const cut = (text, from, to) => [...text].slice(from, to).join("");

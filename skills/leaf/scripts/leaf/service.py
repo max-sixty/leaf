@@ -309,6 +309,8 @@ class PageTransaction:
         item_id: str | None,
         text: str,
         state: str,
+        *,
+        settles: bool = False,
     ) -> None:
         """Replace the provisional reply mirrored from one Codex turn."""
         status = dict(self.status)
@@ -328,6 +330,7 @@ class PageTransaction:
             "item": item_id,
             "text": text,
             "state": state,
+            "settles": settles,
             "agent": (self.claim or {}).get("agent", "Codex"),
             "ts": timestamp or now_iso(),
         }

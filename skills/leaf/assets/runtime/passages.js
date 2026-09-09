@@ -86,7 +86,10 @@ export const TEXT_BLOCK =
 import { inUi, overIn, pageShadowRoots, uiInside, under, upFrom } from "./shadow.js";
 import { registry, widgetEntries } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
-import { opaquePassageParts, opaquePassageRoots } from "./widget-loader.js";
+
+export const opaquePassageRoots = new WeakSet();
+export const opaquePassageParts = new WeakSet();
+export const verbatimBoundaryIdentity = new WeakMap();
 
 // ---------- passages ----------
 // A passage is a list of {node, start, end} segments, and everything that reads the page's
@@ -331,7 +334,7 @@ export const authored = (root) => {
 // and indexes every position into it, so shadow text has to arrive at the host's own
 // place in that string — not appended from a second walk, which would put a diff's lines
 // after the page's last paragraph and every neighbour of theirs a lie.
-export function textNodesUnder(rootEl, accepts = quotable(rootEl)) {
+export function textNodesUnder(rootEl, accepts = quotable(rootEl), boundary = null) {
   const segments = [];
   const visit = (node) => {
     for (const child of node.childNodes) {
@@ -341,6 +344,7 @@ export function textNodesUnder(rootEl, accepts = quotable(rootEl)) {
         continue;
       }
       if (child.nodeType !== Node.ELEMENT_NODE) continue;
+      if (boundary?.(child, segments.length)) continue;
       if (child.localName === "slot")
         for (const assigned of child.assignedNodes({ flatten: true }))
           assigned.nodeType === Node.TEXT_NODE

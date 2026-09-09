@@ -78,6 +78,67 @@ from render_support import (
 
 pytestmark = pytest.mark.nightly
 
+BOUNDED_WORKSPACE_PAGE = leaf_page(
+    "bounded workspace gate",
+    """
+<lf-workspace id="gate-workspace">
+  <header><h1>Queue</h1></header>
+  <lf-split id="gate-split" direction="columns">
+    <lf-pane id="gate-list" label="Items"><p>First</p><div style="height:900px"></div><p>Last</p></lf-pane>
+    <lf-pane id="gate-detail" label="Detail"><p>Subject</p><div style="height:900px"></div><button>Finish</button></lf-pane>
+  </lf-split>
+  <footer>End of queue</footer>
+</lf-workspace>
+""",
+)
+
+
+def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):
+    """Pane bounds are real scroll bounds, so content past a pane's first fold remains
+    reachable without being exempted from the ordinary geometry checks."""
+    assert (
+        render_gate_model.render_version(browser, serve(BOUNDED_WORKSPACE_PAGE)) == []
+    )
+
+
+RECURSIVE_ROWS_PAGE = leaf_page(
+    "recursive row fit",
+    """
+<lf-workspace id="rows-workspace">
+  <lf-split id="rows" direction="rows">
+    <lf-pane id="upper" label="Upper"><p>Upper body</p><footer style="height:120px">Tall actions</footer></lf-pane>
+    <lf-split id="lower" direction="columns">
+      <lf-pane id="lower-left" label="Lower left"><p>Left body</p></lf-pane>
+      <lf-pane id="lower-right" label="Lower right"><p>Right body</p></lf-pane>
+    </lf-split>
+  </lf-split>
+</lf-workspace>
+""",
+)
+
+
+def test_recursive_rows_flow_before_short_height_hides_pane_furniture(browser, serve):
+    page, errors = open_page(browser, serve(RECURSIVE_ROWS_PAGE))
+    workspace = page.locator("#rows-workspace")
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+
+    # The children's summed minima fit here, but equal rows cannot each give the
+    # taller upper pane its minimum. The workspace must therefore choose flow.
+    page.set_viewport_size({"width": 1200, "height": 700})
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    rows = page.evaluate(
+        """() => {
+          const upper = document.querySelector('#upper').getBoundingClientRect();
+          const lower = document.querySelector('#lower').getBoundingClientRect();
+          const footer = document.querySelector('#upper > footer').getBoundingClientRect();
+          return {upper, lower, footer};
+        }"""
+    )
+    assert rows["lower"]["top"] >= rows["upper"]["bottom"] - 1, rows
+    assert rows["footer"]["bottom"] <= 700, rows
+    assert errors == []
+    page.close()
+
 
 def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
     """A page that repaints its ledger forever cannot keep a false fact alive forever."""
@@ -944,6 +1005,105 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     assert any("shadow roots the registry doesn't declare" in f for f in failures), (
         failures
     )
+
+
+def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
+    browser, serve, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    author_test_widget(tmp_path, "lf-shell", upgrade=True)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-shell"]["properties"]["mode"] = {
+        "type": "string",
+        "enum": ["prose", "order"],
+    }
+    entries["lf-piece"] = {
+        "description": "An anonymous nested upgraded piece.",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-upgrade": True,
+        "x-example": "<lf-piece>Example</lf-piece>",
+    }
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
+        'import { once } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-piece", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        '    const generated = document.createElement("span");\n'
+        '    generated.dataset.lfGen = "1";\n'
+        '    generated.textContent = " generated descendant";\n'
+        "    this.append(generated);\n"
+        "  }\n"
+        "});\n"
+    )
+    page = leaf_page(
+        "compositional verbatim",
+        """
+<h1>Wrapper contract</h1>
+<lf-shell id="honest-shell">Before <span>passive prose</span>
+  <lf-piece>First child.</lf-piece>
+  <lf-piece>Second child.</lf-piece> After
+</lf-shell>
+<lf-shell id="prose-shell" mode="prose">Before <span>passive prose</span>
+  <lf-piece>First child.</lf-piece>
+  <lf-piece>Second child.</lf-piece> After
+</lf-shell>
+<lf-shell id="order-shell" mode="order">Before <span>passive prose</span>
+  <lf-piece>First child.</lf-piece>
+  <lf-piece>Second child.</lf-piece> After
+</lf-shell>
+<lf-pane id="bare-pane" label="Decision"><p>Pane body.</p></lf-pane>
+""",
+    )
+    (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
+        'import { once } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-shell", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        '    if (this.getAttribute("mode") === "prose")\n'
+        '      this.querySelector("span").textContent = "changed passive prose";\n'
+        '    if (this.getAttribute("mode") === "order") {\n'
+        '      const pieces = this.querySelectorAll("lf-piece");\n'
+        "      pieces[0].before(pieces[1]);\n"
+        "    }\n"
+        "  }\n"
+        "});\n"
+    )
+    url = serve(page)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-wrapper",
+            "author": "user",
+            "revision": 1,
+            "text": "Show the wrapper in your reply.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": "c-wrapper",
+            "revision": 1,
+            "text": "Here it is:",
+            "markup": (
+                '<lf-shell id="reply-shell">Reply before '
+                "<lf-piece>reply child</lf-piece> reply after</lf-shell>"
+            ),
+        },
+    )
+    failures = render_gate_model.render_version(browser, url)
+    dishonest = [failure for failure in failures if "x-verbatim" in failure]
+    assert len(dishonest) == 2, failures
+    assert all("honest-shell" not in failure for failure in dishonest)
+    assert any("prose-shell" in failure for failure in dishonest)
+    assert any("order-shell" in failure for failure in dishonest)
 
 
 def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(

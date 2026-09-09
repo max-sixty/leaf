@@ -260,7 +260,7 @@ export async function receiveState(state) {
     // time-dependent claim chrome on a state heartbeat with no new event.
     await renderPanel();
     if (finishActivation) {
-      finishActivation();
+      await finishActivation();
       updateFab();
       notice(`Updated to ${runtime.currentLabel}`);
     }

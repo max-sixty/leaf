@@ -1,13 +1,55 @@
-import { says } from "/runtime/widget-api.js";
+import {
+  quoteFrom,
+  says,
+  textNodesUnder,
+  verbatimBoundaryIdentity,
+} from "/runtime/widget-api.js";
 import { openRoots } from "./open-roots.js";
+
+const compositionalWords = (owner, widgets) => {
+  const boundaries = [];
+  const segments = textNodesUnder(owner, undefined, (child, at) => {
+    if (!widgets[child.localName]?.["x-upgrade"]) return false;
+    boundaries.push({ at, child });
+    return true;
+  });
+  const reading = [];
+  let start = 0;
+  const flush = (end) => {
+    const text = quoteFrom(segments.slice(start, end));
+    if (text) reading.push({ text });
+    start = end;
+  };
+  for (const { at, child } of boundaries) {
+    flush(at);
+    const identity = verbatimBoundaryIdentity.get(child);
+    reading.push({
+      boundary: [
+        identity?.owner?.id ?? null,
+        identity?.index ?? null,
+        child.localName,
+        child.id || null,
+      ],
+    });
+  }
+  flush(segments.length);
+  return reading;
+};
 
 export const shownVerbatim = ({ widgets, touched }) =>
   Object.entries(widgets)
     .filter(([, entry]) => entry["x-verbatim"])
     .flatMap(([tag]) =>
       [...document.querySelectorAll(tag)]
+        // TODO(2026-09-08): Give anonymous x-verbatim owners pre-upgrade source
+        // provenance too, including frozen replies, so honesty checks their own prose.
         .filter((el) => el.id && !touched.includes(el.id))
-        .map((el) => ({ tag, id: el.id, says: says(el) })),
+        .map((el) => ({
+          tag,
+          id: el.id,
+          says: says(el),
+          compositional: compositionalWords(el, widgets),
+        })),
     );
 
 // What the page says, and whether each run of it is showing. Read once in each medium

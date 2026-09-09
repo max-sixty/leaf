@@ -577,6 +577,225 @@ def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
     page.close()
 
 
+def test_reading_regions_share_posture_allocation_and_transition_boundaries(
+    browser, serve
+):
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    readings = page.evaluate(
+        """async () => {
+          const leaf = await import('/runtime/widget-api.js');
+          const main = document.querySelector('main');
+          const outer = document.createElement('section');
+          outer.id = 'outer-arrangement';
+          outer.innerHTML = `
+            <header><button id="pane-heading">Pane heading</button></header>
+            <div id="outer-body"><div id="compound-owner">
+              <div id="compound-content"><section id="preview-host">
+                <div id="preview-body">${'<p>Preview body</p>'.repeat(20)}</div>
+              </section></div>
+            </div>${'<p>Outer body</p>'.repeat(20)}</div>`;
+          main.append(outer);
+          const outerBody = outer.querySelector('#outer-body');
+          const compound = outer.querySelector('#compound-owner');
+          const compoundContent = outer.querySelector('#compound-content');
+          const previewHost = outer.querySelector('#preview-host');
+          const previewBody = outer.querySelector('#preview-body');
+          const style = document.createElement('style');
+          style.textContent = `
+            #outer-arrangement { width: 640px; }
+            #outer-body { width: 600px; }
+            #compound-content { width: 50%; }
+            #outer-arrangement[data-lf-posture="bounded"] #outer-body {
+              height: 280px; overflow: auto;
+            }
+            #outer-arrangement[data-lf-posture="bounded"] #preview-body {
+              height: 120px; overflow: auto;
+            }
+            #compound-owner[data-lf-posture="flow"] #preview-body {
+              height: auto; overflow: visible;
+            }`;
+          document.head.append(style);
+
+          const transitions = [];
+          let previewId;
+          const unwatch = leaf.watchReadingRegionTransitions((event) => {
+            const outerScroller = leaf.effectiveScroller('outer-pane');
+            transitions.push({
+              phase: event.phase,
+              from: event.from,
+              to: event.to,
+              ids: event.regions.map(({id}) => id),
+              outerScroller: outerScroller.id || 'document',
+              outerRange: outerScroller.scrollHeight - outerScroller.clientHeight,
+              previewScroller: previewId
+                ? (leaf.effectiveScroller(previewId).id || 'document')
+                : null,
+            });
+          });
+          const outerLayout = leaf.registerArrangement({
+            owner: outer,
+            content: outerBody,
+            regions: [{id: 'outer-pane', host: outer, body: outerBody}],
+          });
+          previewId = leaf.compoundReadingRegionId(compound, 'preview');
+          const compoundLayout = leaf.registerArrangement({
+            owner: compound,
+            content: compoundContent,
+            regions: [{id: previewId, host: previewHost, body: previewBody}],
+          });
+          await outerLayout.setPosture('bounded');
+          const assigned = compoundContent.getBoundingClientRect();
+          const bounded = {
+            outerScroller: leaf.effectiveScroller('outer-pane').id,
+            previewScroller: leaf.effectiveScroller(previewId).id,
+            previewPosture: leaf.readingPosture(previewId),
+            focusRegion: leaf.readingRegionFor(outer.querySelector('#pane-heading')).id,
+            allocation: leaf.readingAllocation(previewId),
+            assigned: {width: assigned.width, height: assigned.height},
+          };
+          outerBody.style.width = '400px';
+          const resizedAllocation = leaf.readingAllocation(previewId);
+          await compoundLayout.setPosture('flow');
+          const childFlow = {
+            scroller: leaf.effectiveScroller(previewId).id,
+            posture: leaf.readingPosture(previewId),
+          };
+          const first = outerLayout.setPosture('flow');
+          const second = outerLayout.setPosture('bounded');
+          await Promise.all([first, second]);
+          previewHost.hidden = true;
+          const hiddenBounds = leaf.shownRegionBounds(previewId);
+          previewHost.hidden = false;
+          await outerLayout.setPosture('flow');
+          const flow = {
+            outerIsDocument: leaf.effectiveScroller('outer-pane') === document.scrollingElement,
+            previewIsDocument: leaf.effectiveScroller(previewId) === document.scrollingElement,
+            previewPosture: leaf.readingPosture(previewId),
+          };
+          previewHost.remove();
+          const replacement = document.createElement('section');
+          replacement.innerHTML = '<div>Replacement</div>';
+          compoundContent.append(replacement);
+          const reclaim = leaf.registerReadingRegion({
+            id: previewId,
+            host: replacement,
+            body: replacement.firstElementChild,
+          });
+          const reclaimed = leaf.readingRegion(previewId).host === replacement;
+          reclaim();
+          compoundLayout.cleanup();
+          outerLayout.cleanup();
+          unwatch();
+          style.remove();
+          return {
+            bounded,
+            childFlow,
+            flow,
+            hiddenBounds,
+            reclaimed,
+            resizedAllocation,
+            transitions,
+          };
+        }"""
+    )
+    assert readings["bounded"] == {
+        "outerScroller": "outer-body",
+        "previewScroller": "preview-body",
+        "previewPosture": "bounded",
+        "focusRegion": "outer-pane",
+        "allocation": readings["bounded"]["assigned"],
+        "assigned": readings["bounded"]["assigned"],
+    }
+    assert readings["flow"] == {
+        "outerIsDocument": True,
+        "previewIsDocument": True,
+        "previewPosture": "flow",
+    }
+    assert readings["childFlow"] == {
+        "scroller": "outer-body",
+        "posture": "flow",
+    }
+    assert (
+        readings["resizedAllocation"]["width"]
+        < readings["bounded"]["allocation"]["width"]
+    )
+    assert readings["hiddenBounds"] is None
+    assert readings["reclaimed"] is True
+    transitions = readings["transitions"]
+    assert transitions[0]["phase"] == "before"
+    assert transitions[0]["outerScroller"] == "document"
+    assert transitions[1]["phase"] == "after"
+    assert transitions[1]["outerScroller"] == "outer-body"
+    assert transitions[1]["outerRange"] > 0
+    child_transition = transitions[2:4]
+    assert [transition["phase"] for transition in child_transition] == [
+        "before",
+        "after",
+    ]
+    assert child_transition[0]["previewScroller"] == "preview-body"
+    assert child_transition[1]["previewScroller"] == "outer-body"
+    # The rapid outer flow is superseded: only the newer bounded transition reports after.
+    assert [transition["phase"] for transition in transitions[4:7]] == [
+        "before",
+        "before",
+        "after",
+    ]
+    assert all(
+        len(transition["ids"]) == len(set(transition["ids"]))
+        for transition in readings["transitions"]
+    )
+    assert errors == []
+    page.close()
+
+
+def test_arrangement_admits_compound_regions_atomically(browser, serve):
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    result = page.evaluate(
+        """async () => {
+          const leaf = await import('/runtime/widget-api.js');
+          const main = document.querySelector('main');
+          const owner = document.createElement('section');
+          owner.innerHTML = '<div><i></i><b></b></div>';
+          main.append(owner);
+          const [body, first, second] = [
+            owner.firstElementChild,
+            owner.querySelector('i'),
+            owner.querySelector('b'),
+          ];
+          const occupied = leaf.registerReadingRegion({
+            id: 'occupied-region', host: second, body: second,
+          });
+          let message;
+          try {
+            leaf.registerArrangement({
+              owner,
+              content: body,
+              regions: [
+                {id: 'reclaimable-region', host: first, body: first},
+                {id: 'occupied-region', host: second, body: second},
+              ],
+            });
+          } catch (error) {
+            message = error.message;
+          }
+          const reclaim = leaf.registerReadingRegion({
+            id: 'reclaimable-region', host: first, body: first,
+          });
+          const reclaimed = leaf.readingRegion('reclaimable-region').host === first;
+          reclaim();
+          occupied();
+          owner.remove();
+          return {message, reclaimed};
+        }"""
+    )
+    assert result == {
+        "message": "leaf: reading region occupied-region is already live",
+        "reclaimed": True,
+    }
+    assert errors == []
+    page.close()
+
+
 def test_registry_state_index_refreshes_with_the_loaded_generation(browser, serve):
     """Derived state declarations belong to one complete registry generation.
 

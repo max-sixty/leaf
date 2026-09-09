@@ -1,4 +1,4 @@
-"""Detached Leaf delivery into the active and later turns of one Codex task."""
+"""Detached Leaf delivery into later turns of one Codex task."""
 
 import hashlib
 import json
@@ -29,17 +29,15 @@ from .server import running_server
 from .service import (
     PageTransaction,
     owned_pages,
-    page_claim,
     restore_page_claim,
     take_page_claim,
-    unacknowledged,
 )
 from .session import Watch, acknowledge, batch_data, read_watch_pass, record_pickup
 
 QUEUE_TIMEOUT = 20
 START_TIMEOUT = 20
-ACTIVE_DELIVERY_RECOVERY_TIMEOUT = 15 * 60
-DELIVERY_EPOCH_FORMAT = "leaf-codex-delivery-v1"
+DELIVERY_FORMAT = "leaf-codex-delivery-v2"
+QUEUE_FORMAT = "leaf-codex-queue-v1"
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
 STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {
@@ -416,74 +414,104 @@ def delivery_lock_path(session_id: str) -> Path:
     return state_home() / "sessions" / f"{_session_key(session_id)}.delivery.lock"
 
 
-def delivery_epoch_path(session_id: str, delivery_id: str) -> Path:
+def queue_path(session_id: str, delivery_id: str) -> Path:
     return delivery_dir(session_id) / f"{delivery_id}.json"
 
 
-def _archive_epoch(epoch_path: Path, epoch: dict) -> None:
-    """Move finished history out of the adapter's hot scan."""
-    if epoch["phase"] == "closed" and all(
-        batch["receipted"] for batch in epoch["batches"]
+def _archive_queue(path: Path, queue: dict) -> None:
+    """Move completed queue state out of the adapter's hot scan."""
+    if queue["state"] == "accepted" and all(
+        batch["receipted"] for batch in queue["batches"]
     ):
-        history_path = epoch_path.parent / "history" / epoch_path.name
+        history_path = path.parent / "history" / path.name
         history_path.parent.mkdir(parents=True, exist_ok=True)
-        epoch_path.replace(history_path)
+        path.replace(history_path)
 
 
-def _write_epoch(epoch_path: Path, epoch: dict) -> None:
-    write_json(epoch_path, epoch)
-    _archive_epoch(epoch_path, epoch)
+def _write_queue(path: Path, queue: dict) -> None:
+    write_json(path, queue)
+    _archive_queue(path, queue)
 
 
 def adapter_start_lock_path(session_id: str) -> Path:
     return state_home() / "sessions" / f"{_session_key(session_id)}.start"
 
 
-def _prompt(epoch_path: Path) -> str:
+def _prompt(path: Path) -> str:
     delivery = ElementTree.Element(
         "leaf-delivery",
-        {"skill": "$leaf", "id": epoch_path.stem, "path": str(epoch_path)},
+        {"skill": "$leaf", "id": path.stem, "path": str(path)},
     )
     pointer = ElementTree.tostring(delivery, encoding="unicode")
     return f"```xml\n{pointer}\n```"
 
 
-def _offer_epoch(epoch_path: Path, epoch: dict) -> str:
-    """Persist one current URL per page before offering an epoch pointer."""
+def _offer_delivery(path: Path, queue: dict) -> str:
+    """Freeze one payload before offering its permanent pointer."""
+    if queue["state"] == "offering":
+        return _prompt(Path(queue["payload"]))
+
     urls = {}
-    for batch in epoch["batches"]:
+    for batch in queue["batches"]:
         page = batch["page"]
         if page not in urls:
             server = running_server(Path(page))
             urls[page] = server["url"] if server else None
         batch["url"] = urls[page]
-    _write_epoch(epoch_path, epoch)
-    return _prompt(epoch_path)
+
+    payload_path = path.parent / "payloads" / path.name
+    payload = {
+        "format": DELIVERY_FORMAT,
+        "created_at": queue["created_at"],
+        "batches": [
+            {key: value for key, value in batch.items() if key != "receipted"}
+            for batch in queue["batches"]
+        ],
+    }
+    payload_path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(payload_path, payload)
+    queue["batches"] = [
+        {
+            "page": batch["page"],
+            "session": batch["session"],
+            "events": [
+                {"seq": event["seq"], "id": event["id"]} for event in batch["events"]
+            ],
+            "receipted": False,
+        }
+        for batch in queue["batches"]
+    ]
+    queue["payload"] = str(payload_path)
+    queue["state"] = "offering"
+    _write_queue(path, queue)
+    return _prompt(payload_path)
 
 
-def _epochs(session_id: str) -> list[tuple[Path, dict]]:
+def _queues(session_id: str) -> list[tuple[Path, dict]]:
     directory = delivery_dir(session_id)
     if not directory.is_dir():
         return []
-    return [
-        (path, epoch)
-        for path in sorted(directory.glob("*.json"))
-        if (epoch := read_json(path)) is not None
-        # Earlier adapters stored their already-delivered batch records in this
-        # directory. A missing format is a delivery epoch written before epochs
-        # became self-describing; every other explicit format is a different record.
-        and epoch.get("format") in {None, DELIVERY_EPOCH_FORMAT}
+    records = [
+        (path, queue)
+        for path in directory.glob("*.json")
+        if (queue := read_json(path)) is not None
+        and queue.get("format") == QUEUE_FORMAT
     ]
+    return sorted(records, key=lambda item: (item[1]["created_at"], item[0].name))
 
 
-def _current_epoch(
+def _collecting_queue(
     session_id: str,
-    epochs: list[tuple[Path, dict]] | None = None,
+    queues: list[tuple[Path, dict]] | None = None,
 ) -> tuple[Path, dict] | None:
-    records = _epochs(session_id) if epochs is None else epochs
-    current = [(path, epoch) for path, epoch in records if epoch["phase"] != "closed"]
+    records = _queues(session_id) if queues is None else queues
+    current = [
+        (path, queue) for path, queue in records if queue["state"] == "collecting"
+    ]
     if len(current) > 1:
-        raise RuntimeError(f"Codex task {session_id} has multiple open Leaf deliveries")
+        raise RuntimeError(
+            f"Codex task {session_id} has multiple collecting Leaf deliveries"
+        )
     return current[0] if current else None
 
 
@@ -492,39 +520,24 @@ def _append_batch(
     page_dir: Path,
     transaction: PageTransaction,
     batch: list[dict],
-    *,
-    queue_if_new: bool,
 ) -> tuple[Path, int, dict] | None:
-    """Append fresh events to the task's open epoch under its delivery lock."""
-    current = _current_epoch(session_id)
-    if current is not None:
-        current_path, current_epoch = current
-        if queue_if_new and current_epoch["phase"] == "entered":
-            current_epoch["phase"] = "closed"
-            if current_epoch["queue"] == "pending":
-                current_epoch["queue"] = "none"
-            _write_epoch(current_path, current_epoch)
-            current = None
+    """Append fresh events to the task's one collecting queue."""
+    current = _collecting_queue(session_id)
     if current is None:
-        epoch_path = delivery_epoch_path(session_id, str(uuid.uuid4()))
-        epoch_path.parent.mkdir(parents=True, exist_ok=True)
-        epoch = {
-            "format": DELIVERY_EPOCH_FORMAT,
-            "queue": "pending" if queue_if_new else "none",
-            "queued": 0,
-            "stop_offered": 0,
-            "phase": "waiting" if queue_if_new else "entered",
-            "updated_at": time.time(),
+        path = queue_path(session_id, str(uuid.uuid4()))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        queue = {
+            "format": QUEUE_FORMAT,
+            "state": "collecting",
+            "created_at": time.time(),
             "batches": [],
         }
     else:
-        epoch_path, epoch = current
-        if not queue_if_new:
-            epoch["phase"] = "entered"
+        path, queue = current
 
     delivered = {
         (entry["page"], event["seq"], event["id"])
-        for entry in epoch["batches"]
+        for entry in queue["batches"]
         for event in entry["events"]
     }
     fresh = [
@@ -547,14 +560,13 @@ def _append_batch(
         "events": data["events"],
         "receipted": False,
     }
-    epoch["batches"].append(entry)
-    epoch["updated_at"] = time.time()
-    _write_epoch(epoch_path, epoch)
-    return epoch_path, len(epoch["batches"]) - 1, entry
+    queue["batches"].append(entry)
+    _write_queue(path, queue)
+    return path, len(queue["batches"]) - 1, entry
 
 
 def capture_batch(session_id: str, reading) -> bool:
-    """Persist one watcher batch in the session's current delivery epoch."""
+    """Persist one watcher batch in the session's collecting queue."""
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
@@ -563,12 +575,6 @@ def capture_batch(session_id: str, reading) -> bool:
             reading.page_dir,
             reading.transaction,
             reading.batch,
-            queue_if_new=any(
-                (claim := page_claim(page_dir)) is not None
-                and claim["host"] == "codex"
-                and claim.get("turn_closed")
-                for page_dir in owned_pages(session_id)
-            ),
         )
     return captured is not None
 
@@ -608,24 +614,24 @@ def _page_acknowledged(batch: dict) -> bool:
     return read_cursor(page_dir) >= max(event["seq"] for event in batch["events"])
 
 
-def _sync_receipts(epoch_path: Path, epoch: dict) -> None:
-    """Preserve page receipts in history before their paths can be reused."""
+def _sync_receipts(path: Path, queue: dict) -> None:
+    """Persist page receipts before archiving completed queue state."""
     changed = False
-    for batch in epoch["batches"]:
+    for batch in queue["batches"]:
         if not batch["receipted"] and _page_acknowledged(batch):
             batch["receipted"] = True
             changed = True
     if changed:
-        _write_epoch(epoch_path, epoch)
+        _write_queue(path, queue)
     else:
-        _archive_epoch(epoch_path, epoch)
+        _archive_queue(path, queue)
 
 
-def _record_receipt(epoch_path: Path, batch_index: int) -> None:
-    epoch = read_json(epoch_path)
-    if epoch is not None and not epoch["batches"][batch_index]["receipted"]:
-        epoch["batches"][batch_index]["receipted"] = True
-        _write_epoch(epoch_path, epoch)
+def _record_receipt(path: Path, batch_index: int) -> None:
+    queue = read_json(path)
+    if queue is not None and not queue["batches"][batch_index]["receipted"]:
+        queue["batches"][batch_index]["receipted"] = True
+        _write_queue(path, queue)
 
 
 def _recover_delivery(
@@ -637,50 +643,41 @@ def _recover_delivery(
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
-        epochs = _epochs(session_id)
-        current = _current_epoch(session_id, epochs)
-        if current is not None:
-            path, epoch = current
-            if (
-                epoch["phase"] == "entered"
-                and len(epoch["batches"]) > epoch["queued"]
-                and time.time() - epoch["updated_at"]
-                >= ACTIVE_DELIVERY_RECOVERY_TIMEOUT
-            ):
-                epoch["phase"] = "waiting"
-                epoch["queue"] = "pending"
-                _write_epoch(path, epoch)
-        for path, epoch in epochs:
-            _sync_receipts(path, epoch)
-        queued_epoch = next(
-            ((path, epoch) for path, epoch in epochs if epoch["queue"] == "pending"),
+        queues = _queues(session_id)
+        for path, queue in queues:
+            _sync_receipts(path, queue)
+        unoffered = next(
+            (
+                (path, queue)
+                for path, queue in queues
+                if queue["state"] in {"collecting", "offering"}
+            ),
             None,
         )
         queued = None
-        if queued_epoch is not None:
-            epoch_path, epoch = queued_epoch
-            queued = epoch_path, len(epoch["batches"]), _offer_epoch(epoch_path, epoch)
+        if unoffered is not None:
+            path, queue = unoffered
+            queued = path, _offer_delivery(path, queue)
     if queued is not None:
-        epoch_path, queued_count, prompt = queued
+        path, prompt = queued
         if app_server is None:
             queue_delivery(codex_path, session_id, prompt)
         else:
             queue_delivery(codex_path, session_id, prompt, app_server)
         with flocked(lock):
-            epoch = read_json(epoch_path)
-            if epoch is not None and epoch["queue"] == "pending":
-                epoch["queue"] = "accepted"
-                epoch["queued"] = queued_count
-                _write_epoch(epoch_path, epoch)
+            queue = read_json(path)
+            if queue is not None and queue["state"] == "offering":
+                queue["state"] = "accepted"
+                _write_queue(path, queue)
         return True
 
     with flocked(lock):
         pending = min(
             (
                 (path, index, dict(batch))
-                for path, epoch in _epochs(session_id)
-                if epoch["queue"] != "pending"
-                for index, batch in enumerate(epoch["batches"])
+                for path, queue in _queues(session_id)
+                if queue["state"] == "accepted"
+                for index, batch in enumerate(queue["batches"])
                 if not batch["receipted"]
             ),
             key=lambda pending: (
@@ -691,19 +688,19 @@ def _recover_delivery(
         )
     if pending is None:
         return False
-    epoch_path, batch_index, batch = pending
+    path, batch_index, batch = pending
     _finish_batch(batch)
     with flocked(lock):
-        _record_receipt(epoch_path, batch_index)
+        _record_receipt(path, batch_index)
     return True
 
 
 def _has_delivery_work(session_id: str) -> bool:
     with flocked(delivery_lock_path(session_id)):
         return any(
-            epoch["queue"] == "pending"
-            or any(not batch["receipted"] for batch in epoch["batches"])
-            for _, epoch in _epochs(session_id)
+            queue["state"] != "accepted"
+            or any(not batch["receipted"] for batch in queue["batches"])
+            for _, queue in _queues(session_id)
         )
 
 
@@ -733,127 +730,6 @@ def _clear_stream_activity(session_id: str, turn_id: str | None = None) -> None:
     with _locked_codex_pages(session_id) as pages:
         for page in pages:
             page.clear_stream_activity(session_id, turn_id)
-
-
-def _capture_pages(session_id: str, pages: list[PageTransaction]) -> None:
-    """Move every pending page event into the current in-turn mailbox."""
-    for page in pages:
-        batch = unacknowledged(page.events, page.cursor)
-        if not batch:
-            continue
-        captured = _append_batch(
-            session_id,
-            page.page_dir,
-            page,
-            batch,
-            queue_if_new=False,
-        )
-        if captured is None:
-            continue
-        epoch_path, batch_index, entry = captured
-        # The epoch must survive before the page cursor advances.
-        # A hook process may fail open after either write.
-        events = {event["seq"]: event for event in page.events}
-        delivered = [events[event["seq"]] for event in entry["events"]]
-        record_pickup(
-            page,
-            delivered,
-            phase="opened",
-            session=session_id,
-            turn=(page.claim or {}).get("turn"),
-        )
-        acknowledge(page, max(event["seq"] for event in entry["events"]))
-        _record_receipt(epoch_path, batch_index)
-
-
-def open_turn(session_id: str) -> tuple[bool, str | None]:
-    """Open a Codex turn and carry any waiting Leaf input into its context."""
-    with _locked_codex_pages(session_id) as pages:
-        if not pages:
-            return False, None
-        lock = delivery_lock_path(session_id)
-        lock.parent.mkdir(parents=True, exist_ok=True)
-        with flocked(lock):
-            # Establish the turn before capturing input: every delivery recorded
-            # below must name the turn it actually entered, never the one the
-            # preceding Stop hook closed.
-            for page in pages:
-                page.open_turn(session_id)
-            if adapter_is_live(session_id):
-                _capture_pages(session_id, pages)
-            current = _current_epoch(session_id)
-            prompt = None
-            if current is not None:
-                epoch_path, epoch = current
-                epoch["phase"] = "entered"
-                epoch["updated_at"] = time.time()
-                if epoch["queue"] == "pending":
-                    epoch["queue"] = "none"
-                by_page = {str(page.page_dir): page for page in pages}
-                for batch in epoch["batches"]:
-                    page = by_page.get(batch["page"])
-                    if page is None:
-                        continue
-                    wanted = {event["id"] for event in batch["events"]}
-                    delivered = [
-                        event for event in page.events if event.get("id") in wanted
-                    ]
-                    record_pickup(
-                        page,
-                        delivered,
-                        phase="opened",
-                        session=session_id,
-                        turn=(page.claim or {}).get("turn"),
-                    )
-                prompt = _offer_epoch(epoch_path, epoch)
-        return True, prompt
-
-
-def finish_turn(
-    session_id: str,
-    reasons: list[str],
-    stop_hook_active: bool,
-) -> list[str] | None:
-    """Atomically deliver input that precedes this Stop or close the turn."""
-    with _locked_codex_pages(session_id) as pages:
-        if not pages:
-            return None
-        lock = delivery_lock_path(session_id)
-        lock.parent.mkdir(parents=True, exist_ok=True)
-        with flocked(lock):
-            if adapter_is_live(session_id):
-                _capture_pages(session_id, pages)
-            current = _current_epoch(session_id)
-            prompt = None
-            if current is not None:
-                epoch_path, epoch = current
-                visible = epoch["stop_offered"] if stop_hook_active else epoch["queued"]
-                if len(epoch["batches"]) > visible:
-                    epoch["stop_offered"] = len(epoch["batches"])
-                    epoch["updated_at"] = time.time()
-                    prompt = _offer_epoch(epoch_path, epoch)
-            should_block = prompt is not None or bool(reasons and not stop_hook_active)
-            if should_block:
-                for page in pages:
-                    page.open_turn(session_id)
-            else:
-                for page in pages:
-                    page.close_turn(session_id)
-                if current is not None:
-                    epoch_path, epoch = current
-                    if epoch["queue"] == "pending":
-                        epoch["queue"] = "none"
-                    epoch["phase"] = "closed"
-                    _write_epoch(epoch_path, epoch)
-
-    if not should_block:
-        return []
-    delivery = (
-        []
-        if prompt is None
-        else ["new Leaf input joined this turn. Process every batch in:\n" + prompt]
-    )
-    return delivery + reasons
 
 
 def run_adapter(

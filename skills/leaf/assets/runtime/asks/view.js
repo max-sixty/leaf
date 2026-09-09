@@ -113,7 +113,7 @@ import {
   inChrome,
   TEXT_BLOCK,
 } from "../passages.js";
-import { pageScroller } from "../scrolling.js";
+import { scrollerFor } from "../navigation.js";
 import { el, reserve, reveal } from "../widget-elements.js";
 import {
   asksBtn,
@@ -1050,8 +1050,9 @@ export function goToAsk(next, asks) {
   // moved to the next ask, which is the whole of what this press had left to say.
   if (inChrome(next)) scrollToElement(next, scrollBehavior(), "center");
   else {
-    const region = arrivalRegion(next, pageScroller);
-    if (!framed(region, next, pageScroller)) {
+    const box = scrollerFor(next);
+    const region = arrivalRegion(next, box);
+    if (!framed(region, next, box)) {
       // The ask's own box first, which is the only pass that moves a scroller
       // other than the page's: the placement below moves whichever box scrolls the
       // region, and for a region out on the page that is never the board's own

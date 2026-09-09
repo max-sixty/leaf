@@ -6,6 +6,7 @@ references.
 
 - [Read the registry](#read-the-registry)
 - [Document scaffold](#document-scaffold)
+- [Document or workspace](#document-or-workspace)
 - [Theme and vocabulary](#theme-and-vocabulary)
 - [Stable anchors](#stable-anchors)
 - [Reading cost](#reading-cost)
@@ -70,6 +71,32 @@ and one external `/leaf.js` module. Every `lf-*` element has an explicit end tag
 </html>
 ```
 
+## Document or workspace
+
+Use ordinary document flow for material the reader takes in sequence. Use a
+workspace when the task needs regions visible together, such as controls beside a
+preview or a queue beside its detail. Both use the same widgets, Asks, comments,
+and revisions; packages supply the vocabulary and guidance for the task.
+
+For a workspace, make `lf-workspace` the sole content element directly inside
+`main`, with the page title in its optional direct native `header`. Its body is
+exactly one element. Put prose in an `lf-pane`; compose multiple named panes with
+one `lf-split`, where each split takes two panes or splits in `columns` or `rows`.
+The workspace's optional direct native `footer` follows its body. A pane's direct
+`header` and `footer` frame its reading body; put existing action widgets in the
+footer when they should stay available while the body scrolls. A pane's `label`
+names it for navigation and assistive technology; author a `header` when it needs
+a visible heading. Query the registry entries for their complete markup contracts.
+
+Keep a compound widget's authoring grammar and state ownership together. A
+playground supplies its own controls and preview regions; its Ask still surrounds
+the playground. Structural and compound owners register their arrangements so the
+workspace can allocate them directly; a plain wrapper does not carry allocation to
+an arranged descendant. An embedded workspace stays within its containing content.
+Constrained windows and standalone copies expose regions in authored order, so
+choose an order that remains useful when stacked. Let Leaf allocate the space;
+page-specific positioning should not be needed to keep a pane or footer reachable.
+
 ## Theme and vocabulary
 
 Write semantic HTML and use the class idioms the registry lists under `$idioms`,
@@ -88,8 +115,8 @@ shortcuts, live-leaves tray, and active-asks tray. Authors declare reader asks
 through the registry's Ask sources and surfaces, but do not duplicate that
 chrome or maintain a second list of it in the page.
 
-Keep content inside the page's column. The theme scrolls a `<pre>` or a table
-that runs wider than it and fits an image or SVG to it, so none of them needs a
+Keep content inside its document column or pane. The theme scrolls a `<pre>` or a table
+that runs wider than its container and fits an image or SVG to it, so none of them needs a
 width. A table that scrolls has every column at its longest unbreakable run, and
 the browser gate refuses one that scrolls with a cell in it wrapped: put an
 identifier in `<code>`, where it breaks inside its cell, rather than bare, where

@@ -1712,8 +1712,10 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     position-try-fallbacks: none;
     inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) auto auto
       var(--lf-thread-left, 8px);
-    width: min(var(--thread-card), calc(100vw - var(--lf-thread-left, 8px) - 8px));
-    max-height: calc(100vh - var(--lf-banner-h) - 16px); margin: 0; }
+    width: min(var(--thread-card),
+      var(--lf-thread-width, calc(100vw - var(--lf-thread-left, 8px) - 8px)));
+    max-height: var(--lf-thread-max-height,
+      calc(100vh - var(--lf-banner-h) - 16px)); margin: 0; }
   .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
     gap: 8px; }
   .lf-page-map-head > strong { flex: 1; }

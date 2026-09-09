@@ -28,6 +28,7 @@ from interact_support import (
     append_command,
     before_choice,
     check,
+    comment,
     decide,
     declare_data_input,
     fixture_version_path,
@@ -59,6 +60,54 @@ from leaf.validation import compatibility as validation_model
 def test_check_accepts_a_valid_page(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
+
+
+def test_a_quote_crosses_an_upgraded_verbatim_wrapper(page_dir):
+    quote = "jobs/backfill.py:88. Which plan should lead?"
+
+    result = comment(page_dir, "--quote", quote, "--text", "compare these")
+
+    assert result.exit_code == 0, result.output
+    anchor = json.loads(result.output)["anchor"]
+    assert anchor["quote"] == quote
+    assert anchor["section"] == "plan"
+
+
+def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries():
+    registry = {
+        "lf-shell": {"x-upgrade": True, "x-verbatim": True},
+        "lf-piece": {"x-upgrade": True, "x-verbatim": True},
+    }
+    plain = passages_model.page_passages(
+        '<lf-shell id="shell"><p>set<em>up</em></p>'
+        "<lf-piece>child words</lf-piece><p>after</p></lf-shell>",
+        registry,
+    ).verbatim["shell"]
+    wrapped = passages_model.page_passages(
+        '<lf-shell id="shell"><p><span>set</span>up</p>'
+        "<lf-piece>different child rendering</lf-piece><p>after</p></lf-shell>",
+        registry,
+    ).verbatim["shell"]
+    separated = passages_model.page_passages(
+        '<lf-shell id="shell"><p>set up</p>'
+        "<lf-piece>child words</lf-piece><p>after</p></lf-shell>",
+        registry,
+    ).verbatim["shell"]
+    non_js_whitespace = passages_model.page_passages(
+        '<lf-shell id="shell">\u0085edge\u0085</lf-shell>', registry
+    ).verbatim["shell"]
+
+    assert (
+        plain
+        == wrapped
+        == [
+            {"text": "setup"},
+            {"boundary": ["shell", 0, "lf-piece", None]},
+            {"text": "after"},
+        ]
+    )
+    assert separated[0] == {"text": "set up"}
+    assert non_js_whitespace == [{"text": "\u0085edge\u0085"}]
 
 
 def construction_nodes(content):
@@ -842,6 +891,98 @@ def test_a_chip_is_admissible_in_both_its_holders(page_dir):
     result = check(page_dir)
     assert result.exit_code == 1
     assert "must be a direct child of <lf-option> or <lf-variant>" in result.output
+
+
+def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
+    """A package can supply structural tags without joining a built-in tag list."""
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-deck"] = {
+        "description": "A project package's differently named split.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "direction": {"enum": ["rows", "columns"]},
+        },
+        "required": ["id", "direction"],
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-layout": "split",
+        "x-upgrade": False,
+    }
+    registry["lf-zone"] = {
+        "description": "A project package's differently named pane.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "label": {"type": "string"},
+        },
+        "required": ["id", "label"],
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-layout": "pane",
+        "x-upgrade": False,
+    }
+    registry_path.write_text(json.dumps(registry))
+    version = page_dir / ".fixture-versions" / "v1.html"
+    valid = PAGE.replace(
+        "<h2>Plan</h2>",
+        """<lf-workspace id="review-space">
+  <header><h2>Plan</h2></header>
+  <lf-deck id="regions" direction="columns">
+    <lf-zone id="queue" label="Queue"><p>First</p></lf-zone>
+    <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
+  </lf-deck>
+  <footer><p>Finish</p></footer>
+</lf-workspace>""",
+    )
+    version.write_text(valid)
+    assert check(page_dir).exit_code == 0, check(page_dir).output
+
+
+def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
+    version = page_dir / ".fixture-versions" / "v1.html"
+    version.write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            """<lf-workspace id="review-space">
+  <p>Before the misplaced header.</p><header><h2>Plan</h2></header>
+  <lf-split id="regions" direction="columns">
+    <lf-pane id="queue" label="Queue"><p>First</p></lf-pane>
+    <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
+    <p>Loose</p>
+  </lf-split>
+</lf-workspace>""",
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "direct <header> must be first" in result.output
+    assert (
+        "exactly two direct pane or split widgets and no loose content" in result.output
+    )
+
+
+def test_workspace_requires_one_element_body(page_dir):
+    version = page_dir / ".fixture-versions" / "v1.html"
+    invalid_bodies = {
+        "bare text": "Loose text",
+        "multiple elements": "<p>First</p><p>Second</p>",
+        "empty body": "",
+    }
+
+    for name, body in invalid_bodies.items():
+        version.write_text(
+            PAGE.replace(
+                "<h2>Plan</h2>",
+                f'<lf-workspace id="review-space">{body}</lf-workspace>',
+            )
+        )
+        result = check(page_dir)
+        assert result.exit_code == 1, f"{name} passed workspace validation"
+        assert "x-layout workspace must contain exactly one direct body element" in (
+            result.output
+        )
 
 
 def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_dir):
@@ -4012,6 +4153,12 @@ def test_check_advises_a_page_whose_headings_have_nothing_listing_them(page_dir)
         )
     ]
     assert outline_advice(PAGE.replace("<h2>Plan</h2>", "")) == []
+    workspace = PAGE.replace(
+        "<main>",
+        '<main><lf-workspace id="outline-workspace">'
+        '<lf-pane id="outline-region" label="Proposal">',
+    ).replace("</main>", "</lf-pane></lf-workspace></main>")
+    assert outline_advice(workspace) == []
     assert (
         outline_advice(
             PAGE.replace(

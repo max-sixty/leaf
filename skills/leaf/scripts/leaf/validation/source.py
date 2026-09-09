@@ -22,6 +22,7 @@ from leaf.validation.instances import (
     ask_surface_errors,
     declared_word_errors,
     language_class_errors,
+    layout_errors,
     line_ref_errors,
     reference_errors,
     request_offer_errors,
@@ -160,6 +161,7 @@ def _registry_errors(
         return stored_data, errors
     stored_data = read_data(page_dir)
     errors.extend(widget_errors(parser.lf_elements, registry))
+    errors.extend(layout_errors(parser.lf_elements, registry))
     errors.extend(visual_part_errors(parser.lf_elements, registry))
     errors.extend(
         data_binding_errors(

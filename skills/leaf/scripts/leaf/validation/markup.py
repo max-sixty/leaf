@@ -114,7 +114,7 @@ def unpointable_blocks(parser: StructParser) -> list:
 
 
 def missing_outline(parser: StructParser, registry: dict) -> list:
-    """A page with several headings and nothing that lists them. Advice, never a
+    """A document with several headings and nothing that lists them. Advice, never a
     gate: the outline widget's own entry states the default — a page with two or
     more headings carries one — and this is that default's feedback loop, the way
     unpointable_blocks is the id rule's.
@@ -125,6 +125,23 @@ def missing_outline(parser: StructParser, registry: dict) -> list:
     deliberately low bar. An author who reads the line and still leaves the page
     bare has answered it: on a page short enough to take in whole, a list of its
     headings says nothing the page has not already said."""
+    main = next((node for node in parser.nodes if node["tag"] == "main"), None)
+    if main is not None:
+        roots = [
+            node
+            for node in main["content"]
+            if (isinstance(node, str) and node.strip())
+            or (
+                isinstance(node, dict)
+                and node["tag"] not in {"script", "style", "template"}
+            )
+        ]
+        if (
+            len(roots) == 1
+            and isinstance(roots[0], dict)
+            and registry.get(roots[0]["tag"], {}).get("x-layout") == "workspace"
+        ):
+            return []
     outline = sorted(
         # Widgets only — a $ entry is a layer-wide namespace, not a tag a page can
         # write, and $keys spells its members in the x- keys' own names.

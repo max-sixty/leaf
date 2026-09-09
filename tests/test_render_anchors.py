@@ -11,6 +11,7 @@ from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import files as files_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf.registry import storage as registry_storage
@@ -53,6 +54,7 @@ from render_support import (
     compare_with,
     composer_quote,
     hold_selection,
+    holding,
     leaf_page,
     live_url,
     mark_point,
@@ -2981,7 +2983,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
 
     That is also this file's floor for the corpus. The example sweeps serve the newest
     version and never press anything, so with no reading here the chooser could offer
-    a list nobody walks and a Δ nobody presses on every page in examples/."""
+    a list nobody walks and a Compare control nobody presses on every page in examples/."""
     example = next(p for p in EXAMPLES if p.stem == "log-retention")
     page, errors = open_page(browser, serve(example))
 
@@ -3034,29 +3036,25 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     page.close()
 
 
-def test_a_changed_block_shows_what_it_said_in_the_base_version(browser, serve):
-    """The other half of a comparison: not only that a block changed, but from what.
+def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, serve):
+    """The other half of a comparison is one inline reading of what changed.
 
-    The marks are one reading and this is the second, and the reader asks for it a
-    block at a time — the Change margin element is a disclosure whose press folds the base
-    version's own paragraph open inside the block, so learning what changed costs no
-    travel to v1 and back. The example is the corpus's one authored pair, so what the
-    disclosure holds is what a revision does: a paragraph rewritten around a comment
-    (`ret-cost-body`, whose first sentence survived and whose second did not), and two
-    passages the revision added that v1 has no counterpart for.
+    The Change margin element is a disclosure per block. Its press inserts dropped
+    text at its aligned boundary and highlights added words in the current prose, so the
+    reader need not compare the paragraph with a second copy underneath. Rewritten
+    sentences stay whole; a local edit is refined to its words. Generated historical
+    words stay outside the authored passage: the existing comment remains attached and
+    selection still reads the current version alone.
 
-    The two sentences of `ret-cost-body` are the single-factor contrast. One rendering
-    that struck the whole paragraph and one that struck none of it both pass a test
-    reading only the words; this asserts the surviving sentence is unmarked and the
-    dropped one is a <del>, which only a per-sentence alignment of the two versions
-    produces."""
+    The authored pair supplies the contrasts: one rewritten paragraph with a surviving
+    and a replaced sentence, one new paragraph, and one new list item."""
     example = next(p for p in EXAMPLES if p.stem == "log-retention")
     page, errors = open_page(browser, serve(example))
     compare_with(page, 1)
     expect(page.locator("main .lf-ins-block")).to_have_count(3)
 
     # Nothing stands open until a reader asks: the marks are the whole first reading.
-    expect(page.locator(".lf-earlier")).to_have_count(0)
+    expect(page.locator(".lf-version-inline-label")).to_have_count(0)
     marks = "() => CSS.highlights.get('lf-mark')?.size ?? 0"
     assert page.evaluate(marks) == 2
     rewritten = page.locator(
@@ -3065,46 +3063,63 @@ def test_a_changed_block_shows_what_it_said_in_the_base_version(browser, serve):
     expect(rewritten).to_have_attribute("aria-expanded", "false")
     # A disclosure says what it holds. "Change" alone reports a fact and promises no
     # press, which is what the margin element said before it had one to make.
-    expect(rewritten.locator(".lf-margin-element-context")).to_have_text(
-        "Show what v1 said"
+    expect(rewritten.locator(".lf-margin-element-context")).to_have_text("v1 → v2")
+
+    # Page map carries the same provenance on each changed-passage row. The account
+    # stays distinct from the versions, and both remain searchable away from the passage.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    mapped = sheet.locator('[data-lf-map-item^="change:"]').filter(has_text="v1 → v2")
+    expect(mapped).to_have_count(3)
+    expect(mapped.first.locator(".lf-page-map-action-label-word")).to_have_text(
+        re.compile(r"^paragraph changed · ")
     )
+    expect(mapped.first.locator(".lf-page-map-action-context")).to_have_text("v1 → v2")
+    expect(mapped.first).to_have_attribute(
+        "aria-label", re.compile(r"^Open change: .+, v1 → v2$")
+    )
+    page.keyboard.press("Escape")
     rewritten.click()
 
-    # Inside the block, not beside it: an <li>'s parent takes list items and nothing
-    # else, so a sibling would be markup no list may hold.
-    earlier = page.locator("#ret-cost-body > .lf-earlier")
-    expect(earlier).to_have_count(1)
+    # One current passage with no visible label mixed into it. Its quiet label names the
+    # controlled comparison for assistive reading. The deletion sits where the
+    # replacement begins; the current sentence stays in its authored DOM.
+    label = page.locator("#ret-cost-body > .lf-version-inline-label")
+    expect(label).to_have_text("v1 → v2")
+    expect(label).to_have_class(re.compile(r"\blf-quiet\b"))
+    expect(label).to_have_css("clip-path", "inset(50%)")
     expect(rewritten).to_have_attribute("aria-expanded", "true")
-    expect(rewritten).to_have_attribute("aria-controls", "lf-earlier-ret-cost-body")
-
-    # v1's own paragraph, whole: same + delete is what the alignment reconstructs.
-    assert re.sub(
-        r"\s+", " ", earlier.locator(".lf-earlier-body").inner_text()
-    ).strip() == (
-        "Two years of incident write-ups name a log older than six weeks exactly twice. "
-        "Both times the question was answered from the aggregates instead, so the 45 "
-        "days costs us a search we have not run."
+    expect(rewritten).to_have_attribute(
+        "aria-controls", "lf-version-inline-ret-cost-body"
     )
-    struck = earlier.locator("del").all_inner_texts()
-    assert len(struck) == 1, struck
-    assert struck[0].strip().startswith("Both times the question was answered"), struck
-    assert "Two years of incident write-ups" not in struck[0], struck
-    expect(earlier.locator(".lf-earlier-head")).to_have_text("v1")
+    struck = page.locator("#ret-cost-body > .lf-version-inline-deletion del")
+    expect(struck).to_have_count(1)
+    expect(struck).to_contain_text("Both times the question was answered")
+    expect(struck).not_to_contain_text("Two years of incident write-ups")
+    inserted = page.evaluate(
+        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
+    )
+    assert len(inserted) == 1, inserted
+    assert inserted[0].strip().startswith("The rate came from the aggregates"), inserted
+    assert "Two years of incident write-ups" not in inserted[0], inserted
 
     # The press reports the move; the banner's status line holds a moment's news, and
     # a paragraph put through it is clipped and a hover away.
     expect(page.locator(".lf-notice")).to_have_text(
-        "paragraph changed since v1 · showing what v1 said"
+        "paragraph changed since v1 · showing an inline diff from v1"
     )
 
-    # A passage the revision added has no counterpart to show, and says so rather than
-    # offering an empty quotation.
+    # A passage the revision added has no counterpart to show, so the inline label says
+    # that directly and the block keeps its all-new wash.
     added = page.locator(
         '[data-lf-margin-for="ret-cost-keep"] [data-lf-kinds~="change"]'
     )
     added.click()
-    expect(page.locator("#ret-cost-keep > .lf-earlier")).to_have_text("New since v1")
-    expect(page.locator("#ret-cost-keep .lf-earlier del")).to_have_count(0)
+    expect(page.locator("#ret-cost-keep > .lf-version-inline-label")).to_have_text(
+        "New since v1"
+    )
+    expect(page.locator("#ret-cost-keep .lf-version-inline-deletion")).to_have_count(0)
     expect(page.locator(".lf-notice")).to_have_text(
         "paragraph changed since v1 · v1 had nothing here"
     )
@@ -3114,26 +3129,138 @@ def test_a_changed_block_shows_what_it_said_in_the_base_version(browser, serve):
         '[data-lf-margin-for="ret-steps-carve"] [data-lf-kinds~="change"]'
     )
     step.click()
-    expect(page.locator("#ret-steps-carve > .lf-earlier")).to_have_text("New since v1")
-    expect(page.locator("main ol > .lf-earlier, main ul > .lf-earlier")).to_have_count(
-        0
+    expect(page.locator("#ret-steps-carve > .lf-version-inline-label")).to_have_text(
+        "New since v1"
     )
+    expect(
+        page.locator(
+            "main ol > .lf-version-inline-label, main ul > .lf-version-inline-label"
+        )
+    ).to_have_count(0)
 
     # The reading is the runtime's own words (.lf-ui), so the page's reading does not
     # move under it: both threads keep the passages they quote, one of them inside the
-    # block now holding v1's paragraph.
+    # block now holding the inline comparison.
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
     assert page.evaluate(marks) == 2
 
-    # The same press closes it, and stopping the comparison takes the rest with the
-    # marks: an earlier reading is the comparison's rendering, not a note left behind.
+    # The same press closes it, and stopping the comparison takes every inline part and
+    # highlight with the marks.
     rewritten.click()
-    expect(page.locator("#ret-cost-body > .lf-earlier")).to_have_count(0)
+    expect(page.locator("#ret-cost-body > .lf-version-inline-label")).to_have_count(0)
     expect(rewritten).to_have_attribute("aria-expanded", "false")
-    expect(page.locator(".lf-earlier")).to_have_count(2)
+    expect(page.locator(".lf-version-inline-label")).to_have_count(2)
     compare_with(page, 1)
-    expect(page.locator(".lf-earlier")).to_have_count(0)
+    expect(page.locator(".lf-version-inline-label")).to_have_count(0)
     expect(page.locator("main .lf-ins-block")).to_have_count(0)
+    assert page.evaluate("() => CSS.highlights.has('lf-version-insert')") is False
+    assert errors == []
+    page.close()
+
+
+def test_an_inline_version_diff_uses_the_shared_authored_reading(browser, serve):
+    """A passage crossing element boundaries keeps one text and DOM reading."""
+    first = leaf_page(
+        "Nested version passage",
+        "<h1>Review</h1><aside id='note'>Careful<b>!</b> The old wording stood here.</aside>",
+    )
+    second = first.replace("old wording stood", "new wording stands")
+    url = serve(first)
+    page, errors = open_page(browser, live_url(url))
+    d = serve.page_dir
+    (d / ".fixture-versions" / "v2.html").write_text(second)
+    stamp_version_file(d, 2, "revise the note")
+    wait_for_revision(page, 2)
+
+    compare_with(page, 1)
+    change = page.locator('[data-lf-margin-for="note"] [data-lf-kinds~="change"]')
+    change.click()
+    expect(change).to_have_attribute("aria-expanded", "true")
+    assert page.locator("#note .lf-version-inline-deletion del").all_inner_texts() == [
+        "old",
+        "stood",
+    ]
+    inserted = page.evaluate(
+        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
+    )
+    assert inserted == ["new", "stands"]
+    assert errors == []
+    page.close()
+
+
+def test_an_inline_version_diff_indexes_astral_text_by_character(browser, serve):
+    """Astral text before an edit cannot shift its insertion and deletion ranges."""
+    first = leaf_page(
+        "Unicode version passage",
+        """
+        <h1>Forecast</h1>
+        <p id='wording'>Weather 🌧: the old wording stood here.</p>
+        <p id='tail'>Weather 🌧: this line keeps a trailing phrase.</p>
+        """,
+    )
+    second = first.replace("old wording stood", "new wording stands").replace(
+        " keeps a trailing phrase", ""
+    )
+    page, errors = open_page(browser, live_url(serve(first)))
+    d = serve.page_dir
+    (d / ".fixture-versions" / "v2.html").write_text(second)
+    stamp_version_file(d, 2, "revise the forecast")
+    wait_for_revision(page, 2)
+
+    compare_with(page, 1)
+    wording = page.locator('[data-lf-margin-for="wording"] [data-lf-kinds~="change"]')
+    wording.click()
+    expect(wording).to_have_attribute("aria-expanded", "true")
+    assert page.locator("#wording del").all_inner_texts() == ["old", "stood"]
+    assert page.evaluate(
+        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
+    ) == ["new", "stands"]
+
+    tail = page.locator('[data-lf-margin-for="tail"] [data-lf-kinds~="change"]')
+    tail.click()
+    expect(tail).to_have_attribute("aria-expanded", "true")
+    expect(page.locator("#tail del")).to_have_text("keeps a trailing phrase")
+    assert errors == []
+    page.close()
+
+
+def test_a_state_only_version_change_does_not_offer_an_empty_text_diff(browser, serve):
+    """A moved block remains marked without promising an inline prose comparison."""
+    first = leaf_page(
+        "Moved card",
+        """
+        <h1>Board</h1>
+        <lf-board id='board'>
+          <lf-column id='left' label='Left'>
+            <lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>
+          </lf-column>
+          <lf-column id='right' label='Right'></lf-column>
+        </lf-board>
+        """,
+    )
+    second = first.replace(
+        "<lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>\n"
+        "          </lf-column>\n"
+        "          <lf-column id='right' label='Right'></lf-column>",
+        "</lf-column>\n"
+        "          <lf-column id='right' label='Right'>\n"
+        "            <lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>\n"
+        "          </lf-column>",
+    )
+    page, errors = open_page(browser, live_url(serve(first)))
+    d = serve.page_dir
+    (d / ".fixture-versions" / "v2.html").write_text(second)
+    stamp_version_file(d, 2, "move the card")
+    wait_for_revision(page, 2)
+
+    compare_with(page, 1)
+    expect(page.locator("#card")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    change = page.locator('[data-lf-margin-for="card"] [data-lf-kinds~="change"]')
+    expect(change).not_to_have_attribute("aria-expanded", re.compile(".*"))
+    expect(change).not_to_have_attribute("aria-controls", re.compile(".*"))
+    change.click()
+    expect(page.locator("#card .lf-version-inline-label")).to_have_count(0)
+    expect(page.locator(".lf-notice")).to_have_text("card changed since v1")
     assert errors == []
     page.close()
 
@@ -3207,10 +3334,10 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     page.close()
 
 
-def test_the_picker_runs_in_number_order_past_v9(browser, serve):
+def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
     """A version stays an integer from the server through runtime state; only the
-    picker and URL boundary render its file name. Order the versions by those names
-    instead and v10 lands between v1 and v2: the picker reads out of sequence,
+    menu and URL boundary render its file name. Order the versions by those names
+    instead and v10 lands between v1 and v2: the menu reads out of sequence,
     the diff offers the wrong base, and a reader on the newest version is told a
     newer one is waiting."""
     url = serve(INLINE_PAGE)
@@ -3223,21 +3350,24 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
     rows = page.locator(".lf-version-menu .lf-version-row .lf-version-num")
     expect(rows).to_have_count(10)
     assert [t.split(" ")[0] for t in rows.all_text_contents()] == [
-        f"v{n}" for n in range(1, 11)
+        f"v{n}" for n in range(10, 0, -1)
     ]
-    expect(rows.last).to_have_text("v10 (latest version)")
+    expect(rows.first).to_have_text("v10 (latest version)")
     # The bases a diff can run against are every version older than this one, so the
-    # last press in the menu is v9 — which is what "the version before this" comes to
+    # first press in the menu is v9 — which is what "the version before this" comes to
     # once the ordering has decided it.
     presses = page.locator(".lf-version-diff")
     expect(presses).to_have_count(9)
-    expect(presses.last).to_have_attribute("data-lf-version", "9")
+    expect(presses.first).to_have_attribute("data-lf-version", "9")
     compare_with(page)
     expect(page.locator(".lf-version")).to_have_attribute(
         "title", re.compile(r"changed since v9 ")
     )
     # Nothing is newer than v10, so no chip offers one.
     expect(page.locator(".lf-latest-chip")).to_be_hidden()
+    expect(page.locator(".lf-version")).not_to_have_attribute(
+        "data-lf-news", re.compile(r".*")
+    )
     assert errors == []
     page.close()
 
@@ -3247,6 +3377,31 @@ def test_the_picker_runs_in_number_order_past_v9(browser, serve):
     expect(page.locator(".lf-latest-chip")).to_have_text(
         "New page available → open v10"
     )
+    expect(page.locator(".lf-version")).to_have_attribute("data-lf-news", "")
+    expect(page.locator(".lf-version")).to_have_attribute(
+        "aria-label", "v1: open versions; v10 available"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
+    """The compact range derives both ends from the exact numbered routes."""
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, INLINE_PAGE, "two")
+    _publish(serve.page_dir, 3, INLINE_PAGE, "three")
+    first = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "note" and event["version"] == 1
+    )
+    files_model.revision_path(serve.page_dir, first["revision"]).unlink()
+    page, errors = open_page(browser, url.replace("v1.html", "v3.html"))
+
+    open_versions(page)
+    menu_line = shortcut_bar_text(page)
+    assert "2–3\nopen version" in menu_line, menu_line
+    assert "1–3" not in menu_line, menu_line
     assert errors == []
     page.close()
 
@@ -3286,20 +3441,25 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     page.keyboard.press("Escape")
     expect(origin).to_be_focused()
 
-    # The pointer's door reaches the same layer, and the same key ends it — and the line
-    # says so. A keyboard entry leaves a return frame, whose "back" takes the key; the
-    # pointer leaves none, and the platform's own dismissal used to be nobody's row to
-    # print, so the menu advertised no way out at all.
+    # The pointer's door reaches the same layer and Escape still ends it. Exact numbered
+    # travel is the unfamiliar menu action and keeps the compact line's second slot from
+    # both doors; Escape remains in the complete reference as the standard way out.
     page.locator(".lf-version").click()
     expect(menu).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close")
+    pointer_line = shortcut_bar_text(page)
+    assert "walk — marking changes" in pointer_line, pointer_line
+    assert "1–2\nopen version" in pointer_line, pointer_line
+    assert "close" not in pointer_line, pointer_line
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
     open_versions(page)
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("close")
+    keyboard_line = shortcut_bar_text(page)
+    assert "walk — marking changes" in keyboard_line, keyboard_line
+    assert "1–2\nopen version" in keyboard_line, keyboard_line
+    assert "back" not in keyboard_line, keyboard_line
     page.keyboard.press("Escape")
 
-    # The line is the menu's while the reader is in it: its own way out is named and the
+    # The line is the menu's while the reader is in it: its own actions are named and the
     # page's keys are gone with the presses the mode took.
     open_versions(page)
     expect(line).to_contain_text("walk — marking changes")
@@ -3368,6 +3528,19 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
         for v in result.response["violations"]
         if v["impact"] in {"serious", "critical"}
     ] == []
+    # The visible word is part of the accessible name too. This rule is not included by
+    # axe's WCAG-tag selection above, so ask for it directly where Compare exists.
+    label_result = Axe().run(
+        page,
+        options={
+            "runOnly": {
+                "type": "rule",
+                "values": ["label-content-name-mismatch"],
+            },
+            "resultTypes": ["violations"],
+        },
+    )
+    assert label_result.response["violations"] == []
 
     # The keys are one declaration, so the "?" reference names them too — a page with
     # a second version is the first that has a list to walk.
@@ -3376,22 +3549,28 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(page.locator(".lf-shortcut-reference")).to_contain_text(
         "In the versions menu"
     )
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Previous version")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Next version")
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Later version")
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Earlier version")
+    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Open v1")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-reference")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_visible()
 
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
+    position = page.locator(".lf-walk-position")
+    page.keyboard.press("ArrowUp")
+    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
+    expect(position).to_have_text("Version 1 of 3")
+    page.keyboard.press("ArrowUp")  # clamped: the first row keeps the focus
+    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
+    expect(position).to_have_attribute("data-lf-boundary", "")
     page.keyboard.press("ArrowDown")
-    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
-    page.keyboard.press("ArrowDown")  # clamped: the last row keeps the focus
-    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
-    page.keyboard.press("ArrowUp")
-    page.keyboard.press("ArrowUp")
+    page.keyboard.press("ArrowDown")
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
-    page.keyboard.press("ArrowUp")  # clamped at the other end too
+    expect(position).to_have_text("Version 3 of 3")
+    page.keyboard.press("ArrowDown")  # clamped at the other end too
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    expect(position).to_have_attribute("data-lf-boundary", "")
     # The comparison the row it landed on states, which the reopen below reads: the base is
     # settled when the chooser says so, and the base's document is a fetch away, so a test
     # that closed the menu on the press alone would ask where the walk stands from a loaded
@@ -3421,13 +3600,16 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     open_versions(page)
     expect(menu).to_be_visible()
     expect(btn).to_have_attribute("aria-expanded", "true")
+    menu_line = shortcut_bar_text(page)
+    assert "1–3\nopen version" in menu_line, menu_line
+    assert "back" not in menu_line, menu_line
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     expect(btn).to_have_text("v2")
     expect(btn).to_have_class(re.compile(r"\bon\b"))
     expect(btn).to_have_attribute("title", re.compile(r"\(g V\)$"))
-    # And walking back down to the version being read is the way off it, which is the row
+    # And walking back up to the version being read is the way off it, which is the row
     # an open lands on with nothing standing.
-    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowUp")
     expect(btn).to_have_text("v2")
     expect(btn).not_to_have_class(re.compile(r"\bon\b"))
     # Inside the menu the letter is the menu's own — the newest version, tested where
@@ -3466,10 +3648,21 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_hidden()
     expect(btn).not_to_be_focused()
 
-    # Choosing a row is exact historical navigation, including for the newest stamp.
+    # A number is the corresponding row's press even when travel is unnecessary: the
+    # current row closes the menu just as clicking it does.
     btn.click()
-    page.locator('.lf-version-row[data-lf-version="3"]').click()
-    page.wait_for_url(re.compile(r"/versions/v3\.html\?pin=$"))
+    expect(menu).to_be_visible()
+    page.keyboard.press("2")
+    expect(menu).to_be_hidden()
+    assert "/versions/v2.html" in page.url
+
+    # Choosing another number is exact historical navigation, including for the newest
+    # stamp.
+    btn.click()
+    expect(menu).to_be_visible()
+    page.keyboard.press("3")
+    page.wait_for_url(re.compile(r"/versions/v3\.html"))
+    assert re.search(r"[?&]pin(?:=|&|$)", page.url)
     assert errors == []
     page.close()
 
@@ -3586,12 +3779,15 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     comparison = compared.locator('.lf-version-diff[data-lf-version="1"]')
     expect(comparison).to_be_focused()
     expect(compared.locator(".lf-version-menu")).to_be_visible()
-    expect(compared.locator(".lf-shortcut-bar")).not_to_contain_text("leave forward")
+    expect(compared.locator(".lf-shortcut-bar")).to_contain_text("leave forward")
     expect(compared.locator(".lf-shortcut-bar")).not_to_contain_text("leave backward")
     compared.keyboard.press("?")
     compared.keyboard.press("?")
+    expect(compared.locator(".lf-shortcut-reference")).to_contain_text(
+        "Leave the versions menu forward"
+    )
     expect(compared.locator(".lf-shortcut-reference")).not_to_contain_text(
-        "Leave the versions menu"
+        "Leave the versions menu backward"
     )
     compared.keyboard.press("Escape")
     expect(comparison).to_be_focused()
@@ -3599,23 +3795,23 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     # Holding Tab sends repeated keydowns after the first stop. The boundary action must
     # repeat too: leaving the browser's focus move native does not mean leaving the menu
     # painted over the control that move reaches.
-    compared.locator('.lf-version-row[data-lf-version="1"]').focus()
+    compared.locator('.lf-version-row[data-lf-version="2"]').focus()
+    compared.keyboard.down("Tab")
+    expect(compared.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     compared.keyboard.down("Tab")
     expect(compared.locator('.lf-version-diff[data-lf-version="1"]')).to_be_focused()
-    compared.keyboard.down("Tab")
-    expect(compared.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     compared.keyboard.down("Tab")
     compared.keyboard.up("Tab")
     expect(compared.locator(".lf-version-menu")).to_be_hidden()
     expect(compared.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
 
     open_versions(compared)
-    compared.locator('.lf-version-row[data-lf-version="2"]').focus()
+    comparison.focus()
     compared.keyboard.down("Shift")
     compared.keyboard.down("Tab")
-    expect(comparison).to_be_focused()
-    compared.keyboard.down("Tab")
     expect(compared.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    compared.keyboard.down("Tab")
+    expect(compared.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     compared.keyboard.down("Tab")
     compared.keyboard.up("Tab")
     compared.keyboard.up("Shift")
@@ -3666,7 +3862,7 @@ def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
     expect(menu).to_be_hidden()
     # Dismissal applies the deferred update without another publication.
     expect(page.locator(".lf-version-row")).to_have_count(3)
-    expect(page.locator(".lf-version-row").last).to_contain_text("v3 (latest version)")
+    expect(page.locator(".lf-version-row").first).to_contain_text("v3 (latest version)")
     assert errors == []
     page.close()
 
@@ -3747,7 +3943,7 @@ customElements.define('lf-menu-preparation', class extends HTMLElement {
     finally:
         page.evaluate("() => window.finishMenuPreparation()")
     told(page)
-    expect(page.locator(".lf-version-row").last).to_contain_text("v3 (latest version)")
+    expect(page.locator(".lf-version-row").first).to_contain_text("v3 (latest version)")
     assert errors == []
     page.close()
 
@@ -3789,7 +3985,7 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
 
     # Walk off the version being read, so the row under the focus is not the current one and
     # not the one this press takes.
-    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowUp")
     expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
     page.keyboard.press("v")
     page.wait_for_url(re.compile(r"/$"))
@@ -3810,6 +4006,104 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     page.close()
 
 
+def test_comparison_selection_moves_before_its_documents_finish_loading(browser, serve):
+    """The selected comparison follows the keyboard immediately while its result loads."""
+    v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
+    v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, v2, "reworded the neighbour")
+    _publish(serve.page_dir, 3, v3, "reworded the compound")
+    page, errors = open_page(browser, url.replace("v1.html", "v3.html"))
+
+    compare_with(page, 1)
+    expect(page.locator(".lf-ins-block")).to_have_count(2)
+    open_versions(page)
+    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    held = []
+    view_request = re.compile(r"/api/view\?")
+    page.route(view_request, lambda route: held.append(route))
+
+    with page.expect_request(view_request):
+        page.keyboard.press("ArrowUp")
+    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+    page.wait_for_timeout(0)
+    assert held, "the comparison document was not requested"
+    v1_compare = page.locator('.lf-version-diff[data-lf-version="1"]')
+    v2_compare = page.locator('.lf-version-diff[data-lf-version="2"]')
+    expect(v1_compare).to_have_attribute("aria-checked", "false")
+    expect(v2_compare).to_have_attribute("aria-checked", "true")
+    expect(v2_compare).to_have_attribute("aria-busy", "true")
+    expect(page.locator(".lf-ins-block")).to_have_count(0)
+
+    # The selection, not only the settled marks, is the menu's standing. Reopening
+    # while its documents are held returns to the row the reader just selected.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-version-menu")).to_be_hidden()
+    open_versions(page)
+    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+
+    held[0].continue_()
+    expect(v2_compare).not_to_have_attribute("aria-busy", re.compile(r".+"))
+    expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    expect(page.locator(".lf-ins-block")).to_have_count(1)
+    assert errors == []
+    page.close()
+
+
+def test_pending_comparison_moves_with_a_live_revision(browser, serve):
+    """A live activation cancels the old request and restores its selected base."""
+    v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
+    v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, v2, "reworded the neighbour")
+    page, errors = open_page(browser, live_url(url))
+    expect(page.locator(".lf-version")).to_have_text("v2")
+
+    held = []
+    requests = []
+    view_request = re.compile(r"/api/view\?")
+
+    def hold_first_view(route):
+        requests.append(route.request.url)
+        if not held:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route(view_request, hold_first_view)
+    released = False
+    try:
+        open_versions(page)
+        expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+        page.keyboard.press("ArrowDown")
+        expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+        holding(page, held, 1, "the comparison view")
+        expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_attribute(
+            "aria-busy", "true"
+        )
+        page.keyboard.press("Escape")
+
+        _publish(serve.page_dir, 3, v3, "reworded the compound")
+        wait_for_revision(page, 3)
+        expect(page.locator(".lf-version")).to_have_text("v3")
+        expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
+        expect(page.locator(".lf-ins-block")).to_have_count(2)
+        assert len(requests) >= 2, "the selected base was not restored after activation"
+
+        # The canceled request can finish last without repainting the prior document.
+        with page.expect_response(held[0].request.url):
+            held[0].continue_()
+        released = True
+        expect(page.locator(".lf-version")).to_have_text("v3")
+        expect(page.locator(".lf-ins-block")).to_have_count(2)
+    finally:
+        if held and not released:
+            held[0].continue_()
+        page.unroute(view_request)
+    assert errors == []
+    page.close()
+
+
 def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     """A page that ships a version whenever the work moves leaves its reader behind by
     more than one, and "what changed since the previous version" is then the wrong
@@ -3826,7 +4120,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     passages, without the reader leaving the list to find out. That is also the whole of
     the way off, the page having no key for a comparison. It costs nothing to find,
     because the two ends of the walk are the two versions the reader already has in mind:
-    an open lands on the standing base, and stepping down ends on the version being read,
+    an open lands on the standing base, and stepping toward the latest ends on the version being read,
     which is comparable with nothing."""
     v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
     v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
@@ -3865,7 +4159,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     assert page.evaluate(
         "() => [...document.querySelectorAll('.lf-version-row.lf-compared')]"
         ".map(r => r.dataset.lfVersion)"
-    ) == ["1", "2", "3"]
+    ) == ["3", "2", "1"]
 
     # Pressing the standing base again is the way off, and clears the marks and state.
     page.locator('.lf-version-diff[data-lf-version="1"]').click()
@@ -3874,7 +4168,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     expect(chooser).not_to_have_class(re.compile(r"\bon\b"))
     expect(chooser).to_have_attribute("aria-label", "v3: open versions")
 
-    # A Δ is still reachable by keyboard, a Tab off the row it belongs to, and still the
+    # Compare is still reachable by keyboard, a Tab off the row it belongs to, and still the
     # toggle the pointer presses.
     page.locator(".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').focus()
@@ -3885,13 +4179,13 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
 
     # And the keyboard's way off, which is the walk: an open lands on the base the marks
     # came from rather than on the version being read, so the reader starts at one end of
-    # the span the rail draws and steps down it to the other, where nothing is older to
+    # the span the rail draws and steps toward the latest to the other, where nothing is older to
     # compare against. Landing on the version being read instead would put the base a
     # press away from moving under them.
     open_versions(page)
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
-    page.keyboard.press("ArrowDown")
-    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowUp")
+    page.keyboard.press("ArrowUp")
     expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
     page.keyboard.press("Escape")
@@ -3905,25 +4199,25 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
 
-    page.keyboard.press("ArrowUp")
+    page.keyboard.press("ArrowDown")
     expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
     expect(page.locator(".lf-ins-block")).to_have_count(1)
     expect(menu).to_be_visible()
 
-    page.keyboard.press("ArrowUp")
+    page.keyboard.press("ArrowDown")
     expect(page.locator(".lf-ins-block")).to_have_count(2)
     expect(page.locator("#p2")).to_have_class(re.compile(r"\blf-ins-block\b"))
     expect(page.locator(".lf-version")).to_have_text("v3")
 
-    # Back down, one version at a time: the earlier base's marks go with it rather than
+    # Back up, one version at a time: the earlier base's marks go with it rather than
     # standing beside the new one's, which is what a comparison being one base means.
-    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowUp")
     expect(page.locator(".lf-ins-block")).to_have_count(1)
     expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
 
-    # And down onto the version being read, which is no comparison — the way off, on the
+    # And up onto the version being read, which is no comparison — the way off, on the
     # row an open lands on when nothing is standing.
-    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowUp")
     expect(page.locator(".lf-ins-block")).to_have_count(0)
     expect(page.locator(".lf-version")).to_have_text("v3")
     expect(menu).to_be_visible()

@@ -112,8 +112,9 @@ to the same task-wide watch.
 
 For one-conversation feedback, the adapter calls `turn/start` directly and records
 the returned Codex turn id before acknowledging pickup. It owns the live response
-and appends the final reply, while the task still owns page revisions, other Leaf
-operations, page status, and the handoff back to `waiting` or `idle`.
+and appends this turn's final answer as the reply; do not duplicate it with `leaf
+reply`. The task still owns page revisions, other Leaf operations, page status, and
+the handoff back to `waiting` or `idle`.
 
 The App Server's queue service remains the fallback. It starts a later turn while
 the connected Codex client remains the interactive client for approvals and user

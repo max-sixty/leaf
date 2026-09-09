@@ -42,6 +42,10 @@ name = "leaf-website-agent"
 binding = "AGENT_WORKFLOW"
 class_name = "LeafWebsiteAgentWorkflow"
 
+[[analytics_engine_datasets]]
+binding = "WEBSITE_EVENTS"
+dataset = "leaf_website_events"
+
 [[ratelimits]]
 name = "SOURCE_AGENT_RATE_LIMITER"
 namespace_id = "34302"

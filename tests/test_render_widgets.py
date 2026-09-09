@@ -2900,6 +2900,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     preview = playground.locator(
         ".lf-playground-preview-region > .lf-pane-content > .lf-pane-body"
     )
+    presets = playground.get_by_role("group", name="Starting points")
     actions = playground.locator(":scope > .lf-playground-actions")
 
     resized(page, 1100, 520)
@@ -2918,6 +2919,14 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
             previewId: leaf.readingRegionFor(preview).id,
             controlsScrolls: controls.scrollHeight > controls.clientHeight,
             controlsSize: [controls.clientHeight, controls.scrollHeight],
+            presetsAreFurniture:
+              controls.closest('.lf-pane-content').previousElementSibling === document.querySelector(
+                '#notification-playground .lf-playground-presets'),
+            presetsSize: (() => {
+              const presets = document.querySelector(
+                '#notification-playground .lf-playground-presets');
+              return [presets.clientHeight, presets.scrollHeight];
+            })(),
             playgroundHeight: playground.getBoundingClientRect().height,
             askHeight: document.querySelector('#notification-ask').getBoundingClientRect().height,
             controlsScroller: leaf.effectiveScroller(controls) === controls,
@@ -2937,6 +2946,8 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         "previewId": "lf-region:notification-playground:preview",
         "controlsScrolls": True,
         "controlsSize": bounded["controlsSize"],
+        "presetsAreFurniture": True,
+        "presetsSize": bounded["presetsSize"],
         "playgroundHeight": bounded["playgroundHeight"],
         "askHeight": bounded["askHeight"],
         "controlsScroller": True,
@@ -2946,9 +2957,15 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         "authoredWords": True,
         "spokenWords": True,
     }
-    assert bounded["controlsSize"][0] >= 250, (
-        "the page title and Ask should leave at least three control rows visible "
-        f"in the short workspace, got {bounded['controlsSize']}"
+    first_control = playground.locator("lf-playground-control").first
+    control_box = first_control.bounding_box()
+    controls_box = controls.bounding_box()
+    assert control_box["y"] >= controls_box["y"] and (
+        control_box["y"] + control_box["height"]
+        <= controls_box["y"] + controls_box["height"]
+    ), f"the fixed presets left no complete control row: {bounded['controlsSize']}"
+    assert bounded["presetsSize"][0] == bounded["presetsSize"][1], (
+        f"the fixed presets acquired another scrollbar: {bounded['presetsSize']}"
     )
     # A short allocation scrolls the preview and instruction as successive blocks;
     # shrinking the preview's grid track would paint it underneath the instruction.
@@ -2959,8 +2976,13 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     assert controls.evaluate("body => body.scrollWidth === body.clientWidth"), (
         "native control margins must fit inside the allocated pane width"
     )
-    controls.evaluate("body => body.scrollTop = 80")
+    presets_top = presets.bounding_box()["y"]
+    controls.evaluate("body => body.scrollTop = body.scrollHeight")
     assert controls.evaluate("body => body.scrollTop") > 0
+    expect(presets).to_be_visible()
+    assert presets.bounding_box()["y"] == pytest.approx(presets_top, abs=1)
+    expect(playground.get_by_role("button", name="Routine release")).to_be_visible()
+    expect(playground.get_by_role("button", name="Needs attention")).to_be_visible()
     assert preview.evaluate("body => body.scrollTop") == 0
     action_box = actions.bounding_box()
     playground_box = playground.bounding_box()

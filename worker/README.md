@@ -29,6 +29,36 @@ Deployments allow active instances a bounded ten-minute drain window, after whic
 replacement starts with fresh ephemeral state. Durable website sessions will require a
 durable page-directory store rather than another lifecycle promise.
 
+Accepted browser events also write canonical metadata to the
+`leaf_website_events` Analytics Engine dataset. The data point omits event content,
+widget ids, IP addresses, and session cookies:
+
+| Field | Value |
+| --- | --- |
+| `index1` | Canonical event id |
+| `blob1` | Public page route |
+| `blob2` | `product` or `example` |
+| `blob3` | Event kind |
+| `blob4` | Action verb, when present |
+| `blob5` | Site release id |
+| `double1` | Page revision, or `0` when absent |
+| `double2` | `1` when the event needs an agent reply |
+
+A retry of an accepted browser attempt writes the same event id again. Count distinct
+ids when measuring reader events:
+
+```sql
+SELECT
+  blob1 AS page,
+  blob3 AS kind,
+  blob4 AS action,
+  count(DISTINCT index1) AS events
+FROM leaf_website_events
+WHERE timestamp > now() - INTERVAL '7' DAY
+GROUP BY page, kind, action
+ORDER BY events DESC
+```
+
 When Leaf accepts a reader message that its canonical activity projection says needs
 a response, the Worker starts one Cloudflare Workflow keyed by the browser session and
 event id. Its retryable steps ask that reader's container to create or resume one Codex
@@ -38,12 +68,12 @@ native filesystem tools, so the hosted task can revise `index.html`, validate it
 thread replies, and leave the page waiting exactly as a local Leaf task does. The
 initiating App Server connection projects the turn's native activity notifications
 back through Leaf. A repeated workflow sees the event's durable pickup and does not
-start the work twice. If task startup stops after its retries, the workflow appends a
-short failure reply through the same event log. Once App Server reports a terminal
-turn, the container closes that exact Leaf turn and gives each accepted input the turn
-left unanswered its final assistant message. A failed or interrupted turn gets a failure
-reply instead, and a completed turn with no message at all gets a completed-without-reply
-receipt.
+start the work twice. Task startup failure after its retries and a failure while
+following a started turn each append a short failure reply through the same event log.
+Once App Server reports a terminal turn, the container closes that exact Leaf turn and
+gives each accepted input the turn left unanswered its final assistant message. A failed
+or interrupted turn gets a failure reply instead, and a completed turn with no message
+at all gets a completed-without-reply receipt.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the

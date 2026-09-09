@@ -1,6 +1,7 @@
 """Comment-panel ordering, narrowing, and thread-motion tests."""
 
 import base64
+import io
 import json
 import re
 import threading
@@ -17,6 +18,7 @@ from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
+from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -53,6 +55,7 @@ from render_support import (
     round_trip,
     sending,
     shortcut_bar_text,
+    token_colour,
     told,
     undo,
 )
@@ -2745,12 +2748,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-visual-actions",
         "lf-visual-action",
         "lf-action-target",
-        # A comparison's earlier reading stands inside the block it is about, which is
-        # as far into the page as the runtime writes: a text block's parent takes no
-        # sibling, so the words the base version had can live nowhere else.
-        "lf-earlier",
-        "lf-earlier-head",
-        "lf-earlier-body",
+        # A comparison's target paint and deletions stand inside the block they are
+        # about; a text block's parent may not accept a sibling beside it.
+        "lf-version-inline",
+        "lf-version-inline-deletion",
     }, (
         "the document-level class surface changed: widen the shared vocabulary on purpose"
     )
@@ -3437,6 +3438,145 @@ def standing_thread(page):
     return page.evaluate(THREAD_STANDING)
 
 
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_the_thread_list_ring_paints_above_its_scrolling_contents(
+    browser, serve, color_scheme
+):
+    """Sticky headings and edge-crossing fields cannot cover the list's focus ring."""
+    url = serve(PANEL_PAGE)
+    for i in range(8):
+        panel_comment(
+            serve.page_dir,
+            f"The list needs somewhere to land, item {i}.",
+            {"section": "lede"},
+        )
+    context = browser.new_context(
+        viewport={"width": 459, "height": 856},
+        color_scheme=color_scheme,
+        reduced_motion="reduce",
+    )
+    try:
+        page, errors = open_page(browser, url, context=context)
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        threads = page.locator(".lf-threads")
+        assert threads.evaluate("el => el.scrollHeight > el.clientHeight")
+        resting_ground = threads.evaluate(
+            "el => [getComputedStyle(el).backgroundColor, "
+            "getComputedStyle(el).backgroundImage]"
+        )
+        page.locator('.lf-panel [aria-label="Close threads"]').click()
+        page.evaluate("() => document.activeElement?.blur()")
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
+        panel_settled(page)
+
+        expect(threads).to_be_focused()
+        paint = threads.evaluate(
+            """el => {
+              const list = getComputedStyle(el);
+              const frame = el.parentElement;
+              const current = getComputedStyle(frame, '::after');
+              const listBox = el.getBoundingClientRect();
+              const ringBox = frame.getBoundingClientRect();
+              const footBox = frame.nextElementSibling.getBoundingClientRect();
+              const dividerBox = frame.nextElementSibling.firstElementChild
+                .getBoundingClientRect();
+              return {
+                listOutline: list.outlineStyle,
+                outline: current.outlineStyle,
+                width: current.outlineWidth,
+                offset: current.outlineOffset,
+                ringName: current.getPropertyValue('--lf-here-ring').trim(),
+                ground: [list.backgroundColor, list.backgroundImage],
+                sameBox: ['left', 'top', 'right', 'bottom'].every(
+                  edge => ringBox[edge] === listBox[edge]
+                ),
+                joinedFooter: ringBox.bottom === footBox.top
+                  && ringBox.bottom === dividerBox.top,
+              };
+            }"""
+        )
+        assert paint["listOutline"] == "none"
+        assert paint["outline"] == "solid"
+        assert paint["width"] == "2px"
+        assert paint["offset"] == "-2px"
+        assert paint["ringName"] == "thread-list"
+        assert paint["ground"] == resting_ground
+        assert paint["sameBox"]
+        assert paint["joinedFooter"], (
+            "the focused list ended before the footer divider and left a second "
+            "ownerless strip between their contours"
+        )
+
+        # Reproduce the reported paint order: a sticky heading owns the pixels just
+        # inside the top edge while one of the list's controls crosses the bottom edge.
+        # The focus outline must remain continuous over both foreground elements. Give
+        # those contents an extreme local rank too: the list's stacking context, rather
+        # than today's particular z-index values, keeps all of its contents under the cue.
+        collision = threads.evaluate(
+            """el => {
+              el.style.scrollBehavior = 'auto';
+              const box = el.getBoundingClientRect();
+              for (let y = 1; y <= el.scrollHeight - el.clientHeight; y += 1) {
+                el.scrollTop = y;
+                const top = document.elementFromPoint(box.left + box.width / 2, box.top + 1);
+                const bottom = document.elementFromPoint(
+                  box.left + box.width / 2, box.bottom - 2
+                );
+                if (top?.closest('.lf-pinned') && bottom !== el && el.contains(bottom))
+                  return {scrollTop: el.scrollTop, top: top.tagName, bottom: bottom.tagName};
+              }
+              return null;
+            }"""
+        )
+        assert collision is not None
+        threads.evaluate(
+            """el => {
+              const box = el.getBoundingClientRect();
+              const top = document.elementFromPoint(box.left + box.width / 2, box.top + 1);
+              const bottom = document.elementFromPoint(
+                box.left + box.width / 2, box.bottom - 2
+              );
+              top.closest('.lf-pinned').style.zIndex = '9999';
+              bottom.style.position = 'relative';
+              bottom.style.zIndex = '9999';
+            }"""
+        )
+        # The first and last device row inside the list's own box. An element clip is
+        # taken from a rect that need not land on device pixels — the list's top is
+        # 247.67 at this width — so its outermost row is the panel's paint, not the ring.
+        edges = threads.evaluate(
+            """el => { const b = el.getBoundingClientRect();
+              return [Math.ceil(b.left), Math.floor(b.right),
+                      Math.ceil(b.top), Math.floor(b.bottom) - 1]; }"""
+        )
+        shot = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+        accent = tuple(
+            int(n) for n in re.findall(r"\d+", token_colour(page, "--accent"))
+        )
+        left, right, first, last = edges
+        for y in (first, last):
+            assert {shot.getpixel((x, y)) for x in range(left, right)} == {accent}, (
+                f"the ring is broken across row {y}"
+            )
+
+        page.keyboard.press("t")
+        expect(
+            page.locator(".lf-threads > .lf-thread:not([hidden])").first
+        ).to_be_focused()
+        assert (
+            threads.evaluate(
+                "el => getComputedStyle(el.parentElement, '::after').outlineStyle"
+            )
+            == "none"
+        )
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
 def thread_mark_fault(reading):
     """Why a current thread is indistinguishable from a resting card, if it is."""
     if not reading:
@@ -3452,8 +3592,8 @@ def thread_mark_fault(reading):
     return None
 
 
-def test_forced_colors_keep_pointer_focused_threads_distinct(browser, serve):
-    """High contrast keeps the current card visible from its card and reply box."""
+def test_forced_colors_keep_current_conversation_regions_distinct(browser, serve):
+    """High contrast keeps the current region visible from list, card, and reply box."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     panel_comment(d, "The current card.", {"section": "lede"})
@@ -3465,6 +3605,18 @@ def test_forced_colors_keep_pointer_focused_threads_distinct(browser, serve):
         page, errors = open_page(browser, url, context=context)
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
+        page.evaluate("() => document.activeElement?.blur()")
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
+        threads = page.locator(".lf-threads")
+        expect(threads).to_be_focused()
+        expect(threads).to_have_css("outline-style", "none")
+        assert (
+            threads.evaluate(
+                "el => getComputedStyle(el.parentElement, '::after').outlineStyle"
+            )
+            == "solid"
+        )
         current = page.locator(".lf-thread").filter(has_text="The current card.")
         peer = page.locator(".lf-thread").filter(has_text="Its resting peer.")
         box = current.bounding_box()

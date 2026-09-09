@@ -249,8 +249,9 @@ still useful to the task owner, but Leaf does not reproduce it as a separate pan
 
 The first implementation includes:
 
-1. `AppServerEvents` in `codex.py` returns separate activity and live-reply
-   snapshots. Leaf receives concise public progress and final-answer text.
+1. `AppServerEvents` in `codex.py` returns separate activity and final-answer
+   snapshots. Codex commentary remains in Codex rather than appearing as the
+   Leaf reply.
 2. An App Server turn is bound only when its delivery belongs to one Leaf conversation.
    Other deliveries continue through the existing path without response streaming.
 3. The existing transient `stream` record carries the live reply rather than another
@@ -261,9 +262,11 @@ The first implementation includes:
 5. Successful turn completion appends the authoritative final text as one ordinary
    Leaf reply event. A failed, interrupted, disconnected, or partial stream must not
    settle the reader's message.
-6. Tests cover progress-to-final transitions, authoritative completion, reconnect,
+6. Completion of the final-answer item lets the Stop hook close the exact bound
+   turn; `turn/completed` then commits the durable reply.
+7. Tests cover progress-to-final transitions, authoritative completion, reconnect,
    failure, and input from another conversation taking the fallback path.
-7. A fake App Server is driven through the real page server and browser, proving
+8. A fake App Server is driven through the real page server and browser, proving
    the complete WebSocket-to-thread path and durable final reply.
 
 This slice changes delivery and presentation for one-conversation message turns. It

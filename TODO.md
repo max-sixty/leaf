@@ -22,15 +22,9 @@ produced the following backlog. IDs match the research discussion, not GitHub is
 The [research briefs](notes/workspace-followups.md) retain evidence, completion
 criteria, dependencies, and Sol/Astra assignments. Items are ordered within each group.
 
-Continue with the reader-continuity checks and the remaining composition experiments.
+Continue with the remaining reader-continuity checks and composition experiments.
 Keep the current primitives; let those uses establish demand for more. Defer the
 authoring evaluation until Leaf's shape is stable enough for the comparison to last.
-
-### Examples
-
-- **#7 — [Keep playground presets within reach](notes/workspace-followups.md#item-7).**
-  Try placing the compact preset controls in the controls pane’s header, outside its
-  scrolling body.
 
 ### Reader continuity
 
@@ -46,17 +40,9 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
   beside](notes/workspace-followups.md#item-12).** Try overlay as the quick-access
   default, with an explicit Keep beside choice for sustained conversation.
 
-- **#13 — [Automate long local-comment
-  journeys](notes/workspace-followups.md#item-13).** Protect draft and focus continuity
-  when a long composer meets a short pane, a tall footer and a posture change.
-
 - **#14 — [Verify the complete keyboard and accessibility
   route](notes/workspace-followups.md#item-14).** Exercise the workspace as one keyboard
   task, including reading, pane furniture, local comments and Threads.
-
-- **#15 — [Name the region in ambiguous page-map
-  entries](notes/workspace-followups.md#item-15).** Test whether the compact page map
-  can distinguish identical subjects in different panes.
 
 ### Complete workflows
 

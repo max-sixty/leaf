@@ -114,7 +114,7 @@ print("queued")
 
 
 def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
-    events_model.append_event(
+    comment = events_model.append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "make this editable"},
     )
@@ -137,7 +137,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
         )
         == prompt
     )
-    codex_model.accept_codex_delivery("hosted-thread")
+    [accepted] = codex_model.accept_codex_delivery("hosted-thread")
 
     assert prompt.startswith("```xml\n<leaf-delivery ")
     claim = service_model.page_claim(page_dir)
@@ -149,6 +149,11 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     }
     assert claim["turn_closed"] is None
     assert claim["turn"] is not None
+    assert accepted == {
+        "page": page_dir,
+        "events": (comment["id"],),
+        "turn": claim["turn"],
+    }
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
     activity = page_state(page_dir)["activity"]
     assert activity["kind"] == "handling"

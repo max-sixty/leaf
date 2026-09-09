@@ -616,6 +616,30 @@ describe("website page agent", () => {
     expect(response.status).toBe(403);
   });
 
+  it("fails explicitly when the deployed OpenAI secret is absent", async () => {
+    const env = environment();
+    Object.defineProperty(env, "OPENAI_API_KEY", { value: undefined });
+    const upstream = vi.fn(async () => new Response("ok"));
+    vi.stubGlobal("fetch", upstream);
+    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
+
+    const response = await handler(
+      new Request("https://api.openai.com/v1/responses", {
+        method: "POST",
+        body: "{}",
+      }),
+      env,
+      { containerId: "reader-container", className: "LeafWebsiteSession" },
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe(
+      "website agent credential is not configured",
+    );
+    expect(upstream).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
   it("caps model calls from one reader container", async () => {
     const denied = {
       limit: vi.fn(async () => ({ success: false })),

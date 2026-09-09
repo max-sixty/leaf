@@ -103,6 +103,11 @@ export class LeafWebsiteSession extends Container<Env> {
       if (request.method !== "POST" || url.pathname !== "/v1/responses") {
         return new Response("blocked website agent request", { status: 403 });
       }
+      if (!env.OPENAI_API_KEY) {
+        return new Response("website agent credential is not configured", {
+          status: 503,
+        });
+      }
       const capacity = await env.SOURCE_AGENT_RATE_LIMITER.limit({
         key: `model:${ctx.containerId}`,
       });

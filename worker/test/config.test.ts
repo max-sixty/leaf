@@ -19,6 +19,7 @@ interface DeploymentConfig {
     name: string;
     simple: { limit: number; period: number };
   }>;
+  secrets: { required: string[] };
 }
 
 const config = parse(
@@ -71,6 +72,7 @@ describe("deployment configuration", () => {
   });
 
   it("keeps the model's shell from inheriting the OpenAI credential", () => {
+    expect(config.secrets.required).toEqual(["OPENAI_API_KEY"]);
     expect(codexConfig).toMatchObject({
       shell_environment_policy: {
         inherit: "all",

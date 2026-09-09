@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from urllib.parse import urlencode, urljoin, urlsplit
 
@@ -255,6 +256,89 @@ def verify_cross_tab_activation(browser) -> None:
     context.close()
 
 
+def verify_agent_turn(browser, release: str) -> None:
+    """Require one deployed Codex turn to revise and answer a private page."""
+    context = browser.new_context()
+    page = context.new_page()
+    url = f"{ORIGIN}/examples/design-decision/"
+    response = page.goto(url, wait_until="load", timeout=120_000)
+    check(response is not None and response.ok, f"{url} did not load for its agent")
+    page.locator("body[data-lf-presented]").wait_for(timeout=30_000)
+    state_url = urljoin(url, "api/state")
+    state_response = context.request.get(state_url, timeout=120_000)
+    check(state_response.ok, f"{state_url} returned {state_response.status}")
+    state = state_response.json()
+    initial_revision = state["active"]["revision"]
+    layer = state["layer"]["generation"]
+    heading = f"Deployment {release[:8]} verified"
+    attempt = f"deployment-{release[:24]}"
+    posted = context.request.post(
+        urljoin(url, "api/event"),
+        headers={"Leaf-Layer": layer, "Leaf-Release": release},
+        data={
+            "kind": "comment",
+            "revision": initial_revision,
+            "text": (
+                f"Change the main heading to ‘{heading}’. Leave everything else "
+                "unchanged, publish the revision, and reply with ‘deployment verified’."
+            ),
+            "attempt": attempt,
+        },
+        timeout=120_000,
+    )
+    check(posted.ok, f"{url} rejected its deployment-check comment")
+    accepted = posted.json()
+    comment = next(
+        (
+            event
+            for event in accepted.get("state", {}).get("events", [])
+            if event.get("attempt") == attempt
+        ),
+        None,
+    )
+    check(comment is not None, f"{url} did not return its deployment-check comment")
+
+    deadline = time.monotonic() + 300
+    reply = None
+    current = state
+    while time.monotonic() < deadline:
+        current_response = context.request.get(
+            state_url,
+            headers={"Leaf-Layer": layer, "Leaf-Release": release},
+            timeout=120_000,
+        )
+        check(current_response.ok, f"{state_url} returned {current_response.status}")
+        current = current_response.json()
+        reply = next(
+            (
+                event
+                for event in current.get("events", [])
+                if event.get("kind") == "reply" and event.get("parent") == comment["id"]
+            ),
+            None,
+        )
+        if current["active"]["revision"] > initial_revision and reply is not None:
+            break
+        time.sleep(2)
+    check(
+        current["active"]["revision"] > initial_revision,
+        f"{url} agent did not publish a revision"
+        + (f"; it replied: {reply['text']}" if reply else ""),
+    )
+    check(reply is not None, f"{url} agent published but did not reply")
+    check(
+        "deployment verified" in reply["text"].casefold(),
+        f"{url} agent returned an unexpected reply: {reply['text']}",
+    )
+    page.reload(wait_until="load", timeout=120_000)
+    page.locator("body[data-lf-presented]").wait_for(timeout=30_000)
+    check(
+        page.locator("h1").inner_text() == heading,
+        f"{url} did not render the agent's published heading",
+    )
+    context.close()
+
+
 def main() -> None:
     if len(sys.argv) > 2:
         raise SystemExit("usage: uv run scripts/verify-site.py [release]")
@@ -269,6 +353,8 @@ def main() -> None:
                 for path, kind, activate in PAGES
             ]
             verify_cross_tab_activation(browser)
+            if os.environ.get("LEAF_VERIFY_AGENT") == "1":
+                verify_agent_turn(browser, release)
         finally:
             browser.close()
     print("Leaf startup profile (observed, not a pass/fail budget):")

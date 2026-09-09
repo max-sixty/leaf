@@ -37,7 +37,9 @@ thread replies, and leave the page waiting exactly as a local Leaf task does. Th
 initiating App Server connection projects the turn's native activity notifications
 back through Leaf. A repeated workflow sees the event's durable pickup and does not
 start the work twice. If task startup stops after its retries, the workflow appends a
-short failure reply through the same event log.
+short failure reply through the same event log. Once App Server reports a terminal
+turn, the container closes that exact Leaf turn and gives each accepted input the turn
+left unanswered either a failure reply or a completed-without-reply receipt.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the
@@ -66,7 +68,9 @@ deploy the Worker, container, and `leaf.page` custom domain. This is the same bo
 used by Tend: manual workflow dispatches from other branches cannot read the token. The
 domain already uses Cloudflare nameservers; a successful deployment makes the Worker
 the `leaf.page` origin. The deployed Worker also needs an `OPENAI_API_KEY` Wrangler
-secret. The workflow build is otherwise self-contained.
+secret. Deployment checks that the binding exists before changing production, then
+runs one private Codex turn through the public site and requires both its published
+revision and reply. The workflow build is otherwise self-contained.
 
 Create that GitHub boundary once, then enter the token when the last command prompts:
 

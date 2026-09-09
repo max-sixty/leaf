@@ -960,8 +960,8 @@ def prepare_codex_delivery(
         raise
 
 
-def accept_codex_delivery(session_id: str) -> None:
-    """Record that an embedded host put the current delivery in one Codex turn."""
+def accept_codex_delivery(session_id: str) -> list[dict]:
+    """Record and describe the batches an embedded host put in one Codex turn."""
     lock = delivery_lock_path(session_id)
     with flocked(lock):
         offered = [
@@ -974,6 +974,7 @@ def accept_codex_delivery(session_id: str) -> None:
         path, queue = offered[0]
         batches = [dict(batch) for batch in queue["batches"]]
 
+    accepted = []
     for batch in batches:
         page_dir = Path(batch["page"])
         expected = {event["seq"]: event["id"] for event in batch["events"]}
@@ -1000,6 +1001,13 @@ def accept_codex_delivery(session_id: str) -> None:
                 turn=claim_turn,
             )
             acknowledge(page, max(expected))
+            accepted.append(
+                {
+                    "page": page_dir,
+                    "events": tuple(expected.values()),
+                    "turn": claim_turn,
+                }
+            )
 
     with flocked(lock):
         queue = read_json(path)
@@ -1009,6 +1017,7 @@ def accept_codex_delivery(session_id: str) -> None:
             batch["receipted"] = True
         queue["state"] = "accepted"
         _write_queue(path, queue)
+    return accepted
 
 
 def abandon_codex_delivery(session_id: str, event_id: str) -> None:

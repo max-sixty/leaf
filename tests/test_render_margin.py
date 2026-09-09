@@ -4171,7 +4171,7 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
                   controlsTop: controls.top, controlsBottom: controls.bottom,
                   cardLeft: card.left, cardRight: card.right, cardTop: card.top,
                   cardBottom: card.bottom, cardWidth: card.width,
-                  shellWidth: document.body.getBoundingClientRect().width,
+                  viewportRight: document.documentElement.clientWidth,
                   borderLeft: cardStyle.borderLeftWidth,
                   borderRight: cardStyle.borderRightWidth,
                   titleLeft: title.left, titleTop: title.top,
@@ -4180,7 +4180,7 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
         }"""
     )
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
-    assert geometry["cardRight"] <= geometry["shellWidth"] - 7, geometry
+    assert geometry["cardRight"] <= geometry["viewportRight"] - 7, geometry
     assert geometry["cardWidth"] >= 459, geometry
     assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
@@ -4200,6 +4200,10 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     expect(send).to_be_focused()
 
     resized_shell(page, 1536, 480)
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+    expect(preview).to_be_visible()
     capped = preview.evaluate(
         """card => {
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();

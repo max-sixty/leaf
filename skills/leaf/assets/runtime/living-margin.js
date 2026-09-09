@@ -1414,7 +1414,7 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
     document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
   const gap = 8;
   const firstLeft = regionBounds?.left ?? 0;
-  const lastRight = regionBounds?.right ?? innerWidth;
+  const lastRight = regionBounds?.right ?? document.documentElement.clientWidth;
   const firstTop = Math.max(regionBounds?.top ?? 0, bannerBottom) + gap;
   const lastBottom = (regionBounds?.bottom ?? innerHeight) - gap;
   const totalHeight = Math.max(0, lastBottom - firstTop);
@@ -1452,9 +1452,9 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
     ? [
         {
           name: "right",
-          width: Math.min(metrics.preferredWidth, innerWidth - main.right - 2 * gap),
+          width: Math.min(metrics.preferredWidth, lastRight - main.right - 2 * gap),
           get left() {
-            return innerWidth - gap - this.width;
+            return lastRight - gap - this.width;
           },
         },
         {
@@ -3625,9 +3625,9 @@ document.addEventListener(
 contributionListeners.add(renderMargin);
 document.addEventListener(
   "scroll",
-  () => {
+  (event) => {
     scheduleRoving();
-    scheduleThreadPreviewPosition(false, true);
+    if (!preview.contains(event.target)) scheduleThreadPreviewPosition(false, true);
   },
   { capture: true, passive: true },
 );

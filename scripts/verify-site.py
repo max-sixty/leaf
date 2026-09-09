@@ -258,6 +258,7 @@ def verify_cross_tab_activation(browser) -> None:
     leader = context.new_page()
     follower = context.new_page()
     for page in (leader, follower):
+        page.add_init_script(PROFILE_SCRIPT)
         response = page.goto(url, wait_until="load", timeout=120_000)
         check(response is not None and response.ok, f"{url} did not load")
         await_presentation(page, url, [])

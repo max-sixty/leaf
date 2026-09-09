@@ -171,6 +171,75 @@ def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
     page.close()
 
 
+def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, serve):
+    source = READING_REGIONS_PAGE.replace(
+        '<footer><button id="left-foot">',
+        '<footer style="min-height: 220px"><button id="left-foot">',
+    )
+    page, errors = open_page(browser, serve(source))
+    workspace = page.locator("#reading-workspace")
+    left = page.locator("#left-reading > .lf-pane-content > .lf-pane-body")
+    right = page.locator("#right-reading > .lf-pane-content > .lf-pane-body")
+    target = page.locator("#left-end")
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+
+    left.evaluate("body => body.scrollTop = body.scrollHeight")
+    right.evaluate("body => body.scrollTop = 320")
+    target.click(click_count=3)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    expect(field).to_be_focused()
+    wait_for_pending_mark(page)
+
+    sibling_before = right.evaluate(
+        "body => ({scroll: body.scrollTop, box: body.getBoundingClientRect().toJSON()})"
+    )
+    draft = "\n".join(
+        f"Line {line}: keep this unsent pane comment available through reflow."
+        for line in range(1, 21)
+    )
+    field.fill(draft)
+    expect(field).to_have_value(draft)
+    expect(page.get_by_role("button", name="Comment", exact=True)).to_be_visible()
+    sibling_after = right.evaluate(
+        "body => ({scroll: body.scrollTop, box: body.getBoundingClientRect().toJSON()})"
+    )
+    assert sibling_after == sibling_before, (
+        f"growing the left composer moved its sibling: {sibling_before}, {sibling_after}"
+    )
+    field.evaluate("box => box.scrollTop = box.scrollHeight")
+    assert field.evaluate(
+        "box => box.scrollTop + box.clientHeight >= box.scrollHeight - 1"
+    ), "the complete multiline draft was not reachable in its field"
+
+    resized(page, 520, 900)
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(field).to_be_focused()
+    expect(field).to_have_value(draft)
+    expect(page.get_by_role("button", name="Comment", exact=True)).to_be_visible()
+
+    resized(page, 1200, 900)
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(field).to_be_focused()
+    expect(field).to_have_value(draft)
+    assert right.evaluate("body => body.scrollTop") == pytest.approx(
+        sibling_before["scroll"], abs=1
+    )
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(page.locator(".lf-notice")).to_have_text("Draft kept — g D returns to it")
+    page.keyboard.press("g")
+    assert "your draft" in shortcut_bar_text(page)
+    page.keyboard.press("Shift+d")
+    expect(field).to_be_focused()
+    expect(field).to_have_value(draft)
+    assert "Left end" in pending_text(page)
+    assert errors == []
+    page.close()
+
+
 def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser, serve):
     page, errors = open_page(browser, serve(READING_REGIONS_PAGE))
     workspace = page.locator("#reading-workspace")

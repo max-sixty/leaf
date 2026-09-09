@@ -367,11 +367,12 @@ customElements.define(
       controlsHost.className = "lf-playground-controls-region";
       controlsHost.setAttribute("role", "region");
       controlsHost.setAttribute("aria-label", "Controls");
-      controlsHost.append(...[presetBar, panel].filter(Boolean));
+      controlsHost.append(panel);
       const controlsId = compoundReadingRegionId(this, "controls");
       const controls = arrangeReadingElement({
         owner: controlsHost,
         kind: "pane",
+        header: presetBar,
         regions: [{ id: controlsId, host: controlsHost }],
       });
 

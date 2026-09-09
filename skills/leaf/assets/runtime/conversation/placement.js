@@ -2,6 +2,7 @@
 import { itemSays, itemWord, placedAt, sectionOf } from "../anchors.js";
 import { pageParts } from "../keyboard/page.js";
 import { inChrome, layerPart } from "../passages.js";
+import { readingRegionFor } from "../reading-regions.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
 // beginning and an end, and the reader walks the conversation the way they walk the
@@ -73,6 +74,28 @@ export function inPageOrder(threads) {
 // of the page's outline.
 export const pageOutline = () => pageParts("h1, h2, h3, h4, h5, h6");
 
+const subjectLabel = (target) => itemSays(target) || itemWord(target);
+
+// A repeated outline subject needs the nearest named reading region to remain
+// distinguishable after a route leaves the page. Unique subjects keep the author's own
+// concise name. Both Page Map and Threads consume this reading so navigation cannot add
+// context that its destination drops.
+export function outlineSubjectFor(target, peers = [target], outline = pageOutline()) {
+  const label = subjectLabel(target);
+  const repeated =
+    outline.includes(target) &&
+    peers.some(
+      (candidate) =>
+        candidate !== target &&
+        outline.includes(candidate) &&
+        subjectLabel(candidate) === label,
+    );
+  const context = repeated
+    ? String(readingRegionFor(target)?.host.getAttribute("aria-label") ?? "").trim()
+    : "";
+  return { label, context };
+}
+
 // Which part of the page an element is in: the heading that names everything from itself
 // to the next one. A place that contains a heading takes that heading rather than the one
 // before it — an anchor on a whole <section> is about that section, not about the end of
@@ -112,7 +135,26 @@ export function groupFor(t, outline) {
     return { key: "top", label: outline.length ? "Above the first heading" : "" };
   return {
     key: "h" + outline.indexOf(heading),
-    label: itemSays(heading) || itemWord(heading),
+    label: subjectLabel(heading),
     target: heading,
   };
+}
+
+// Ambiguity belongs to the rendered set: one thread under a repeated page heading still
+// has a unique destination name, while two such runs need their regions. Group the whole
+// list once so every thread in a run receives the same answer.
+export function threadGroups(threads, outline = pageOutline()) {
+  const groups = new Map(threads.map((thread) => [thread, groupFor(thread, outline)]));
+  const subjects = [
+    ...new Set([...groups.values()].map((group) => group.target).filter(Boolean)),
+  ];
+  for (const [thread, group] of groups) {
+    if (!group.target) continue;
+    const subject = outlineSubjectFor(group.target, subjects, outline);
+    groups.set(thread, {
+      ...group,
+      label: [subject.context, subject.label].filter(Boolean).join(" · "),
+    });
+  }
+  return groups;
 }

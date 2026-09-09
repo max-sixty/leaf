@@ -90,7 +90,7 @@ import { captureAuthoredFacets } from "../projection/authored.js";
 import { reachScrollers } from "../reach.js";
 import { toggleBtn } from "../banner.js";
 import { foldOut, hasFolding, isFolding } from "./folding.js";
-import { groupFor, inPageOrder, pageOutline } from "./placement.js";
+import { inPageOrder, pageOutline, threadGroups } from "./placement.js";
 import { inFilter, noMatchNote, paintNarrowing } from "./narrowing.js";
 import { paintThreadQuotes, threadNode } from "./thread-card.js";
 
@@ -364,7 +364,7 @@ function reconcileThreads(all) {
   // The page's outline, read once for the whole reconcile: every thread asks it where it
   // stands and which run it belongs to.
   const outline = pageOutline();
-  const group = new Map(threads.map((t) => [t, groupFor(t, outline)]));
+  const group = threadGroups(threads, outline);
   // Newcomers settle in (`grow`) only when the user already has the list in front
   // of them: the first populated render is the page loading, not news arriving, and a
   // node animated while the panel is closed would replay the moment it opens.

@@ -46,10 +46,6 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ### Complete workflows
 
-- **#16 — [Prove a current-versus-proposed
-  comparison](notes/workspace-followups.md#item-16).** Show two real alternatives
-  simultaneously and let the reader discuss each before committing one choice.
-
 - **#18 — [Try an exception-driven monitoring
   workspace](notes/workspace-followups.md#item-18).** Use the existing live-progress
   example to test a stable overview beside changing evidence and an exception that needs

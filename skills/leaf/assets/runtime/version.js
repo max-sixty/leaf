@@ -100,13 +100,8 @@ import { runtime } from "./context.js";
 import { designOn, paintLegend } from "./design.js";
 import { clippedRect, shownBox } from "./geometry.js";
 import { PRESS, walkRows } from "./keyboard/bindings.js";
-import {
-  focused,
-  keys,
-  paintHere,
-  paintKeys,
-  pruneScopedElements,
-} from "./keyboard/scopes.js";
+import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
+import { repaint } from "./repaint.js";
 import { notice } from "./notifications.js";
 import {
   authored,
@@ -334,7 +329,7 @@ versionMenu.addEventListener("toggle", (event) => {
   // would undo the whole point of the exemption.
   if (open && !versionMenu.contains(document.activeElement)) focusVersionRow();
   if (!open) renderVersionMenu();
-  paintHere();
+  repaint();
 });
 // The press is the popover's declared invoker rather than a click handler that toggles by
 // reading the state: a press on the invoker of a standing auto popover is a light dismissal
@@ -1164,7 +1159,7 @@ function paintDiff() {
   }
   // The base title changed above; the shared projection adds the complete shortcut
   // after this paint, including when a comparison changes without moving focus.
-  paintHere();
+  repaint();
 }
 // Whether the comparison is standing and what against — the only thing that decides
 // it, the marks and the paint being renderings rather than a second copy.

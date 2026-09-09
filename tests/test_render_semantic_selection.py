@@ -8,6 +8,7 @@ from playwright.sync_api import expect
 from render_support import (
     DRAFT_MARK,
     PART_DIAGRAM_PAGE,
+    RENDERED,
     ROOT,
     TARGETS_PAGE,
     leaf_page,
@@ -97,6 +98,58 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     assert pending_text(page) == ""
     page.keyboard.press("Escape")
     expect(field).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+def test_a_chrome_reflow_repositions_target_hints_in_its_first_layout_frame(
+    browser, serve
+):
+    """A line resize and its dependent target placement land in one visible frame."""
+    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-hint")
+    expect(hints).to_have_count(3)
+    page.evaluate(RENDERED)
+
+    page.evaluate(
+        """() => {
+          const line = document.querySelector('.lf-shortcut-bar');
+          const oldHints = [...document.querySelectorAll('.lf-target-hint')]
+            .map(node => node.getBoundingClientRect().toJSON());
+          window.__lfFirstChromeResize = null;
+          const overlap = (one, other) =>
+            one.left < other.right && other.left < one.right &&
+            one.top < other.bottom && other.top < one.bottom;
+          const observer = new ResizeObserver(() => {
+            observer.disconnect();
+            requestAnimationFrame(() => {
+              const lineBox = line.getBoundingClientRect().toJSON();
+              const currentHints = [...document.querySelectorAll('.lf-target-hint')]
+                .map(node => node.getBoundingClientRect().toJSON());
+              window.__lfFirstChromeResize = {
+                crossedOldHints: oldHints.filter(box => overlap(box, lineBox)).length,
+                overlaps: currentHints.filter(box => overlap(box, lineBox)).length,
+                currentHints: currentHints.length,
+              };
+            });
+          });
+          observer.observe(line);
+          line.style.height = '700px';
+        }"""
+    )
+    page.wait_for_function("() => window.__lfFirstChromeResize !== null")
+    frame = page.evaluate("() => window.__lfFirstChromeResize")
+
+    assert frame["crossedOldHints"] > 0, (
+        f"the resized line crossed no prior hint, so it cannot expose stale placement: {frame}"
+    )
+    assert frame["currentHints"] == 3, (
+        f"the target map dropped a reachable command instead of repositioning it: {frame}"
+    )
+    assert frame["overlaps"] == 0, (
+        f"the first layout frame left target hints under the resized line: {frame}"
+    )
     assert errors == []
     page.close()
 
@@ -605,8 +658,8 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
         """async () => {
           const selected = getSelection().getRangeAt(0);
           selected.startContainer.splitText(selected.startOffset + 1);
-          const {paintHere} = await import('/runtime/keyboard/scopes.js');
-          paintHere();
+          const {repaint} = await import('/runtime/repaint.js');
+          repaint();
         }"""
     )
     expect(position).to_be_hidden()
@@ -629,8 +682,8 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     page.evaluate(
         """async () => {
           getSelection().removeAllRanges();
-          const {paintHere} = await import('/runtime/keyboard/scopes.js');
-          paintHere();
+          const {repaint} = await import('/runtime/repaint.js');
+          repaint();
         }"""
     )
     expect(position).to_be_hidden()

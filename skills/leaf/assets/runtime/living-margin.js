@@ -77,7 +77,8 @@ import { runtime } from "./context.js";
 import { readingRegionFor, shownRegionBounds } from "./reading-regions.js";
 import { commentsEdge, panelIsOpen } from "./chrome-layout.js";
 import { designOn } from "./design.js";
-import { focused, keys, paintHere, paintKeys } from "./keyboard/scopes.js";
+import { focused, keys, paintKeys } from "./keyboard/scopes.js";
+import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import {
   comparisonBase,
@@ -2019,7 +2020,7 @@ function moveHost(host, move) {
   // The one case where the placement did move the reader: the control they were
   // standing on did not survive it, so focus is wherever the removal left it and the
   // standing paint is owed the news the guard above withheld.
-  if (held && document.activeElement !== held) paintHere();
+  if (held && document.activeElement !== held) repaint();
 }
 
 function unfoldOpenThreadOwner(entry) {

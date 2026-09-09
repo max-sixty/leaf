@@ -63,7 +63,8 @@
    from a control the reader reaches during that upgrade. */
 import { word } from "./bindings.js";
 import { focusDestination } from "../focus.js";
-import { focused, paintHere } from "./scopes.js";
+import { focused } from "./scopes.js";
+import { repaint } from "../repaint.js";
 import {
   currentNativeLayer,
   nativeLayerFor,
@@ -153,7 +154,7 @@ function back() {
   // for example, clear a live query first and deliberately retain the entry frame.
   const replacement = frame.close();
   if (replacement === false) {
-    paintHere();
+    repaint();
     return true;
   }
   frames.pop();
@@ -162,7 +163,7 @@ function back() {
       ? { ...frame.origin, control: replacement }
       : (frame.origin ?? { control: null, reading: null }),
   );
-  paintHere();
+  repaint();
   return true;
 }
 

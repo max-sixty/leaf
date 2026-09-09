@@ -80,7 +80,8 @@ import { scrollBehavior } from "../motion.js";
 import { threadsBox } from "./panel.js";
 import { panelIsOpen } from "../chrome-layout.js";
 import { pointerAt } from "../pointer.js";
-import { focused, paintHere } from "../keyboard/scopes.js";
+import { focused } from "../keyboard/scopes.js";
+import { repaint } from "../repaint.js";
 import { conversational } from "./model.js";
 import { runtime } from "../context.js";
 import { ago } from "../presence.js";
@@ -487,7 +488,7 @@ function reconcileThreads(all) {
   // built the nodes that wear it. Both passes therefore repaint it: the one that changes
   // the record, and the one that changes what the record is painted on.
   paintThreadQuotes();
-  paintHere(); // the t/T and g rows, and an armed window's chips, stand on this list
+  repaint(); // the t/T and g rows, and an armed window's chips, stand on this list
   // Narrowing and reconciliation can move another card under a pointer that did not
   // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
   refreshHover();

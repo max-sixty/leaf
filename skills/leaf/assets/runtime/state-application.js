@@ -44,7 +44,7 @@ import { notice } from "./notifications.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { accountOutbox } from "./outbox.js";
 import { refreshHover } from "./anchors.js";
-import { paintHere } from "./keyboard/scopes.js";
+import { repaint } from "./repaint.js";
 import { loadMarked } from "./conversation/messages.js";
 
 // What an application writes to the runtime and a refused one gives back, the three
@@ -339,7 +339,7 @@ export async function receiveState(state) {
         refreshHover();
         // View-transition chrome covered the page while the application painted.
         // Re-read viewport-local keyboard maps only after that cover is gone.
-        paintHere();
+        repaint();
       }
     } else await apply();
   })().catch(restore);

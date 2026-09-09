@@ -20,7 +20,7 @@ import { elementById, inChrome } from "../passages.js";
 import { paintAnchors, placedAt } from "../anchors.js";
 import { paintDrawings } from "../composing/drawing.js";
 
-import { paintHere } from "../keyboard/scopes.js";
+import { repaint } from "../repaint.js";
 
 import { threadsBox } from "./panel.js";
 
@@ -102,7 +102,7 @@ function renderPanelNow(currentRuntime, currentOutbox) {
     renderConversations([]);
     renderMargin();
     paintAcknowledgments();
-    paintHere();
+    repaint();
     return;
   }
   const threads = foldThreads(

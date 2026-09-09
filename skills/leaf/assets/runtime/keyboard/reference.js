@@ -53,11 +53,11 @@ import {
   elementScopes,
   focused,
   merge,
-  paintHere,
   pruneScopedElements,
   scopeRefs,
   scopesFor,
 } from "./scopes.js";
+import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
 import { captureReturnPlace } from "../version.js";
 import { availableCommands, executeCommand, readerIn } from "./dispatch.js";
@@ -624,7 +624,7 @@ function showShortcutReference(open, restoreFocus = true) {
   // Only from inside the overlay: a mousedown somewhere else closes it (standDown), and the
   // press's own focus is the browser's default action, still to come — a restore made from
   // out here would be putting focus back for the click to take again.
-  paintHere();
+  repaint();
   if (!open && origin) restoreReturnPlace(origin);
 }
 

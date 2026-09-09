@@ -91,13 +91,8 @@ import {
   takesLetters,
   TYPING,
 } from "./page.js";
-import {
-  claimsEsc,
-  focused,
-  paintHere,
-  recoveredLabelFocus,
-  scopesFor,
-} from "./scopes.js";
+import { claimsEsc, focused, recoveredLabelFocus, scopesFor } from "./scopes.js";
+import { repaint } from "../repaint.js";
 import { RETURN, invoke } from "./return-stack.js";
 import { isSequenceActive, setSequence } from "./address.js";
 import { REACT, setReact } from "../reactions.js";
@@ -438,8 +433,8 @@ document.addEventListener("focusin", () => {
   if (isSequenceActive() && (takesLetters(active) || claimsEsc(active))) {
     setSequence(false);
   }
-  paintHere();
+  repaint();
 });
 document.addEventListener("focusout", () => {
-  if (!runtime.placingChrome) paintHere();
+  if (!runtime.placingChrome) repaint();
 });

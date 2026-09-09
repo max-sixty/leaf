@@ -135,7 +135,7 @@ export function setAnchoringReady(ready) {
    that puts the reader in a thread therefore paints it: the quote's press, the `t`/`T`
    walk, a click on the card, a reply box. A press on a page mark reaches `showThread`,
    which focuses the reply box before its deliberate reveal. Escape returns to the
-   card; `t`/`T` then walk the threads. `paintHere` repaints it beside the decision
+   card; `t`/`T` then walk the threads. The shared repaint places it beside the decision
    ring, and `paintAnchors` repaints it after rebuilding the ranges it holds.
 
    The panel paints the same fact on the card, through `.lf-thread:focus-within` — the
@@ -1331,7 +1331,7 @@ function seatReactions(seats) {
 //
 // A layout pass repacks; it does not restate what the seats offer. Saying `update()`
 // here restated them, and a margin render ends in `paintKeys`, which ends in
-// `paintHere` — the frame this hook is called from. On a page carrying a standing
+// the shared repaint — the frame this hook is called from. On a page carrying a standing
 // reaction that closed a cycle: chrome layout, margin render, paint, chrome layout,
 // a whole margin render every frame with nothing dispatched and nothing moving.
 // Measured on the feature gallery, ~350ms of main thread a frame, which is also what

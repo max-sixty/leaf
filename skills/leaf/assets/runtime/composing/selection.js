@@ -45,7 +45,8 @@ import { post } from "../outbox.js";
 import { threadsBox } from "../conversation/panel.js";
 import { landTyping, mayLandTyping } from "./capture.js";
 import { panelIsOpen } from "../chrome-layout.js";
-import { focused, paintHere, paintKeys } from "../keyboard/scopes.js";
+import { focused, paintKeys } from "../keyboard/scopes.js";
+import { repaint } from "../repaint.js";
 import { paintAnchors } from "../anchors.js";
 import { allThreads } from "../conversation/state.js";
 import { elementById, inChrome } from "../passages.js";
@@ -302,7 +303,7 @@ function syncSuggestMode() {
   fabSuggest.title = suggest ? "Suggest" : "Comment";
   syncComposer();
   syncResponseOptions();
-  paintHere(); // the submit action says which of the two the box will do
+  repaint(); // the submit action says which of the two the box will do
 }
 export function setSuggestionMode(suggest) {
   suggestCheck.checked = Boolean(suggest);
@@ -454,7 +455,7 @@ function showComposer(open) {
   // selection leaves both readings standing until the reader enters the field.
   paintAnchors(allThreads());
   paintDrawings();
-  paintHere();
+  repaint();
 }
 
 // The quote suggestion mode auto-seeded, so reopening on a new anchor can tell

@@ -136,9 +136,9 @@ import {
   documentFocused,
   focused,
   keys,
-  paintHere,
   paintKeys,
 } from "../keyboard/scopes.js";
+import { repaint } from "../repaint.js";
 import {
   itemSays,
   itemWord,
@@ -276,7 +276,7 @@ export function syncAsks() {
     shortcutsOffered = offered;
     rowWalkOffered = walkOffered;
     paintKeys();
-  } else paintHere();
+  } else repaint();
 }
 // An answer can also change what text the page has — a retired slot leaves it — so
 // marks are repainted from the same signal, and a comment on text the user just
@@ -735,13 +735,13 @@ function paintActionProjections() {
   }
   placement.paint(askActionLayer, chips);
 }
-addEventListener("scroll", () => reachableActionRoutes().length && paintHere(), {
+addEventListener("scroll", () => reachableActionRoutes().length && repaint(), {
   capture: true,
   passive: true,
 });
 // Resizing can make routes unreachable or put their controls under a covering tray.
 // Repaint unconditionally so either transition clears the prior projections.
-addEventListener("resize", paintHere);
+addEventListener("resize", repaint);
 // The ring that says so, painted from the focus rather than written where the reader was
 // put. The walk used to write it, and it then said where the walk had left them rather
 // than where they were: click away, work in the panel, come back tomorrow, and an ask

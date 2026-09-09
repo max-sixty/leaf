@@ -95,7 +95,7 @@ import {
   selectionAnchor,
   snapSelection,
 } from "./capture.js";
-import { paintHere } from "../keyboard/scopes.js";
+import { repaint } from "../repaint.js";
 import { letGo, takesLetters } from "../keyboard/page.js";
 import { closeVersionMenu, versionMenuIsOpen } from "../version.js";
 import { pointerAt } from "../pointer.js";
@@ -440,7 +440,7 @@ export function showFab(
     }
   }
   if (!sameAnchor(previous, fabAnchor)) paintAnchors(allThreads());
-  paintHere(); // the c row names this anchor, so the line is one more rendering of it
+  repaint(); // the c row names this anchor, so the line is one more rendering of it
   if (!fabAnchor && returnFocus !== "none") {
     if (returnToPanel) threadsBox.focus({ preventScroll: true });
     else if (leavingBar && returnFocus === "target" && returnTarget?.isConnected)
@@ -664,7 +664,7 @@ let primaryPointerPressed = false;
 // to land after the drag had moved, and stayed a lie for a whole heartbeat when it
 // landed before. Only the crossing is painted: a drag growing a selection that already
 // stands says the same word, and repainting the chrome on every move of a drag would
-// put a whole `paintHere` inside every frame of one.
+// put a whole shared repaint inside every frame of one.
 let selectionStood = false;
 // What this drag has had inside the document, kept against a release that ends holding
 // something else. Only while both ends are still in it: `pageSelection` answers for the
@@ -743,7 +743,7 @@ document.addEventListener("selectionchange", () => {
     const stands = Boolean(pageSelection());
     if (stands !== selectionStood) {
       selectionStood = stands;
-      paintHere();
+      repaint();
     }
     return;
   }

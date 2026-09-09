@@ -3,33 +3,50 @@
  * names each owner's responsibility and the rule against reading one while it evaluates. */
 
 import chromeSheet from "./runtime/chrome.css" with { type: "css" };
-import { syncLayout } from "./runtime/chrome-layout.js";
+import { mountLayout, syncLayout } from "./runtime/chrome-layout.js";
 
-import { leavesOffered } from "./runtime/live-leaves.js";
+import { declareLeavesKeys, leavesOffered } from "./runtime/live-leaves.js";
 
-import { openDraft, pendingComposer } from "./runtime/composing/selection.js";
-import { updateFab } from "./runtime/composing/surface.js";
+import { fabBar, openDraft, pendingComposer } from "./runtime/composing/selection.js";
+import { updateFab, wireFabInput } from "./runtime/composing/surface.js";
 
 import { containedPage, runtime } from "./runtime/context.js";
 import { promoteDeferredModals } from "./runtime/deferred-modals.js";
-import { reportPageError } from "./runtime/layer-client.js";
+import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 
-import { buildBulkAnswers, syncAsks } from "./runtime/asks/view.js";
+import { askActionLayer, buildBulkAnswers, syncAsks } from "./runtime/asks/view.js";
 
-import { paintHere, paintKeys, paintsHere } from "./runtime/keyboard/scopes.js";
-import { paintStandingChrome } from "./runtime/standing.js";
+import { paintKeys, reflectFirstScopes } from "./runtime/keyboard/scopes.js";
+import { paintStandingContent, paintStandingGeometry } from "./runtime/standing.js";
+import { repaint, wireRepaint } from "./runtime/repaint.js";
 
-import { notice } from "./runtime/notifications.js";
+import { liveEl, notice } from "./runtime/notifications.js";
 
-import { setAnchoringReady } from "./runtime/anchors.js";
-import { loadIcon, paintApproval, renderStatus } from "./runtime/banner.js";
-import { showNews } from "./runtime/banner-shelf.js";
+import { pageShifted, setAnchoringReady, mountAnchors } from "./runtime/anchors.js";
+import {
+  banner,
+  loadIcon,
+  mountBanner,
+  paintApproval,
+  renderStatus,
+  reserveBannerControls,
+} from "./runtime/banner.js";
+import { overflowMenu, showNews } from "./runtime/banner-shelf.js";
 
-import { renderPanel } from "./runtime/conversation/reconcile.js";
+import { mountConversation, renderPanel } from "./runtime/conversation/reconcile.js";
+import {
+  mountPanelReadingRegion,
+  panel,
+  wireGeneralBox,
+} from "./runtime/conversation/panel.js";
+import { wireThreadLanding } from "./runtime/conversation/landing.js";
+import { mountThreadList } from "./runtime/conversation/thread-list.js";
+import { wireNarrowing } from "./runtime/conversation/narrowing.js";
+import { wireThreadCards } from "./runtime/conversation/thread-card.js";
 
 import { beginRead, startFeed } from "./runtime/state-feed.js";
 
-import { installArrival } from "./runtime/version.js";
+import { installArrival, versionMenu } from "./runtime/version.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 
 import {
@@ -41,16 +58,108 @@ import {
 
 import { marksSheet } from "./runtime/shadow.js";
 
-import { othersBtn, restoreTray } from "./runtime/trays.js";
-import { letGo } from "./runtime/keyboard/page.js";
-import { mountChrome } from "./runtime/chrome.js";
+import { asksPanel, othersBtn, othersPanel, restoreTray } from "./runtime/trays.js";
+import {
+  commentBox,
+  commentRows,
+  declareFindBoxKeys,
+  declareResponseOptionKeys,
+  letGo,
+} from "./runtime/keyboard/page.js";
+import { chromeRoot } from "./runtime/chrome.js";
 import { restoreArrangements } from "./runtime/arrangements.js";
 import { captureAuthoredFacets } from "./runtime/projection/authored.js";
 import { layoutMarginRows } from "./runtime/margin-layout.js";
+import { shortcutReferenceDialog } from "./runtime/keyboard/reference.js";
+import { shortcutBarEl, walkPositionEl } from "./runtime/keyboard/shortcut-bar.js";
+import { offer } from "./runtime/widget-elements.js";
+import { focusDestination } from "./runtime/focus.js";
+import { inspectEl, legendRoot } from "./runtime/design.js";
+import { addressLayer } from "./runtime/keyboard/address.js";
+import { selectionLayer, selectionSearch } from "./runtime/composing/targets.js";
+import {
+  mountTargetPaint,
+  targetTraceBox,
+  visualMarkLayer,
+} from "./runtime/target-paint.js";
+import { drawingLayer } from "./runtime/composing/drawing.js";
+import { mountMargin } from "./runtime/living-margin.js";
+import { aimBox } from "./runtime/composing/aim.js";
+import { FOCUSABLE } from "./runtime/reach.js";
+import { activeRowLabel } from "./runtime/keyboard/dispatch.js";
+import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
+import { mediaViewer } from "./runtime/media.js";
+import { configureInput } from "./runtime/composing/input.js";
 
-// The register's repaint frame paints the standing chrome: registered here, first,
-// because the painter imports every owner and no owner may import it.
-paintsHere(paintStandingChrome);
+wireRepaint({
+  reflectFirstScopes,
+  paintStandingContent,
+  syncLayout,
+  pageShifted,
+  paintStandingGeometry,
+});
+
+const commentAddress = () => ({
+  box: commentBox(),
+  label: activeRowLabel(commentRows()),
+});
+
+const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
+skipToChrome.onclick = () => {
+  for (const control of banner.querySelectorAll(FOCUSABLE)) {
+    control.focus({ preventScroll: true });
+    if (control.matches(":focus")) return;
+  }
+  focusDestination(banner);
+};
+
+function mountChrome() {
+  configureInput({ upload: uploadMedia, address: commentAddress });
+  mountBanner();
+  chromeRoot.append(
+    banner,
+    overflowMenu,
+    versionMenu,
+    othersPanel,
+    asksPanel,
+    panel,
+    legendRoot,
+    addressLayer,
+    askActionLayer,
+    selectionLayer,
+    selectionSearch,
+    visualMarkLayer,
+    drawingLayer,
+    targetTraceBox,
+    aimBox,
+    fabBar,
+    liveEl,
+    mediaViewer,
+    shortcutReferenceDialog,
+    shortcutBarEl,
+    walkPositionEl,
+    inspectEl,
+  );
+  document.body.prepend(skipToChrome);
+  document.body.append(chromeRoot);
+  mountPanelReadingRegion();
+  reserveBannerControls();
+  mountMargin();
+  mountTargetPaint();
+  mountAnchors();
+  wireThreadLanding();
+  mountConversation();
+  mountThreadList();
+  wireNarrowing();
+  mountLayout();
+  watchDisclosures(document);
+  wireThreadCards();
+  wireFabInput();
+  declareLeavesKeys();
+  declareFindBoxKeys();
+  declareResponseOptionKeys();
+  wireGeneralBox();
+}
 
 // ---------- styles ----------
 // The chrome's sheet and the marks' arrive as CSS modules: part of the import graph, so
@@ -135,7 +244,7 @@ function presentPage() {
   paintKeys();
   document.dispatchEvent(new Event("lf-actions"));
   paintApproval();
-  paintHere();
+  repaint();
   // Fragment arrival reads after those controls have taken their final space. Margin
   // placement normally batches into a frame; a fresh arrival runs that pending layout
   // now so a docked row above the target cannot move it again after the landing.

@@ -51,7 +51,8 @@ import {
   syncGeneral,
   threadsBox,
 } from "./conversation/panel.js";
-import { focused, paintHere } from "./keyboard/scopes.js";
+import { focused } from "./keyboard/scopes.js";
+import { repaint, repaintPage } from "./repaint.js";
 import { currentTray, reserveListClearance, showTray, traysEdge } from "./trays.js";
 import { foldBannerRow, toggleBtn } from "./banner.js";
 import {
@@ -361,7 +362,7 @@ export function setPanel(open, { remember = true } = {}) {
   syncLayout();
   panelChanged(open);
   if (remember) readerStore.set(PANEL_KEY, open ? "1" : "0");
-  paintHere();
+  repaint();
   // The panel is one of the two surfaces the hover reads, so its arriving or going away
   // is the pointer moving even when the pointer has not: closing it with the keyboard,
   // from a hand resting on a card, took the card out from under the pointer and left the
@@ -373,27 +374,9 @@ export function setPanel(open, { remember = true } = {}) {
 // Field sizing and every other chrome-size change feed the one layout pass.
 // The document shell's size also feeds the page repaint door: content landing can move
 // a target without emitting a pointer or scroll event.
-let layoutFrame = 0;
-let pageMoved = false;
-let chromeMoved = false;
 const scheduleLayout = (shellChanged = false, chromeChanged = false) => {
-  pageMoved ||= shellChanged;
-  chromeMoved ||= chromeChanged;
-  if (layoutFrame) return;
-  layoutFrame = requestAnimationFrame(() => {
-    layoutFrame = 0;
-    const repaintPage = pageMoved;
-    const repaintChrome = chromeMoved;
-    pageMoved = false;
-    chromeMoved = false;
-    syncLayout();
-    if (repaintPage) pageShifted();
-    // A settled shortcut-bar or panel-foot size can change both the line's final box and
-    // the part of a target or search match it covers. Re-enter the shared paint after
-    // the chrome writer has placed that box, so every consumer reads the same geometry.
-    // `paintHere` is frame-coalesced, and a same-sized line emits no further resize.
-    if (repaintChrome) paintHere();
-  });
+  if (shellChanged) repaintPage();
+  else if (chromeChanged) repaint();
 };
 // Body's own box is the first of them, because a workspace lands its final shell width
 // before the column finishes moving there. Width observation handles taking or

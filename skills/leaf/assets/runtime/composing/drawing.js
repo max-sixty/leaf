@@ -22,7 +22,7 @@ import { openPageDrawing, pageComposerDrawing } from "../conversation/panel.js";
 import { setChildren } from "../dom-children.js";
 import { setDesign } from "../design.js";
 import { documentPoint, shownBox } from "../geometry.js";
-import { paintHere } from "../keyboard/scopes.js";
+import { repaint } from "../repaint.js";
 import { announce } from "../notifications.js";
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
 import { pointerAt } from "../pointer.js";
@@ -171,7 +171,7 @@ export function setDrawing(on, { spoken = true, keepPress = false } = {}) {
         : "Draw mode off",
     );
   paintDrawings();
-  paintHere();
+  repaint();
 }
 
 function drawingFrom(points, targetBox) {

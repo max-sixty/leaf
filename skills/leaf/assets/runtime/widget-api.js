@@ -19,6 +19,7 @@ export { wireInput } from "./composing/input.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 export { focused, keys as commands, paintKeys, saying } from "./keyboard/scopes.js";
+export { repaint } from "./repaint.js";
 export { beginWalk, listWalkPosition } from "./walk-position.js";
 export {
   MARGIN_ELEMENT_SCHEMA,

@@ -42,6 +42,18 @@ canonical Python server in a per-reader container. Its container adapter,
 `worker/server.py`, is ordinary Python that `tests/` covers; its TypeScript half
 is the one part of the tree with a gate of its own that `tests/` does not reach.
 
+`docs/` is the site's own content: each product document there is a Leaf source,
+which `scripts/site.py` publishes as a complete page directory beside the worked
+examples. Changing what <https://leaf.page/> says is a page edit, not a template
+edit.
+
+`TODO.md` is the ordered priority list, and `notes/` holds what its items link
+out to — the approaches considered and not taken, the sweeps of nearby projects,
+the MCP App experiment record, and the research briefs behind a TODO section.
+Nothing under `notes/` is checked by CI, so a note is dated evidence for the
+decision it records rather than a claim about the current tree; where the two
+disagree, the tree is right and the note is history.
+
 Read the scoped instructions for the area being changed:
 
 - `skills/leaf/assets/CLAUDE.md`: browser runtime, widget modules, registry, and theme;

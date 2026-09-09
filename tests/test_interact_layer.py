@@ -321,6 +321,36 @@ def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
     assert not unnamed, f"unnamed in CLAUDE.md: {unnamed}"
 
 
+def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
+    """A top-level directory a session works in must be named where sessions read.
+
+    The dotted directories belong to the hosts and the tooling that read them, and
+    a session finds each through the host rather than through this map. The rest
+    are the project's own tree, and every one of them is somewhere a session is
+    sent to read or write. A session that lands in one the map never names has
+    only the files in front of it to say what the directory is for — which is how
+    `notes/` and `docs/` went unnamed while commits kept landing in both. The set
+    comes from the tracked tree rather than a list here, for the reason the
+    routing above states: a list is the second copy, and the directory added
+    without the paragraph would stay green.
+
+    The prefix is matched without its closing backtick, because a part is named at
+    whatever depth it is owned at — `bin/leaf` is a launcher and
+    `skills/leaf/assets/` is a tree, and both name their directory.
+    """
+    instructions = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    tops = {
+        relative.parts[0]
+        for path in shipped_payload()
+        if len((relative := path.relative_to(PLUGIN_ROOT)).parts) > 1
+    }
+    directories = sorted(top for top in tops if not top.startswith("."))
+
+    assert directories, "no directories read — an empty set names itself"
+    unnamed = [d for d in directories if f"`{d}/" not in instructions]
+    assert not unnamed, f"unnamed in CLAUDE.md: {unnamed}"
+
+
 def test_workflow_shell_continuations_use_literal_blocks():
     """A plain YAML scalar folds the newline before the shell sees the command."""
     workflows = list((ROOT / ".github" / "workflows").glob("*.y*ml"))

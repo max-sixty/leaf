@@ -1,7 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 
+const containerHandlers = vi.hoisted(
+  () => new Map<string, Record<string, (...args: never[]) => Promise<Response>>>(),
+);
+
 vi.mock("@cloudflare/containers", () => ({
-  Container: class {},
+  Container: class {
+    static get outboundByHost() {
+      return containerHandlers.get(this.name);
+    }
+
+    static set outboundByHost(
+      handlers: Record<string, (...args: never[]) => Promise<Response>>,
+    ) {
+      containerHandlers.set(this.name, handlers);
+    }
+  },
   ContainerProxy: class {},
   getContainer: vi.fn(),
 }));
@@ -581,12 +595,15 @@ describe("website page agent", () => {
 
     const upstream = vi.fn(async () => new Response("ok"));
     vi.stubGlobal("fetch", upstream);
-    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
+    const handler = containerHandlers.get("LeafWebsiteSession")?.[
+      "api.openai.com"
+    ];
+    expect(handler).toBeDefined();
     const context = {
       containerId: "reader-container",
       className: "LeafWebsiteSession",
     };
-    const response = await handler(
+    const response = await handler!(
       new Request("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: { Authorization: "Bearer leaf-outbound-proxy" },

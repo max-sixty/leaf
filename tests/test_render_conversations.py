@@ -1465,11 +1465,18 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     expect(visible).to_have_count(4)
 
     on_you = page.locator('[data-filter-value="reader"]')
-    natural_width = on_you.evaluate("el => el.getBoundingClientRect().width")
+    content_sized = """el => {
+      const probe = el.cloneNode(true);
+      probe.style.position = "absolute";
+      probe.style.width = "max-content";
+      el.parentNode.append(probe);
+      const box = probe.getBoundingClientRect().width;
+      probe.remove();
+      return Math.abs(box - el.getBoundingClientRect().width) < 0.5;
+    }"""
+    assert on_you.evaluate(content_sized)
     resized(page, 320, 720)
-    assert on_you.evaluate("el => el.getBoundingClientRect().width") == pytest.approx(
-        natural_width
-    )
+    assert on_you.evaluate(content_sized)
     rail_size = page.locator(".lf-thread-filters").evaluate(
         "el => ({client: el.clientWidth, scroll: el.scrollWidth})"
     )

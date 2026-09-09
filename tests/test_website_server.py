@@ -402,6 +402,11 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch):
             "  Deployment verified.  ",
             "Deployment verified.",
         ),
+        (
+            {"id": "app-server-turn", "status": "completed", "error": None},
+            "![missing](/media/missing.png)",
+            website_server.MISSING_REPLY,
+        ),
     ],
 )
 def test_a_finished_website_turn_settles_its_unanswered_delivery(

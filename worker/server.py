@@ -278,23 +278,31 @@ class WebsiteCodexHost:
             ):
                 page.close_turn(thread_id)
 
+        final = (final_message or "").strip()
         if status == "completed":
-            fallback = (final_message or "").strip() or MISSING_REPLY
+            fallback = final or MISSING_REPLY
         else:
             fallback = GENERATION_FAILURE_REPLY
         for event_id in pending:
-            cmd_reply(
-                page_dir,
-                event_id,
-                fallback,
-                "",
-                attempt=agent_attempt(event_id),
-                only_if_pending=True,
-                identity={
+            options = {
+                "attempt": agent_attempt(event_id),
+                "only_if_pending": True,
+                "identity": {
                     "agent": WEBSITE_AGENT,
                     "session": WEBSITE_AGENT_SESSION,
                 },
-            )
+            }
+            try:
+                cmd_reply(page_dir, event_id, fallback, "", **options)
+            except SystemExit as error:
+                if not final or fallback != final:
+                    raise
+                print(
+                    f"Codex turn {turn.get('id')} returned an invalid reply: {error}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                cmd_reply(page_dir, event_id, MISSING_REPLY, "", **options)
 
     def _follow_turn(
         self,

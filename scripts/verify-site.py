@@ -365,19 +365,11 @@ def verify_agent_turn(browser, release: str) -> None:
     )
     page.reload(wait_until="load", timeout=120_000)
     await_presentation(page, url, failures)
-    try:
-        page.wait_for_function(
-            "expected => document.querySelector('body > main h1')?.innerText === expected",
-            arg=heading,
-            timeout=30_000,
-        )
-    except PlaywrightTimeout:
-        rendered = page.locator("body > main h1").inner_text()
-        raise RuntimeError(
-            f"{url} did not render the agent's published heading; "
-            f"rendered {rendered!r}; browser errors: {failures}"
-        ) from None
     check(not failures, f"{url} reported browser errors: {failures}")
+    check(
+        page.locator("h1").inner_text() == heading,
+        f"{url} did not render the agent's published heading; browser errors: {failures}",
+    )
     context.close()
 
 

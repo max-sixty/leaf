@@ -191,6 +191,7 @@ def cmd_reply(
     part: str = "",
     attempt: str | None = None,
     only_if_pending: bool = False,
+    identity: dict | None = None,
 ) -> dict | None:
     """Post one complete threaded reply, optionally moving its anchor.
 
@@ -264,7 +265,7 @@ def cmd_reply(
         event = {
             "kind": "reply",
             "author": "claude",
-            **message_identity(),
+            **(message_identity() if identity is None else identity),
             "parent": to,
             "text": body,
         }

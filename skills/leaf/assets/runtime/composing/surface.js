@@ -86,7 +86,7 @@ import {
 import { panelCovers } from "../chrome-layout.js";
 import { panel, threadsBox } from "../conversation/panel.js";
 import { banner } from "../banner.js";
-import { shortcutBarEl, less } from "../keyboard/shortcut-bar.js";
+import { bottomChromeBoxes, less } from "../keyboard/shortcut-bar.js";
 import { inChrome, pageRange, pageText, pageWords } from "../passages.js";
 import {
   leftThePage,
@@ -139,12 +139,10 @@ const leftEdge = (node, left, bounds = null) =>
   );
 const bottomEdge = (left, width, bounds = null) => {
   if (bounds) return bounds.bottom - 8;
-  const shortcutBar = shortcutBarEl.getBoundingClientRect();
-  return shortcutBar.height &&
-    left < shortcutBar.right &&
-    left + width > shortcutBar.left
-    ? shortcutBar.top - 8
-    : innerHeight - 8;
+  const tops = bottomChromeBoxes()
+    .filter((box) => left < box.right && left + width > box.left)
+    .map((box) => box.top - 8);
+  return tops.length ? Math.min(...tops) : innerHeight - 8;
 };
 // So the one writer of their position is where the coordinates change space: clamp in
 // the viewport and above any shortcut bar it would cross, then store in the document.

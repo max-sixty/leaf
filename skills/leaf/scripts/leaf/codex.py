@@ -25,12 +25,14 @@ from .files import read_json, write_json
 from .host import host_identity, state_home
 from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
 from .schema import EVENTS_FILE
+from .served_state.page import full_state
 from .server import running_server
 from .service import (
     PageTransaction,
     owned_pages,
     restore_page_claim,
     take_page_claim,
+    unacknowledged,
 )
 from .session import Watch, acknowledge, batch_data, read_watch_pass, record_pickup
 
@@ -258,6 +260,31 @@ class AppServerEvents:
         return None
 
 
+def project_app_server_activity(
+    events: AppServerEvents,
+    message: dict,
+    last_stream_update: float,
+    set_activity,
+    clear_activity,
+) -> float:
+    """Project one notification with the shared streamed-update throttle."""
+    update = events.read(message)
+    if update is None:
+        return last_stream_update
+    turn_id, detail = update
+    if detail is None:
+        clear_activity(events.thread_id, turn_id)
+        return last_stream_update
+    now = time.monotonic()
+    if (
+        message.get("method") in STREAM_THROTTLED_METHODS
+        and now - last_stream_update < STREAM_UPDATE_INTERVAL
+    ):
+        return last_stream_update
+    set_activity(events.thread_id, turn_id, detail)
+    return now
+
+
 class AppServerObserver:
     """Subscribe to one running Codex task without taking control of it."""
 
@@ -325,24 +352,12 @@ class AppServerObserver:
                 },
             )
             socket.send(json.dumps({"method": "initialized", "params": {}}))
-            result = self._send(
+            self._send(
                 socket,
                 "thread/resume",
                 1,
                 {"threadId": self.thread_id, "excludeTurns": True},
             )
-            resumed = result.get("thread", {})
-            if resumed.get("status", {}).get("type") == "active":
-                active = next(
-                    (
-                        turn["id"]
-                        for turn in reversed(resumed.get("turns", []))
-                        if turn.get("status") == "inProgress"
-                    ),
-                    "active",
-                )
-                self.events.turn_id = active
-                _set_stream_activity(self.thread_id, active, "Working in Codex")
             self.available.set()
             if not self.started:
                 self.started = True
@@ -355,21 +370,13 @@ class AppServerObserver:
                 self._read(json.loads(raw))
 
     def _read(self, message: dict) -> None:
-        update = self.events.read(message)
-        if update is None:
-            return
-        turn_id, detail = update
-        if detail is None:
-            _clear_stream_activity(self.thread_id)
-        else:
-            now = time.monotonic()
-            if (
-                message.get("method") in STREAM_THROTTLED_METHODS
-                and now - self.last_stream_update < STREAM_UPDATE_INTERVAL
-            ):
-                return
-            _set_stream_activity(self.thread_id, turn_id, detail)
-            self.last_stream_update = now
+        self.last_stream_update = project_app_server_activity(
+            self.events,
+            message,
+            self.last_stream_update,
+            _set_stream_activity,
+            _clear_stream_activity,
+        )
 
     def _run(self) -> None:
         failures = 0
@@ -898,6 +905,130 @@ def cmd_codex_start(
         raise
     streamed = f" with live activity from {app_server}" if app_server else ""
     return f"Codex delivery started for task {session_id}{streamed}"
+
+
+def prepare_codex_delivery(
+    page_dir: Path,
+    identity: dict,
+    lifetime: dict,
+) -> str:
+    """Claim PAGE and create the pointer that opens an embedded task's first turn."""
+    session_id = identity["id"]
+    transition = None
+    try:
+        with PageTransaction(page_dir) as page:
+            transition = page.take_claim(identity, lifetime)
+            outstanding = {
+                item["event"]
+                for item in full_state(page_dir, page.events)["activity"][
+                    "interactions"
+                ]
+                if item.get("event") is not None
+            }
+            batch = [
+                event
+                for event in unacknowledged(page.events, page.cursor)
+                if event["author"] != "user" or event["id"] in outstanding
+            ]
+            if not batch:
+                raise RuntimeError("the page has no Leaf input to deliver")
+            lock = delivery_lock_path(session_id)
+            lock.parent.mkdir(parents=True, exist_ok=True)
+            with flocked(lock):
+                pending = next(
+                    (
+                        (path, queue)
+                        for path, queue in _queues(session_id)
+                        if queue["state"] in {"collecting", "offering"}
+                    ),
+                    None,
+                )
+                if pending is not None:
+                    return _offer_delivery(*pending)
+                captured = _append_batch(
+                    session_id,
+                    page_dir,
+                    page,
+                    batch,
+                )
+                if captured is None:
+                    raise RuntimeError("the page input is already in a Codex delivery")
+                path, _, _ = captured
+                return _offer_delivery(path, read_json(path))
+    except BaseException:
+        restore_page_claim(page_dir, transition)
+        raise
+
+
+def accept_codex_delivery(session_id: str) -> None:
+    """Record that an embedded host put the current delivery in one Codex turn."""
+    lock = delivery_lock_path(session_id)
+    with flocked(lock):
+        offered = [
+            (path, queue)
+            for path, queue in _queues(session_id)
+            if queue["state"] == "offering"
+        ]
+        if len(offered) != 1:
+            raise RuntimeError("the Codex task has no delivery to accept")
+        path, queue = offered[0]
+        batches = [dict(batch) for batch in queue["batches"]]
+
+    for batch in batches:
+        page_dir = Path(batch["page"])
+        expected = {event["seq"]: event["id"] for event in batch["events"]}
+        with PageTransaction(page_dir) as page:
+            claim = page.active_claim
+            if claim is None or claim["id"] != session_id:
+                raise RuntimeError("the Codex delivery no longer owns its page")
+            delivered = {
+                event["seq"]: event
+                for event in page.events
+                if min(expected) <= event["seq"] <= max(expected)
+            }
+            if not all(
+                delivered.get(seq, {}).get("id") == event_id
+                for seq, event_id in expected.items()
+            ):
+                raise RuntimeError("the Codex delivery no longer matches its page log")
+            claim_turn = page.open_turn(session_id)
+            record_pickup(
+                page,
+                [delivered[seq] for seq in expected],
+                phase="opened",
+                session=session_id,
+                turn=claim_turn,
+            )
+            acknowledge(page, max(expected))
+
+    with flocked(lock):
+        queue = read_json(path)
+        if queue is None or queue["state"] != "offering":
+            raise RuntimeError("the Codex delivery changed before it was accepted")
+        for batch in queue["batches"]:
+            batch["receipted"] = True
+        queue["state"] = "accepted"
+        _write_queue(path, queue)
+
+
+def abandon_codex_delivery(session_id: str, event_id: str) -> None:
+    """Retire an unaccepted delivery after its triggering event was settled."""
+    lock = delivery_lock_path(session_id)
+    with flocked(lock):
+        matching = [
+            path
+            for path, queue in _queues(session_id)
+            if queue["state"] == "offering"
+            and any(
+                event["id"] == event_id
+                for batch in queue["batches"]
+                for event in batch["events"]
+            )
+        ]
+        if len(matching) > 1:
+            raise RuntimeError("the Codex task has duplicate offered deliveries")
+        if matching:
+            matching[0].unlink()
 
 
 def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:

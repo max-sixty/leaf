@@ -1788,17 +1788,18 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     .lf-page-map-action:focus-visible {
       outline: 2px solid Highlight; }
   }
-  /* The shortcut bar is a compact status line: transient Ask or Thread position first,
-     then two contextual hints and the More control rendered from the register the
-     dispatcher walks (see the module docstring). A sequence shows its whole live scope;
-     More unfolds the remaining current register before it opens the complete reference.
-     Position and hints are the eye's copy of facts spoken elsewhere and stay aria-hidden;
-     More is a real control.
+  /* The shortcut bar gives two contextual hints and the More control rendered from the
+     register the dispatcher walks (see the module docstring). A sequence shows its whole
+     live scope; More unfolds the remaining current register before it opens the complete reference.
+     Hints are the eye's copy of facts spoken elsewhere and stay aria-hidden; More is a
+     real control. A category walk's position stands separately on the opposite edge.
      syncLayout keeps the line out of a side-by-side thread panel and, over a covering
      panel, lifts it only when its rendered box actually meets the panel foot. The
-     chrome root reserves the line's whole footprint — the band from its top to the foot
-     of the window — so the document's last lines never end under it. Overflow remains
-     a backstop for a window too narrow to hold even the short line. */
+     readout joins the header of an open conversation surface because that surface can
+     paint above sibling chrome; on the page it keeps the opposite keyline. The
+     chrome root reserves the deepest fixed bottom surface crossing each scroll region,
+     so its last lines never end underneath one. Overflow remains a backstop for a window
+     too narrow to hold even the short line. */
   .lf-shortcut-bar { position: fixed; left: calc(18px + var(--lf-safe-left));
     bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
     display: flex; gap: 12px; align-items: baseline;
@@ -1810,28 +1811,29 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-shortcut-bar[data-lf-wrap="true"] { width: max-content; flex-wrap: wrap;
     row-gap: 6px; align-items: baseline; }
   .lf-shortcut-bar:not(:has(> :not([hidden]))) { display: none; }
-  .lf-walk-position { flex: none; color: var(--ink-2);
-    font-variant-numeric: tabular-nums; }
+  .lf-walk-position { position: fixed; right: calc(18px + var(--lf-safe-right));
+    bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
+    padding: 5px 10px; border: 1px solid var(--rule); border-radius: var(--r);
+    background: var(--card); color: var(--ink-2); font-size: var(--t-5);
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .lf-walk-position[data-lf-boundary] { border-color: var(--accent);
+    background: var(--accent); color: var(--card); }
   .lf-walk-position[hidden] { display: none; }
-  @media (width <= 560px) {
-    .lf-shortcut-bar[data-lf-walk] .lf-walk-position { flex-basis: 100%; }
-  }
+  :is(.lf-panel-head, .lf-margin-preview-head) > .lf-walk-position {
+    position: static; z-index: auto; margin-inline: auto 8px; }
   /* A touch device has no keyboard hints to advertise, so the resting line stands down
      whole rather than shrinking. Every hint on it names a key the reader cannot press,
      and the box they cost stands over the words and the controls of a page whose window
      is the smallest one there is. An attached keyboard can still begin a category walk;
      its position is useful without the hidden hints, so that one reading stands alone.
-     It takes the More control with it, and that is the cost rather than an oversight:
-     More is the only pointer route to the reference, so a tablet with a keyboard
-     attached reaches the reference by the question-mark key.
+     More is the only pointer route to the reference; on a tablet with an attached
+     keyboard the question-mark key remains its route.
      Every reader of the line's box asks whether there is one — syncLayout for the room
      it reserves, targets for how far down the page is reachable, the address chips and
      the floats for what they must not stand on. A zero box is the same state the empty
      line has always had, so none of them is new. */
   @media (pointer: coarse) {
     .lf-shortcut-bar { display: none; }
-    .lf-shortcut-bar[data-lf-walk] { display: flex; }
-    .lf-shortcut-bar[data-lf-walk] > :not(.lf-walk-position) { display: none; }
   }
   .lf-shortcut-bar .lf-key { display: inline-flex; gap: 5px; align-items: baseline; }
   .lf-shortcut-bar .lf-key[hidden] { display: none; }
@@ -1905,7 +1907,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      surface takes over. One inset line survives over both light and dark authored fills
      without changing the page's layout or wrapping its words. */
   .lf-target-match { position: absolute; box-sizing: border-box; pointer-events: none;
-    border-radius: 2px;
     background: color-mix(in srgb, var(--accent) 17%, transparent);
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent); }
   .lf-target-search { position: fixed; z-index: 9080;

@@ -90,7 +90,7 @@
     box-sizing: border-box;
     width: 100cqi;
     max-width: none;
-    height: calc(100vh - var(--lf-banner-h) - var(--lf-shortcut-bar-clear, 0px));
+    height: calc(100vh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px));
     margin: 0;
     padding: 0 var(--col-pad);
     left: 0;
@@ -1418,7 +1418,10 @@ lf-shot .lf-shotrail { display: flex; grid-area: 1 / 1; align-items: center;
     background: var(--card); }
 lf-shot .lf-shotcap { display: flex; align-items: center; align-self: stretch;
     font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
-    letter-spacing: .04em; }
+    letter-spacing: .04em; padding: 0 5px; margin: 0 -5px; color: var(--muted); }
+lf-shot .lf-shotcap[data-lf-state] { outline-offset: -2px; }
+:where(html:not(.lf-copy)) lf-shot .lf-shotcap:hover { background: var(--chip); }
+lf-shot .lf-shotcap[data-lf-state="after"] { box-shadow: none; }
 lf-shot .lf-shotcap[data-lf-state="before"],
 lf-shot:has(input:checked) .lf-shotcap[data-lf-state="after"] { color: var(--ink);
     box-shadow: inset 0 -2px var(--accent); }
@@ -1442,7 +1445,8 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline
   lf-shot, lf-shot:has(.lf-shotframe) { display: block; }
   lf-shot > .lf-shotrail { border-bottom: 1px solid var(--rule);
     margin-bottom: var(--sp-2); }
-  lf-shot .lf-shotcap { color: var(--ink) !important; box-shadow: none !important; }
+  lf-shot .lf-shotcap { color: var(--ink) !important; background: none !important;
+    box-shadow: none !important; }
   lf-shot .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
   lf-shot .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }
   lf-shot > input.lf-shotflip { display: none; }
@@ -1528,7 +1532,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                 * on every page with a spine, at every width, with nothing to scroll it
                 * clear. The map is the fourth region standing in the line's band and the
                 * only one out of flow, so neither the document's room nor a list's
-                * padding reaches it, and syncLayout's `--lf-shortcut-bar-clear` would end it
+                * padding reaches it, and syncLayout's `--lf-bottom-chrome-clear` would end it
                 * above the line in one term.
                 *
                 * That is deliberately not done. The line is either something that hovers

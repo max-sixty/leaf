@@ -113,6 +113,206 @@ print("queued")
     return program, log
 
 
+def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "make this editable"},
+    )
+    identity = {
+        "id": "hosted-thread",
+        "host": "codex",
+        "agent": "Leaf guide",
+    }
+
+    prompt = codex_model.prepare_codex_delivery(
+        page_dir,
+        identity,
+        {"pid": os.getpid()},
+    )
+    assert (
+        codex_model.prepare_codex_delivery(
+            page_dir,
+            identity,
+            {"pid": os.getpid()},
+        )
+        == prompt
+    )
+    codex_model.accept_codex_delivery("hosted-thread")
+
+    assert prompt.startswith("```xml\n<leaf-delivery ")
+    claim = service_model.page_claim(page_dir)
+    assert {key: claim[key] for key in ("id", "host", "pid", "agent")} == {
+        "id": "hosted-thread",
+        "host": "codex",
+        "pid": os.getpid(),
+        "agent": "Leaf guide",
+    }
+    assert claim["turn_closed"] is None
+    assert claim["turn"] is not None
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    activity = page_state(page_dir)["activity"]
+    assert activity["kind"] == "handling"
+    assert activity["dropped"] is False
+    assert activity["counts"]["handling"] == 1
+    assert activity["obligations"][0]["delivery_turn"] == claim["turn"]
+    [history] = (codex_model.delivery_dir("hosted-thread") / "history").glob("*.json")
+    queue = files_model.read_json(history)
+    assert queue["state"] == "accepted"
+    assert queue["batches"][0]["receipted"] is True
+    assert Path(queue["payload"]).is_file()
+
+
+def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir):
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    first = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "make this editable"},
+    )
+    codex_model.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    codex_model.accept_codex_delivery("hosted-thread")
+    first_turn = service_model.page_claim(page_dir)["turn"]
+
+    second = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "also change the title"},
+    )
+    codex_model.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    codex_model.accept_codex_delivery("hosted-thread")
+
+    claim = service_model.page_claim(page_dir)
+    activity = page_state(page_dir)["activity"]
+    interactions = {
+        item["event"]: item
+        for item in activity["interactions"]
+        if item.get("event") in {first["id"], second["id"]}
+    }
+    assert claim["turn"] == first_turn
+    assert activity["counts"]["handling"] == 2
+    assert activity["counts"]["picked_up"] == 0
+    assert all(not item["dropped"] for item in interactions.values())
+
+
+def test_embedded_codex_delivery_retries_the_same_immutable_pointer(page_dir):
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "make this editable"},
+    )
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    first = codex_model.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+
+    second = codex_model.prepare_codex_delivery(
+        page_dir, identity, {"pid": os.getpid()}
+    )
+
+    assert second == first
+    [(_, queue)] = codex_model._queues("hosted-thread")
+    payload = files_model.read_json(Path(queue["payload"]))
+    assert queue["state"] == "offering"
+    assert [event["text"] for event in payload["batches"][0]["events"]] == [
+        "make this editable"
+    ]
+
+
+def test_embedded_codex_delivery_abandons_only_its_mutable_queue_record(page_dir):
+    first = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "first"},
+    )
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    first_prompt = codex_model.prepare_codex_delivery(
+        page_dir, identity, {"pid": os.getpid()}
+    )
+    [(_, first_queue)] = codex_model._queues("hosted-thread")
+    first_payload = Path(first_queue["payload"])
+
+    codex_model.abandon_codex_delivery("hosted-thread", first["id"])
+    conversation_model.cmd_reply(
+        page_dir,
+        first["id"],
+        "try again later",
+        None,
+        identity={"agent": "Leaf guide", "session": "website-agent"},
+    )
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "second"},
+    )
+    second_prompt = codex_model.prepare_codex_delivery(
+        page_dir, identity, {"pid": os.getpid()}
+    )
+
+    assert codex_model._queues("hosted-thread")[0][1]["state"] == "offering"
+    assert second_prompt != first_prompt
+    assert first_payload.is_file()
+
+
+def test_embedded_codex_delivery_skips_reader_input_already_settled_by_the_host(
+    page_dir,
+):
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "first"},
+    )
+    first = events_model.read_events(page_dir)[-1]
+    conversation_model.cmd_reply(
+        page_dir,
+        first["id"],
+        "try again later",
+        None,
+        identity={"agent": "Leaf guide", "session": "website-agent"},
+    )
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "second"},
+    )
+
+    codex_model.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+
+    [(_, queue)] = codex_model._queues("hosted-thread")
+    payload = files_model.read_json(Path(queue["payload"]))
+    assert [event["text"] for event in payload["batches"][0]["events"]] == ["second"]
+
+
+def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
+    work_page = PAGE.replace(
+        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
+    )
+    (page_dir / ".fixture-versions" / "v1.html").write_text(work_page)
+    publish(page_dir)
+    action = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "plan-choice",
+            "action": "answer",
+            "detail": {},
+        },
+    )
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "change the explanation"},
+    )
+
+    codex_model.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+
+    [(_, queue)] = codex_model._queues("hosted-thread")
+    payload = files_model.read_json(Path(queue["payload"]))
+    assert [event["id"] for event in payload["batches"][0]["events"]] == [
+        action["id"],
+        comment["id"],
+    ]
+
+
 @pytest.fixture
 def codex_app_server():
     """A WebSocket App Server that emits two turns when the test advances it."""
@@ -678,6 +878,39 @@ def test_app_server_events_report_semantic_codex_progress():
             "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
         }
     ) == ("turn-live", None)
+
+
+def test_app_server_activity_throttles_stream_deltas(monkeypatch):
+    events = codex_model.AppServerEvents("codex-thread")
+    events.turn_id = "turn-live"
+    clock = iter([10.0, 10.1, 10.3])
+    monkeypatch.setattr(codex_model.time, "monotonic", lambda: next(clock))
+    updates = []
+    clears = []
+    last_update = 0.0
+
+    for delta in ("one", " two", " three"):
+        last_update = codex_model.project_app_server_activity(
+            events,
+            {
+                "method": "item/agentMessage/delta",
+                "params": {
+                    "threadId": "codex-thread",
+                    "turnId": "turn-live",
+                    "itemId": "message-live",
+                    "delta": delta,
+                },
+            },
+            last_update,
+            lambda *args: updates.append(args),
+            lambda *args: clears.append(args),
+        )
+
+    assert updates == [
+        ("codex-thread", "turn-live", "one"),
+        ("codex-thread", "turn-live", "one two three"),
+    ]
+    assert clears == []
 
 
 def test_app_server_observer_stays_subscribed_between_turns_without_controlling_task(

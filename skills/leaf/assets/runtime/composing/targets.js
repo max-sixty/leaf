@@ -3,7 +3,11 @@ import { aimTargets, anchoringIsReady, sameAnchor, scrollToRange } from "../anch
 import { bindings } from "../keyboard/bindings.js";
 import { el } from "../widget-elements.js";
 import { banner } from "../banner.js";
-import { shortcutBarEl } from "../keyboard/shortcut-bar.js";
+import {
+  bottomChromeBoxes,
+  shortcutBarEl,
+  walkPositionEl,
+} from "../keyboard/shortcut-bar.js";
 import {
   blockAt,
   contextAround,
@@ -104,10 +108,8 @@ const rect = (left, top, right, bottom, sourceTop = top) =>
       }
     : null;
 // The largest visible rectangle left after viewport chrome is subtracted. The banner
-// spans the window and clips one edge. The shortcut bar is a bottom band in one horizontal
-// lane, so a target crossing that lane keeps the larger of the space above, before, or
-// after it. Treating the line's top as a scalar dropped a target merely because some
-// other part of its box stood behind unrelated chrome on the left.
+// spans the window and clips one edge. Each bottom surface is a band in one horizontal
+// lane, so a target crossing it keeps the larger of the space above, before, or after it.
 //
 // A coarse pointer is shown no line, and an empty one takes itself down. A zero box must
 // therefore answer with the viewport foot rather than a top of 0, or `s` names no items
@@ -122,41 +124,45 @@ function visibleRect(box, sourceTop = box?.top) {
     sourceTop,
   );
   if (!shown) return null;
-  const line = shortcutBarEl.getBoundingClientRect();
-  const band = {
-    left: line.left,
-    top: line.top,
-    right: line.right,
-    bottom: innerHeight,
-  };
-  if (!line.height || !overlaps(shown, band)) return shown;
-  return (
-    [
-      rect(
-        shown.left,
-        shown.top,
-        shown.right,
-        Math.min(shown.bottom, band.top),
-        sourceTop,
-      ),
-      rect(
-        shown.left,
-        shown.top,
-        Math.min(shown.right, band.left),
-        shown.bottom,
-        sourceTop,
-      ),
-      rect(
-        Math.max(shown.left, band.right),
-        shown.top,
-        shown.right,
-        shown.bottom,
-        sourceTop,
-      ),
-    ]
-      .filter(Boolean)
-      .sort((a, b) => b.width * b.height - a.width * a.height)[0] ?? null
+  const candidates = bottomChromeBoxes().reduce(
+    (open, box) => {
+      const band = {
+        left: box.left,
+        top: box.top,
+        right: box.right,
+        bottom: innerHeight,
+      };
+      return open.flatMap((candidate) =>
+        overlaps(candidate, band)
+          ? [
+              rect(
+                candidate.left,
+                candidate.top,
+                candidate.right,
+                Math.min(candidate.bottom, band.top),
+                sourceTop,
+              ),
+              rect(
+                candidate.left,
+                candidate.top,
+                Math.min(candidate.right, band.left),
+                candidate.bottom,
+                sourceTop,
+              ),
+              rect(
+                Math.max(candidate.left, band.right),
+                candidate.top,
+                candidate.right,
+                candidate.bottom,
+                sourceTop,
+              ),
+            ].filter(Boolean)
+          : [candidate],
+      );
+    },
+    [shown],
   );
+  return candidates.sort((a, b) => b.width * b.height - a.width * a.height)[0] ?? null;
 }
 // A fixed sheet can cover a page box without clipping it. Hints live above the chrome,
 // so geometry alone would put a key on the thread panel for a card hidden behind it.
@@ -520,6 +526,7 @@ export function paintTargets() {
   selectionLayer.replaceChildren(...drawn);
   if (!searching)
     spreadHints(hints, {
+      barriers: [walkPositionEl.getBoundingClientRect()],
       lineBox: shortcutBarEl.getBoundingClientRect(),
       viewportTop: covered(),
     });

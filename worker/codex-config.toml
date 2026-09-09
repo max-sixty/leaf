@@ -1,0 +1,10 @@
+[marketplaces.leaf]
+source_type = "local"
+source = "/opt/leaf-plugin"
+
+[plugins."leaf@leaf"]
+enabled = true
+
+[shell_environment_policy]
+inherit = "all"
+exclude = ["OPENAI_API_KEY"]

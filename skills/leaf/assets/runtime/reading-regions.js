@@ -166,6 +166,10 @@ const notify = (detail) => {
 export function registerArrangement({ owner, content, regions: declared = [] }) {
   if (!owner || !content)
     throw new Error("leaf: an arrangement needs owner and content elements");
+  if ([...arrangements].some((arrangement) => arrangement.owner === owner))
+    throw new Error("leaf: arrangement owner is already live");
+  if ([...arrangements].some((arrangement) => arrangement.content === content))
+    throw new Error("leaf: arrangement content is already live");
   const cleanups = admitRegions(declared);
   const arrangement = { owner, content, posture: null, generation: 0 };
   arrangements.add(arrangement);

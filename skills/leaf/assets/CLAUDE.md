@@ -44,6 +44,8 @@ walk and the brief boundary state when another press stays at the same destinati
 `runtime/icons.js` owns the layer's icon table;
 `runtime/context.js` owns the mutable facts shared across the browser layers and
 their direct readers;
+`runtime/native-layers.js` owns the browser's modal-dialog and popover order across the
+document and declared shadow roots, including the modal floor beneath a nested popover;
 `runtime/deferred-modals.js` holds authored modals outside the top layer until the
 first presentation boundary;
 `runtime/layer-client.js` owns the vendored-generation gate, shared event and media
@@ -248,7 +250,7 @@ Each mutable fact has one writer:
 | where the thread holding the focus stands in the list | the band the list declares landable through `scroll-padding` | `threadsBox`'s `focusin`, and its press through `pointerdown`/`pointerup`; `stepThread` for a key press that moves no focus, `landIn` for the box it puts the reader in, `placeThreadEdge` for an explicit edge placement, and `showThread` for a deliberate arrival |
 | tray visibility | `trayUp` | `showTray` writes reader gestures; `restoreTrays` loads saved intent and `restoreTray` paints it at presentation |
 | region width the reader drew | the reader's store, per edge | `drawnEdge`'s `set` and `restore` |
-| keyboard meaning | registered scope and row objects | the dispatcher and each visible key surface read the register |
+| keyboard meaning | registered scope and row objects, bounded by their document or current native-layer root | the dispatcher and each visible key surface read the same filtered stack |
 | draft generation | the reader's draft record | draft-store helpers and `watchDraft` |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
@@ -423,7 +425,7 @@ The extension keys describe general behavior:
 | `x-measured` | authored scalar words are pinned at an instant to one live data input; checks compare that instant with the source's latest update |
 | `x-says` | named attributes are visible words at declared edges |
 | `x-paints` | named attributes communicate facts through paint and need a quiet spoken reading |
-| `x-verbatim` | own authored words and the order and identity of nested upgraded boundaries must agree with the rendering |
+| `x-verbatim` | own authored or canonically projected words and the order and identity of nested upgraded boundaries must agree with the rendering |
 | `x-shadow` | a declared open shadow tree is part of the page's composed reading |
 | `x-state` | reader action verbs, current eligibility, facets, units, schemas, and records |
 | `x-report` | report verbs with the same semantic state shape |
@@ -772,6 +774,7 @@ been removed. `render-checks/init.js` installs the pre-navigation window-error c
 | `unreachableWords` | visible page words remain in reachable flow |
 | `coveredWords` | browser words are not silently clipped, hidden, or claimed by chrome |
 | `unreadSyntax` | syntax highlighting does not erase or alter source words |
+| `shownVerbatim` | every preserving owner agrees with its revision- or conversation-scoped projected passage |
 | `silentWords` | `x-says` and `x-paints` promises reach the composed rendered page |
 | `undeclaredAttrs` | modules do not write undeclared author-namespace state |
 | `retiredSlots` | declared settlement marks and retired-slot visibility agree with the projection |

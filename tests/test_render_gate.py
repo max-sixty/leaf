@@ -10,6 +10,7 @@ from interact_support import append_command
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
+from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.validation import compatibility as validation_model
@@ -1099,6 +1100,323 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
     assert (
         sum("event r-anonymous occurrence 2" in failure for failure in dishonest) == 2
     ), dishonest
+
+
+def _author_stateful_verbatim_widget(tmp_path):
+    author_test_widget(tmp_path, "lf-stateful", upgrade=True)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    stateful = entries["lf-stateful"]
+    stateful["properties"].update(
+        {
+            "reader": {"type": "string"},
+            "agent": {"type": "string"},
+            "restated": {"type": "boolean"},
+            "overruled": {"type": "boolean"},
+        }
+    )
+    stateful["x-state"] = {
+        "change": {
+            "detail": {
+                "type": "object",
+                "properties": {"value": {"type": "string"}},
+                "required": ["value"],
+                "additionalProperties": False,
+            },
+            "facet": "reader",
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "reader", "value": "value"},
+        }
+    }
+    stateful["x-report"] = {
+        "status": {
+            "detail": {
+                "type": "object",
+                "properties": {"value": {"type": "string"}},
+                "required": ["value"],
+                "additionalProperties": False,
+            },
+            "facet": "agent",
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "agent", "value": "value"},
+        }
+    }
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
+        'import { once } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-stateful", class extends HTMLElement {\n'
+        "  connectedCallback() { once(this); }\n"
+        "  renderState(state) {\n"
+        '    if (state.reader.value === "corrupt" || state.agent.value === "corrupt")\n'
+        '      this.querySelector("p").textContent = "State replaced unrelated prose.";\n'
+        "  }\n"
+        "});\n"
+    )
+
+
+@pytest.mark.parametrize("kind", ["action", "report"])
+def test_action_and_report_state_do_not_excuse_unrelated_verbatim_corruption(
+    browser, serve, tmp_path, monkeypatch, kind
+):
+    monkeypatch.chdir(tmp_path)
+    _author_stateful_verbatim_widget(tmp_path)
+    url = serve(
+        leaf_page(
+            f"verbatim after {kind}",
+            '<h1>Stateful prose</h1><lf-stateful id="owner">'
+            "<p>Authored prose must remain.</p></lf-stateful>",
+        )
+    )
+    command = {
+        "kind": kind,
+        "author": "user" if kind == "action" else "claude",
+        "revision": 1,
+        "widget": "owner",
+        "action": "change" if kind == "action" else "status",
+        "detail": {"value": "corrupt"},
+    }
+    if kind == "report":
+        command["agent"] = "worker"
+    append_command(serve.page_dir, command)
+
+    failures = render_gate_model.render_version(browser, url)
+
+    dishonest = [failure for failure in failures if "x-verbatim" in failure]
+    assert len(dishonest) == 2, failures
+    assert all("owner" in failure for failure in dishonest)
+
+
+def test_projected_rewrite_retirement_and_undo_are_honest_verbatim_changes(
+    browser, serve
+):
+    page = leaf_page(
+        "projected verbatim prose",
+        """
+<h1>Projected prose</h1>
+<lf-draft id="edited"><pre>Authored draft.</pre></lf-draft>
+<lf-suggestion id="retired">
+  <lf-old><lf-draft id="retired-draft"><pre>Retired draft.</pre></lf-draft></lf-old>
+  <lf-new><p>Accepted replacement.</p></lf-new>
+</lf-suggestion>
+<lf-suggestion id="undone">
+  <lf-old><lf-draft id="undone-draft"><pre>Restored draft.</pre></lf-draft></lf-old>
+  <lf-new><p>Withdrawn replacement.</p></lf-new>
+</lf-suggestion>
+""",
+    )
+    url = serve(page)
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "edited",
+            "action": "edit",
+            "detail": {"text": "Reader's standing draft."},
+        },
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "retired",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    withdrawn = append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "undone",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": withdrawn["id"]},
+    )
+
+    failures = render_gate_model.render_version(browser, url)
+
+    assert not [failure for failure in failures if "x-verbatim" in failure], failures
+
+
+def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_log():
+    registry = {
+        "lf-draft": {
+            "x-upgrade": True,
+            "x-verbatim": True,
+            "x-state": {
+                "edit": {
+                    "facet": "body",
+                    "unit": "widget",
+                    "record": {"kind": "body", "value": "text"},
+                }
+            },
+        }
+    }
+    page = '<lf-draft id="page-draft"><pre>Page authored.</pre></lf-draft>'
+    frozen = '<lf-draft id="frozen-draft"><pre>Frozen authored.</pre></lf-draft>'
+
+    def action(identity, text, seq):
+        return {
+            "kind": "action",
+            "id": f"a-{identity}",
+            "author": "user",
+            "revision": 2,
+            "widget": identity,
+            "action": "edit",
+            "detail": {"text": text},
+            "meaning": {
+                "coordinate": [identity, identity, "body"],
+                "depends": [identity],
+                "answer": None,
+                "document": {"kind": "page", "revision": 2},
+            },
+            "seq": seq,
+        }
+
+    events = [
+        {
+            "kind": "comment",
+            "id": "c-scope",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep the frozen answer current.",
+            "seq": 1,
+        },
+        {
+            "kind": "reply",
+            "id": "r-scope",
+            "author": "claude",
+            "parent": "c-scope",
+            "revision": 1,
+            "text": "Here it is:",
+            "markup": frozen,
+            "seq": 2,
+        },
+        action("page-draft", "Page future.", 3),
+        action("frozen-draft", "Frozen standing.", 4),
+    ]
+
+    expected = render_gate_readings._expected_verbatim(page, events, registry, here=1)
+
+    assert expected == {
+        ("page", None, 0): [{"text": "Page authored."}],
+        ("event", "r-scope", 0): [{"text": "Frozen standing."}],
+    }
+
+
+def test_projected_verbatim_includes_generated_children():
+    registry = {
+        "lf-list": {
+            "x-upgrade": True,
+            "x-verbatim": True,
+            "x-state": {
+                "add": {
+                    "facet": "items",
+                    "unit": "widget",
+                    "creates": {"field": "additions", "child": "lf-item"},
+                }
+            },
+        },
+        "lf-item": {"x-upgrade": False},
+    }
+    markup = '<lf-list id="list">Authored item.</lf-list>'
+    event = {
+        "kind": "action",
+        "id": "a-add",
+        "author": "user",
+        "revision": 1,
+        "widget": "list",
+        "action": "add",
+        "detail": {"additions": {"new-item": "Generated item."}},
+        "generated": ["new-item"],
+        "meaning": {
+            "coordinate": ["list", "list", "items"],
+            "depends": ["list"],
+            "answer": None,
+            "document": {"kind": "page", "revision": 1},
+        },
+        "seq": 1,
+    }
+
+    expected = render_gate_readings._expected_verbatim(
+        markup, [event], registry, here=1
+    )
+
+    assert expected == {("page", None, 0): [{"text": "Authored item. Generated item."}]}
+
+
+def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
+    browser, serve, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    _author_stateful_verbatim_widget(tmp_path)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-shell"] = {
+        "description": "A preserving wrapper around a stateful child.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-upgrade": True,
+        "x-verbatim": True,
+        "x-example": '<lf-shell id="shell-example">Example</lf-shell>',
+    }
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
+        'import { once } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-shell", class extends HTMLElement {\n'
+        "  connectedCallback() { once(this); }\n"
+        "});\n"
+    )
+    (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
+        'import { once } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-stateful", class extends HTMLElement {\n'
+        "  connectedCallback() { once(this); }\n"
+        "  renderState(state) {\n"
+        '    if (state.reader.value === "corrupt")\n'
+        '      this.closest("lf-shell").querySelector(":scope > p").textContent = '
+        '"Child state replaced wrapper prose.";\n'
+        "  }\n"
+        "});\n"
+    )
+    url = serve(
+        leaf_page(
+            "parent prose after child action",
+            '<h1>Nested state</h1><lf-shell id="shell">'
+            "<p>Wrapper prose must remain.</p>"
+            '<lf-stateful id="child"><p>Child prose.</p></lf-stateful>'
+            "</lf-shell>",
+        )
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "child",
+            "action": "change",
+            "detail": {"value": "corrupt"},
+        },
+    )
+
+    failures = render_gate_model.render_version(browser, url)
+
+    dishonest = [failure for failure in failures if "x-verbatim" in failure]
+    assert len(dishonest) == 2, failures
+    assert all("<lf-shell id='shell'>" in failure for failure in dishonest), dishonest
 
 
 def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(

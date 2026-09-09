@@ -478,9 +478,7 @@ export const REACT = {
   // Opening the modal reference dismisses this transient mode. Its section still reads
   // the liveness captured at that boundary rather than listing every conditional choice.
   liveInReference: true,
-  // A modal may expose overflow from this same response interaction. Its native
-  // focus walk and Escape own the keyboard until it closes; keep the anchor alive.
-  at: () => reactArmed && !document.querySelector("dialog:modal"),
+  at: () => reactArmed,
   claims: allButTheReference,
   rows: [
     {

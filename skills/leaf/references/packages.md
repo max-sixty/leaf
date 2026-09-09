@@ -216,15 +216,21 @@ The optional header and footer are elements the caller identifies, including gen
 elements; shared slot classes carry their geometry. The helper groups the remaining
 children into the content body and registers any declared reading regions. On reconnect,
 `registerArrangedElement({owner, content, body, regions})` rebinds that existing DOM.
-For bounded allocation, the workspace body is itself an arranged structural or compound
-owner. A plain wrapper keeps its descendants in document flow.
+Both helpers mark a workspace-kind owner `data-lf-root-workspace` when it is the only
+non-metadata element directly inside `body > main`; packages read that marker to choose
+bounded posture. The shared theme gives only a marked `.lf-workspace-arranged` owner the
+available page below the banner. Other workspaces keep document flow. For bounded
+allocation, the workspace body is itself an arranged structural or compound owner. A
+plain wrapper keeps its descendants in document flow.
 
 `registerReadingRegion({id, host, body})` binds identity separately from the current
 scroller, while `registerArrangement({owner, content, regions})` returns
 `setPosture("bounded"|"flow")` and `cleanup()`. Nested arrangements inherit the nearest
 containing posture and read their assigned content box with `readingAllocation(node)`;
 CSS owns how that allocation is divided. Arrangement registration admits its complete
-region collection atomically, so a rejected collision leaves every proposed id free.
+ownership and region collection atomically, so a rejected owner, content, or region
+collision leaves the DOM and every proposed id unchanged. One owner and content box
+belong to one live arrangement until its cleanup.
 `readingRegionFor(node)`, `readingRegion(id)`,
 `readingRegions()`, `effectiveScroller(node)`, `readingPosture(node)`, and
 `shownRegionBounds(node)` expose the shared readings. Compound widgets create a

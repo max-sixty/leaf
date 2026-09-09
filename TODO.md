@@ -22,7 +22,7 @@ produced the following backlog. IDs match the research discussion, not GitHub is
 The [research briefs](notes/workspace-followups.md) retain evidence, completion
 criteria, dependencies, and Sol/Astra assignments. Items are ordered within each group.
 
-Start with **#2, #3 and #4**, alongside **#6 and #8**. Capture the **#19** authoring
+Start with **#2 and #4**, alongside **#6 and #8**. Capture the **#19** authoring
 baseline before changing guidance, then complete real workflows in **#9 and #17**.
 Keep the current primitives; let the experiments establish demand for more.
 
@@ -32,20 +32,9 @@ Keep the current primitives; let the experiments establish demand for more.
   transaction](notes/workspace-followups.md#item-2).** Admit a single live arrangement
   before changing its DOM, so failed registration cannot leave a half-arranged widget.
 
-- **#3 — [Check text honesty in dark mode](notes/workspace-followups.md#item-3).** Run
-  the scheme-sensitive text check in both color schemes.
-
 - **#4 — [Size custom workspace roots by their declared
   role](notes/workspace-followups.md#item-4).** Remove the remaining default-tag
   dependency from root workspace sizing.
-
-- **#1 — [Check anonymous preserving widgets](notes/workspace-followups.md#item-1).**
-  Extend the text-preservation check to widgets without an authored ID, retaining the
-  existing compositional contract.
-
-- **#5 — [Check projected prose after actions and
-  reports](notes/workspace-followups.md#item-5).** Replace whole-owner exemptions with
-  the narrower changes that the projected state actually permits.
 
 ### Examples
 

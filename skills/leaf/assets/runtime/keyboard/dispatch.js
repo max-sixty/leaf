@@ -44,14 +44,17 @@
    page cannot cascade from one keypress. A scope does not need a private `keydown`
    listener or hand-written `preventDefault` to protect that contract.
 
-   Auto popovers and modal dialogs are the platform's modes. While one is the active top
-   layer, the page rung stands down and browser Escape closes it; Leaf updates from the
-   resulting `toggle`, `cancel`, or `close` event. Register Escape only when Leaf adds a
-   distinct inner step, such as leaving a text box before closing its dialog or collapsing
-   the keyboard reference's expanded shelf — or, as a `native: true` row, to name the
-   platform's own press on the shortcut bar where nothing else does (the versions menu opened
-   by pointer): the row runs the same close, leaves the platform's half alone, and a
-   return frame standing nearer names the key first.
+   Auto popovers and modal dialogs are the platform's modes. Each scope and return frame
+   belongs to its document or native-layer root. A modal keeps only scopes rooted in that
+   layer before the platform boundary and drops the inert document's scopes. A popover is
+   nonmodal: active command modes and focused scopes retain their order, later scopes owned
+   by the popover move ahead of the boundary, and the boundary reserves an otherwise
+   unhandled Escape while letting other page commands through. When that popover stands
+   inside a modal, the enclosing modal remains the floor and document scopes stay inert.
+   An inner Leaf row can therefore unwind a step in that layer, while an unhandled Escape
+   reaches the browser and cannot fall through. Covered return frames are suspended;
+   closing the layer exposes the same frame again. The universal reference is the
+   boundary's one route through to another layer.
 
    A popover hands focus back to whatever had it when the popover showed — not to its
    invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
@@ -80,6 +83,7 @@ import { shortcutBarExpanded, less } from "./shortcut-bar.js";
 import { referenceOpen } from "./reference.js";
 import {
   ELEMENTS,
+  EVERYTHING,
   LESS_SHORTCUTS,
   pageScopes,
   REFERENCE,
@@ -97,6 +101,12 @@ import { RETURN, invoke } from "./return-stack.js";
 import { isSequenceActive, setSequence } from "./address.js";
 import { REACT, setReact } from "../reactions.js";
 import { runtime } from "../context.js";
+import {
+  currentModalLayer,
+  currentNativeLayer,
+  nativeLayerFor,
+  nativeLayersFor,
+} from "../native-layers.js";
 
 const beforeCommand = (row) => {
   if (
@@ -124,6 +134,18 @@ export const readerIn = (scope) => !scope.at || scope.at();
 // decisions fold and then every link on the page, once per keydown, from the first keystroke of
 // the first comment.
 const standing = (scope) => readerIn(scope) && pageHas(scope);
+const nativeBoundary = (claims) => ({
+  get rows() {
+    return [REFERENCE];
+  },
+  claims,
+});
+const MODAL_BOUNDARY = nativeBoundary(EVERYTHING);
+const POPOVER_BOUNDARY = nativeBoundary((binding) => binding === "Escape");
+const scopeRoot = (scope) => {
+  const declared = scope.root ?? scope.el ?? document;
+  return typeof declared === "function" ? declared() : declared;
+};
 // Every scope the reader is standing in, innermost first. The whole list: what a nearer
 // scope takes out of reach is the walk's own business, and both walkers say it the same
 // way — a binding some nearer row has already named, or one a nearer scope claims. Cutting
@@ -133,26 +155,56 @@ export function stack() {
   const active = focused();
   const elementStack = scopesFor(active);
   const typing = takesLetters(active);
-  return pageScopes()
-    .flatMap((scope) => {
-      if (scope === ELEMENTS) {
-        if (!typing) return [...elementStack, RETURN];
-        const own = elementStack.filter(({ el }) => el === active);
-        const ancestors = elementStack.filter(({ el }) => el !== active);
-        // A control's own state is the innermost layer. The command frame that entered
-        // it comes next, before the generic text-box escape and any containing widget:
-        // `/` in Threads can clear its query before returning, while `c` into a plain
-        // composer returns in the same one Escape that entered it.
-        return [...own, RETURN, TYPING, ...ancestors];
-      }
-      // RETURN is declared in pageScopes() so every projection sees it. The element placeholder
-      // above has already placed it at the dynamic boundary between the exact control and
-      // the generic/ancestor scopes, so the static slot contributes no second copy.
-      if (scope === RETURN) return [];
-      if (scope === TYPING && typing) return [];
-      return scope;
-    })
-    .filter(standing);
+  const expanded = pageScopes().flatMap((scope) => {
+    if (scope === ELEMENTS) {
+      if (!typing) return [...elementStack, RETURN];
+      const own = elementStack.filter(({ el }) => el === active);
+      const ancestors = elementStack.filter(({ el }) => el !== active);
+      // A control's own state is the innermost layer. The command frame that entered
+      // it comes next, before the generic text-box escape and any containing widget:
+      // `/` in Threads can clear its query before returning, while `c` into a plain
+      // composer returns in the same one Escape that entered it.
+      return [...own, RETURN, TYPING, ...ancestors];
+    }
+    // RETURN is declared in pageScopes() so every projection sees it. The element placeholder
+    // above has already placed it at the dynamic boundary between the exact control and
+    // the generic/ancestor scopes, so the static slot contributes no second copy.
+    if (scope === RETURN) return [];
+    if (scope === TYPING && typing) return [];
+    return scope;
+  });
+  const layer = currentNativeLayer(active);
+  if (!layer) return expanded.filter(standing);
+  const modal = currentModalLayer(active);
+  const inLayer = (scope) => nativeLayerFor(scopeRoot(scope)) === layer;
+  if (layer !== modal) {
+    // Everything before RETURN is already an active mode or the exact focused control,
+    // and keeps its established Escape priority. Later scopes rooted in this popover
+    // (plus focused ancestors) belong before the browser's light-dismiss boundary too.
+    // The boundary then catches only an Escape that would otherwise reach a covered
+    // return frame or page fallback; non-Escape presses continue through it.
+    const returnAt = expanded.indexOf(RETURN);
+    const split = returnAt < 0 ? expanded.length : returnAt;
+    const aboveModal = modal
+      ? (scope) => nativeLayersFor(scopeRoot(scope)).includes(modal)
+      : () => true;
+    const activeModes = expanded.slice(0, split).filter(aboveModal);
+    const tail = expanded.slice(split).filter(aboveModal);
+    const foreground = (scope) =>
+      inLayer(scope) || elementStack.includes(scope) || scopeRoot(scope) === active;
+    const popoverStack = [
+      ...activeModes,
+      ...tail.filter(foreground),
+      POPOVER_BOUNDARY,
+      ...tail.filter((scope) => !foreground(scope)),
+    ];
+    if (modal) popoverStack.push(MODAL_BOUNDARY);
+    return popoverStack.filter(standing);
+  }
+  const owned = expanded.filter((scope) =>
+    nativeLayersFor(scopeRoot(scope)).includes(modal),
+  );
+  return [...owned, MODAL_BOUNDARY].filter(standing);
 }
 // The claims of every scope nearer the reader than this one, accumulated as either walk
 // steps outward. A scope's own claim is pushed after its rows, because what it takes from

@@ -13,6 +13,16 @@ const generated = (className) => {
   return node;
 };
 
+const syncRootWorkspace = (owner) => {
+  const main = owner.parentElement;
+  const isRoot =
+    owner.classList.contains("lf-workspace-arranged") &&
+    main?.matches("body > main") &&
+    [...main.children].filter((child) => !child.matches("script, style, template"))
+      .length === 1;
+  owner.toggleAttribute("data-lf-root-workspace", Boolean(isRoot));
+};
+
 export function arrangeReadingElement({
   owner,
   kind,
@@ -26,6 +36,15 @@ export function arrangeReadingElement({
   const content = generated(`lf-arranged-content lf-${kind}-content`);
   const body = kind === "pane" ? generated("lf-arranged-body lf-pane-body") : content;
   const furniture = new Set([header, footer].filter(Boolean));
+  const arrangement = registerArrangement({
+    owner,
+    content,
+    regions: regions.map((region) => ({
+      ...region,
+      host: region.host ?? owner,
+      body: region.body ?? body,
+    })),
+  });
   for (const child of [...owner.childNodes]) {
     if (!furniture.has(child)) body.append(child);
   }
@@ -34,13 +53,9 @@ export function arrangeReadingElement({
   footer?.classList.add("lf-arranged-furniture", "lf-arranged-after");
   owner.replaceChildren(...[header, content, footer].filter(Boolean));
   owner.classList.add("lf-arranged", `lf-${kind}-arranged`);
+  syncRootWorkspace(owner);
 
-  const arrangement = registerArrangedElement({
-    owner,
-    content,
-    body,
-    regions,
-  });
+  layoutChanged(owner);
   return { body, content, arrangement };
 }
 
@@ -59,6 +74,7 @@ export function registerArrangedElement({
       body: region.body ?? body,
     })),
   });
+  syncRootWorkspace(owner);
   layoutChanged(owner);
   return arrangement;
 }

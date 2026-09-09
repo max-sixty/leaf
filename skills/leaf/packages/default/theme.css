@@ -82,11 +82,16 @@
 
 @media screen {
   html[data-lf-live]:has(
-      body > main > [data-lf-root-workspace][data-lf-posture="bounded"]
+      body
+        > main
+        > .lf-workspace-arranged[data-lf-root-workspace][data-lf-posture="bounded"]
     ) {
     overflow-y: hidden;
   }
-  body > main:has(> lf-workspace[data-lf-root-workspace][data-lf-posture="bounded"]) {
+  body
+    > main:has(
+      > .lf-workspace-arranged[data-lf-root-workspace][data-lf-posture="bounded"]
+    ) {
     box-sizing: border-box;
     width: 100cqi;
     max-width: none;
@@ -95,7 +100,9 @@
     padding: 0 var(--col-pad);
     left: 0;
   }
-  lf-workspace[data-lf-root-workspace][data-lf-posture="bounded"] {
+  body
+    > main
+    > .lf-workspace-arranged[data-lf-root-workspace][data-lf-posture="bounded"] {
     height: 100%;
   }
   @container style(--lf-reading-posture: bounded) {
@@ -143,7 +150,7 @@ html.lf-copy .lf-pane-body {
   overflow: visible;
   height: auto;
 }
-html.lf-copy body > main:has(> [data-lf-root-workspace]) {
+html.lf-copy body > main:has(> .lf-workspace-arranged[data-lf-root-workspace]) {
   height: auto;
   padding-block: 72px 96px;
 }

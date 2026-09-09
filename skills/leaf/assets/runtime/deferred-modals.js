@@ -6,9 +6,11 @@
    disabling the recovery chrome. `showPopover()` opens natively so the widget can
    observe and cancel it through `:popover-open`; the startup stylesheet withholds its
    top-layer paint and interaction, and `presentPage` closes any open popover whose
-   reconciled branch is no longer visible. */
+   reconciled branch is no longer visible. It reports each native opening to the layer
+   owner because these patched methods see authored shadow roots too. */
 
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
+import { rememberNativeLayer } from "./native-layers.js";
 
 const presentedAttribute = PAGE_PAINT_ATTRIBUTE.presented;
 
@@ -57,6 +59,10 @@ HTMLDialogElement.prototype.showModal = function () {
     deferredModals.add(this);
     return;
   }
+  // A dialog enters the top layer before its focusing steps. Record that transition
+  // before the native call so a focus handler opening another dialog leaves the nested
+  // one newest; calling showModal() again on an already-modal dialog changes no order.
+  if (!this.matches(":modal")) rememberNativeLayer(this);
   return nativeDialogShowModal.call(this);
 };
 HTMLDialogElement.prototype.show = function () {
@@ -71,7 +77,12 @@ HTMLElement.prototype.showPopover = function (...args) {
   if (!document.body.hasAttribute(presentedAttribute) && inAuthoredMain(this)) {
     deferredPopovers.add(this);
   }
-  return nativePopoverShow.apply(this, args);
+  const opening = !this.matches(":popover-open");
+  const result = nativePopoverShow.apply(this, args);
+  // `toggle` is the canonical route and preserves reentrant declarative order. This
+  // fallback covers an undeclared shadow root whose non-composed event Leaf cannot see.
+  if (opening && this.matches(":popover-open")) rememberNativeLayer(this);
+  return result;
 };
 HTMLElement.prototype.hidePopover = function (...args) {
   deferredPopovers.delete(this);
@@ -91,6 +102,7 @@ export function promoteDeferredModals() {
     // Removing the non-modal state directly emits no spurious close event; the widget
     // asked for one opening, and this is that opening finally becoming modal.
     dialog.removeAttribute("open");
+    rememberNativeLayer(dialog);
     nativeDialogShowModal.call(dialog);
   }
   deferredModals.clear();

@@ -289,6 +289,158 @@ def test_a_direct_embedded_workspace_keeps_the_root_in_document_flow(browser, se
     page.close()
 
 
+CUSTOM_WORKSPACE_LAYER = {
+    "lf-studio": {
+        "description": "A package-owned workspace used to exercise the public layout contract.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+        },
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "prose",
+        "x-layout": "workspace",
+        "x-upgrade": True,
+        "x-verbatim": True,
+        "x-example": '<lf-studio id="studio"><lf-pane id="canvas" label="Canvas"><p>Draw.</p></lf-pane></lf-studio>',
+    }
+}
+CUSTOM_WORKSPACE_WIDGETS = {
+    "lf-studio.js": """
+import {
+  arrangeReadingElement,
+  once,
+  registerArrangedElement,
+  settle,
+} from '/runtime/widget-api.js';
+
+customElements.define('lf-studio', class extends HTMLElement {
+  connectedCallback() {
+    if (once(this)) {
+      const arranged = arrangeReadingElement({owner: this, kind: 'workspace'});
+      this.arrangement = arranged.arrangement;
+      this.content = arranged.content;
+    } else {
+      this.content = this.querySelector(':scope > .lf-workspace-content');
+      this.arrangement = registerArrangedElement({owner: this, content: this.content});
+    }
+    settle(this.arrangement.setPosture(
+      this.hasAttribute('data-lf-root-workspace') ? 'bounded' : 'flow'
+    ));
+  }
+
+  disconnectedCallback() {
+    this.arrangement?.cleanup();
+    this.arrangement = null;
+  }
+});
+"""
+}
+
+
+def test_a_package_workspace_root_receives_the_available_page_while_embedded_ones_flow(
+    browser, serve
+):
+    source = leaf_page(
+        "package workspace",
+        """
+<lf-studio id="studio">
+  <lf-pane id="canvas" label="Canvas">
+    <p>Canvas start</p><div style="height: 1000px"></div><p>Canvas end</p>
+  </lf-pane>
+</lf-studio>
+""",
+    )
+    page, errors = open_page(
+        browser,
+        serve(
+            source,
+            layer_registry=CUSTOM_WORKSPACE_LAYER,
+            layer_widgets=CUSTOM_WORKSPACE_WIDGETS,
+        ),
+    )
+    studio = page.locator("#studio")
+    expect(studio).to_have_attribute("data-lf-root-workspace", "")
+    expect(studio).to_have_attribute("data-lf-posture", "bounded")
+    geometry = page.evaluate(
+        """() => {
+          const main = document.querySelector('main').getBoundingClientRect();
+          const studio = document.querySelector('#studio').getBoundingClientRect();
+          return {main, studio, viewport: {width: innerWidth, height: innerHeight}};
+        }"""
+    )
+    assert geometry["main"]["width"] >= geometry["viewport"]["width"] - 2
+    assert geometry["studio"]["height"] == geometry["main"]["height"]
+    assert geometry["studio"]["height"] > 700
+    studio.evaluate(
+        "owner => { const main = owner.parentElement; owner.remove(); main.append(owner); }"
+    )
+    expect(studio).to_have_attribute("data-lf-posture", "bounded")
+    assert studio.evaluate(
+        """async owner => {
+          const leaf = await import('/runtime/widget-api.js');
+          return leaf.readingPosture(owner) === 'bounded';
+        }"""
+    )
+    studio.evaluate(
+        """owner => {
+          const wrapper = document.createElement('div');
+          owner.parentElement.append(wrapper);
+          wrapper.append(owner);
+        }"""
+    )
+    expect(studio).not_to_have_attribute("data-lf-root-workspace", "")
+    expect(studio).to_have_attribute("data-lf-posture", "flow")
+    studio.evaluate("owner => document.querySelector('main').replaceChildren(owner)")
+    expect(studio).to_have_attribute("data-lf-root-workspace", "")
+    expect(studio).to_have_attribute("data-lf-posture", "bounded")
+    assert errors == []
+    page.close()
+
+    embedded_source = leaf_page(
+        "embedded package workspace",
+        """
+<h1>Embedded workspace</h1>
+<lf-studio id="embedded-studio">
+  <lf-pane id="embedded-canvas" label="Canvas">
+    <p>Canvas start</p><div style="height: 1000px"></div><p>Canvas end</p>
+  </lf-pane>
+</lf-studio>
+""",
+    )
+    page, errors = open_page(
+        browser,
+        serve(
+            embedded_source,
+            layer_registry=CUSTOM_WORKSPACE_LAYER,
+            layer_widgets=CUSTOM_WORKSPACE_WIDGETS,
+        ),
+    )
+    embedded = page.locator("#embedded-studio")
+    expect(embedded).not_to_have_attribute("data-lf-root-workspace", "")
+    expect(embedded).to_have_attribute("data-lf-posture", "flow")
+    embedded.evaluate(
+        """owner => {
+          owner.setAttribute('data-lf-root-workspace', '');
+          owner.dataset.lfPosture = 'bounded';
+        }"""
+    )
+    assert embedded.evaluate(
+        "owner => owner.classList.contains('lf-workspace-arranged')"
+    )
+    embedded.evaluate(
+        "owner => owner.classList.replace('lf-workspace-arranged', 'lf-pane-arranged')"
+    )
+    assert page.evaluate(
+        "getComputedStyle(document.documentElement).overflowY !== 'hidden'"
+    )
+    assert page.evaluate(
+        "document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight"
+    )
+    assert errors == []
+    page.close()
+
+
 SWIPE_PAGE = leaf_page(
     "session backlog triage",
     """

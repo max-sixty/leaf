@@ -108,6 +108,7 @@ import { iconElement } from "./icons.js";
 import { claimed, focusSurface } from "./conversation/surfaces.js";
 import { anchorLabel } from "./conversation/messages.js";
 import { renderMarginThread } from "./conversation/inline.js";
+import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
 
 const KINDS = {
   action: { label: "Action", icon: "dot", priority: -1 },
@@ -169,9 +170,6 @@ const humanized = (value) =>
   String(value ?? "")
     .replace(/[-_]+/g, " ")
     .trim();
-
-const readingRegionName = (target) =>
-  String(readingRegionFor(target)?.host.getAttribute("aria-label") ?? "").trim();
 
 function targetPath(target) {
   const root = target.getRootNode();
@@ -1141,7 +1139,12 @@ function collectEntries() {
     }
   }
 
-  const collected = [...groups.values()]
+  const outline = pageOutline();
+  const collected = [...groups.values()];
+  const subjects = collected
+    .filter((group) => !group.subject)
+    .map((group) => group.target);
+  return collected
     .map((group) => {
       const items = group.items;
       const represented = new Set(
@@ -1149,10 +1152,15 @@ function collectEntries() {
           .filter((item) => item.marker === false && item.represents)
           .map((item) => item.kind),
       );
+      const subject = outlineSubjectFor(group.target, subjects, outline);
       return {
         ...group,
         title: trimmed(
-          [group.word, group.subject ?? itemSays(group.target)]
+          [
+            group.subject ? null : subject.context,
+            group.word,
+            group.subject ?? itemSays(group.target),
+          ]
             .filter(Boolean)
             .join(" · "),
           72,
@@ -1174,16 +1182,6 @@ function collectEntries() {
       };
     })
     .sort((left, right) => comesBefore(left.target, right.target));
-  const titleCounts = new Map();
-  for (const entry of collected)
-    titleCounts.set(entry.title, (titleCounts.get(entry.title) ?? 0) + 1);
-  return collected.map((entry) => {
-    if (titleCounts.get(entry.title) === 1) return entry;
-    const region = readingRegionName(entry.target);
-    return region
-      ? { ...entry, title: trimmed(`${region} · ${entry.title}`, 72) }
-      : entry;
-  });
 }
 
 function revealTarget(target, account) {

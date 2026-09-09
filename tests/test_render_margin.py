@@ -114,6 +114,7 @@ DUPLICATE_REGION_PAGE = leaf_page(
 DUPLICATE_REGION_COMMENTS = [
     {
         "kind": "comment",
+        "id": f"comment-{section}",
         "author": "user",
         "revision": 1,
         "text": "Check this subject.",
@@ -214,6 +215,27 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
     expect(
         sheet.get_by_role("heading", name="heading · Summary", exact=True)
     ).to_be_visible()
+
+    proposed = sheet.locator(".lf-page-map-group").nth(2)
+    proposed.get_by_role(
+        "button", name="Open thread: Check this subject.", exact=True
+    ).click()
+    expect(sheet).to_be_hidden()
+    threads = page.locator(".lf-threads")
+    expect(threads.locator(":scope > .lf-group")).to_have_text(
+        ["Current · Deployment", "Summary", "Proposed · Deployment"]
+    )
+    expect(
+        threads.get_by_role("button", name="Current · Deployment", exact=True)
+    ).to_be_visible()
+    expect(
+        threads.get_by_role("button", name="Proposed · Deployment", exact=True)
+    ).to_be_visible()
+    expect(
+        threads.locator(
+            ':scope > .lf-thread[data-id="comment-proposed-deployment"] textarea'
+        )
+    ).to_be_focused()
     assert errors == []
     page.close()
 

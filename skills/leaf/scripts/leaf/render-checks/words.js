@@ -3,6 +3,7 @@ import {
   says,
   textNodesUnder,
   verbatimBoundaryIdentity,
+  verbatimOwnerIdentity,
 } from "/runtime/widget-api.js";
 import { openRoots } from "./open-roots.js";
 
@@ -25,7 +26,7 @@ const compositionalWords = (owner, widgets) => {
     const identity = verbatimBoundaryIdentity.get(child);
     reading.push({
       boundary: [
-        identity?.owner?.id ?? null,
+        identity?.owner ?? null,
         identity?.index ?? null,
         child.localName,
         child.id || null,
@@ -41,12 +42,11 @@ export const shownVerbatim = ({ widgets, touched }) =>
     .filter(([, entry]) => entry["x-verbatim"])
     .flatMap(([tag]) =>
       [...document.querySelectorAll(tag)]
-        // TODO(2026-09-08): Give anonymous x-verbatim owners pre-upgrade source
-        // provenance too, including frozen replies, so honesty checks their own prose.
-        .filter((el) => el.id && !touched.includes(el.id))
+        .filter((el) => !el.id || !touched.includes(el.id))
         .map((el) => ({
           tag,
           id: el.id,
+          provenance: verbatimOwnerIdentity.get(el) ?? null,
           says: says(el),
           compositional: compositionalWords(el, widgets),
         })),

@@ -186,6 +186,9 @@ export const RETURN = {
       keys: ["Escape"],
       does: () => word(current()?.does),
       line: () => word(current()?.line),
+      // A frame may keep its Escape route while yielding the compact line to the action
+      // that advances work inside the entered surface.
+      lineWhen: () => word(current()?.lineWhen) !== false,
       runFromReference: false,
       run: back,
     },

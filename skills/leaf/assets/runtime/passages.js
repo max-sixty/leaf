@@ -89,6 +89,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
 export const opaquePassageRoots = new WeakSet();
 export const opaquePassageParts = new WeakSet();
+export const verbatimOwnerIdentity = new WeakMap();
 export const verbatimBoundaryIdentity = new WeakMap();
 
 // ---------- passages ----------

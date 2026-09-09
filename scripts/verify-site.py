@@ -315,12 +315,23 @@ def reader_session(
     activation = activation_url(url, passive.json())
     activated = context.request.get(activation, timeout=120_000)
     check(activated.ok, f"{activation} returned {activated.status}")
+    check(
+        activated.headers.get("leaf-session") == "active",
+        f"{activation} did not activate a private container for its agent",
+    )
     state_response = context.request.get(
         state_url,
         headers={"Leaf-Release": release},
         timeout=120_000,
     )
     check(state_response.ok, f"{state_url} returned {state_response.status}")
+    # The edge answers a passive `api/state` with the deployed release whatever the
+    # containers run, so the release below reads as this container's own only once
+    # the session is known to have left the edge.
+    check(
+        state_response.headers.get("leaf-session") == "active",
+        f"{state_url} did not reach a private container for its agent",
+    )
     reached = state_response.headers.get("leaf-release")
     if reached != release:
         context.close()
@@ -337,8 +348,9 @@ def agent_session(browser, release: str) -> AgentSession:
     rather than for this one, and the edge answers a passive `api/state` out of the
     built site whatever the containers are running — so neither establishes the
     container that has to admit this turn's comment. This does, by activating a
-    session and reading the release back from it, and it takes a fresh session while
-    a rollout drains. Nothing here writes: the turn is posted once, afterwards.
+    session and reading the release back out of an answer the container itself gave,
+    and it takes a fresh session while a rollout drains. Nothing here writes: the
+    turn is posted once, afterwards.
     """
     url = f"{ORIGIN}/examples/design-decision/"
     state_url = urljoin(url, "api/state")

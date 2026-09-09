@@ -529,6 +529,11 @@ arriving without a gesture must not move any chrome control. A content change
 the reader requested may reflow the content it replaces, provided the change is
 shown as trackable motion rather than an unexplained jump.
 
+Leaf's chrome and widgets use solid contours. Do not use dotted or dashed borders and
+underlines for UI state; use a non-color cue such as the label, actionability, or shape.
+Fill, ink, and opacity may reinforce it. Lines inside authored diagrams retain the
+document's own semantics.
+
 The parent laying out adjacent actions owns their complete allocations. Different
 actions have disjoint hit boxes, and a compact control's larger aim may not cover a
 sibling's visible surface.

@@ -3973,6 +3973,12 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_reader)
     expect(dead).to_have_attribute(
         "title", "§ gone isn't in the version you're viewing"
     )
+    # A limited system palette maps both anchors to LinkText. Underlining only the
+    # live reference keeps the disabled state visible without relying on colour.
+    page.emulate_media(forced_colors="active")
+    expect(live).to_have_css("text-decoration-line", "underline")
+    expect(dead).to_have_css("text-decoration-line", "none")
+    page.emulate_media(forced_colors="none")
     # force, because locator.click refuses aria-disabled controls and that refusal is
     # the state under test. Nothing will happen, so there is no fact to consume: the
     # press is the edge, and the hash the browser would write is synchronous with it.

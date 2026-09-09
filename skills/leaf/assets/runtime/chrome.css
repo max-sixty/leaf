@@ -239,7 +239,7 @@
    for stillness. */
 @media (prefers-reduced-motion: reduce) {
   .lf-margin-element[data-lf-state="busy"]:not([data-lf-behavior="status"])::after {
-    animation: none; border-style: dotted;
+    animation: none;
   }
 }
 /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
@@ -1350,8 +1350,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      scrolled rather than clipped a few rules down, because it stands alone in a box
      the reader is typing into and has no thread beneath it to bury. */
   .lf-thread .lf-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
-  .lf-quote.detached { border-inline-start-style: dashed;
-    border-inline-start-color: var(--border-2); color: var(--muted-2); cursor: default; }
+  .lf-quote.detached { border-inline-start-color: var(--border-2);
+    color: var(--muted-2); cursor: default; }
   /* Out of the picture, still in the accessibility tree — see the composer's quote in
      paintAnchors for the one thing that wears this and why. */
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
@@ -1385,11 +1385,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-msg-body li { margin: 2px 0; }
   .lf-msg-body pre { padding: 8px 10px; }
   .lf-msg-body blockquote { padding: 2px 10px; }
-  /* A reference to an element this version hasn't got, wearing the same word the
-     quote above wears for the same fact. The whole text-decoration shorthand,
-     because a widget's § reference (lf-ref) undressed its underline and a style
-     alone would paint nothing there. paintAnchors is the one writer. */
-  .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
+  /* A reference to an element this version hasn't got, wearing the same muted ink
+     as the quote above. It loses the underline as well: forced-colors replaces both
+     inks with LinkText, so the line is the visible difference between a live reference
+     and one whose press is disabled. paintAnchors is the one writer. */
+  .lf-msg-body a.detached { color: var(--muted-2); text-decoration: none; cursor: default; }
   .lf-compose { display: block; margin-top: 8px; }
   .lf-compose textarea { display: block; width: 100%; min-width: 0; }
   /* The foot is a column of its own so the composer and the page's reaction strip keep
@@ -1895,15 +1895,15 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     outline-offset: calc(-1 * var(--here-ring-w)); }
   /* Design mode: the reader is commenting on the layer rather than the page, and for
      as long as they are the page shows its bones. Every item — a widget, a section, a
-     heading with an id — wears a legend box: a dashed hairline in the chrome's layer,
+     heading with an id — wears a quiet hairline in the chrome's layer,
      drawn from the item's geometry the way the aim's box is (paintLegend), one pixel
      outside the border box so a thread's mark, one pixel inside it, still shows
      beside. Every item but a widget's parts wears its name above the box's corner
      too — the tag and id a fix is written against, the words the composer and the
      thread will carry — and the parts (a card, an option, a milestone: what x-parent
      declares) keep the hairline alone and are named under the pointer, or a board
-     would wear a tag on every card and say nothing. Dashed rather than solid because
-     a legend is structural while the solid rail is the annotation's (.lf-mark-el).
+     would wear a tag on every card and say nothing. The legend's lighter one-pixel
+     contour and its labels distinguish it from an annotation's rail (.lf-mark-el).
      Under the pointer the aim's box lifts one item out of the legend
      (.lf-aim) and its full name — the control's word included — floats where the tag
      stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
@@ -1953,7 +1953,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     font-size: var(--t-6); text-align: right; white-space: nowrap; }
   .lf-legend-box { position: absolute; pointer-events: none;
     box-sizing: border-box;
-    border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
+    border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); }
   .lf-legend-tag { position: absolute; left: -1px; bottom: 100%; max-width: 40vw;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     padding: 0 5px; font-size: var(--t-6); line-height: 1.5;

@@ -1169,8 +1169,8 @@ export function paintAnchors(threads) {
   // it just marked, and printing them inside it says the same sentence twice, side by side.
   // So the quote is the fallback rather than the statement: it shows where the mark can't,
   // which is where this version no longer holds the passage — a draft the user carried
-  // onto a newer version, whose text survived the trip when its passage didn't. Dashed and
-  // muted, the panel's detached treatment, for the same fact.
+  // onto a newer version, whose text survived the trip when its passage didn't. Muted,
+  // the panel's detached treatment, for the same fact.
   //
   // Scrolled out of view looks like that case and is not: the passage is still there, one
   // scroll back, and the reader put it there seconds ago. A quote coming and going with the

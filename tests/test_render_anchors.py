@@ -291,10 +291,20 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     page.close()
 
 
-def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve):
+@pytest.mark.parametrize("revision", [1, 2])
+def test_browser_and_file_captures_stop_at_the_same_widget_fences(
+    browser, serve, revision
+):
     """Module-only words may sit between authored parts, but they cannot give the
     browser more context than the mapped revision can confirm."""
-    page, errors = open_page(browser, serve(FENCED_CAPTURE_PAGE))
+    page, errors = open_page(browser, live_url(serve(FENCED_CAPTURE_PAGE)))
+    if revision == 2:
+        # Activation mounts cloned nodes after preloading their widget modules.
+        (serve.page_dir / ".fixture-versions" / "v2.html").write_text(
+            FENCED_CAPTURE_PAGE.replace("</title>", " revised</title>")
+        )
+        stamp_version_file(serve.page_dir, 2, "Refresh the document")
+        wait_for_revision(page, 2)
     expect(page.locator("#gate-milestone .lf-chips")).to_have_count(1)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     cases = [
@@ -356,6 +366,71 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(browser, serve
             f"{selector} captured {actual_anchor}, file captured {expected_anchor}"
         )
 
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("workspace", [False, True], ids=["ask", "workspace"])
+def test_quotes_cross_preserving_containers_and_remain_attached(
+    browser, serve, workspace
+):
+    """A layout module does not turn visible prose into separate quotation islands."""
+    ask = """<lf-ask id="decision">
+      <h2 id="question">Which plan should lead?</h2>
+      <lf-options id="plans" choose>
+        <lf-option id="steady">Keep the steady plan.</lf-option>
+        <lf-option id="fast">Try the faster plan.</lf-option>
+      </lf-options>
+    </lf-ask>"""
+    content = (
+        f"""<lf-workspace id="workspace">
+          <lf-split id="split" direction="rows">
+            <lf-pane id="decision-pane" label="Decision">{ask}</lf-pane>
+            <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
+          </lf-split>
+        </lf-workspace>"""
+        if workspace
+        else ask
+    )
+    markup = leaf_page(
+        "Shared quotation",
+        '<h1>Release review</h1><section id="review">'
+        f'<p id="context">Release context.</p>{content}</section>',
+    )
+    url = live_url(serve(markup))
+    page, errors = open_page(browser, url)
+    quote = "Release context. Which plan should lead?"
+    registry = json.loads((serve.page_dir / "registry.json").read_text())
+    expected = anchor_capture_model.capture_anchor(markup, registry, quote, "review")
+    page.evaluate(
+        """() => {
+          const start = document.querySelector('#context').firstChild;
+          const end = document.querySelector('#question').firstChild;
+          const range = document.createRange();
+          range.setStart(start, 0);
+          range.setEnd(end, end.length);
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+        }"""
+    )
+    page.dispatch_event("body", "mouseup")
+    expect(page.locator("#lf-composer-quote")).to_have_text(f"“{quote}”")
+    page.locator(".lf-fab-input").click()
+    page.locator(".lf-composer textarea").fill("Keep the question with its context.")
+    with sending(page, "the comment across preserving containers"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(page.locator(".lf-thread")).to_have_count(1)
+    actual = [
+        event["anchor"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ][-1]
+    assert actual == expected
+    page.reload()
+    expect(page.locator(".lf-thread .lf-quote")).to_have_text(f"“{quote}”")
+    expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
+        re.compile("detached")
+    )
     assert errors == []
     page.close()
 
@@ -2343,6 +2418,75 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     page.close()
 
 
+def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
+    """A pointer press briefly moves focus from an open thread to the page before its
+    click restores the reply field. The mark must not look deselected during that gap.
+
+    A reaction shares this target with the comment because that was the visible failure:
+    losing the current-thread paint exposed the passive reaction contour underneath.
+    Hover and current therefore need to resolve to the same accent contour for the whole
+    down/up gesture, while passive feedback remains the quieter hairline.
+    """
+    url = serve(INLINE_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "About the figure.",
+            "anchor": {"section": "fig"},
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "keep",
+            "anchor": {"section": "fig"},
+        },
+    )
+    page, errors = open_page(browser, url)
+    figure = page.locator("#fig")
+    figure.scroll_into_view_if_needed()
+    mark = page.locator('.lf-visual-mark[data-for="fig"]')
+    expect(mark).to_be_visible()
+
+    look = """node => { const style = getComputedStyle(node); return {
+      line: style.borderStyle,
+      width: style.borderWidth,
+      color: style.borderColor,
+    }; }"""
+    passive = mark.evaluate(look)
+    assert passive["line"] == "solid"
+
+    box = figure.bounding_box()
+    point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.move(*point)
+    page.mouse.click(*point)
+    page.wait_for_function("() => document.activeElement?.matches('textarea.lf-ui')")
+    selected = mark.evaluate(look)
+
+    page.mouse.move(*point)
+    page.mouse.down()
+    page.evaluate(
+        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+    )
+    pressed = mark.evaluate(look)
+    page.mouse.up()
+
+    assert selected == pressed, (
+        f"the selected contour changed during mouse-down: {selected} -> {pressed}"
+    )
+    assert selected["line"] == "solid"
+    assert selected["width"] != passive["width"]
+    assert selected["color"] != passive["color"]
+    assert errors == []
+    page.close()
+
+
 def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
     """A finger is a pointer that arrives already down, and the click it ends on has to
     answer for a position it never moved through.
@@ -3292,6 +3436,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # the two are one thing (focusVersionRow).
     open_versions(page)
     expect(menu).to_be_visible()
+    expect(btn).to_have_attribute("aria-expanded", "true")
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
     expect(btn).to_have_text("v2")
     expect(btn).to_have_class(re.compile(r"\bon\b"))
@@ -4920,10 +5065,9 @@ TEXT_MARKS = ("lf-mark", "lf-react")
 # The strip is read under the glyphs rather than across them, because a line and a letter
 # are not told apart by colour: both are ink at the same ratio. Below the baseline the
 # only ink a passage has of its own is its descenders, which are stems — a couple of
-# columns each. A rule drawn there takes half the columns when it is dashed and all of
-# them when it is solid. So the floor sits far above what descenders reach and far below
-# what the thinner of the two lines draws, and the unmarked control below is what says
-# which side of it this page is on.
+# columns each. A solid rule spans most of the strip. So the floor sits far above what
+# descenders reach and far below what the thinner of the two lines draws, and the
+# unmarked control below is what says which side of it this page is on.
 LINE_COVERAGE = 0.3
 
 
@@ -4997,9 +5141,9 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
     marks elements, with a line: an element anchor wears a --mark-ink contour at 9:1
     (.lf-visual-mark), and a passage wears the same ink as an underline.
 
-    A reaction had the element half of that pair (.lf-react-el, dashed) and not the text
-    half. On words it was --react alone, 1.08:1 over the light paper — a mark that is in
-    the log and not on the screen. Both names are read here.
+    A reaction had the element half of that pair and not the text half. On words it was
+    --react alone, 1.08:1 over the light paper — a mark that is in the log and not on the
+    screen. Both names are read here.
 
     Read off the drawn page rather than off the rules, because what a highlight pseudo is
     allowed to carry is the browser's to decide and a declaration that stopped applying
@@ -5030,6 +5174,13 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(
         page.wait_for_function(
             "(name) => (CSS.highlights.get(name)?.size ?? 0) > 0", arg=name
         )
+    line_styles = page.evaluate(
+        "(names) => Object.fromEntries(names.map(name => "
+        "[name, getComputedStyle(document.documentElement, `::highlight(${name})`)"
+        ".textDecorationStyle]))",
+        TEXT_MARKS,
+    )
+    assert line_styles == {name: "solid" for name in TEXT_MARKS}, line_styles
     paper = tuple(
         page.evaluate(
             "() => getComputedStyle(document.body).backgroundColor"

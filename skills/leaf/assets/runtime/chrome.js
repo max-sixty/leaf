@@ -4,10 +4,14 @@
 import { banner, mountBanner, reserveBannerControls } from "./banner.js";
 import { versionMenu } from "./version.js";
 import { asksPanel, othersPanel } from "./trays.js";
-import { panel, wireGeneralBox } from "./conversation/panel.js";
+import {
+  mountPanelReadingRegion,
+  panel,
+  wireGeneralBox,
+} from "./conversation/panel.js";
 import { composer, fab, fabBar } from "./composing/selection.js";
 import { shortcutReferenceDialog } from "./keyboard/reference.js";
-import { shortcutBarEl } from "./keyboard/shortcut-bar.js";
+import { shortcutBarEl, walkPositionEl } from "./keyboard/shortcut-bar.js";
 import { el, focusDestination, offer } from "./widget-elements.js";
 import { overflowMenu } from "./banner-shelf.js";
 import { inspectEl, legendRoot } from "./design.js";
@@ -107,11 +111,13 @@ export function mountChrome() {
     mediaViewer,
     shortcutReferenceDialog,
     shortcutBarEl,
+    walkPositionEl,
     inspectEl,
   );
   document.body.prepend(skipToChrome);
 
   document.body.append(chromeRoot);
+  mountPanelReadingRegion();
   reserveBannerControls();
   // What the parts' owners could not do as they evaluated: measure what is now in the
   // document, observe it, wire another owner's element, and append into another owner's

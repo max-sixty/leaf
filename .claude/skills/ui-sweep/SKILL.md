@@ -41,6 +41,10 @@ instead. Record the endpoints and the path. A route that reverses, overshoots it
 settled boxes, or repeatedly changes responsive posture is a finding even when both
 endpoints are sound.
 
+For every paint-only transition, compare the same target's hit-test rectangle before,
+during, and after the state change. Hover, focus, and keyboard hints may add paint around
+a target; they do not move the target itself.
+
 ## Judge
 
 Read the frames against the layer-wide UI laws and render-gate table in

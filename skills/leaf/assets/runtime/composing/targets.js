@@ -3,7 +3,11 @@ import { aimTargets, anchoringIsReady, sameAnchor, scrollToRange } from "../anch
 import { bindings } from "../keyboard/bindings.js";
 import { el } from "../widget-elements.js";
 import { banner } from "../banner.js";
-import { shortcutBarEl } from "../keyboard/shortcut-bar.js";
+import {
+  bottomChromeBoxes,
+  shortcutBarEl,
+  walkPositionEl,
+} from "../keyboard/shortcut-bar.js";
 import {
   blockAt,
   contextAround,
@@ -68,10 +72,10 @@ selectionSearch.append(selectionInput, selectionStatus);
 //
 // `/` opens a real search input over the whole page reading, either directly from the
 // page or from the visible item hints. Tab walks repeated occurrences and Enter makes a
-// native browser Selection from the active match. Escape returns to the surface that
-// opened search: the page after a direct `/`, or the visible hints after `s` then `/`.
-// The mode keeps `?` available and claims the rest of the page's keyboard while it
-// stands.
+// native browser Selection from the active match. Once the prompt closes, n repeats that
+// accepted search and N reverses it. Escape returns to the surface that opened search:
+// the page after a direct `/`, or the visible hints after `s` then `/`. The mode keeps
+// `?` available and claims the rest of the page's keyboard while it stands.
 
 const HINT_INDENT = 10;
 
@@ -85,6 +89,7 @@ let hintActive = -1;
 let opener = null;
 let searchReturnsToHints = false;
 let scrolling = false;
+let repeatedSearch = null;
 
 const clips = () => new Map();
 const covered = () => banner.getBoundingClientRect().bottom;
@@ -103,10 +108,8 @@ const rect = (left, top, right, bottom, sourceTop = top) =>
       }
     : null;
 // The largest visible rectangle left after viewport chrome is subtracted. The banner
-// spans the window and clips one edge. The shortcut bar is a bottom band in one horizontal
-// lane, so a target crossing that lane keeps the larger of the space above, before, or
-// after it. Treating the line's top as a scalar dropped a target merely because some
-// other part of its box stood behind unrelated chrome on the left.
+// spans the window and clips one edge. Each bottom surface is a band in one horizontal
+// lane, so a target crossing it keeps the larger of the space above, before, or after it.
 //
 // A coarse pointer is shown no line, and an empty one takes itself down. A zero box must
 // therefore answer with the viewport foot rather than a top of 0, or `s` names no items
@@ -121,41 +124,45 @@ function visibleRect(box, sourceTop = box?.top) {
     sourceTop,
   );
   if (!shown) return null;
-  const line = shortcutBarEl.getBoundingClientRect();
-  const band = {
-    left: line.left,
-    top: line.top,
-    right: line.right,
-    bottom: innerHeight,
-  };
-  if (!line.height || !overlaps(shown, band)) return shown;
-  return (
-    [
-      rect(
-        shown.left,
-        shown.top,
-        shown.right,
-        Math.min(shown.bottom, band.top),
-        sourceTop,
-      ),
-      rect(
-        shown.left,
-        shown.top,
-        Math.min(shown.right, band.left),
-        shown.bottom,
-        sourceTop,
-      ),
-      rect(
-        Math.max(shown.left, band.right),
-        shown.top,
-        shown.right,
-        shown.bottom,
-        sourceTop,
-      ),
-    ]
-      .filter(Boolean)
-      .sort((a, b) => b.width * b.height - a.width * a.height)[0] ?? null
+  const candidates = bottomChromeBoxes().reduce(
+    (open, box) => {
+      const band = {
+        left: box.left,
+        top: box.top,
+        right: box.right,
+        bottom: innerHeight,
+      };
+      return open.flatMap((candidate) =>
+        overlaps(candidate, band)
+          ? [
+              rect(
+                candidate.left,
+                candidate.top,
+                candidate.right,
+                Math.min(candidate.bottom, band.top),
+                sourceTop,
+              ),
+              rect(
+                candidate.left,
+                candidate.top,
+                Math.min(candidate.right, band.left),
+                candidate.bottom,
+                sourceTop,
+              ),
+              rect(
+                Math.max(candidate.left, band.right),
+                candidate.top,
+                candidate.right,
+                candidate.bottom,
+                sourceTop,
+              ),
+            ].filter(Boolean)
+          : [candidate],
+      );
+    },
+    [shown],
   );
+  return candidates.sort((a, b) => b.width * b.height - a.width * a.height)[0] ?? null;
 }
 // A fixed sheet can cover a page box without clipping it. Hints live above the chrome,
 // so geometry alone would put a key on the thread panel for a card hidden behind it.
@@ -300,8 +307,6 @@ function startSearching() {
   setSearching(true);
 }
 
-const matchRange = () => (matches[active] ? rangeOf(matches[active]) : null);
-
 function matchOwner(segments) {
   const first = segments[0];
   return first ? (blockAt(first.node) ?? first.node.parentElement) : null;
@@ -399,16 +404,41 @@ function chooseHint() {
 }
 
 function chooseMatch() {
-  const range = matchRange();
-  if (!range) return;
+  const segments = matches[active];
+  if (!segments) return;
   const quote = quoteFrom(matches[active]);
+  repeatedSearch = { query: selectionInput.value.trim(), index: active };
   setOpen(false);
+  selectMatch(segments);
+  announce(
+    `Selected match: ${cut(quote, 0, 72)}. Press n for next, Shift+n for previous, or c to comment.`,
+  );
+}
+
+function selectMatch(segments) {
   document.body.focus({ preventScroll: true });
   const selection = getSelection();
   selection.removeAllRanges();
-  selection.addRange(range);
+  selection.addRange(rangeOf(segments));
   updateFab();
-  announce(`Selected match: ${cut(quote, 0, 72)}. Press c to comment.`);
+}
+
+function repeatSearch(direction) {
+  matches = findText(pageText(), repeatedSearch.query);
+  if (!matches.length) {
+    repeatedSearch = null;
+    active = -1;
+    announce("The page no longer contains that search.");
+    return paintHere();
+  }
+  const from = Math.min(repeatedSearch.index, matches.length - 1);
+  active = (from + direction + matches.length) % matches.length;
+  repeatedSearch.index = active;
+  showMatch();
+  selectMatch(matches[active]);
+  announce(
+    `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
+  );
 }
 
 function back() {
@@ -496,6 +526,7 @@ export function paintTargets() {
   selectionLayer.replaceChildren(...drawn);
   if (!searching)
     spreadHints(hints, {
+      barriers: [walkPositionEl.getBoundingClientRect()],
       lineBox: shortcutBarEl.getBoundingClientRect(),
       viewportTop: covered(),
     });
@@ -536,6 +567,28 @@ export const PAGE_SEARCH = {
   lineWhen: () => !hasCapturedTarget(),
   when: () => anchoringIsReady() && !searching,
   run: startSearching,
+};
+
+export const REPEAT_PAGE_SEARCH = {
+  id: "page.search.repeat",
+  keys: ["n", "Shift+n"],
+  routes: [
+    {
+      id: "page.search.next",
+      binding: "n",
+      does: "Go to the next match for the last page search",
+    },
+    {
+      id: "page.search.previous",
+      binding: "Shift+n",
+      does: "Go to the previous match for the last page search",
+    },
+  ],
+  does: "Next / previous match for the last page search",
+  line: "search matches",
+  repeat: true,
+  when: () => Boolean(repeatedSearch),
+  run: (binding) => repeatSearch(binding === "n" ? 1 : -1),
 };
 
 export const SELECT = {
@@ -586,6 +639,14 @@ export const SELECT = {
       run: chooseHint,
     },
     {
+      id: "selection.match.select",
+      keys: ["Enter"],
+      does: "Select the current search match",
+      line: "select match",
+      when: () => searching && matches.length > 0,
+      run: chooseMatch,
+    },
+    {
       id: "selection.match.walk",
       keys: ["Tab", "Shift+Tab"],
       routes: [
@@ -607,16 +668,11 @@ export const SELECT = {
       run: (binding) => moveMatch(binding === "Tab" ? 1 : -1),
     },
     {
-      id: "selection.match.select",
-      keys: ["Enter"],
-      does: "Select the current search match",
-      line: "select match",
-      when: () => searching && matches.length > 0,
-      run: chooseMatch,
-    },
-    {
       id: "selection.back",
       keys: ["Escape"],
+      // Search keeps its two unfamiliar operations on the compact line; Escape is the
+      // platform-standard way out and remains named by the expanded reference.
+      promoteEscape: () => !searching,
       does: () =>
         searching
           ? searchReturnsToHints

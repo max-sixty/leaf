@@ -10,8 +10,7 @@
   },
   "dependencies": {
     "@cloudflare/containers": "^0.3.7",
-    "@openai/agents-core": "^0.17.0",
-    "@openai/agents-openai": "^0.17.0",
+    "@openai/codex": "0.153.4",
     "zod": "^4.5.4"
   },
   "devDependencies": {

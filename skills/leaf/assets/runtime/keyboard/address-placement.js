@@ -1,10 +1,10 @@
 /* Shared visibility for addressable targets and placement for predictable numeric Ask
    addresses. The banner clips every target's usable box. An Ask face may move back inside
-   the viewport, but it yields wherever that move would cover the shortcut bar or another
+   the viewport, but it yields wherever that move would cover bottom chrome or another
    address: its ordered choices make a missing digit inferable. Opaque generated target
    hints instead use the no-drop placement in hints.js. */
 import { banner } from "../banner.js";
-import { shortcutBarEl } from "./shortcut-bar.js";
+import { bottomChromeBoxes } from "./shortcut-bar.js";
 import { startsAt } from "../geometry.js";
 const overlaps = (a, b) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
@@ -12,7 +12,7 @@ const overlaps = (a, b) =>
 export function addressPlacement() {
   const clips = new Map();
   const covered = banner.getBoundingClientRect().bottom;
-  const kept = [shortcutBarEl.getBoundingClientRect()];
+  const kept = bottomChromeBoxes();
 
   // Read every member through one clip cache. The banner covers page content without
   // clipping its boxes; clamp the usable box to the banner so admission, exposure, and

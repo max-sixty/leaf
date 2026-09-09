@@ -41,8 +41,8 @@
    their original anchor, while a later target starts clean and keeps focus.
 
    `placeClear` fits the response bar into a free band bounded by the viewport, its
-   target, and controls carrying `data-lf-offer`. A quoted passage keeps its whole
-   paragraph clear. Placement prioritizes proximity to the target, then visible writing
+   target, and controls carrying `data-lf-offer`. A quoted passage keeps its resolved
+   place clear. Placement prioritizes proximity to the target, then visible writing
    space; geometry supplies CSS room constraints, while CSS owns the field's content
    sizing. */
 import {
@@ -56,7 +56,12 @@ import {
   visualAt,
 } from "../anchors.js";
 import { documentPoint, shownBox, shownParts, shownRect } from "../geometry.js";
-import { targetElement, targetParts, targetSegments } from "../resolved-target.js";
+import {
+  targetElement,
+  targetParts,
+  targetPlace,
+  targetSegments,
+} from "../resolved-target.js";
 import {
   composerOpen,
   fab,
@@ -81,8 +86,8 @@ import {
 import { panelCovers } from "../chrome-layout.js";
 import { panel, threadsBox } from "../conversation/panel.js";
 import { banner } from "../banner.js";
-import { shortcutBarEl, less } from "../keyboard/shortcut-bar.js";
-import { blockAt, inChrome, pageRange, pageText, pageWords } from "../passages.js";
+import { bottomChromeBoxes, less } from "../keyboard/shortcut-bar.js";
+import { inChrome, pageRange, pageText, pageWords } from "../passages.js";
 import {
   leftThePage,
   pageSelection,
@@ -97,6 +102,7 @@ import { anchorLabel } from "../conversation/messages.js";
 import { openPageThread } from "../living-margin.js";
 import { reactionsOn } from "../conversation/model.js";
 import { isDrawing } from "./drawing.js";
+import { readingRegionFor, shownRegionBounds } from "../reading-regions.js";
 
 const hideReference = () => showReference(false, false);
 const hasOtherResponses = (anchor) =>
@@ -107,39 +113,48 @@ const hasOtherResponses = (anchor) =>
 // right panel's edge through its margin, while the root scrollport owns the browser's
 // gutter. A covering sheet is the one strip body does not yield, so its width comes off
 // here.
-const rightEdge = () =>
-  (panelCovers()
-    ? innerWidth - panel.offsetWidth
-    : Math.min(innerWidth, document.body.getBoundingClientRect().right)) - 8;
-const fabFits = () =>
-  rightEdge() > 8 && fabBar.scrollWidth <= Math.ceil(rightEdge() - 8);
+const rightEdge = (bounds = null) =>
+  (bounds?.right ??
+    (panelCovers()
+      ? innerWidth - panel.offsetWidth
+      : Math.min(innerWidth, document.body.getBoundingClientRect().right))) - 8;
+const fabFits = (bounds = null) => {
+  const left = (bounds?.left ?? 0) + 8;
+  return (
+    rightEdge(bounds) > left &&
+    fabBar.scrollWidth <= Math.ceil(rightEdge(bounds) - left)
+  );
+};
 // The floats live in the document — they scroll with the passage they stand beside —
 // while every caller reasons in viewport terms: rects, the pointer, the banner's own
 // band. The fixed floor covers the ordinary one-line banner; its live box takes over
 // when compact chrome wraps to a second line.
 export const BANNER_CLEAR = 48;
-const topEdge = () => Math.max(BANNER_CLEAR, banner.getBoundingClientRect().bottom + 6);
-const leftEdge = (node, left) =>
-  Math.max(8, Math.min(left, rightEdge() - node.offsetWidth));
-const bottomEdge = (left, width) => {
-  const shortcutBar = shortcutBarEl.getBoundingClientRect();
-  return shortcutBar.height &&
-    left < shortcutBar.right &&
-    left + width > shortcutBar.left
-    ? shortcutBar.top - 8
-    : innerHeight - 8;
+const topEdge = (bounds = null) =>
+  bounds?.top ?? Math.max(BANNER_CLEAR, banner.getBoundingClientRect().bottom + 6);
+const leftEdge = (node, left, bounds = null) =>
+  Math.max(
+    (bounds?.left ?? 0) + 8,
+    Math.min(left, rightEdge(bounds) - node.offsetWidth),
+  );
+const bottomEdge = (left, width, bounds = null) => {
+  if (bounds) return bounds.bottom - 8;
+  const tops = bottomChromeBoxes()
+    .filter((box) => left < box.right && left + width > box.left)
+    .map((box) => box.top - 8);
+  return tops.length ? Math.min(...tops) : innerHeight - 8;
 };
 // So the one writer of their position is where the coordinates change space: clamp in
 // the viewport and above any shortcut bar it would cross, then store in the document.
 // The chosen band also caps the float's height. Width is stated before band selection,
 // because wrapping determines how much height the contents need.
-function place(node, left, top, height) {
+function place(node, left, top, height, bounds = null) {
   node.style.setProperty("--lf-float-h", `${height}px`);
-  const x = leftEdge(node, left);
-  const bottom = bottomEdge(x, node.offsetWidth);
+  const x = leftEdge(node, left, bounds);
+  const bottom = bottomEdge(x, node.offsetWidth, bounds);
   const at = documentPoint(
     x,
-    Math.max(topEdge(), Math.min(top, bottom - node.offsetHeight)),
+    Math.max(topEdge(bounds), Math.min(top, bottom - node.offsetHeight)),
   );
   node.style.left = at.left + "px";
   node.style.top = at.top + "px";
@@ -166,14 +181,14 @@ const pageControls = () =>
 // The viewport, the target and the page's controls define one set of free bands.
 // Walking down past controls and then clamping to the viewport could put a growing
 // editor back on its target. Choose a band first; CSS can then size the field to it.
-function placeClear(node, left, top, target, wantedHeight) {
-  const x = leftEdge(node, left);
-  const bottom = bottomEdge(x, node.offsetWidth);
+function placeClear(node, left, top, target, wantedHeight, bounds = null) {
+  const x = leftEdge(node, left, bounds);
+  const bottom = bottomEdge(x, node.offsetWidth, bounds);
   const sharing = [...pageControls().map((c) => c.getBoundingClientRect()), target]
     .filter((r) => r.width && r.left < x + node.offsetWidth + 6 && x < r.right + 6)
     .sort((a, b) => a.top - b.top);
   const bands = [];
-  let start = topEdge();
+  let start = topEdge(bounds);
   for (const r of sharing) {
     const end = Math.min(bottom, r.top - 6);
     if (end > start) bands.push({ top: start, bottom: end });
@@ -201,7 +216,7 @@ function placeClear(node, left, top, target, wantedHeight) {
         a.distance - b.distance ||
         b.height - a.height ||
         Math.abs(a.top - top) - Math.abs(b.top - top),
-    )[0] ?? { left: x, top, room: bottom - topEdge() }
+    )[0] ?? { left: x, top, room: bottom - topEdge(bounds) }
   );
 }
 let fabAnchor = null;
@@ -289,13 +304,17 @@ function anchorBox(anchor) {
       .filter(Boolean),
   );
 }
-// The passage remains the exact anchor, but its containing paragraph is not spare
-// space: a short selection cannot lend the words after it to the response field.
-// Keep the bar beside that whole block, or above/below it when the rail is too narrow.
+// The passage remains the exact anchor, but its resolved place is not spare space: a
+// short selection cannot lend the words around it to the response field. Keep the bar
+// beside that whole place, or above/below it when the rail is too narrow.
 function placeFab(target = anchorBox(fabAnchor)) {
   if (!fabAnchor || !target) return false;
+  const owner = fabTargetAt();
+  const block = fabAnchor.quote && owner;
+  const readingRegion = owner && readingRegionFor(owner);
+  const regionBounds = readingRegion && shownRegionBounds(readingRegion);
   let fixedLeft = fabFixedLeft;
-  const edge = rightEdge();
+  const edge = rightEdge(regionBounds);
   // The lock spans the expansion's own layout frames, not a changed viewport or
   // workspace. Once the available band changes, re-place the whole group against its
   // durable anchor instead of letting the old x-coordinate dismiss the draft.
@@ -307,12 +326,11 @@ function placeFab(target = anchorBox(fabAnchor)) {
     releaseFabPosition();
     fixedLeft = null;
   }
-  const room = edge - (fixedLeft ?? 8);
+  const room = edge - (fixedLeft ?? (regionBounds?.left ?? 0) + 8);
   // A covering workspace may leave no page band, or less than the controls can
   // shrink into. Report failed placement instead of assigning negative CSS sizes
   // and leaving a focused textarea behind that workspace.
   if (room <= 0) return false;
-  const block = fabAnchor.quote && fabTargetAt();
   const clips = new Map();
   const parts = block ? shownParts(block) : [];
   const keepClear =
@@ -339,7 +357,7 @@ function placeFab(target = anchorBox(fabAnchor)) {
       `${Math.max(0, besideRoom >= minimum ? besideRoom : room - controls)}px`,
     );
   }
-  if (!fabFits()) return false;
+  if (!fabFits(regionBounds)) return false;
   const left =
     fixedLeft ??
     (keepClear.right + 6 + fabBar.offsetWidth <= edge
@@ -354,8 +372,15 @@ function placeFab(target = anchorBox(fabAnchor)) {
         fabInput.scrollHeight + fabInput.offsetHeight - fabInput.clientHeight,
       )
     : fabBar.offsetHeight;
-  const at = placeClear(fabBar, left, target.top - 6, keepClear, wantedHeight);
-  place(fabBar, at.left, at.top, at.room);
+  const at = placeClear(
+    fabBar,
+    left,
+    target.top - 6,
+    keepClear,
+    wantedHeight,
+    regionBounds,
+  );
+  place(fabBar, at.left, at.top, at.room, regionBounds);
   return true;
 }
 export function showFab(
@@ -455,10 +480,10 @@ export const anchorTargetAt = (anchor) => {
   const found = resolveAnchor(anchor, pageText());
   if (!found) return null;
   if (!anchor.quote) return targetElement(found);
-  const block = blockAt(targetSegments(found)[0]?.node);
-  if (!block) return targetElement(found);
-  const root = block.getRootNode();
-  return root instanceof ShadowRoot ? root.host : block;
+  const place = targetPlace(found);
+  if (!place) return null;
+  const root = place.getRootNode();
+  return root instanceof ShadowRoot ? root.host : place;
 };
 export const fabTargetAt = () => anchorTargetAt(fabAnchor);
 export const fabReturnTo = () =>

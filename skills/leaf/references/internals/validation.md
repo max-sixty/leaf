@@ -72,12 +72,13 @@ An anchor is resolved in the browser and recorded in the event log, so
 document order, minus the runtime's own words, plus the words a widget says
 through an x-says attribute, with one space wherever the enclosing text block
 changes and whitespace collapsed. What the file cannot know is what a widget's
-module will write, so the reading stops where the registry stops telling it: an
-upgraded element is opaque unless x-verbatim says its body reaches the reader as
-its own words, and an opaque element and each of its children is fenced. A quote
-never spans a fence, so "the page has words here that the file doesn't" becomes
-a refusal when the comment is written, rather than an anchor that detaches later
-in the user's browser. Anchor on an opaque widget's element instead
+module will write, so the reading stops where the registry stops telling it. An
+upgraded element is opaque unless x-verbatim promises that its own authored words and
+the order and identity of nested upgraded widgets survive. Those descendants retain
+their own word and fence contracts; an opaque element and each of its children is
+fenced. A quote never spans a fence, so "the page has words here that the file doesn't"
+becomes a refusal when the comment is written, rather than an anchor that detaches
+later in the user's browser. Anchor on an opaque widget's element instead
 (`--section`), which is the same anchor an explicit diagram target makes.
 The event door repeats that semantic check under the append transaction, but only
 for a transport that reaches it with nothing resolved — the MCP app, which renders

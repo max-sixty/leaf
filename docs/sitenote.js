@@ -22,4 +22,8 @@ const note = Object.assign(document.createElement("div"), {
   className: "lf-ui sitenote",
   innerHTML: NOTE,
 });
-document.querySelector("main").prepend(note);
+const main = document.querySelector("main");
+// A framed task owns the whole main allocation. Put site context in its existing
+// header so its content root and independently scrolling regions remain intact.
+const header = main.querySelector(":scope > :only-child > header");
+(header ?? main).prepend(note);

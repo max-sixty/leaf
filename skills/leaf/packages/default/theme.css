@@ -6,6 +6,159 @@
 
 /* ---------- element-widgets ---------- */
 
+/* Structural workspaces use one light-DOM arrangement in bounded and flow posture.
+ * The posture changes allocation only; authored order remains header, body, footer. */
+.lf-arranged,
+.lf-arranged-content,
+.lf-pane-content,
+.lf-pane-body,
+.lf-split-content {
+  box-sizing: border-box;
+  min-width: 0;
+}
+.lf-arranged {
+  display: block;
+}
+.lf-arranged-content,
+.lf-pane-content,
+.lf-pane-body,
+.lf-split-content {
+  min-height: 0;
+}
+
+.lf-workspace-arranged[data-lf-posture="bounded"],
+.lf-pane-arranged[data-lf-posture="bounded"] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.lf-arranged-before {
+  grid-row: 1;
+}
+.lf-workspace-arranged > .lf-arranged-content,
+.lf-pane-arranged > .lf-arranged-content {
+  grid-row: 2;
+}
+.lf-workspace-arranged > .lf-arranged-content > .lf-arranged-body,
+.lf-pane-arranged > .lf-arranged-content > .lf-arranged-body {
+  grid-row: 2;
+}
+.lf-arranged-after {
+  grid-row: 3;
+}
+.lf-pane-arranged > .lf-arranged-before {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule);
+  font: 600 var(--t-5)/1.4 var(--sans);
+  --lf-frame: 1;
+}
+.lf-pane-arranged > .lf-arranged-after {
+  padding: 10px 14px;
+  border-top: 1px solid var(--rule);
+  --lf-frame: 1;
+}
+.lf-pane-content {
+  display: contents;
+}
+.lf-pane-body {
+  padding: 14px;
+  --lf-frame: 1;
+}
+
+.lf-split-content {
+  display: block;
+  gap: 1px;
+  background: var(--rule);
+}
+.lf-split-content > :is(.lf-pane-arranged, .lf-split-arranged) {
+  background: var(--paper);
+}
+
+[data-lf-posture="bounded"] {
+  --lf-reading-posture: bounded;
+}
+[data-lf-posture="flow"] {
+  --lf-reading-posture: flow;
+}
+
+@media screen {
+  html[data-lf-live]:has(
+      body > main > [data-lf-root-workspace][data-lf-posture="bounded"]
+    ) {
+    overflow-y: hidden;
+  }
+  body > main:has(> lf-workspace[data-lf-root-workspace][data-lf-posture="bounded"]) {
+    box-sizing: border-box;
+    width: 100cqi;
+    max-width: none;
+    height: calc(100vh - var(--lf-banner-h) - var(--lf-bottom-chrome-clear, 0px));
+    margin: 0;
+    padding: 0 var(--col-pad);
+    left: 0;
+  }
+  lf-workspace[data-lf-root-workspace][data-lf-posture="bounded"] {
+    height: 100%;
+  }
+  @container style(--lf-reading-posture: bounded) {
+    :is(.lf-workspace-arranged, .lf-pane-arranged):not([data-lf-posture]) {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+    :is(.lf-workspace-arranged, .lf-pane-arranged)
+      > .lf-arranged-furniture {
+      margin: 0;
+      --lf-frame: 1;
+    }
+    .lf-split-arranged[data-lf-direction="columns"] > .lf-split-content {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .lf-split-arranged[data-lf-direction="rows"] > .lf-split-content {
+      display: grid;
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+    }
+    :is(.lf-split-content, .lf-arranged) {
+      min-height: 0;
+      height: 100%;
+    }
+    .lf-pane-body {
+      overflow: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+  }
+}
+
+:is(.lf-workspace-arranged, .lf-pane-arranged)[data-lf-posture="bounded"]
+  > .lf-arranged-furniture {
+  margin: 0;
+  --lf-frame: 1;
+}
+
+html.lf-copy :is(.lf-workspace-arranged, .lf-pane-arranged, .lf-split-arranged),
+html.lf-copy :is(.lf-arranged-content, .lf-pane-content, .lf-split-content) {
+  display: block;
+  height: auto;
+}
+html.lf-copy .lf-pane-body {
+  overflow: visible;
+  height: auto;
+}
+html.lf-copy body > main:has(> [data-lf-root-workspace]) {
+  height: auto;
+  padding-block: 72px 96px;
+}
+@media print {
+  :is(.lf-workspace-arranged, .lf-pane-arranged, .lf-split-arranged),
+  :is(.lf-arranged-content, .lf-pane-content, .lf-split-content) {
+    display: block !important;
+    height: auto !important;
+  }
+  .lf-pane-body {
+    overflow: visible !important;
+    height: auto !important;
+  }
+}
+
 /* lf-gloss: the prose stays prose, and its dotted underline is the whole visible
  * affordance. The underline is deliberately quieter than a link — this phrase goes
  * nowhere — while the top-layer card uses the page's ordinary paper, ink, and rule
@@ -1265,7 +1418,10 @@ lf-shot .lf-shotrail { display: flex; grid-area: 1 / 1; align-items: center;
     background: var(--card); }
 lf-shot .lf-shotcap { display: flex; align-items: center; align-self: stretch;
     font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
-    letter-spacing: .04em; }
+    letter-spacing: .04em; padding: 0 5px; margin: 0 -5px; color: var(--muted); }
+lf-shot .lf-shotcap[data-lf-state] { outline-offset: -2px; }
+:where(html:not(.lf-copy)) lf-shot .lf-shotcap:hover { background: var(--chip); }
+lf-shot .lf-shotcap[data-lf-state="after"] { box-shadow: none; }
 lf-shot .lf-shotcap[data-lf-state="before"],
 lf-shot:has(input:checked) .lf-shotcap[data-lf-state="after"] { color: var(--ink);
     box-shadow: inset 0 -2px var(--accent); }
@@ -1289,7 +1445,8 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline
   lf-shot, lf-shot:has(.lf-shotframe) { display: block; }
   lf-shot > .lf-shotrail { border-bottom: 1px solid var(--rule);
     margin-bottom: var(--sp-2); }
-  lf-shot .lf-shotcap { color: var(--ink) !important; box-shadow: none !important; }
+  lf-shot .lf-shotcap { color: var(--ink) !important; background: none !important;
+    box-shadow: none !important; }
   lf-shot .lf-shotcap[data-lf-state="before"]::after { content: " · top"; }
   lf-shot .lf-shotcap[data-lf-state="after"]::after { content: " · bottom"; }
   lf-shot > input.lf-shotflip { display: none; }
@@ -1300,9 +1457,10 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline
 /* lf-toc: the page's route. In ordinary flow it is a compact, open outline. Its roomy
  * margin form is a reading map: the widget gives each row the length of the section it
  * leads, flex lays those shares down the full available height, and the darker lens on
- * the spine shows the band currently in view. The markers therefore describe the page
- * while every repeated heading is quiet. Pointer entry, keyboard entry, or the go-to
- * sequence fades the labels in without changing any row's box. The transparent first layer
+ * the spine shows the band currently in view. Markers and labels share those positions.
+ * Where exact-position labels would collide, the dense posture reveals one destination
+ * at a time rather than moving it away from its marker. Pointer entry, keyboard entry,
+ * or the go-to sequence fades the labels in without changing any row's box. The transparent first layer
  * receives the revealing gesture, then the links become pointer targets when that fade
  * is complete; an unseen label cannot navigate on the gesture that discovers it.
  *
@@ -1310,10 +1468,8 @@ lf-shot:has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) { outline
  * the one reading of the route and keeps every word the map says; the open outline on
  * screen sits under the title and leaves it out. It is still navigation apparatus, so
  * weight and ink distinguish it within the same sans voice as the section labels. Their common inset then reads as one route rather than two typographic systems.
- * Depth changes only the labels' inset. Every resting knot stays on the document-scale
- * spine; when labels appear, each knot joins its collision-packed label. The proportional
- * rows and viewport lens retain the document scale. Labels stop at two lines, so prose
- * never distorts that structure.
+ * Depth changes only the labels' inset. Labels stop at two lines, so prose never
+ * distorts the document-scale rows.
  * The open, paper, and copy forms retain the complete words.
  *
  * The one-pixel sibling target is what leaves native fragment navigation behind in a
@@ -1376,7 +1532,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                 * on every page with a spine, at every width, with nothing to scroll it
                 * clear. The map is the fourth region standing in the line's band and the
                 * only one out of flow, so neither the document's room nor a list's
-                * padding reaches it, and syncLayout's `--lf-shortcut-bar-clear` would end it
+                * padding reaches it, and syncLayout's `--lf-bottom-chrome-clear` would end it
                 * above the line in one term.
                 *
                 * That is deliberately not done. The line is either something that hovers
@@ -1412,10 +1568,11 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                                         position: relative; z-index: 2; display: block;
                                         flex: var(--lf-toc-span, 1) 1 0px;
                                         min-height: 0; margin: 0; }
+      lf-toc :is(.lf-toc-start, li)[data-lf-toc-hidden] { display: none; }
       lf-toc ol { display: contents; }
       lf-toc .lf-toc-start::before, lf-toc li::before {
         content: ""; position: absolute; z-index: 2;
-        top: calc(7px + var(--lf-toc-marker-shift, 0px));
+        top: 7px;
         left: -1px; width: 3px; height: 3px; border-radius: 50%;
         background: var(--muted);
       }
@@ -1428,7 +1585,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
       lf-toc .lf-toc-start a, lf-toc li a {
         position: absolute; z-index: 3; display: -webkit-box;
-        top: var(--lf-toc-label-shift, 0px); left: 0; width: 100%;
+        top: 0; left: 0; width: 100%;
         overflow: hidden; max-height: 2.6em;
         padding: 0 2px 2px calc(14px + var(--lf-toc-indent));
         line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
@@ -1444,23 +1601,12 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       body[data-lf-goto] lf-toc .lf-toc-nav {
         --lf-toc-label-opacity: 1;
       }
-      lf-toc .lf-toc-nav:is(:hover, :focus-within) :is(.lf-toc-start, li),
-      body[data-lf-goto] lf-toc .lf-toc-nav :is(.lf-toc-start, li) {
-        --lf-toc-marker-shift: var(--lf-toc-label-shift, 0px);
-      }
       lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
         animation: lf-toc-enable-links 0s .24s forwards;
-      }
-      /* A pointer waits for the labels it revealed to finish appearing. The go-to sequence
-       * already made an explicit keyboard gesture, and its candidate reading needs these
-       * visible page routes to participate immediately. */
-      body[data-lf-goto] lf-toc:not([data-lf-dense]) .lf-toc-nav a {
-        pointer-events: auto;
       }
       /* When all labels cannot fit beside the track, the destination under the pointer or
        * keyboard focus reveals on its own. Turning the rail into a second scrollable outline
        * would put the markers and viewport lens in a different coordinate system. */
-      lf-toc[data-lf-dense] .lf-toc-rows { overflow: hidden; }
       lf-toc[data-lf-dense] :is(.lf-toc-start, li) {
         min-height: 0; pointer-events: auto;
       }
@@ -1469,9 +1615,16 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
         max-height: 1.25em; font-size: var(--t-6); line-height: 1.25;
         -webkit-line-clamp: 1;
       }
-      lf-toc[data-lf-dense] li:last-child a { top: auto; bottom: 0; }
-      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
+      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within) a {
         opacity: 0; animation: none; pointer-events: none;
+      }
+      /* A pointer waits for the labels it revealed to finish appearing. The go-to sequence
+       * already made an explicit keyboard gesture, so every route participates immediately.
+       * A dense route fills its exact row while the separate address hint says its words. */
+      body[data-lf-goto] lf-toc .lf-toc-nav a { pointer-events: auto; }
+      body[data-lf-goto] lf-toc[data-lf-dense] .lf-toc-nav a {
+        opacity: 0; animation: none; pointer-events: auto;
+        height: 100%; max-height: none;
       }
       lf-toc[data-lf-dense] .lf-toc-nav:hover
         :is(.lf-toc-start, li):hover a,
@@ -1486,11 +1639,15 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
   lf-toc a { transition: none; }
   @container lf-page style(--lf-sidebar-posture: margin) {
     @container style(--lf-sidebar-slot: margin) {
-      lf-toc .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
+      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within) a {
+        opacity: 0; pointer-events: none;
+      }
+      lf-toc .lf-toc-nav:is(:hover, :focus-within) a,
+      body[data-lf-goto] lf-toc .lf-toc-nav a {
         animation: none; pointer-events: auto;
       }
-      lf-toc[data-lf-dense] .lf-toc-nav:is(:hover, :focus-within, body[data-lf-goto] *) a {
-        opacity: 0; pointer-events: none;
+      body[data-lf-goto] lf-toc[data-lf-dense] .lf-toc-nav a {
+        opacity: 0; pointer-events: auto; height: 100%; max-height: none;
       }
       lf-toc[data-lf-dense] .lf-toc-nav:hover
         :is(.lf-toc-start, li):hover a,

@@ -91,6 +91,7 @@ import { designOn, setDesign } from "../design.js";
 import {
   isSelecting,
   PAGE_SEARCH,
+  REPEAT_PAGE_SEARCH,
   SELECT,
   startSelecting,
 } from "../composing/targets.js";
@@ -101,7 +102,12 @@ import { AIM } from "../composing/aim.js";
 import { isDrawing, setDrawing } from "../composing/drawing.js";
 import { CHOOSER, latestChip, NEWEST, VERSIONS } from "../version.js";
 import { outbox } from "../outbox.js";
-import { narrowed, needsYou, widen } from "../conversation/narrowing.js";
+import {
+  narrowed,
+  needsYou,
+  threadSearchActive,
+  widen,
+} from "../conversation/narrowing.js";
 import { awaitsReader } from "../conversation/model.js";
 import { replyBoxHasDraft } from "../conversation/replies.js";
 import { keeps } from "../widget-elements.js";
@@ -521,6 +527,9 @@ const BACK_OUT = {
   keys: ["Escape"],
   does: () => rung()?.does,
   line: () => rung()?.says,
+  // Search repeat is the useful contextual hint after Enter accepts the first result.
+  // Escape remains live and stays in the complete reference without occupying that slot.
+  lineWhen: () => !threadSearchActive() || !inPanel(),
   // Clearing a captured target is still available, but c and r are the two actions on the
   // thing the reader just chose. Keep both on the short line and leave this row in the full
   // reference until the target is gone.
@@ -1158,6 +1167,29 @@ export function pageScopes() {
     at: () => inPanel(),
     rows: [
       {
+        // Search repeat keeps its canonical n/N meaning in the nearest active search.
+        // Only a textual query makes this row live; the waiting filter does not claim them.
+        id: "thread.find.repeat",
+        keys: ["n", "Shift+n"],
+        routes: [
+          {
+            id: "thread.find.next",
+            binding: "n",
+            does: "Go to the next thread found",
+          },
+          {
+            id: "thread.find.previous",
+            binding: "Shift+n",
+            does: "Go to the previous thread found",
+          },
+        ],
+        does: "Next / previous thread found",
+        line: "search matches",
+        repeat: true,
+        when: () => threadSearchActive() && hasThreads(),
+        run: (binding) => stepThread(binding === "n" ? 1 : -1),
+      },
+      {
         id: "thread.waiting.toggle",
         // `w` for the words the control says. It is the phrase the page already uses for
         // the same question asked of its widgets (a/A), asked here of the conversation —
@@ -1202,6 +1234,7 @@ export function pageScopes() {
         returnFrame: () => ({
           active: () =>
             panelIsOpen() && (findInput === documentFocused() || narrowed()),
+          lineWhen: () => !threadSearchActive() || !inPanel(),
           close: () => {
             if (widen()) return false;
             findInput.blur();
@@ -1269,6 +1302,7 @@ export function pageScopes() {
       },
       // Search remains one press from the shelf and named in full by the reference.
       PAGE_SEARCH,
+      REPEAT_PAGE_SEARCH,
       {
         id: "thread.walk",
         // A walk's letter names its category; Shift reverses it. The two existing
@@ -1280,7 +1314,10 @@ export function pageScopes() {
         ],
         does: "Next / previous open thread",
         line: "threads",
-        when: hasThreads,
+        // Once textual search owns the panel, n/N are the canonical walk there. Keep
+        // t/T as the page's open-thread walk without leaving two spellings for the same
+        // panel action.
+        when: () => hasThreads() && !(threadSearchActive() && inPanel()),
         repeat: true,
         run: (binding) => stepThread(binding === "t" ? 1 : -1),
       },

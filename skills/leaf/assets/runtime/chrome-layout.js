@@ -30,27 +30,37 @@
 // inline size already reflects the margins a beside panel or tray takes. `--strip-l`, `--strip-r`,
 // `--lf-room`, and `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is
 // the named `lf-page` style container a margin resident asks for them; `--lf-shell-inset-left`
-// carries the left workspace offset to viewport-fixed page furniture, and `--lf-shortcut-bar-clear`
-// carries the shortcut bar's band to whatever has to end above it; `--lf-claim-right` is the
+// carries the left workspace offset to viewport-fixed page furniture, and `--lf-bottom-chrome-clear`
+// carries the bottom chrome's band to whatever has to end above it; `--lf-claim-right` is the
 // project-layer extension claim. A script-free copy therefore answers the same layout
 // from its own viewport without exporting session geometry.
 
 import { layoutMarginRows } from "./margin-layout.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { setReact, syncReactLayout } from "./reactions.js";
-import { activeInlineThread, closePreview } from "./living-margin.js";
+import {
+  activeInlineThread,
+  closePreview,
+  marginPreview,
+  marginPreviewHead,
+} from "./living-margin.js";
 import { containsAcross } from "./passages.js";
 import {
   closeBtn,
   panel,
   panelFoot,
+  panelHead,
   syncGeneral,
   threadsBox,
 } from "./conversation/panel.js";
 import { focused, paintHere } from "./keyboard/scopes.js";
 import { currentTray, reserveListClearance, showTray, traysEdge } from "./trays.js";
 import { foldBannerRow, toggleBtn } from "./banner.js";
-import { shortcutBarEl } from "./keyboard/shortcut-bar.js";
+import {
+  bottomChromeBoxes,
+  shortcutBarEl,
+  walkPositionEl,
+} from "./keyboard/shortcut-bar.js";
 import { chromeRoot } from "./chrome.js";
 import { dockSeats, pageShifted, refreshHover } from "./anchors.js";
 import { refreshFab } from "./composing/surface.js";
@@ -167,25 +177,43 @@ export function syncLayout() {
   // fixed, so a fold cannot resize the boxes this function is watching.
   foldBannerRow();
   const panelBeside = panelOpen && !panelCovers();
+  // A conversation surface can paint above sibling chrome; the margin popover is in the
+  // browser's top layer outright. Seat the readout in that surface's header so it remains
+  // visible without floating over the conversation the walk opened.
+  const positionHost = panelOpen
+    ? panelHead
+    : marginPreview.matches(":popover-open")
+      ? marginPreviewHead
+      : chromeRoot;
+  if (walkPositionEl.parentElement !== positionHost) {
+    if (positionHost === chromeRoot) positionHost.append(walkPositionEl);
+    else positionHost.lastElementChild.before(walkPositionEl);
+  }
+  const overlapsAcross = (one, other) =>
+    one.left < other.right && other.left < one.right;
+  const overlaps = (one, other) =>
+    overlapsAcross(one, other) && one.top < other.bottom && other.top < one.bottom;
+  const foot = panelFoot.getBoundingClientRect();
+  // Reset the viewport inset for the page keyline. Inside a conversation header the
+  // stylesheet makes the readout static, so this stored inset has no effect until it
+  // returns to the page.
+  walkPositionEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
+  const position = walkPositionEl.getBoundingClientRect();
   // Beside the page, the thread panel owns the right strip all the way to its foot. The
-  // line starts at the window's left, so cap its room at that strip rather than letting a
-  // long computed hint cross into the general comment box. A covering panel leaves the
-  // line its natural width: unlike a standing strip, it may leave a complete lane beside
-  // its foot, and whether it does is a fact of the two rendered boxes below.
+  // line starts at the window's left, so cap its room at that strip. Otherwise its room
+  // ends before the navigation readout, with the same gap its own cells use.
   shortcutBarEl.style.setProperty(
     "--lf-shortcut-bar-right",
-    (panelBeside ? commentsEdge.width() : 0) + "px",
+    Math.max(
+      panelBeside ? commentsEdge.width() : 0,
+      positionHost === chromeRoot && position.width ? position.width + 12 : 0,
+    ) + "px",
   );
   // Start at the line's ordinary foot. A covering sheet lifts it only where the sheet's
   // own foot actually occupies the same pixels. The old posture-level answer lifted the
   // line by every covering footer's height even when the footer stood wholly to its
   // right — a two-dimensional collision inferred from one viewport breakpoint.
   shortcutBarEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
-  const overlapsAcross = (one, other) =>
-    one.left < other.right && other.left < one.right;
-  const overlaps = (one, other) =>
-    overlapsAcross(one, other) && one.top < other.bottom && other.top < one.bottom;
-  const foot = panelFoot.getBoundingClientRect();
   let line = shortcutBarEl.getBoundingClientRect();
   if (panelCovers() && line.height && overlaps(line, foot)) {
     // The foot is the complete fixed region: composer plus the page's reaction strip
@@ -209,13 +237,14 @@ export function syncLayout() {
   // 148px of line standing on a reservation of 51. One box read rather than three
   // numbers added up, so a fourth inset cannot be introduced without this following it.
   //
-  // A line that is not rendered — no room on a coarse pointer, nothing to say on any
-  // pointer — is a band nothing stands in, so nothing reserves it. Nor does a region
-  // whose own foot is above the line, which is what the panel's list is beside the page.
-  const roomBelow = (region) =>
-    line.height && overlapsAcross(line, region) && region.bottom > line.top
-      ? Math.ceil(region.bottom - line.top) + 20 + "px"
-      : null;
+  // A bottom surface that is not rendered is a band nothing stands in, so nothing
+  // reserves it. A region gives up only the deepest surface crossing its own width.
+  const roomBelow = (region) => {
+    const clearances = bottomChromeBoxes()
+      .filter((box) => overlapsAcross(box, region) && region.bottom > box.top)
+      .map((box) => Math.ceil(region.bottom - box.top) + 20);
+    return clearances.length ? Math.max(...clearances) + "px" : null;
+  };
   const clear =
     roomBelow({
       left: 0,
@@ -226,7 +255,10 @@ export function syncLayout() {
   // body. The container is in the flow, holds nothing but out-of-flow chrome, and is
   // watched by nobody, so what it takes is room the document has and no measurement's
   // business.
-  chromeRoot.style.paddingBottom = clear;
+  const boundedWorkspace = document.querySelector(
+    "body > main > [data-lf-root-workspace][data-lf-posture='bounded']",
+  );
+  chromeRoot.style.paddingBottom = boundedWorkspace ? "0px" : clear;
   // Flow room lets the document reach past the line; scroll padding tells native focus
   // navigation where the visible edge actually is. Keep both on the same measured band
   // so a Tab stop already inside the viewport cannot be accepted underneath the line.
@@ -237,7 +269,7 @@ export function syncLayout() {
   // reaches it, and it runs under the line at every width. It does not take the band
   // today, deliberately: `lf-toc`'s own rule in the default theme carries the reasoning
   // and the TODO, which is that the line has to be a hover or a foot and not both.
-  document.documentElement.style.setProperty("--lf-shortcut-bar-clear", clear);
+  document.documentElement.style.setProperty("--lf-bottom-chrome-clear", clear);
   // A tray's list is the page's other scroll region, in the corner the line is
   // written into. Its foot is the window's, the tray being held to `bottom: 0`, so the
   // document's band is its band — and it states it twice, because it reaches
@@ -261,7 +293,7 @@ export function syncLayout() {
   // twice: the line is standing on the foot, not on the list, so a grown draft put its
   // own height of blank paper under the last thread and parked a `t` walk that far short
   // of the list's end.
-  const listClear = panelCovers()
+  const listClear = panelOpen
     ? (roomBelow(threadsBox.getBoundingClientRect()) ?? "")
     : "";
   threadsBox.style.paddingBottom = listClear;
@@ -455,6 +487,7 @@ export function mountLayout() {
   layoutSizes.observe(document.body);
   layoutSizes.observe(panelFoot);
   layoutSizes.observe(shortcutBarEl);
+  layoutSizes.observe(walkPositionEl);
 }
 
 let shellFrame = 0;

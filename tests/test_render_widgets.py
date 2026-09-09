@@ -87,6 +87,208 @@ from render_support import (
 
 pytestmark = pytest.mark.nightly
 
+WORKSPACE_PAGE = leaf_page(
+    "workspace reading regions",
+    """
+<lf-workspace id="review-workspace">
+  <header><h1>Review queue</h1></header>
+  <lf-split id="review-regions" direction="columns">
+    <lf-pane id="queue" label="Items">
+      <p>Queue start</p>
+      <div style="height: 1100px"></div>
+      <p>Queue end</p>
+    </lf-pane>
+    <lf-pane id="detail" label="Selected item">
+      <article><header><h2>Nested article header</h2></header></article>
+      <p>Detail start</p>
+      <div style="height: 1100px"></div>
+      <p>Detail end</p>
+    </lf-pane>
+  </lf-split>
+  <footer>2 items</footer>
+</lf-workspace>
+""",
+)
+
+
+def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
+    browser, serve
+):
+    page, errors = open_page(browser, serve(WORKSPACE_PAGE))
+    workspace = page.locator("#review-workspace")
+    queue = page.locator("#queue > .lf-pane-content > .lf-pane-body")
+    detail = page.locator("#detail > .lf-pane-content > .lf-pane-body")
+
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    page.wait_for_function(
+        "() => document.documentElement.scrollHeight === document.documentElement.clientHeight"
+    )
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == 0
+    readings = page.evaluate(
+        """() => {
+          const queue = document.querySelector('#queue > .lf-pane-content > .lf-pane-body');
+          const detail = document.querySelector('#detail > .lf-pane-content > .lf-pane-body');
+          return {queue: [queue.clientHeight, queue.scrollHeight],
+                  detail: [detail.clientHeight, detail.scrollHeight]};
+        }"""
+    )
+    assert readings["queue"][1] > readings["queue"][0], readings
+    assert readings["detail"][1] > readings["detail"][0], readings
+    queue.evaluate("el => el.scrollTop = 300")
+    page.wait_for_function(
+        "() => document.querySelector('#queue > .lf-pane-content > .lf-pane-body').scrollTop > 0"
+    )
+    assert detail.evaluate("el => el.scrollTop") == 0
+
+    # Only direct furniture is slotted. An article's native header remains in the
+    # pane's reading body rather than becoming pane chrome.
+    expect(detail.locator("article > header")).to_have_count(1)
+
+    page.set_viewport_size({"width": 520, "height": 900})
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    page.wait_for_function(
+        """() => getComputedStyle(document.querySelector(
+          '#queue > .lf-pane-content > .lf-pane-body')).overflowY === 'visible'"""
+    )
+    flow = page.evaluate(
+        """() => {
+          const queue = document.querySelector('#queue').getBoundingClientRect();
+          const detail = document.querySelector('#detail').getBoundingClientRect();
+          return {queue, detail};
+        }"""
+    )
+    assert flow["detail"]["top"] >= flow["queue"]["bottom"] - 1, flow
+    assert errors == []
+    page.close()
+
+
+def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_content(
+    browser, serve
+):
+    page, errors = open_page(browser, serve(WORKSPACE_PAGE))
+    workspace = page.locator("#review-workspace")
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+
+    page.evaluate(
+        """async () => {
+          const leaf = await import('/runtime/widget-api.js');
+          const workspace = document.querySelector('#review-workspace');
+          const content = workspace.querySelector(':scope > .lf-workspace-content');
+          const split = content.firstElementChild;
+          const owner = document.createElement('section');
+          owner.id = 'package-surface';
+          const heading = document.createElement('h2');
+          heading.textContent = 'Package-owned furniture';
+          heading.style.height = '120px';
+          owner.append(heading, split);
+          content.replaceChildren(owner);
+          leaf.layoutChanged(owner);
+        }"""
+    )
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+
+    page.evaluate(
+        """async () => {
+          const leaf = await import('/runtime/widget-api.js');
+          await new Promise(resolve => setTimeout(resolve, 30));
+          const owner = document.querySelector('#package-surface');
+          leaf.arrangeReadingElement({
+            owner,
+            kind: 'workspace',
+            header: owner.firstElementChild,
+          });
+        }"""
+    )
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    surface = page.locator("#package-surface")
+    expect(surface.locator(":scope > .lf-arranged-before")).to_have_text(
+        "Package-owned furniture"
+    )
+    expect(
+        surface.locator(":scope > .lf-arranged-content > #review-regions")
+    ).to_have_count(1)
+
+    surface.locator(":scope > .lf-arranged-content").evaluate(
+        "content => content.append('Unsupported loose prose')"
+    )
+    surface.evaluate(
+        "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
+    )
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    surface.locator(":scope > .lf-arranged-content").evaluate(
+        "content => content.lastChild.remove()"
+    )
+    surface.evaluate(
+        "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
+    )
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+
+    page.set_viewport_size({"width": 1100, "height": 420})
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    surface.locator(":scope > .lf-arranged-before").evaluate(
+        "heading => heading.style.display = 'none'"
+    )
+    surface.evaluate(
+        "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
+    )
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    assert errors == []
+    page.close()
+
+
+def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
+    source = SWIPE_PAGE.replace(
+        "  <p>Pass removes an item from this design; Keep carries it into implementation.</p>\n",
+        "",
+    )
+    page, errors = open_page(browser, serve(source))
+    ask = page.locator("#session-triage-decision")
+    assert ask.evaluate("node => getComputedStyle(node).display") == "block"
+    assert (
+        ask.locator(":scope > .lf-arranged-before").evaluate(
+            "heading => getComputedStyle(heading).marginTop"
+        )
+        != "0px"
+    )
+    assert ask.evaluate(
+        """async node => {
+          const leaf = await import('/runtime/widget-api.js');
+          return leaf.readingPosture(node) === 'flow'
+            && leaf.effectiveScroller(node) === document.scrollingElement;
+        }"""
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_direct_embedded_workspace_keeps_the_root_in_document_flow(browser, serve):
+    source = leaf_page(
+        "embedded workspace",
+        """
+<lf-workspace id="outer-workspace">
+  <header><h1>Outer workspace</h1></header>
+  <lf-workspace id="embedded-workspace">
+    <lf-pane id="embedded-pane" label="Long reading">
+      <p>Start</p><div style="height: 900px"></div><p>End</p>
+    </lf-pane>
+  </lf-workspace>
+</lf-workspace>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    expect(page.locator("#embedded-workspace")).to_have_attribute(
+        "data-lf-posture", "flow"
+    )
+    expect(page.locator("#outer-workspace")).to_have_attribute(
+        "data-lf-posture", "flow"
+    )
+    assert page.evaluate(
+        "document.documentElement.scrollHeight > document.documentElement.clientHeight"
+    )
+    assert errors == []
+    page.close()
+
+
 SWIPE_PAGE = leaf_page(
     "session backlog triage",
     """
@@ -956,7 +1158,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     start = nav.locator(".lf-toc-start a")
     prepare = nav.get_by_role("link", name="Prepare the copy", exact=False)
     capacity = nav.get_by_role("link", name="Check capacity", exact=False)
-    limits = nav.get_by_role("link", name="Confirm the limits", exact=False)
     verify = nav.get_by_role("link", name="Verify both readings", exact=False)
     page.mouse.move(1200, 700)
     # Every row says its own word as text, the start row included. Its word used to be an
@@ -1032,10 +1233,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     assert markers[-1]["y"] > nav_box["y"] + nav_box["height"] * 0.68
     assert markers[4]["y"] - markers[3]["y"] > markers[3]["y"] - markers[2]["y"]
 
-    # The rows and viewport lens remain an exact scale of the document even where two
-    # nearby, two-line labels need more room than the sections they name. The labels move
-    # aside without overlapping or making those short rows taller; their markers move
-    # with them so each visible association remains direct.
+    # The rows, labels, markers, and viewport lens share one document scale. Where two
+    # exact-position labels would overlap, the map reveals one destination at a time
+    # rather than moving any part of the route into a second geometry.
     map_layout = nav.locator(".lf-toc-rows").evaluate(
         """rows => {
           const track = rows.getBoundingClientRect();
@@ -1062,15 +1262,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "node => node.parentElement.getBoundingClientRect().height "
         "< node.getBoundingClientRect().height"
     )
-    capacity_label = capacity.bounding_box()
-    limits_label = limits.bounding_box()
-    assert capacity_label is not None and limits_label is not None
-    label_gap = capacity.evaluate(
-        "node => parseFloat(getComputedStyle(node.closest('nav')).lineHeight) / 2"
-    )
-    assert (
-        capacity_label["y"] + capacity_label["height"] + label_gap
-        <= limits_label["y"] + 1
+    expect(toc).to_have_attribute("data-lf-dense", "")
+    assert all(
+        item["labelTop"] == pytest.approx(item["rowTop"], abs=1) for item in map_layout
     )
 
     # The start row and top-level sections share one typographic edge. Depth changes
@@ -1090,7 +1284,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "return {family: s.fontFamily, caps: s.fontVariantCaps}; }"
     )
     assert title_type == {**section_type, "caps": "normal"}
-    expect(prepare).to_have_css("-webkit-line-clamp", "2")
+    expect(prepare).to_have_css("-webkit-line-clamp", "1")
 
     lens = nav.locator(".lf-toc-window")
     lens_before = lens.bounding_box()
@@ -1113,21 +1307,46 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
         "return [r.x, r.y, r.width, r.height]; })"
     )
+    resting_rows = nav.locator(".lf-toc-start, li").evaluate_all(
+        "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
+        "return [r.x, r.y, r.width, r.height]; })"
+    )
+    resting_marker_centers = nav.locator(".lf-toc-start, li").evaluate_all(
+        "items => items.map(item => { const s = getComputedStyle(item, '::before'); "
+        "const r = item.getBoundingClientRect(); "
+        "return r.y + parseFloat(s.top) + parseFloat(s.height) / 2; })"
+    )
 
-    # The go-to menu reveals the same labels without moving focus into the rail.
+    # The go-to menu can address the dense route without moving its geometry or focus
+    # into the rail. Its address layer carries the candidates, so overlapping labels
+    # remain quiet.
     page.keyboard.press("g")
     for link in nav.locator("a").all():
-        expect(link).to_have_css("opacity", "1")
+        expect(link).to_have_css("opacity", "0")
         expect(link).to_have_css("pointer-events", "auto")
+    link_hints = page.locator(
+        '.lf-goto-targets > .lf-sequence-address[data-lf-address-kind="Link"]'
+    )
+    expect(link_hints).to_have_count(nav.locator("a").count())
     assert (
-        nav.locator(".lf-toc-start, li, a").evaluate_all(
+        nav.locator(".lf-toc-start, li").evaluate_all(
             "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
             "return [r.x, r.y, r.width, r.height]; })"
         )
-        == hidden_boxes
+        == resting_rows
     )
     assert nav.evaluate("node => !node.contains(document.activeElement)")
     page.keyboard.press("Escape")
+    expect(prepare).to_have_css("opacity", "0")
+    expect(prepare).to_have_css("pointer-events", "none")
+
+    nav.hover()
+    page.keyboard.press("g")
+    expect(link_hints).to_have_count(nav.locator("a").count())
+    for link in nav.locator("a").all():
+        expect(link).to_have_css("pointer-events", "auto")
+    page.keyboard.press("Escape")
+    page.mouse.move(1200, 700)
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")
 
@@ -1157,20 +1376,24 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
           const lineHeight = parseFloat(getComputedStyle(label).lineHeight);
           return {
             label: label.textContent.trim(),
-            shift: labelBox.top - row.top,
+            visible: getComputedStyle(label).opacity === '1',
+            rowTop: row.top,
             markerCenter:
               row.top + parseFloat(marker.top) + parseFloat(marker.height) / 2,
             labelCenter: labelBox.top + lineHeight / 2,
           };
         })"""
     )
-    assert any(abs(item["shift"]) > 1 for item in marker_alignment), (
-        "the fixture packed no label away from its document-scale row"
-    )
+    assert sum(item["visible"] for item in marker_alignment) == 1
     assert all(
-        item["markerCenter"] == pytest.approx(item["labelCenter"], abs=1)
+        item["markerCenter"] == pytest.approx(item["labelCenter"], abs=2)
         for item in marker_alignment
+        if item["visible"]
     ), f"a contents marker parted from its revealed label: {marker_alignment}"
+    assert all(
+        item["markerCenter"] == pytest.approx(resting, abs=1)
+        for item, resting in zip(marker_alignment, resting_marker_centers, strict=True)
+    ), f"revealing the contents map moved a marker: {marker_alignment}"
 
     # The viewport rail stays put through the whole document, including where its
     # authored sidebar has not reached the sticky edge yet and where main ends.
@@ -1200,6 +1423,10 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "if (window.lfTocFrames.length < 90) requestAnimationFrame(sample); }; "
         "requestAnimationFrame(sample); }"
     )
+    verify_box = verify.bounding_box()
+    assert verify_box is not None
+    page.mouse.move(verify_box["x"] + 4, verify_box["y"] + 4)
+    expect(verify).to_have_css("pointer-events", "auto")
     verify.click()
     expect(page).to_have_url(re.compile(r"#verify$"))
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
@@ -1210,6 +1437,10 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
 
     start_href = start.get_attribute("href")
     assert start_href is not None
+    start_box = start.bounding_box()
+    assert start_box is not None
+    page.mouse.move(start_box["x"] + 4, start_box["y"] + 4)
+    expect(start).to_have_css("pointer-events", "auto")
     start.click()
     expect(page).to_have_url(re.compile(rf"{re.escape(start_href)}$"))
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
@@ -1220,13 +1451,26 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     )
 
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
+    prepare_box = prepare.bounding_box()
+    assert prepare_box is not None
+    page.mouse.move(prepare_box["x"] + 4, prepare_box["y"] + 4)
+    expect(prepare).to_have_css("pointer-events", "auto")
     prepare.click()
     expect(page).to_have_url(re.compile(r"#prepare$"))
     expect(prepare).to_have_attribute("aria-current", "location")
+    page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     after_navigation = nav.bounding_box()
     assert after_navigation is not None
     assert after_navigation == nav_box, "following a link moved the contents rail"
     assert prepare.evaluate("node => node.matches(':hover')")
+    current_alignment = prepare.evaluate(
+        "node => ({label: node.getBoundingClientRect().top, "
+        "lens: node.closest('nav').querySelector('.lf-toc-window')"
+        ".getBoundingClientRect().top})"
+    )
+    assert current_alignment["lens"] == pytest.approx(
+        current_alignment["label"], abs=2
+    ), f"the viewport lens parted from the current title: {current_alignment}"
 
     # The lens is the viewport's position, not a destination travelling toward it.
     # Capture the first style turn after the scroll: a transition can finish at the
@@ -1334,6 +1578,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     expect(prepare).to_have_css("opacity", "1")
     expect(prepare).to_have_css("pointer-events", "auto")
     expect(prepare).to_have_css("transition-duration", "0s")
+    start_box = start.bounding_box()
+    assert start_box is not None
+    page.mouse.move(start_box["x"] + 4, start_box["y"] + 4)
     start.click()
     expect(page).to_have_url(re.compile(rf"{re.escape(start_href)}$"))
     assert (
@@ -1534,16 +1781,15 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
     )
     page, errors = open_page(browser, serve(source))
     resized(page, 1400, 900)
-    first = page.get_by_role("navigation", name="On this page").get_by_role(
-        "link", name="Prepare the readers", exact=False
-    )
-    second = page.get_by_role("navigation", name="On this page").get_by_role(
-        "link", name="Verify the readers", exact=False
-    )
+    nav = page.get_by_role("navigation", name="On this page")
+    first = nav.locator('a[href="#first-heading"]')
+    second = nav.locator('a[href="#second-heading"]')
     span = "node => Number(node.parentElement.style.getPropertyValue('--lf-toc-span'))"
     main_height = page.locator("main").evaluate("node => node.scrollHeight")
     assert first.evaluate(span) > 500
     assert second.evaluate(span) == 0
+    expect(first).to_be_visible()
+    expect(second).to_be_hidden()
 
     page.evaluate(
         "document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight"
@@ -1559,6 +1805,8 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
     assert page.locator("main").evaluate("node => node.scrollHeight") == main_height
     assert first.evaluate(span) == 0
     assert second.evaluate(span) > 400
+    expect(first).to_be_hidden()
+    expect(second).to_be_visible()
     page.evaluate(
         "document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight"
     )
@@ -2043,10 +2291,13 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
         to_lane_1.tap()
     expect(page.locator("#sq-col-1 > #sq-card-0")).to_have_count(1)
     expect(card.locator(".lf-grip")).to_be_focused()
+    # The card passes through the visible area while its move is still animating.
     page.wait_for_function(
         """() => {
+          const moved = document.querySelector('#sq-card-0');
+          if (moved.getAnimations().length) return false;
           const board = document.querySelector('#crowd').getBoundingClientRect();
-          const card = document.querySelector('#sq-card-0').getBoundingClientRect();
+          const card = moved.getBoundingClientRect();
           return card.left >= board.left - 1 && card.right <= board.right + 1;
         }"""
     )
@@ -2147,6 +2398,154 @@ def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
     undo(page)
     expect(page.locator("#card-instruction")).to_contain_text("12px radius")
     assert playground.evaluate("root => root.values")["compact"] is False
+    assert errors == []
+    page.close()
+
+
+def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narrow(
+    browser, serve
+):
+    source = Path(__file__).parents[1] / "examples" / "notification-playground.html"
+    page, errors = open_page(browser, serve(source))
+    workspace = page.locator("#notification-workspace")
+    playground = page.locator("#notification-playground")
+    controls = playground.locator(
+        ".lf-playground-controls-region > .lf-pane-content > .lf-pane-body"
+    )
+    preview = playground.locator(
+        ".lf-playground-preview-region > .lf-pane-content > .lf-pane-body"
+    )
+    actions = playground.locator(":scope > .lf-playground-actions")
+
+    resized(page, 1100, 700)
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(actions).to_be_visible()
+    bounded = page.evaluate(
+        """async () => {
+          const leaf = await import('/runtime/widget-api.js');
+          const playground = document.querySelector('#notification-playground');
+          const controls = playground.querySelector(
+            '.lf-playground-controls-region > .lf-pane-content > .lf-pane-body');
+          const preview = playground.querySelector(
+            '.lf-playground-preview-region > .lf-pane-content > .lf-pane-body');
+          return {
+            controlsId: leaf.readingRegionFor(controls).id,
+            previewId: leaf.readingRegionFor(preview).id,
+            controlsScrolls: controls.scrollHeight > controls.clientHeight,
+            controlsSize: [controls.clientHeight, controls.scrollHeight],
+            playgroundHeight: playground.getBoundingClientRect().height,
+            askHeight: document.querySelector('#notification-ask').getBoundingClientRect().height,
+            controlsScroller: leaf.effectiveScroller(controls) === controls,
+            previewScroller: leaf.effectiveScroller(preview) === preview,
+            askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
+            furnitureEdgesTrimmed: [
+              getComputedStyle(document.querySelector(
+                '#notification-workspace > header > :first-child')).marginTop,
+              getComputedStyle(document.querySelector(
+                '#notification-workspace > header > :last-child')).marginBottom,
+              getComputedStyle(document.querySelector(
+                '#notification-ask > :first-child')).marginTop,
+            ].every(margin => margin === '0px'),
+            authoredWords: leaf.wrote(playground).includes('Version 2.8.0'),
+            spokenWords: leaf.says(playground).includes('Version 2.8.0'),
+          };
+        }"""
+    )
+    assert bounded == {
+        "controlsId": "lf-region:notification-playground:controls",
+        "previewId": "lf-region:notification-playground:preview",
+        "controlsScrolls": True,
+        "controlsSize": bounded["controlsSize"],
+        "playgroundHeight": bounded["playgroundHeight"],
+        "askHeight": bounded["askHeight"],
+        "controlsScroller": True,
+        "previewScroller": True,
+        "askDisplay": "grid",
+        "furnitureEdgesTrimmed": True,
+        "authoredWords": True,
+        "spokenWords": True,
+    }
+    # A short allocation scrolls the preview and instruction as successive blocks;
+    # shrinking the preview's grid track would paint it underneath the instruction.
+    content_boxes = preview.evaluate(
+        """body => [...body.children].map(node => node.getBoundingClientRect().toJSON())"""
+    )
+    assert content_boxes[0]["bottom"] <= content_boxes[1]["top"], content_boxes
+    assert controls.evaluate("body => body.scrollWidth === body.clientWidth"), (
+        "native control margins must fit inside the allocated pane width"
+    )
+    controls.evaluate("body => body.scrollTop = 80")
+    assert controls.evaluate("body => body.scrollTop") > 0
+    assert preview.evaluate("body => body.scrollTop") == 0
+    action_box = actions.bounding_box()
+    playground_box = playground.bounding_box()
+    shortcut_box = page.locator("#lf-shortcut-bar").bounding_box()
+    assert (
+        action_box["y"] + action_box["height"]
+        <= playground_box["y"] + playground_box["height"] + 1
+    )
+    assert action_box["y"] + action_box["height"] <= shortcut_box["y"] + 1
+
+    actions.evaluate(
+        """footer => {
+          footer.style.height = '360px';
+          footer.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true, composed: true}));
+        }"""
+    )
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    actions.evaluate(
+        """footer => {
+          footer.style.removeProperty('height');
+          footer.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true, composed: true}));
+        }"""
+    )
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+
+    # Beside Threads, the notification wraps beyond the preview's minimum height.
+    # The preview must grow around its content before the instruction begins.
+    resized(page, 1280, 720)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    notification_box = page.locator("#notification-card").bounding_box()
+    preview_box = page.locator("#notification-preview").bounding_box()
+    instruction_box = page.locator("#notification-instruction").bounding_box()
+    assert notification_box["y"] + notification_box["height"] <= (
+        preview_box["y"] + preview_box["height"]
+    )
+    assert preview_box["y"] + preview_box["height"] <= instruction_box["y"]
+    page.locator(".lf-threads-toggle").click()
+
+    resized(page, 1100, 420)
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    resized(page, 500, 900)
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    flow = page.evaluate(
+        """async () => {
+          const leaf = await import('/runtime/widget-api.js');
+          const playground = document.querySelector('#notification-playground');
+          const controls = playground.querySelector(
+            '.lf-playground-controls-region > .lf-pane-content > .lf-pane-body');
+          const preview = playground.querySelector(
+            '.lf-playground-preview-region > .lf-pane-content > .lf-pane-body');
+          const controlsBox = controls.getBoundingClientRect();
+          const previewBox = preview.getBoundingClientRect();
+          return {
+            controlsIsDocument:
+              leaf.effectiveScroller(controls) === document.scrollingElement,
+            previewIsDocument:
+              leaf.effectiveScroller(preview) === document.scrollingElement,
+            stacked: previewBox.top >= controlsBox.bottom - 1,
+            askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
+          };
+        }"""
+    )
+    assert flow == {
+        "controlsIsDocument": True,
+        "previewIsDocument": True,
+        "stacked": True,
+        "askDisplay": "block",
+    }
     assert errors == []
     page.close()
 
@@ -2321,6 +2720,61 @@ def test_a_playground_export_keeps_the_chosen_preview_and_instruction(
     copy.close()
 
 
+def test_notification_playground_export_flows_at_another_width_and_on_paper(
+    browser, serve, tmp_path
+):
+    source = Path(__file__).parents[1] / "examples" / "notification-playground.html"
+    url = serve(source)
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "notification-playground",
+            "action": "choose",
+            "detail": {
+                "values": {
+                    "accent": "#b6533c",
+                    "compact": True,
+                    "radius": 10,
+                    "show-owner": True,
+                    "title": "Escalation sent",
+                    "tone": "urgent",
+                },
+                "instruction": "Send the configured escalation notification.",
+            },
+        },
+    )
+    page, errors = open_page(browser, url)
+    out = tmp_path / "notification-playground-copy.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    assert errors == []
+    page.close()
+
+    copy = browser.new_page(viewport={"width": 480, "height": 700})
+    copy.goto(out.as_uri(), wait_until="load")
+    playground = copy.locator("#notification-playground")
+    expect(playground.locator(".lf-playground-actions")).to_be_hidden()
+    expect(playground.locator("#notification-instruction")).to_contain_text(
+        "Escalation sent"
+    )
+    expect(playground.locator("#notification-card")).to_be_visible()
+    assert copy.evaluate("document.documentElement.scrollWidth") == 480
+    assert playground.evaluate(
+        """root => [...root.querySelectorAll('.lf-pane-body')]
+          .every(body => getComputedStyle(body).overflowY === 'visible')"""
+    )
+
+    copy.emulate_media(media="print")
+    assert playground.evaluate(
+        """root => [...root.querySelectorAll('.lf-pane-body')]
+          .every(body => getComputedStyle(body).overflowY === 'visible'
+            && body.scrollHeight === body.clientHeight)"""
+    )
+    copy.close()
+
+
 def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     browser, serve
 ):
@@ -2337,6 +2791,13 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     expect(playground.locator("#playground-card")).to_be_visible()
     expect(playground.locator("#card-instruction")).to_contain_text("12px radius")
     assert playground.evaluate("root => root.values")["compact"] is False
+    assert playground.evaluate(
+        """async root => {
+          const {readingRegionFor} = await import('/runtime/widget-api.js');
+          return readingRegionFor(root.querySelector('lf-playground-preview')) === undefined
+            && getComputedStyle(root).display === 'block';
+        }"""
+    )
     assert errors == []
     page.close()
 
@@ -4069,19 +4530,10 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         expect(page.locator(STANDING_ASK)).to_have_count(1)
         # Walking changes the ring and not the durable progress count.
         expect(decisions).to_have_text("Asks 1/5")
-        walked.append(
-            page.evaluate(
-                "() => document.activeElement.tagName.toLowerCase()"
-                "      + ' ' + document.activeElement.className"
-            )
-        )
-    assert walked == [
-        "lf-ask ",  # the question's own region, its picks a Tab away
-        "lf-suggestion ",  # the suggestion itself, its ✓ Accept hoisted into the margin
-        "lf-ask ",  # the task's nested review question
-        "lf-ask ",
-        "lf-ask ",
-    ], f"the walk landed on something else: {walked}"
+        walked.append(page.evaluate("document.activeElement.id"))
+    assert walked == [*ASKS_IN_ORDER, ASKS_IN_ORDER[-1]], (
+        f"the walk landed on something else: {walked}"
+    )
 
     # And back, including one press past the first edge. The step off a suggestion is
     # measured from the suggestion rather than from the ✓ Accept holding the focus —
@@ -6649,8 +7101,9 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     shape has to remember to say it again.
 
     So the layer says it once, against `data-lf-offer`, and the value is what it reads:
-    `offer` writes the tag or role for a thing to press and the empty string for the rest
-    of the chrome it builds — a controls row, a history disclosure, an edit box. A badge
+    `offer` writes the tag, input type, or role for a thing to press and the empty string
+    for the rest of the chrome it builds — a controls row, a history disclosure, an edit
+    box. A badge
     the page wrote carries no marker at all and needs no exclusion, which is the half
     worth pinning: the rule stays off it because the marker means what it says, not
     because a list of static classes is kept beside the rule.

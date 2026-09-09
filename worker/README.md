@@ -29,19 +29,27 @@ durable page-directory store rather than another lifecycle promise.
 
 When Leaf accepts a reader message that its canonical activity projection says needs
 a response, the Worker starts one Cloudflare Workflow keyed by the browser session and
-event id. Its retryable steps read a fresh page and thread from the container, run the
-OpenAI Agents SDK in the Worker, then append through Leaf's ordinary reply writer. A
-deterministic attempt prevents duplicate replies, and a newer reader turn suppresses a
-stale one. If generation stops after its retries, the workflow appends a short failure
-reply. A Cloudflare-native abuse brake allows one hundred model calls per source IP per
-minute in each Cloudflare location; an over-limit turn receives a visible busy reply
-without sending anything to OpenAI. There is no site-wide quota.
+event id. Its retryable steps ask that reader's container to create or resume one Codex
+App Server task rooted at the actual page directory and deliver the event through
+Leaf's ordinary `leaf-delivery` record. Codex loads the shipped Leaf plugin and uses its
+native filesystem tools, so the hosted task can revise `index.html`, validate it, append
+thread replies, and leave the page waiting exactly as a local Leaf task does. The
+initiating App Server connection projects the turn's native activity notifications
+back through Leaf. A repeated workflow sees the event's durable pickup and does not
+start the work twice. If task startup stops after its retries, the workflow appends a
+short failure reply through the same event log.
 
-The initial agent uses `gpt-5.6-luna` without tools and can discuss a page but not edit
-it. Leaf's page directory remains the only conversation authority, so tools, handoffs,
-and page revisions extend the agent rather than replace its backend. The
-`OPENAI_API_KEY` exists only as a Worker secret; neither public responses nor requests
-to the internet-disabled container carry it.
+The container pins the Codex version its App Server protocol was tested against and
+runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the
+tool sandbox: nested bubblewrap namespaces are unavailable in that environment, and
+the model has no durable or cross-reader filesystem to reach. Public internet is off.
+The container receives only a dummy OpenAI credential; a trusted Cloudflare outbound
+handler permits the Responses API request and replaces that dummy value with the
+Worker's `OPENAI_API_KEY`. The actual secret never enters model-visible processes or
+files. One Cloudflare-native brake allows twenty task starts per source IP per minute
+in each Cloudflare location and, under a separate key, twenty model calls per reader
+container per minute. An over-limit turn receives a visible busy reply or a model-rate
+error without sending anything to OpenAI. There is no site-wide quota.
 
 Run the complete local site with Docker available:
 

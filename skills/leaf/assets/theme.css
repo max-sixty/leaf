@@ -481,7 +481,7 @@ body { position: static !important; box-sizing: border-box !important;
     overflow-y: scroll;
     scroll-padding-top: calc(var(--lf-banner-h) + 12px);
     scroll-padding-bottom:
-      max(var(--here-ring-room), var(--lf-shortcut-bar-clear, 0px));
+      max(var(--here-ring-room), var(--lf-bottom-chrome-clear, 0px));
     body { min-height: 100%; }
     body::before { content: ""; display: block; height: var(--lf-banner-h); }
   }
@@ -1028,8 +1028,9 @@ dd { margin: 0 0 8px 0; }
  * it comes out on top.
  *
  * The value and not the bare attribute, because `offer` writes two different facts into
- * one dataset key: "button" for a press it built, the role for a `selectableOffer`, and
- * the empty string for everything else it makes — the draft's controls row, its history
+ * one dataset key: "button" or a native choice's input type for a press it built, the
+ * role for a `selectableOffer`, and the empty string for everything else it makes — the
+ * draft's controls row, its history
  * disclosure, its edit box, a generated form. Those are chrome a widget injected, not
  * things to press, and the bare attribute put the hand on a textarea and a wrapper div.
  * The distinction is the one `offer` already draws; this reads it rather than keeping a

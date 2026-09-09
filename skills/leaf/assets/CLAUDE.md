@@ -39,8 +39,8 @@ and stores each declaration unread, and the first repaint after boot evaluates i
 there;
 `runtime/standing.js` owns the one repaint of where the reader stands, in the order
 the geometry demands;
-`runtime/walk-position.js` owns the transient ordinal the shortcut bar reads for an active
-Ask or Thread keyboard walk;
+`runtime/walk-position.js` owns the transient ordinal for an active Ask or Thread keyboard
+walk and the brief boundary state when another press stays at the same destination;
 `runtime/icons.js` owns the layer's icon table;
 `runtime/context.js` owns the mutable facts shared across the browser layers and
 their direct readers;
@@ -90,7 +90,8 @@ subscriptions;
 `bindings.js` the spelling, parsing, row fields, and checks; `scopes.js` where a group
 of rows applies; `dispatch.js` which scope answers a press and what it owes the
 platform; `return-stack.js` what a keyboard entry owes on the way back out;
-`shortcut-bar.js` the status and short help at the foot of the page and its More control;
+`shortcut-bar.js` the short help at the foot of the page, its More control, the separate
+category-walk readout on the opposite edge, and the shared list of their rendered boxes;
 `reference.js` the complete listing behind `?`; `address.js` the go-to sequence;
 `address-placement.js` shared address visibility and the numeric Ask placement pass;
 `hints.js` prefix-free transient labels and their no-drop placement pass;
@@ -100,6 +101,10 @@ disclosure watch; `runtime/keyboard/page.js` owns the page's own scopes and rows
 `runtime/notifications.js` owns visual and assistive announcements and the notice
 element the banner seats;
 `runtime/arrangements.js` owns the browser-state arrangements the arrival gate exercises;
+`runtime/reading-regions.js` owns reading-region identities, effective scrollers,
+allocation and bounded/flow posture transitions;
+`runtime/reading-layout.js` owns shared arrangement construction and furniture slots
+used by structural and compound widgets;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/presence.js` owns the calibrated server clock, relative-time wording,
 and the deadline at which canonical activity asks for another server read;
@@ -418,7 +423,7 @@ The extension keys describe general behavior:
 | `x-measured` | authored scalar words are pinned at an instant to one live data input; checks compare that instant with the source's latest update |
 | `x-says` | named attributes are visible words at declared edges |
 | `x-paints` | named attributes communicate facts through paint and need a quiet spoken reading |
-| `x-verbatim` | authored data must agree with the rendered words |
+| `x-verbatim` | own authored words and the order and identity of nested upgraded boundaries must agree with the rendering |
 | `x-shadow` | a declared open shadow tree is part of the page's composed reading |
 | `x-state` | reader action verbs, current eligibility, facets, units, schemas, and records |
 | `x-report` | report verbs with the same semantic state shape |
@@ -542,17 +547,20 @@ shortcut bar, `?` reference, control tooltips, and announcements are projections
 those objects.
 
 Treat that register as a product grammar, not a collection of locally convenient
-shortcuts. Before adding or changing a binding, survey the complete register for
-meaning, scope, native overlap, entry and exit symmetry, and focus restoration.
+shortcuts. A binding belongs only when its key is the canonical spelling for that action
+in the active scope. Reusing a key in a nearer scope must preserve that meaning; a
+familiar alternative or an unused key does not justify an alias, because every binding
+spends the scope's namespace. Before adding or changing a binding, survey the complete
+register for meaning, scope, native overlap, entry and exit symmetry, and focus
+restoration.
 Each generated hint names the exact visible control it activates. An aggregate location
 may expose each of its visible margin elements or focus itself; it never selects a descendant
 action for the reader. A press a widget built is one of those controls too, read off the
-value `offer` and `selectableOffer` write: the tag for a button, the role for a selectable
-offer. That is what lets a capability decline a page letter without becoming unreachable —
-the row states the capability, and the sequence reaches each control that routes to one. The
-reading stops where the theme's hand stops, because it is the same reading. A widget that
-builds its press as some other native control gets the empty string, the value naming the
-tag rather than pressability, and still spends a binding to make that press reachable.
+value `offer` and `selectableOffer` write: the tag for a button, the type for a native
+checkbox or radio, or the role for a selectable offer. This lets a capability decline a
+page letter without becoming unreachable. The row states the capability, and the sequence
+reaches each control that routes to one. The reading stops where the theme's hand stops,
+because it is the same reading.
 Document every inconsistency the survey exposes in the task handoff. If the rules
 here do not settle one, escalate it to the user before choosing locally; the
 absence of a dispatch conflict does not make a binding precise.
@@ -591,6 +599,11 @@ walks open asks. Both walks clamp at their first and last items. Keep these as s
 presses rather than prefix sequences; a walk is often repeated or held. The thread walk
 uses inline thread roots while Threads is closed and panel cards while it is open; only a
 thread with no page or widget-local inline address opens the complete index as a fallback.
+An active textual search in the thread panel instead owns `n`/`N`: those keys enter the
+found list from its container and then walk its matches, while `t`/`T` stands down so the
+motion has one spelling in that scope. For page search, Enter accepts the current match and
+`n`/`N` walks the next or previous one. Letters remain query text while a search input has
+focus; Tab and Shift-Tab walk page-search matches before acceptance.
 While the reader stands anywhere in an Ask, its widget's
 ordered actions keep a canonical binding where they declare one and otherwise take the
 next free `1`–`9`. Core projects that exact list into the shortcut bar and visible control
@@ -627,15 +640,17 @@ way this press will go. When turning it on is an entry, its `returnFrame` states
 Escape's inverse rather than a second row guessing from the resulting scene.
 
 Which scope a row belongs to follows from what its press acts on. The page holds
-the presses whose subject is the page: `/` searches its text, `s` names its visible
+the presses whose subject is the page: `/` searches its text, `n`/`N` repeats that
+search, `s` names its visible
 items, `c` comments on it, `t`/`T` and `a`/`A` walk its open sets, `j`/`k` and `d`/`u` move its
 reading, and `g` opens its destinations. A surface holds the presses
 whose
 subject is that surface's own
 contents, because contents the reader is not looking at are not a thing to act
-on: `w` narrows the thread panel's list and `/` searches it, and both live in
-`PANEL`. The page's alphabet is small and every letter spent there is spent on
-every page, so a letter earns page scope only by acting on the page.
+on: `w` narrows the thread panel's list, while `/` searches it and `n`/`N` walk
+the results. Those bindings live in `PANEL`. The page's alphabet is small and every
+letter spent there is spent on every page, so a letter earns page scope only by acting
+on the page.
 
 A surface may also hold the contextual form of a page intent. `c` always means
 comment; its destination follows what the reader is standing on. From the Threads

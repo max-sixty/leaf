@@ -112,7 +112,7 @@ export function setAnchoringReady(ready) {
    `x-says` attribute; the row does not infer a heading from surrounding layout.
 
    `paintAnchors` is the only anchor writer. One pass decides thread marks, element
-   rails, and the open composer's pending mark. It clears and paints through the
+   contours, and the open composer's pending mark. It clears and paints through the
    same composed-tree helpers, then records exactly what it drew in `marked`,
    `pendingMarks`, and `pendingOutline`. Other features consult those records rather
    than looking for arbitrary DOM paint. The anchor runtime exposes only the questions
@@ -845,7 +845,7 @@ const MARK = "lf-mark";
 const PENDING = "lf-pending";
 export const NOTE = "lf-mark-note";
 // A standing reaction's paint: a wash fainter than a comment's on the passage (the
-// same highlight registry), a dashed hairline on an element, and a glyph in the margin
+// same highlight registry), a solid hairline on an element, and a glyph in the margin
 // level with the block the passage starts in. Nothing enters the text flow, so no line
 // reflows when one lands; the glyph is the withdraw control, so the record and the
 // eraser are one surface. Recorded apart from `marked` because it answers a different
@@ -1520,6 +1520,7 @@ export function scrollToRange(where, behavior = scrollBehavior()) {
       : where.startContainer.parentElement;
   if (!holder) return;
   reveal(holder);
+  const targetScroller = scrollerFor(holder);
   // Reveal every nested scrollport here, but stop before the document's. Using
   // `scrollIntoView` as the prelude to the centred page trip wrote that last box too:
   // it jumped the document to the holder's nearest edge, then glided it somewhere
@@ -1527,7 +1528,7 @@ export function scrollToRange(where, behavior = scrollBehavior()) {
   // revealed before its final box can be read.
   for (
     let box = holder;
-    box && box !== pageScroller;
+    box && box !== targetScroller;
     box = box.assignedSlot ?? parentAcross(box)
   ) {
     if (box.scrollWidth <= box.clientWidth && box.scrollHeight <= box.clientHeight)
@@ -1552,7 +1553,7 @@ export function scrollToRange(where, behavior = scrollBehavior()) {
       byY = destination.bottom - bottom;
     if (byX || byY) box.scrollBy({ left: byX, top: byY, behavior: "instant" });
   }
-  moveScrollerBy(pageScroller, centreBy(where), behavior);
+  moveScrollerBy(targetScroller, centreBy(where, "center", targetScroller), behavior);
 }
 
 // Move to where a thread is painted, if it still is — asked of the pass's own record, so the
@@ -1701,8 +1702,8 @@ function paintHover(id, repaintVisuals = true) {
 // passage it is on is worth most.
 //
 // Above the hover and below the draft. A pointer resting on the standing mark supplies
-// the middle wash, while this higher paint keeps the strongest wash and its accent ink:
-// the cursor promises the press, and the ink answers "which one".
+// the middle wash, while this higher paint keeps the strongest wash. The shared accent
+// contour stays stable through a pointer press; the stronger wash answers "which one".
 const HERE = "lf-mark-here";
 let hereParts = [];
 export function paintStanding(repaintVisuals = true) {

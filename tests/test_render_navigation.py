@@ -16,6 +16,7 @@ from render_support import (
     CLIPPED_BY,
     CONTROL_LABEL_PAGE,
     CROWDED_PAGE,
+    DIFF_PAGE,
     DISCLOSED_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
@@ -72,6 +73,315 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+READING_REGIONS_PAGE = leaf_page(
+    "reading region navigation",
+    """
+<lf-workspace id="reading-workspace">
+  <header><h1>Reading workspace</h1></header>
+  <lf-split id="reading-split" direction="columns">
+    <lf-pane id="left-reading" label="Left reading">
+      <header><button id="left-head">Left header</button></header>
+      <p id="left-start">Left start with enough words to preserve this landmark.</p>
+      <div style="height: 260px"></div>
+      <p id="left-landmark">The current left reading has a stable semantic landmark.</p>
+      <div style="height: 800px"></div>
+      <p id="left-end">Left end</p>
+      <footer><button id="left-foot">Left footer</button></footer>
+    </lf-pane>
+    <lf-pane id="right-reading" label="Right reading">
+      <header><button id="right-head">Right header</button></header>
+      <p id="right-start">Right start with enough words to preserve this landmark.</p>
+      <div style="height: 320px"></div>
+      <p id="right-landmark">The current right reading has a stable semantic landmark.</p>
+      <div style="height: 740px"></div>
+      <p id="right-end"><button id="right-subject">Right subject</button></p>
+    </lf-pane>
+  </lf-split>
+</lf-workspace>
+""",
+)
+
+
+def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
+    browser, serve
+):
+    page, errors = open_page(browser, serve(READING_REGIONS_PAGE))
+    left = page.locator("#left-reading > .lf-pane-content > .lf-pane-body")
+    right = page.locator("#right-reading > .lf-pane-content > .lf-pane-body")
+    ranges = page.evaluate(
+        """() => Object.fromEntries(['left-reading', 'right-reading'].map(id => {
+          const body = document.querySelector(`#${id} > .lf-pane-content > .lf-pane-body`);
+          return [id, body.scrollHeight - body.clientHeight];
+        }))"""
+    )
+    assert min(ranges.values()) > 300, ranges
+
+    page.locator("#left-head").focus()
+    page.keyboard.press("d")
+    page.wait_for_function(
+        "() => document.querySelector('#left-reading .lf-pane-body').scrollTop > 0"
+    )
+    page.wait_for_timeout(250)
+    assert right.evaluate("el => el.scrollTop") == 0
+    left_position = left.evaluate("el => el.scrollTop")
+
+    page.locator("#right-head").focus()
+    page.keyboard.press("d")
+    page.wait_for_function(
+        "() => document.querySelector('#right-reading .lf-pane-body').scrollTop > 0"
+    )
+    page.wait_for_timeout(250)
+    assert left.evaluate("el => el.scrollTop") == left_position
+
+    # Footer focus still names the pane for reading keys; the footer itself does not
+    # become content inside the body scroller.
+    page.locator("#left-foot").focus()
+    page.keyboard.press("u")
+    page.wait_for_function(
+        f"() => document.querySelector('#left-reading .lf-pane-body').scrollTop < {left_position}"
+    )
+    assert errors == []
+    page.close()
+
+
+def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
+    page, errors = open_page(browser, serve(READING_REGIONS_PAGE))
+    workspace = page.locator("#reading-workspace")
+    left = page.locator("#left-reading > .lf-pane-content > .lf-pane-body")
+    right = page.locator("#right-reading > .lf-pane-content > .lf-pane-body")
+    left.evaluate("el => el.scrollTop = 180")
+    right.evaluate("el => el.scrollTop = 380")
+    page.locator("#right-subject").focus()
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+
+    resized(page, 520, 900)
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(page.locator("#right-subject")).to_be_focused()
+    resized(page, 1200, 900)
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    readings = [
+        left.evaluate("el => el.scrollTop"),
+        right.evaluate("el => el.scrollTop"),
+    ]
+    assert readings[0] > 100 and readings[1] > 250, readings
+    assert abs(readings[0] - readings[1]) > 100, readings
+    expect(page.locator("#right-subject")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser, serve):
+    page, errors = open_page(browser, serve(READING_REGIONS_PAGE))
+    workspace = page.locator("#reading-workspace")
+    resized(page, 520, 900)
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    right_landmark = page.locator("#right-landmark")
+    right_landmark.scroll_into_view_if_needed()
+    page.evaluate("() => document.activeElement?.blur()")
+    box = right_landmark.bounding_box()
+    page.mouse.move(box["x"] + 8, box["y"] + 8)
+    before = page.evaluate("() => scrollY")
+    page.mouse.wheel(0, 240)
+    page.wait_for_function("before => scrollY > before", arg=before)
+    relative = right_landmark.evaluate("el => el.getBoundingClientRect().top")
+
+    resized(page, 1200, 900)
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    readings = page.evaluate(
+        """() => ({
+          left: document.querySelector('#left-reading .lf-pane-body').scrollTop,
+          right: document.querySelector('#right-reading .lf-pane-body').scrollTop,
+          rightRelative: document.querySelector('#right-landmark').getBoundingClientRect().top -
+            document.querySelector('#right-reading .lf-pane-body').getBoundingClientRect().top,
+        })"""
+    )
+    assert readings["right"] > readings["left"] + 100, readings
+    assert abs(readings["rightRelative"] - relative) < 3, (relative, readings)
+    assert errors == []
+    page.close()
+
+
+def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
+    source = READING_REGIONS_PAGE.replace(
+        '<footer><button id="left-foot">',
+        '<footer style="min-height: 220px"><button id="left-foot">',
+    )
+    url = serve(source, anchored=[("left-start", "enough words to preserve")])
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "parent": root,
+            "revision": 1,
+            "text": "\n\n".join(
+                f"Pane consideration {i}: enough explanation to require local scrolling."
+                for i in range(20)
+            ),
+        },
+    )
+    page, errors = open_page(browser, url)
+    cluster = page.locator('[data-lf-margin-for="left-start"].lf-margin-cluster')
+    expect(cluster).to_have_count(1)
+    expect(cluster).to_have_class(re.compile(r"\blf-docked\b"))
+    placement = cluster.evaluate(
+        """el => ({
+          inOwner: document.querySelector('#left-reading .lf-pane-body').contains(el),
+          inSibling: document.querySelector('#right-reading').contains(el),
+          cluster: el.getBoundingClientRect().toJSON(),
+          body: document.querySelector('#left-reading .lf-pane-body')
+            .getBoundingClientRect().toJSON(),
+        })"""
+    )
+    assert placement["inOwner"] and not placement["inSibling"], placement
+    assert placement["cluster"]["left"] >= placement["body"]["left"], placement
+    assert placement["cluster"]["right"] <= placement["body"]["right"], placement
+
+    page.locator("#left-start .lf-mark-note").click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    preview_geometry = preview.evaluate(
+        """el => {
+          const card = el.getBoundingClientRect();
+          const body = document.querySelector('#left-reading .lf-pane-body')
+            .getBoundingClientRect();
+          return {card: card.toJSON(), body: body.toJSON(),
+                  scrollHeight: el.scrollHeight, clientHeight: el.clientHeight};
+        }"""
+    )
+    assert preview_geometry["card"]["top"] >= preview_geometry["body"]["top"], (
+        preview_geometry
+    )
+    assert preview_geometry["card"]["bottom"] <= preview_geometry["body"]["bottom"], (
+        preview_geometry
+    )
+    assert preview_geometry["scrollHeight"] > preview_geometry["clientHeight"], (
+        preview_geometry
+    )
+    preview.evaluate("el => el.scrollTop = el.scrollHeight")
+    assert preview.evaluate("el => el.scrollTop") > 0
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    page.keyboard.press("t")
+    expect(preview).to_be_visible()
+    expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
+    url = serve(READING_REGIONS_PAGE)
+    page, errors = open_page(browser, live_url(url))
+    expect(page.locator("#reading-workspace")).to_have_attribute(
+        "data-lf-posture", "bounded"
+    )
+    left = page.locator("#left-reading > .lf-pane-content > .lf-pane-body")
+    right = page.locator("#right-reading > .lf-pane-content > .lf-pane-body")
+    left.evaluate("el => el.scrollTop = 300")
+    right.evaluate("el => el.scrollTop = 360")
+    before = page.evaluate(
+        """() => ['left-landmark', 'right-landmark'].map(id => {
+          const landmark = document.getElementById(id);
+          return landmark.getBoundingClientRect().top -
+            landmark.closest('.lf-pane-body').getBoundingClientRect().top;
+        })"""
+    )
+
+    revised = READING_REGIONS_PAGE.replace(
+        '<p id="left-start">',
+        '<p>New left material above the saved reading.</p><p id="left-start">',
+    ).replace(
+        '<p id="right-start">',
+        '<p>New right material above the saved reading.</p><p id="right-start">',
+    )
+    stamp_page(serve.page_dir, revised, "add context above both readings")
+    wait_for_revision(page, 2)
+    after = page.evaluate(
+        """() => ['left-landmark', 'right-landmark'].map(id => {
+          const landmark = document.getElementById(id);
+          return landmark.getBoundingClientRect().top -
+            landmark.closest('.lf-pane-body').getBoundingClientRect().top;
+        })"""
+    )
+    scrolls = [
+        left.evaluate("el => el.scrollTop"),
+        right.evaluate("el => el.scrollTop"),
+    ]
+    assert all(abs(old - new) < 2 for old, new in zip(before, after, strict=True)), (
+        before,
+        after,
+        scrolls,
+    )
+    assert left.evaluate("el => el.scrollTop") > 0
+    assert right.evaluate("el => el.scrollTop") > 0
+    assert errors == []
+    page.close()
+
+
+def test_thread_travel_reveals_an_inactive_tab_in_its_pane_only(browser, serve):
+    example = next(e for e in EXAMPLES if e.stem == "review-queue")
+    page, errors = open_page(
+        browser,
+        serve(example, anchored=[("review-cache", "old keys authoritative")]),
+    )
+    resized(page, 1400, 900)
+    queue = page.locator("#review-queue .lf-pane-body")
+    detail = page.locator("#review-detail .lf-pane-body")
+    queue.evaluate(
+        "el => el.scrollTop = Math.min(120, el.scrollHeight - el.clientHeight)"
+    )
+    queue_before = queue.evaluate("el => el.scrollTop")
+    detail.evaluate("el => el.scrollTop = el.scrollHeight")
+    detail_before = detail.evaluate("el => el.scrollTop")
+    assert detail_before > 0
+    expect(page.locator("#review-cache")).to_be_hidden()
+
+    page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread .lf-quote").click()
+    expect(page.locator("#review-cache")).to_be_visible()
+    expect(page.locator("#review-cache")).to_be_in_viewport()
+    assert detail.evaluate("el => el.scrollTop") < detail_before
+    assert queue.evaluate("el => el.scrollTop") == queue_before
+    assert errors == []
+    page.close()
+
+
+def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
+    browser, serve
+):
+    source = READING_REGIONS_PAGE.replace(
+        '<p id="left-end">Left end</p>',
+        """<lf-workspace id="nested-workspace">
+  <lf-pane id="nested-pane" label="Nested reading">
+    <p>Nested body context stays in ordinary flow.</p>
+    <footer><p id="nested-footer">Nested footer destination with enough words to anchor.</p></footer>
+  </lf-pane>
+</lf-workspace>
+<p id="left-end">Left end</p>""",
+    )
+    page, errors = open_page(
+        browser,
+        serve(source, anchored=[("nested-footer", "footer destination")]),
+    )
+    outer = page.locator("#left-reading > .lf-pane-content > .lf-pane-body")
+    inner = page.locator("#nested-pane > .lf-pane-content > .lf-pane-body")
+    sibling = page.locator("#right-reading > .lf-pane-content > .lf-pane-body")
+    assert outer.evaluate("el => el.scrollHeight - el.clientHeight") > 300
+    assert inner.evaluate("el => el.scrollTop") == 0
+
+    page.keyboard.press("t")
+    expect(page.locator("#nested-footer")).to_be_in_viewport()
+    assert outer.evaluate("el => el.scrollTop") > 0
+    assert inner.evaluate("el => el.scrollTop") == 0
+    assert sibling.evaluate("el => el.scrollTop") == 0
+    assert errors == []
+    page.close()
 
 
 def test_the_feature_gallery_exercises_the_injected_core_surfaces(
@@ -854,9 +1164,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     position = page.locator(".lf-walk-position")
     expect(position).to_have_text("Ask 1 of 4 open")
     expect(position).to_have_attribute("aria-hidden", "true")
-    expect(position.locator("xpath=parent::*")).to_have_class(
-        re.compile("lf-shortcut-bar")
-    )
+    expect(position.locator("xpath=parent::*")).to_have_class(re.compile("lf-chrome"))
     marks = page.locator("#live-question .lf-pick")
     # The arrival stands on the Ask, which wears its options' digits; the marks
     # are the next Tab stops.
@@ -898,8 +1206,8 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     page.close()
 
 
-def test_the_ask_walk_position_leads_the_narrow_status_line(browser, serve):
-    """Navigation context gets the first row without acquiring a second box."""
+def test_the_ask_walk_position_uses_the_opposite_corner(browser, serve):
+    """Navigation state stays separate from commands and marks a clamped press."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     resized(page, 390, 780)
     position = page.locator(".lf-walk-position")
@@ -912,33 +1220,51 @@ def test_the_ask_walk_position_leads_the_narrow_status_line(browser, serve):
         """() => {
           const box = (selector) => document.querySelector(selector).getBoundingClientRect();
           const position = box('.lf-walk-position');
-          const hint = box('.lf-shortcut-bar .lf-key:not([hidden])');
           const line = box('.lf-shortcut-bar');
-          const style = getComputedStyle(document.querySelector('.lf-walk-position'));
+          const positionStyle = getComputedStyle(
+            document.querySelector('.lf-walk-position'));
+          const lineStyle = getComputedStyle(document.querySelector('.lf-shortcut-bar'));
           return {position: {left: position.left, right: position.right,
                              top: position.top, bottom: position.bottom},
-                  hint: {top: hint.top},
-                  line: {left: line.left, right: line.right},
+                  line: {left: line.left, right: line.right,
+                         top: line.top, bottom: line.bottom},
                   first: document.querySelector('.lf-shortcut-bar').firstElementChild
                     .className,
                   parent: document.querySelector('.lf-walk-position').parentElement
                     .className,
-                  face: {background: style.backgroundColor,
-                         border: style.borderTopWidth, shadow: style.boxShadow},
-                  userSelect: style.userSelect};
+                  face: {background: positionStyle.backgroundColor,
+                         lineBackground: lineStyle.backgroundColor,
+                         border: positionStyle.borderTopWidth,
+                         shadow: positionStyle.boxShadow},
+                  font: {line: parseFloat(lineStyle.fontSize),
+                         position: parseFloat(positionStyle.fontSize)},
+                  userSelect: positionStyle.userSelect};
         }"""
     )
-    assert "lf-walk-position" in geometry["first"], geometry
-    assert "lf-shortcut-bar" in geometry["parent"], geometry
-    assert geometry["position"]["bottom"] <= geometry["hint"]["top"], geometry
-    assert geometry["line"]["left"] <= geometry["position"]["left"], geometry
-    assert geometry["position"]["right"] <= geometry["line"]["right"], geometry
-    assert geometry["face"] == {
-        "background": "rgba(0, 0, 0, 0)",
-        "border": "0px",
-        "shadow": "none",
-    }, geometry
+    assert "lf-walk-position" not in geometry["first"], geometry
+    assert "lf-chrome" in geometry["parent"], geometry
+    assert geometry["line"]["right"] < geometry["position"]["left"], geometry
+    assert geometry["line"]["bottom"] == geometry["position"]["bottom"], geometry
+    assert geometry["font"]["position"] > geometry["font"]["line"], geometry
+    assert geometry["face"]["background"] == geometry["face"]["lineBackground"], (
+        geometry
+    )
+    assert geometry["face"]["border"] == "1px", geometry
+    assert geometry["face"]["shadow"] == "none", geometry
     assert geometry["userSelect"] == "none", geometry
+
+    for index in range(2, 5):
+        page.keyboard.press("a")
+        expect(position).to_have_text(f"Ask {index} of 4 open")
+    expect(position).not_to_have_attribute("data-lf-boundary", "")
+    ordinary = position.evaluate("node => getComputedStyle(node).backgroundColor")
+    page.keyboard.press("a")
+    expect(position).to_have_text("Ask 4 of 4 open")
+    expect(position).to_have_attribute("data-lf-boundary", "")
+    assert (
+        position.evaluate("node => getComputedStyle(node).backgroundColor") != ordinary
+    )
+    expect(position).not_to_have_attribute("data-lf-boundary", "")
 
     page.locator("#h").click()
     expect(position).to_be_hidden()
@@ -1365,7 +1691,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
 
 
 def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
-    """t/T use page-local threads; g T promotes the focused one into the index."""
+    """t/T use page-local threads; panel search uses n/N for its found list."""
     page, errors = open_page(
         browser,
         serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
@@ -1376,6 +1702,21 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
         if event["kind"] == "comment"
     ]
 
+    def position_is_front():
+        return page.evaluate(
+            """() => {
+              const readout = document.querySelector('.lf-walk-position');
+              const box = readout.getBoundingClientRect();
+              readout.style.pointerEvents = 'auto';
+              const front = document.elementFromPoint(
+                (box.left + box.right) / 2,
+                (box.top + box.bottom) / 2,
+              ) === readout;
+              readout.style.removeProperty('pointer-events');
+              return front;
+            }"""
+        )
+
     # A panel search belongs to the panel. Closing it keeps that search for the next
     # visit, but must not silently remove a visible page thread from the inline walk.
     page.get_by_role("button", name=re.compile("^Threads")).click()
@@ -1385,12 +1726,30 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_visible()
     position = page.locator(".lf-walk-position")
     page.locator(".lf-threads").focus()
-    page.keyboard.press("t")
+    page.keyboard.press("n")
     expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_focused()
     expect(position).to_have_text("Thread 1 of 1 shown")
     expect(position.locator("xpath=parent::*")).to_have_class(
-        re.compile("lf-shortcut-bar")
+        re.compile("lf-panel-head")
     )
+    expect(position.locator("xpath=ancestor::*[@id='lf-shortcut-bar']")).to_have_count(
+        0
+    )
+    panel_clearance = page.evaluate(
+        """() => {
+          const position = document.querySelector('.lf-walk-position')
+            .getBoundingClientRect();
+          const foot = document.querySelector('.lf-panel-foot').getBoundingClientRect();
+          return {
+            positionBottom: position.bottom,
+            footTop: foot.top,
+          };
+        }"""
+    )
+    assert panel_clearance["positionBottom"] < panel_clearance["footTop"], (
+        panel_clearance
+    )
+    assert position_is_front(), "the open Threads panel painted over its walk position"
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, False)
     expect(position).to_be_hidden()
@@ -1403,6 +1762,10 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(page.locator(".lf-panel")).to_be_hidden()
     expect(position).to_have_text("Thread 1 of 2")
     expect(position).to_have_attribute("aria-hidden", "true")
+    expect(position.locator("xpath=parent::*")).to_have_class(
+        re.compile("lf-margin-preview-head")
+    )
+    assert position_is_front(), "the margin thread painted over its walk position"
 
     page.keyboard.press("t")
     second = page.locator(
@@ -1412,9 +1775,24 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(page.locator(".lf-panel")).to_be_hidden()
     expect(position).to_have_text("Thread 2 of 2")
 
+    ordinary = position.evaluate("node => getComputedStyle(node).backgroundColor")
+    page.keyboard.press("t")
+    expect(second).to_be_focused()
+    expect(position).to_have_text("Thread 2 of 2")
+    expect(position).to_have_attribute("data-lf-boundary", "")
+    assert (
+        position.evaluate("node => getComputedStyle(node).backgroundColor") != ordinary
+    )
+    expect(position).not_to_have_attribute("data-lf-boundary", "")
+
     page.keyboard.press("Shift+t")
     expect(first).to_be_focused()
     expect(position).to_have_text("Thread 1 of 2")
+
+    page.keyboard.press("Shift+t")
+    expect(first).to_be_focused()
+    expect(position).to_have_text("Thread 1 of 2")
+    expect(position).to_have_attribute("data-lf-boundary", "")
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -3996,6 +4374,34 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     page.close()
 
 
+def test_the_g_chord_reaches_a_checkbox_a_widget_built(browser, serve):
+    """A native press joins the generated route through the same offer that styles it."""
+    page, errors = open_page(browser, serve(DIFF_PAGE))
+    checkbox = page.locator("#patch .lf-diff-wrap")
+    expect(checkbox).to_be_visible()
+    checkbox.evaluate("node => { node.id = 'soft-wrap'; }")
+
+    page.keyboard.press("g")
+    chip = page.locator(f'{CHIPS}[data-lf-address-for="soft-wrap"]')
+    code = address_code(page, "Control", "soft-wrap")
+    index = chip.evaluate(
+        "node => [...node.parentElement.children]"
+        ".filter(candidate => candidate.dataset.lfAddress).indexOf(node)"
+    )
+    assert index >= 0
+    for _ in range(index + 1):
+        page.keyboard.press("Tab")
+    expect(page.locator(".lf-live")).to_have_text(
+        f"Hint {code}: Control, Soft wrap. Press Enter to go there."
+    )
+    page.keyboard.press("Enter")
+
+    expect(checkbox).to_be_checked()
+    expect(checkbox).to_be_focused()
+    assert errors == []
+    page.close()
+
+
 def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve):
     """A dense visible scene gets one prefix-free namespace with two-letter tails."""
     links = "".join(
@@ -5707,12 +6113,13 @@ def test_a_coarse_pointer_gets_only_active_navigation_context(browser, serve):
 
         page.keyboard.press("a")
         line = page.locator(".lf-shortcut-bar")
-        expect(line).to_be_visible()
-        expect(line.locator(".lf-walk-position")).to_have_text("Ask 1 of 4 open")
-        expect(line.locator(":scope > :visible")).to_have_count(1)
+        expect(line).to_be_hidden()
+        position = page.locator(".lf-walk-position")
+        expect(position).to_have_text("Ask 1 of 4 open")
         active_room = page.evaluate(
             """() => ({
-              height: document.querySelector('.lf-shortcut-bar').getBoundingClientRect().height,
+              height: document.querySelector('.lf-walk-position')
+                .getBoundingClientRect().height,
               reserved: parseFloat(getComputedStyle(
                 document.querySelector('.lf-chrome')).paddingBottom),
             })"""

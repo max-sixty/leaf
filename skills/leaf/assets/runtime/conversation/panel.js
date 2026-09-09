@@ -20,10 +20,11 @@ import { landTyping, mayLandTyping } from "../composing/capture.js";
 import { wireInput } from "../composing/input.js";
 import { showThread } from "./landing.js";
 import { paintDrawings, validDrawing } from "../composing/drawing.js";
+import { registerArrangement } from "../reading-regions.js";
 
 export const panel = el("dialog", "lf-ui lf-panel");
 panel.id = "lf-threads";
-const panelHead = el("div", "lf-panel-head");
+export const panelHead = el("div", "lf-panel-head");
 export const closeBtn = el("button", "lf-btn lf-icon-action lf-close-action");
 closeBtn.append(iconElement("cross", "lf-action-icon"));
 closeBtn.title = "Close threads (Esc)";
@@ -32,7 +33,7 @@ closeBtn.setAttribute("aria-label", "Close threads");
 // it is showing instead the moment a narrowing stands. One slot, because they are one
 // fact — how much of the log is in front of the reader — and a count in a second place
 // is a count free to disagree with the list under it.
-export const panelTitle = el("span", "", "Threads");
+export const panelTitle = el("span", "lf-panel-title", "Threads");
 panelHead.append(panelTitle, closeBtn);
 
 // Narrowing the list, which is the panel's own view and not the page's state: neither
@@ -82,6 +83,17 @@ generalRow.append(generalInput, generalSend);
 export const panelFoot = el("div", "lf-panel-foot");
 panelFoot.append(generalRow);
 panel.append(panelHead, findRow, threadsBox, panelFoot);
+
+let readingArrangement = null;
+export function mountPanelReadingRegion() {
+  if (readingArrangement) return;
+  readingArrangement = registerArrangement({
+    owner: panel,
+    content: panel,
+    regions: [{ id: "lf-threads", host: panel, body: threadsBox }],
+  });
+  void readingArrangement.setPosture("bounded");
+}
 
 closeBtn.onclick = () => setPanel(false);
 

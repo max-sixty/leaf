@@ -93,10 +93,15 @@ its ephemeral iframe URL is not a durable browser handoff. A successful
 
 ## Same-task delivery
 
-One detached adapter watches every page this task owns. The first input after a
-turn ends opens a delivery epoch and queues one new user turn in this same task.
-Later input joins that epoch until the turn which processes it ends. Starting the
-command again for another page adds that page to the same task-wide watch.
+Treat a `leaf-delivery` as input from a page that has already been presented.
+Read and process the payload it names; do not call `leaf_present` or repeat the
+first-handoff ceremony.
+
+One detached adapter watches every page this task owns. It collects available input
+into one delivery, freezes that delivery, and queues its pointer as a new user turn
+in this same task. Input collected after the freeze belongs to the next delivery.
+Starting the command again for another page adds that page to the same task-wide
+watch.
 
 The App Server's queue service starts that later turn, while the connected Codex
 client remains the interactive client for approvals and user input. A completed turn
@@ -107,35 +112,19 @@ until Codex reopens it; without live activity the adapter never resumes the task
 App Server live activity it resumes only to subscribe and never answers client
 requests on the user's behalf. The small queued message is a `leaf-delivery` XML
 element shown as one line in a code block. It names the `$leaf` skill and its `path`
-points to the persisted epoch. Read that file and process every entry in `batches`; each
+points to the persisted delivery. Read that file and process every entry in `batches`; each
 carries its `page`, current `url`, `threads`, `handling`, and exact `events`, the
 same readings a direct wait prints. Do not wait or acknowledge: the adapter owns
-both. If a retry arrives after that path was completed, read the same filename
-under its sibling `history/`. The same delivery id may return after more input
-joined its active turn, so reread the payload and treat a page-and-sequence pair
-already handled in this task as a retry, even when a later delivery also holds
-newer events.
+both. The payload path is permanent. The same delivery id may return after an
+uncertain queue response, so treat a page-and-sequence pair already handled in this
+task as a retry. Queue acceptance records **Queued** activity. The adapter owns
+`leaf wait` and `leaf ack`; the task owns replies, revisions, page status, and the
+handoff back to `waiting` or `idle`.
 
-Input arriving while the turn is active adds a batch to that same payload and
-creates no queued message. The prompt and Stop hooks carry its pointer into the
-routing turn. Queue acceptance records **Queued** activity; the prompt hook that
-opens the task records those same events as **Picked up** in that exact turn, so
-the browser reports **handling** without depending on a later status command. If
-another prompt opens the task before the pending queue command
-runs, that hook supplies the pointer and cancels the redundant queue item. Stop
-offers any batches newer than the accepted queue snapshot. A pointer supplied only
-by the prompt hook is offered again at Stop because that hook has no delivery
-receipt. After Stop supplies a pointer, its next acknowledged invocation closes the
-epoch unless a newer batch arrived. The adapter owns `leaf wait` and `leaf ack`;
-the task owns replies, revisions, page status, and the handoff back to `waiting` or
-`idle`. If an active turn produces no later hook for fifteen minutes, the adapter
-queues the same epoch pointer; a legitimately long turn can therefore receive a
-duplicate wake.
-
-Once an epoch is both closed and fully receipted, the adapter moves it into the
-delivery directory's `history/` subdirectory. This retains the durable record without
-reparsing completed batch contents on every idle watch pass. A duplicate queued
-pointer resolves its id there after the original turn has completed.
+The immutable payload and mutable queue record are separate files. Once a delivery
+is accepted and fully receipted, the adapter moves only its queue record into the
+delivery directory's `history/` subdirectory. The path already handed to Codex keeps
+naming the immutable payload, while completed transport state leaves the hot scan.
 
 If `leaf codex start` refuses to start, do not finish over a live page. Follow its
 diagnostic: an existing foreground `leaf wait` must be stopped before the adapter

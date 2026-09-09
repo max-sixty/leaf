@@ -1,14 +1,21 @@
 ---
 name: leaf
-description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate. Use for “explain this in HTML,” “write up the findings,” “show me the options,” or work whose progress or review belongs in a shared page.
+description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes reader input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” work whose progress or review belongs in a shared page, or a `leaf-delivery` message.
 allowed-tools:
   - Bash(leaf:*)
   - Bash(jq:*)
 ---
 
-Present the session's subject as a live HTML page. The user comments on exact
-passages, acts through the page's widgets, and follows revisions in place. With
-no subject in `$ARGUMENTS`, use the work already under discussion.
+If the input is a `leaf-delivery` element, this is a continuation of an existing
+page, not a request to present a new one. Read its payload, then read
+`references/host-codex.md`, `references/event-batches.md`, and, for reader
+messages, `references/conversation-threads.md`. Process every delivered event
+through the page and its Leaf CLI. Do not call `leaf_present`, initialize a page,
+or hand the page over again in response to the delivery pointer.
+
+Otherwise, present the session's subject as a live HTML page. The user comments
+on exact passages, acts through the page's widgets, and follows revisions in
+place. With no subject in `$ARGUMENTS`, use the work already under discussion.
 
 Leaf's writing guidance supplies defaults only; any user-specific guidance on
 tone, structure, depth, or format takes precedence.
@@ -87,7 +94,7 @@ disclosures keep supporting detail available without putting it in that path. A
 quick-answer page puts its first Ask in the initial viewport, with the short
 shared premise and alternatives it needs. A record or system page may expose the
 whole state and put each Ask where that state makes it answerable. The visible
-page follows the subject's shape rather than a report outline;
+page follows the subject's shape, whether a scrolling document or a workspace;
 `references/page-authoring.md` owns the concrete choices.
 
 A page states what is true now, not how it got there. Correct a wrong figure in

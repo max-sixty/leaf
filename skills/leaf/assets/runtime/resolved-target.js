@@ -25,6 +25,8 @@ export const targetElement = (resolved) =>
 export const targetSegments = (resolved) =>
   resolved?.kind === "passage" ? resolved.segments : [];
 
+export const targetPlace = (resolved) => resolved?.place ?? null;
+
 export const targetSurface = (resolved) =>
   resolved?.kind === "element" ? resolved.surface : null;
 

@@ -1,26 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const agents = vi.hoisted(() => ({
-  apiKeys: [] as string[],
-  run: vi.fn(),
-}));
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@cloudflare/containers", () => ({
   Container: class {},
+  ContainerProxy: class {},
   getContainer: vi.fn(),
-}));
-vi.mock("@openai/agents-core", () => ({
-  Agent: class {},
-  Runner: class {
-    run = agents.run;
-  },
-}));
-vi.mock("@openai/agents-openai", () => ({
-  OpenAIProvider: class {
-    constructor(options: { apiKey: string }) {
-      agents.apiKeys.push(options.apiKey);
-    }
-  },
 }));
 
 import { getContainer } from "@cloudflare/containers";
@@ -122,9 +105,9 @@ describe("product-site delivery", () => {
       new Response("unavailable", { status: 503 }),
     );
 
-    await expect(
-      worker.fetch(new Request("https://leaf.page/"), env),
-    ).rejects.toThrow("site manifest returned 503");
+    await expect(worker.fetch(new Request("https://leaf.page/"), env)).rejects.toThrow(
+      "site manifest returned 503",
+    );
     const response = await worker.fetch(new Request("https://leaf.page/"), env);
 
     expect(response.status).toBe(404);
@@ -210,9 +193,7 @@ describe("product-site delivery", () => {
     });
 
     const response = await worker.fetch(
-      new Request(
-        "https://leaf.page/examples/design-decision/runtime/state-feed.js",
-      ),
+      new Request("https://leaf.page/examples/design-decision/runtime/state-feed.js"),
       env,
     );
 
@@ -225,9 +206,7 @@ describe("product-site delivery", () => {
 
   it("identifies a fresh historical document without allocating its session", async () => {
     const response = await worker.fetch(
-      new Request(
-        "https://leaf.page/examples/design-decision/versions/v1.html",
-      ),
+      new Request("https://leaf.page/examples/design-decision/versions/v1.html"),
       environment({
         ASSETS: {
           fetch: async () =>
@@ -245,10 +224,11 @@ describe("product-site delivery", () => {
   });
 
   it("maps a release-addressed module graph to immutable edge assets", async () => {
-    const assetFetch = vi.fn(async () =>
-      new Response("export {};", {
-        headers: { "Content-Type": "application/javascript" },
-      }),
+    const assetFetch = vi.fn(
+      async () =>
+        new Response("export {};", {
+          headers: { "Content-Type": "application/javascript" },
+        }),
     );
     const env = environment({
       ASSETS: { fetch: assetFetch } as unknown as Fetcher,
@@ -302,16 +282,11 @@ describe("product-site delivery", () => {
     expect(waitUntil).toHaveBeenCalledWith(started);
   });
 
-  it.each([
-    "/media/upload.png",
-    "/examples/design-decision/media/upload.png",
-  ])(
+  it.each(["/media/upload.png", "/examples/design-decision/media/upload.png"])(
     "falls back to the reader's container for uploaded media at %s",
     async (pathname) => {
       const sessionId = "08".repeat(16);
-      const assetFetch = vi.fn(
-        async () => new Response("not found", { status: 404 }),
-      );
+      const assetFetch = vi.fn(async () => new Response("not found", { status: 404 }));
       const containerFetch = vi.fn(
         async () =>
           new Response(new Uint8Array([1, 2, 3]), {
@@ -346,9 +321,7 @@ describe("product-site delivery", () => {
     });
     const assetFetch = vi.fn(async () => media);
     const response = await worker.fetch(
-      new Request(
-        "https://leaf.page/examples/design-decision/media/published.png",
-      ),
+      new Request("https://leaf.page/examples/design-decision/media/published.png"),
       environment({
         ASSETS: { fetch: assetFetch } as unknown as Fetcher,
       }),
@@ -521,10 +494,9 @@ describe("product-site delivery", () => {
         "__Host-leaf-container=1; Path=/; Secure; HttpOnly; SameSite=Lax",
       );
 
-      const documentResponse = new Response(
-        "<!doctype html><title>Container</title>",
-        { headers: { "Content-Type": "text/html; charset=utf-8" } },
-      );
+      const documentResponse = new Response("<!doctype html><title>Container</title>", {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
       containerFetch.mockResolvedValue(documentResponse);
       const document = await worker.fetch(
         new Request(`https://leaf.page${documentPath}`, {
@@ -593,9 +565,78 @@ describe("product-site delivery", () => {
 });
 
 describe("website page agent", () => {
-  beforeEach(() => {
-    agents.apiKeys.length = 0;
-    agents.run.mockReset();
+  it("keeps the OpenAI secret in the trusted outbound handler", async () => {
+    const env = environment();
+    const session = new LeafWebsiteSession({} as never, env);
+
+    expect(session.enableInternet).toBe(false);
+    expect(session.interceptHttps).toBe(true);
+    expect(session.allowedHosts).toEqual(["api.openai.com"]);
+    expect(session.envVars).toMatchObject({
+      LEAF_AGENT: "Leaf guide",
+      OPENAI_API_KEY: "leaf-outbound-proxy",
+      CODEX_CA_CERTIFICATE:
+        "/etc/cloudflare/certs/cloudflare-containers-ca.crt",
+    });
+
+    const upstream = vi.fn(async () => new Response("ok"));
+    vi.stubGlobal("fetch", upstream);
+    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
+    const context = {
+      containerId: "reader-container",
+      className: "LeafWebsiteSession",
+    };
+    const response = await handler(
+      new Request("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: { Authorization: "Bearer leaf-outbound-proxy" },
+        body: "{}",
+      }),
+      env,
+      context,
+    );
+
+    expect(await response.text()).toBe("ok");
+    expect(env.SOURCE_AGENT_RATE_LIMITER.limit).toHaveBeenCalledWith({
+      key: "model:reader-container",
+    });
+    const forwarded = upstream.mock.calls[0][0];
+    expect(forwarded.headers.get("Authorization")).toBe("Bearer test-key");
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects other uses of the credential-injecting route", async () => {
+    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
+    const response = await handler(
+      new Request("https://api.openai.com/v1/files", { method: "POST" }),
+      environment(),
+      { containerId: "reader-container", className: "LeafWebsiteSession" },
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  it("caps model calls from one reader container", async () => {
+    const denied = {
+      limit: vi.fn(async () => ({ success: false })),
+    } as unknown as RateLimit;
+    const env = environment({ SOURCE_AGENT_RATE_LIMITER: denied });
+    const upstream = vi.fn(async () => new Response("ok"));
+    vi.stubGlobal("fetch", upstream);
+    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
+
+    const response = await handler(
+      new Request("https://api.openai.com/v1/responses", {
+        method: "POST",
+        body: "{}",
+      }),
+      env,
+      { containerId: "reader-container", className: "LeafWebsiteSession" },
+    );
+
+    expect(response.status).toBe(429);
+    expect(upstream).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 
   it("never exposes the container's agent routes on the public origin", async () => {
@@ -820,7 +861,7 @@ describe("website page agent", () => {
     expect(restart).toHaveBeenCalledOnce();
   });
 
-  it("runs the model outside the container and appends through Leaf", async () => {
+  it("starts the page's hosted Codex task inside its container", async () => {
     const params = {
       sessionId: "03".repeat(16),
       route: "/examples/design-decision",
@@ -829,11 +870,9 @@ describe("website page agent", () => {
     };
     const containerFetch = vi
       .fn()
+      .mockResolvedValueOnce(Response.json({ status: "ready" }))
       .mockResolvedValueOnce(
-        Response.json({ status: "ready", turn: { reply_to: params.eventId } }),
-      )
-      .mockResolvedValueOnce(
-        Response.json({ status: "appended", event: "05".repeat(16) }),
+        Response.json({ status: "started", thread: "codex-thread" }),
       );
     vi.mocked(getContainer).mockReturnValue({
       fetch: containerFetch,
@@ -841,29 +880,19 @@ describe("website page agent", () => {
     const step = {
       do: vi.fn(async (_name, _config, callback) => callback()),
     };
-    agents.run.mockResolvedValueOnce({ finalOutput: " A reply. " });
-
     const result = await runAgentWorkflow(environment(), params, step as never);
 
-    expect(result).toEqual({ status: "appended", event: "05".repeat(16) });
+    expect(result).toEqual({ status: "started", thread: "codex-thread" });
     expect(step.do.mock.calls.map(([name]) => name)).toEqual([
       "read turn",
       "reserve model capacity",
-      "generate reply",
-      "append reply",
+      "start Codex task",
     ]);
-    expect(agents.apiKeys).toEqual(["test-key"]);
-    expect(agents.run).toHaveBeenCalledWith(
-      expect.anything(),
-      JSON.stringify({ reply_to: params.eventId }),
-      { maxTurns: 1 },
-    );
     expect(await containerFetch.mock.calls[0][0].json()).toEqual({
       event: params.eventId,
     });
     expect(await containerFetch.mock.calls[1][0].json()).toEqual({
       event: params.eventId,
-      text: "A reply.",
     });
     expect(
       containerFetch.mock.calls.some(([request]) =>
@@ -872,7 +901,30 @@ describe("website page agent", () => {
     ).toBe(false);
   });
 
-  it("settles an over-limit turn without calling the model", async () => {
+  it("leaves later events to the page's standing Codex carrier", async () => {
+    const params = {
+      sessionId: "21".repeat(16),
+      route: "/examples/design-decision",
+      eventId: "22".repeat(16),
+      sourceId: "203.0.113.4",
+    };
+    const containerFetch = vi.fn(async () =>
+      Response.json({ status: "connected", thread: "codex-thread" }),
+    );
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const env = environment();
+    const step = {
+      do: vi.fn(async (_name, _config, callback) => callback()),
+    };
+
+    const result = await runAgentWorkflow(env, params, step as never);
+
+    expect(result).toEqual({ status: "connected", thread: "codex-thread" });
+    expect(step.do.mock.calls.map(([name]) => name)).toEqual(["read turn"]);
+    expect(env.SOURCE_AGENT_RATE_LIMITER.limit).not.toHaveBeenCalled();
+  });
+
+  it("settles an over-limit task start visibly", async () => {
     const params = {
       sessionId: "13".repeat(16),
       route: "/examples/design-decision",
@@ -881,9 +933,7 @@ describe("website page agent", () => {
     };
     const containerFetch = vi
       .fn()
-      .mockResolvedValueOnce(
-        Response.json({ status: "ready", turn: { reply_to: params.eventId } }),
-      )
+      .mockResolvedValueOnce(Response.json({ status: "ready" }))
       .mockResolvedValueOnce(
         Response.json({ status: "appended", event: "15".repeat(16) }),
       );
@@ -901,7 +951,6 @@ describe("website page agent", () => {
     expect(result).toEqual({ status: "appended", event: "15".repeat(16) });
     expect(deny).toHaveBeenCalledOnce();
     expect(deny).toHaveBeenCalledWith({ key: params.sourceId });
-    expect(agents.run).not.toHaveBeenCalled();
     expect(step.do.mock.calls.map(([name]) => name)).toEqual([
       "read turn",
       "reserve model capacity",
@@ -913,7 +962,7 @@ describe("website page agent", () => {
     });
   });
 
-  it("settles a turn visibly after generation exhausts its retries", async () => {
+  it("settles a turn visibly after Codex startup exhausts its retries", async () => {
     const params = {
       sessionId: "08".repeat(16),
       route: "/examples/design-decision",
@@ -922,16 +971,14 @@ describe("website page agent", () => {
     };
     const containerFetch = vi
       .fn()
-      .mockResolvedValueOnce(
-        Response.json({ status: "ready", turn: { reply_to: params.eventId } }),
-      )
+      .mockResolvedValueOnce(Response.json({ status: "ready" }))
       .mockResolvedValueOnce(
         Response.json({ status: "appended", event: "10".repeat(16) }),
       );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
     const step = {
       do: vi.fn(async (name, _config, callback) => {
-        if (name === "generate reply") throw new Error("model unavailable");
+        if (name === "start Codex task") throw new Error("Codex unavailable");
         return callback();
       }),
     };
@@ -942,8 +989,8 @@ describe("website page agent", () => {
     expect(step.do.mock.calls.map(([name]) => name)).toEqual([
       "read turn",
       "reserve model capacity",
-      "generate reply",
-      "append generation failure",
+      "start Codex task",
+      "append startup failure",
     ]);
     expect(await containerFetch.mock.calls[1][0].json()).toEqual({
       event: params.eventId,

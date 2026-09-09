@@ -463,21 +463,21 @@ body.lf-drawing main,
 body.lf-drawing main * { cursor: crosshair !important; }
 body.lf-drawing main .lf-conversation,
 body.lf-drawing main .lf-conversation * { cursor: auto !important; }
-/* Element annotations are hollow contours. Unlike a text highlight, an element mark
+/* Element feedback is one hollow contour. Unlike a text highlight, an element mark
    is projected above everything the target draws, so any interior paint can obscure
    the target's own words or picture. The target painter keeps this contour above those
-   descendants; these declarations are the no-JS/export fallback. */
-.lf-mark-el { outline: 1px solid var(--mark-ink); outline-offset: -1px;
-  cursor: pointer; }
-/* A standing reaction uses the same complete contour, dashed. No hand, since nothing
-   opens on a press here: the glyph in the margin is the control. */
-.lf-react-el { outline: 1px dashed var(--mark-ink); outline-offset: -1px; }
+   descendants; these declarations are the no-JS/export fallback. A reaction and a
+   comment share the contour because it locates feedback rather than naming its kind;
+   the margin control carries that distinction. */
+:is(.lf-mark-el, .lf-react-el) {
+  outline: 1px solid var(--mark-ink); outline-offset: -1px; }
+.lf-mark-el { cursor: pointer; }
 /* A copy carries the wash as a <mark> the export wrote into the words, the highlight
    registry being script state no file can hold (BAKE). It carries the line with it: the
    wash alone is 1.08:1 over the light paper, and a copy is the one place the reader
    cannot hover the words to find out whether anything is there. */
 html.lf-copy mark.lf-react { background: var(--react); color: inherit;
-  text-decoration: underline 2px dashed var(--mark-ink); text-underline-offset: 3px; }
+  text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
 /* The glyphs of the reactions standing on a target — a margin element per reaction, the margin element
    being the reaction's own eraser (anchors.js seatReactions). This is an unpositioned
    contribution: the living margin joins it to the target's other RHS controls and
@@ -489,9 +489,11 @@ html.lf-copy mark.lf-react { background: var(--react); color: inherit;
    the two states never contend on one element. */
 .lf-mark-el.lf-pending { outline: 2px solid var(--accent); outline-offset: -2px;
   cursor: auto; }
-/* Hover adds weight without changing the mark's box. Keyboard focus is the distinct
-   state that earns a complete outer ring. */
-.lf-mark-el.lf-mark-hover { outline-width: 2px; outline-offset: -2px; }
+/* Hover and the current thread use one accent contour. A press can temporarily move
+   focus from the thread to the page; keeping hover visually equivalent means that
+   ordinary pointer transition does not make selection flicker. Keyboard focus is the
+   distinct state that earns a complete outer ring. */
+.lf-mark-el.lf-mark-hover { outline: 2px solid var(--accent); outline-offset: -2px; }
 .lf-mark-el:not(.lf-projected-mark):is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring);
   --lf-here-ring: passage-focus; outline-offset: 2px; }
@@ -1589,29 +1591,27 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     stroke: var(--accent); }
   .lf-visual-mark { position: absolute; display: none; pointer-events: none;
     --lf-shape-ink: var(--mark-ink); --lf-shape-stroke: 1px;
-    --lf-shape-dash: none;
     border: 1px solid var(--mark-ink);
     /* This layer is above the target's children. Keep its interior physically unable
        to paint over them, including under package and page-local theme rules. */
     background: none !important; }
-  .lf-visual-mark.lf-visual-mark-reaction {
-    --lf-shape-dash: 3px 2px; border-style: dashed; }
   .lf-visual-mark.lf-visual-mark-pending {
     --lf-shape-stroke: var(--here-ring-w);
     border: var(--here-ring-w) solid var(--accent); }
   .lf-visual-mark.lf-visual-mark-action {
     --lf-shape-ink: var(--accent); border: 1px solid var(--accent); }
   .lf-visual-mark.lf-visual-mark-hover {
-    border-width: var(--here-ring-w); }
+    border: var(--here-ring-w) solid var(--accent); }
   .lf-visual-mark.lf-visual-mark-focus {
     --lf-shape-ink: var(--accent); border: var(--here-ring-w) solid var(--accent); }
   .lf-visual-mark:is(.lf-visual-mark-hover, .lf-visual-mark-focus,
       .lf-visual-mark-here) {
     --lf-shape-stroke: var(--here-ring-w); }
-  .lf-visual-mark:is(.lf-visual-mark-pending, .lf-visual-mark-here) {
+  .lf-visual-mark:is(.lf-visual-mark-pending, .lf-visual-mark-hover,
+      .lf-visual-mark-here) {
     --lf-shape-ink: var(--accent); }
   .lf-visual-mark.lf-visual-mark-here {
-    --lf-shape-dash: none; border: var(--here-ring-w) solid var(--accent); }
+    border: var(--here-ring-w) solid var(--accent); }
   .lf-visual-mark.lf-shaped { border: 0; border-radius: 0 !important; }
   .lf-visual-mark-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
   .lf-composer { display: none; }
@@ -1779,17 +1779,18 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     .lf-page-map-action:focus-visible {
       outline: 2px solid Highlight; }
   }
-  /* The shortcut bar is a compact status line: transient Ask or Thread position first,
-     then two contextual hints and the More control rendered from the register the
-     dispatcher walks (see the module docstring). A sequence shows its whole live scope;
-     More unfolds the remaining current register before it opens the complete reference.
-     Position and hints are the eye's copy of facts spoken elsewhere and stay aria-hidden;
-     More is a real control.
+  /* The shortcut bar gives two contextual hints and the More control rendered from the
+     register the dispatcher walks (see the module docstring). A sequence shows its whole
+     live scope; More unfolds the remaining current register before it opens the complete reference.
+     Hints are the eye's copy of facts spoken elsewhere and stay aria-hidden; More is a
+     real control. A category walk's position stands separately on the opposite edge.
      syncLayout keeps the line out of a side-by-side thread panel and, over a covering
      panel, lifts it only when its rendered box actually meets the panel foot. The
-     chrome root reserves the line's whole footprint — the band from its top to the foot
-     of the window — so the document's last lines never end under it. Overflow remains
-     a backstop for a window too narrow to hold even the short line. */
+     readout joins the header of an open conversation surface because that surface can
+     paint above sibling chrome; on the page it keeps the opposite keyline. The
+     chrome root reserves the deepest fixed bottom surface crossing each scroll region,
+     so its last lines never end underneath one. Overflow remains a backstop for a window
+     too narrow to hold even the short line. */
   .lf-shortcut-bar { position: fixed; left: calc(18px + var(--lf-safe-left));
     bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
     display: flex; gap: 12px; align-items: baseline;
@@ -1801,28 +1802,29 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-shortcut-bar[data-lf-wrap="true"] { width: max-content; flex-wrap: wrap;
     row-gap: 6px; align-items: baseline; }
   .lf-shortcut-bar:not(:has(> :not([hidden]))) { display: none; }
-  .lf-walk-position { flex: none; color: var(--ink-2);
-    font-variant-numeric: tabular-nums; }
+  .lf-walk-position { position: fixed; right: calc(18px + var(--lf-safe-right));
+    bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
+    padding: 5px 10px; border: 1px solid var(--rule); border-radius: var(--r);
+    background: var(--card); color: var(--ink-2); font-size: var(--t-5);
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .lf-walk-position[data-lf-boundary] { border-color: var(--accent);
+    background: var(--accent); color: var(--card); }
   .lf-walk-position[hidden] { display: none; }
-  @media (width <= 560px) {
-    .lf-shortcut-bar[data-lf-walk] .lf-walk-position { flex-basis: 100%; }
-  }
+  :is(.lf-panel-head, .lf-margin-preview-head) > .lf-walk-position {
+    position: static; z-index: auto; margin-inline: auto 8px; }
   /* A touch device has no keyboard hints to advertise, so the resting line stands down
      whole rather than shrinking. Every hint on it names a key the reader cannot press,
      and the box they cost stands over the words and the controls of a page whose window
      is the smallest one there is. An attached keyboard can still begin a category walk;
      its position is useful without the hidden hints, so that one reading stands alone.
-     It takes the More control with it, and that is the cost rather than an oversight:
-     More is the only pointer route to the reference, so a tablet with a keyboard
-     attached reaches the reference by the question-mark key.
+     More is the only pointer route to the reference; on a tablet with an attached
+     keyboard the question-mark key remains its route.
      Every reader of the line's box asks whether there is one — syncLayout for the room
      it reserves, targets for how far down the page is reachable, the address chips and
      the floats for what they must not stand on. A zero box is the same state the empty
      line has always had, so none of them is new. */
   @media (pointer: coarse) {
     .lf-shortcut-bar { display: none; }
-    .lf-shortcut-bar[data-lf-walk] { display: flex; }
-    .lf-shortcut-bar[data-lf-walk] > :not(.lf-walk-position) { display: none; }
   }
   .lf-shortcut-bar .lf-key { display: inline-flex; gap: 5px; align-items: baseline; }
   .lf-shortcut-bar .lf-key[hidden] { display: none; }
@@ -1896,7 +1898,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      surface takes over. One inset line survives over both light and dark authored fills
      without changing the page's layout or wrapping its words. */
   .lf-target-match { position: absolute; box-sizing: border-box; pointer-events: none;
-    border-radius: 2px;
     background: color-mix(in srgb, var(--accent) 17%, transparent);
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent); }
   .lf-target-search { position: fixed; z-index: 9080;

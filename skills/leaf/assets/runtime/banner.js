@@ -245,7 +245,7 @@ const publicationWords = (published) => [
     published.kind === "example"
       ? "This is an example on the Leaf website."
       : "This website is a Leaf page."
-  } ${published.agent} replies here, but cannot edit this page. `,
+  } ${published.agent} replies and revises this private copy. `,
   "Install Leaf",
 ];
 

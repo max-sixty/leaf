@@ -296,6 +296,7 @@ import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { landInConversation, showThread } from "./conversation/landing.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
+import { readingRegionFor, shownRegionBounds } from "./reading-regions.js";
 import { commentsEdge, panelIsOpen } from "./chrome-layout.js";
 import { designOn } from "./design.js";
 import { focused, keys, paintHere, paintKeys } from "./keyboard/scopes.js";
@@ -864,10 +865,12 @@ function changePosture() {
 // which way the reader had last crossed 900px. Placed at build, before any of them.
 
 const preview = el("aside", "lf-ui lf-margin-preview");
+export { preview as marginPreview };
 preview.id = "lf-margin-preview";
 preview.setAttribute("popover", "auto");
 preview.setAttribute("role", "dialog");
 const previewHead = el("div", "lf-margin-preview-head");
+export { previewHead as marginPreviewHead };
 const previewTitle = el("strong", "lf-margin-preview-title");
 const previewClose = el(
   "button",
@@ -1333,7 +1336,6 @@ let previewPositionRemeasure = false;
 let previewPositionDismissDetached = false;
 let previewPlacementMetrics = null;
 let previewReferenceSeen = false;
-let previewReferenceScrollY = 0;
 function schedulePostureRender() {
   if (postureFrame) return;
   postureFrame = requestAnimationFrame(() => {
@@ -1403,23 +1405,23 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
   const controls =
     previewMarginElement.closest("[data-lf-margin-for]") ?? previewMarginElement;
   const target = controls.getBoundingClientRect();
-  const main = document.querySelector("main")?.getBoundingClientRect();
+  const readingRegion = readingRegionFor(previewEntry?.target);
+  const regionBounds = readingRegion && shownRegionBounds(readingRegion);
+  const main = readingRegion
+    ? null
+    : document.querySelector("main")?.getBoundingClientRect();
   const bannerBottom =
     document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
-  const firstTop = bannerBottom + 8;
-  const lastBottom = innerHeight - 8;
   const gap = 8;
+  const firstLeft = regionBounds?.left ?? 0;
+  const lastRight = regionBounds?.right ?? innerWidth;
+  const firstTop = Math.max(regionBounds?.top ?? 0, bannerBottom) + gap;
+  const lastBottom = (regionBounds?.bottom ?? innerHeight) - gap;
   const totalHeight = Math.max(0, lastBottom - firstTop);
   const referenceVisible = target.bottom > firstTop && target.top < lastBottom;
   if (referenceVisible) {
     previewReferenceSeen = true;
-    previewReferenceScrollY = scrollY;
-  } else if (
-    previewReferenceSeen &&
-    dismissDetached &&
-    ((target.bottom <= firstTop && scrollY > previewReferenceScrollY) ||
-      (target.top >= lastBottom && scrollY < previewReferenceScrollY))
-  ) {
+  } else if (previewReferenceSeen && dismissDetached) {
     closePreview();
     return;
   }
@@ -1428,7 +1430,7 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
     previewPlacementMetrics = {
       preferredWidth: Math.min(
         parseFloat(style.getPropertyValue("--thread-card")),
-        innerWidth - 2 * gap,
+        lastRight - firstLeft - 2 * gap,
       ),
       minimumWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
       borderHeight:
@@ -1496,8 +1498,8 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
     overlayHeight <= belowRoom || (overlayHeight > aboveRoom && belowRoom >= aboveRoom);
   const room = below ? belowRoom : aboveRoom;
   const cardHeight = Math.min(overlayHeight, room);
-  const lastLeft = innerWidth - width - gap;
-  const left = clamp(target.right - width, gap, lastLeft);
+  const lastLeft = lastRight - width - gap;
+  const left = clamp(target.right - width, firstLeft + gap, lastLeft);
   const top = below ? belowTop : aboveBottom - cardHeight;
   preview.dataset.lfThreadPlacement = below ? "below" : "above";
   preview.style.setProperty("--lf-thread-width", `${width}px`);
@@ -1809,11 +1811,14 @@ function revealTarget(target, account) {
 function markerOptions(row) {
   return {
     anchor: () => row.lfEntry?.target,
-    ...(row.lfEntry?.offers.length ? {} : { fallback: "hide" }),
+    ...(row.lfEntry?.offers.length || readingRegionFor(row.lfEntry?.target)
+      ? {}
+      : { fallback: "hide" }),
     priority: 10,
     claim: () => {
       const entry = row.lfEntry;
       if (!entry) return 0;
+      if (readingRegionFor(entry.target)) return 0;
       const primary = choosePrimary(entry);
       const stable = [];
       if (primary && entry.offers.some((offered) => offered.claim))
@@ -1858,15 +1863,17 @@ function markerOptions(row) {
     // Compact mode has no page rail. Dock every contributed item even when a
     // positioned widget happens to leave enough local room for the absolute
     // prototype; that accident must not give one nested target a desktop posture.
-    hangs: () => !commentsEdge.over.matches,
+    hangs: () => !readingRegionFor(row.lfEntry?.target) && !commentsEdge.over.matches,
     // A wide row is hoisted into main's positioning context. If its live width no
     // longer fits the rail, move the same node beside its target before static flow
     // takes over; restore the hoist before measuring whether it fits again.
     float: (item) => {
-      if (item.lfEntry?.offers.length) moveExternalHost(item, false);
+      if (item.lfEntry?.offers.length || readingRegionFor(item.lfEntry?.target))
+        moveExternalHost(item, false);
     },
     dock: (item) => {
-      if (item.lfEntry?.offers.length) moveExternalHost(item, true);
+      if (item.lfEntry?.offers.length || readingRegionFor(item.lfEntry?.target))
+        moveExternalHost(item, true);
     },
     place: (item, column) => {
       const target = item.lfEntry?.target;
@@ -2928,7 +2935,7 @@ function renderNow() {
     keeps(host, "aria-label", `Page actions for ${entry.title}`);
     marker.lfEntry = entry;
     const primary = syncControls(host, marker, more, options, entry);
-    if (entry.offers.length) {
+    if (entry.offers.length || readingRegionFor(entry.target)) {
       keeps(host, "data-lf-external", "1");
       const perch = externalPerch(entry.target, main);
       const dock = externalDocks.get(perch) ?? perch;
@@ -2952,7 +2959,7 @@ function renderNow() {
   // already read above and one final scroll height, then write every name together.
   const mainHeight = main?.scrollHeight ?? 0;
   const positions = pageMapEntries.map((entry) =>
-    entry.target && mainRect && mainHeight
+    entry.target && !readingRegionFor(entry.target) && mainRect && mainHeight
       ? Math.round(
           ((entry.target.getBoundingClientRect().top - mainRect.top) / mainHeight) *
             100,

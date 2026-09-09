@@ -17,6 +17,7 @@ import {
   opaquePassageParts,
   opaquePassageRoots,
   verbatimBoundaryIdentity,
+  verbatimOwnerIdentity,
 } from "./passages.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
@@ -35,11 +36,12 @@ import {
    Required widget imports reject through the startup or activation boundary; a missing
    module cannot count as a completed upgrade. */
 // An opaque widget and its original direct children fence passage capture. A
-// preserving widget owns prose around ordered upgraded-child boundaries instead.
-// Record both readings before upgrades move or replace nodes.
+// preserving widget owns prose around ordered upgraded-child boundaries instead. Its
+// pre-upgrade source and occurrence pair the rendered owner with the file even when it
+// has no authored id. Record these readings before upgrades move or replace nodes.
 const rememberedPassageRoots = new WeakSet();
 
-export function rememberPassageParts(scope = document) {
+export function rememberPassageParts(scope = document, source = ["page", null]) {
   for (const tag of tagsDeclaring(
     (entry) => entry["x-upgrade"] && !entry["x-verbatim"],
   ))
@@ -49,20 +51,27 @@ export function rememberPassageParts(scope = document) {
       opaquePassageRoots.add(root);
       for (const child of root.children) opaquePassageParts.add(child);
     }
-  for (const tag of tagsDeclaring((entry) => entry["x-verbatim"]))
-    for (const root of scope.querySelectorAll(tag)) {
-      if (rememberedPassageRoots.has(root)) continue;
-      rememberedPassageRoots.add(root);
-      let index = 0;
-      const visit = (owner) => {
-        for (const child of owner.children) {
-          if (registry[child.localName]?.["x-upgrade"]) {
-            verbatimBoundaryIdentity.set(child, { owner: root, index: index++ });
-          } else visit(child);
-        }
-      };
-      visit(root);
-    }
+  const preserving = [...scope.querySelectorAll("*")].filter(
+    (root) => registry[root.localName]?.["x-verbatim"],
+  );
+  for (const [ownerIndex, root] of preserving.entries()) {
+    if (rememberedPassageRoots.has(root)) continue;
+    rememberedPassageRoots.add(root);
+    const owner = [...source, ownerIndex];
+    verbatimOwnerIdentity.set(root, owner);
+    let boundaryIndex = 0;
+    const visit = (parent) => {
+      for (const child of parent.children) {
+        if (registry[child.localName]?.["x-upgrade"]) {
+          verbatimBoundaryIdentity.set(child, {
+            owner,
+            index: boundaryIndex++,
+          });
+        } else visit(child);
+      }
+    };
+    visit(root);
+  }
 }
 
 // The one import-on-demand door: a page loads the modules its own markup uses and no

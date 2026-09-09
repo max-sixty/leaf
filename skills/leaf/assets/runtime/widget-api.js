@@ -47,6 +47,7 @@ export {
   says,
   textNodesUnder,
   verbatimBoundaryIdentity,
+  verbatimOwnerIdentity,
   wrote,
 } from "./passages.js";
 export { ago, clocked, clockValue, quietSince } from "./presence.js";

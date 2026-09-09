@@ -692,9 +692,11 @@ const SHORTCUT_SHELF = {
 };
 
 // A thread card and the unfolded margin element cluster that owns it are one page-map stack,
-// though the card itself is hoisted into the chrome. This registered rung precedes the
-// reaction and navigation modes just as the surface's old local listener did: Escape
-// closes the card first, then folds the cluster on a second press.
+// though the card itself is hoisted into the chrome. This is a scene-derived fallback:
+// a later keyboard entry returns through its captured frame before this rung. Without
+// one, the registered rung precedes the reaction and navigation fallbacks just as the
+// surface's old local listener did: Escape closes the card first, then folds the cluster
+// on a second press.
 function pageMapRung(atFocus = true) {
   return keyboardRung({ atFocus }) ?? null;
 }
@@ -702,7 +704,7 @@ function pageMapRung(atFocus = true) {
 const PAGE_MAP = {
   title: "In the page map",
   when: () => Boolean(pageMapRung(false)),
-  at: () => Boolean(pageMapRung()),
+  at: () => !current() && Boolean(pageMapRung()),
   rows: [
     {
       id: "margin.back",

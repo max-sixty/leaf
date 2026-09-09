@@ -107,7 +107,7 @@ function buildMsgBody(m) {
       const authored = document.createElement("template");
       authored.innerHTML = m.markup;
       rememberAuthoredParents(authored.content);
-      rememberPassageParts(authored.content);
+      rememberPassageParts(authored.content, ["event", m.id]);
       body.append(authored.content);
     }
     markDeclared(body, MARKED_ANYWHERE);

@@ -146,8 +146,16 @@ function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
 }
 
-function agentWorkflowId({ sessionId, eventId }: AgentWorkflowParams): string {
-  return `reply-${sessionId}-${eventId}`;
+// A support handle, not a credential: it projects the whole random cookie into a short
+// numeric space while leaving 88 bits unknown, and no server door accepts it as identity.
+function sessionReference(sessionId: string): string {
+  return (BigInt(`0x${sessionId}`) % 1_000_000_000_000n)
+    .toString()
+    .padStart(12, "0");
+}
+
+function agentWorkflowId(reference: string, eventId: string): string {
+  return `reply-${reference}-${eventId}`;
 }
 
 function validatedAgentParams(value: unknown): AgentWorkflowParams {
@@ -323,6 +331,7 @@ function recordAcceptedEvent(
   env: Env,
   route: PageRoute,
   release: string,
+  reference: string,
   accepted: AcceptedEvent,
 ): void {
   env.WEBSITE_EVENTS.writeDataPoint({
@@ -333,6 +342,7 @@ function recordAcceptedEvent(
       accepted.event.kind,
       accepted.event.action ?? null,
       release,
+      reference,
     ],
     doubles: [accepted.event.revision ?? 0, accepted.needsReply ? 1 : 0],
   });
@@ -349,8 +359,9 @@ async function resumeFailedWorkflow(env: Env, workflowId: string): Promise<void>
 async function startAgentWorkflow(
   env: Env,
   params: AgentWorkflowParams,
+  reference: string,
 ): Promise<void> {
-  const workflowId = agentWorkflowId(params);
+  const workflowId = agentWorkflowId(reference, params.eventId);
   try {
     await env.AGENT_WORKFLOW.create({ id: workflowId, params });
   } catch (error) {
@@ -414,6 +425,7 @@ async function staticState(
   env: Env,
   manifest: SiteManifest,
   route: PageRoute,
+  reference: string,
 ): Promise<Response> {
   const viewRevision = request.headers.get("Leaf-View-Revision");
   const statePath = viewRevision === null ? route.state : route.states[viewRevision];
@@ -433,6 +445,7 @@ async function staticState(
     "Leaf-Layer": route.layer,
     "Leaf-Release": manifest.release,
     "Leaf-Session": "passive",
+    "Leaf-Session-Reference": reference,
   });
   return Response.json(state, { headers });
 }
@@ -478,13 +491,14 @@ export default {
     const active = activeFromCookie(cookie, secure);
     const containerOnly = containerFromCookie(cookie, secure);
     const sessionId = existing ?? randomSessionId();
+    const reference = sessionReference(sessionId);
     if (
       !active &&
       !containerOnly &&
       request.method === "GET" &&
       route.inside === "api/state"
     ) {
-      return staticState(request, env, manifest, route);
+      return staticState(request, env, manifest, route, reference);
     }
     if (
       (request.method === "GET" || request.method === "HEAD") &&
@@ -506,6 +520,7 @@ export default {
           return response;
         }
         const headers = new Headers(response.headers);
+        headers.set("Leaf-Session-Reference", reference);
         if (existing === null) {
           headers.append("Set-Cookie", sessionCookie(sessionId, secure));
         } else if (active) {
@@ -526,7 +541,7 @@ export default {
     if (postedRequest) {
       const accepted = await acceptedEvent(postedRequest, response);
       if (accepted) {
-        recordAcceptedEvent(env, route, manifest.release, accepted);
+        recordAcceptedEvent(env, route, manifest.release, reference, accepted);
       }
       if (accepted?.needsReply) {
         const sourceId = request.headers.get("CF-Connecting-IP") ?? sessionId;
@@ -536,7 +551,7 @@ export default {
           eventId: accepted.event.id,
           sourceId,
         };
-        await startAgentWorkflow(env, params);
+        await startAgentWorkflow(env, params, reference);
       }
     }
     const requestLayer = request.headers.get("Leaf-Layer");
@@ -561,6 +576,7 @@ export default {
     if (existing !== null && active && !needsContainer && !containerCaughtUp) {
       const headers = new Headers(response.headers);
       headers.set("Leaf-Session", "active");
+      headers.set("Leaf-Session-Reference", reference);
       return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,
@@ -570,6 +586,7 @@ export default {
 
     const headers = new Headers(response.headers);
     headers.set("Leaf-Session", "active");
+    headers.set("Leaf-Session-Reference", reference);
     if (existing === null) {
       headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     }

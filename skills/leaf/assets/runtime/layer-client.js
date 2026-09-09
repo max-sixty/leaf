@@ -89,6 +89,8 @@ sessionChannel?.addEventListener("message", (event) => {
 });
 
 export function observeSession(response) {
+  const reference = response.headers.get("Leaf-Session-Reference");
+  if (/^\d{12}$/.test(reference)) runtime.sessionReference = reference;
   const mode = response.headers.get("Leaf-Session");
   if (mode !== "active" && mode !== "passive") return;
   if (mode === "active") activateSession(true, response.headers.get("Leaf-Server"));

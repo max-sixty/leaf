@@ -41,6 +41,7 @@ widget ids, IP addresses, and session cookies:
 | `blob3` | Event kind |
 | `blob4` | Action verb, when present |
 | `blob5` | Site release id |
+| `blob6` | Public 12-digit session reference shown in the page banner |
 | `double1` | Page revision, or `0` when absent |
 | `double2` | `1` when the event needs an agent reply |
 
@@ -59,9 +60,30 @@ GROUP BY page, kind, action
 ORDER BY events DESC
 ```
 
+The number in the page banner is the direct support lookup key:
+
+```sql
+SELECT timestamp, index1 AS event, blob1 AS page, blob3 AS kind, blob4 AS action
+FROM leaf_website_events
+WHERE blob6 = '239383829012'
+ORDER BY timestamp
+```
+
+For a dispatched agent, use a Cloudflare custom API token scoped to this account with
+only `Account | Account Analytics | Read`; do not give it Workers, DNS, or zone
+permissions. The token can call the
+[Analytics Engine SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/)
+but cannot change the site's domains or deployment. Store that token and the account
+id in the dispatch environment rather than in this repository. That permission can
+read the account's other analytics datasets too; if that is broader than the agent
+should see, put a fixed session-reference lookup endpoint in front of it instead of
+handing the token to the agent.
+
 When Leaf accepts a reader message that its canonical activity projection says needs
-a response, the Worker starts one Cloudflare Workflow keyed by the browser session and
-event id. Its retryable steps ask that reader's container to create or resume one Codex
+a response, the Worker starts one Cloudflare Workflow named with the public session
+reference and event id. The reference also appears in Analytics Engine, so an operator
+can start with the number the reader sees without exposing the private session cookie.
+Its retryable steps ask that reader's container to create or resume one Codex
 App Server task rooted at the actual page directory and deliver the event through
 Leaf's ordinary `leaf-delivery` record. Codex loads the shipped Leaf plugin and uses its
 native filesystem tools, so the hosted task can revise `index.html`, validate it, append

@@ -3,6 +3,7 @@
 import hashlib
 import os
 import secrets
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from leaf.event_log import (
@@ -24,6 +25,11 @@ from leaf.host import (
 )
 from leaf.locations import page_key, paths_same
 from leaf.schema import EVENTS_FILE, STATUS_FILE, WIDGET_KINDS
+
+
+# A repeated live detail carries only liveness. Renew it comfortably before the
+# fifteen-minute activity boundary without turning tool output into file churn.
+STREAM_ACTIVITY_RENEWAL = timedelta(minutes=5)
 
 
 def stream_reply_attempt(turn_id: str) -> str:
@@ -272,12 +278,28 @@ class PageTransaction:
         if status["state"] == "idle":
             return
         stream = dict(status.get("stream") or {})
+        now = now_iso()
+        after = self.events[-1]["seq"] if self.events else 0
+        standing = stream.get("activity")
+        if (
+            standing
+            and (
+                standing["session"],
+                standing["turn"],
+                standing["detail"],
+                standing["after"],
+            )
+            == (session_id, turn_id, detail, after)
+            and datetime.fromisoformat(now) - datetime.fromisoformat(standing["ts"])
+            < STREAM_ACTIVITY_RENEWAL
+        ):
+            return
         stream["activity"] = {
             "session": session_id,
             "turn": turn_id,
             "detail": detail,
-            "ts": now_iso(),
-            "after": self.events[-1]["seq"] if self.events else 0,
+            "ts": now,
+            "after": after,
         }
         status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
@@ -319,7 +341,7 @@ class PageTransaction:
             if standing.get("session") == session_id and standing.get("turn") == turn_id
             else None
         )
-        stream["reply"] = {
+        reply = {
             "session": session_id,
             "turn": turn_id,
             "attempt": stream_reply_attempt(turn_id),
@@ -331,6 +353,9 @@ class PageTransaction:
             "agent": (self.claim or {}).get("agent", "Codex"),
             "ts": timestamp or now_iso(),
         }
+        if standing == reply:
+            return
+        stream["reply"] = reply
         status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
 

@@ -767,6 +767,7 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
         "working",
         "Running the tests",
     )
+
     session_model.cmd_status(claimed, "waiting", "review the result")
     assert page_state(claimed)["activity"]["detail"] == "Running the tests"
 
@@ -778,6 +779,37 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
         "review the result",
     )
     lease.close()
+
+
+def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
+    serving(claimed, 1)
+    session_model.cmd_status(claimed, "waiting", "comment on the page")
+
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.set_stream_activity("s1", "turn-live", "Running the tests")
+    unchanged = (claimed / "status.json").read_bytes()
+
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.set_stream_activity("s1", "turn-live", "Running the tests")
+    assert (claimed / "status.json").read_bytes() == unchanged
+
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.set_stream_activity("s1", "turn-live", "Reviewing the result")
+    changed = (claimed / "status.json").read_bytes()
+    assert changed != unchanged
+    standing = files_model.read_json(claimed / "status.json")["stream"]["activity"]
+    assert standing["detail"] == "Reviewing the result"
+
+    renewed_at = (
+        datetime.fromisoformat(standing["ts"]) + timedelta(minutes=6)
+    ).isoformat()
+    with monkeypatch.context() as patch:
+        patch.setattr(service_model, "now_iso", lambda: renewed_at)
+        with service_model.PageTransaction(claimed) as transaction:
+            transaction.set_stream_activity("s1", "turn-live", "Reviewing the result")
+    assert files_model.read_json(claimed / "status.json")["stream"]["activity"][
+        "ts"
+    ] == renewed_at
 
 
 def test_declared_work_is_not_suppressed_by_an_older_stream_floor(claimed):
@@ -838,6 +870,32 @@ def test_an_active_stream_without_its_adapter_is_presented_as_disconnected(claim
         False,
         "disconnected",
     )
+
+
+def test_stream_reply_writes_only_changed_readings(claimed):
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "Answer this"}
+    )
+
+    def write(text):
+        with service_model.PageTransaction(claimed) as transaction:
+            transaction.set_stream_reply(
+                "s1",
+                "turn-live",
+                comment["id"],
+                comment["id"],
+                "answer",
+                text,
+                "active",
+            )
+
+    write("A partial answer")
+    unchanged = (claimed / "status.json").read_bytes()
+    write("A partial answer")
+    assert (claimed / "status.json").read_bytes() == unchanged
+
+    write("A longer partial answer")
+    assert (claimed / "status.json").read_bytes() != unchanged
 
 
 def test_app_server_events_report_semantic_codex_progress():

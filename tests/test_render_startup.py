@@ -178,6 +178,59 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
         page.close()
 
 
+def test_a_website_example_shows_its_public_session_reference(browser, serve):
+    url = live_url(
+        serve(
+            leaf_page("Website reference", "<h1>Website reference</h1>"),
+            website_publication={
+                "kind": "example",
+                "agent": "Leaf guide",
+                "install_url": "/#install",
+            },
+        )
+    )
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        permissions=["clipboard-read", "clipboard-write"],
+    )
+    page = context.new_page()
+    errors = watched(page)
+
+    def identify(response_route):
+        response = response_route.fetch()
+        response_route.fulfill(
+            response=response,
+            headers={
+                **response.headers,
+                "Leaf-Session-Reference": "239383829012",
+            },
+        )
+
+    page.route("**/api/state*", identify)
+    try:
+        page.goto(url, wait_until="load")
+        page.wait_for_function(BOTH_STAMPS)
+        expect(page.locator(".lf-banner .lf-status-text")).not_to_contain_text(
+            "239383829012"
+        )
+        reference = page.locator(".lf-session-reference")
+        expect(reference).not_to_be_visible()
+        page.get_by_role("button", name="More page addresses", exact=True).click()
+        expect(reference).to_be_visible()
+        expect(reference).to_have_text("Session 239383829012")
+        expect(reference).to_have_accessible_name(
+            "Session 239383829012 · copy reference"
+        )
+        page.set_viewport_size({"width": 390, "height": 844})
+        expect(page.locator(".lf-banner-menu > .lf-session-reference")).to_be_visible()
+        reference.click()
+        expect(page.locator(".lf-notice")).to_have_text("Copied session reference")
+        assert page.evaluate("() => navigator.clipboard.readText()") == "239383829012"
+        assert errors == []
+    finally:
+        context.close()
+
+
 def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     preview = {
         "kind": "example",
@@ -2208,69 +2261,6 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     context.close()
 
 
-def test_overlapping_polls_never_move_the_log_backwards(browser, serve):
-    """Timer polls can overlap when one response is delayed. The append-only event
-    sequence makes the older response unambiguously stale."""
-    delay_second_state = """
-      const nativeFetch = window.fetch.bind(window);
-      let stateCalls = 0;
-      window.fetch = async (...args) => {
-        const input = args[0];
-        const url = typeof input === 'string' ? input : input.url;
-        const response = await nativeFetch(...args);
-        if (new URL(url, location.href).pathname !== '/api/state') return response;
-        stateCalls += 1;
-        if (stateCalls !== 2) return response;
-        const body = await response.text();
-        window.lfDelayedPollCaptured = true;
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        window.lfDelayedPollReleased = true;
-        return new Response(body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers,
-        });
-      };
-    """
-    # open_page's traffic watcher goes on outside this, so what it counts as answered is
-    # what the page was handed — the held poll included, which is the whole subject here.
-    page, errors = open_page(browser, serve(JOURNEY_V1), init_script=delay_second_state)
-    page.get_by_role("button", name=re.compile("^Threads")).click()
-    page.locator(".lf-general textarea").fill("Starts the slow poll")
-    page.locator(".lf-general button").click()
-    round_trip(page)
-    # The second read, which the script above holds. The post's own append would
-    # usually prompt it, but the post's answer can apply first and leave the stream
-    # naming a reading the page already holds; this is a cause of its own.
-    nudge(serve.page_dir)
-    page.wait_for_function("() => window.lfDelayedPollCaptured === true")
-
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "newest-snapshot",
-            "author": "user",
-            "revision": 1,
-            "text": "Newest snapshot stays rendered",
-        },
-    )
-    # A later poll overtakes the held one and renders the newest log.
-    told(page)
-    expect(
-        page.locator(".lf-thread", has_text="Newest snapshot stays rendered")
-    ).to_have_count(1)
-    # Then the stale answer arrives. One more poll after it is what proves the page
-    # handled it and kept the thread, rather than being asked before it ever landed.
-    page.wait_for_function("() => window.lfDelayedPollReleased === true")
-    told(page)
-    expect(
-        page.locator(".lf-thread", has_text="Newest snapshot stays rendered")
-    ).to_have_count(1)
-    assert errors == []
-    page.close()
-
-
 def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serve):
     """Sequence order is judged again after the lazy Markdown import. A newer POST
     response can enter that await before an older held poll; when the shared import
@@ -2400,12 +2390,12 @@ def test_a_hidden_page_releases_its_news_stream_until_it_is_visible(browser, ser
     page.close()
 
 
-def test_the_later_answer_wins_whichever_ask_it_answers(browser, serve):
-    """Two reads cross on two sockets: the earlier ask is answered later, with the
-    newer state. Nothing the log orders tells such answers apart when neither carries
-    a new event — the status is not in the log — and the order the decisions went out in
-    is the wrong order. Each answer says when the server took it, and the page keeps
-    the later one without asking again."""
+def test_status_changes_coalesce_behind_one_state_read(browser, serve):
+    """Rapid status.json writes do not build a queue of state requests.
+
+    The news stream may announce several new readings while the container is still
+    answering one. They collapse into one trailing read, which takes the newest state.
+    """
     page, errors = open_page(browser, serve(LONG_PAGE))
     d = serve.page_dir
     text = page.locator(".lf-status-text")
@@ -2416,40 +2406,32 @@ def test_the_later_answer_wins_whichever_ask_it_answers(browser, serve):
             {"state": "working", "detail": detail, "ts": events_model.now_iso()},
         )
 
-    # Every ask is held; the test answers them by hand, in the order that goes wrong.
+    # Every ask is held; the test answers each admitted read by hand.
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
     with page.expect_request("**/api/state*"):
         declare("first")
+    declare("second")
+    page.wait_for_timeout(500)
+    assert len(held) == 1
+
+    # The admitted read sees the latest file state. The queued news then earns exactly
+    # one follow-up read, not one read per status write.
+    first = held[0]
+    second = first.fetch().json()
     with page.expect_request("**/api/state*"):
-        declare("second")
-    page.wait_for_timeout(0)  # yield from the request event to its route callback
-    # The stream restates its word every few seconds, and each restatement is a decision
-    # while these stay unanswered, so there may be more than two. The first and the
-    # last went out in that order, which is all that is asked of them.
-    assert len(held) >= 2
-    earlier, later = held[0], held[-1]
-    # The later request is answered first; the earlier one after the page moves again.
-    second = later.fetch().json()
-    with page.expect_request("**/api/state*"):
-        declare("third")
-    page.wait_for_timeout(0)
-    stale_request = held[-1]
-    assert stale_request is not later
-    third = earlier.fetch().json()
-    later.fulfill(json=second)
+        first.fulfill(json=second)
     expect(text).to_have_text(re.compile(r"^Claude is working — second"))
-    earlier.fulfill(json=third)
+    assert len(held) == 2
+
+    trailing = held[1]
+    declare("third")
+    page.wait_for_timeout(500)
+    assert len(held) == 2
+    third = trailing.fetch().json()
+    trailing.fulfill(json=third)
     told(page)
     expect(text).to_have_text(re.compile(r"^Claude is working — third"))
-    # And an answer taken before the one the page holds is turned away however late
-    # it lands and whichever request it answers: the third request, answered with the second
-    # answer, must not put the status back.
-    with page.expect_response("**/api/state*"):
-        stale_request.fulfill(json=second)
-    page.title()  # let the stale answer settle before reading the page again
-    expect(text).to_have_text(re.compile(r"^Claude is working — third"))
-    told(page)
     assert errors == []
     page.close()
 

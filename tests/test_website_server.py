@@ -1375,7 +1375,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # A green run reports startup and the post-presentation revision follow separately.
     reported = capsys.readouterr().out
     assert "presented in 28444 ms" in reported
-    assert "followed revision 2 2500 ms later" in reported
+    assert "followed revision 2 2500 ms after presentation" in reported
     assert container.closed
 
     # A reload the container never answered is its own reading, taken before the wait.

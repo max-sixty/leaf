@@ -685,8 +685,11 @@ def verify_agent_turn(browser, release: str) -> None:
     # agent's revision is the activation that read triggers. So the gate spends its own
     # patience on the revision rather than sampling it the instant the page appears — a
     # container that answers a second after the runtime stopped waiting is a reader's page
-    # arriving late, not a deployment that failed to follow the turn. What runs this wait
-    # out is a read that never answered at all, which is the ending the banner below names.
+    # arriving late, not a deployment that failed to follow the turn. This elapsed wait
+    # is the canonical reading of that post-presentation tail: a resource-timing snapshot
+    # taken when the page presents cannot see an `/api/state` request still in flight and
+    # would report zero for the case measured here. What runs this wait out is a read that
+    # never answered at all, which is the ending the banner below names.
     followed_at = time.monotonic()
     try:
         page.wait_for_function(
@@ -737,7 +740,10 @@ def verify_agent_turn(browser, release: str) -> None:
     # time past it before the first read brought the revision back is the read this step
     # fails on. Printing that every deployment is what makes a drift in it visible
     # before it becomes the next timeout.
-    followed = f"followed revision {published['revision']} {followed_in:.0f} ms later"
+    followed = (
+        f"followed revision {published['revision']} "
+        f"{followed_in:.0f} ms after presentation"
+    )
     print(
         f"✓ hosted agent published revision {published['revision']} "
         f"and replied: {answer['text']}"

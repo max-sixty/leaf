@@ -4809,6 +4809,7 @@ RING_WALKS = (
             "ship-review",
         ),
     ),
+    ("the thread list", ("g", "Shift+t"), ("corpus",)),
     ("passage search", ("/",), ("corpus",)),
     # Item hints, and the anchored bar the reader answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -4886,6 +4887,7 @@ def offered(page, selector):
 # surface of their own; `g T` lands on the Threads list, which the walk's own first stop
 # reads, while page `c` enters its comment box and is exercised separately.
 RING_SCOPE_SURFACE = {
+    "the thread list": (".lf-panel.open", None),
     "a thread card": (".lf-margin-preview:popover-open", None),
     "the page map sheet": (".lf-page-map-sheet[open]", None),
     "passage search": (".lf-target-search:not([hidden])", None),
@@ -5023,6 +5025,17 @@ SEEN_STOP = f"""() => {{
        el = el.parentElement ?? el.getRootNode().host ?? null)
     if (shown(el) && (getComputedStyle(el).outlineStyle === 'auto' || named(el)))
       return null;
+  // The scrolling thread list's children can paint over its inset outline. Its frame
+  // therefore carries a later-painted pseudo-element with the same outline. This
+  // relationship is deliberately exact: unrelated paint elsewhere is not evidence
+  // that the focused stop is visible.
+  if (e.parentElement?.matches('.lf-threads-frame')) {{
+    const overlay = getComputedStyle(e.parentElement, '::after');
+    if (overlay.outlineStyle === 'solid'
+        && overlay.outlineWidth === overlay.getPropertyValue('--here-ring-w').trim()
+        && overlay.outlineColor === accent
+        && overlay.getPropertyValue('--lf-here-ring').trim() !== 'none') return null;
+  }}
   if (({HERE_SHADOW})(getComputedStyle(e), accent, mixed) > 0) return null;
   const cls = typeof e.className === 'string' && e.className.trim()
     ? '.' + e.className.trim().split(/\\s+/).join('.') : '';
@@ -5067,6 +5080,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
 
     page.evaluate("""() => {
         const style = document.createElement('style');
+        style.id = 'lf-ring-negative-control';
         style.textContent =
           '.lf-threads-toggle:focus-visible { outline: none !important;'
           + ' box-shadow: none !important; }';
@@ -5077,6 +5091,27 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     assert lost and "lf-threads-toggle" in lost, (
         "the ring was taken off a focused control and the reading still called it seen "
         f"({lost}), so the walk cannot report a stop the reader cannot find"
+    )
+
+    # The thread list's ring is a later-painted pseudo-element because its scrolling
+    # contents can cover an outline on the list itself. Prove that paint is part of the
+    # reading, then take it away without moving focus and require the list to be reported.
+    page.evaluate("() => document.getElementById('lf-ring-negative-control').remove()")
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
+    expect(page.locator(".lf-threads")).to_be_focused()
+    assert page.evaluate(SEEN_STOP) is None
+    page.evaluate("""() => {
+        const style = document.createElement('style');
+        style.textContent = '.lf-threads-frame::after { outline: none !important; }';
+        document.head.append(style);
+    }""")
+    lost = page.evaluate(SEEN_STOP)
+    assert lost and "lf-threads" in lost, (
+        "the list's ring was removed and the reading still called its keyboard "
+        f"landing seen ({lost})"
     )
 
     page.close()

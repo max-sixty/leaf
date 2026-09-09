@@ -689,7 +689,7 @@ class AppServerClient:
             "active",
             settles=(
                 reply["complete"]
-                and reply["phase"] == "final_answer"
+                and reply["phase"] in {"final_answer", None}
                 and bool(reply["text"])
             ),
         )

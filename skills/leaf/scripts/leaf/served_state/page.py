@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from ..acknowledgments import canonical_acknowledgments
-from ..activity import canonical_activity
+from ..activity import canonical_activity, canonical_stream_reply
 from ..data import browser_data
 from ..event_log import now_iso
 from ..events import build_threads
@@ -22,7 +22,7 @@ def project_activity(
     present: dict,
     now: str,
     browser: dict | None,
-    activity_stream: dict | None = None,
+    live_stream: dict | None = None,
 ) -> dict:
     """Project activity with or without a usable vendored browser layer."""
     if browser is not None:
@@ -41,7 +41,10 @@ def project_activity(
         None,
         events=events,
     )
-    return canonical_activity(present, evidence, now, activity_stream)
+    reply = canonical_stream_reply(present, now, (live_stream or {}).get("reply"))
+    return canonical_activity(
+        present, evidence, now, (live_stream or {}).get("activity"), reply
+    )
 
 
 def full_state(
@@ -80,7 +83,7 @@ def full_state(
         present,
         now,
         browser,
-        (live_stream or {}).get("activity"),
+        live_stream,
     )
     try:
         registry = load_registry(page_dir)

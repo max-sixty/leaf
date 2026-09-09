@@ -69,7 +69,9 @@ interaction projection the browser reads; it does not reconstruct threads itself
 For an App Server-backed Leaf turn, a completed final-answer item for the exact
 opened message is enough to let Stop close the turn. The adapter appends that
 answer to the event log when `turn/completed` arrives; requiring the event first
-would prevent the turn from completing.
+would prevent the turn from completing. Canonical activity carries only the
+reply's settlement evidence, not its text, and ages or disconnects that evidence
+by the same lease and working grace the browser uses for the provisional reply.
 When the prompt hook opens a turn, it records a new `opened` transition for its
 acknowledged, unanswered moves. A direct-delivery move that needs a reminder is
 also named in the hook context. A queued Codex move needs no reminder there:

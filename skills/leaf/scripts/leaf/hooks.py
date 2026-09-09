@@ -28,7 +28,7 @@ def _stream_answers(reply: dict | None, obligation: dict, state: dict) -> bool:
         reply
         and reply.get("state") == "active"
         and reply.get("settles")
-        and reply.get("text")
+        and reply.get("has_text")
         and reply.get("session") == state["claim_session"]
         and reply.get("turn") == state["claim_turn"]
         and reply.get("reply_to") == obligation["event"]
@@ -49,7 +49,6 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
             events = read_events(page_dir)
             status = read_json(page_dir / STATUS_FILE)
             state = full_state(page_dir, events, stored_status=status)
-            stream = (status or {}).get("stream") or {}
         except FileNotFoundError:
             continue
         codex = state["host"] == "codex"
@@ -65,7 +64,7 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
         # Queue acceptance belongs to the originating turn, so it is not debt
         # there. The later UserPromptSubmit still opens it below; from that
         # point its ordinary unanswered debt is enforced again.
-        reply = stream.get("reply") if adapter else None
+        reply = state["activity"].get("reply") if adapter else None
         stale = [
             obligation
             for obligation in acknowledged

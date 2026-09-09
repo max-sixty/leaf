@@ -46,6 +46,7 @@ from interact_support import (
     start_through_the_launcher,
     state_json,
 )
+from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import conversation as conversation_model
@@ -831,13 +832,50 @@ def test_an_active_stream_without_its_adapter_is_presented_as_disconnected(claim
             "active",
         )
 
-    [thread] = page_state(claimed)["browser"]["conversation"]["threads"]
+    state = page_state(claimed)
+    [thread] = state["browser"]["conversation"]["threads"]
     draft = thread["msgs"][-1]
     assert (draft["text"], draft["pending"], draft["stream_state"]) == (
         "A partial answer",
         False,
         "disconnected",
     )
+    assert state["activity"]["reply"]["state"] == "disconnected"
+
+
+def test_a_quiet_stream_reply_is_disconnected_everywhere(claimed):
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "Answer this"}
+    )
+    claim = service_model.page_claim(claimed)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, claim)
+    )
+    assert lease
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.set_stream_reply(
+            "s1",
+            "turn-live",
+            comment["id"],
+            comment["id"],
+            "answer",
+            "A completed but abandoned answer",
+            "active",
+            settles=True,
+        )
+    status = files_model.read_json(claimed / "status.json")
+    status["stream"]["reply"]["ts"] = (
+        datetime.now().astimezone()
+        - activity_model.WORKING_GRACE
+        - timedelta(seconds=1)
+    ).isoformat()
+    files_model.write_json(claimed / "status.json", status)
+
+    state = page_state(claimed)
+    [thread] = state["browser"]["conversation"]["threads"]
+    assert state["activity"]["reply"]["state"] == "disconnected"
+    assert thread["msgs"][-1]["stream_state"] == "disconnected"
+    lease.close()
 
 
 def test_app_server_events_report_semantic_codex_progress():
@@ -1213,7 +1251,6 @@ def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
                         "item": {
                             "id": "answer",
                             "type": "agentMessage",
-                            "phase": "final_answer",
                             "text": "",
                         },
                     },
@@ -1274,7 +1311,6 @@ def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
         answer = {
             "id": "answer",
             "type": "agentMessage",
-            "phase": "final_answer",
             "text": "Streaming reply",
         }
         socket.send(
@@ -1343,13 +1379,24 @@ def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
         },
         "turnTrigger": "leaf",
     }
-    [thread] = page_state(page_dir)["browser"]["conversation"]["threads"]
+    state = page_state(page_dir)
+    [thread] = state["browser"]["conversation"]["threads"]
     streamed = thread["msgs"][-1]
     assert (streamed["text"], streamed["pending"], streamed["parent"]) == (
         "Streaming",
         True,
         comment["id"],
     )
+    assert state["activity"]["reply"] == {
+        "state": "active",
+        "session": "codex-thread",
+        "turn": "leaf-turn",
+        "conversation": comment["id"],
+        "reply_to": comment["id"],
+        "settles": False,
+        "has_text": True,
+    }
+    assert state["activity"]["next_transition_at"] is not None
     assert set(files_model.read_json(page_dir / "status.json")["stream"]) == {
         "activity",
         "reply",
@@ -5139,7 +5186,7 @@ def test_only_the_exact_completed_stream_answers_a_stop_obligation():
     reply = {
         "state": "active",
         "settles": True,
-        "text": "The completed final answer",
+        "has_text": True,
         "session": "codex-thread",
         "turn": "leaf-turn",
         "reply_to": "comment-1",
@@ -5150,7 +5197,7 @@ def test_only_the_exact_completed_stream_answers_a_stop_obligation():
     for field, wrong in (
         ("state", "failed"),
         ("settles", False),
-        ("text", ""),
+        ("has_text", False),
         ("session", "another-task"),
         ("turn", "another-turn"),
         ("reply_to", "another-comment"),

@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from ..acknowledgments import canonical_acknowledgments
-from ..activity import canonical_activity
+from ..activity import canonical_activity, canonical_stream_reply
 from ..events import UndoReading, build_threads, taken_back
 from ..files import list_revisions, revision_path
 from ..projection import canonical_updates, page_reading
@@ -37,16 +37,7 @@ def browser_state(
     withdrawn = taken_back(events)
     threads = build_threads(events, active_within, withdrawn=withdrawn)
     undo_reading = UndoReading(events, threads=threads, withdrawn=withdrawn)
-    live_reply = (live_stream or {}).get("reply")
-    if (
-        live_reply is not None
-        and live_reply.get("state") == "active"
-        and (
-            live_reply.get("session") != present.get("claim_session")
-            or not present["listening"]
-        )
-    ):
-        live_reply = {**live_reply, "state": "disconnected"}
+    live_reply = canonical_stream_reply(present, now, (live_stream or {}).get("reply"))
     conversation, conversation_reading = browser_conversation(
         events,
         registry,
@@ -118,7 +109,11 @@ def browser_state(
         "views": views,
         "conversation": conversation,
         "activity": canonical_activity(
-            present, interaction_evidence, now, (live_stream or {}).get("activity")
+            present,
+            interaction_evidence,
+            now,
+            (live_stream or {}).get("activity"),
+            live_reply,
         ),
         "receipts": [event for event in events if event.get("attempt")],
         "version_notes": {

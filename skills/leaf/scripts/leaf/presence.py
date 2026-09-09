@@ -149,7 +149,7 @@ def other_leaves(page_dir: Path) -> list:
                                         raw,
                                         observed_at,
                                         browser,
-                                        (live_stream or {}).get("activity"),
+                                        live_stream,
                                     ),
                                 }
                     except Exception:  # noqa: BLE001 - cache this page's fault

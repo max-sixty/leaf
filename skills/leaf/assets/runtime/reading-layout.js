@@ -13,6 +13,16 @@ const generated = (className) => {
   return node;
 };
 
+const syncRootWorkspace = (owner) => {
+  const main = owner.parentElement;
+  const isRoot =
+    owner.classList.contains("lf-workspace-arranged") &&
+    main?.matches("body > main") &&
+    [...main.children].filter((child) => !child.matches("script, style, template"))
+      .length === 1;
+  owner.toggleAttribute("data-lf-root-workspace", isRoot);
+};
+
 export function arrangeReadingElement({
   owner,
   kind,
@@ -43,6 +53,7 @@ export function arrangeReadingElement({
   footer?.classList.add("lf-arranged-furniture", "lf-arranged-after");
   owner.replaceChildren(...[header, content, footer].filter(Boolean));
   owner.classList.add("lf-arranged", `lf-${kind}-arranged`);
+  syncRootWorkspace(owner);
 
   layoutChanged(owner);
   return { body, content, arrangement };
@@ -63,6 +74,7 @@ export function registerArrangedElement({
       body: region.body ?? body,
     })),
   });
+  syncRootWorkspace(owner);
   layoutChanged(owner);
   return arrangement;
 }

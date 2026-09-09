@@ -324,11 +324,9 @@ customElements.define('lf-studio', class extends HTMLElement {
       this.content = this.querySelector(':scope > .lf-workspace-content');
       this.arrangement = registerArrangedElement({owner: this, content: this.content});
     }
-    const root = this.parentElement?.matches('body > main')
-      && [...this.parentElement.children]
-        .filter(child => !child.matches('script, style, template')).length === 1;
-    this.toggleAttribute('data-lf-root-workspace', root);
-    settle(this.arrangement.setPosture(root ? 'bounded' : 'flow'));
+    settle(this.arrangement.setPosture(
+      this.hasAttribute('data-lf-root-workspace') ? 'bounded' : 'flow'
+    ));
   }
 
   disconnectedCallback() {
@@ -384,6 +382,18 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
           return leaf.readingPosture(owner) === 'bounded';
         }"""
     )
+    studio.evaluate(
+        """owner => {
+          const wrapper = document.createElement('div');
+          owner.parentElement.append(wrapper);
+          wrapper.append(owner);
+        }"""
+    )
+    expect(studio).not_to_have_attribute("data-lf-root-workspace", "")
+    expect(studio).to_have_attribute("data-lf-posture", "flow")
+    studio.evaluate("owner => document.querySelector('main').replaceChildren(owner)")
+    expect(studio).to_have_attribute("data-lf-root-workspace", "")
+    expect(studio).to_have_attribute("data-lf-posture", "bounded")
     assert errors == []
     page.close()
 
@@ -409,6 +419,21 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
     embedded = page.locator("#embedded-studio")
     expect(embedded).not_to_have_attribute("data-lf-root-workspace", "")
     expect(embedded).to_have_attribute("data-lf-posture", "flow")
+    embedded.evaluate(
+        """owner => {
+          owner.setAttribute('data-lf-root-workspace', '');
+          owner.dataset.lfPosture = 'bounded';
+        }"""
+    )
+    assert embedded.evaluate(
+        "owner => owner.classList.contains('lf-workspace-arranged')"
+    )
+    embedded.evaluate(
+        "owner => owner.classList.replace('lf-workspace-arranged', 'lf-pane-arranged')"
+    )
+    assert page.evaluate(
+        "getComputedStyle(document.documentElement).overflowY !== 'hidden'"
+    )
     assert page.evaluate(
         "document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight"
     )

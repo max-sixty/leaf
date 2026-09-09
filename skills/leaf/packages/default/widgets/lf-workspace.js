@@ -15,15 +15,6 @@ const MIN_WORKSPACE_WIDTH = 560;
 const direct = (owner, tag) =>
   [...owner.children].find((child) => child.tagName === tag.toUpperCase()) ?? null;
 
-const isRootWorkspace = (owner) => {
-  const main = owner.parentElement;
-  return (
-    main?.matches("body > main") &&
-    [...main.children].filter((child) => !child.matches("script, style, template"))
-      .length === 1
-  );
-};
-
 const furniture = (owner) => {
   const nodes = [...owner.querySelectorAll(":scope > .lf-arranged-furniture")];
   return {
@@ -154,7 +145,6 @@ customElements.define(
           content: this.#content,
         });
       }
-      this.toggleAttribute("data-lf-root-workspace", isRootWorkspace(this));
       if (!this.hasAttribute("data-lf-root-workspace")) {
         void this.#arrangement.setPosture("flow");
         return;

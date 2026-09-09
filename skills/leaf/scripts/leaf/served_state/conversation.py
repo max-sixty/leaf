@@ -118,6 +118,7 @@ def browser_conversation(
                     "id": f"codex-stream:{live_reply['turn']}",
                     "attempt": live_reply["attempt"],
                     "kind": "reply",
+                    "addressable": False,
                     "author": "claude",
                     "agent": live_reply.get("agent") or "Codex",
                     "parent": live_reply["reply_to"],

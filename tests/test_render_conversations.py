@@ -225,6 +225,7 @@ def test_a_leaf_started_codex_response_streams_into_the_live_thread(
     )
     expect(live.locator(".lf-msg-body")).to_have_text("First words")
     expect(live).to_have_attribute("aria-busy", "true")
+    expect(live.locator(".lf-react-strip")).to_have_count(0)
 
     finish.set()
     assert completed.wait(timeout=5)
@@ -244,6 +245,7 @@ def test_a_leaf_started_codex_response_streams_into_the_live_thread(
     expect(reply.locator(".lf-msg-body")).to_have_text(
         "First words, then the complete answer."
     )
+    expect(reply.locator(".lf-react-strip")).to_have_count(1)
     assert not errors
 
 

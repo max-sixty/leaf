@@ -450,12 +450,7 @@ class AppServerClient:
             maxsize=1
         )
         self.requests.put(({"delivery": delivery, "payload": payload}, answer))
-        try:
-            result = answer.get(timeout=START_TIMEOUT)
-        except queue.Empty as error:
-            raise RuntimeError(
-                "Codex App Server did not start the Leaf turn"
-            ) from error
+        result = answer.get()
         result, error = result
         if error is not None:
             raise RuntimeError(str(error)) from error

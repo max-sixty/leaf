@@ -1065,6 +1065,7 @@ def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, re
 def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
     page_dir, monkeypatch, request
 ):
+    """Streaming notifications cannot make the caller abandon an accepted start."""
     comment = events_model.append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "Can you answer here?"},
@@ -1150,6 +1151,21 @@ def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
                 }
             )
         )
+        time.sleep(0.12)
+        socket.send(
+            json.dumps(
+                {
+                    "method": "item/agentMessage/delta",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turnId": "leaf-turn",
+                        "itemId": "answer",
+                        "delta": "",
+                    },
+                }
+            )
+        )
+        time.sleep(0.12)
         socket.send(
             json.dumps(
                 {
@@ -1217,6 +1233,7 @@ def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
     observer = codex_model.AppServerClient(endpoint, "codex-thread")
     observer.start()
     request.addfinalizer(observer.stop)
+    monkeypatch.setattr(codex_model, "START_TIMEOUT", 0.2)
     payload = {"format": codex_model.DELIVERY_FORMAT, "id": "delivery-1"}
 
     started = observer.start_delivery(

@@ -1279,7 +1279,7 @@ def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
             for event in events_model.read_events(page_dir)
             if event["kind"] == "reply" and event["author"] == "claude"
         ]
-        if replies:
+        if replies and "stream" not in files_model.read_json(page_dir / "status.json"):
             break
         time.sleep(0.01)
     expected_attempt = service_model.stream_reply_attempt("leaf-turn")

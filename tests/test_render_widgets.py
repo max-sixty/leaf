@@ -1868,7 +1868,9 @@ def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
     page, errors = open_page(browser, serve(source))
     resized(page, 1400, 900)
     nav = page.get_by_role("navigation", name="On this page")
+    toc = page.locator("#dense-contents")
 
+    expect(toc).to_have_attribute("data-lf-compact", "")
     nav_box = nav.bounding_box()
     assert nav_box is not None
     assert nav.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
@@ -1905,6 +1907,7 @@ def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
         right["top"] >= left["bottom"] - 1 for left, right in pairwise(label_boxes)
     ), label_boxes
     first = nav.locator("li a").first
+    expect(first).to_have_css("-webkit-line-clamp", "1")
     expect(first).to_have_css("pointer-events", "auto")
     href = first.get_attribute("href")
     first.click()

@@ -1920,13 +1920,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
   .lf-legend-tag { position: absolute; left: -1px; bottom: 100%; max-width: 40vw;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    padding: 0 5px; border-radius: 3px 3px 0 0; font-size: var(--t-6); line-height: 1.5;
+    padding: 0 5px; font-size: var(--t-6); line-height: 1.5;
     background: color-mix(in srgb, var(--accent) 12%, var(--card)); color: var(--accent);
     border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); border-bottom: 0; }
   /* Under the banner there is no room above the box, so the tag sits inside its
      corner instead. */
-  .lf-legend-box.lf-in .lf-legend-tag { bottom: auto; top: 0; border: 0;
-    border-radius: 0 0 3px 0; }
+  .lf-legend-box.lf-in .lf-legend-tag { bottom: auto; top: 0; border: 0; }
   .lf-banner:is(.lf-designing, .lf-drawing) {
     background: color-mix(in srgb, var(--accent) 14%, var(--veil)); }
   /* Document-anchored like the box it names (paintInspect adds the scroll), so the

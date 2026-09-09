@@ -2050,8 +2050,9 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
 def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     browser, serve, long_thread
 ):
-    """Opening a thread by pointer is ready for a reply. Escape explicitly leaves
-    typing; only then does t navigate. The page mark follows both focus modes."""
+    """Pointer arrival opens one layer directly in its reply box. A thread reached by
+    t opens on its card, so c or Enter adds a second layer and Escape returns through
+    each one. The page mark follows both focus modes."""
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
     )
@@ -2102,11 +2103,24 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     assert "reply" in shortcut_bar_text(page)
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to thread")
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
     page.keyboard.press("t")
     expect(second).to_be_focused()
     wait_standing(page, "neighbouring block")
     page.keyboard.press("Enter")
     expect(second.locator("textarea")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(second).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.keyboard.press("Shift+t")
@@ -2120,6 +2134,9 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     # With Threads already open, the same page mark takes the indexed route and keeps
     # the panel's long-thread landing guarantees.
     page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     panel_thread = threads.first

@@ -30,6 +30,52 @@ class _SchemeContext:
     unsettled: list
 
 
+def _verbatim_findings(context: _SchemeContext) -> list[str]:
+    shown = evaluate_probe(
+        context.page,
+        "shownVerbatim",
+        {"widgets": context.widgets, "touched": context.touched},
+    )
+    if not shown:
+        return []
+    expected = {}
+    for event in context.state["events"]:
+        if fragment := event.get("markup"):
+            expected.update(
+                page_passages(
+                    fragment,
+                    context.registry,
+                    source=("event", event["id"]),
+                ).verbatim
+            )
+    expected.update(page_passages(context.markup, context.registry).verbatim)
+    findings = []
+    for reading in shown:
+        provenance = reading["provenance"]
+        key = tuple(provenance) if provenance is not None else None
+        if reading["compositional"] == expected.get(key):
+            continue
+        owner = f"<{reading['tag']}"
+        if reading["id"]:
+            owner += f" id={reading['id']!r}"
+        owner += ">"
+        if provenance is None:
+            where = " without pre-upgrade source provenance"
+        elif provenance[0] == "page":
+            where = f" at page occurrence {provenance[2] + 1}"
+        else:
+            where = (
+                f" at {provenance[0]} {provenance[1]} occurrence {provenance[2] + 1}"
+            )
+        findings.append(
+            f"{owner}{where} declares x-verbatim but shows "
+            f"{reading['says'][:80]!r} with owned structure "
+            f"{reading['compositional']!r} where the file reads "
+            f"{expected.get(key, [])!r}"
+        )
+    return findings
+
+
 def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     page = context.page
     scheme = context.scheme
@@ -67,9 +113,12 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     unnamed_fields = (
         evaluate_probe(page, "unnamedFormFields") if scheme == "light" else []
     )
+    # x-verbatim promises the words this scheme renders. Source provenance was
+    # captured before upgrade, so anonymous page and frozen-message owners have the
+    # same coordinate as the file reading without acquiring authored ids.
+    dishonest_verbatim = _verbatim_findings(context)
     # Replay is scheme-blind, so one scheme's reading covers both.
     conflicts = []
-    dishonest_verbatim = []
     silent = []
     missing_conversations = []
     undeclared_attrs = []
@@ -80,37 +129,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         # deliberately returns none there. Everywhere else, ask the merged registry
         # for the instances and the module's own marker for the host it placed.
         missing_conversations = evaluate_probe(page, "missingConversations", widgets)
-        # x-verbatim honesty: the entry claims its own words and ordered upgraded
-        # descendant boundaries reach the reader. Descendants keep their own render
-        # contracts, so their generated words do not become a claim by this wrapper.
-        # Compared for every instance the log hasn't moved (a decided or rewritten
-        # widget legitimately shows other words). A module that renders
-        # something in the body's stead while the entry still says
-        # verbatim strands quotes on words the screen no longer shows.
-        # Both documents, because a widget an agent sent has words of its
-        # own — in the frozen fragment that carries it, which is the file
-        # side for it exactly as the version is for a page widget. Asked of
-        # the version alone the two sides both read empty and the comparison
-        # passed on the agreement of two blanks; asked of neither, an
-        # x-verbatim widget in a message could render something other than
-        # its own words with nothing saying so, which is the one thing the
-        # declaration promises and the reason a quote may rest on it.
-        shown = evaluate_probe(
-            page, "shownVerbatim", {"widgets": widgets, "touched": touched}
-        )
-        if shown:
-            expected = {}
-            for event in state["events"]:
-                if fragment := event.get("markup"):
-                    expected.update(page_passages(fragment, registry).verbatim)
-            expected.update(page_passages(markup, registry).verbatim)
-            dishonest_verbatim = [
-                f"<{s['tag']} id={s['id']!r}> declares x-verbatim but shows "
-                f"{s['says'][:80]!r} with owned structure {s['compositional']!r} "
-                f"where the file reads {expected.get(s['id'], [])!r}"
-                for s in shown
-                if s["compositional"] != expected.get(s["id"], [])
-            ]
         # Behind the caught-up wait above: a report moves a painted attribute and
         # the pass that speaks it runs before the stamp, so a reading taken any
         # earlier asks after a word the page has not been asked to say yet. A page

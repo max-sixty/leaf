@@ -1007,6 +1007,100 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     )
 
 
+def test_the_render_gate_checks_verbatim_words_in_each_color_scheme(
+    browser, serve, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
+    module.write_text(
+        'import { once } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-callout", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        '    if (matchMedia("(prefers-color-scheme: dark)").matches)\n'
+        '      this.textContent = "Dark replacement.";\n'
+        "  }\n"
+        "});\n"
+    )
+
+    failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+
+    dishonest = [failure for failure in failures if "x-verbatim" in failure]
+    assert len(dishonest) == 1, failures
+    assert dishonest[0].startswith("[dark]"), dishonest
+
+
+def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
+    browser, serve, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    author_test_widget(tmp_path, "lf-shell", upgrade=True)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-shell"]["properties"]["mode"] = {
+        "type": "string",
+        "enum": ["replace"],
+    }
+    entries["lf-shell"]["required"] = []
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
+        'import { once } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-shell", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        '    if (this.getAttribute("mode") === "replace")\n'
+        '      this.textContent = "Replacement words.";\n'
+        "  }\n"
+        "});\n"
+    )
+    page = leaf_page(
+        "anonymous verbatim provenance",
+        """
+<h1>Anonymous owners</h1>
+<lf-shell>First page owner.</lf-shell>
+<lf-shell mode="replace">Second page owner.</lf-shell>
+""",
+    )
+    url = serve(page)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-anonymous",
+            "author": "user",
+            "revision": 1,
+            "text": "Show both owners in your reply.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "id": "r-anonymous",
+            "author": "claude",
+            "parent": "c-anonymous",
+            "revision": 1,
+            "text": "Here they are:",
+            "markup": (
+                "<lf-shell>First reply owner.</lf-shell>"
+                '<lf-shell mode="replace">Second reply owner.</lf-shell>'
+            ),
+        },
+    )
+
+    failures = render_gate_model.render_version(browser, url)
+
+    dishonest = [failure for failure in failures if "x-verbatim" in failure]
+    assert len(dishonest) == 4, failures
+    assert sum("[light]" in failure for failure in dishonest) == 2, dishonest
+    assert sum("[dark]" in failure for failure in dishonest) == 2, dishonest
+    assert sum("page occurrence 2" in failure for failure in dishonest) == 2, dishonest
+    assert (
+        sum("event r-anonymous occurrence 2" in failure for failure in dishonest) == 2
+    ), dishonest
+
+
 def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
     browser, serve, tmp_path, monkeypatch
 ):
@@ -1100,10 +1194,10 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
     )
     failures = render_gate_model.render_version(browser, url)
     dishonest = [failure for failure in failures if "x-verbatim" in failure]
-    assert len(dishonest) == 2, failures
+    assert len(dishonest) == 4, failures
     assert all("honest-shell" not in failure for failure in dishonest)
-    assert any("prose-shell" in failure for failure in dishonest)
-    assert any("order-shell" in failure for failure in dishonest)
+    assert sum("prose-shell" in failure for failure in dishonest) == 2
+    assert sum("order-shell" in failure for failure in dishonest) == 2
 
 
 def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(

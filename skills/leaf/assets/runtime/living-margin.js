@@ -253,7 +253,7 @@ const toolbar = el("div", "lf-margin-toolbar");
 toolbar.setAttribute("role", "toolbar");
 toolbar.setAttribute(
   "aria-label",
-  "Changes, threadList, asks, delivery status, and activity",
+  "Changes, threads, asks, delivery status, and activity",
 );
 nav.append(toolbar);
 

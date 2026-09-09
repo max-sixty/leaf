@@ -289,6 +289,17 @@ def test_closing_the_website_host_stops_its_app_server(tmp_path):
     assert not host.socket_path.exists()
 
 
+def test_closing_a_host_that_started_no_server_preserves_the_shared_socket(tmp_path):
+    """A passive host does not own another host's process-global socket."""
+    socket_path = tmp_path / "app-server.sock"
+    socket_path.touch()
+    host = website_server.WebsiteCodexHost("codex", socket_path)
+
+    host.close()
+
+    assert socket_path.exists()
+
+
 def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
     class Requests:
         def __init__(self):

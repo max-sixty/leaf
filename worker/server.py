@@ -186,14 +186,15 @@ class WebsiteCodexHost:
             self.waiter_leases.clear()
             process = self.process
             self.process = None
-        if process is not None and process.poll() is None:
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
-        self.socket_path.unlink(missing_ok=True)
+        if process is not None:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+            self.socket_path.unlink(missing_ok=True)
 
     def _ensure_server(self) -> subprocess.Popen:
         if self.codex_path is None:

@@ -267,6 +267,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     resized(page, 500, 900)
     workspace = banner_address(page, ".lf-others")
     workspace.click()
+    page.mouse.move(0, page.viewport_size["height"] - 1)
     expect(workspace).to_have_attribute("aria-expanded", "true")
     expect(workspace).to_have_css("background-color", token_colour(page, "--chip"))
     assert errors == []

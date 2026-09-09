@@ -531,12 +531,11 @@ function filterTargets(binding) {
   paintHere();
 }
 
-// An empty active filter is useful state, not a four-second event. Read the current
-// visible set so scrolling or reconciliation can add or remove this status in the same
-// paint that redraws the target map.
+// An empty active filter is useful state, not a four-second event. The candidate map is
+// the reading paintAddresses already owns; using it here keeps the shortcut repaint out
+// of the expensive visibility and hit-test pass.
 export function addressStatus() {
-  if (!sequenceActive || !targetFilter || visibleCandidates(targetFilter).length)
-    return null;
+  if (!sequenceActive || !targetFilter || candidates.length) return null;
   return `No visible ${targetFilter.word}.`;
 }
 
@@ -609,6 +608,7 @@ export function paintAddresses() {
   const detached = candidates.some(({ member }) => !member.isConnected);
   const refreshed =
     !prefix && !scrolling && (refreshCandidates || detached || !candidates.length);
+  const emptyBeforeRefresh = candidates.length === 0;
   if (refreshed) {
     candidates = visibleCandidates(targetFilter);
     hintActive = heard
@@ -619,6 +619,8 @@ export function paintAddresses() {
       : -1;
     refreshCandidates = false;
   }
+  const filterStatusChanged =
+    Boolean(targetFilter) && emptyBeforeRefresh !== (candidates.length === 0);
   const activeCandidate = hinted()[hintActive];
   const placement = addressPlacement();
   const chips = [];
@@ -647,7 +649,7 @@ export function paintAddresses() {
     lineBox: shortcutBarEl.getBoundingClientRect(),
     viewportTop: banner.getBoundingClientRect().bottom,
   });
-  if (wasActive && hintActive < 0) paintHere();
+  if ((wasActive && hintActive < 0) || filterStatusChanged) paintHere();
 }
 // A page that moves under an armed window makes opaque labels temporarily untrustworthy,
 // so the scroll pass hides them and remaps once the scene settles. Capture, because the

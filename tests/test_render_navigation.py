@@ -1513,6 +1513,20 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     expect(
         page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_text(["1", "2"])
+    page.evaluate(
+        """async () => {
+          const [{notice}, {paintHere}] = await Promise.all([
+            import('/runtime/notifications.js'),
+            import('/runtime/keyboard/scopes.js'),
+          ]);
+          notice('Saved — sent');
+          paintHere();
+        }"""
+    )
+    expect(page.locator(".lf-notice")).to_be_visible()
+    expect(
+        page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
     expect(position).to_have_text("Ask 1 of 4 open")
@@ -3331,6 +3345,10 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     expect(page.locator(".lf-live")).to_have_text(
         "1 visible Ask controls; type a hint or press Tab to hear them."
     )
+    expect(page.locator(".lf-notice")).to_be_visible()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-walk-position")).to_have_text("Target 1 of 1")
+    expect(page.locator(".lf-notice")).to_be_hidden()
     page.keyboard.type(ask_code)
     expect(page.locator("#opts-decision")).to_be_focused()
     expect(page.locator("#opts-decision")).to_have_attribute("data-lf-ask", "1")
@@ -3350,18 +3368,45 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         "No visible Ask controls."
     )
     expect(status).to_be_visible()
+    probes = page.evaluate(
+        """async () => {
+          const original = document.elementFromPoint;
+          let calls = 0;
+          document.elementFromPoint = (...args) => {
+            calls += 1;
+            return original.call(document, ...args);
+          };
+          try {
+            (await import('/runtime/keyboard/shortcut-bar.js')).renderLine();
+          } finally {
+            document.elementFromPoint = original;
+          }
+          return calls;
+        }"""
+    )
+    assert probes == 0, "painting the status rescanned the visible target map"
     expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
     page.evaluate(
-        "async () => (await import('/runtime/notifications.js'))"
-        ".notice('Agent replied — open Threads', {background: true})"
+        """async () => {
+          window.__liveChanges = [];
+          new MutationObserver(() => {
+            const words = document.querySelector('.lf-live').textContent;
+            if (words) window.__liveChanges.push(words);
+          }).observe(document.querySelector('.lf-live'), {
+            childList: true,
+            subtree: true,
+          });
+          (await import('/runtime/notifications.js'))
+            .notice('Agent replied — open Threads', {background: true});
+        }"""
     )
+    expect(page.locator(".lf-live")).to_have_text("Agent replied — open Threads")
     assert page.evaluate(
         """() => ({
           context: document.querySelector('.lf-context-status').checkVisibility(),
           notice: document.querySelector('.lf-notice').checkVisibility(),
-          live: document.querySelector('.lf-live').textContent,
         })"""
-    ) == {"context": True, "notice": False, "live": "No visible Ask controls."}
+    ) == {"context": True, "notice": False}
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("d")
     expect(page.locator("body")).to_have_attribute("data-lf-goto", "")
@@ -3378,7 +3423,15 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.keyboard.press("Escape")
     expect(page.locator(CHIPS).first).to_be_visible()
     expect(page.locator(".lf-notice")).to_have_class(re.compile(r"\bshow\b"))
-    expect(page.locator(".lf-live")).to_have_text("Agent replied — open Threads")
+    expect(page.locator(".lf-live")).to_have_text("All go-to targets.")
+    page.wait_for_timeout(100)
+    assert (
+        page.evaluate(
+            "() => window.__liveChanges.filter(words => "
+            "words === 'Agent replied — open Threads').length"
+        )
+        == 1
+    ), "showing deferred news announced it a second time"
     assert status.evaluate(
         "node => getComputedStyle(node).backgroundColor"
     ) != page.locator(".lf-shortcut-bar").evaluate(
@@ -6752,6 +6805,20 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
             "reserved": "0px",
             "moreShown": False,
         }, room
+
+        page.evaluate(
+            """async () => {
+              (await import('/runtime/notifications.js')).notice('Saved — sent');
+              (await import('/runtime/chrome-layout.js')).syncLayout();
+            }"""
+        )
+        expect(page.locator(".lf-notice")).to_be_visible()
+        assert (
+            page.evaluate(
+                "() => getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom"
+            )
+            == "0px"
+        ), "a transient notice reserved document space"
 
         # And the page is still whole underneath. Everything that asks how far down the
         # page reaches asks it of the line's box, and a line with no box answers 0 — the

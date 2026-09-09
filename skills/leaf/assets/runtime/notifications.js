@@ -36,7 +36,6 @@ export function announce(msg) {
 // foot. A sentence that is also a button for four seconds is a target
 // the reader cannot learn.
 function showNotice(msg, background) {
-  announce(msg);
   noticeEl.textContent = msg;
   noticeEl.classList.add("show");
   showingBackground = background;
@@ -56,6 +55,9 @@ function showNotice(msg, background) {
 // while a command can interrupt an arrival and let it return after the acknowledgement.
 // Durable unread state remains on the banner and Threads control throughout.
 export function notice(msg, { background = false } = {}) {
+  // The live region is not the contended surface. Announce at arrival even when the
+  // visual line has to wait, and never announce again when a waiting notice is shown.
+  announce(msg);
   if (
     background &&
     (readerContext ||
@@ -73,8 +75,8 @@ export function notice(msg, { background = false } = {}) {
 // ordinal rather than a timed notice. Hold arriving news for one boundary interval;
 // beginWalk calls this only for gestures, so ordinary repaints never restart the hold.
 export function holdStatus(ms) {
-  if (showingBackground) {
-    waitingBackground = noticeEl.textContent;
+  if (noticeEl.classList.contains("show")) {
+    if (showingBackground) waitingBackground = noticeEl.textContent;
     clearTimeout(noticeTimer);
     noticeTimer = 0;
     noticeEl.classList.remove("show");

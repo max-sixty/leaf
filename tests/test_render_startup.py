@@ -3242,7 +3242,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(page.locator(".lf-panel")).to_be_visible()
     work_line = page.locator(".lf-receipt")
     work_button = page.locator('.lf-margin-reading-option[data-lf-kinds~="activity"]')
-    notice = page.locator(".lf-banner-status .lf-notice")
+    notice = page.locator(".lf-bottom-status .lf-notice")
 
     def claim(claim_ts, session="s"):
         """A page claim made now, carrying local work last renewed whenever."""

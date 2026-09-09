@@ -103,8 +103,25 @@ const boxesOf = (nodes) =>
     .filter((box) => box.height > 0 && box.width > 0);
 
 // Fixed boxes that generated addresses and target hints must not cover. The bottom-only
-// subset also bounds composers and reserves the document's foot.
-export const bottomChromeBoxes = () => boxesOf([shortcutBarEl, bottomStatusEl]);
+// subset also bounds composers and reserves the document's foot. A transient notice
+// alone does not change page geometry; over a standing walk or command context it keeps
+// that surface's last stable footprint rather than making a four-second message reflow
+// the page and its addresses.
+const standingStatus = () => !walkPositionEl.hidden || !contextStatusEl.hidden;
+let standingStatusBox = null;
+const standingStatusBoxes = () => {
+  if (!standingStatus()) {
+    standingStatusBox = null;
+    return [];
+  }
+  if (!noticeEl.classList.contains("show"))
+    [standingStatusBox = null] = boxesOf([bottomStatusEl]);
+  return standingStatusBox ? [standingStatusBox] : [];
+};
+export const bottomChromeBoxes = () => [
+  ...boxesOf([shortcutBarEl]),
+  ...standingStatusBoxes(),
+];
 export const fixedChromeBoxes = bottomChromeBoxes;
 
 // ---------- the shortcut bar ----------

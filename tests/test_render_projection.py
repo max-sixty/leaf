@@ -1051,7 +1051,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     focused pick mark, and the swap that replaced main dropped that focus onto body,
     taking the offer down with it — the digit then picked nothing, silently. The place is
     written down by id before the swap and handed back after it, so the fresh mark holds the
-    focus and the digit picks, acknowledged in the banner. One revision arrives as a
+    focus and the digit picks, acknowledged in the bottom status. One revision arrives as a
     draft and the next as a stamped version, since both replace the page under the
     reader by the same door."""
     version_url = serve(LIVE_KEYS_V1)
@@ -1077,11 +1077,11 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     expect(mark).to_be_focused()
     assert "1–2\nOne / Two" in shortcut_bar_text(page)
     # A stamped version this time, which is the other way a page moves under a reader;
-    # the notice names it in the banner and no toast stands in the corner.
+    # the notice names it in the bottom status and no toast stands in the corner.
     stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
     told(page)
     expect(page).to_have_title("Live keys third")
-    expect(page.locator(".lf-banner-status .lf-notice")).to_have_text("Updated to v2")
+    expect(page.locator(".lf-bottom-status .lf-notice")).to_have_text("Updated to v2")
     assert page.locator(".lf-toast").count() == 0
     # The fresh mark: main was replaced whole, so the one the reader pressed on is gone.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
@@ -1090,7 +1090,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     )
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
-    expect(page.locator(".lf-banner-status .lf-notice")).to_have_text(
+    expect(page.locator(".lf-bottom-status .lf-notice")).to_have_text(
         "Chose “Two” — sent"
     )
     round_trip(page)

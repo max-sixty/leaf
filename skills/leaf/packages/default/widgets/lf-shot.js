@@ -2,11 +2,12 @@
  *
  * The target's shared margin element shows a split circle: left filled for before, right for after.
  * Enter, Space, and clicks flip the comparison without moving the margin element.
- * Clicking the image works a transparent native checkbox directly, keeping focus at
- * the clicked frame even when a tall comparison extends beyond the viewport. Both
- * doors change that checkbox; CSS alone chooses the visible image. Export removes the
- * scripted margin element and keeps the native image control, so a standalone copy still
- * flips with a click or Space. Print stacks both frames and drops the controls.
+ * Each rail label chooses its own frame. Clicking the image works a transparent native
+ * checkbox directly, keeping focus at the clicked frame even when a tall comparison
+ * extends beyond the viewport. Every door changes that checkbox; CSS alone chooses the
+ * visible image. Export makes the rail labels static, removes the margin control, and
+ * keeps the native image control, so a standalone copy still flips with a click or Space.
+ * Print stacks both frames.
  *
  * One two-ended rail stays fixed above the frames while CSS moves its active rule. Its
  * labels are generated page words, available to selection, and become the order key
@@ -20,7 +21,9 @@ import {
   commands,
   marginElement,
   paintKeys,
+  relabel,
   registerMarginContribution,
+  selectableOffer,
   settle,
 } from "/runtime/widget-api.js";
 
@@ -37,16 +40,17 @@ customElements.define(
       }
       const alt = this.getAttribute("alt");
       const shots = [];
+      const captions = new Map();
 
       const rail = document.createElement("div");
       rail.className = "lf-shotrail";
       rail.dataset.lfGen = "1";
       for (const state of ["before", "after"]) {
-        const caption = document.createElement("span");
-        caption.className = "lf-shotcap";
-        caption.dataset.lfGen = "1";
+        const caption = selectableOffer("button", "lf-shotcap");
         caption.dataset.lfState = state;
-        caption.textContent = state;
+        caption.ariaLabel = `${state} — ${alt}`;
+        relabel(caption, state, { says: true });
+        captions.set(state, caption);
         rail.append(caption);
       }
       this.append(rail);
@@ -68,9 +72,33 @@ customElements.define(
       const box = offer("input", "lf-shotflip", undefined, "checkbox");
       box.name = "comparison";
       box.ariaLabel = `Compare before and after — ${alt}`;
+      const show = (state) => {
+        const checked = state === "after";
+        if (box.checked === checked) return;
+        box.checked = checked;
+        box.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+      for (const [state, caption] of captions) {
+        caption.addEventListener("click", () => show(state));
+        commands(caption, "On a screenshot", [
+          {
+            id: `screenshot.${state}`,
+            keys: PRESS,
+            does: `Show the ${state} frame`,
+            line: `show ${state}`,
+            // The frame already shown has nothing for this press to do, so the line
+            // does not name it there.
+            when: () => box.checked !== (state === "after"),
+            run: () => caption.click(),
+          },
+        ]);
+      }
       this.#button = offer("button", "lf-shot-toggle");
       this.#button.addEventListener("click", () => box.click());
       const paint = () => {
+        const visible = box.checked ? "after" : "before";
+        for (const [state, caption] of captions)
+          caption.setAttribute("aria-pressed", String(state === visible));
         const label = `Show ${box.checked ? "before" : "after"}`;
         this.#button.ariaLabel = `${label} — ${alt}`;
         marginElement(this.#button, {

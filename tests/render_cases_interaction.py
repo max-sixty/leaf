@@ -255,9 +255,8 @@ NESTED_ASK_PAGE = leaf_page(
 )
 # An option arguing its case with the evidence inside it, which is the whole reason the
 # card is more than a label. Three things to work stand in one option, one per vocabulary
-# the guard reads: a widget's own control (the shot's frame, a label injected through
-# `offer` that covers the whole image, so this is most of the card's area rather than a
-# corner of it), a
+# the guard reads: a widget's own controls (the shot's transparent input over the frame
+# and its state labels, so this is most of the card's area rather than a corner of it), a
 # widget's own words (the draft's body, which is deliberately not chrome and so is reached
 # only by being inside a widget the option contains), and an element HTML calls
 # interactive that no widget put there (the disclosure). A page holding one of the three

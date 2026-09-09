@@ -1309,16 +1309,16 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
 def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     """The group takes the pick on the whole option, and the case the reader decides on
     is argued inside the option. So the two gestures land in the same box, and the
-    evidence has to win the ones aimed at it: flipping the shot chose that option, and
-    the flip being a label press meant it chose the option and cleared it again — two
-    decisions in the log, no state on the page to show for either, and nothing the reader
-    could have seen. The disclosure and the draft chose it outright.
+    evidence has to win the ones aimed at it: an image flip once chose that option, and
+    its label-routed follow-up cleared it again — two decisions in the log, no state on
+    the page to show for either, and nothing the reader could have seen. The disclosure
+    and the draft chose it outright.
 
     Each gesture is read against its own effect rather than against the absence of a
-    pick, because a click that never arrived would satisfy the absence: the frame flips,
-    the disclosure opens, the editor takes the draft's place, and only then is the
-    question still open. The log is asked once at the end, since the failure that costs
-    the most puts a decision there while leaving the page looking untouched."""
+    pick, because a click that never arrived would satisfy the absence: the frame changes
+    both ways, the disclosure opens, the editor takes the draft's place, and only then is
+    the question still open. The log is asked once at the end, since the failure that
+    costs the most puts a decision there while leaving the page looking untouched."""
     page, errors = open_page(browser, serve(INLINE_CASE_PAGE))
     option = page.locator("#ro-column")
     picked = "el => el.hasAttribute('chosen')"
@@ -1326,6 +1326,13 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     page.mouse.click(*flip_point(page, "#ro-shot"))
     expect(page.locator("#ro-shot input[type=checkbox]")).to_be_checked()
     assert not option.evaluate(picked), "flipping the shot answered the question"
+    page.get_by_role(
+        "button",
+        name="before — the run list, before and after the status column",
+        exact=True,
+    ).click()
+    expect(page.locator("#ro-shot input[type=checkbox]")).not_to_be_checked()
+    assert not option.evaluate(picked), "choosing a shot caption answered the question"
 
     page.locator("#ro-numbers summary").click()
     expect(page.locator("#ro-numbers")).to_have_attribute("open", "")

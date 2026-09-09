@@ -51,6 +51,7 @@ import {
   NOTE,
   paintAnchors,
   resolveAnchor,
+  scrollToElement,
   visualActionAnchor,
   visualAt,
 } from "../anchors.js";
@@ -493,6 +494,21 @@ export const fabReturnTo = () =>
       ? fabOrigin
       : visualActionAnchor(fabAnchor)
     : null;
+
+// Put an item in front of the reader before opening a comment box against it. A partly
+// visible item stays where it is; an item outside the visible band moves instantly so
+// the composer measures against its settled destination before taking focus.
+export function bringForward(item) {
+  if (!item) return;
+  const seen = shownRect(item, new Map());
+  if (!seen || seen.bottom <= BANNER_CLEAR) scrollToElement(item, "instant");
+}
+
+export function commentOnItem(item) {
+  bringForward(item);
+  commentOnTarget({ anchor: { section: item.id }, element: item });
+}
+
 // Every explicit target gesture ends here. The gesture has already resolved its stable
 // authored anchor; this command owns the one transition from that target into Comment.
 // Focusing the field drops any older browser selection, and an unsent draft follows the

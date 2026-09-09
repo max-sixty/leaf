@@ -39,6 +39,7 @@ import {
   dismissFab,
   fabAnchorAt,
   fabOptionsAvailable,
+  commentOnItem,
   focusFabComment,
   showFabOptions,
   updateFab,
@@ -56,7 +57,7 @@ import {
   SAY_BOX,
   standingConversation,
 } from "../conversation/landing.js";
-import { commentOnItem, stepReading, stepThread } from "../navigation.js";
+import { stepReading, stepThread } from "../navigation.js";
 import { pageSelection } from "../composing/capture.js";
 import {
   hasReactionTarget,

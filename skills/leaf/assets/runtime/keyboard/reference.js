@@ -45,7 +45,7 @@ import {
 } from "./bindings.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { completeRowSteps, keySequence, neutralStates } from "./presentation.js";
-import { captureReturnPlace, restoreReturnPlace } from "./return-stack.js";
+import { restoreReturnPlace } from "./return-stack.js";
 import { el } from "../widget-elements.js";
 import { ELEMENTS, pageScopes } from "./page.js";
 import {
@@ -59,7 +59,7 @@ import {
   scopesFor,
 } from "./scopes.js";
 import { pageSelection } from "../composing/capture.js";
-import { readingBlock } from "../version.js";
+import { captureReturnPlace } from "../version.js";
 import { availableCommands, executeCommand, readerIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
 
@@ -230,7 +230,7 @@ function showShortcutReference(open, restoreFocus = true) {
   const restore = origin?.control ?? null;
   const closing = !open && shortcutReferenceDialog.open;
   if (open && !shortcutReferenceOpen) {
-    shortcutReferenceOrigin = captureReturnPlace({ focused, readingBlock });
+    shortcutReferenceOrigin = captureReturnPlace();
     shortcutReferenceLayers = [...document.querySelectorAll(":popover-open")];
     commandsAtOpen = availableCommands();
   }

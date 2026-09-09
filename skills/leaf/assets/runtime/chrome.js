@@ -12,7 +12,8 @@ import {
 import { composer, fab, fabBar } from "./composing/selection.js";
 import { shortcutReferenceDialog } from "./keyboard/reference.js";
 import { shortcutBarEl, walkPositionEl } from "./keyboard/shortcut-bar.js";
-import { el, focusDestination, offer } from "./widget-elements.js";
+import { focusDestination } from "./focus.js";
+import { el, offer } from "./widget-elements.js";
 import { overflowMenu } from "./banner-shelf.js";
 import { inspectEl, legendRoot } from "./design.js";
 import { addressLayer } from "./keyboard/address.js";

@@ -27,7 +27,6 @@ export {
   registerMarginContribution,
 } from "./margin-elements.js";
 export { loadMarkdown, renderMarkdown } from "./markdown.js";
-export { scrollerFor } from "./navigation.js";
 export { pageScroller } from "./scrolling.js";
 export {
   compoundReadingRegionId,
@@ -39,6 +38,7 @@ export {
   readingRegions,
   registerArrangement,
   registerReadingRegion,
+  scrollerFor,
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";

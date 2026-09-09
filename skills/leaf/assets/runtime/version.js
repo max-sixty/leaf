@@ -13,8 +13,9 @@
  * installs it; the arrival landing; the menu readings the composing surface and the
  * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
  * `comparisonChanges`, and the pair the margin's Change reading discloses with,
- * `inlineComparison` and `toggleInlineComparison`); and `readingBlock`, the block the decision
- * walk and the keyboard reference start from.
+ * `inlineComparison` and `toggleInlineComparison`); `readingBlock`, the block the decision
+ * walk and the keyboard reference start from; and `captureReturnPlace`, the control or
+ * reading landmark a keyboard entry returns to.
  *
  * A comparison has two depths and both are this owner's. The marks say which blocks
  * changed; the inline comparison splices dropped text into one of them and paints its
@@ -149,13 +150,8 @@ import {
   versionUrl,
 } from "./storage.js";
 import { alignInlineText } from "./text-alignment.js";
-import {
-  el,
-  focusDestination,
-  layoutChanged,
-  quoted,
-  reveal,
-} from "./widget-elements.js";
+import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
+import { focusDestination } from "./focus.js";
 import { settle, settling } from "./widget-upgrade.js";
 import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButTheReference, midComposition } from "./keyboard/page.js";
@@ -1487,6 +1483,13 @@ function* blocksOnScreen(region = null) {
 // reference hands a reader back to — and they were asking it in two places with the
 // same expression written out twice.
 export const readingBlock = () => blocksOnScreen().next().value?.[0] ?? null;
+
+export function captureReturnPlace() {
+  const control = focused();
+  return control && control !== document.body
+    ? { control, reading: null }
+    : { control: null, reading: readingBlock() };
+}
 
 // The quote and the section it's searched in come from the same block, or the search is
 // filtered to a section the text isn't in and can only ever fail — restore then falls back

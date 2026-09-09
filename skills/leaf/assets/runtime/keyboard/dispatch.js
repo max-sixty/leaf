@@ -108,6 +108,7 @@ import {
   nativeLayerFor,
   nativeLayersFor,
 } from "../native-layers.js";
+import { captureReturnPlace } from "../version.js";
 
 const beforeCommand = (row) => {
   if (
@@ -339,10 +340,16 @@ function run(ev) {
       if (!matched.row.native) ev.preventDefault();
       if (ev.repeat && !matched.row.repeat) return true;
       beforeCommand?.(matched.row);
-      invoke(matched.row, matched.binding, () => {
-        if (matched.row.run) return matched.row.run(matched.binding);
-        return recovered.click();
-      });
+      const origin = matched.row.returnFrame ? captureReturnPlace() : null;
+      invoke(
+        matched.row,
+        matched.binding,
+        () => {
+          if (matched.row.run) return matched.row.run(matched.binding);
+          return recovered.click();
+        },
+        origin,
+      );
       return true;
     }
     nearer.past(scope);

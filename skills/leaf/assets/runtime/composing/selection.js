@@ -33,12 +33,12 @@ import { wireInput } from "./input.js";
 import {
   anchorStands,
   anchorTargetAt,
+  bringForward,
   fabAnchorAt,
   holdFabLeft,
   refreshFab,
   showFab,
 } from "./surface.js";
-import { bringForward } from "../navigation.js";
 import { goAddress } from "../keyboard/address.js";
 import { runtime } from "../context.js";
 import { post } from "../outbox.js";

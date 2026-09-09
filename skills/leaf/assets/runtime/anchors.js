@@ -71,7 +71,7 @@ import { aimedTarget, aimIsOn } from "./composing/aim.js";
 import { pointerAt } from "./pointer.js";
 import { panel, threadsBox } from "./conversation/panel.js";
 import { withdraw } from "./projection.js";
-import { scrollerFor } from "./navigation.js";
+import { scrollerFor } from "./reading-regions.js";
 import { focusedThreadOf } from "./keyboard/page.js";
 import {
   clearAim,

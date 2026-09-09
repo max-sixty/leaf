@@ -5564,8 +5564,9 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
               line: `close ${id}`,
             }),
           });
-          invoke(row('outer', outer), 'x', () => outer.showModal());
-          invoke(row('inner', inner), 'x', () => inner.showModal());
+          const origin = {control: null, reading: null};
+          invoke(row('outer', outer), 'x', () => outer.showModal(), origin);
+          invoke(row('inner', inner), 'x', () => inner.showModal(), origin);
           inner.close();
           return current().does;
         }"""
@@ -5674,6 +5675,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
                 {id: 'test.bad-frame', returnFrame: () => ({active: () => true})},
                 'F8',
                 () => {},
+                {control: null, reading: null},
               );
               return 'accepted';
             } catch (error) {

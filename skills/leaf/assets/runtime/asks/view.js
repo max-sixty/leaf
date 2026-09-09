@@ -113,7 +113,7 @@ import {
   inChrome,
   TEXT_BLOCK,
 } from "../passages.js";
-import { scrollerFor } from "../navigation.js";
+import { scrollerFor } from "../reading-regions.js";
 import { el, reserve, reveal } from "../widget-elements.js";
 import {
   asksBtn,

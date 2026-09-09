@@ -67,7 +67,8 @@ import {
   renderPageMap,
 } from "./page-map.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
-import { el, focusDestination, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { focusDestination } from "./focus.js";
+import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { landInConversation, showThread } from "./conversation/landing.js";

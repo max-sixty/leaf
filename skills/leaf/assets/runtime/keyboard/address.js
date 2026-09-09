@@ -67,8 +67,8 @@ import { keySequence, progressStates } from "./presentation.js";
 import { banner, toggleBtn } from "../banner.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { targetElement } from "../resolved-target.js";
-import { focusDestination, PRESSABLE } from "../widget-elements.js";
-import { el } from "../widget-elements.js";
+import { focusDestination } from "../focus.js";
+import { el, PRESSABLE } from "../widget-elements.js";
 import { CHOOSER } from "../version.js";
 import { KEPT_DRAFT } from "../composing/selection.js";
 import {

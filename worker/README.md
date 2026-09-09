@@ -41,7 +41,8 @@ back through Leaf. A repeated workflow sees the event's durable pickup and does 
 start the work twice. If task startup stops after its retries, the workflow appends a
 short failure reply through the same event log. Once App Server reports a terminal
 turn, the container closes that exact Leaf turn and gives each accepted input the turn
-left unanswered either a failure reply or a completed-without-reply receipt.
+left unanswered its final assistant message. A turn with neither an explicit Leaf reply
+nor a final message receives a failure or completed-without-reply receipt instead.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the

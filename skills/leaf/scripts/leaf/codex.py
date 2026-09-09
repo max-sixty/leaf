@@ -143,12 +143,10 @@ def _tail(text: str, limit: int = 240) -> str:
 class AppServerEvents:
     """Fold one task's event notifications into its latest readable activity."""
 
-    # TODO(2026-09-08): Project agent-message deltas into a task-response reading
-    # outside the event log, and retain the final text until the next turn.
-
     def __init__(self, thread_id: str):
         self.thread_id = thread_id
         self.turn_id: str | None = None
+        self.final_message: str | None = None
         self.details: dict[str, str] = {}
         self.text: dict[str, str] = {}
 
@@ -162,6 +160,7 @@ class AppServerEvents:
 
         if method == "turn/started":
             self.turn_id = params["turn"]["id"]
+            self.final_message = None
             self.details.clear()
             self.text.clear()
             return self.turn_id, "Starting"
@@ -201,6 +200,8 @@ class AppServerEvents:
             item = params["item"]
             self.details.pop(item["id"], None)
             if item["type"] == "agentMessage" and item.get("text"):
+                if turn_id == self.turn_id:
+                    self.final_message = item["text"]
                 return turn_id, _tail(item["text"])
             return None
 

@@ -138,9 +138,10 @@ turn before the delivery opens its next one, while an active task preserves the 
 Leaf claim turn because App Server treats the additional `turn/start` input as steering
 for that turn. A host that owns the starting connection also observes the terminal
 notification. It closes only the matching Leaf claim turn and settles the exact
-accepted response obligations the model left behind; a failed or interrupted turn gets
-a failure reply, while a completed turn with no reply gets an explicit empty-result
-receipt. This is a
+accepted response obligations the model left behind. Its final assistant message is the
+reply when the model did not append one explicitly; a failed or interrupted turn gets a
+failure reply, while a completed turn with neither gets an explicit empty-result receipt.
+This is a
 different host transport over the same page claim, event log, delivery payload, and
 activity projection, not another conversation store.
 

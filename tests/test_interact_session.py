@@ -879,10 +879,32 @@ def test_app_server_events_report_semantic_codex_progress():
     ) == ("turn-live", "Waiting for input in Codex")
     assert events.read(
         {
+            "method": "item/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "item": {
+                    "id": "message-live",
+                    "type": "agentMessage",
+                    "text": "The page is ready for review.",
+                },
+            },
+        }
+    ) == ("turn-live", "The page is ready for review.")
+    assert events.read(
+        {
             "method": "turn/completed",
             "params": {"threadId": "codex-thread", "turn": {"id": "turn-live"}},
         }
     ) == ("turn-live", None)
+    assert events.final_message == "The page is ready for review."
+    events.read(
+        {
+            "method": "turn/started",
+            "params": {"threadId": "codex-thread", "turn": {"id": "turn-next"}},
+        }
+    )
+    assert events.final_message is None
 
 
 def test_app_server_activity_throttles_stream_deltas(monkeypatch):

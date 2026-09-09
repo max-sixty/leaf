@@ -242,6 +242,7 @@ class WebsiteCodexHost:
         leaf_turn: str,
         event_ids: tuple[str, ...],
         turn: dict,
+        final_message: str | None = None,
     ) -> None:
         """Close one observed turn and settle any input it left unanswered."""
         status = turn.get("status")
@@ -277,7 +278,10 @@ class WebsiteCodexHost:
             ):
                 page.close_turn(thread_id)
 
-        fallback = MISSING_REPLY if status == "completed" else GENERATION_FAILURE_REPLY
+        if status == "completed":
+            fallback = (final_message or "").strip() or MISSING_REPLY
+        else:
+            fallback = GENERATION_FAILURE_REPLY
         for event_id in pending:
             cmd_reply(
                 page_dir,
@@ -330,6 +334,7 @@ class WebsiteCodexHost:
                             leaf_turn,
                             event_ids,
                             message["params"]["turn"],
+                            events.final_message,
                         )
                     return
         except (OSError, RuntimeError, ValueError, WebSocketException):

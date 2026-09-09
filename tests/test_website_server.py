@@ -302,6 +302,20 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch):
             ),
             json.dumps(
                 {
+                    "method": "item/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turnId": "initial-turn",
+                        "item": {
+                            "id": "message-1",
+                            "type": "agentMessage",
+                            "text": "Deployment verified.",
+                        },
+                    },
+                }
+            ),
+            json.dumps(
+                {
                     "method": "turn/completed",
                     "params": {
                         "threadId": "hosted-thread",
@@ -350,6 +364,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch):
     assert updates == [
         ("hosted-thread", "initial-turn", "Starting"),
         ("hosted-thread", "initial-turn", "Running leaf version check ."),
+        ("hosted-thread", "initial-turn", "Deployment verified."),
     ]
     assert clears == [("hosted-thread", "initial-turn")]
     assert finished == [
@@ -359,13 +374,14 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch):
             "leaf-turn",
             ("reader-event",),
             {"id": "initial-turn", "status": "completed"},
+            "Deployment verified.",
         )
     ]
     assert socket.closed
 
 
 @pytest.mark.parametrize(
-    ("turn", "reply"),
+    ("turn", "final_message", "reply"),
     [
         (
             {
@@ -373,15 +389,24 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch):
                 "status": "failed",
                 "error": {"message": "model request failed"},
             },
+            None,
             website_server.GENERATION_FAILURE_REPLY,
         ),
         (
             {"id": "app-server-turn", "status": "completed", "error": None},
+            None,
             website_server.MISSING_REPLY,
+        ),
+        (
+            {"id": "app-server-turn", "status": "completed", "error": None},
+            "  Deployment verified.  ",
+            "Deployment verified.",
         ),
     ],
 )
-def test_a_finished_website_turn_settles_its_unanswered_delivery(page_dir, turn, reply):
+def test_a_finished_website_turn_settles_its_unanswered_delivery(
+    page_dir, turn, final_message, reply
+):
     comment = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
@@ -400,6 +425,7 @@ def test_a_finished_website_turn_settles_its_unanswered_delivery(page_dir, turn,
         delivery["turn"],
         delivery["events"],
         turn,
+        final_message,
     )
 
     events = read_events(page_dir)

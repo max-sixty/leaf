@@ -3033,8 +3033,10 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     )
     for quote in (
         "Two years of incident write-ups name a log older than six weeks exactly twice.",
-        "Across eighteen months of query history, 90% of reads touch logs less than "
-        "a week old and 95% stay within 42 days.",
+        (
+            "Across eighteen months of query history, 90% of reads touch logs less than "
+            "a week old and 95% stay within 42 days."
+        ),
     ):
         assert re.sub(r"\s", "", quote) in painted, painted[:160]
 
@@ -3064,7 +3066,7 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     example = next(p for p in EXAMPLES if p.stem == "log-retention")
     page, errors = open_page(browser, serve(example))
     compare_with(page, 1)
-    expect(page.locator("main .lf-ins-block")).to_have_count(3)
+    expect(page.locator("main .lf-ins-block")).to_have_count(5)
 
     # Nothing stands open until a reader asks: the marks are the whole first reading.
     expect(page.locator(".lf-version-inline-label")).to_have_count(0)
@@ -3084,12 +3086,14 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     page.keyboard.press("Shift+m")
     sheet = page.get_by_role("dialog", name="Page map", exact=True)
     mapped = sheet.locator('[data-lf-map-item^="change:"]').filter(has_text="v1 → v2")
-    expect(mapped).to_have_count(3)
-    expect(mapped.first.locator(".lf-page-map-action-label-word")).to_have_text(
+    expect(mapped).to_have_count(5)
+    paragraph = mapped.filter(has_text="paragraph changed · Two years")
+    expect(paragraph).to_have_count(1)
+    expect(paragraph.locator(".lf-page-map-action-label-word")).to_have_text(
         re.compile(r"^paragraph changed · ")
     )
-    expect(mapped.first.locator(".lf-page-map-action-context")).to_have_text("v1 → v2")
-    expect(mapped.first).to_have_attribute(
+    expect(paragraph.locator(".lf-page-map-action-context")).to_have_text("v1 → v2")
+    expect(paragraph).to_have_attribute(
         "aria-label", re.compile(r"^Open change: .+, v1 → v2$")
     )
     page.keyboard.press("Escape")
@@ -3108,13 +3112,13 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     )
     struck = page.locator("#ret-cost-body > .lf-version-inline-deletion del")
     expect(struck).to_have_count(1)
-    expect(struck).to_contain_text("Both times the question was answered")
+    expect(struck).to_contain_text("Both questions were answered")
     expect(struck).not_to_contain_text("Two years of incident write-ups")
     inserted = page.evaluate(
         "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
     )
     assert len(inserted) == 1, inserted
-    assert inserted[0].strip().startswith("The rate came from the aggregates"), inserted
+    assert inserted[0].strip().startswith("Aggregates supplied the rate"), inserted
     assert "Two years of incident write-ups" not in inserted[0], inserted
 
     # The press reports the move; the banner's status line holds a moment's news, and

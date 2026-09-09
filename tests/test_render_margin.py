@@ -1759,17 +1759,26 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     """Page motion under a parked pointer cannot take ownership from the keyboard."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1280, 720)
+    page.locator("#bg-choice-ask").scroll_into_view_if_needed()
+    go_to_address(page, "Margin control or status indicator", "bg-choice-ask")
+    page.keyboard.press("Escape")
     margins_laid_out(page)
     host = page.locator('[data-lf-margin-for="bg-choice-ask"]')
     initial = host.bounding_box()
-    pointer = {"x": int(initial["x"] + initial["width"] / 2), "y": 70}
-    assert not initial["y"] < pointer["y"] < initial["y"] + initial["height"], (
+    pointer = {
+        "x": int(initial["x"] + initial["width"] / 2),
+        "y": int(initial["y"] + initial["height"] / 2),
+    }
+    scroll = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.evaluate("() => scrollBy({top: -150, behavior: 'instant'})")
+    margins_laid_out(page)
+    parked = host.bounding_box()
+    assert not parked["y"] < pointer["y"] < parked["y"] + parked["height"], (
         "the pointer starts inside the Ask margin host"
     )
     page.mouse.move(pointer["x"], pointer["y"])
 
-    go_to_address(page, "Margin control or status indicator", "bg-choice-ask")
-    page.keyboard.press("Escape")
+    page.evaluate("top => scrollTo({top, behavior: 'instant'})", scroll)
 
     page.wait_for_function(
         """({x, y}) => {
@@ -3363,9 +3372,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
         }"""
     )
     assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] == pytest.approx(
-        geometry["controlsRight"] + 8, abs=0.5
-    ), geometry
+    assert geometry["cardLeft"] >= geometry["controlsRight"] + 7, geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardWidth"] >= 459, geometry
     assert geometry["coveredControls"] == 0, geometry

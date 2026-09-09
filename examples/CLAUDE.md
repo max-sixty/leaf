@@ -8,7 +8,9 @@ unlisted page can remain published, as Command Hub does while its TODO is open.
 
 Keep core examples focused and include small pages: a board, a short proposal, or a
 draft can demonstrate Leaf without becoming a product tour. Choose examples for
-reader tasks; the developer gallery owns exhaustive vocabulary coverage.
+reader tasks; the developer gallery owns exhaustive vocabulary coverage. Add a
+contents sidebar when the rendered document needs navigation; judge that in the
+browser review.
 
 Full-page regression journeys whose story no longer belongs in the showcase live
 under `tests/fixtures/pages/`, with their companion logs and `versions/` beside them.

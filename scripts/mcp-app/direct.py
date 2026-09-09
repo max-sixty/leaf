@@ -26,7 +26,10 @@ def document_for(page: Path, bundle: Path, service: PageStateService) -> str:
     script = bundle.read_text().replace("</script", "<\\/script")
     document, count = re.subn(
         r'<script\b[^>]*src="/leaf\.js"[^>]*></script>',
-        lambda _: f'<script type="module">{script}</script>',
+        lambda _: (
+            '<script type="module" data-lf-runtime data-lf-page-root="">'
+            f"{script}</script>"
+        ),
         document,
     )
     assert count == 1

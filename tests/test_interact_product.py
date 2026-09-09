@@ -510,45 +510,6 @@ def test_the_feature_gallery_indexes_its_authored_elements():
     assert tags <= indexed, f"feature eyebrows omit {', '.join(sorted(tags - indexed))}"
 
 
-def test_each_long_document_example_version_has_one_contents_sidebar():
-    """Sequential documents carry a contents sidebar; workspace regions supply
-    their own navigation without adding a second page-wide contents list."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    missing = []
-    for example in CORPUS_SOURCES:
-        for version in example_versions(example):
-            markup = version.read_text()
-            if len(re.findall(r"<h[2-6](?:\s|>)", markup)) < 2:
-                continue
-            parser = parse_structure(markup)
-            main = next(node for node in parser.nodes if node["tag"] == "main")
-            roots = [
-                node
-                for node in main["content"]
-                if (isinstance(node, str) and node.strip())
-                or (
-                    isinstance(node, dict)
-                    and node["tag"] not in {"script", "style", "template"}
-                )
-            ]
-            if (
-                len(roots) == 1
-                and isinstance(roots[0], dict)
-                and registry.get(roots[0]["tag"], {}).get("x-layout") == "workspace"
-            ):
-                continue
-            contents = [
-                element for element in parser.lf_elements if element["tag"] == "lf-toc"
-            ]
-            if (
-                len(contents) != 1
-                or contents[0]["parent"] != "aside"
-                or '<aside class="sidebar"' not in markup
-            ):
-                missing.append(version.name)
-    assert not missing, f"long example versions without one contents sidebar: {missing}"
-
-
 def test_shipped_widget_purposes_live_in_their_descriptions():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     titled = [

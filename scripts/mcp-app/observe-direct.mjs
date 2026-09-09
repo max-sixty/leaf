@@ -122,7 +122,7 @@ try {
   });
   const commentText = `Comment delivered directly through MCP tools: ${randomUUID()}`;
   await app.locator(".lf-fab-input").fill(commentText);
-  await app.locator(".lf-fab-input").press("Enter");
+  await app.locator(".lf-fab-input").press("ControlOrMeta+Enter");
   const comment = await newEvent(
     (event) => event.kind === "comment" && event.text === commentText,
   );

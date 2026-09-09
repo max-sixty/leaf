@@ -433,7 +433,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
         page.locator(".lf-version").click()
         expect(page.locator(".lf-version-row")).to_have_count(2)
         page.locator('.lf-version-diff[data-lf-version="1"]').click()
-        expect(page.locator("main .lf-ins-block")).to_have_count(3)
+        expect(page.locator("main .lf-ins-block")).to_have_count(5)
 
         page.locator(".lf-version").click()
         page.locator('.lf-version-row[data-lf-version="1"]').click()

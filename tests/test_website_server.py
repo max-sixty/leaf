@@ -223,6 +223,37 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
     assert accepted == [("hosted-thread",)]
 
 
+def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
+    """A hosted task must not discover or initialize another plugin environment."""
+    host = website_server.WebsiteCodexHost(
+        "codex",
+        tmp_path / "app-server.sock",
+        tmp_path / "app-server.log",
+    )
+    launched = {}
+
+    class Process:
+        def poll(self):
+            return None
+
+    def popen(command, **options):
+        launched.update(command=command, options=options)
+        host.socket_path.touch()
+        return Process()
+
+    monkeypatch.setattr(website_server.subprocess, "Popen", popen)
+
+    assert host._ensure_server() is not None
+    assert launched["options"]["env"]["LEAF"] == website_server.LEAF_COMMAND
+    assert launched["command"] == [
+        "codex",
+        "app-server",
+        "--listen",
+        host.endpoint,
+    ]
+    assert "$LEAF" in website_server.CODEX_INSTRUCTIONS
+
+
 def test_the_website_task_preserves_a_delivery_the_app_server_rejects(
     page_dir, monkeypatch
 ):
@@ -1151,6 +1182,24 @@ def test_the_deploy_gate_sends_the_new_message_the_container_asks_for():
     assert second["revision"] == 1
 
 
+def test_the_deploy_gate_requires_the_exact_agent_receipt():
+    exact = {"text": "deployment verified"}
+    assert verify_site.deployment_answer([exact]) is exact
+    assert (
+        verify_site.deployment_answer(
+            [
+                {
+                    "text": (
+                        "The Leaf CLI is unavailable, so I could not post "
+                        "‘deployment verified’."
+                    )
+                }
+            ]
+        )
+        is None
+    )
+
+
 def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():
     """A settled generation failure is terminal, so the wait ends where it lands.
 
@@ -1175,6 +1224,7 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():
         ],
     }
     context = _StateReads([working])
+    profile = verify_site.AgentProfile()
     turn = verify_site.await_turn(
         context,
         "https://leaf.page/examples/design-decision/",
@@ -1188,6 +1238,7 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():
         # Seconds rather than `TURN_LIMIT`: a wait that stopped reading this reply
         # would come back on the next assertion instead of running the real budget.
         time.monotonic() + 5,
+        profile,
     )
     # One read, though the page still names a turn on the comment: the wait ended on
     # the reply rather than on `still_answering` or a clock.
@@ -1247,6 +1298,24 @@ class _DeployedPage:
         return _PresentationWait(self.presentation_waits)
 
     def evaluate(self, script: str):
+        if script == verify_site.STARTUP_READING:
+            return {
+                "first_byte": 100.0,
+                "document": 200.0,
+                "paint": {"first-contentful-paint": 250.0},
+                "upgraded": {"at": 300.0},
+                "presented": {
+                    "at": self.presented_at,
+                    "js_loaded": 275.0,
+                    "state_loaded": self.presented_at - 100.0,
+                    "js_requests": 16,
+                    "js_bytes": 150 * 1024,
+                    "code_requests": 20,
+                    "code_bytes": 330 * 1024,
+                    "requests": 24,
+                    "bytes": 335 * 1024,
+                },
+            }
         if "presented?.at" in script:
             return self.presented_at
         if "lf-revision" in script:
@@ -1310,6 +1379,19 @@ def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present
     page = _DeployedPage(heading, revision=2, presented_at=28444.0)
     container = _DeployedContainer(release, page)
     published = {"revision": 2, "url": "revisions/2.html"}
+    profile = verify_site.AgentProfile()
+    profile.ask_count = 1
+    profile.milestones = {
+        "acknowledged 1": 0.250,
+        "published": 12.0,
+        "replied": 12.5,
+        "answered": 12.5,
+    }
+    profile.activities = [
+        (0.250, "queued", ""),
+        (1.0, "working", "Editing the page"),
+        (12.5, "away", ""),
+    ]
     monkeypatch.setattr(
         verify_site,
         "ask_until_answered",
@@ -1322,6 +1404,7 @@ def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present
             ),
             1,
             1,
+            profile,
         ),
     )
 
@@ -1338,7 +1421,12 @@ def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present
     assert page.init_scripts == [verify_site.PROFILE_SCRIPT]
     # What the reload cost, on the green run: the only reading anyone has of a
     # container serving a page a hosted turn has just written to.
-    assert "presented in 28444 ms" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "presented in 28444 ms" in output
+    assert "request acknowledged 250 ms" in output
+    assert "activity working: Editing the page at 1.0 s" in output
+    assert "published at 12.0 s" in output
+    assert "changed page — HTML first byte 100 ms" in output
     assert container.closed
 
     # A reload the container never answered is its own reading, taken before the wait.

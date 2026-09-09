@@ -37,10 +37,12 @@ rules a new or changed example has to meet.
   `.github/workflows/publish-site.yaml` deploys both halves for relevant pushes to
   `main`; it runs the local check before the first public operation, then verifies the
   exact release again after deployment. That production pass also sends one private
-  comment and requires the hosted Codex task to publish a revision and reply. A turn
-  the container settles with its own generation failure is asked once more, because
-  that settlement reports the model rather than the release; every other ending is a
-  red deployment on the first ask.
+  comment and requires the hosted Codex task to publish a revision and reply. With
+  `LEAF_VERIFY_AGENT=1`, `verify-site.py` prints the request acknowledgement, activity
+  transitions, publication, reply, and changed-page presentation timings. A turn the
+  container settles with its own generation failure is asked once more, because that
+  settlement reports the model rather than the release; every other ending is a red
+  deployment on the first ask.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws the Leaf
   screenshots that demo uses. Keep the latter while the product can make those frames
   stale.

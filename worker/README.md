@@ -20,7 +20,7 @@ the Python adapter. Published media, revisions, and version documents stay on th
 when one of those paths is absent from the release, the Worker asks the reader's
 active container so a newly created private revision can become the live document.
 
-The deployment admits up to 15,000 concurrent `lite` containers. After a session is
+The deployment admits up to 6,000 concurrent `basic` containers. After a session is
 active, a visible page holds it through Leaf's news stream; a passive page opens no
 stream. Hidden tabs close their streams, so the ten-minute application idle timer can
 begin after the browser session has no visible Leaf tab. This is resource lifetime, not

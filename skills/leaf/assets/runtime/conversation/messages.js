@@ -18,7 +18,8 @@
 import { loadMarkdown, markdownReady, renderMarkdown } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
 import { el } from "../widget-elements.js";
-import { isReaction, tokenEntry } from "./model.js";
+import { isReaction } from "./model.js";
+import { tokenEntry } from "../registry.js";
 import { rememberAuthoredParents } from "../projection/authored.js";
 import {
   markDeclared,

@@ -67,7 +67,8 @@ import {
   renderPageMap,
 } from "./page-map.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
-import { el, focusDestination, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { focusDestination } from "./focus.js";
+import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { landInConversation, showThread } from "./conversation/landing.js";
@@ -76,7 +77,9 @@ import { runtime } from "./context.js";
 import { readingRegionFor, shownRegionBounds } from "./reading-regions.js";
 import { commentsEdge, panelIsOpen } from "./chrome-layout.js";
 import { designOn } from "./design.js";
-import { focused, keys, paintHere, paintKeys } from "./keyboard/scopes.js";
+import { focused, keys, paintKeys } from "./keyboard/scopes.js";
+import { bottomChromeBoxes } from "./keyboard/shortcut-bar.js";
+import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import {
   comparisonBase,
@@ -98,7 +101,7 @@ import {
   traceTarget,
 } from "./anchors.js";
 import { updateSequence, workClaimState } from "./updates.js";
-import { threadList } from "./conversation/reconcile.js";
+import { threadList } from "./conversation/state.js";
 import { threadKey } from "./conversation/model.js";
 import { openAsks } from "./asks/model.js";
 import { goToAsk, standsWith } from "./asks/view.js";
@@ -251,7 +254,7 @@ const toolbar = el("div", "lf-margin-toolbar");
 toolbar.setAttribute("role", "toolbar");
 toolbar.setAttribute(
   "aria-label",
-  "Changes, threadList, asks, delivery status, and activity",
+  "Changes, threads, asks, delivery status, and activity",
 );
 nav.append(toolbar);
 
@@ -774,19 +777,16 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
     : document.querySelector("main")?.getBoundingClientRect();
   const bannerBottom =
     document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
-  const walkPosition = document
-    .querySelector(".lf-walk-position:not([hidden])")
-    ?.getBoundingClientRect();
   const gap = 8;
   const firstLeft = regionBounds?.left ?? 0;
   const lastRight = regionBounds?.right ?? document.documentElement.clientWidth;
   const firstTop = Math.max(regionBounds?.top ?? 0, bannerBottom) + gap;
   const lastBottom = (regionBounds?.bottom ?? innerHeight) - gap;
   const totalHeight = Math.max(0, lastBottom - firstTop);
-  const firstTopFor = (left, right) =>
-    walkPosition && left < walkPosition.right && walkPosition.left < right
-      ? Math.max(firstTop, walkPosition.bottom + gap)
-      : firstTop;
+  const lastBottomFor = (left, right) =>
+    bottomChromeBoxes()
+      .filter((box) => left < box.right && box.left < right)
+      .reduce((bottom, box) => Math.min(bottom, box.top - gap), lastBottom);
   const referenceVisible = target.bottom > firstTop && target.top < lastBottom;
   if (referenceVisible) {
     previewReferenceSeen = true;
@@ -835,8 +835,9 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
     : [];
   for (const side of sideCandidates) {
     if (side.width < metrics.minimumWidth) continue;
-    const sideTop = firstTopFor(side.left, side.left + side.width);
-    const sideHeight = Math.max(0, lastBottom - sideTop);
+    const sideTop = firstTop;
+    const sideBottom = lastBottomFor(side.left, side.left + side.width);
+    const sideHeight = Math.max(0, sideBottom - sideTop);
     const height = naturalHeight(side.width, sideHeight);
     const placement = threadSidePlacement(
       side.left,
@@ -844,7 +845,7 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
       height,
       target,
       sideTop,
-      lastBottom,
+      sideBottom,
     );
     if (!placement) continue;
     preview.dataset.lfThreadPlacement = side.name;
@@ -862,11 +863,12 @@ function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) 
   const width = metrics.preferredWidth;
   const lastLeft = lastRight - width - gap;
   const left = clamp(target.right - width, firstLeft + gap, lastLeft);
-  const overlayTop = firstTopFor(left, left + width);
-  const overlayHeight = naturalHeight(width, Math.max(0, lastBottom - overlayTop));
-  const belowTop = Math.max(overlayTop, Math.min(target.bottom + gap, lastBottom));
-  const aboveBottom = Math.max(overlayTop, Math.min(target.top - gap, lastBottom));
-  const belowRoom = Math.max(0, lastBottom - belowTop);
+  const overlayTop = firstTop;
+  const overlayBottom = lastBottomFor(left, left + width);
+  const overlayHeight = naturalHeight(width, Math.max(0, overlayBottom - overlayTop));
+  const belowTop = Math.max(overlayTop, Math.min(target.bottom + gap, overlayBottom));
+  const aboveBottom = Math.max(overlayTop, Math.min(target.top - gap, overlayBottom));
+  const belowRoom = Math.max(0, overlayBottom - belowTop);
   const aboveRoom = Math.max(0, aboveBottom - overlayTop);
   const below =
     overlayHeight <= belowRoom || (overlayHeight > aboveRoom && belowRoom >= aboveRoom);
@@ -1189,7 +1191,7 @@ function collectEntries() {
 function revealTarget(target, account) {
   if (!target?.isConnected) return;
   scrollToElement(target, scrollBehavior(), "nearest");
-  // The account goes to the banner's notice slot rather than to the live region alone:
+  // The account goes to the bottom notice rather than to the live region alone:
   // a Change margin element's target is usually already on screen, so the scroll moves nothing
   // and a press that only announced was, to a sighted reader, a press that did nothing.
   notice(account);
@@ -2018,7 +2020,7 @@ function moveHost(host, move) {
   // The one case where the placement did move the reader: the control they were
   // standing on did not survive it, so focus is wherever the removal left it and the
   // standing paint is owed the news the guard above withheld.
-  if (held && document.activeElement !== held) paintHere();
+  if (held && document.activeElement !== held) repaint();
 }
 
 function unfoldOpenThreadOwner(entry) {
@@ -2703,7 +2705,7 @@ export const activeInlineThread = () => {
   return conversations.length === 1 ? conversations[0] : null;
 };
 
-// The margin's parts into the chrome, once it is mounted (chrome.js): the map button beside
+// The margin's parts into the chrome, once it is mounted (leaf.js): the map button beside
 // the version chooser, then its own parts in the root.
 export function mountMargin() {
   // The first render, once every owner it reads (the version chooser's comparison, the

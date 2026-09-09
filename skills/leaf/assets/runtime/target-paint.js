@@ -403,7 +403,7 @@ export function geometryChanged() {
   });
 }
 
-// The shapes into the aim's and the margin's boxes; mounted from chrome.js.
+// The shapes into the aim's and the margin's boxes; mounted from leaf.js.
 export function mountTargetPaint() {
   aimBox.append(aimShape);
   targetTraceBox.append(targetTraceShape);

@@ -2854,10 +2854,10 @@ def test_an_open_stream_records_that_the_page_was_visible(server, page_dir):
 
 def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_dir):
     """The stream says what reading the page is at, once on arrival and again each
-    time it changes, and the reading it names is the one a state read answers with
-    — that agreement is what lets a tab compare the two and ask only when they
-    differ. Nothing else rides it: an append is news, and the state carrying it
-    still comes by asking."""
+    time it changes, and the reading it names for a page at rest is the one a state
+    read answers with — that agreement is what lets a tab compare the two and ask
+    only when they differ. Nothing else rides it: an append is news, and the state
+    carrying it still comes by asking."""
     publish(page_dir)
     stream, heard = _news(server)
     first = heard()
@@ -2866,10 +2866,17 @@ def test_the_news_stream_names_the_reading_and_speaks_on_a_change(server, page_d
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "News."},
     )
-    second = heard()
-    assert second != first
-    assert second == json.loads(fetch(f"{server}/api/state")[1])["reading"]
+    assert heard() != first
     stream.close()
+    # The word spoken on a change can be sampled while the log is still being
+    # appended to, and the stamp taken then can pair the new modification time with
+    # the size before it — a reading of a state the page was never in, which the
+    # stream's next look puts right. A state read never names one, taking its
+    # reading under the log's own lease. So the agreement is read from a stream
+    # opened once the append has landed, where both sides stamp a page at rest.
+    settled, heard_at_rest = _news(server)
+    assert heard_at_rest() == json.loads(fetch(f"{server}/api/state")[1])["reading"]
+    settled.close()
 
 
 def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(

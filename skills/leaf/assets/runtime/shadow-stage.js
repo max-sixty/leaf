@@ -17,7 +17,7 @@
 import { marksSheet, SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchNativeLayers } from "./native-layers.js";
-import { setChildren } from "./conversation/reconcile.js";
+import { setChildren } from "./dom-children.js";
 import { watchExternalLinks } from "./presentation.js";
 
 export function shadowStage(host, nodes) {

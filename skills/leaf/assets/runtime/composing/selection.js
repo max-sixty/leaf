@@ -33,20 +33,22 @@ import { wireInput } from "./input.js";
 import {
   anchorStands,
   anchorTargetAt,
+  bringForward,
   fabAnchorAt,
   holdFabLeft,
   refreshFab,
   showFab,
 } from "./surface.js";
-import { bringForward } from "../navigation.js";
 import { goAddress } from "../keyboard/address.js";
 import { runtime } from "../context.js";
 import { post } from "../outbox.js";
 import { threadsBox } from "../conversation/panel.js";
 import { landTyping, mayLandTyping } from "./capture.js";
 import { panelIsOpen } from "../chrome-layout.js";
-import { focused, paintHere, paintKeys } from "../keyboard/scopes.js";
+import { focused, paintKeys } from "../keyboard/scopes.js";
+import { repaint } from "../repaint.js";
 import { paintAnchors } from "../anchors.js";
+import { allThreads } from "../conversation/state.js";
 import { elementById, inChrome } from "../passages.js";
 import { focusSurface } from "../conversation/surfaces.js";
 import { showThread } from "../conversation/landing.js";
@@ -301,7 +303,7 @@ function syncSuggestMode() {
   fabSuggest.title = suggest ? "Suggest" : "Comment";
   syncComposer();
   syncResponseOptions();
-  paintHere(); // the submit action says which of the two the box will do
+  repaint(); // the submit action says which of the two the box will do
 }
 export function setSuggestionMode(suggest) {
   suggestCheck.checked = Boolean(suggest);
@@ -451,9 +453,9 @@ function showComposer(open) {
   // An explicit Comment gesture focuses the textarea and drops the native selection, so
   // this mark then becomes the durable pointer to the quoted passage. Automatic passage
   // selection leaves both readings standing until the reader enters the field.
-  paintAnchors();
+  paintAnchors(allThreads());
   paintDrawings();
-  paintHere();
+  repaint();
 }
 
 // The quote suggestion mode auto-seeded, so reopening on a new anchor can tell
@@ -548,7 +550,7 @@ function watchComposer() {
     pendingDrawing = validDrawing(drawing) ? drawing : null;
     suggestCheck.checked = Boolean(suggest);
     syncSuggestMode();
-    paintAnchors();
+    paintAnchors(allThreads());
     paintDrawings();
   });
 }

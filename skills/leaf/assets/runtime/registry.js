@@ -12,6 +12,7 @@ import { runtime } from "./context.js";
 // the already-wired chrome can legitimately be used; a failed fetch still rejects
 // startup rather than becoming an empty vocabulary.
 export const registry = runtime.registry;
+export const tokenEntry = (name) => registry.$reactions.tokens[name];
 
 // The vocabulary's widgets: every entry under a tag, and never a `$` entry. Those are
 // the layer's own facts, and one of them ($keys) is spelled in the x- keys' own names —

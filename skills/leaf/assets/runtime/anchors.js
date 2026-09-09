@@ -1,6 +1,6 @@
 /* This module owns anchor resolution, anchor paint, anchor-specific travel, and
- * cross-widget projected-datum travel. `sameAnchor` is the one shared reading of
- * whether two anchors name the same place. */
+ * cross-widget projected-datum travel. */
+import { sameAnchor } from "./anchor-coordinate.js";
 import { inUi, under } from "./shadow.js";
 import {
   clippedRect,
@@ -71,7 +71,7 @@ import { aimedTarget, aimIsOn } from "./composing/aim.js";
 import { pointerAt } from "./pointer.js";
 import { panel, threadsBox } from "./conversation/panel.js";
 import { withdraw } from "./projection.js";
-import { scrollerFor } from "./navigation.js";
+import { scrollerFor } from "./reading-regions.js";
 import { focusedThreadOf } from "./keyboard/page.js";
 import {
   clearAim,
@@ -82,7 +82,8 @@ import {
   paintTrace,
 } from "./target-paint.js";
 import { anchorLabel } from "./conversation/messages.js";
-import { bareReaction, buildThreads } from "./conversation/model.js";
+import { bareReaction } from "./conversation/model.js";
+import { allThreads } from "./conversation/state.js";
 import { paintThreadQuotes } from "./conversation/thread-card.js";
 
 // Anchors are durable coordinates, so their pass and every route that can mint one begin
@@ -134,7 +135,7 @@ export function setAnchoringReady(ready) {
    that puts the reader in a thread therefore paints it: the quote's press, the `t`/`T`
    walk, a click on the card, a reply box. A press on a page mark reaches `showThread`,
    which focuses the reply box before its deliberate reveal. Escape returns to the
-   card; `t`/`T` then walk the threads. `paintHere` repaints it beside the decision
+   card; `t`/`T` then walk the threads. The shared repaint places it beside the decision
    ring, and `paintAnchors` repaints it after rebuilding the ranges it holds.
 
    The panel paints the same fact on the card, through `.lf-thread:focus-within` — the
@@ -205,20 +206,6 @@ export function setAnchoringReady(ready) {
    unselectable button to each block that contains comments and states the comment
    count. It names the block rather than copying the selected words. Keep that line
    outside selection, quote capture, widget word readings, and clipboard output. */
-// Anchors are shallow records of primitive coordinates. Compare the complete records:
-// reading only the left operand's keys made a whole-visual anchor equal the part anchor
-// that extended it, but not the other way around.
-export const sameAnchor = (a, b) => {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  const left = Object.keys(a).sort();
-  const right = Object.keys(b).sort();
-  return (
-    left.length === right.length &&
-    left.every((key, index) => key === right[index] && a[key] === b[key])
-  );
-};
-
 // ---------- anchors ----------
 // An anchor names a passage: a section id, a quote, or both. Resolving one is the only
 // place the page is searched, so the three things that read a passage back — a thread's
@@ -1020,7 +1007,7 @@ function noteMarks(noted) {
     if (!noted.has(note.parentElement)) note.remove();
 }
 
-export function paintAnchors(threads = buildThreads()) {
+export function paintAnchors(threads) {
   if (!anchoringIsReady()) return;
   prepareVisualActions();
   for (const where of allMarks())
@@ -1344,7 +1331,7 @@ function seatReactions(seats) {
 //
 // A layout pass repacks; it does not restate what the seats offer. Saying `update()`
 // here restated them, and a margin render ends in `paintKeys`, which ends in
-// `paintHere` — the frame this hook is called from. On a page carrying a standing
+// the shared repaint — the frame this hook is called from. On a page carrying a standing
 // reaction that closed a cycle: chrome layout, margin render, paint, chrome layout,
 // a whole margin render every frame with nothing dispatched and nothing moving.
 // Measured on the feature gallery, ~350ms of main thread a frame, which is also what
@@ -1389,7 +1376,7 @@ export function fragmentId(fragment) {
 // The only press this layer takes from the browser: a reference this version can't
 // follow. Everything else — the travel, the reveal, the back button — is the
 // platform's, and an exported copy keeps it by having a real href to jump through.
-// Wired once the chrome is mounted (chrome.js): the panel is another owner's part.
+// Wired once the chrome is mounted (leaf.js): the panel is another owner's part.
 export function mountAnchors() {
   panel.addEventListener("click", (ev) => {
     const a = ev.target.closest(MSG_REF);
@@ -1572,7 +1559,7 @@ addEventListener("blur", leaveThreadTravel);
 export async function scrollToThread(id, { land = null } = {}) {
   const intent = ++threadTravelIntent;
   const startingFocus = focused();
-  const thread = buildThreads().find((candidate) => candidate.root.id === id);
+  const thread = allThreads().find((candidate) => candidate.root.id === id);
   const anchor = thread?.anchor;
   if (anchor?.datum && placed.get(id)?.status !== "outdated") {
     const source = sectionOf(anchor);

@@ -1,16 +1,14 @@
-/* This module owns reader travel and scroller selection. */
+/* This module owns reader travel. */
 import { clampedRow } from "./keyboard/bindings.js";
-import { shownRect } from "./geometry.js";
-import { BANNER_CLEAR, commentOnTarget } from "./composing/surface.js";
-import { scrollToElement, scrollToThread } from "./anchors.js";
+import { scrollToThread } from "./anchors.js";
 import { inPanel, panelCovers, panelIsOpen } from "./chrome-layout.js";
-import { openThreads } from "./conversation/reconcile.js";
+import { openThreads } from "./conversation/thread-list.js";
 import { narrowed } from "./conversation/narrowing.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { threadsBox } from "./conversation/panel.js";
 import { pageScroller } from "./scrolling.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
-import { closestAcross, containsAcross } from "./passages.js";
+import { closestAcross } from "./passages.js";
 import { activeInlineThread, openPageThread } from "./living-margin.js";
 import { announce } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
@@ -28,61 +26,6 @@ const threadPosition = () => {
   });
 };
 
-// Where a comment about this item is written: the composer, on the item, which is what a
-// click through the ⌥ aim already opens. It reached for the widget's own conversation seat
-// first for a while, on the reasoning that a widget holding a box for its conversation
-// should not be given a second one. That was the wrong shape. `commentOnTarget` writes
-// `{section: item.id}`, which is exactly the anchor `renderConversations` collects into
-// that seat — so the words land in the same conversation by either route, and the seat was
-// buying a focus landing at the price of five separate questions: escaping an
-// author-written id into a selector, whether the box can take focus at all (a settled
-// group's seat is inside `hidden="until-found"` and silently swallowed the press), which
-// box when the seat holds several threads, what design mode files, and where the reader
-// was already standing. One route answers all five by not asking them.
-//
-// Putting a thing in front of the reader before a box is opened about it, for whichever
-// route reaches that box: the item `c` names, and the passage a kept draft comes back to.
-// Both open on a coordinate the reader may have scrolled away from, and a box measured
-// against a passage off screen stands beside nothing.
-//
-// Only where it is not already in front of the reader. Travelling every time moved
-// the page under someone who could see the thing perfectly well: Tab leaves an item at an
-// edge (`block: nearest`), so centring took the page a third of a viewport with nothing on
-// screen to explain it — on the route this press exists for, and where the ⌥ aim it is the
-// twin of moves nothing at all. The travel is for the standing that has gone stale, focus
-// outliving the scroll that put it there: a box about something off screen is a box about
-// nothing the reader can see.
-//
-// What the page shows of it, which is the reading the aim's own paint takes
-// (`refreshAim`) — this being its keyboard twin, the two decide "is this in front of the
-// reader" the same way or they are not twins. An unclipped box alone is the box the item
-// would have: an item scrolled out of a board's sideways scroller still reports one
-// inside the window, so a gate reading that called it showing and opened the box on
-// something off screen, which the unconditional travel it replaced never did. Any part
-// showing is enough, which is also what keeps a box taller than the window from jumping
-// to its top under a reader halfway down it.
-//
-// A collapsed ancestor zeroes its descendants' boxes, so a thing inside a shut
-// disclosure is never showing and takes the travel, `reveal` with it. Standing on the
-// summary itself is the one motion this drops: the disclosure stays shut and the box
-// opens on it where it is, rather than springing it open and reflowing the page under
-// the reader who was looking at it.
-//
-// Instant, and before the box is measured. Placing reads the item's box, so that has to
-// be the box the item keeps; and opening focuses the textarea, whose scroll-into-view
-// cancels a glide already under way — which is what left the item flush against an edge
-// rather than framed, and is not `openComposer`'s to give up, three other presses opening
-// that box against a passage they have not moved.
-export function bringForward(item) {
-  if (!item) return;
-  const seen = shownRect(item, new Map());
-  if (!seen || seen.bottom <= BANNER_CLEAR) scrollToElement(item, "instant");
-}
-
-export function commentOnItem(item) {
-  bringForward(item);
-  commentOnTarget({ anchor: { section: item.id }, element: item });
-}
 // t/T walk open threads in page order. A closed panel keeps the walk at the thread's
 // inline address: a declared widget outlet first, then the thread margin element's card. A thread
 // with no page address is indexed only by Threads, so that destination opens the panel.
@@ -175,19 +118,6 @@ const stepScroller = () => {
   if (panelCovers()) return threadsBox;
   const region = readingRegionFor(document.activeElement);
   return region ? effectiveScroller(region) : inPanel() ? threadsBox : pageScroller;
-};
-// Which box scrolls a given element, for anything that has to name its scroller rather
-// than search for one. The document's for everything the document holds — and the
-// panel's own list for a widget an agent put in a reply, which is scrolled by that and
-// by nothing else. A drag naming the wrong one sits at the edge waiting for a scroll
-// that never comes.
-export const scrollerFor = (el) => {
-  let region = readingRegionFor(el);
-  while (region) {
-    if (containsAcross(region.body, el)) return effectiveScroller(region);
-    region = readingRegionFor(region.host.parentElement);
-  }
-  return pageScroller;
 };
 export function stepReading(amount, unit) {
   const box = stepScroller();

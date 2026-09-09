@@ -456,7 +456,7 @@ The causal helpers:
   new send enter the wire, and waits for its round trip; undo can be refused
   while the preceding gesture is still unresolved.
 - `shortcut_bar_text(page)` reads what the shortcut bar says, once, after the repaint's own
-  frame. `paintHere` coalesces to a `requestAnimationFrame`, so a read taken in
+  frame. `repaint` coalesces to a `requestAnimationFrame`, so a read taken in
   the same round-trip as the press is a read of the frame before.
 
 A surface that reads the same before and after the press cannot be its own

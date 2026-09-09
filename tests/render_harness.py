@@ -1184,7 +1184,7 @@ def navigate(page, errors, url, *, wait_until="load", ready=BOTH_STAMPS):
 def shortcut_bar_text(page):
     """What the shortcut bar says, once the runtime has had its frame to say it.
 
-    `paintHere` coalesces to a `requestAnimationFrame`, so a read taken in the same
+    The shared repaint coalesces to a `requestAnimationFrame`, so a read taken in the same
     round-trip as the press that caused it is a read of the frame before. Two frames,
     because the repaint's own rAF may be queued behind this one's.
 

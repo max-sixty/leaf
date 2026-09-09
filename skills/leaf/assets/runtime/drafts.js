@@ -60,7 +60,8 @@
    The comment over the store below says where it came from and why one record carries
    an edit's provenance. */
 
-import { PENDING, runtime } from "./context.js";
+import { runtime } from "./context.js";
+import { PENDING } from "./conversation/identity.js";
 import { PAGE_SCOPE, draftStore } from "./storage.js";
 
 // ---------- draft persistence ----------

@@ -51,13 +51,14 @@ import {
   syncGeneral,
   threadsBox,
 } from "./conversation/panel.js";
-import { focused, paintHere } from "./keyboard/scopes.js";
+import { focused } from "./keyboard/scopes.js";
+import { repaint, repaintPage } from "./repaint.js";
 import { currentTray, reserveListClearance, showTray, traysEdge } from "./trays.js";
 import { foldBannerRow, toggleBtn } from "./banner.js";
 import {
+  bottomStatusEl,
   bottomChromeBoxes,
   shortcutBarEl,
-  walkPositionEl,
 } from "./keyboard/shortcut-bar.js";
 import { chromeRoot } from "./chrome.js";
 import { dockSeats, pageShifted, refreshHover } from "./anchors.js";
@@ -186,6 +187,10 @@ export function syncLayout() {
     "--lf-shortcut-bar-right",
     (panelBeside ? commentsEdge.width() : 0) + "px",
   );
+  bottomStatusEl.style.setProperty(
+    "--lf-shortcut-bar-right",
+    (panelBeside ? commentsEdge.width() : 0) + "px",
+  );
   // Start at the line's ordinary foot. A covering sheet lifts it only where the sheet's
   // own foot actually occupies the same pixels. The old posture-level answer lifted the
   // line by every covering footer's height even when the footer stood wholly to its
@@ -198,6 +203,17 @@ export function syncLayout() {
     // stylesheet and follows a draft as its textarea grows.
     shortcutBarEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
     line = shortcutBarEl.getBoundingClientRect();
+  }
+  // The status shares the line's baseline when each occupies its own corner. If either
+  // grows until their horizontal spans meet, stack the status above the line instead.
+  bottomStatusEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
+  let status = bottomStatusEl.getBoundingClientRect();
+  if (line.height && status.height && overlapsAcross(status, line)) {
+    bottomStatusEl.style.bottom = `${innerHeight - line.top + 7}px`;
+    status = bottomStatusEl.getBoundingClientRect();
+  } else if (panelCovers() && status.height && overlaps(status, foot)) {
+    bottomStatusEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
+    status = bottomStatusEl.getBoundingClientRect();
   }
   // What a scroll region gives up is the part of the line that stands over it: the band
   // from the line's top down to that region's own foot, plus the air above the line.
@@ -361,7 +377,7 @@ export function setPanel(open, { remember = true } = {}) {
   syncLayout();
   panelChanged(open);
   if (remember) readerStore.set(PANEL_KEY, open ? "1" : "0");
-  paintHere();
+  repaint();
   // The panel is one of the two surfaces the hover reads, so its arriving or going away
   // is the pointer moving even when the pointer has not: closing it with the keyboard,
   // from a hand resting on a card, took the card out from under the pointer and left the
@@ -373,27 +389,9 @@ export function setPanel(open, { remember = true } = {}) {
 // Field sizing and every other chrome-size change feed the one layout pass.
 // The document shell's size also feeds the page repaint door: content landing can move
 // a target without emitting a pointer or scroll event.
-let layoutFrame = 0;
-let pageMoved = false;
-let chromeMoved = false;
 const scheduleLayout = (shellChanged = false, chromeChanged = false) => {
-  pageMoved ||= shellChanged;
-  chromeMoved ||= chromeChanged;
-  if (layoutFrame) return;
-  layoutFrame = requestAnimationFrame(() => {
-    layoutFrame = 0;
-    const repaintPage = pageMoved;
-    const repaintChrome = chromeMoved;
-    pageMoved = false;
-    chromeMoved = false;
-    syncLayout();
-    if (repaintPage) pageShifted();
-    // A settled shortcut-bar or panel-foot size can change both the line's final box and
-    // the part of a target or search match it covers. Re-enter the shared paint after
-    // the chrome writer has placed that box, so every consumer reads the same geometry.
-    // `paintHere` is frame-coalesced, and a same-sized line emits no further resize.
-    if (repaintChrome) paintHere();
-  });
+  if (shellChanged) repaintPage();
+  else if (chromeChanged) repaint();
 };
 // Body's own box is the first of them, because a workspace lands its final shell width
 // before the column finishes moving there. Width observation handles taking or
@@ -431,7 +429,7 @@ const layoutSizes = new ResizeObserver((entries) => {
   if (layoutChanged) scheduleLayout(shellMoved, chromeMoved);
   else if (shellMoved) pageShifted();
 });
-// Wired once the chrome is in the document (chrome.js): the toggle and the parts observed
+// Wired once the chrome is in the document (leaf.js): the toggle and the parts observed
 // here are other owners', built as their modules evaluate, which this module cannot count
 // on having happened yet.
 export function mountLayout() {
@@ -464,7 +462,7 @@ export function mountLayout() {
   layoutSizes.observe(document.body);
   layoutSizes.observe(panelFoot);
   layoutSizes.observe(shortcutBarEl);
-  layoutSizes.observe(walkPositionEl);
+  layoutSizes.observe(bottomStatusEl);
 }
 
 let shellFrame = 0;

@@ -1679,11 +1679,13 @@ RINGS_DRAWN = f"""async () => {{
   // `var(--here-ring-w) solid var(--accent)`, so style, width and colour are all what
   // the element computes them to.
   //
-  // The colour is what tells a ring from another outline the layer draws at exactly
-  // its weight: a mark under the pointer takes the ring's own width while keeping the
-  // mark's own hue. Asking style and width alone claims it, then reports the page
-  // painting a ring no rule named — a complaint that cannot be answered, since naming
-  // it puts the mark in a population the keyboard can never light.
+  // Element feedback now deliberately shares the ring's weight and accent while the
+  // pointer is over it or its thread is current. Its role is the distinction the paint
+  // no longer carries: an unnamed contour on an element mark is feedback, while the
+  // named focus state on that same element is a ring. Keep that one semantic exclusion
+  // here; treating every accent contour as a ring reports the page painting a ring no
+  // rule named, and naming the feedback contour would put it in a population the
+  // keyboard can never light.
   // The control the reader is standing on is measured whatever paints its outline, since
   // a visible ring cut in half is a fault whoever drew it.
   //
@@ -1692,17 +1694,18 @@ RINGS_DRAWN = f"""async () => {{
   // way. Left out, the bar's own controls came back wearing `pressable` — the name of
   // the floor rule whose outline this one takes away — and the hint's band went
   // unmeasured wherever it stood.
-  const isHereRing = (cs) =>
-    (cs.outlineStyle === 'solid'
-     && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
-     && cs.outlineColor === accent)
-    || hereShadow(cs) > 0;
   // Which here ring this is, where a rule said. An unset registered property and an
   // unregistered one both answer `none` and neither is a name, so both come back empty.
   const ringName = (cs) => {{
     const n = cs.getPropertyValue('--lf-here-ring').trim();
     return n === 'none' ? '' : n;
   }};
+  const isHereRing = (el, cs) =>
+    (cs.outlineStyle === 'solid'
+     && cs.outlineWidth === cs.getPropertyValue('--here-ring-w').trim()
+     && cs.outlineColor === accent
+     && (!el.matches(':is(.lf-mark-el, .lf-react-el)') || Boolean(ringName(cs))))
+    || hereShadow(cs) > 0;
   // Every box painting the ring, read off the composed page. Whether a ring is there is
   // what the paint says, so this asks the paint: a ring a rule drew without the layer's
   // own token is found here exactly as readily, and no reading of the rules can find
@@ -1721,9 +1724,9 @@ RINGS_DRAWN = f"""async () => {{
     for (const el of root.querySelectorAll('*')) {{
       if (el.shadowRoot) roots.push(el.shadowRoot);
       const cs = getComputedStyle(el);
-      if (isHereRing(cs)) claimed.push({{ el, cs, name: ringName(cs) }});
+      if (isHereRing(el, cs)) claimed.push({{ el, cs, name: ringName(cs) }});
       const after = getComputedStyle(el, '::after');
-      if (after.content !== 'none' && isHereRing(after))
+      if (after.content !== 'none' && isHereRing(el, after))
         claimed.push({{ el, cs: after, name: ringName(after) }});
     }}
   const focused = ({DEEP_FOCUS})();
@@ -2009,7 +2012,7 @@ RINGS_DRAWN = f"""async () => {{
     }}
     answers.push({{
       who: named(el),
-      here: isHereRing(cs),
+      here: isHereRing(el, cs),
       ring: name,
       focused: el === focused,
       scrolled,

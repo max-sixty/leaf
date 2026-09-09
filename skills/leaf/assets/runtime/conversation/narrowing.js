@@ -32,6 +32,7 @@ let state = "open";
 let scope = null;
 let subject = null;
 let onlyGone = false;
+export const threadSearchActive = () => Boolean(finding);
 
 export const needsYou = () => state === "reader";
 export const narrowed = () =>

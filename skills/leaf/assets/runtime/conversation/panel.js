@@ -33,7 +33,7 @@ closeBtn.setAttribute("aria-label", "Close threads");
 // it is showing instead the moment a narrowing stands. One slot, because they are one
 // fact — how much of the log is in front of the reader — and a count in a second place
 // is a count free to disagree with the list under it.
-export const panelTitle = el("span", "", "Threads");
+export const panelTitle = el("span", "lf-panel-title", "Threads");
 panelHead.append(panelTitle, closeBtn);
 
 // Narrowing the list, which is the panel's own view and not the page's state: none of

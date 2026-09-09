@@ -6,7 +6,7 @@ import {
   sendReaction,
 } from "../reactions.js";
 import { el } from "../widget-elements.js";
-import { isReaction } from "./model.js";
+import { isAddressable, isReaction } from "./model.js";
 import { withdraw } from "../projection.js";
 import { runtime } from "../context.js";
 import { reactDone, removeNode } from "./reconcile.js";
@@ -25,12 +25,15 @@ import { reactDone, removeNode } from "./reconcile.js";
 // Rebuilt from the thread on each reconcile rather than from the press, so a reaction
 // arriving from another tab and an undo land the same way. A resolved thread offers none.
 export function paintReactStrips(node, t) {
-  const latest = t.msgs.findLast((x) => x.author === "claude")?.id ?? null;
+  const latest = t.msgs.findLast((x) => x.author === "claude" && isAddressable(x))?.id;
   for (const msg of node.querySelectorAll(
     ":scope > .lf-msg, :scope > .lf-conversation-msg",
   )) {
     const m = t.msgs.find((x) => x.id === (msg.dataset.mid ?? msg.dataset.event));
-    if (!m || m.author !== "claude") continue;
+    if (!m || m.author !== "claude" || !isAddressable(m)) {
+      msg.querySelector(":scope > .lf-react-strip")?.remove();
+      continue;
+    }
     let strip = msg.querySelector(":scope > .lf-react-strip");
     if (t.resolved) {
       if (strip) removeNode(strip);

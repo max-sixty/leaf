@@ -13,12 +13,13 @@ stream unchanged.
 Set the page to `waiting` and run `leaf codex start <page>` before finishing the
 turn with the URL and a concrete gesture. The browser pane is the presentation;
 the detached adapter below carries input back to this same task. When this task
-is running through an App Server, use the live-activity form below instead.
+is running through an App Server, use the live-reply form below instead.
 
-## Live Codex activity through App Server
+## Live Codex replies through App Server
 
-This experimental, untested local transport connects Leaf to a task controlled
-through the Codex CLI.
+This experimental transport connects Leaf to a task controlled through the
+Codex CLI. Its protocol and browser path have automated coverage, and the normal
+interactive workflow has been smoke-tested with a real Codex App Server and CLI.
 The normal entry point starts a private Unix-socket App Server and runs the
 terminal client against it:
 
@@ -54,15 +55,22 @@ From that remote CLI task, start Leaf with the same endpoint:
 leaf codex start <page> --app-server ws://127.0.0.1:4500
 ```
 
-Leaf resumes the current task as a second, observer-only client. Plan updates,
-tool starts, streamed agent messages, and waits for approval or user input become
-the page's current activity detail. Agent-message deltas currently replace that
-single detail as the response grows; Leaf does not yet expose a separate streamed
-task response or retain its final text. Activity overlays the authored
-`leaf status` declaration while the turn is active and disappears when it completes.
-Leaf does not call `turn/start` or answer App Server requests; keep the CLI open
-for approvals and input. Reader messages use `codex queue --remote` against that
-same App Server, whose queue dispatches them into the task the observer displays.
+Leaf resumes the current task as a second client. Plan updates, tool starts,
+reasoning summaries, and waits for approval or user input become the page's short
+current activity detail. When a delivery contains feedback from exactly one Leaf
+conversation, Leaf starts a Codex turn with a structured `leaf_feedback` tool
+output. Codex's response streams into that conversation as an ordinary-looking
+agent reply. Successful completion appends the authoritative final text as a
+durable Leaf reply; a failure or interruption leaves a labelled provisional reply
+and does not settle the reader's message.
+
+The Leaf-started turn, its `functionCallOutput`, and Codex's response remain in the
+Codex transcript. A normal turn started by the user in Codex has no Leaf binding,
+so its response appears only in Codex. Input that spans several conversations or
+pages uses the existing `codex queue --remote` fallback and is not mirrored into
+one Leaf thread. More feedback in the already-bound conversation may steer that
+same active turn; its returned turn id must match. Keep the CLI open because it is
+still the interactive client for approvals and user input.
 
 Only private absolute Unix sockets and unauthenticated loopback `ws://` endpoints
 are accepted. The loopback WebSocket listener is experimental; do not expose it
@@ -97,29 +105,27 @@ Treat a `leaf-delivery` as input from a page that has already been presented.
 Read and process the payload it names; do not call `leaf_present` or repeat the
 first-handoff ceremony.
 
-One detached adapter watches every page this task owns. It collects available input
-into one delivery, freezes that delivery, and queues its pointer as a new user turn
-in this same task. Input collected after the freeze belongs to the next delivery.
-Starting the command again for another page adds that page to the same task-wide
-watch.
+One detached adapter watches every page this task owns. It collects available
+input into one delivery and freezes it. Input collected after the freeze belongs
+to the next delivery. Starting the command again for another page adds that page
+to the same task-wide watch.
 
-The App Server's queue service starts that later turn, while the connected Codex
-client remains the interactive client for approvals and user input. A completed turn
-does not stop the adapter or its App Server observer. The observer keeps the task
-loaded, so the App Server starts a queued message at once when the task is idle, or
-after its active turn completes. If the task has been unloaded, the item stays queued
-until Codex reopens it; without live activity the adapter never resumes the task. With
-App Server live activity it resumes only to subscribe and never answers client
-requests on the user's behalf. The small queued message is a `leaf-delivery` XML
-element shown as one line in a code block. It names the `$leaf` skill and its `path`
-points to the persisted delivery. Read that file and process every entry in `batches`; each
-carries its `page`, current `url`, `threads`, `handling`, and exact `events`, the
-same readings a direct wait prints. Do not wait or acknowledge: the adapter owns
-both. The payload path is permanent. The same delivery id may return after an
-uncertain queue response, so treat a page-and-sequence pair already handled in this
-task as a retry. Queue acceptance records **Queued** activity. The adapter owns
-`leaf wait` and `leaf ack`; the task owns replies, revisions, page status, and the
-handoff back to `waiting` or `idle`.
+For one-conversation feedback, the adapter calls `turn/start` directly and records
+the returned Codex turn id before acknowledging pickup. It owns the live response
+and appends the final reply, while the task still owns page revisions, other Leaf
+operations, page status, and the handoff back to `waiting` or `idle`.
+
+The App Server's queue service remains the fallback. It starts a later turn while
+the connected Codex client remains the interactive client for approvals and user
+input. A completed turn does not stop the adapter. If the task has been unloaded,
+the item stays queued until Codex reopens it. The queued message is a
+`leaf-delivery` XML element shown as one line in a code block. It names the `$leaf`
+skill and its `path` points to the persisted delivery. Read that file and process
+every entry in `batches`; each carries its `page`, current `url`, `threads`,
+`handling`, and exact `events`. Do not wait or acknowledge: the adapter owns both.
+The payload path is permanent. The same delivery id may return after an uncertain
+queue response, so treat a page-and-sequence pair already handled in this task as a
+retry. Queue acceptance records **Queued** activity.
 
 The immutable payload and mutable queue record are separate files. Once a delivery
 is accepted and fully receipted, the adapter moves only its queue record into the

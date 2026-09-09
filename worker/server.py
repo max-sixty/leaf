@@ -327,14 +327,15 @@ class WebsiteCodexHost:
                     message.get("method") == "turn/completed"
                     and message.get("params", {}).get("turn", {}).get("id") == turn_id
                 ):
+                    turn = message["params"]["turn"]
                     with self.lock:
                         self._finish_turn(
                             page_dir,
                             thread_id,
                             leaf_turn,
                             event_ids,
-                            message["params"]["turn"],
-                            events.final_message,
+                            turn,
+                            events.final_text(turn),
                         )
                     return
         except (OSError, RuntimeError, ValueError, WebSocketException):

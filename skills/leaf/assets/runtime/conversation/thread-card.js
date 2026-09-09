@@ -59,8 +59,10 @@ export function threadNode(t, grow) {
       existing.querySelector(":scope > .lf-receipt") ??
       compose ??
       existing.querySelector(":scope > .lf-thread-actions");
+    const messages = turns(t);
+    const current = new Set(messages.map((message) => message.id));
     // New messages append before the source-less fallback or thread controls.
-    for (const m of turns(t)) {
+    for (const m of messages) {
       let msg = msgNodeIn(existing, m);
       if (!msg) {
         msg = msgNode(m);
@@ -69,6 +71,10 @@ export function threadNode(t, grow) {
       }
       syncMsgNode(msg, m);
     }
+    for (const streamed of existing.querySelectorAll(
+      ':scope > .lf-msg[data-mid^="codex-stream:"]',
+    ))
+      if (!current.has(streamed.dataset.mid)) streamed.remove();
     paintReactStrips(existing, t);
     return existing;
   }

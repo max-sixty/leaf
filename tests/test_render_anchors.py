@@ -3033,7 +3033,8 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     )
     for quote in (
         "Two years of incident write-ups name a log older than six weeks exactly twice.",
-        "The distribution is not a curve with a tail; it is a wall.",
+        "Across eighteen months of query history, 90% of reads touch logs less than "
+        "a week old and 95% stay within 42 days.",
     ):
         assert re.sub(r"\s", "", quote) in painted, painted[:160]
 

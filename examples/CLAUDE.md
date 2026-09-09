@@ -99,8 +99,9 @@ door validates a source against the page's markup and the current version is the
 one that has to bind it.
 
 `log-retention` is the revising example. Its second version rewrites one paragraph
-around a sentence the reader quoted, adds a paragraph and a step, and leaves the
-rest alone, so the comparison marks three blocks and both threads stay attached.
+around a sentence the reader quoted, adds a paragraph and a step, and updates the
+title and lede to state the exception. The comparison marks five blocks and both
+threads stay attached; unchanged passages stay unmarked.
 `restated` and `overruled` are reachable and no example uses them; each needs a
 decision or report standing in the seeded log that the next version contradicts.
 Write one when there is a page it makes sense on, not to fill the slot.
@@ -114,11 +115,11 @@ an example lays the log in: `scripts/preview.py`,
 `tests/render_support.py`. `serve` seeds when handed an example rather than
 markup, and sets the cursor past the seed as `preview.py` does. The anchor sweep
 opts out, because it writes its own anchors and compares the whole painted mark
-against exactly those. `ship-review.jsonl` carries a thread;
-`review-queue.jsonl` carries two page-owned decisions; and
+against exactly those. `ship-review.jsonl` carries a thread. Under
+`tests/fixtures/pages/`, `review-queue.jsonl` carries two page-owned decisions and
 `current-proposed-comparison.jsonl` carries the one choice its next version applies.
-These seeds reach the browser on the published site through the session running in the
-reader's own tab, since published pages are served rather than exported.
+The public examples' seeds reach the published site through the session running in
+the reader's own tab, since published pages are served rather than exported.
 
 External data is the other companion state. An example that binds a widget input
 to a source ships `<stem>.data.json`, mapping each page-owned source id to its

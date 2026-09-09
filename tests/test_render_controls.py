@@ -1818,12 +1818,19 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         ) == comments_edge.get_attribute("aria-valuemax")
         threads = page.locator(".lf-threads")
         threads.evaluate("box => { box.scrollTop = 0; }")
+        filters = page.locator(".lf-thread-filters").bounding_box()
+        assert filters["height"] <= 120, (
+            f"the filters took more than three compact rows at the 320px floor: {filters}"
+        )
         width_before = page.evaluate(
             "() => getComputedStyle(document.documentElement)"
             ".getPropertyValue('--lf-panel-w')"
         )
-        panel_box = page.locator(".lf-panel").bounding_box()
-        swipe(panel_box["x"] + panel_box["width"] / 2, 280)
+        threads_box = threads.bounding_box()
+        swipe(
+            threads_box["x"] + threads_box["width"] / 2,
+            threads_box["y"] + min(80, threads_box["height"] / 2),
+        )
         page.wait_for_function(
             "() => document.querySelector('.lf-threads').scrollTop > 0"
         )
@@ -5060,13 +5067,6 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         for row in page.locator("lf-options[settled] > .lf-settled").all():
             if row.is_visible():
                 row.click()
-        # And the resolved threads, for the same reason and with the same shape: a
-        # closed thread's Reopen is behind this disclosure, so a walk that leaves it
-        # shut reaches every control in the panel except the one on the far side of an
-        # answered conversation.
-        resolved = page.locator(".lf-details > summary")
-        if resolved.count() and resolved.is_visible():
-            resolved.click()
         page_at_rest(page)
 
         for scope, keys, corpus in RING_WALKS:
@@ -5109,6 +5109,17 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             elif not page.locator(".lf-panel.open").count():
                 page.locator(".lf-threads-toggle").click()
                 panel_settled(page)
+            if scope == "the page":
+                # Escape restores the panel's default lifecycle view. Select Resolved
+                # after that reset so the page walk includes each closed thread's
+                # Reopen control; narrower scopes keep open threads available for their
+                # own conditional controls, such as a reply's reaction palette.
+                resolved = page.locator('[data-filter-value="resolved"]')
+                if (
+                    resolved.is_enabled()
+                    and resolved.get_attribute("aria-pressed") != "true"
+                ):
+                    resolved.click()
                 page.evaluate(RING_WALK_START)
             if posture:
                 resized(page, posture, RING_WALK_VIEWPORT[1])
@@ -5492,8 +5503,8 @@ def _each_aim_surface(page, page_dir):
     # A resolved thread, which is the only state that has a Reopen to aim at.
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
-    expect(page.locator(".lf-details summary")).to_have_count(1)
-    page.locator(".lf-details summary").click()
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    page.locator('[data-filter-value="resolved"]').click()
     expect(page.locator(".lf-reopen")).to_have_count(1)
     yield
 
@@ -5529,7 +5540,7 @@ def test_every_control_the_layer_offers_is_a_box_the_reader_can_hit(
     about rather than a lesser version of it.
 
     The surfaces have to be opened for any of it to mean anything: seven of the eight
-    controls at issue exist only inside a panel, a menu, a resolved disclosure or the
+    controls at issue exist only inside a panel, a menu, a resolved thread or the
     reference, and a sweep of the page at rest would report a clean layer while every one
     of them was still six pixels tall. AIM_SURFACES is that assertion.
     """

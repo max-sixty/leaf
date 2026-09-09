@@ -620,8 +620,10 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     thread.locator("textarea").fill("three is the retry budget, not a guess")
     thread.get_by_role("button", name="Send", exact=True).click()
     expect(page.locator(".lf-msg.user")).to_have_count(1)
-    page.locator(".lf-thread").first.get_by_role("button", name="Resolve").click()
-    expect(page.locator(".lf-details summary")).to_have_text("Resolved (1)")
+    page.locator(".lf-thread").first.get_by_role(
+        "button", name="Resolve thread", exact=True
+    ).click()
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
     kinds = [(e["kind"], e.get("author")) for e in events_model.read_events(d)]
     assert ("comment", "claude") in kinds

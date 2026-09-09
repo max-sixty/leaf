@@ -1,4 +1,4 @@
-/* The thread panel's scaffold: the dialog, its head, the narrowing row, the thread list,
+/* The thread panel's scaffold: the dialog, its head, its narrowing controls, the thread list,
    and the foot the general box stands in. Built here, once, so every owner that draws
    into the panel imports the same nodes; the reconciler renders into them and the
    chrome-layout.js places them. */
@@ -36,12 +36,12 @@ closeBtn.setAttribute("aria-label", "Close threads");
 export const panelTitle = el("span", "lf-panel-title", "Threads");
 panelHead.append(panelTitle, closeBtn);
 
-// Narrowing the list, which is the panel's own view and not the page's state: neither
-// box is remembered across a reload, the way a browser's find bar is not. A remembered
-// narrowing is a trap: the reader returns to three of twenty-four threads with nothing on
-// screen saying why, and a comment arriving outside it never appears at all. Here the head
-// says "Showing 3 of 24" for as long as one stands, and a reload is the whole conversation
-// again.
+// Narrowing the list, which is the panel's own view and not the page's state: none of
+// these controls is remembered across a reload, the way a browser's find bar is not. A
+// remembered narrowing is a trap: the reader returns to three of twenty-four threads with
+// nothing on screen saying why, and a comment arriving outside it never appears at all. Here
+// the head says "Showing 3 of 24" for as long as one stands, and a reload makes the whole
+// conversation available again.
 const findRow = el("div", "lf-find");
 export const findInput = document.createElement("input");
 findInput.type = "search";
@@ -52,13 +52,61 @@ findInput.setAttribute("aria-label", "Find in threads");
 // The register appends the key that reaches it (`control`), so the control and the row
 // cannot spell the binding differently.
 findInput.title = "Find in threads";
-// What is waiting on the reader: an agent comment, an explicit question in a reply, or a
-// reply whose own x-awaits markup still asks. The last case is derived from the same
-// declaration-driven projection as the Asks tray; settling reactions can acknowledge
-// either kind without closing the thread.
-export const needsBtn = el("button", "lf-btn lf-needs", "Waiting on you");
-needsBtn.setAttribute("aria-pressed", "false");
-findRow.append(findInput, needsBtn);
+findRow.append(findInput);
+
+const filterButton = (kind, value, label, className = "") => {
+  const button = el(
+    "button",
+    `lf-btn lf-thread-filter${className ? ` ${className}` : ""}`,
+    label,
+  );
+  button.type = "button";
+  button.dataset.filterKind = kind;
+  button.dataset.filterValue = value;
+  button.dataset.filterLabel = label;
+  button.setAttribute("aria-pressed", "false");
+  return button;
+};
+const filterGroup = (label, buttons) => {
+  const group = el("div", "lf-thread-filter-group");
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", label);
+  group.append(...buttons);
+  return group;
+};
+
+export const stateButtons = {
+  open: filterButton("state", "open", "Open"),
+  reader: filterButton("state", "reader", "On you", "lf-needs"),
+  agent: filterButton("state", "agent", "On agent"),
+  resolved: filterButton("state", "resolved", "Resolved"),
+};
+// The shared name of the control `w` reaches. Waiting is one value of the state facet
+// rather than an independent switch that could be combined with Resolved.
+export const needsBtn = stateButtons.reader;
+export const scopeButtons = {
+  page: filterButton("scope", "page", "Page"),
+  local: filterButton("scope", "local", "Anchored"),
+};
+export const subjectButtons = {
+  content: filterButton("subject", "content", "Content"),
+  layer: filterButton("subject", "layer", "Layer"),
+};
+export const goneBtn = filterButton("gone", "gone", "No longer here");
+goneBtn.hidden = true;
+
+export const filterControls = el("div", "lf-thread-filters");
+filterControls.setAttribute("aria-label", "Filter threads");
+const facetRow = el("div", "lf-thread-filter-facets");
+facetRow.append(
+  filterGroup("Thread scope", Object.values(scopeButtons)),
+  filterGroup("Thread subject", Object.values(subjectButtons)),
+  filterGroup("Thread placement", [goneBtn]),
+);
+filterControls.append(
+  filterGroup("Thread state", Object.values(stateButtons)),
+  facetRow,
+);
 export const threadsBox = el("div", "lf-threads");
 // A stable panel landing for g T, for c entered from the list, and for pointer/Tab
 // fallbacks that have no command frame. -1 keeps it out of the Tab order.
@@ -82,7 +130,7 @@ generalRow.append(generalInput, generalSend);
 // The panel's foot: the general box below the scrolling thread list.
 export const panelFoot = el("div", "lf-panel-foot");
 panelFoot.append(generalRow);
-panel.append(panelHead, findRow, threadsBox, panelFoot);
+panel.append(panelHead, findRow, filterControls, threadsBox, panelFoot);
 
 let readingArrangement = null;
 export function mountPanelReadingRegion() {

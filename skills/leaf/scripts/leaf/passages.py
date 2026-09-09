@@ -21,9 +21,10 @@ from .structure import VOID_TAGS, implicit_closes
 #   x-says      attribute values the reader sees. renderSaid puts them in the DOM, so
 #               they go in here too, at the edge the registry names.
 #   x-verbatim  an upgraded element that preserves its own words around nested upgraded
-#               widget boundaries. Those descendants keep their own declarations;
-#               without this key the whole upgraded element is opaque, as a diagram's
-#               notation is once its module has drawn a picture.
+#               widget boundaries. The source and document-order occurrence identify
+#               every owner, including one with no authored id. Those descendants keep
+#               their own declarations; without this key the whole upgraded element is
+#               opaque, as a diagram's notation is once its module has drawn a picture.
 #   x-retired-when  the outcome under which this element leaves the page: a decided
 #               suggestion's losing slot. The browser builds its anchor pass's skip
 #               list from this key too (`quotable` in leaf.js), so a reading given
@@ -78,7 +79,7 @@ def collapse(text: str) -> str:
 class _OwnedWords:
     """One verbatim owner's words with upgraded descendants reduced to boundaries."""
 
-    def __init__(self, owner: str):
+    def __init__(self, owner: tuple[str, str | None, int]):
         self.owner = owner
         self.text = ""
         self.block = None
@@ -102,7 +103,14 @@ class _OwnedWords:
     def boundary(self, tag: str, element_id: str | None) -> None:
         self.flush()
         self.parts.append(
-            {"boundary": [self.owner, self.boundaries, tag, element_id or None]}
+            {
+                "boundary": [
+                    list(self.owner),
+                    self.boundaries,
+                    tag,
+                    element_id or None,
+                ]
+            }
         )
         self.boundaries += 1
 
@@ -168,7 +176,14 @@ class _PassageParser(HTMLParser):
     through the ordinary element reading at the end of their declared owner,
     including retirement, ancestry, and the fences around opaque widgets."""
 
-    def __init__(self, registry=None, decided=None, rewrites=None, additions=None):
+    def __init__(
+        self,
+        registry=None,
+        decided=None,
+        rewrites=None,
+        additions=None,
+        source=("page", None),
+    ):
         super().__init__(convert_charrefs=True)
         self.registry = registry or {}
         self.decided = decided or {}
@@ -188,6 +203,8 @@ class _PassageParser(HTMLParser):
         # detail may name one the page holds outside the vocabulary.
         self.enclosing = {}
         self.verbatim = {}
+        self.verbatim_source = source
+        self.verbatim_owners = 0
         self.bearing = (
             set()
         )  # ids still showing something: text under them, or a surviving child
@@ -219,7 +236,7 @@ class _PassageParser(HTMLParser):
             self.owner.append(ids)
         for frame in reversed(self.stack):
             if frame["verbatim"]:
-                self.verbatim[frame["id"]].write(data, block)
+                self.verbatim[frame["verbatim"]].write(data, block)
                 break
             if frame["upgrade"]:
                 break
@@ -295,10 +312,14 @@ class _PassageParser(HTMLParser):
         if entry.get("x-upgrade"):
             for ancestor in reversed(self.stack):
                 if ancestor["verbatim"]:
-                    self.verbatim[ancestor["id"]].boundary(tag, attrs_d.get("id"))
+                    self.verbatim[ancestor["verbatim"]].boundary(tag, attrs_d.get("id"))
                     break
                 if ancestor["upgrade"]:
                     break
+        provenance = None
+        if entry.get("x-verbatim"):
+            provenance = (*self.verbatim_source, self.verbatim_owners)
+            self.verbatim_owners += 1
         # An upgrade is opaque unless it preserves its own words and ordered nested
         # upgraded boundaries. Descendants keep their own contracts.
         opaque = bool(entry.get("x-upgrade") and not entry.get("x-verbatim"))
@@ -362,7 +383,7 @@ class _PassageParser(HTMLParser):
             "retired_by": retired_by,
             "opaque": opaque,
             "upgrade": bool(entry.get("x-upgrade")),
-            "verbatim": bool(entry.get("x-verbatim") and attrs_d.get("id")),
+            "verbatim": provenance,
             "fenced": opaque or bool(parent and parent["opaque"]),
             "tb": tb,
             # …and where there is none, the element is its own text node's parent, which
@@ -372,7 +393,7 @@ class _PassageParser(HTMLParser):
             "tail": [],
         }
         if frame["verbatim"]:
-            self.verbatim[frame["id"]] = _OwnedWords(frame["id"])
+            self.verbatim[frame["verbatim"]] = _OwnedWords(frame["verbatim"])
         # Each x-says value at the edge of the element's own words, in registry order,
         # which is where renderSaid puts it and where a pseudo-element stood before it.
         head = []
@@ -436,13 +457,18 @@ class Passages(NamedTuple):
     gone: dict  # decided id whose decision left it empty → the outcome that did it
     shown: dict  # id whose data body this withheld → the words a module shows there
     enclosing: dict  # id → the ids enclosing it, outermost first, itself last
-    verbatim: dict  # id → compositional words with upgraded descendants as boundaries
+    verbatim: dict  # source provenance → compositional words with upgraded descendants as boundaries
 
 
 def page_passages(
-    html: str, registry=None, decided=None, rewrites=None, additions=None
+    html: str,
+    registry=None,
+    decided=None,
+    rewrites=None,
+    additions=None,
+    source=("page", None),
 ) -> Passages:
-    parser = _PassageParser(registry, decided, rewrites, additions)
+    parser = _PassageParser(registry, decided, rewrites, additions, source)
     parser.feed(html)
     parser.close()
     return Passages(

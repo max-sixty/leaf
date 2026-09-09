@@ -82,27 +82,27 @@ def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries(
         '<lf-shell id="shell"><p>set<em>up</em></p>'
         "<lf-piece>child words</lf-piece><p>after</p></lf-shell>",
         registry,
-    ).verbatim["shell"]
+    ).verbatim[("page", None, 0)]
     wrapped = passages_model.page_passages(
         '<lf-shell id="shell"><p><span>set</span>up</p>'
         "<lf-piece>different child rendering</lf-piece><p>after</p></lf-shell>",
         registry,
-    ).verbatim["shell"]
+    ).verbatim[("page", None, 0)]
     separated = passages_model.page_passages(
         '<lf-shell id="shell"><p>set up</p>'
         "<lf-piece>child words</lf-piece><p>after</p></lf-shell>",
         registry,
-    ).verbatim["shell"]
+    ).verbatim[("page", None, 0)]
     non_js_whitespace = passages_model.page_passages(
         '<lf-shell id="shell">\u0085edge\u0085</lf-shell>', registry
-    ).verbatim["shell"]
+    ).verbatim[("page", None, 0)]
 
     assert (
         plain
         == wrapped
         == [
             {"text": "setup"},
-            {"boundary": ["shell", 0, "lf-piece", None]},
+            {"boundary": [["page", None, 0], 0, "lf-piece", None]},
             {"text": "after"},
         ]
     )

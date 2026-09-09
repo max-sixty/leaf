@@ -1,0 +1,82 @@
+{
+  "lf-monitor": {
+    "description": "A bounded monitoring workspace with a compact overview, a wider evidence stream, and a persistent exception decision. Its optional direct header and footer frame exactly one lf-monitor-grid body. The root chooses bounded or flow posture from the grid's asymmetric minimum; the authored region order remains overview, evidence, exception when the page flows or prints.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false,
+    "x-content": "prose",
+    "x-layout": "workspace",
+    "x-upgrade": true,
+    "x-verbatim": true,
+    "x-example": "<lf-monitor id=\"release-monitor\"><header><h1>Release monitor</h1></header><lf-monitor-grid id=\"release-regions\"><lf-monitor-region id=\"release-overview\" label=\"Overview\" zone=\"overview\"><p>Four checks remain.</p></lf-monitor-region><lf-monitor-region id=\"release-evidence\" label=\"Evidence\" zone=\"evidence\"><pre>14:32 rollback healthy</pre></lf-monitor-region><lf-monitor-region id=\"release-exception\" label=\"Exception\" zone=\"exception\"><p>One export needs review.</p></lf-monitor-region></lf-monitor-grid></lf-monitor>"
+  },
+  "lf-monitor-grid": {
+    "description": "The three-region body of an lf-monitor. It contains exactly one lf-monitor-region for each zone in overview, evidence, exception order. The grid registers as one compound allocation while each region keeps its own reading position.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false,
+    "x-parent": [
+      "lf-monitor"
+    ],
+    "x-content": "items",
+    "x-children": {
+      "lf-monitor-region": {
+        "one-each": "zone"
+      }
+    },
+    "x-upgrade": true,
+    "x-verbatim": true,
+    "x-example": "<lf-monitor id=\"release-monitor\"><lf-monitor-grid id=\"release-regions\"><lf-monitor-region id=\"release-overview\" label=\"Overview\" zone=\"overview\"><p>Four checks remain.</p></lf-monitor-region><lf-monitor-region id=\"release-evidence\" label=\"Evidence\" zone=\"evidence\"><pre>14:32 rollback healthy</pre></lf-monitor-region><lf-monitor-region id=\"release-exception\" label=\"Exception\" zone=\"exception\"><p>One export needs review.</p></lf-monitor-region></lf-monitor-grid></lf-monitor>"
+  },
+  "lf-monitor-region": {
+    "description": "One named reading region in a monitoring workspace. The zone fixes its place and relative width: overview is compact, evidence receives the most room, and exception stays visible beside it. The label names the region for navigation and assistive technology; a direct header supplies its visible heading.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string",
+        "minLength": 1
+      },
+      "zone": {
+        "enum": [
+          "overview",
+          "evidence",
+          "exception"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "label",
+      "zone"
+    ],
+    "additionalProperties": false,
+    "x-parent": [
+      "lf-monitor-grid"
+    ],
+    "x-content": "prose",
+    "x-layout": "pane",
+    "x-upgrade": true,
+    "x-verbatim": true,
+    "x-example": "<lf-monitor id=\"release-monitor\"><lf-monitor-grid id=\"release-regions\"><lf-monitor-region id=\"release-overview\" label=\"Overview\" zone=\"overview\"><p>Four checks remain.</p></lf-monitor-region><lf-monitor-region id=\"release-evidence\" label=\"Evidence\" zone=\"evidence\"><pre>14:32 rollback healthy</pre></lf-monitor-region><lf-monitor-region id=\"release-exception\" label=\"Exception\" zone=\"exception\"><p>One export needs review.</p></lf-monitor-region></lf-monitor-grid></lf-monitor>"
+  }
+}

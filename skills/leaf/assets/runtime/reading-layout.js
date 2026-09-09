@@ -5,7 +5,7 @@
    registration lifecycle; CSS owns division and scrolling, while each widget decides
    when its outermost arrangement receives bounded posture. */
 import { registerArrangement } from "./reading-regions.js";
-import { layoutChanged } from "./widget-elements.js";
+import { LAYOUT, layoutChanged } from "./widget-elements.js";
 
 const generated = (className) => {
   const node = document.createElement("div");
@@ -77,4 +77,79 @@ export function registerArrangedElement({
   syncRootWorkspace(owner);
   layoutChanged(owner);
   return arrangement;
+}
+
+export function fitRootReadingElement({ owner, arrangement, minimumSize }) {
+  if (!owner || !arrangement?.setPosture || typeof minimumSize !== "function")
+    throw new Error(
+      "leaf: root fitting needs an owner, arrangement, and minimum-size reader",
+    );
+
+  let active = true;
+  let scheduled = null;
+  let resize = null;
+
+  const choosePosture = async () => {
+    if (!active || !owner.isConnected) return;
+    if (!owner.hasAttribute("data-lf-root-workspace")) {
+      await arrangement.setPosture("flow");
+      return;
+    }
+
+    const minimum = minimumSize();
+    if (
+      minimum !== null &&
+      (!Number.isFinite(minimum?.width) ||
+        !Number.isFinite(minimum?.height) ||
+        minimum.width < 0 ||
+        minimum.height < 0)
+    )
+      throw new Error("leaf: a root minimum must be null or a finite width and height");
+
+    const rootStyle = getComputedStyle(document.documentElement);
+    const availableHeight =
+      innerHeight -
+      (Number.parseFloat(getComputedStyle(document.body, "::before").height) || 0) -
+      (Number.parseFloat(rootStyle.getPropertyValue("--lf-bottom-chrome-clear")) || 0);
+    const mainStyle = getComputedStyle(owner.parentElement);
+    const availableWidth =
+      document.body.getBoundingClientRect().width -
+      (Number.parseFloat(mainStyle.paddingLeft) || 0) -
+      (Number.parseFloat(mainStyle.paddingRight) || 0);
+    const bounded =
+      minimum !== null &&
+      availableWidth >= minimum.width &&
+      availableHeight >= minimum.height;
+    await arrangement.setPosture(bounded ? "bounded" : "flow");
+  };
+
+  const update = () => {
+    if (!scheduled)
+      scheduled = new Promise((resolve, reject) => {
+        requestAnimationFrame(() => {
+          choosePosture()
+            .then(resolve, reject)
+            .finally(() => (scheduled = null));
+        });
+      });
+    return scheduled;
+  };
+
+  if (owner.hasAttribute("data-lf-root-workspace")) {
+    resize = new ResizeObserver(update);
+    resize.observe(document.body);
+    window.addEventListener("resize", update);
+    owner.addEventListener(LAYOUT, update);
+  }
+
+  return {
+    update,
+    cleanup() {
+      active = false;
+      resize?.disconnect();
+      resize = null;
+      window.removeEventListener("resize", update);
+      owner.removeEventListener(LAYOUT, update);
+    },
+  };
 }

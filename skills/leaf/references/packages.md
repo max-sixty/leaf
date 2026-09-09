@@ -68,7 +68,8 @@ and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 technical backlog deck; `playground` adds declarative controls, presets, CSS-bound
 previews, and one typed configuration action; `command-hub` adds multi-agent
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
-description and compact checks table, plus a data-backed unified call diff. `gallery`
+description and compact checks table, plus a data-backed unified call diff; `monitoring`
+adds an asymmetric overview, evidence, and exception workspace. `gallery`
 adds the static gallery of page-edge action controls, disclosure controls, and status
 indicators used only by the developer feature gallery, so ordinary pages do not select it:
 
@@ -79,6 +80,7 @@ leaf page init --package swipe PAGE
 leaf page init --package playground PAGE
 leaf page init --package command-hub PAGE
 leaf page init --package diff --package pr-review PAGE
+leaf page init --package monitoring PAGE
 ```
 
 Those two renderers are about 3.2MB, and most pages draw neither, so they travel in
@@ -222,6 +224,13 @@ bounded posture. The shared theme gives only a marked `.lf-workspace-arranged` o
 available page below the banner. Other workspaces keep document flow. For bounded
 allocation, the workspace body is itself an arranged structural or compound owner. A
 plain wrapper keeps its descendants in document flow.
+
+`fitRootReadingElement({owner, arrangement, minimumSize})` owns the root's observation
+of available page width and height, window resize, and descendant layout changes. The
+caller supplies the complete minimum as `{width, height}` and keeps the composition's
+policy: the default workspace derives one recursively from equal splits, while an
+asymmetric package root may read its own grid tracks. The returned `update()` promise
+joins initial settlement; `cleanup()` retires its observers and listeners.
 
 `registerReadingRegion({id, host, body})` binds identity separately from the current
 scroller, while `registerArrangement({owner, content, regions})` returns

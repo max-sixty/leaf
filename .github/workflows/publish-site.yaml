@@ -39,7 +39,7 @@ jobs:
     # The verification step at the end owns most of this budget: the release wait
     # spends up to its own 900 seconds, and the agent pass after it adds a page
     # verification, `agent_session`'s 180 seconds, the turn's `TURN_LIMIT`, and the
-    # reload and presentation checks that follow — roughly 32 minutes, behind the
+    # reload and its `TURN_PRESENTATION` wait — roughly 34 minutes, behind the
     # three the build, image push and deploy take. The job has to clear that, because
     # a cancelled job prints `exceeded the maximum execution time` in place of the
     # gate's own account of what the deployed page was doing.
@@ -107,6 +107,9 @@ jobs:
       # Worker activation and container rollout are separate Cloudflare operations. A
       # real browser must see the requested build in the document, module graph, edge
       # projection, and a newly allocated container before this deployment is green.
+      # The loop owns that wait — rollout drains one container allocation at a time,
+      # so a coherent sample is what ends it — and the agent pass that follows runs
+      # the deployed turn alone rather than re-sampling readings the wait settled.
       - name: Verify the exact public release in Chrome
         run: |
           release=$(jq --raw-output .release .tmp/site/_leaf/site.json)

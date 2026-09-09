@@ -254,7 +254,7 @@ Each mutable fact has one writer:
 | the reading the page has applied | the server's `/api/state` answer | `receiveState` writes `runtime.reading` and paints `data-lf-reading` |
 | unresolved browser work | the ordered `outbox` | `post` adds, `accountOutbox` and `releaseProjectedOutbox` remove |
 | rendered semantic state | authored state, log projection, then outbox overlay | `reconcileState` |
-| rendered conversation | the server's thread projection, then the outbox's unread messages | `buildThreads` |
+| rendered conversation | the server's thread projection, then the outbox's unread messages | `foldThreads`, installed by reconciliation |
 | proof of what the DOM currently represents | `committedProjection` | `stageOutboxAction` and `reconcileState` |
 | anchor paint | thread and composer anchor records | `paintAnchors` |
 | where each thread's passage lands | this version's resolution of its anchor | `paintAnchors` writes a rich `placed` record with its element, exact datum, and exact/fallback/outdated status |

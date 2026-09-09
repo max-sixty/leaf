@@ -54,6 +54,7 @@ from render_support import (
     compare_with,
     composer_quote,
     hold_selection,
+    holding,
     leaf_page,
     live_url,
     mark_point,
@@ -3967,8 +3968,7 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
         expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
         page.keyboard.press("ArrowDown")
         expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
-        page.wait_for_timeout(0)
-        assert held, "the comparison view was not held"
+        holding(page, held, 1, "the comparison view")
         expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_attribute(
             "aria-busy", "true"
         )
@@ -3976,15 +3976,15 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
 
         _publish(serve.page_dir, 3, v3, "reworded the compound")
         wait_for_revision(page, 3)
-        assert len(requests) >= 2, "the selected base was not restored after activation"
         expect(page.locator(".lf-version")).to_have_text("v3")
         expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
         expect(page.locator(".lf-ins-block")).to_have_count(2)
+        assert len(requests) >= 2, "the selected base was not restored after activation"
 
         # The canceled request can finish last without repainting the prior document.
-        held[0].continue_()
+        with page.expect_response(held[0].request.url):
+            held[0].continue_()
         released = True
-        page.wait_for_timeout(0)
         expect(page.locator(".lf-version")).to_have_text("v3")
         expect(page.locator(".lf-ins-block")).to_have_count(2)
     finally:

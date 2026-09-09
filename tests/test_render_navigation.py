@@ -750,6 +750,78 @@ def test_the_feature_gallery_exercises_an_inline_diff_thread(browser, serve):
     expect(thread).to_have_count(1)
     expect(markers).to_have_count(baseline)
 
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(
+        page.locator(
+            ".lf-margin-preview .lf-conversation-thread"
+            '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
+        )
+    ).to_be_focused()
+    page.keyboard.press("t")
+    expect(
+        page.locator(
+            ".lf-margin-preview .lf-conversation-thread"
+            '[data-thread="a554d5e884abffdb6494a2fb90b0634f"]'
+        )
+    ).to_be_focused()
+    page.keyboard.press("t")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    assert errors == []
+    page.close()
+
+
+def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, serve):
+    """A contextual thread has one side and only lives while its anchor is visible."""
+    page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    card = page.locator(".lf-margin-preview")
+    expect(
+        card.locator(
+            '.lf-conversation-thread[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
+        )
+    ).to_be_focused()
+    owner = page.locator(
+        '.lf-margin-marker[data-lf-kinds~="comment"]'
+        '[aria-controls="lf-margin-preview"][aria-expanded="true"]:not([hidden])'
+    ).locator("xpath=..")
+    expect(owner).to_be_visible()
+    expect(card).to_have_attribute("data-lf-thread-placement", "right")
+
+    initial = owner.bounding_box()
+    assert initial["y"] + initial["height"] > 50
+    assert initial["y"] < 900
+    page.evaluate("distance => scrollBy(0, distance)", min(160, initial["y"] - 80))
+    page.wait_for_function(
+        """() => {
+          const owner = document.querySelector(
+            '.lf-margin-marker[data-lf-kinds~="comment"]' +
+            '[aria-controls="lf-margin-preview"][aria-expanded="true"]:not([hidden])'
+          )?.parentElement?.getBoundingClientRect();
+          return owner && owner.bottom > 50 && owner.top < innerHeight;
+        }"""
+    )
+    expect(card).to_be_visible()
+    expect(card).to_have_attribute("data-lf-thread-placement", "right")
+
+    page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
+    expect(card).to_be_hidden()
+
+    marker = page.locator(
+        '.lf-margin-marker[data-lf-kinds~="comment"]:not([hidden])'
+    ).first
+    marker.scroll_into_view_if_needed()
+    marker.click()
+    expect(card).to_be_visible()
+    page.evaluate("() => scrollTo(0, 0)")
+    expect(card).to_be_hidden()
+
     assert errors == []
     page.close()
 
@@ -1897,12 +1969,20 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
           const own = el.getBoundingClientRect();
           const inset = parseFloat(getComputedStyle(el).paddingTop);
           const control = el.querySelector(':scope > .lf-resolve').getBoundingClientRect();
-          const head = el.querySelector(
+          const headNode = el.querySelector(
             ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
-          ).getBoundingClientRect();
+          );
+          const head = headNode.getBoundingClientRect();
+          const author = headNode.querySelector('b').getBoundingClientRect();
+          const bodyNode = el.querySelector(
+            ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-body'
+          );
+          const body = bodyNode.getBoundingClientRect();
           return {controlTop: control.top, expectedTop: own.top + inset,
                   controlBottom: control.bottom, headTop: head.top,
-                  headBottom: head.bottom};
+                  headBottom: head.bottom, authorBottom: author.bottom,
+                  bodyTop: body.top,
+                  bodyMargin: parseFloat(getComputedStyle(bodyNode).marginTop)};
         }"""
     )
     assert placement["controlTop"] == pytest.approx(placement["expectedTop"], abs=1)
@@ -1912,6 +1992,9 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     assert placement["headTop"] < placement["controlBottom"], (
         f"Resolve took a row above the first inline message: {placement}"
     )
+    assert placement["bodyTop"] - placement["authorBottom"] == pytest.approx(
+        placement["bodyMargin"], abs=1
+    ), f"the first inline message has extra space below its author: {placement}"
 
     clearances = thread.evaluate(
         """el => {
@@ -6904,6 +6987,8 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator("body")).to_have_attribute("data-composer-shortcut-clicks", "1")
     expect(composer).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
     controls = page.locator(".lf-draft-controls[data-lf-for='plan']")
     controls.get_by_role("button", name="Edit").click()

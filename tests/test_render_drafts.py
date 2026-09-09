@@ -2715,9 +2715,8 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
     whitespace and repetition are where a character or regex diff quietly breaks.
 
     Both granularities, because the unit is the caller's and the contract is not: a
-    draft's history aligns by word, a version comparison by sentence, and that comparison
-    renders same+delete alone — so a sentence walk that dropped or invented a character
-    would put words in the base version nobody wrote."""
+    draft's history aligns by word, while an inline version comparison starts with
+    sentences and refines a local edit by word. Neither may drop or invent a character."""
     page, errors = open_page(browser, serve(JOURNEY_V1))
     cases = [
         ("", ""),
@@ -2731,18 +2730,23 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
             "shared " + " ".join(f"new-{i}" for i in range(2500)) + " ending",
         ),
     ]
-    aligned, by_sentence = page.evaluate(
+    aligned, by_sentence, inline = page.evaluate(
         """async (pairs) => {
-          const {alignText, sentenceUnits} =
+          const {alignInlineText, alignText, sentenceUnits} =
             await import('/runtime/text-alignment.js');
           return [
             pairs.map(([before, after]) => alignText(before, after)),
             pairs.map(([before, after]) => alignText(before, after, sentenceUnits)),
+            pairs.map(([before, after]) => alignInlineText(before, after)),
           ];
         }""",
         cases,
     )
-    for unit, walked in (("word", aligned), ("sentence", by_sentence)):
+    for unit, walked in (
+        ("word", aligned),
+        ("sentence", by_sentence),
+        ("inline", inline),
+    ):
         for (before, after), runs in zip(cases, walked):
             joined = "".join(run["text"] for run in runs if run["kind"] != "insert")
             assert joined == before, (unit, joined, before)
@@ -2757,6 +2761,20 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
     assert "".join(r["text"] for r in repeated if r["kind"] == "insert") == "twice"
     assert "Then stop." in "".join(r["text"] for r in repeated if r["kind"] == "same")
     assert [run["kind"] for run in aligned[-1]] == ["same", "delete", "insert", "same"]
+
+    local = page.evaluate(
+        """async () => {
+          const {alignInlineText} = await import('/runtime/text-alignment.js');
+          return alignInlineText(
+            'Each section names a feature and provides a live example.',
+            'Each section names a feature and provides a live example, including focused replays of its motion.'
+          );
+        }"""
+    )
+    assert "".join(run["text"] for run in local if run["kind"] == "delete") == ""
+    assert "".join(run["text"] for run in local if run["kind"] == "insert") == (
+        ", including focused replays of its motion"
+    )
     assert errors == []
     page.close()
 

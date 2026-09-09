@@ -3050,29 +3050,25 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     page.close()
 
 
-def test_a_changed_block_shows_what_it_said_in_the_base_version(browser, serve):
-    """The other half of a comparison: not only that a block changed, but from what.
+def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, serve):
+    """The other half of a comparison is one inline reading of what changed.
 
-    The marks are one reading and this is the second, and the reader asks for it a
-    block at a time — the Change margin element is a disclosure whose press folds the base
-    version's own paragraph open inside the block, so learning what changed costs no
-    travel to v1 and back. The example is the corpus's one authored pair, so what the
-    disclosure holds is what a revision does: a paragraph rewritten around a comment
-    (`ret-cost-body`, whose first sentence survived and whose second did not), and two
-    passages the revision added that v1 has no counterpart for.
+    The Change margin element is a disclosure per block. Its press inserts dropped
+    text at its aligned boundary and highlights added words in the current prose, so the
+    reader need not compare the paragraph with a second copy underneath. Rewritten
+    sentences stay whole; a local edit is refined to its words. Generated historical
+    words stay outside the authored passage: the existing comment remains attached and
+    selection still reads the current version alone.
 
-    The two sentences of `ret-cost-body` are the single-factor contrast. One rendering
-    that struck the whole paragraph and one that struck none of it both pass a test
-    reading only the words; this asserts the surviving sentence is unmarked and the
-    dropped one is a <del>, which only a per-sentence alignment of the two versions
-    produces."""
+    The authored pair supplies the contrasts: one rewritten paragraph with a surviving
+    and a replaced sentence, one new paragraph, and one new list item."""
     example = next(p for p in EXAMPLES if p.stem == "log-retention")
     page, errors = open_page(browser, serve(example))
     compare_with(page, 1)
     expect(page.locator("main .lf-ins-block")).to_have_count(3)
 
     # Nothing stands open until a reader asks: the marks are the whole first reading.
-    expect(page.locator(".lf-earlier")).to_have_count(0)
+    expect(page.locator(".lf-version-inline-label")).to_have_count(0)
     marks = "() => CSS.highlights.get('lf-mark')?.size ?? 0"
     assert page.evaluate(marks) == 2
     rewritten = page.locator(
@@ -3082,45 +3078,45 @@ def test_a_changed_block_shows_what_it_said_in_the_base_version(browser, serve):
     # A disclosure says what it holds. "Change" alone reports a fact and promises no
     # press, which is what the margin element said before it had one to make.
     expect(rewritten.locator(".lf-margin-element-context")).to_have_text(
-        "Show what v1 said"
+        "Show inline diff from v1"
     )
     rewritten.click()
 
-    # Inside the block, not beside it: an <li>'s parent takes list items and nothing
-    # else, so a sibling would be markup no list may hold.
-    earlier = page.locator("#ret-cost-body > .lf-earlier")
-    expect(earlier).to_have_count(1)
+    # One current passage, with its comparison identified at the start. The deletion
+    # sits where the replacement begins; the current sentence stays in its authored DOM.
+    label = page.locator("#ret-cost-body > .lf-version-inline-label")
+    expect(label).to_have_text("v1 → v2")
     expect(rewritten).to_have_attribute("aria-expanded", "true")
-    expect(rewritten).to_have_attribute("aria-controls", "lf-earlier-ret-cost-body")
-
-    # v1's own paragraph, whole: same + delete is what the alignment reconstructs.
-    assert re.sub(
-        r"\s+", " ", earlier.locator(".lf-earlier-body").inner_text()
-    ).strip() == (
-        "Two years of incident write-ups name a log older than six weeks exactly twice. "
-        "Both times the question was answered from the aggregates instead, so the 45 "
-        "days costs us a search we have not run."
+    expect(rewritten).to_have_attribute(
+        "aria-controls", "lf-version-inline-ret-cost-body"
     )
-    struck = earlier.locator("del").all_inner_texts()
-    assert len(struck) == 1, struck
-    assert struck[0].strip().startswith("Both times the question was answered"), struck
-    assert "Two years of incident write-ups" not in struck[0], struck
-    expect(earlier.locator(".lf-earlier-head")).to_have_text("v1")
+    struck = page.locator("#ret-cost-body > .lf-version-inline-deletion del")
+    expect(struck).to_have_count(1)
+    expect(struck).to_contain_text("Both times the question was answered")
+    expect(struck).not_to_contain_text("Two years of incident write-ups")
+    inserted = page.evaluate(
+        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
+    )
+    assert len(inserted) == 1, inserted
+    assert inserted[0].strip().startswith("The rate came from the aggregates"), inserted
+    assert "Two years of incident write-ups" not in inserted[0], inserted
 
     # The press reports the move; the banner's status line holds a moment's news, and
     # a paragraph put through it is clipped and a hover away.
     expect(page.locator(".lf-notice")).to_have_text(
-        "paragraph changed since v1 · showing what v1 said"
+        "paragraph changed since v1 · showing an inline diff from v1"
     )
 
-    # A passage the revision added has no counterpart to show, and says so rather than
-    # offering an empty quotation.
+    # A passage the revision added has no counterpart to show, so the inline label says
+    # that directly and the block keeps its all-new wash.
     added = page.locator(
         '[data-lf-margin-for="ret-cost-keep"] [data-lf-kinds~="change"]'
     )
     added.click()
-    expect(page.locator("#ret-cost-keep > .lf-earlier")).to_have_text("New since v1")
-    expect(page.locator("#ret-cost-keep .lf-earlier del")).to_have_count(0)
+    expect(page.locator("#ret-cost-keep > .lf-version-inline-label")).to_have_text(
+        "New since v1"
+    )
+    expect(page.locator("#ret-cost-keep .lf-version-inline-deletion")).to_have_count(0)
     expect(page.locator(".lf-notice")).to_have_text(
         "paragraph changed since v1 · v1 had nothing here"
     )
@@ -3130,26 +3126,31 @@ def test_a_changed_block_shows_what_it_said_in_the_base_version(browser, serve):
         '[data-lf-margin-for="ret-steps-carve"] [data-lf-kinds~="change"]'
     )
     step.click()
-    expect(page.locator("#ret-steps-carve > .lf-earlier")).to_have_text("New since v1")
-    expect(page.locator("main ol > .lf-earlier, main ul > .lf-earlier")).to_have_count(
-        0
+    expect(page.locator("#ret-steps-carve > .lf-version-inline-label")).to_have_text(
+        "New since v1"
     )
+    expect(
+        page.locator(
+            "main ol > .lf-version-inline-label, main ul > .lf-version-inline-label"
+        )
+    ).to_have_count(0)
 
     # The reading is the runtime's own words (.lf-ui), so the page's reading does not
     # move under it: both threads keep the passages they quote, one of them inside the
-    # block now holding v1's paragraph.
+    # block now holding the inline comparison.
     expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
     assert page.evaluate(marks) == 2
 
-    # The same press closes it, and stopping the comparison takes the rest with the
-    # marks: an earlier reading is the comparison's rendering, not a note left behind.
+    # The same press closes it, and stopping the comparison takes every inline part and
+    # highlight with the marks.
     rewritten.click()
-    expect(page.locator("#ret-cost-body > .lf-earlier")).to_have_count(0)
+    expect(page.locator("#ret-cost-body > .lf-version-inline-label")).to_have_count(0)
     expect(rewritten).to_have_attribute("aria-expanded", "false")
-    expect(page.locator(".lf-earlier")).to_have_count(2)
+    expect(page.locator(".lf-version-inline-label")).to_have_count(2)
     compare_with(page, 1)
-    expect(page.locator(".lf-earlier")).to_have_count(0)
+    expect(page.locator(".lf-version-inline-label")).to_have_count(0)
     expect(page.locator("main .lf-ins-block")).to_have_count(0)
+    assert page.evaluate("() => CSS.highlights.has('lf-version-insert')") is False
     assert errors == []
     page.close()
 

@@ -24,5 +24,10 @@ until curl --fail --silent --output /dev/null http://127.0.0.1:8787/; do
   sleep 2
 done
 
-LEAF_SITE_ORIGIN=http://127.0.0.1:8787 \
-  uv run "$repo_root/scripts/verify-site.py" "$release"
+# The Worker's own log is the other half of a failure the browser can only report as a
+# timeout, and this is the only place it is kept.
+if ! LEAF_SITE_ORIGIN=http://127.0.0.1:8787 \
+  uv run "$repo_root/scripts/verify-site.py" "$release"; then
+  cat "$log"
+  exit 1
+fi

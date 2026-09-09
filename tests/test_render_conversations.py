@@ -3545,14 +3545,23 @@ def test_the_thread_list_ring_paints_above_its_scrolling_contents(
               bottom.style.zIndex = '9999';
             }"""
         )
-        shot = Image.open(io.BytesIO(threads.screenshot())).convert("RGB")
+        # The first and last device row inside the list's own box. An element clip is
+        # taken from a rect that need not land on device pixels — the list's top is
+        # 247.67 at this width — so its outermost row is the panel's paint, not the ring.
+        edges = threads.evaluate(
+            """el => { const b = el.getBoundingClientRect();
+              return [Math.ceil(b.left), Math.floor(b.right),
+                      Math.ceil(b.top), Math.floor(b.bottom) - 1]; }"""
+        )
+        shot = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
         accent = tuple(
             int(n) for n in re.findall(r"\d+", token_colour(page, "--accent"))
         )
-        assert {shot.getpixel((x, 0)) for x in range(shot.width)} == {accent}
-        assert {shot.getpixel((x, shot.height - 1)) for x in range(shot.width)} == {
-            accent
-        }
+        left, right, first, last = edges
+        for y in (first, last):
+            assert {shot.getpixel((x, y)) for x in range(left, right)} == {accent}, (
+                f"the ring is broken across row {y}"
+            )
 
         page.keyboard.press("t")
         expect(

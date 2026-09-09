@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import threading
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -984,3 +985,212 @@ def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
     }
     assert not verify_site.still_answering(dropped, "comment-id")
     assert not verify_site.still_answering({}, "comment-id")
+
+
+def test_the_deploy_gate_reads_the_container_s_own_generation_failure(page_dir):
+    """The gate's retry rests on one settlement, so both sides own the same text.
+
+    `publish-site` went red with `agent returned an unexpected reply; it replied: I
+    couldn't generate a reply just now.` — the container catching a turn that never
+    completed and answering the reader's standing ask, which is the deployment
+    working rather than failing. The gate takes that reply as the one outcome worth
+    asking again for, and a completed turn that simply posted nothing is not it.
+    """
+    host = website_server.WebsiteCodexHost("codex")
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    [delivery] = website_server.accept_codex_delivery("hosted-thread")
+    host._finish_turn(
+        page_dir,
+        "hosted-thread",
+        delivery["turn"],
+        delivery["events"],
+        {"id": "app-server-turn", "status": "failed", "error": {"message": "stream"}},
+    )
+
+    def replies_to(event: dict) -> list[dict]:
+        state = website_server.full_state(page_dir, read_events(page_dir))
+        return [
+            logged
+            for logged in state["events"]
+            if logged.get("kind") == "reply" and logged.get("parent") == event["id"]
+        ]
+
+    assert verify_site.generation_failed(replies_to(comment))
+
+    # A turn that completed and posted nothing settles differently, and stays a
+    # first-ask failure: the deployed agent broke its own instructions.
+    again = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page again"},
+    )
+    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    [second] = website_server.accept_codex_delivery("hosted-thread")
+    host._finish_turn(
+        page_dir,
+        "hosted-thread",
+        second["turn"],
+        second["events"],
+        {"id": "app-server-turn", "status": "completed", "error": None},
+    )
+    assert replies_to(again) != []
+    assert not verify_site.generation_failed(replies_to(again))
+
+
+class _Read:
+    ok = True
+    status = 200
+
+    def __init__(self, payload: dict, body: str = ""):
+        self.payload = payload
+        self.body = body
+
+    def json(self) -> dict:
+        return self.payload
+
+    def text(self) -> str:
+        return self.body
+
+
+class _StateReads:
+    """One Playwright request context standing in for a page that is being read."""
+
+    def __init__(self, states: list[dict]):
+        self.states = states
+        self.reads = 0
+        self.request = self
+
+    def get(self, url: str, **kwargs):
+        state = self.states[min(self.reads, len(self.states) - 1)]
+        self.reads += 1
+        return _Read(state)
+
+
+class _FailedFirstTurn:
+    """A deployed page whose first turn stops without generating a reply.
+
+    The container settles that turn's standing ask itself, and the second turn does
+    the work: this is the shape `publish-site` hit, answered the way the settlement
+    text asks for.
+    """
+
+    def __init__(self, heading: str):
+        self.heading = heading
+        self.request = self
+        self.comments: list[dict] = []
+
+    def post(self, url: str, data: dict, **kwargs) -> _Read:
+        comment = {
+            "id": f"comment-{len(self.comments) + 1}",
+            "attempt": data["attempt"],
+            "revision": data["revision"],
+        }
+        self.comments.append(comment)
+        return _Read({"state": {"events": [comment]}})
+
+    def get(self, url: str, **kwargs) -> _Read:
+        if url.endswith("/api/state"):
+            return _Read(self.state())
+        return _Read({}, f"<h1>{self.heading}</h1>")
+
+    def state(self) -> dict:
+        events = [
+            {
+                "kind": "reply",
+                "parent": "comment-1",
+                "text": website_server.GENERATION_FAILURE_REPLY,
+            }
+        ]
+        if len(self.comments) < 2:
+            return {
+                "active": {"revision": 1, "url": "revisions/1.html"},
+                "activity": {"kind": "away", "obligations": []},
+                "events": events,
+            }
+        events.append(
+            {"kind": "reply", "parent": "comment-2", "text": "deployment verified"}
+        )
+        return {
+            "active": {"revision": 2, "url": "revisions/2.html"},
+            "activity": {"kind": "away", "obligations": []},
+            "events": events,
+        }
+
+
+def test_the_deploy_gate_sends_the_new_message_the_container_asks_for():
+    """A turn that never generated a reply is asked again, not reported.
+
+    `publish-site` went red on a deployment whose own container had caught the failed
+    turn and said what to do about it. The pass now does that, and the second ask has
+    to be its own event: an ask that reused the first attempt would be answered with
+    the first comment, and the gate would wait out a turn nobody started.
+    """
+    heading = "Deployment abcd1234 verified"
+    context = _FailedFirstTurn(heading)
+    asked = verify_site.ask_until_answered(
+        context,
+        "https://leaf.page/examples/design-decision/",
+        "https://leaf.page/examples/design-decision/api/state",
+        "layer",
+        "release",
+        heading,
+        "deployment-abcd1234",
+        {"active": {"revision": 1, "url": "revisions/1.html"}},
+    )
+    assert asked.asks == 2
+    assert asked.turn.answer["text"] == "deployment verified"
+    assert asked.turn.published["revision"] == 2
+    first, second = context.comments
+    assert first["attempt"] != second["attempt"]
+    # The second ask continues the page the first turn left rather than an older one.
+    assert second["revision"] == 1
+
+
+def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():
+    """A settled generation failure is terminal, so the wait ends where it lands.
+
+    Every other reading the wait takes is one a live turn can still be passing
+    through, which is why they run to `TURN_PATIENCE`. This one is posted from where
+    the container closes the turn, and waiting the budget out on it would spend five
+    minutes before the second ask that follows it could even start.
+    """
+    comment = {"id": "comment-id"}
+    working = {
+        "active": {"revision": 1, "url": "revisions/1.html"},
+        "activity": {
+            "kind": "working",
+            "obligations": [{"event": "comment-id", "dropped": False}],
+        },
+        "events": [
+            {
+                "kind": "reply",
+                "parent": "comment-id",
+                "text": website_server.GENERATION_FAILURE_REPLY,
+            }
+        ],
+    }
+    context = _StateReads([working])
+    turn = verify_site.await_turn(
+        context,
+        "https://leaf.page/examples/design-decision/",
+        "https://leaf.page/examples/design-decision/api/state",
+        "layer",
+        "release",
+        comment,
+        1,
+        "Deployment abcd1234 verified",
+        None,
+        # Seconds rather than `TURN_LIMIT`: a wait that stopped reading this reply
+        # would come back on the next assertion instead of running the real budget.
+        time.monotonic() + 5,
+    )
+    # One read, though the page still names a turn on the comment: the wait ended on
+    # the reply rather than on `still_answering` or a clock.
+    assert context.reads == 1
+    assert verify_site.still_answering(working, "comment-id")
+    assert turn.answer is None
+    assert verify_site.generation_failed(turn.replies)

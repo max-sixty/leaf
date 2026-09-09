@@ -67,8 +67,9 @@ PROFILE_SCRIPT = """(() => {
 
 
 # One hosted Codex turn runs at the model's pace, not this gate's. `TURN_PATIENCE`
-# is the budget a turn observed healthy has finished well inside; `TURN_LIMIT` is
-# the far end, past which no reading the page offers is worth waiting on. What holds
+# is the budget a turn observed healthy has finished well inside, and it bounds one
+# ask; `TURN_LIMIT` is the far end, past which no reading the page offers is worth
+# waiting on, and it bounds the whole pass however many asks that takes. What holds
 # that tail is the `timeout-minutes` of `.github/workflows/publish-site.yaml`'s job,
 # behind the release wait that runs ahead of this pass, so raising `TURN_LIMIT` is a
 # change there too. Between the two bounds the page's own `activity` reading decides,
@@ -80,6 +81,17 @@ TURN_LIMIT = 600
 # unheld, listening, stalled or closed is not going to answer, so its wait ends at
 # `TURN_PATIENCE` rather than running out the limit.
 ANSWERING = frozenset({"queued", "handling", "working"})
+# The container's own settlement for a turn that ended without generating a reply,
+# mirroring `worker/server.py`'s `GENERATION_FAILURE_REPLY`. Reaching it is the
+# deployment working: the container noticed a turn that never completed, closed it,
+# and answered the reader's standing ask rather than leaving it open. What it says
+# about the release is only that this one generation did not happen, so the gate does
+# what the text itself asks for and sends one more message. A deployment that cannot
+# run a hosted turn settles the same way twice; a model-side failure does not.
+GENERATION_FAILURE_REPLY = (
+    "I couldn’t generate a reply just now. Please send a new message to try again."
+)
+TURN_ASKS = 2
 
 
 class AgentSession(NamedTuple):
@@ -404,38 +416,44 @@ def still_answering(state: dict, event_id: str) -> bool:
     )
 
 
-def verify_agent_turn(browser, release: str) -> None:
-    """Require one deployed Codex turn to revise and answer a private page.
+class TurnReading(NamedTuple):
+    """What one deployment ask reached before its turn stopped answering it."""
 
-    A turn is a process, not a step: it may publish a checkpoint revision, say
-    something about the work, and only then publish what was asked for. So the wait
-    names the outcome — a published document carrying the requested heading, and a
-    reply that answers for it — rather than the first revision and the first reply to
-    appear, either of which the turn can pass through on its way there. The readings
-    that follow are containments for the same reason: the agent may quote the heading
-    it was handed, and the runtime may add its own words to any text a reader can
-    point at.
+    state: dict
+    published: dict | None
+    replies: list[dict]
+    answer: dict | None
 
-    The wait's bound is the page rather than a stopwatch. One fixed budget has to be
-    long enough for the slowest healthy turn and short enough to report a dead one
-    promptly, and no single number is both — so `TURN_PATIENCE` ends the wait on a
-    page that says nothing is answering, while a page that says a turn is still on
-    this comment holds it open to `TURN_LIMIT`.
-    """
-    context, page, failures, url, state_url, state = agent_session(browser, release)
-    initial_revision = state["active"]["revision"]
-    # The layer the comment is posted under is the one its own container holds, not
-    # the one the edge describes: an event whose layer the container does not speak
-    # is answered with that container's generation instead of a state.
-    layer = state["layer"]["generation"]
-    heading = f"Deployment {release[:8]} verified"
-    attempt = f"deployment-{release[:24]}"
+
+class AgentAsks(NamedTuple):
+    """The reading the pass ended on, with the asks and revision behind it."""
+
+    turn: TurnReading
+    asks: int
+    revision: int
+
+
+def generation_failed(replies: list[dict]) -> bool:
+    """Whether the container settled this ask by reporting a turn that never ran."""
+    return any(reply["text"].strip() == GENERATION_FAILURE_REPLY for reply in replies)
+
+
+def ask_for_the_heading(
+    context,
+    url: str,
+    layer: str,
+    release: str,
+    revision: int,
+    heading: str,
+    attempt: str,
+) -> dict:
+    """Post one deployment-check comment and return the event the page admitted."""
     posted = context.request.post(
         urljoin(url, "api/event"),
         headers={"Leaf-Layer": layer, "Leaf-Release": release},
         data={
             "kind": "comment",
-            "revision": initial_revision,
+            "revision": revision,
             "text": (
                 f"Change the main heading to ‘{heading}’. Leave everything else "
                 "unchanged, publish the revision, and reply with ‘deployment verified’."
@@ -459,12 +477,26 @@ def verify_agent_turn(browser, release: str) -> None:
         None,
     )
     check(comment is not None, f"{url} did not return its deployment-check comment")
+    return comment
 
+
+def await_turn(
+    context,
+    url: str,
+    state_url: str,
+    layer: str,
+    release: str,
+    comment: dict,
+    revision: int,
+    heading: str,
+    published: dict | None,
+    deadline: float,
+) -> TurnReading:
+    """Read the page until this ask is answered or nothing is answering it."""
     started = time.monotonic()
     replies: list[dict] = []
     answer = None
-    published = None
-    current = state
+    current: dict = {}
     while True:
         current_response = context.request.get(
             state_url,
@@ -487,7 +519,7 @@ def verify_agent_turn(browser, release: str) -> None:
             None,
         )
         active = current["active"]
-        if published is None and active["revision"] > initial_revision:
+        if published is None and active["revision"] > revision:
             # The published document itself, fetched the way the next reader's browser
             # fetches it: an edge-missing revision only this session's container holds.
             document = context.request.get(urljoin(url, active["url"]), timeout=120_000)
@@ -495,25 +527,137 @@ def verify_agent_turn(browser, release: str) -> None:
                 published = active
         if published is not None and answer is not None:
             break
-        waited = time.monotonic() - started
-        if waited >= TURN_LIMIT:
+        # The container posts its generation failure from the same place it closes the
+        # turn, so that reply is the turn's own account of having stopped. Every other
+        # reading here is one a live turn can still be passing through — an interim
+        # reply, a publication its answer precedes — which is why they wait out the
+        # bounds below instead of ending the wait early.
+        if generation_failed(replies):
             break
+        if time.monotonic() >= deadline:
+            break
+        waited = time.monotonic() - started
         if waited >= TURN_PATIENCE and not still_answering(current, comment["id"]):
             break
         time.sleep(2)
-    reading = (current.get("activity") or {}).get("kind") or "no activity"
+    return TurnReading(current, published, replies, answer)
+
+
+def ask_until_answered(
+    context,
+    url: str,
+    state_url: str,
+    layer: str,
+    release: str,
+    heading: str,
+    attempt: str,
+    state: dict,
+) -> AgentAsks:
+    """Ask the deployed agent for `heading` until it answers or stops answering.
+
+    One outcome is asked again rather than reported. When the container settles an ask
+    with `GENERATION_FAILURE_REPLY`, the deployment has answered for itself correctly —
+    it caught a turn that never completed and told the reader to send a new message —
+    so this sends it, because a release that cannot run a hosted turn settles the same
+    way twice while a model-side failure does not. Every other ending is reported on
+    the first ask: a turn that completes without a reply, or replies with something
+    else, is the deployed agent breaking its own contract.
+    """
+    published = None
+    asks = 0
+    deadline = time.monotonic() + TURN_LIMIT
+    while True:
+        asks += 1
+        # Each ask is posted against the revision the page stands on now, so a second
+        # continues the page the first turn left rather than an earlier reading of it.
+        # What that turn published is carried across it: an agent handed a heading it
+        # has already published has no reason to publish it again.
+        revision = state["active"]["revision"]
+        comment = ask_for_the_heading(
+            context, url, layer, release, revision, heading, attempt
+        )
+        state, published, replies, answer = await_turn(
+            context,
+            url,
+            state_url,
+            layer,
+            release,
+            comment,
+            revision,
+            heading,
+            published,
+            deadline,
+        )
+        # A second ask is only worth posting while a healthy turn's budget is still
+        # inside the pass's own limit; past that the gate reports what it has rather
+        # than opening a turn it cannot wait for.
+        if answer is not None or not (
+            asks < TURN_ASKS
+            and generation_failed(replies)
+            and deadline - time.monotonic() >= TURN_PATIENCE
+        ):
+            return AgentAsks(
+                TurnReading(state, published, replies, answer), asks, revision
+            )
+        print(
+            f"↻ {url} settled its ask with the container's generation failure; "
+            "sending the new message that reply asks for"
+        )
+        attempt = f"{attempt}-{asks + 1}"
+
+
+def verify_agent_turn(browser, release: str) -> None:
+    """Require one deployed Codex turn to revise and answer a private page.
+
+    A turn is a process, not a step: it may publish a checkpoint revision, say
+    something about the work, and only then publish what was asked for. So the wait
+    names the outcome — a published document carrying the requested heading, and a
+    reply that answers for it — rather than the first revision and the first reply to
+    appear, either of which the turn can pass through on its way there. The readings
+    that follow are containments for the same reason: the agent may quote the heading
+    it was handed, and the runtime may add its own words to any text a reader can
+    point at.
+
+    The wait's bound is the page rather than a stopwatch. One fixed budget has to be
+    long enough for the slowest healthy turn and short enough to report a dead one
+    promptly, and no single number is both — so `TURN_PATIENCE` ends the wait on a
+    page that says nothing is answering, while a page that says a turn is still on
+    this comment holds it open to `TURN_LIMIT`.
+    """
+    context, page, failures, url, state_url, state = agent_session(browser, release)
+    # The layer the comment is posted under is the one its own container holds, not
+    # the one the edge describes: an event whose layer the container does not speak
+    # is answered with that container's generation instead of a state.
+    layer = state["layer"]["generation"]
+    heading = f"Deployment {release[:8]} verified"
+    turn, asks, revision = ask_until_answered(
+        context,
+        url,
+        state_url,
+        layer,
+        release,
+        heading,
+        f"deployment-{release[:24]}",
+        state,
+    )
+    state, published, replies, answer = turn
+    tried = f" to {asks} asks" if asks > 1 else ""
+    reading = (state.get("activity") or {}).get("kind") or "no activity"
     said = "; it replied: " + " / ".join(event["text"] for event in replies)
     check(
         published is not None,
-        f"{url} agent did not publish ‘{heading}’; it reached revision "
-        f"{current['active']['revision']} from {initial_revision} with the page "
+        f"{url} agent did not publish ‘{heading}’{tried}; it reached revision "
+        f"{state['active']['revision']} from {revision} with the page "
         f"reading {reading}" + (said if replies else " and did not reply"),
     )
     check(
         replies != [],
-        f"{url} agent published but did not reply; the page read {reading}",
+        f"{url} agent published but did not reply{tried}; the page read {reading}",
     )
-    check(answer is not None, f"{url} agent returned an unexpected reply{said}")
+    check(
+        answer is not None,
+        f"{url} agent returned an unexpected reply{tried}{said}",
+    )
     page.reload(wait_until="load", timeout=120_000)
     await_presentation(page, url, failures)
     check(not failures, f"{url} reported browser errors: {failures}")

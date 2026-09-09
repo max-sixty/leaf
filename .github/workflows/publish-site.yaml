@@ -36,7 +36,14 @@ jobs:
   deploy-site:
     if: github.repository_owner == 'max-sixty'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # The verification step at the end owns most of this budget: the release wait
+    # spends up to its own 900 seconds, and the agent pass after it adds a page
+    # verification, `agent_session`'s 180 seconds, the turn's `TURN_LIMIT`, and the
+    # reload and presentation checks that follow — roughly 32 minutes, behind the
+    # three the build, image push and deploy take. The job has to clear that, because
+    # a cancelled job prints `exceeded the maximum execution time` in place of the
+    # gate's own account of what the deployed page was doing.
+    timeout-minutes: 45
     environment: cloudflare-deploy
     permissions:
       contents: read

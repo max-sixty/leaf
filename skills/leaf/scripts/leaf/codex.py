@@ -179,7 +179,7 @@ class AppServerEvents:
         if method == "turn/completed":
             turn = params["turn"]
             completed = turn["id"]
-            final = self.final_text(turn)
+            final = self._final_text(turn)
             if self.turn_id == completed:
                 self.turn_id = None
                 self.details.clear()
@@ -298,7 +298,7 @@ class AppServerEvents:
             "complete": complete,
         }
 
-    def final_text(self, turn: dict) -> str:
+    def _final_text(self, turn: dict) -> str:
         items = [
             item for item in turn.get("items", []) if item["type"] == "agentMessage"
         ]
@@ -367,12 +367,12 @@ class AppServerEvents:
 def project_app_server_activity(
     events: AppServerEvents,
     message: dict,
+    update: dict | None,
     last_stream_update: float,
     set_activity,
     clear_activity,
 ) -> float:
     """Project one notification with the shared streamed-update throttle."""
-    update = events.read(message)
     if update is None:
         return last_stream_update
     turn_id = update["turn"]
@@ -624,7 +624,7 @@ class AppServerClient:
                 self._finish_binding(
                     turn_id,
                     turn.get("status", "failed"),
-                    self.events.final_text(turn),
+                    self.events._final_text(turn),
                 )
 
     def _read(self, message: dict) -> None:

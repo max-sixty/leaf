@@ -956,17 +956,19 @@ def test_app_server_activity_throttles_stream_deltas(monkeypatch):
     last_update = 0.0
 
     for delta in ("one", " two", " three"):
+        message = {
+            "method": "item/agentMessage/delta",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "itemId": "message-live",
+                "delta": delta,
+            },
+        }
         last_update = codex_model.project_app_server_activity(
             events,
-            {
-                "method": "item/agentMessage/delta",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "turn-live",
-                    "itemId": "message-live",
-                    "delta": delta,
-                },
-            },
+            message,
+            events.read(message),
             last_update,
             lambda *args: updates.append(args),
             lambda *args: clears.append(args),

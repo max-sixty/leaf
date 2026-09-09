@@ -316,16 +316,19 @@ class WebsiteCodexHost:
                     message = json.loads(socket.recv(timeout=1))
                 except TimeoutError:
                     continue
+                update = events.read(message)
                 last_stream_update = project_app_server_activity(
                     events,
                     message,
+                    update,
                     last_stream_update,
                     _set_stream_activity,
                     _clear_stream_activity,
                 )
                 if (
-                    message.get("method") == "turn/completed"
-                    and message.get("params", {}).get("turn", {}).get("id") == turn_id
+                    update is not None
+                    and update.get("completed")
+                    and update["turn"] == turn_id
                 ):
                     turn = message["params"]["turn"]
                     with self.lock:
@@ -335,7 +338,7 @@ class WebsiteCodexHost:
                             leaf_turn,
                             event_ids,
                             turn,
-                            events.final_text(turn),
+                            update.get("text"),
                         )
                     return
         except (OSError, RuntimeError, ValueError, WebSocketException):

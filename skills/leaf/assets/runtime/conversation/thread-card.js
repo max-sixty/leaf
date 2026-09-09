@@ -32,8 +32,9 @@ const threadAnchorLabel = (t, outline = pageOutline()) => {
 };
 
 // A thread's node is found where it already stands in the filtered list and kept: the
-// log is append-only, so a kept node only ever gains
-// messages and refreshes its clocks. A settlement transition reshapes a node: resolving
+// The adopted log is append-only, but a refused state application can withdraw a
+// candidate message. A kept card reconciles its complete message set. A settlement
+// transition reshapes a node: resolving
 // removes the reply box and reopening restores it, so either one rebuilds the node;
 // msgBodies carries the rendered bodies across. `grow` animates what this call creates,
 // for arrivals into a list the user is already looking at.
@@ -72,10 +73,8 @@ export function threadNode(t, grow) {
       }
       syncMsgNode(msg, m);
     }
-    for (const streamed of existing.querySelectorAll(
-      ':scope > .lf-msg[data-mid^="codex-stream:"]',
-    ))
-      if (!current.has(streamed.dataset.mid)) streamed.remove();
+    for (const message of existing.querySelectorAll(":scope > .lf-msg"))
+      if (!current.has(message.dataset.mid)) message.remove();
     paintReactStrips(existing, t);
     return existing;
   }

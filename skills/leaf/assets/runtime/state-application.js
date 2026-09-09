@@ -334,6 +334,11 @@ export async function receiveState(state) {
     else document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
     stateSignoff(isSignoffDeclared());
     restoreClaimState();
+    // Reconciliation may already have displayed candidate messages before a later
+    // projection refused the read. Rebuild the derived conversation from the restored
+    // history, retaining its standing nodes and unresolved local messages as usual.
+    // A failed activation replaces the document below instead.
+    if (!willActivate) await renderPanel();
     // A version the page could not show, and the reader is left looking at the one it
     // was leaving. Say what the reload is for before making it: a tab that reloads
     // itself in silence reads as the page having lost their place for no reason.

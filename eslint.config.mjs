@@ -288,6 +288,60 @@ export default [
     rules: ownerBoundary,
   },
   {
+    // These primitives may use the browser, but importing an application owner
+    // would make every caller acquire that owner's initialization and paint graph.
+    files: [
+      "skills/leaf/assets/runtime/anchor-coordinate.js",
+      "skills/leaf/assets/runtime/chrome.js",
+      "skills/leaf/assets/runtime/dom-children.js",
+      "skills/leaf/assets/runtime/focus.js",
+      "skills/leaf/assets/runtime/repaint.js",
+      "skills/leaf/assets/runtime/conversation/identity.js",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ImportDeclaration, ImportExpression, ExportAllDeclaration, ExportNamedDeclaration[source]",
+          message: "Runtime primitives must remain independent of other owners.",
+        },
+      ],
+    },
+  },
+  {
+    // Conversation folding accepts values; it must not obtain them from browser
+    // stores or painters. The current derived reading has the same dependency floor.
+    files: [
+      "skills/leaf/assets/runtime/conversation/model.js",
+      "skills/leaf/assets/runtime/conversation/state.js",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "^(?!\\.\\./anchor-coordinate\\.js$|\\./identity\\.js$|\\./model\\.js$)",
+              message: "Conversation readings depend only on pure record operations.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ImportExpression",
+          message: "Conversation readings declare their record dependencies statically.",
+        },
+      ],
+      "no-restricted-globals": [
+        "error",
+        ...Object.keys(browserGlobals),
+      ],
+    },
+  },
+  {
     files: ["skills/leaf/scripts/leaf/render-checks/standalone.js"],
     rules: {
       "no-restricted-syntax": [

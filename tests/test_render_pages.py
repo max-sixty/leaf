@@ -638,6 +638,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     The first read reaches panel and version rendering before malformed projection data
     rejects it. That candidate must announce nothing and leave no version behind; a
     complete retry announces the reply once with the agent recorded on the message.
+    The rejected reply must also leave the visible conversation until that retry.
     """
     url = serve(TWIN_V1)
     d = serve.page_dir
@@ -702,6 +703,9 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     assert fault.value.text in errors
     errors.remove(fault.value.text)
 
+    expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_count(0)
+    expect(page.locator(".lf-msg.user .lf-msg-body")).to_have_text("which host answers?")
+
     version_menu = page.locator(".lf-version-menu")
     page.locator(".lf-version").click()
     expect(version_menu).not_to_contain_text("Rejected version")
@@ -717,6 +721,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     told(page)
     expect(notice_el).to_have_text("Codex replied — open Threads")
     expect(notice_el).to_have_class(re.compile(r"\bshow\b"))
+    expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_text("this one does")
     assert errors == []
     page.close()
 

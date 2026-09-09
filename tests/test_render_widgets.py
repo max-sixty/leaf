@@ -3084,10 +3084,9 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         "Checkout needs attention"
     )
     with sending(page, "the notification configuration"):
-        playground.get_by_role("button", name="Send configuration").click()
-    # A choose is replaceable until the host stamps its result. Keep that legitimate
-    # update route, but label it as sending configuration rather than creating twice.
-    expect(playground.get_by_role("button", name="Send configuration")).to_be_enabled()
+        playground.get_by_role("button", name="Create notification").click()
+    # The reader can revise the configuration until the host stamps its result.
+    expect(playground.get_by_role("button", name="Create notification")).to_be_enabled()
     action = next(
         event
         for event in reversed(sent_events(serve.page_dir))
@@ -3102,8 +3101,8 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         "tone": "urgent",
     }
     assert action["detail"]["instruction"] == (
-        "Create deployment-notification.html, capture it as notification-artifact, "
-        "then revise this page with the generated source below Original configuration."
+        "Create this notification as deployment-notification.html. "
+        "When it is ready, show me the generated source here for review."
     )
 
     logged_action = next(

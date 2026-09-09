@@ -598,10 +598,11 @@ walks open asks. Both walks clamp at their first and last items. Keep these as s
 presses rather than prefix sequences; a walk is often repeated or held. The thread walk
 uses inline thread roots while Threads is closed and panel cards while it is open; only a
 thread with no page or widget-local inline address opens the complete index as a fallback.
-After Enter accepts a `/` search, `n` selects its next match and `N` selects its
-previous match. The active scope decides whether those matches are page passages or
-visible thread cards. Letters remain query text while the search input has focus; Tab
-and Shift-Tab walk page-search matches before acceptance.
+An active textual search in the thread panel instead owns `n`/`N`: those keys enter the
+found list from its container and then walk its matches, while `t`/`T` stands down so the
+motion has one spelling in that scope. For page search, Enter accepts the first match and
+`n`/`N` walks the next or previous one. Letters remain query text while a search input has
+focus; Tab and Shift-Tab walk page-search matches before acceptance.
 While the reader stands anywhere in an Ask, its widget's
 ordered actions keep a canonical binding where they declare one and otherwise take the
 next free `1`–`9`. Core projects that exact list into the shortcut bar and visible control

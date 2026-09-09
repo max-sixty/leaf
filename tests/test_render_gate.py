@@ -2730,9 +2730,23 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     control comes first: a rule that traps one inside the panel has to be found, or a
     clean result is only a reading that never arrived. A page is served rather than a
     bare fixture because the panel has to be holding something for its boxes to exist,
-    and a seeded example is the corpus's own conversation."""
-    seeded = [p for p in CORPUS_SOURCES if p.with_suffix(".jsonl").exists()]
-    assert seeded, "no corpus source ships a log, so the panel would open on nothing"
+    and a seeded example is the corpus's own conversation. The log has to hold an
+    anchored comment, not merely exist: the planted rule traps its margin against a
+    thread's quoted address, so a page whose log carries only widget events opens the
+    panel on nothing and reports the control as missing."""
+    seeded = [
+        path
+        for path in CORPUS_SOURCES
+        if (log := path.with_suffix(".jsonl")).exists()
+        and any(
+            event.get("kind") == "comment" and event.get("anchor")
+            for event in map(json.loads, filter(None, log.read_text().splitlines()))
+        )
+    ]
+    assert seeded, (
+        "no corpus source ships a log holding an anchored comment, so the panel would "
+        "open on nothing"
+    )
     page, errors = open_page(browser, serve(seeded[0]))
     resized(page, 1280, 900)
     page.locator(".lf-threads-toggle").click()

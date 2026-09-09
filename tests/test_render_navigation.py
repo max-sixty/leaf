@@ -4018,9 +4018,9 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
 
     Two rows sharing one leaves the keycaps to carry the whole difference, which is the
     line failing at the one thing it is for. The versions menu once called both Tab
-    directions "leave versions"; a keyboard-opened menu now has its precise Escape return
-    beside the remaining directional handoff. The page's `c` says "comment on the page",
-    distinct from the t/T thread walk.
+    directions "leave versions"; both its doors out now decline the compact line, so what
+    it prints is its two unfamiliar actions — the marking walk and exact numbered travel.
+    The page's `c` says "comment on the page", distinct from the t/T thread walk.
 
     Both scenes are read, and each is asserted to hold the rows at issue first: a line
     that had stopped showing them would report a clean result about a page the reader
@@ -4042,15 +4042,15 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
         hint["commands"] for hint in standing
     }, f"the line no longer offers both the comments and the thread walk: {standing}"
 
-    # The registered return frame is nearer than the menu's native Tab handoffs, so the
-    # shortlist contains the actual Escape return and the version walk.
+    # Neither door out takes the line: the return frame and the menu's own close both
+    # decline promotion, so the shortlist is the walk beside exact numbered travel.
     page.keyboard.press("Escape")
     open_versions(page)
     page.evaluate(RENDERED)
     versions = page.evaluate(KEY_LINE_HINTS)
-    assert {"navigation.return", "version.previous version.next"} <= {
+    assert {"version.later version.earlier", "version.open-v1 version.open-v2"} <= {
         hint["commands"] for hint in versions
-    }, f"the versions menu no longer offers its two visible ways out: {versions}"
+    }, f"the versions menu no longer offers its two unfamiliar actions: {versions}"
 
     for scene, hints in (("the page", standing), ("the versions menu", versions)):
         said = {}
@@ -7645,8 +7645,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # A first version is passive orientation, so neither a chooser nor a walk is offered.
     expect(help_el).not_to_contain_text("The versions, and what each one changed")
     expect(help_el).not_to_contain_text("Close the versions menu")
-    expect(help_el).not_to_contain_text("Previous version")
-    expect(help_el).not_to_contain_text("Next version")
+    expect(help_el).not_to_contain_text("Later version")
+    expect(help_el).not_to_contain_text("Earlier version")
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
 
@@ -7692,8 +7692,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).to_contain_text("On a focused thread")
     # Still one version, so neither the chooser nor its walk is advertised.
     expect(help_el).not_to_contain_text("Close the versions menu")
-    expect(help_el).not_to_contain_text("Previous version")
-    expect(help_el).not_to_contain_text("Next version")
+    expect(help_el).not_to_contain_text("Later version")
+    expect(help_el).not_to_contain_text("Earlier version")
     page.keyboard.press("Escape")
 
     # A v2 lands and the live page follows it; on v2 the menu's own keys are
@@ -7703,12 +7703,12 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     wait_for_revision(page, 2)
     expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)
     expect(page.locator(".lf-version-menu")).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown Enter Space v"
+        "aria-keyshortcuts", "ArrowUp ArrowDown 1 2 Enter Space v"
     )
     page.keyboard.press("?")
     expect(help_el).to_contain_text("In the versions menu")
-    expect(help_el).to_contain_text("Previous version")
-    expect(help_el).to_contain_text("Next version")
+    expect(help_el).to_contain_text("Later version")
+    expect(help_el).to_contain_text("Earlier version")
     page.keyboard.press("Escape")
 
     # A resolved thread stays focusable after the last open one is gone, and the

@@ -168,6 +168,14 @@ def test_page_round_trip(browser, serve):
     # The anchor pass painted the passage — a range in the highlight registry, not an
     # element, so there is no selector for it.
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    # Put the new comment's card away before reaching for the board. A sent comment
+    # leaves its thread standing in the page margin, and the board is a wide widget
+    # whose columns run out into that same band, so the card lands over the column this
+    # drag is aimed at and takes the pointer. A reader sees the card and dismisses it;
+    # a test that skipped the dismissal would be dragging under a sheet, which is a
+    # scene about the margin rather than the seam below.
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-thread")).to_be_hidden()
     # Drag the card between columns through the pointer path — the seam where
     # the vendored SortableJS meets the runtime, which is where drags break.
     grip = page.locator("#card-x .lf-grip").bounding_box()

@@ -23,7 +23,18 @@ const note = Object.assign(document.createElement("div"), {
   innerHTML: NOTE,
 });
 const main = document.querySelector("main");
-// A framed task owns the whole main allocation. Put site context in its existing
-// header so its content root and independently scrolling regions remain intact.
-const header = main.querySelector(":scope > :only-child > header");
+// A framed task owns the whole main allocation. Put site context in its header so its
+// content root and independently scrolling regions remain intact — and give one to a
+// framed task that authored none rather than leaving the note beside it. A second
+// element under `main` is precisely what tells the runtime the workspace is not the
+// page's root, so the note dropped there costs the example the allocation it is being
+// shown for: the page arrives in ordinary document flow with no bounded regions at all.
+const framed = main.querySelector(":scope > :only-child");
+let header = framed?.querySelector(":scope > header") ?? null;
+if (framed && !header) {
+  // Marked as the layer's own, like the note it carries: this header is the site
+  // speaking, and the example's anchorable reading is unchanged by it.
+  header = Object.assign(document.createElement("header"), { className: "lf-ui" });
+  framed.prepend(header);
+}
 (header ?? main).prepend(note);

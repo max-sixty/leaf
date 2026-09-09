@@ -367,6 +367,11 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         assert actual_anchor == expected_anchor, (
             f"{selector} captured {actual_anchor}, file captured {expected_anchor}"
         )
+        # Put the card the send opened away before selecting the next passage. The
+        # thread stands in the page margin over this narrow document, so the case after
+        # it would reach for a composer under that card and press the card instead.
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
     assert errors == []
     page.close()

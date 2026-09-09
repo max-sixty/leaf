@@ -31,6 +31,7 @@ from leaf import hosting as hosting_model
 from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
+from leaf.structure import parse_structure
 from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -87,6 +88,30 @@ def authored_examples():
     assert len(corpus) == 1, f"expected one internal corpus, found {corpus}"
     assert authored, "excluding the corpus left no examples to publish"
     return authored
+
+
+def framed_root_examples():
+    """Every example whose whole `main` is one framed task, whatever tag it uses.
+
+    Derived rather than listed: the site's placement rule holds for a workspace
+    root, and reading the corpus keeps a new one gated without naming its tag here.
+    The reading is `leaf.structure`'s, the one `version check` admits and the
+    browser takes, so an omitted `</p>` cannot split the two counts.
+    """
+    framed = []
+    for page in authored_examples():
+        parsed = parse_structure(page.read_text(encoding="utf-8"))
+        main = next(node for node in parsed.nodes if node["tag"] == "main")
+        children = [
+            child
+            for child in main["content"]
+            if isinstance(child, dict)
+            and child["tag"] not in ("script", "style", "template")
+        ]
+        if len(children) == 1:
+            framed.append(page.stem)
+    assert framed, "the corpus published no framed-root example to check"
+    return sorted(framed)
 
 
 def published_pages():
@@ -663,18 +688,27 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         page.close()
 
 
-@pytest.mark.parametrize("name", ["review-queue", "notification-playground"])
+@pytest.mark.parametrize("name", framed_root_examples())
 def test_published_workspaces_keep_their_allocation_under_site_context(
     hosted, browser, name
 ):
+    """The site note goes inside the framed task, never beside it.
+
+    A second element under `main` is what tells the runtime the workspace is not the
+    page's root, so a note dropped there costs the example the bounded allocation it
+    is published to demonstrate. The root is read by the class the runtime marks any
+    arranged workspace with, not by tag: `lf-monitor` is as much a root as
+    `lf-workspace`, and the rule has to hold for whichever tag the corpus reaches for
+    next.
+    """
     page, errors = open_page(browser, f"{hosted}/examples/{name}/")
     try:
         page.set_viewport_size({"width": 1200, "height": 900})
-        workspace = page.locator("body > main > lf-workspace")
+        workspace = page.locator("body > main > .lf-workspace-arranged")
+        expect(workspace).to_have_attribute("data-lf-root-workspace", "")
         expect(workspace).to_have_attribute("data-lf-posture", "bounded")
         expect(workspace.locator(":scope > header > .sitenote")).to_be_visible()
         expect(page.locator("body > main > .sitenote")).to_have_count(0)
-        expect(page.locator(".lf-pane-body")).to_have_count(2)
         page.wait_for_function(
             "() => document.documentElement.scrollHeight === document.documentElement.clientHeight"
         )

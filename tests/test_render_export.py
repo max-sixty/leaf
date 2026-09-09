@@ -1475,11 +1475,18 @@ def test_an_exported_page_fixture_stands_on_its_own(
         unshown: [...document.querySelectorAll('main *')]
             .filter(el => el.textContent.trim() && !el.checkVisibility()
                           // A disclosure the reader can still work, a control's own
-                          // label, a slot a standing decision deliberately retired, and
-                          // an element with no box by design are all fine; what is not
-                          // is the page's words with nothing to reveal them.
+                          // label, a slot a standing decision deliberately retired, a
+                          // slot the markup itself hides, and an element with no box by
+                          // design are all fine; what is not is the page's words with
+                          // nothing to reveal them. A hidden slot is the author's own
+                          // silence and it holds in every medium: the notification
+                          // playground declares its artifact binding before the agent
+                          // captures one, so the live page shows that slot no more than
+                          // the copy does and the copy withholds nothing. Read against
+                          // the corpus, this exempts that slot and nothing else — every
+                          // other fixture's reading is already empty.
                           && !el.closest('details, [data-lf-offer], [data-lf-retired], '
-                                         + '.lf-ui, style, script')
+                                         + '[hidden], .lf-ui, style, script')
                           && getComputedStyle(el).display !== 'contents')
             .map(el => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '')),
         // A press a widget injected is a tab stop wearing an interactive role, and the

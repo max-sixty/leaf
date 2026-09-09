@@ -542,15 +542,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
    (version.js). Its block wash steps back so the insertion highlight can identify only
    the new text; a newly added block keeps the wash because every word is new.
 
-   The compact version label stands on its own line; only the changed words join the
-   authored reading. It and the historical deletions wear `.lf-ui`, so comments, copies,
-   and the next comparison keep reading the current page. The deletion inherits the
-   document's face, keeping the diff one passage. */
+   The quiet version label and historical deletions wear `.lf-ui`, so comments, copies,
+   and the next comparison keep reading the current page. The margin and Page map name
+   the compared versions; only changed words appear in the visible passage. The deletion
+   inherits the document's face, keeping the diff one passage. */
 .lf-ins-block.lf-version-inline { background: transparent; box-shadow: none; }
-.lf-version-inline-label { display: block; width: max-content; margin-block-end: 3px;
-  padding: 1px 5px; border: 1px solid var(--border-2); border-radius: 999px;
-  background: var(--card); color: var(--muted);
-  font: 500 var(--t-6)/1.2 var(--sans); letter-spacing: .02em; vertical-align: .08em; }
 .lf-version-inline-deletion { font: inherit; line-height: inherit; }
 .lf-version-inline-deletion del { margin-inline-end: .28em;
   background: var(--del-tint); color: var(--danger-ink); }
@@ -1728,6 +1724,10 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-page-map-action .lf-margin-kind { width: 16px; height: 16px;
     align-self: center; fill: none; stroke: currentColor; stroke-width: 1.5;
     stroke-linecap: round; stroke-linejoin: round; }
+  .lf-page-map-action-label { min-width: 0; }
+  .lf-page-map-action-label-word, .lf-page-map-action-context { display: block; }
+  .lf-page-map-action-context { margin-block-start: 2px; color: var(--muted);
+    font-size: var(--t-6); line-height: 1.25; }
   /* Inset, because a row here fills the list to its own edge and the list is a
      scroller: there is nothing outside the row for a ring to be drawn in, and an
      outset one is cut on both sides by the box it scrolls in. The layer's rule for

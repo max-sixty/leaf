@@ -1486,6 +1486,7 @@ def test_open_page_map_uses_the_canonical_margin_element_record_and_live_state(
             await import('/runtime/widget-api.js');
           const control = marginElement(offer('button', ''), {
             key: 'inspect', icon: 'question', label: 'Inspect source',
+            context: 'Patch ready',
             behavior: 'disclosure', tone: 'negative', role: 'reading',
             state: 'engaged'
           });
@@ -1521,7 +1522,8 @@ def test_open_page_map_uses_the_canonical_margin_element_record_and_live_state(
           tone: button.dataset.lfTone,
           role: button.dataset.lfRole,
           state: button.dataset.lfState,
-          label: button.querySelector('.lf-page-map-action-label').textContent,
+          label: button.querySelector('.lf-page-map-action-label-word').textContent,
+          context: button.querySelector('.lf-page-map-action-context').textContent,
           expanded: button.getAttribute('aria-expanded'),
           pressed: button.getAttribute('aria-pressed'),
           popup: button.getAttribute('aria-haspopup'),
@@ -1533,6 +1535,7 @@ def test_open_page_map_uses_the_canonical_margin_element_record_and_live_state(
         "role": "reading",
         "state": "engaged",
         "label": "Inspect source…",
+        "context": "Patch ready",
         "expanded": "true",
         "pressed": "true",
         "popup": "dialog",

@@ -986,7 +986,7 @@ function openInlineComparison(target) {
   const current = currentVersionToken();
   const label = el(
     "span",
-    "lf-ui lf-version-inline-label",
+    "lf-ui lf-quiet lf-version-inline-label",
     before === null ? `New since v${diffBase}` : `v${diffBase} → ${current}`,
   );
   label.id = inlineId(target);
@@ -1045,15 +1045,15 @@ function closeInlineComparison(target) {
 }
 
 // What the comparison holds at a marked block, for the margin's disclosure reading.
-// The one controlled id is the inline label at the start of the block; its accessible
-// name states the versions while the surrounding deleted and inserted text shows
-// the detail in the document's own reading order.
+// The one controlled id is a quiet label at the start of the block. It names the
+// versions for assistive reading while the margin and Page map carry that provenance
+// visually, outside the passage whose words are being compared.
 export const inlineComparison = (target) =>
   diffOn && diffBefore.has(target)
     ? {
         id: inlineId(target),
         open: inlineOpen.has(target),
-        offer: `Show inline diff from v${diffBase}`,
+        offer: `v${diffBase} → ${currentVersionToken()}`,
       }
     : null;
 

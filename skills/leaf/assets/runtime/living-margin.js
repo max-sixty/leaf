@@ -1684,10 +1684,11 @@ function collectEntries() {
   comparisonChanges().forEach((target, index) => {
     const account = `${itemWord(target)} changed${base == null ? "" : ` since v${base}`}`;
     const inline = inlineComparison(target);
+    const mapAccount = inline ? `${itemWord(target)} changed` : account;
     add(groups, target, {
       kind: "change",
       id: `change:${targetPath(target)}:${index}`,
-      text: trimmed(`${account} · ${itemSays(target)}`),
+      text: trimmed(`${mapAccount} · ${itemSays(target)}`),
       // A disclosure has to say what it holds, or its one word reports a fact and
       // promises nothing. The margin element's quieter line carries it, and a block the
       // comparison holds nothing for has none, so no margin element offers a press it has
@@ -3348,7 +3349,10 @@ function sheetControlKey(entry, control) {
   return `${entry.key}:${record.owner}:${record.key}`;
 }
 
-function syncSheetFace(button, { icon, glyph, label, visibleLabel = label }) {
+function syncSheetFace(
+  button,
+  { icon, glyph, label, visibleLabel = label, context = null },
+) {
   let face = button.querySelector(":scope > .lf-margin-kind");
   if (icon) {
     if (!(face instanceof SVGSVGElement) || face.dataset.lfIcon !== icon)
@@ -3361,15 +3365,32 @@ function syncSheetFace(button, { icon, glyph, label, visibleLabel = label }) {
   }
   let text = button.querySelector(":scope > .lf-page-map-action-label");
   if (!text) text = el("span", "lf-page-map-action-label");
-  if (text.textContent !== visibleLabel) text.textContent = visibleLabel;
+  let labelWord = text.querySelector(":scope > .lf-page-map-action-label-word");
+  let contextNode = text.querySelector(":scope > .lf-page-map-action-context");
+  if (!labelWord) labelWord = el("span", "lf-page-map-action-label-word");
+  if (labelWord.textContent !== visibleLabel) labelWord.textContent = visibleLabel;
+  if (context && !contextNode) contextNode = el("span", "lf-page-map-action-context");
+  if (!context) {
+    contextNode?.remove();
+    contextNode = null;
+  }
+  if (contextNode && contextNode.textContent !== context)
+    contextNode.textContent = context;
+  const labelParts = [labelWord, ...(contextNode ? [contextNode] : [])];
+  if (
+    text.childNodes.length !== labelParts.length ||
+    labelParts.some((node, index) => text.childNodes[index] !== node)
+  )
+    text.replaceChildren(...labelParts);
   if (
     button.childNodes.length !== 2 ||
     button.childNodes[0] !== face ||
     button.childNodes[1] !== text
   )
     button.replaceChildren(face, text);
-  if (button.getAttribute("aria-label") !== label)
-    button.setAttribute("aria-label", label);
+  const accessibleLabel = [label, context].filter(Boolean).join(", ");
+  if (button.getAttribute("aria-label") !== accessibleLabel)
+    button.setAttribute("aria-label", accessibleLabel);
 }
 
 function syncSheetItem(button, entry, item) {
@@ -3383,6 +3404,7 @@ function syncSheetItem(button, entry, item) {
     icon: KINDS[item.kind].icon,
     label: `Open ${KINDS[item.kind].label.toLowerCase()}: ${label}`,
     visibleLabel: label,
+    context: item.context,
   });
   button.disabled = false;
 }
@@ -3402,6 +3424,7 @@ function syncSheetControl(button, entry, control) {
     ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
     label: record.label,
     visibleLabel: visibleMarginElementLabel(record),
+    context: record.context,
   });
   syncForwardedMarginElementState(button, control);
 }

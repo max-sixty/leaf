@@ -3077,15 +3077,32 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     expect(rewritten).to_have_attribute("aria-expanded", "false")
     # A disclosure says what it holds. "Change" alone reports a fact and promises no
     # press, which is what the margin element said before it had one to make.
-    expect(rewritten.locator(".lf-margin-element-context")).to_have_text(
-        "Show inline diff from v1"
+    expect(rewritten.locator(".lf-margin-element-context")).to_have_text("v1 → v2")
+
+    # Page map carries the same provenance on each changed-passage row. The account
+    # stays distinct from the versions, and both remain searchable away from the passage.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    mapped = sheet.locator('[data-lf-map-item^="change:"]').filter(has_text="v1 → v2")
+    expect(mapped).to_have_count(3)
+    expect(mapped.first.locator(".lf-page-map-action-label-word")).to_have_text(
+        re.compile(r"^paragraph changed · ")
     )
+    expect(mapped.first.locator(".lf-page-map-action-context")).to_have_text("v1 → v2")
+    expect(mapped.first).to_have_attribute(
+        "aria-label", re.compile(r"^Open change: .+, v1 → v2$")
+    )
+    page.keyboard.press("Escape")
     rewritten.click()
 
-    # One current passage, with its comparison identified at the start. The deletion
-    # sits where the replacement begins; the current sentence stays in its authored DOM.
+    # One current passage with no visible label mixed into it. Its quiet label names the
+    # controlled comparison for assistive reading. The deletion sits where the
+    # replacement begins; the current sentence stays in its authored DOM.
     label = page.locator("#ret-cost-body > .lf-version-inline-label")
     expect(label).to_have_text("v1 → v2")
+    expect(label).to_have_class(re.compile(r"\blf-quiet\b"))
+    expect(label).to_have_css("clip-path", "inset(50%)")
     expect(rewritten).to_have_attribute("aria-expanded", "true")
     expect(rewritten).to_have_attribute(
         "aria-controls", "lf-version-inline-ret-cost-body"

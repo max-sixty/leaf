@@ -392,14 +392,26 @@ def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
     page.close()
 
 
-def test_review_queue_decisions_reach_the_next_revision_from_the_keyboard(
+def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyboard(
     browser, serve
 ):
     example = next(e for e in EXAMPLES if e.stem == "review-queue")
+
+    seeded = serve(example)
+    first = seeded.replace("/versions/v2.html", "/versions/v1.html")
+    page, errors = open_page(browser, first)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
+    assert errors == []
+    page.close()
+
     newest = serve(example, seed_log=False)
     first = newest.replace("/versions/v2.html", "/versions/v1.html")
     page, errors = open_page(browser, first)
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/2")
+    expect(page.locator("#review-cache-auto")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#review-billing-legacy")).not_to_have_attribute("chosen", "")
     expect(page.locator("#review-cache")).to_contain_text(
         "A failed copy leaves the old keys authoritative"
     )

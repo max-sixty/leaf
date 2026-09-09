@@ -297,7 +297,10 @@ Startup order is load-bearing:
 9. Settle optional runtime-owned page interface that composes those widgets.
 10. Mark `body` `data-lf-upgraded="1"`.
 11. Start the state feed; its first answer is applied, reconciled, and presents the
-    page.
+    page. The feed waits a bounded time for that answer and then presents without one,
+    offline, rather than letting a container that has stopped answering decide whether
+    the page arrives at all. The read is not cancelled by that wait: it keeps the page's
+    one read slot, and its answer applies when it lands, as any later read's does.
 
 Authored HTML paints immediately on every page. The prepaint bootstrap marks the root
 `data-lf-live`, and the render-blocking theme uses that fact to reserve the fixed banner

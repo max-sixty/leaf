@@ -328,10 +328,12 @@ async function startPage() {
   // drawing. The stamp says the document is done becoming itself.
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.upgraded, "1");
   // Apply the buffered first read only after that stamp, preserving the two readiness
-  // facts but presenting neither half on its own. The first completed read — state or
-  // offline — is the presentation boundary; only after it settles do the heartbeat and
-  // the stream begin, so a held first request cannot be overtaken by a second answer and
-  // leave presentation waiting on the wrong call.
+  // facts but presenting neither half on its own. What that read cannot decide is
+  // whether the page arrives at all: startFeed waits a fixed time for it and then
+  // presents offline without ending it, so the heartbeat and the stream begin at that
+  // wait rather than at the container's answer. The request stays in flight holding the
+  // page's one read slot, so it cannot be overtaken by a second answer, and what it
+  // finally brings is applied where the page stands.
   startFeed(presentPage, initialStateRead);
 }
 

@@ -4,6 +4,7 @@ import json
 import re
 
 import pytest
+from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_support import (
     DRAFT_MARK,
@@ -15,9 +16,48 @@ from render_support import (
     open_page,
     pending_text,
     resized,
+    sending,
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_short_inline_code_selection_offers_comment(browser, serve):
+    """A complete code term is commentable even when it is one or two characters."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "short code selection",
+                '<p id="code">Compare <code>x</code> with <code>id</code>.</p>',
+            )
+        ),
+    )
+
+    for term in ("x", "id"):
+        page.get_by_text(term, exact=True).select_text()
+        bar = page.locator(".lf-fab-bar")
+        expect(bar).to_be_visible()
+        expect(bar).to_have_attribute("aria-label", f"Respond to “{term}”")
+        expect(page.locator(".lf-fab-input")).not_to_be_focused()
+
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    field.fill("Name this variable more clearly.")
+    with sending(page, "the short-code comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert event["anchor"] == {
+        "section": "code",
+        "quote": "id",
+        "prefix": "Compare x with",
+        "suffix": ".",
+    }
+
+    assert errors == []
+    page.close()
 
 
 def test_s_aims_at_the_item_named_by_its_hint(browser, serve):

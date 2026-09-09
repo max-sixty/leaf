@@ -1045,9 +1045,10 @@ class _Read:
     ok = True
     status = 200
 
-    def __init__(self, payload: dict, body: str = ""):
+    def __init__(self, payload: dict, body: str = "", headers: dict | None = None):
         self.payload = payload
         self.body = body
+        self.headers = headers or {}
 
     def json(self) -> dict:
         return self.payload
@@ -1194,3 +1195,158 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():
     assert verify_site.still_answering(working, "comment-id")
     assert turn.answer is None
     assert verify_site.generation_failed(turn.replies)
+
+
+class _PresentationWait:
+    def __init__(self, waits: list[int]):
+        self.waits = waits
+
+    def wait_for(self, timeout: int) -> None:
+        self.waits.append(timeout)
+
+
+class _Heading:
+    def __init__(self, text: str):
+        self.text = text
+
+    def inner_text(self) -> str:
+        return self.text
+
+
+class _DeployedPage:
+    """The page the agent pass opens, reloads after its turn, and reads back."""
+
+    def __init__(
+        self, heading: str, revision: int, presented_at: float, reload_ok: bool = True
+    ):
+        self.heading = heading
+        self.revision = revision
+        self.presented_at = presented_at
+        self.reload_ok = reload_ok
+        self.init_scripts: list[str] = []
+        self.presentation_waits: list[int] = []
+
+    def add_init_script(self, script: str) -> None:
+        self.init_scripts.append(script)
+
+    def on(self, event: str, handler) -> None:
+        pass
+
+    def goto(self, url: str, **kwargs) -> _Read:
+        return _Read({})
+
+    def reload(self, **kwargs) -> _Read:
+        answered = _Read({})
+        answered.ok = self.reload_ok
+        return answered
+
+    def locator(self, selector: str):
+        if selector == "h1":
+            return _Heading(self.heading)
+        assert selector == "body[data-lf-presented]"
+        return _PresentationWait(self.presentation_waits)
+
+    def evaluate(self, script: str):
+        if "presented?.at" in script:
+            return self.presented_at
+        if "lf-revision" in script:
+            return str(self.revision)
+        return []
+
+
+class _DeployedContainer:
+    """The private container one activated reader session reaches, serving `release`."""
+
+    def __init__(self, release: str, page: _DeployedPage):
+        self.release = release
+        self.page = page
+        self.request = self
+        self.closed = False
+
+    def new_page(self) -> _DeployedPage:
+        return self.page
+
+    def get(self, url: str, headers: dict | None = None, **kwargs) -> _Read:
+        answered = {"leaf-session": "active", "leaf-release": self.release}
+        return _Read(
+            {
+                "active": {"revision": 1, "url": "revisions/1.html"},
+                "layer": {"generation": "generation-1"},
+                "events": [],
+            },
+            headers=answered,
+        )
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _DeployedSite:
+    def __init__(self, context: _DeployedContainer):
+        self.context = context
+
+    def new_context(self) -> _DeployedContainer:
+        return self.context
+
+
+def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present(
+    monkeypatch, capsys
+):
+    """One bound cannot serve both pages this gate reads, so the reload states its own.
+
+    `publish-site` deployed release `4ef93dd9…` and then failed on the reload after a
+    healthy turn: `never presented, reaching no startup milestone`. The pages the
+    release pass walks come from the edge and present in about a second, which is what
+    the default bound is for. The reloaded one is answered by a container that has just
+    run a hosted model turn, whose first `/api/state` read costs seconds rather than
+    milliseconds — measured against the live deployment, 123 ms before a turn and
+    2252-3918 ms after one, on the same session and page.
+
+    So the reading that decides this is which bound each of the two waits was given at
+    its own call site, not whether `await_presentation` forwards what it is handed.
+    """
+    release = "4ef93dd9" + "0" * 56
+    heading = f"Deployment {release[:8]} verified"
+    page = _DeployedPage(heading, revision=2, presented_at=28444.0)
+    container = _DeployedContainer(release, page)
+    published = {"revision": 2, "url": "revisions/2.html"}
+    monkeypatch.setattr(
+        verify_site,
+        "ask_until_answered",
+        lambda *args, **kwargs: verify_site.AgentAsks(
+            verify_site.TurnReading(
+                {"active": {"revision": 2}, "activity": {"kind": "away"}},
+                published,
+                [{"kind": "reply", "text": "deployment verified"}],
+                {"kind": "reply", "text": "deployment verified"},
+            ),
+            1,
+            1,
+        ),
+    )
+
+    verify_site.verify_agent_turn(_DeployedSite(container), release)
+
+    # The session's first load is an ordinary read of that container, and the reload
+    # after the turn is not: dropping `TURN_PRESENTATION` from that call restores the
+    # failure this branch is named for, and leaves the first reading unchanged.
+    assert page.presentation_waits == [30_000, verify_site.TURN_PRESENTATION]
+    assert verify_site.TURN_PRESENTATION > 30_000
+    # The stamps the message needs to say which stall it was. Without them a page that
+    # upgraded and stalled on its first state read reports the same "no startup
+    # milestone" as one whose modules never arrived.
+    assert page.init_scripts == [verify_site.PROFILE_SCRIPT]
+    # What the reload cost, on the green run: the only reading anyone has of a
+    # container serving a page a hosted turn has just written to.
+    assert "presented in 28444 ms" in capsys.readouterr().out
+    assert container.closed
+
+    # A reload the container never answered is its own reading, taken before the wait.
+    # Left unchecked it arrives as a presentation timeout, which is the message this
+    # branch is here to stop conflating with a slow read.
+    refused = _DeployedPage(heading, revision=2, presented_at=28444.0, reload_ok=False)
+    with pytest.raises(RuntimeError, match="did not reload after its agent turn"):
+        verify_site.verify_agent_turn(
+            _DeployedSite(_DeployedContainer(release, refused)), release
+        )
+    assert refused.presentation_waits == [30_000]

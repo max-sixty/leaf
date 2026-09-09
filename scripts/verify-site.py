@@ -77,6 +77,13 @@ PROFILE_SCRIPT = """(() => {
 # stopped.
 TURN_PATIENCE = 300
 TURN_LIMIT = 600
+# How long the page reloaded after the turn may take to present. The release pass walks
+# pages the edge serves, which present in about a second, and `await_presentation`'s own
+# bound is calibrated for those. This reload is answered by a container that has just run
+# a hosted model turn, whose first `/api/state` read is measured in seconds rather than
+# milliseconds and varies with what the turn did — so it gets the same patience as every
+# other read this pass makes of that container, and reports what it cost.
+TURN_PRESENTATION = 120_000
 # The activity readings that mean a turn is on this work. A page that reads away,
 # unheld, listening, stalled or closed is not going to answer, so its wait ends at
 # `TURN_PATIENCE` rather than running out the limit.
@@ -125,9 +132,11 @@ def unpresented(url: str, reached: list[str], failures: list[str]) -> str:
     return f"{url} never presented, reaching {milestones}{reported}"
 
 
-def await_presentation(page, url: str, failures: list[str]) -> None:
+def await_presentation(
+    page, url: str, failures: list[str], timeout: int = 30_000
+) -> None:
     try:
-        page.locator("body[data-lf-presented]").wait_for(timeout=30_000)
+        page.locator("body[data-lf-presented]").wait_for(timeout=timeout)
     except PlaywrightTimeout:
         reached = page.evaluate("() => Object.keys(window.__leafStartup ?? {})")
         raise RuntimeError(unpresented(url, reached, failures)) from None
@@ -327,6 +336,10 @@ def reader_session(
     """One activated reader session, or the release its container served instead."""
     context = browser.new_context()
     page = context.new_page()
+    # The same startup stamps `verify_page` records, because this page is reloaded
+    # after the turn and `unpresented` has no other way to say how far it got. Without
+    # it every stall here reports "no startup milestone" whatever stalled.
+    page.add_init_script(PROFILE_SCRIPT)
     failures: list[str] = []
     page.on(
         "console",
@@ -658,8 +671,13 @@ def verify_agent_turn(browser, release: str) -> None:
         answer is not None,
         f"{url} agent returned an unexpected reply{tried}{said}",
     )
-    page.reload(wait_until="load", timeout=120_000)
-    await_presentation(page, url, failures)
+    reloaded = page.reload(wait_until="load", timeout=120_000)
+    check(
+        reloaded is not None and reloaded.ok,
+        f"{url} did not reload after its agent turn",
+    )
+    await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
+    presented_at = page.evaluate("() => window.__leafStartup?.presented?.at ?? null")
     check(not failures, f"{url} reported browser errors: {failures}")
     # Which of the two ways this can fail: a browser still standing on the built
     # document never followed the agent's revision, while one that followed it and
@@ -679,15 +697,32 @@ def verify_agent_turn(browser, release: str) -> None:
     )
     # What the turn actually did, on the green run as well as the red one: a gate whose
     # only account of a hosted agent is its own exit status leaves the next reader of a
-    # failure with nothing to compare against.
+    # failure with nothing to compare against. The reload's cost rides along because this
+    # is the only reading anyone has of a container serving a page a hosted turn has just
+    # written to, and a number printed every deployment is what makes a drift in it
+    # visible before it becomes the next timeout.
     print(
         f"✓ hosted agent published revision {published['revision']} "
         f"and replied: {answer['text']}"
+        + (
+            f"; the reloaded page presented in {presented_at:.0f} ms"
+            if presented_at is not None
+            else ""
+        )
     )
     context.close()
 
 
 def main() -> None:
+    """Verify one deployed release, or run the deployed agent turn against it.
+
+    Container rollout is asynchronous and per allocation: a fresh reader session can
+    still reach the previous image seconds after another reached the new one. The
+    deploy step waits that out by re-running the release pass until it holds, so a
+    single coherent sample is what ends the wait. The agent pass therefore runs the
+    turn alone — re-sampling the release readings after the wait had already settled
+    them turned a rollout that was still draining into a red default branch.
+    """
     if len(sys.argv) > 2:
         raise SystemExit("usage: uv run scripts/verify-site.py [release]")
     built = json.loads(MANIFEST.read_text(encoding="utf-8"))["release"]
@@ -696,13 +731,15 @@ def main() -> None:
     with sync_playwright() as playwright:
         browser, browser_name = launch_browser(playwright)
         try:
+            if os.environ.get("LEAF_VERIFY_AGENT") == "1":
+                verify_agent_turn(browser, release)
+                print(f"✓ leaf.page ran one deployed agent turn on release {release}")
+                return
             profiles = [
                 (path, verify_page(browser, path, kind, release, activate))
                 for path, kind, activate in PAGES
             ]
             verify_cross_tab_activation(browser)
-            if os.environ.get("LEAF_VERIFY_AGENT") == "1":
-                verify_agent_turn(browser, release)
         finally:
             browser.close()
     print("Leaf startup profile (observed, not a pass/fail budget):")

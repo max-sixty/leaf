@@ -41,6 +41,8 @@ site, demo, and vendor tooling. `worker/` is the Cloudflare Worker behind
 canonical Python server in a per-reader container. Its container adapter,
 `worker/server.py`, is ordinary Python that `tests/` covers; its TypeScript half
 is the one part of the tree with a gate of its own that `tests/` does not reach.
+Agents on `max-sixty` use the finely grained Cloudflare token available there
+for API and Wrangler access.
 
 `docs/` is the site's own content: each product document there is a Leaf source,
 which `scripts/site.py` publishes as a complete page directory beside the worked

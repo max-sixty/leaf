@@ -13,9 +13,10 @@
    destination the reader requested.
 
    A frame is active only while its owning surface still stands and the reader remains in
-   the layer it entered. A latent filter value or mode flag is not enough: closing a panel
-   or leaving a widget must retire its frame so core Escape cannot advertise or mutate
-   hidden state elsewhere on the page.
+   the layer it entered. A newer native layer suspends that reading: its modal focus cannot
+   retire the frame underneath, and closing it exposes the same return route again. A latent
+   filter value or mode flag is not enough: closing a panel or leaving a widget must retire
+   its frame so core Escape cannot advertise or mutate hidden state elsewhere on the page.
 
    Two independently requested entries remain two frames. `g T` enters the Threads list;
    `c` from that list enters its page-comment box. Two Escapes return first to the list
@@ -64,6 +65,11 @@ import { word } from "./bindings.js";
 import { focusDestination } from "../widget-elements.js";
 import { focused, paintHere } from "./scopes.js";
 import { readingBlock } from "../version.js";
+import {
+  currentNativeLayer,
+  nativeLayerFor,
+  nativeLayerOrder,
+} from "../native-layers.js";
 
 export function captureReturnPlace({ focused, readingBlock }) {
   const control = focused();
@@ -123,12 +129,25 @@ export function invoke(row, binding, run, suppliedOrigin = null) {
     : null;
   const result = run();
   prune();
-  if (frame?.active()) frames.push({ ...frame, origin });
+  if (frame?.active()) {
+    const root = currentNativeLayer(focused()) ?? document;
+    frames.push({ ...frame, origin, root, order: nativeLayerOrder(root) });
+  }
   return result;
 }
 
 function prune() {
-  while (frames.length && !frames.at(-1).active()) frames.pop();
+  const layer = currentNativeLayer(focused());
+  while (frames.length) {
+    const frame = frames.at(-1);
+    if (layer && frame.root !== layer && nativeLayerOrder(layer) > frame.order) return;
+    if (frame.root !== document && nativeLayerFor(frame.root) !== frame.root) {
+      frames.pop();
+      continue;
+    }
+    if (frame.active()) return;
+    frames.pop();
+  }
 }
 
 export function current() {
@@ -158,6 +177,7 @@ function back() {
 
 export const RETURN = {
   title: "After entering a surface",
+  root: () => current()?.root ?? document,
   when: () => Boolean(current()),
   at: () => Boolean(current()),
   rows: [

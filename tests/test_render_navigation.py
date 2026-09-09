@@ -535,7 +535,8 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(page.locator("#bg-choice-ask")).to_be_focused()
     page.locator(".lf-asks").click()
 
-    page.locator(".lf-threads-toggle").click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     expect(page.locator(".lf-panel")).to_be_visible()
     expect(page.locator(".lf-details .lf-thread")).not_to_have_count(0)
     expect(page.locator("#bg-thread-media")).to_contain_text(
@@ -553,9 +554,16 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
         "src", "/media/051bee487bfb5d13.png"
     )
     assert page.url == url_before
+    page.keyboard.press("w")
+    expect(viewer).to_be_visible()
+    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-drawing\b"))
     page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
     expect(media_open).to_be_focused()
-    page.locator(".lf-threads-toggle").click()
+    expect(page.locator(".lf-panel")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-asks")).to_be_focused()
 
     page.locator(".lf-version").click()
     expect(
@@ -5112,6 +5120,133 @@ def test_a_text_box_keeps_its_keys_from_the_widget_around_it(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("#key-owning-widget")).to_have_attribute("data-fired", "Escape")
     expect(page.locator(".lf-version-menu")).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
+    """Native layer ownership blocks ancestors and survives nesting and light dismiss."""
+    url = serve(NOTED_PAGE)
+    _publish(serve.page_dir, 2, NOTED_PAGE, "two")
+    page, errors = open_page(browser, url)
+    page.evaluate(
+        """async () => {
+          const { commands } = await import('/runtime/widget-api.js');
+          const { shadowStage } = await import('/runtime/shadow-stage.js');
+          const host = document.createElement('section');
+          host.id = 'around-native-layer';
+          const dialog = document.createElement('dialog');
+          dialog.id = 'nested-modal';
+          const shadowHost = document.createElement('div');
+          const trigger = document.createElement('button');
+          trigger.textContent = 'Open nested popover';
+          const popover = document.createElement('div');
+          popover.id = 'shadow-popover';
+          popover.popover = 'auto';
+          popover.textContent = 'Nested popover';
+          trigger.popoverTargetElement = popover;
+          shadowStage(shadowHost, [trigger, popover]);
+          dialog.append(shadowHost);
+          host.append(dialog);
+          document.querySelector('main').append(host);
+          commands(host, 'Around a native layer', [
+            {id: 'test.outer-escape', keys: ['Escape'], does: 'Work the outer widget',
+             line: 'work outer', run: () => { host.dataset.fired = 'Escape'; }},
+          ]);
+          dialog.showModal();
+          trigger.focus();
+          trigger.click();
+        }"""
+    )
+    modal = page.locator("#nested-modal")
+    popover = page.locator("#shadow-popover")
+    expect(modal).to_be_visible()
+    expect(popover).to_be_visible()
+
+    # The popover is nonmodal, but the modal below it remains a hard floor. A page
+    # command and the widget ancestor outside the dialog are both unreachable.
+    page.keyboard.press("l")
+    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
+    page.keyboard.press("Escape")
+    expect(popover).to_be_hidden()
+    expect(modal).to_be_visible()
+    assert page.locator("#around-native-layer").get_attribute("data-fired") is None
+    page.keyboard.press("Escape")
+    expect(modal).to_be_hidden()
+    assert page.locator("#around-native-layer").get_attribute("data-fired") is None
+
+    # Native focusing steps may synchronously open a newer modal. Recording the first
+    # opening before those steps preserves that order, while an idempotent call on the
+    # older dialog does not move it back to the top.
+    assert page.evaluate(
+        """async () => {
+          const { currentNativeLayer } = await import('/runtime/native-layers.js');
+          const first = document.createElement('dialog');
+          const second = document.createElement('dialog');
+          const focus = document.createElement('button');
+          focus.autofocus = true;
+          focus.textContent = 'Focus opens the second modal';
+          first.append(focus);
+          document.body.append(first, second);
+          focus.addEventListener('focus', () => second.showModal(), {once: true});
+          first.showModal();
+          const nested = currentNativeLayer() === second;
+          first.showModal();
+          const idempotent = currentNativeLayer() === second;
+          second.close();
+          first.close();
+          return nested && idempotent;
+        }"""
+    )
+
+    # A newer modal temporarily removes an auto popover from the native top layer. Its
+    # keyboard return frame remains suspended and belongs to the restored popover.
+    open_versions(page)
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-version-menu")).to_be_visible()
+    assert page.evaluate(
+        """async () => {
+          const { current } = await import('/runtime/keyboard/return-stack.js');
+          return current()?.root === document.querySelector('.lf-version-menu');
+        }"""
+    )
+    page.locator(".lf-version").click()
+
+    # A closed inner layer is retired rather than mistaken for a frame covered by the
+    # older modal now visible beneath it. The outer frame consequently owns Escape.
+    current = page.evaluate(
+        """async () => {
+          const { invoke, current } = await import('/runtime/keyboard/return-stack.js');
+          const outer = document.createElement('dialog');
+          const inner = document.createElement('dialog');
+          outer.id = 'return-outer';
+          inner.id = 'return-inner';
+          document.body.append(outer, inner);
+          const row = (id, dialog) => ({
+            id,
+            returnFrame: () => ({
+              active: () => true,
+              close: () => {
+                dialog.close();
+                document.body.dataset.closedFrame = id;
+              },
+              does: `Close ${id}`,
+              line: `close ${id}`,
+            }),
+          });
+          invoke(row('outer', outer), 'x', () => outer.showModal());
+          invoke(row('inner', inner), 'x', () => inner.showModal());
+          inner.close();
+          return current().does;
+        }"""
+    )
+    assert current == "Close outer"
+    page.keyboard.press("Escape")
+    expect(page.locator("#return-outer")).to_be_hidden()
+    expect(page.locator("body")).to_have_attribute("data-closed-frame", "outer")
     assert errors == []
     page.close()
 

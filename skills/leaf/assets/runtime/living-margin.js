@@ -3200,6 +3200,7 @@ export function keyboardRung({ atFocus = true } = {}) {
       (previewMarginElement && host?.contains(previewMarginElement)))
   )
     return {
+      root: preview,
       does: "Close the thread card",
       says: "close thread",
       out: () => closePreview(true),
@@ -3207,6 +3208,7 @@ export function keyboardRung({ atFocus = true } = {}) {
   const optionsHost = atFocus ? host : hosts.get(expandedOptionsKey);
   if (optionsHost?.lfEntry?.key === expandedOptionsKey)
     return {
+      root: optionsHost,
       does: "Fold the secondary page actions",
       says: "close options",
       out: () => setOptionsOpen(optionsHost.lfEntry, false, { returnFocus: true }),

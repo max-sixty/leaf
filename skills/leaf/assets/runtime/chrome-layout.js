@@ -140,9 +140,8 @@ export const inPanel = () => panelOpen && containsAcross(panel, focused());
 // one that states what "covering" means here — the panel covers the page rather than
 // clipping it, and what it covers is out of reach only where it is actually painted over).
 // What modality was carrying instead is already owned elsewhere and stays: the covering
-// sheet's scroll lock is the stylesheet's (COVERING's `overflow-y: hidden`), and Escape is
-// the ladder's, which browserDismissesTopLayer hands to the platform only for the layers
-// the platform really owns.
+// sheet's scroll lock is the stylesheet's (COVERING's `overflow-y: hidden`), while this
+// non-modal workspace remains one rung in the keyboard stack.
 //
 // Opening a <dialog> runs the browser's dialog focusing steps whichever way it is opened,
 // so the invoker has to be given its focus back: raising the panel is not a request to

@@ -3311,7 +3311,15 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
                 for batch in payload["batches"]
             )
             queue_history = payload_path.parent.parent / "history" / payload_path.name
-            queue = files_model.read_json(queue_history)
+            # The page cursor is durable before the adapter records that receipt and
+            # archives its queue. Wait for that second boundary instead of treating the
+            # cursor's visibility as proof that the history move is already complete.
+            deadline = time.monotonic() + 10
+            while (
+                queue := files_model.read_json(queue_history)
+            ) is None and time.monotonic() < deadline:
+                time.sleep(0.05)
+            assert queue is not None, f"delivery did not reach history: {queue_history}"
             assert queue["state"] == "accepted"
             assert all(batch["receipted"] for batch in queue["batches"])
             payloads.append(payload)

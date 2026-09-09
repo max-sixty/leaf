@@ -144,6 +144,20 @@ export function effectiveScroller(regionOrNode) {
   return containing ? effectiveScroller(containing) : pageScroller;
 }
 
+// Which box scrolls a given element, for anything that has to name its scroller rather
+// than search for one. The document's for everything the document holds — and the
+// panel's own list for a widget an agent put in a reply, which is scrolled by that and
+// by nothing else. A drag naming the wrong one sits at the edge waiting for a scroll
+// that never comes.
+export const scrollerFor = (el) => {
+  let region = readingRegionFor(el);
+  while (region) {
+    if (containsAcross(region.body, el)) return effectiveScroller(region);
+    region = readingRegionFor(region.host.parentElement);
+  }
+  return pageScroller;
+};
+
 export function shownRegionBounds(regionOrNode) {
   const region = asRegion(regionOrNode);
   if (!region || hidden(region)) return null;

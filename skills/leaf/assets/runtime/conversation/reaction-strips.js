@@ -4,12 +4,20 @@ import {
   buildReactSurface,
   paintReactionStanding,
   sendReaction,
+  setReact,
 } from "../reactions.js";
 import { el } from "../widget-elements.js";
 import { isAddressable, isReaction } from "./model.js";
 import { withdraw } from "../projection.js";
 import { runtime } from "../context.js";
-import { reactDone, removeNode } from "./reconcile.js";
+
+// A reaction list owns the keyboard until it closes. Conversation reconciliation can
+// remove its surface without a local gesture, so disarm it before detaching that tree.
+export function removeConversationNode(node) {
+  if (node.matches?.(".lf-react-open") || node.querySelector?.(".lf-react-open"))
+    setReact(false);
+  node.remove();
+}
 
 /* Reaction surfaces rendered in every complete Thread view.
 
@@ -31,12 +39,13 @@ export function paintReactStrips(node, t) {
   )) {
     const m = t.msgs.find((x) => x.id === (msg.dataset.mid ?? msg.dataset.event));
     if (!m || m.author !== "claude" || !isAddressable(m)) {
-      msg.querySelector(":scope > .lf-react-strip")?.remove();
+      const strip = msg.querySelector(":scope > .lf-react-strip");
+      if (strip) removeConversationNode(strip);
       continue;
     }
     let strip = msg.querySelector(":scope > .lf-react-strip");
     if (t.resolved) {
-      if (strip) removeNode(strip);
+      if (strip) removeConversationNode(strip);
       continue;
     }
     if (!strip) {
@@ -65,5 +74,5 @@ async function pressStrip(m, name, chip) {
       chip,
       `${m.agent || "the agent"}'s reply`,
     );
-  reactDone();
+  setReact(false);
 }

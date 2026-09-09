@@ -2500,6 +2500,112 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
         page.close()
 
 
+def test_the_first_read_and_the_reader_s_later_ones_are_bounded_apart(browser, serve):
+    """Two reads, two deadlines, because they are answerable to different things.
+
+    `publish-site` deployed release `5b6be522…`, ran a hosted agent turn on it, and
+    then read the reloaded page standing on the revision from before the turn. A
+    container that has just run a turn answers its next state read in seconds rather
+    than milliseconds — measured against a live deployment at 123 ms before a turn and
+    2252-3918 ms after one. A bound inside that spread does not delay such a read, it
+    ends it: an expiry is a completed offline answer, so the page takes the container
+    for gone while the answer it asked for is still on its way. Nothing waits on the
+    first read — the page presents at its own wait, tested below — so its bound can sit
+    outside every reading a live container takes. The deploy gate gives that container
+    120 seconds for each read it makes of it.
+
+    Every read after presentation answers to the reader instead. The banner's one way
+    to say the server stopped answering runs through a read that *completed* with
+    nothing, and a read still in flight holds the page's one slot, so this bound is the
+    whole time a live page can go on showing a reading the server has abandoned. It
+    stays on a reader's timescale rather than the gate's.
+    """
+    record_read_bounds = """
+      window.__leafReadBounds = [];
+      const native = AbortSignal.timeout.bind(AbortSignal);
+      Object.defineProperty(AbortSignal, 'timeout', {
+        value: (ms) => {
+          window.__leafReadBounds.push(ms);
+          return native(ms);
+        },
+      });
+    """
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.add_init_script(record_read_bounds)
+    # A read that brings nothing is what puts the page back on the clock: a page holding
+    # an answer asks again only when its news moves, so refusing the reads is how a
+    # second one is reached without waiting on the server to say something new.
+    page.route("**/api/state*", refuse)
+    try:
+        page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
+        expect(page.locator("body[data-lf-presented]")).to_have_count(1)
+        page.wait_for_function("() => window.__leafReadBounds.length >= 2")
+        bounds = page.evaluate("() => window.__leafReadBounds")
+        assert bounds[0] == 120_000, bounds
+        assert bounds[1] == 10_000, bounds
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, serve):
+    """The reader's page arrives on the runtime's wait, not on the container's answer.
+
+    Presentation is where durable controls, the heartbeat and the news stream open, so a
+    container that accepts the connection and says nothing would otherwise decide whether
+    the reader gets a usable page at all — and the read's own bound is set outside what a
+    live container takes, which is far past anyone's patience for a page. The wait ends
+    without ending the read: the request stays in flight, no second one opens beside it,
+    and the answer that lands after the page has presented offline is applied where it
+    stands.
+    """
+    # The wait is read off the page rather than written here, and shortened so the test
+    # spends its own time on the behaviour instead of on the bound. It is the first long
+    # timer the page installs; every other one this runtime sets is either shorter than
+    # this floor or installed after presentation.
+    shorten_the_first_long_wait = """
+      window.__leafPresentationWait = null;
+      const native = window.setTimeout.bind(window);
+      window.setTimeout = (fn, ms, ...rest) => {
+        if (window.__leafPresentationWait === null && ms >= 5000) {
+          window.__leafPresentationWait = ms;
+          return native(fn, 200, ...rest);
+        }
+        return native(fn, ms, ...rest);
+      };
+    """
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.add_init_script(shorten_the_first_long_wait)
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
+        expect(page.locator("body[data-lf-presented]")).to_have_count(1)
+        expect(page.locator(".lf-status-text")).to_contain_text(
+            "Server offline — reconnecting"
+        )
+        assert page.evaluate("() => window.__leafPresentationWait") >= 10_000
+
+        # The read the page presented without is still the one it is waiting on. Ticks of
+        # the shared clock pass with the slot held, and none of them opens a second read.
+        page.wait_for_timeout(4000)
+        assert len(held) == 1, held
+        assert not page.locator("body[data-lf-presented]").evaluate(
+            "body => body.dataset.lfReading ?? ''"
+        )
+
+        held[0].fulfill(json=held[0].fetch().json())
+        told(page)
+        expect(page.locator(".lf-status-text")).not_to_contain_text(
+            "Server offline — reconnecting"
+        )
+        assert errors == []
+    finally:
+        page.close()
+
+
 def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     """The network slot ends with the read, not an unbounded package repaint."""
     page, errors = open_page(browser, serve(LONG_PAGE))
@@ -3242,7 +3348,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(page.locator(".lf-panel")).to_be_visible()
     work_line = page.locator(".lf-receipt")
     work_button = page.locator('.lf-margin-reading-option[data-lf-kinds~="activity"]')
-    notice = page.locator(".lf-banner-status .lf-notice")
+    notice = page.locator(".lf-bottom-status .lf-notice")
 
     def claim(claim_ts, session="s"):
         """A page claim made now, carrying local work last renewed whenever."""

@@ -1,7 +1,7 @@
-/* The shortcut bar at the foot of the page, the separate keyboard-walk position at the
-   page's head, and the More control that leads from the bar to the reference.
+/* The shortcut bar at the foot of the page, the useful status opposite it or stacked
+   above it when room is tight, and the More control that leads to the reference.
 
-   The readout keeps navigation state out of the command list. It appears after a
+   The status keeps navigation state out of the command list. It appears after a
    semantic list walk and briefly takes the accent face when a repeated press cannot move
    from its destination. The bar gives compact hints rather than reproducing the
    keyboard reference. It walks outward from the reader's innermost scope and drops
@@ -36,10 +36,11 @@
    to keep in step. Over a covering thread panel, the line starts at its ordinary bottom
    inset and rises above the panel foot only when their rendered rectangles collide. A
    coarse pointer is drawn no hint line at all — there is no keyboard to advertise, and
-   every hint would name a key the reader cannot press. A covering-width layout also
-   drops the navigation readout because it has no spare page corner. The line, readout,
-   and chips take no pointer events; the More
-   control does, because it is the pointer route to the reference.
+   every hint would name a key the reader cannot press. A covering-width layout stacks
+   the status above the line. The line, status, and chips take no pointer events; the More
+   control does, because it is the pointer route to the reference. Brief reader feedback
+   replaces an ordinal and then restores its live reading; background arrivals queue
+   behind reader feedback and persistent command context.
 
    The accessible More control and its `?` binding share one progressive route. The first
    activation unfolds additional current-scene rows into a shelf capped at two lines; the
@@ -68,9 +69,9 @@ import { el } from "../widget-elements.js";
 import { lineOwner, shadow, stack } from "./dispatch.js";
 import { LESS_SHORTCUTS, REFERENCE } from "./page.js";
 import { referenceOpen, showReference } from "./reference.js";
-import { announce } from "../notifications.js";
-import { paintHere } from "./scopes.js";
-import { setSequence } from "./address.js";
+import { announce, noticeEl, setNoticeContext } from "../notifications.js";
+import { addressStatus, setSequence } from "./address.js";
+import { repaint } from "../repaint.js";
 import { setReact } from "../reactions.js";
 import { walkPosition } from "../walk-position.js";
 
@@ -79,9 +80,14 @@ import { walkPosition } from "../walk-position.js";
 // a visible door to the complete list should be a door every reader can work.
 export const shortcutBarEl = el("div", "lf-ui lf-shortcut-bar");
 shortcutBarEl.id = "lf-shortcut-bar";
+export const bottomStatusEl = el("div", "lf-ui lf-bottom-status");
 export const walkPositionEl = el("span", "lf-walk-position");
 walkPositionEl.hidden = true;
 walkPositionEl.setAttribute("aria-hidden", "true");
+const contextStatusEl = el("span", "lf-context-status");
+contextStatusEl.hidden = true;
+contextStatusEl.setAttribute("aria-hidden", "true");
+bottomStatusEl.append(contextStatusEl, walkPositionEl, noticeEl);
 export const shortcutBarMore = el("button", "lf-key-more");
 shortcutBarMore.type = "button";
 shortcutBarMore.title = "More keyboard shortcuts";
@@ -97,10 +103,26 @@ const boxesOf = (nodes) =>
     .filter((box) => box.height > 0 && box.width > 0);
 
 // Fixed boxes that generated addresses and target hints must not cover. The bottom-only
-// subset also bounds composers and reserves the document's foot.
-export const bottomChromeBoxes = () => boxesOf([shortcutBarEl]);
-export const walkPositionBoxes = () => boxesOf([walkPositionEl]);
-export const fixedChromeBoxes = () => [...bottomChromeBoxes(), ...walkPositionBoxes()];
+// subset also bounds composers and reserves the document's foot. A transient notice
+// alone does not change page geometry; over a standing walk or command context it keeps
+// that surface's last stable footprint rather than making a four-second message reflow
+// the page and its addresses.
+const standingStatus = () => !walkPositionEl.hidden || !contextStatusEl.hidden;
+let standingStatusBox = null;
+export const standingStatusBoxes = () => {
+  if (!standingStatus()) {
+    standingStatusBox = null;
+    return [];
+  }
+  if (!noticeEl.classList.contains("show"))
+    [standingStatusBox = null] = boxesOf([bottomStatusEl]);
+  return standingStatusBox ? [standingStatusBox] : [];
+};
+export const bottomChromeBoxes = () => [
+  ...boxesOf([shortcutBarEl]),
+  ...standingStatusBoxes(),
+];
+export const fixedChromeBoxes = bottomChromeBoxes;
 
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
@@ -198,7 +220,7 @@ function more() {
   const shown = completeLine(scopes, candidates)?.rows ?? short;
   if (!candidates.some((row) => !shown.has(row))) return showReference(true);
   expanded = true;
-  paintHere();
+  repaint();
   announce(
     "More keyboard shortcuts shown. Press question mark again for all shortcuts, or Escape to show less.",
   );
@@ -206,7 +228,7 @@ function more() {
 export function less({ silent = false } = {}) {
   if (!expanded) return;
   expanded = false;
-  paintHere();
+  repaint();
   if (!silent) announce("Fewer keyboard shortcuts shown.");
 }
 export function renderLine() {
@@ -223,6 +245,10 @@ export function renderLine() {
   const complete = completeLine(scopes, candidates);
   const shown = complete?.rows ?? short;
   const position = walkPosition();
+  const contextStatus = addressStatus();
+  setNoticeContext(Boolean(contextStatus));
+  contextStatusEl.textContent = contextStatus ?? "";
+  contextStatusEl.hidden = !contextStatus;
   if (position) {
     walkPositionEl.dataset.kind = position.kind;
     walkPositionEl.textContent = position.text;
@@ -280,7 +306,7 @@ export function renderLine() {
   // Everything but More, which the reader may be standing on. `textContent = ""` takes
   // it out of the document, and removing a focused element blurs it: it returns on the
   // same line as the same node, connected again, with the reader dropped to `body`. That
-  // lands one frame after they tabbed to it, because this runs under paintHere's frame —
+  // lands one frame after they tabbed to it, because this runs under the repaint frame —
   // so the walk is whole at synthetic speed and broken at every human one, which is the
   // way round that hides from a suite. The line is cleared around the same seated node
   // instead, and the chips are drawn around it.
@@ -363,11 +389,11 @@ export function renderLine() {
     span.hidden = true;
   }
 }
-paintHere();
+repaint();
 // The room is the window's, so the window changing is a scope change like any other. It
 // was the one edge no writer reported: a reader who narrowed their window kept the wide
 // selection until they next moved focus, and the CSS clip did the cutting instead.
-addEventListener("resize", paintHere);
+addEventListener("resize", repaint);
 
 export const shortcutBarExpanded = () => expanded && shortcutAvailable();
 

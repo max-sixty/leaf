@@ -42,7 +42,7 @@ import { inChrome } from "../passages.js";
 // `aria-keyshortcuts` a listener is read. Repainting the line alone left the attribute
 // standing whichever way the row was when its scope was declared, naming the arrow that no
 // longer moves the section and withholding the one that does. `paintKeys()` is the superset
-// — it revalidates the connected scopes and ends in `paintHere()` — so the watcher that
+// — it revalidates the connected scopes and requests the shared repaint — so the watcher that
 // already hears this write is the one place both surfaces are kept together, rather than a
 // repaint each DISCLOSE row has to remember for itself.
 // A write that says what the attribute already said is not a disclosure changing, and

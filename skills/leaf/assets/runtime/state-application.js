@@ -26,6 +26,7 @@ import { sameLayer } from "./layer-client.js";
 import { acceptData, notifyDataSubscribers } from "./data.js";
 import { prepareActivation, renderVersions } from "./version.js";
 import { renderPanel } from "./conversation/reconcile.js";
+import { retainConversationFocus } from "./conversation/landing.js";
 import { importWidgets } from "./widget-loader.js";
 import { observeServerNow } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
@@ -44,7 +45,7 @@ import { notice } from "./notifications.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { accountOutbox } from "./outbox.js";
 import { refreshHover } from "./anchors.js";
-import { paintHere } from "./keyboard/scopes.js";
+import { repaint } from "./repaint.js";
 import { loadMarked } from "./conversation/messages.js";
 
 // What an application writes to the runtime and a refused one gives back, the three
@@ -198,6 +199,7 @@ export async function receiveState(state) {
   // as well as old state; rejecting its state must not rewind timestamp aging.
   if (state !== runtime.state) observeServerNow(state.now);
   const prior = {
+    restoreConversationFocus: retainConversationFocus(),
     runtime: Object.fromEntries(
       APPLICATION_RUNTIME_FIELDS.map((field) => [field, runtime[field]]),
     ),
@@ -262,7 +264,7 @@ export async function receiveState(state) {
     if (finishActivation) {
       await finishActivation();
       updateFab();
-      notice(`Updated to ${runtime.currentLabel}`);
+      notice(`Updated to ${runtime.currentLabel}`, { background: true });
     }
     // Only a complete application advances the read boundary. A render fault may
     // already have changed some local surfaces, but it has not made a state safe to use
@@ -294,32 +296,7 @@ export async function receiveState(state) {
     await notifyDataSubscribers();
     runtime.restoringState = prior.runtime.restoringState;
   };
-  try {
-    const running = (async () => {
-      if (willActivate && document.startViewTransition) {
-        document.documentElement.classList.add("lf-versioning");
-        try {
-          const transition = document.startViewTransition(apply);
-          // Skipping the visual transition still runs the application, but rejects
-          // ready. Its finished promise remains the complete application boundary.
-          transition.ready.catch(() => {});
-          await transition.finished;
-        } finally {
-          document.documentElement.classList.remove("lf-versioning");
-          refreshHover();
-          // View-transition chrome covered the page while the application painted.
-          // Re-read viewport-local keyboard maps only after that cover is gone.
-          paintHere();
-        }
-      } else await apply();
-    })();
-    applying = running;
-    try {
-      await running;
-    } finally {
-      if (applying === running) applying = null;
-    }
-  } catch (error) {
+  const restore = async (error) => {
     // Candidate history is useful only while this one application is
     // rendering it. If any required surface refuses the state, restore the last whole
     // reading so focus, panel, and undo cannot consume a log tail the page never
@@ -334,6 +311,14 @@ export async function receiveState(state) {
     else document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.reading, runtime.reading);
     stateSignoff(isSignoffDeclared());
     restoreClaimState();
+    // Reconciliation may already have displayed candidate messages before a later
+    // projection refused the read. Rebuild the derived conversation from the restored
+    // history, retaining its standing nodes and unresolved local messages as usual.
+    // A failed activation replaces the document below instead.
+    if (!willActivate) {
+      await renderPanel();
+      prior.restoreConversationFocus();
+    }
     // A version the page could not show, and the reader is left looking at the one it
     // was leaving. Say what the reload is for before making it: a tab that reloads
     // itself in silence reads as the page having lost their place for no reason.
@@ -342,7 +327,33 @@ export async function receiveState(state) {
       location.reload();
     }
     throw error;
+  };
+  // Recovery owns newly reconciled thread widgets until their preparation finishes,
+  // just as application does. A crossed read must not enter between those phases.
+  const running = (async () => {
+    if (willActivate && document.startViewTransition) {
+      document.documentElement.classList.add("lf-versioning");
+      try {
+        const transition = document.startViewTransition(apply);
+        // Skipping the visual transition still runs the application, but rejects
+        // ready. Its finished promise remains the complete application boundary.
+        transition.ready.catch(() => {});
+        await transition.finished;
+      } finally {
+        document.documentElement.classList.remove("lf-versioning");
+        refreshHover();
+        // View-transition chrome covered the page while the application painted.
+        // Re-read viewport-local keyboard maps only after that cover is gone.
+        repaint();
+      }
+    } else await apply();
+  })().catch(restore);
+  applying = running;
+  try {
+    await running;
+  } finally {
+    if (applying === running) applying = null;
   }
   if (nextAgentMsgCount !== null) agentMsgCount = nextAgentMsgCount;
-  if (replyNotice) notice(replyNotice);
+  if (replyNotice) notice(replyNotice, { background: true });
 }

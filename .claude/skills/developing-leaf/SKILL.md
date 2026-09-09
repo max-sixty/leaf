@@ -1,6 +1,6 @@
 ---
 name: developing-leaf
-description: Develops Leaf from the current checkout by previewing examples, comparing runtimes, refreshing catalog stills, and testing page changes in the browser.
+description: Develops changes to what Leaf readers see and do from the current checkout, including UI exploration, page previews, browser testing, and before-and-after proof.
 ---
 
 # Develop Leaf from this checkout
@@ -10,31 +10,53 @@ Resolve the repository root three directories above this `SKILL.md`, then resolv
 continue only when it prints the same repository root. Use the absolute launcher
 throughout; a bare `leaf` command may resolve to the installed plugin instead.
 
-Use the visible-change handoff in `<root>/CLAUDE.md` to choose a workflow.
+## Explore an open design
+
+When a new interface leaves a material visual or interaction choice unsettled,
+first follow `Author or revise a page` below. Initialize the page with the
+`playground` package and follow
+`<root>/skills/leaf/packages/playground/guidance/author.md`. Put several coherent
+options in named presets and present them in one shared preview. Use the reader's
+submitted configuration or feedback to resolve the choice before implementing it.
+
+## Prove and hand off a visible change
+
+Re-vendor before trusting a browser result after a runtime, theme, registry, or
+widget change. An `/ui-sweep` and a look at a composed page are worth the time;
+a green suite does not judge visual quality.
+
 Reproduce the baseline from a clean checkout of `git merge-base HEAD main`, then
-compare it with the candidate through the workflow below. Match the fixture, URL
-fragment, viewport, theme, and interaction state.
+compare it with the candidate through the workflow below. Every difference that
+a still can show requires one sentence and matched before/after screenshots,
+embedded in the session or presented as one `lf-shot`. A live preview may
+accompany the pair, but does not replace it. For an interaction-only change, keep
+both previews live and hand off the labeled URL pair with the action that reveals
+the difference. Add another state or width only when the first comparison cannot
+show the behavior.
 
 Before presenting a served page or visible runtime change as finished, inspect
-the exact candidate URL. When the subject is Leaf's own interface, the
-demonstrated surface must come from its owning runtime and theme through a shipped
-example or fixture; page-local HTML and CSS may frame it, but must not imitate it.
-Call an unimplemented imitation a sketch, not a preview. Confirm the expected
-content, review the changed surface at a representative viewport, and check the
-browser console. When handing off a live preview, navigate to the semantic block
-that owns the changed surface and use the exact URL including its fragment. A
-titled section uses the section's stable id, so its eyebrow and heading arrive
-together. Add an id to the tight semantic container when it has none. Keep that
-preview process alive.
+the exact candidate URL. Exercise the same journey in the baseline and candidate,
+matching the URL fragment, viewport, theme, and interaction state, and check both
+browser consoles. When the subject is Leaf's own interface, the demonstrated
+surface must come from its owning runtime and theme through a shipped example or
+fixture; page-local HTML and CSS may frame it, but must not imitate it. Call an
+unimplemented imitation a sketch, not a preview. Confirm the expected content and
+review the changed surface at a representative viewport. When handing off a live
+preview, use the exact URL including the semantic block's fragment and keep the
+process alive. A titled section uses the section's stable id, so its eyebrow and
+heading arrive together. Add an id to the tight semantic container when it has
+none.
 
 ## Preview a shipped example
 
-From the repository root, start `scripts/preview.py <example>` in a long-running
-command or terminal session. Keep it alive and retain the exact served URL. The
-script watches source and runtime edits and preserves feedback at
-`.tmp/previews/<example>`. Repeating the command reuses that preview; use
-`--slot <name>` for another copy. A refused update appears in the terminal or the
-background log named at startup. Fix the input and the watcher retries.
+From the repository root, run `scripts/preview.py <example> --export` for a
+standalone static rendering. Start `scripts/preview.py <example>` in a
+long-running command or terminal session for an interactive preview. Keep it
+alive and retain the exact served URL. The script watches source and runtime
+edits and preserves feedback at `.tmp/previews/<example>`. Repeating the command
+reuses that preview; use `--slot <name>` for another copy. A refused update
+appears in the terminal or the background log named at startup. Fix the input
+and the watcher retries.
 
 Browser automation runs `scripts/preview.py <example> --automation` in a
 long-running process. The command uses the browser suite's temporary server: the
@@ -60,18 +82,30 @@ selected slot and rebuild it from the current fixture.
    their next chat message. Use the Codex review pane when feedback belongs to a
    source line.
 
-## Refresh the public catalog stills
+## Test the hosted website agent
 
-When a change adds or removes a worked example, or changes its first viewport, run
-`wt refresh-previews` from the repository root on macOS. Run `wt setup` first in a
-new checkout. If Worktrunk requests approval for the project commands, ask the user
-to run `wt config approvals add`. The refresh command captures every worked example,
-validates the rebuilt site, pushes the complete JPEG set to
-`max-sixty/leaf-assets`, and updates `example-previews.json` and the catalog links in
-this checkout. Because it pushes the asset repository immediately, run it only when
-the user has authorized that publication. The generator checks the required Charter
-and San Francisco fonts and fails rather than publishing images rendered with
-fallback fonts.
+Run `<root>/scripts/verify-site-agent-local.sh` for the development loop. It builds
+the current site, starts the canonical website adapter, uses the host's logged-in Codex
+App Server, asks for one heading edit, and verifies the publication, reply, and changed
+page in Chrome. Its profile reports request acknowledgement, agent activity,
+publication, reply, HTML, first contentful paint, JavaScript, state, upgrade, and
+presentation timings. It stops every process and removes the disposable reader page
+when it finishes.
+
+This fast loop bypasses the Cloudflare Worker, Workflow, container allocation and
+resource limits, and outbound credential proxy. When a change touches one of those
+boundaries and `OPENAI_API_KEY` is exported, build the Worker and run the same check
+through Wrangler's local Workflow and Docker container:
+
+```bash
+npm ci --prefix <root>/worker
+npm run build --prefix <root>/worker
+LEAF_VERIFY_AGENT=1 <root>/scripts/verify-site-local.sh
+```
+
+Local infrastructure is emulated, so neither loop proves edge rollout or production
+latency. The `publish-site` workflow runs `scripts/verify-site.py` against the exact
+deployed release and is the authoritative production reading.
 
 ## Compare checkout versions
 
@@ -103,14 +137,8 @@ by an earlier run.
 ```
 
 Each command verifies the checkout launcher, prepares its independent page,
-watches that runtime and source, and prints its exact URL. Exercise the same
-journey and viewport at both URLs, check both browser consoles, then navigate both
-to the same authored destination id. For a static change, embed the labeled
-captures in the session or author an `lf-shot` when Leaf comments or iteration
-would help. For an interaction change, keep both previews live and hand off the
-labeled URL pair with the action that reveals the difference. In Codex, open
-those exact fragment URLs as browser targets. After stopping both previews,
-remove the temporary checkout:
+watches that runtime and source, and prints its exact URL. After stopping both
+previews, remove the temporary checkout:
 
 ```bash
 git worktree remove "$baseline_root"
@@ -130,3 +158,16 @@ read `<root>/skills/leaf/references/serving-pages.md` and re-vendor it with the
 checkout launcher. A served page follows that reference's stop, init, start
 sequence. Fix or report a compatibility refusal without falling back to the
 installed plugin.
+
+## Refresh the public catalog stills
+
+When a change adds or removes a worked example, or changes its first viewport, run
+`wt refresh-previews` from the repository root on macOS. Run `wt setup` first in a
+new checkout. If Worktrunk requests approval for the project commands, ask the user
+to run `wt config approvals add`. The refresh command captures every worked example,
+validates the rebuilt site, pushes the complete JPEG set to
+`max-sixty/leaf-assets`, and updates `example-previews.json` and the catalog links in
+this checkout. Because it pushes the asset repository immediately, run it only when
+the user has authorized that publication. The generator checks the required Charter
+and San Francisco fonts and fails rather than publishing images rendered with
+fallback fonts.

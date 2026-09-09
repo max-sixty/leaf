@@ -62,13 +62,13 @@
 import { bindings, labelOf, live, spell, word } from "./bindings.js";
 import { addressPlacement } from "./address-placement.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "./hints.js";
-import { shortcutBarEl, walkPositionEl } from "./shortcut-bar.js";
+import { shortcutBarEl, standingStatusBoxes } from "./shortcut-bar.js";
 import { keySequence, progressStates } from "./presentation.js";
 import { banner, toggleBtn } from "../banner.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { targetElement } from "../resolved-target.js";
-import { focusDestination, PRESSABLE } from "../widget-elements.js";
-import { el } from "../widget-elements.js";
+import { focusDestination } from "../focus.js";
+import { el, PRESSABLE } from "../widget-elements.js";
 import { CHOOSER } from "../version.js";
 import { KEPT_DRAFT } from "../composing/selection.js";
 import {
@@ -80,7 +80,7 @@ import {
   workspaceState,
 } from "./page.js";
 import { fragmentId, itemSays, resolveAnchor, scrollToElement } from "../anchors.js";
-import { announce } from "../notifications.js";
+import { announce, notice } from "../notifications.js";
 import {
   closestAcross,
   containsAcross,
@@ -109,7 +109,8 @@ import {
 import { enterPageMap, leavePageMap, mapButton, pageMapIsActive } from "../page-map.js";
 import { showThread } from "../conversation/landing.js";
 
-import { claimsEsc, focused, paintHere, saying } from "./scopes.js";
+import { claimsEsc, focused, saying } from "./scopes.js";
+import { repaint } from "../repaint.js";
 import { glideTo, placeThreadEdge, seenScroller, stopGlide } from "../navigation.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 
@@ -321,7 +322,7 @@ const TARGET_FILTERS = [
   {
     id: "margin-elements",
     key: "m",
-    word: "margin controls and status indicators",
+    word: "margin targets",
     matches: ({ kind }) => kind === MARGIN_TARGET_KIND,
   },
   {
@@ -505,7 +506,7 @@ export function setSequence(on) {
     announce(
       `Go to — ${candidates.length ? `${candidates.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO.rows)}`,
     );
-  paintHere();
+  repaint();
 }
 
 const hinted = () => candidates.filter(({ code }) => code.startsWith(prefix));
@@ -523,12 +524,20 @@ function filterTargets(binding) {
   prefix = "";
   candidates = visibleCandidates(targetFilter);
   hintActive = -1;
-  announce(
-    candidates.length
-      ? `${candidates.length} visible ${targetFilter.word}; type a hint or press Tab to hear them.`
-      : `No visible ${targetFilter.word}.`,
-  );
-  paintHere();
+  const message = candidates.length
+    ? `${candidates.length} visible ${targetFilter.word}; type a hint or press Tab to hear them.`
+    : `No visible ${targetFilter.word}.`;
+  if (candidates.length) notice(message);
+  else announce(message);
+  repaint();
+}
+
+// An empty active filter is useful state, not a four-second event. The candidate map is
+// the reading paintAddresses already owns; using it here keeps the shortcut repaint out
+// of the expensive visibility and hit-test pass.
+export function addressStatus() {
+  if (!sequenceActive || !targetFilter || candidates.length) return null;
+  return `No visible ${targetFilter.word}.`;
 }
 
 function activateCandidate(candidate) {
@@ -537,7 +546,7 @@ function activateCandidate(candidate) {
     candidates = visibleCandidates(targetFilter);
     hintActive = -1;
     announce("That target is no longer visible. The hints are reset.");
-    return paintHere();
+    return repaint();
   }
   setSequence(false);
   candidate.go(candidate.member);
@@ -554,7 +563,7 @@ function typeHint(key) {
   const target = hinted().find(({ code }) => code === prefix);
   if (target) return activateCandidate(target);
   announce(`${hinted().length} targets remain.`);
-  paintHere();
+  repaint();
 }
 
 function moveHint(direction) {
@@ -571,7 +580,7 @@ function moveHint(direction) {
   announce(
     `Hint ${target.code}: ${target.kind}, ${target.says}${stop} Press Enter to go there.`,
   );
-  paintHere();
+  repaint();
 }
 
 const chooseHint = () => activateCandidate(hinted()[hintActive]);
@@ -600,6 +609,7 @@ export function paintAddresses() {
   const detached = candidates.some(({ member }) => !member.isConnected);
   const refreshed =
     !prefix && !scrolling && (refreshCandidates || detached || !candidates.length);
+  const emptyBeforeRefresh = candidates.length === 0;
   if (refreshed) {
     candidates = visibleCandidates(targetFilter);
     hintActive = heard
@@ -610,6 +620,8 @@ export function paintAddresses() {
       : -1;
     refreshCandidates = false;
   }
+  const filterStatusChanged =
+    Boolean(targetFilter) && emptyBeforeRefresh !== (candidates.length === 0);
   const activeCandidate = hinted()[hintActive];
   const placement = addressPlacement();
   const chips = [];
@@ -634,11 +646,11 @@ export function paintAddresses() {
   if (wasActive && activeCandidate && !drawn.has(activeCandidate)) hintActive = -1;
   const controlBoxes = paintAddressChips(controlPlaced, chips);
   spreadHints(placed, {
-    barriers: [...controlBoxes, walkPositionEl.getBoundingClientRect()],
+    barriers: [...controlBoxes, ...standingStatusBoxes()],
     lineBox: shortcutBarEl.getBoundingClientRect(),
     viewportTop: banner.getBoundingClientRect().bottom,
   });
-  if (wasActive && hintActive < 0) paintHere();
+  if ((wasActive && hintActive < 0) || filterStatusChanged) repaint();
 }
 // A page that moves under an armed window makes opaque labels temporarily untrustworthy,
 // so the scroll pass hides them and remaps once the scene settles. Capture, because the
@@ -649,7 +661,7 @@ export function paintAddresses() {
 // line in the page's own repaint door (pageShifted): what the line says about the sequence
 // holds at every scroll position, no list's membership moving with the page, so the door
 // that repaints on every scroll of every page would be repainting for nobody. Armed, the
-// paint is the whole of paintHere — the ring and the line are cheap beside the chips, and
+// paint is the whole shared repaint — the ring and line are cheap beside the chips, and
 // one door is what stops the chips having a repaint set of their own to keep in step.
 addEventListener(
   "scroll",
@@ -661,9 +673,9 @@ addEventListener(
     scrollTimer = setTimeout(() => {
       if (!sequenceActive || !scrolling) return;
       scrolling = false;
-      paintHere();
+      repaint();
     }, 80);
-    paintHere();
+    repaint();
   },
   { capture: true, passive: true },
 );
@@ -673,7 +685,7 @@ addEventListener(
     if (!sequenceActive || !scrolling) return;
     clearTimeout(scrollTimer);
     scrolling = false;
-    paintHere();
+    repaint();
   },
   { capture: true, passive: true },
 );
@@ -682,7 +694,7 @@ addEventListener("resize", () => {
   clearTimeout(scrollTimer);
   scrolling = false;
   refreshCandidates = true;
-  paintHere();
+  repaint();
 });
 
 // The sequence is one scope: generated visible targets, named global destinations, structural
@@ -895,14 +907,14 @@ export const GO = {
             prefix = prefix.slice(0, -1);
             hintActive = -1;
             announce(prefix ? `Hint ${prefix}.` : "All go-to hints.");
-            return paintHere();
+            return repaint();
           }
           if (targetFilter) {
             targetFilter = null;
             candidates = visibleCandidates();
             hintActive = -1;
             announce("All go-to targets.");
-            return paintHere();
+            return repaint();
           }
           setSequence(false);
           announce("Go to cancelled");

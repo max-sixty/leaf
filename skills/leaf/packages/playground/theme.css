@@ -155,8 +155,6 @@ lf-playground-choice input {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-2);
-  padding-bottom: var(--sp-3);
-  border-bottom: 1px solid var(--rule);
 }
 
 .lf-playground-presets-title {

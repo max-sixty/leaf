@@ -1234,7 +1234,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     page.keyboard.type("megabytes")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{cap}"]')).to_have_count(1)
-    expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 3")
+    expect(page.locator(".lf-panel-title")).to_have_text("Showing 1 of 3")
     # The page's own count is the log's and says so throughout.
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (3)")
 
@@ -1275,7 +1275,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     page.locator("#lede").click()
     expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_have_count(1)
     expect(page.locator(".lf-find-box")).to_have_value("")
-    expect(page.locator(".lf-panel-head span")).to_have_text("Threads")
+    expect(page.locator(".lf-panel-title")).to_have_text("Threads")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(3)
 
     # Escape spends one rung on the narrowing and the next on the box, rather than
@@ -1353,7 +1353,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(
         page.locator(f'.lf-threads > .lf-thread[hidden][data-id="{mine}"]')
     ).to_have_count(1)
-    expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 2")
+    expect(page.locator(".lf-panel-title")).to_have_text("Showing 1 of 2")
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
 
     # Closing the owning surface retires both its narrowing frame and the g T frame below
@@ -1392,7 +1392,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
     expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
-    expect(page.locator(".lf-panel-head span")).to_have_text("Threads")
+    expect(page.locator(".lf-panel-title")).to_have_text("Threads")
 
     assert errors == []
     page.close()
@@ -4181,7 +4181,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
     page.locator(".lf-needs").click()
-    expect(page.locator(".lf-panel-head span")).to_have_text("Showing 1 of 2")
+    expect(page.locator(".lf-panel-title")).to_have_text("Showing 1 of 2")
     expect(page.locator(".lf-threads > .lf-thread[hidden]")).to_have_count(1)
     expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
     page.locator(".lf-asks").click()

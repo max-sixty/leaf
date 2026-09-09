@@ -58,7 +58,12 @@ export function beginWalk(key, noun, read) {
   if (!key || typeof read !== "function")
     throw new Error("leaf: a walk position needs an owner and a reading");
   const position = read();
-  if (!position) throw new Error("leaf: a walk position needs a destination");
+  if (!position) {
+    clearTimeout(boundaryTimer);
+    boundaryTimer = 0;
+    walking = null;
+    return null;
+  }
   walkPositionLabel(noun, position.position, position.total, position.qualifier);
   const boundary = walking?.key === key && walking.target === position.target;
   clearTimeout(boundaryTimer);

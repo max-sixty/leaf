@@ -1940,6 +1940,45 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     page.close()
 
 
+def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, serve):
+    """A missing visual destination leaves the caller's announcement path live."""
+    url = serve(NOTED_PAGE)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "A page-level thread.",
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
+
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, True)
+    page.fill(".lf-find-box", "no matching thread")
+    expect(page.locator(".lf-thread")).to_be_hidden()
+    page.get_by_role("button", name=re.compile("^Threads")).click()
+    panel_settled(page, False)
+    page.locator("body").focus()
+    fallback = page.evaluate(
+        """async () => {
+          const {beginWalk, walkPositionLabel} = await import('/runtime/walk-position.js');
+          return beginWalk('thread', 'Thread', () => null) ??
+            walkPositionLabel('Thread', 1, 1);
+        }"""
+    )
+    assert fallback == "Thread 1 of 1"
+    expect(page.locator(".lf-walk-position")).to_be_hidden()
+
+    page.keyboard.press("t")
+    expect(page.locator(".lf-live")).to_contain_text("Thread 1 of 1")
+
+    assert errors == []
+    page.close()
+
+
 def test_an_inline_thread_uses_surface_focus_until_its_reply_takes_over(browser, serve):
     """A thread is a current region; its reply is the control taking the next press."""
     page, errors = open_page(

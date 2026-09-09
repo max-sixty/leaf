@@ -1373,21 +1373,21 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
           const box = item.getBoundingClientRect();
           return {content: style.content, width: style.width, height: style.height,
                   color: style.backgroundColor, x: box.x + parseFloat(style.left),
-                  y: box.y + parseFloat(style.top), rowY: box.y};
+                  y: box.y + parseFloat(style.top), rowY: box.y,
+                  labelY: item.querySelector(':scope > a').getBoundingClientRect().y};
         })"""
     )
     assert markers[0]["content"] == '""' and markers[0]["width"] == "3px"
     assert markers[0]["color"] != "rgba(0, 0, 0, 0)"
     assert len({round(marker["x"]) for marker in markers}) == 1
     assert all(
-        marker["y"] == pytest.approx(marker["rowY"] + 7, abs=1) for marker in markers
+        marker["y"] == pytest.approx(marker["labelY"] + 7, abs=1) for marker in markers
     )
     assert markers[-1]["y"] > nav_box["y"] + nav_box["height"] * 0.68
     assert markers[4]["y"] - markers[3]["y"] > markers[3]["y"] - markers[2]["y"]
 
-    # The rows, labels, markers, and viewport lens share one document scale. Where two
-    # exact-position labels would overlap, the map reveals one destination at a time
-    # rather than moving any part of the route into a second geometry.
+    # The flex rows preserve the raw document scale from which the visible map is fitted.
+    # Nearby destinations bend together just enough for every label to remain distinct.
     map_layout = nav.locator(".lf-toc-rows").evaluate(
         """rows => {
           const track = rows.getBoundingClientRect();
@@ -1414,10 +1414,13 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "node => node.parentElement.getBoundingClientRect().height "
         "< node.getBoundingClientRect().height"
     )
-    expect(toc).to_have_attribute("data-lf-dense", "")
+    assert any(
+        item["labelTop"] != pytest.approx(item["rowTop"], abs=1) for item in map_layout
+    ), "the crowded destinations stayed on their overlapping raw positions"
     assert all(
-        item["labelTop"] == pytest.approx(item["rowTop"], abs=1) for item in map_layout
-    )
+        right["labelTop"] >= left["labelBottom"] - 1
+        for left, right in pairwise(map_layout)
+    ), f"the fitted contents labels overlap: {map_layout}"
 
     # The start row and top-level sections share one typographic edge. Depth changes
     # indentation, never the spine or the marker position.
@@ -1436,7 +1439,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "return {family: s.fontFamily, caps: s.fontVariantCaps}; }"
     )
     assert title_type == {**section_type, "caps": "normal"}
-    expect(prepare).to_have_css("-webkit-line-clamp", "1")
+    expect(prepare).to_have_css("-webkit-line-clamp", "2")
 
     lens = nav.locator(".lf-toc-window")
     lens_before = lens.bounding_box()
@@ -1469,12 +1472,11 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         "return r.y + parseFloat(s.top) + parseFloat(s.height) / 2; })"
     )
 
-    # The go-to menu can address the dense route without moving its geometry or focus
-    # into the rail. Its address layer carries the candidates, so overlapping labels
-    # remain quiet.
+    # The go-to menu can address the complete route without moving its geometry or focus
+    # into the rail.
     page.keyboard.press("g")
     for link in nav.locator("a").all():
-        expect(link).to_have_css("opacity", "0")
+        expect(link).to_have_css("opacity", "1")
         expect(link).to_have_css("pointer-events", "auto")
     link_hints = page.locator(
         '.lf-goto-targets > .lf-sequence-address[data-lf-address-kind="Link"]'
@@ -1536,11 +1538,10 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
           };
         })"""
     )
-    assert sum(item["visible"] for item in marker_alignment) == 1
+    assert sum(item["visible"] for item in marker_alignment) == len(marker_alignment)
     assert all(
         item["markerCenter"] == pytest.approx(item["labelCenter"], abs=2)
         for item in marker_alignment
-        if item["visible"]
     ), f"a contents marker parted from its revealed label: {marker_alignment}"
     assert all(
         item["markerCenter"] == pytest.approx(resting, abs=1)
@@ -1636,10 +1637,10 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
             if (!records.some(record => record.attributeName === 'style')) return;
             const rowBox = rows.getBoundingClientRect();
             const start =
-              parseFloat(rows.style.getPropertyValue('--lf-toc-window-start')) / 100;
+              parseFloat(rows.style.getPropertyValue('--lf-toc-window-start'));
             window.lfTocLensFrame = {
               actual: lens.getBoundingClientRect().top,
-              expected: rowBox.top + rowBox.height * start,
+              expected: rowBox.top + start,
             };
             observer.disconnect();
           }).observe(rows, {attributes: true, attributeFilter: ['style']});
@@ -1843,12 +1844,13 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     page.close()
 
 
-def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser, serve):
-    """Density leaves enough room to distinguish labels before showing them together.
+def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
+    browser, serve
+):
+    """Crowded destinations remain a complete route when the reader enters it.
 
-    The labels fit inside the map without overflowing, but leave less than half a line
-    between neighbors. The dense voice reveals one destination while retaining every
-    marker and the document scale."""
+    The raw document positions leave less than half a line between neighbors. The
+    fitted scale keeps every heading, marker, and label distinct without overflowing."""
     sections = "\n".join(
         f"<section><h2 id='part-{index}'>Migration part {index}</h2>"
         f"<p>Move cohort {index} only after its reading is stable.</p></section>"
@@ -1860,15 +1862,15 @@ def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser,
 <h1>A migration with many independently verifiable steps</h1>
 <aside class="sidebar"><lf-toc id="dense-contents"></lf-toc></aside>
 {sections}
+<div style="height: 1200px"></div>
 """,
     )
     page, errors = open_page(browser, serve(source))
     resized(page, 1400, 900)
-    toc = page.locator("#dense-contents")
     nav = page.get_by_role("navigation", name="On this page")
-    expect(toc).to_have_attribute("data-lf-dense", "")
-    expect(nav.locator("li a").first).to_have_css("-webkit-line-clamp", "1")
+    toc = page.locator("#dense-contents")
 
+    expect(toc).to_have_attribute("data-lf-compact", "")
     nav_box = nav.bounding_box()
     assert nav_box is not None
     assert nav.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
@@ -1877,14 +1879,18 @@ def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser,
         "const r = item.getBoundingClientRect(); return r.y + parseFloat(s.top); })"
     )
     assert markers[-1] <= nav_box["y"] + nav_box["height"]
+    shifts = nav.locator(".lf-toc-start, li").evaluate_all(
+        "items => items.map(item => "
+        "parseFloat(item.style.getPropertyValue('--lf-toc-row-shift')) || 0)"
+    )
+    assert any(abs(shift) > 1 for shift in shifts), shifts
 
     page.mouse.move(nav_box["x"] + 30, nav_box["y"] + 100)
     page.wait_for_function(
         """nav => {
-          const hovered = nav.querySelector('li:hover a');
-          return hovered
-            && getComputedStyle(hovered).opacity === '1'
-            && hovered.getAnimations().every(m => m.playState === 'finished');
+          const links = [...nav.querySelectorAll('.lf-toc-start a, li a')];
+          return links.every(link => getComputedStyle(link).opacity === '1'
+            && link.getAnimations().every(m => m.playState === 'finished'));
         }""",
         arg=nav.element_handle(),
     )
@@ -1892,13 +1898,98 @@ def test_a_dense_document_map_keeps_markers_independent_of_label_height(browser,
         "links => links.filter(link => getComputedStyle(link).opacity === '1')"
         ".map(link => link.textContent || link.getAttribute('aria-label'))"
     )
-    assert len(shown) == 1, f"the dense map painted overlapping labels: {shown}"
-    hovered = nav.locator("li:hover a")
-    expect(hovered).to_have_count(1)
-    expect(hovered).to_have_css("pointer-events", "auto")
-    href = hovered.get_attribute("href")
-    hovered.click()
+    assert len(shown) == nav.locator("a").count(), shown
+    label_boxes = nav.locator(".lf-toc-start a, li a").evaluate_all(
+        "links => links.map(link => { const box = link.getBoundingClientRect(); "
+        "return {top: box.top, bottom: box.bottom}; })"
+    )
+    assert all(
+        right["top"] >= left["bottom"] - 1 for left, right in pairwise(label_boxes)
+    ), label_boxes
+    first = nav.locator("li a").first
+    expect(first).to_have_css("-webkit-line-clamp", "1")
+    expect(first).to_have_css("pointer-events", "auto")
+    href = first.get_attribute("href")
+    first.click()
     expect(page).to_have_url(re.compile(rf"{re.escape(href)}$"))
+    assert errors == []
+    page.close()
+
+
+def test_co_located_headings_share_the_current_title_and_lens_position(browser, serve):
+    """The last title at one document position owns both readings of that position."""
+    source = leaf_page(
+        "co-located contents destinations",
+        """
+<h1>A migration with a shared handoff point</h1>
+<aside class="sidebar"><lf-toc id="shared-contents"></lf-toc></aside>
+<div style="height: 500px"></div>
+<section style="position: relative; height: 120px">
+  <h2 id="handoff" style="position: absolute; top: 0; margin: 0">Handoff</h2>
+  <h3 id="checks" style="position: absolute; top: 0; margin: 0">Checks at handoff</h3>
+</section>
+<div style="height: 1200px"></div>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1400, 900)
+    nav = page.get_by_role("navigation", name="On this page")
+    handoff = nav.get_by_role("link", name="Handoff", exact=True)
+    checks = nav.get_by_role("link", name="Checks at handoff", exact=True)
+
+    assert handoff.bounding_box()["y"] < checks.bounding_box()["y"]
+    page.locator("#checks").evaluate(
+        "node => node.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    expect(checks).to_have_attribute("aria-current", "location")
+    alignment = checks.evaluate(
+        "node => ({label: node.getBoundingClientRect().top, "
+        "lens: node.closest('nav').querySelector('.lf-toc-window')"
+        ".getBoundingClientRect().top})"
+    )
+    assert alignment["lens"] == pytest.approx(alignment["label"], abs=2), alignment
+    assert errors == []
+    page.close()
+
+
+def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
+    """A route that cannot physically fit keeps every heading in one honest form."""
+    sections = "\n".join(
+        f"<section><h2 id='part-{index}'>Migration part {index}</h2></section>"
+        for index in range(1, 81)
+    )
+    source = leaf_page(
+        "long contents route",
+        f"""
+<h1>A migration with more steps than the margin can show at once</h1>
+<aside class="sidebar"><lf-toc id="long-contents"></lf-toc></aside>
+{sections}
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1400, 1800)
+    toc = page.locator("#long-contents")
+    nav = page.get_by_role("navigation", name="On this page")
+    links = nav.locator("a")
+    expect(links).to_have_count(81)
+    expect(toc).not_to_have_attribute("data-lf-outline", "")
+    links.last.focus()
+    expect(links.last).to_be_focused()
+
+    resized(page, 1400, 900)
+    expect(toc).to_have_attribute("data-lf-outline", "")
+    expect(nav.locator(".lf-toc-heading")).to_be_visible()
+    assert nav.evaluate("node => node.scrollHeight > node.clientHeight")
+    for link in (links.first, links.last):
+        expect(link).to_have_css("opacity", "1")
+        expect(link).to_have_css("pointer-events", "auto")
+    expect(links.last).to_be_focused()
+    expect(links.last).to_be_in_viewport()
+
+    resized(page, 1400, 700)
+    expect(toc).to_have_attribute("data-lf-outline", "")
+    expect(links.last).to_be_focused()
+    expect(links.last).to_be_in_viewport()
     assert errors == []
     page.close()
 

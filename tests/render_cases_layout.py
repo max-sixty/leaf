@@ -1716,19 +1716,24 @@ RINGS_DRAWN = f"""async () => {{
   // it into a shadow tree another shadow tree opened, which a pass over the document's
   // own hosts never reached.
   const roots = [document];
-  const claimed = new Map();
+  const claimed = [];
   for (const root of roots)
     for (const el of root.querySelectorAll('*')) {{
       if (el.shadowRoot) roots.push(el.shadowRoot);
       const cs = getComputedStyle(el);
-      if (isHereRing(cs)) claimed.set(el, ringName(cs));
+      if (isHereRing(cs)) claimed.push({{ el, cs, name: ringName(cs) }});
+      const after = getComputedStyle(el, '::after');
+      if (after.content !== 'none' && isHereRing(after))
+        claimed.push({{ el, cs: after, name: ringName(after) }});
     }}
   const focused = ({DEEP_FOCUS})();
   if (focused && focused !== document.body && focused !== document.documentElement
-      && !claimed.has(focused))
-    claimed.set(focused, ringName(getComputedStyle(focused)));
+      && !claimed.some((claim) => claim.el === focused)) {{
+    const cs = getComputedStyle(focused);
+    claimed.push({{ el: focused, cs, name: ringName(cs) }});
+  }}
   const answers = [];
-  for (const [el, name] of claimed) {{
+  for (const {{ el, cs, name }} of claimed) {{
     // A ring on something the browser is not rendering is not on screen, and its box is
     // whatever the last layout left behind. An inactive lf-tab is the case: it carries
     // `hidden="until-found"`, so the UA gives it `content-visibility: hidden`, its
@@ -1754,7 +1759,6 @@ RINGS_DRAWN = f"""async () => {{
     // wherever there is one, so every box this reading already measured is measured the
     // same way: the two carriers are on different boxes in this layer, and where a box
     // ever wears both, the outline is the one the layer's own rules put there.
-    const cs = getComputedStyle(el);
     const cast = hereShadow(cs);
     const outlined = cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth) || 0;
     const w = outlined || cast;

@@ -1232,13 +1232,24 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      walking down, cut at the top and under the find row walking up. Gap plus width is the
      room it needs, and it is the layer's own number (theme.css) rather than one
      worked out from the controls this list happens to hold. */
-  .lf-threads { flex: 1; overflow-y: auto; overscroll-behavior: contain;
+  .lf-threads-frame { flex: 1; min-height: 0; display: grid; }
+  .lf-threads-frame::after, .lf-threads { grid-area: 1 / 1; min-height: 0; }
+  .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
     --lf-list-inset: 10px; padding: var(--lf-list-inset) 14px; --lf-frame: 1;
     scroll-padding: calc(var(--lf-head-room, 0px) + var(--here-ring-room)) 0
       var(--here-ring-room); }
-  /* An Escape rung lands here (general box → the list), so the rung is visible. */
-  .lf-threads:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: thread-list;
-    outline-offset: calc(-1 * var(--here-ring-w)); }
+  /* An Escape rung lands on the list (general box → list). The list's pinned headings
+     and whichever thread crosses its viewport edge paint after the scrollport, so an
+     outline on the list itself disappears under them. Draw the identical inset ring on
+     a later pseudo-element: it shares the list's box, takes no pointer input, and stays
+     above the scrolling contents. The list's zero layer is a stacking context, so a
+     descendant cannot leapfrog the overlay by choosing a still-higher local z-index. */
+  .lf-threads-frame::after { content: ""; pointer-events: none; z-index: 1; }
+  .lf-threads:is(:focus-visible, .lf-focus-visible) { outline: none; }
+  .lf-threads-frame:has(> .lf-threads:is(:focus-visible, .lf-focus-visible))::after {
+    outline: var(--here-ring); --lf-here-ring: thread-list;
+    outline-offset: calc(-1 * var(--here-ring-w));
+  }
   .lf-empty { color: var(--muted); padding: 18px 4px; }
   /* Which part of the page the threads under it are about — the page's own heading,
      said once over the run of threads that share it. Sticky, so the answer to "where
@@ -1394,7 +1405,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      chrome measures for its lift is the one the reader sees standing there. */
   .lf-panel-foot { display: flex; flex-direction: column; flex: none; }
   /* Every composer gives its field the row; its submit action lives inside that field. */
-  .lf-general { display: flex; gap: 6px; margin-top: 8px; align-items: flex-end; }
+  .lf-general { display: flex; gap: 6px; align-items: flex-end; }
   .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
   .lf-thread-action:hover { color: var(--ok); }
@@ -2039,6 +2050,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     .lf-thread:is(:focus-within, .lf-focus-within) { border-color: Highlight !important; }
     :scope :focus-visible { outline: 2px solid Highlight !important;
       outline-offset: 2px !important; box-shadow: none !important; }
+    :scope .lf-threads:is(:focus-visible, .lf-focus-visible) {
+      outline: none !important; }
+    .lf-threads-frame:has(> .lf-threads:is(:focus-visible, .lf-focus-visible))::after {
+      outline: 2px solid Highlight !important;
+      outline-offset: -2px !important; }
     :scope :is([aria-pressed="true"], [aria-checked="true"], [aria-current]) {
       border-color: Highlight !important; }
   }

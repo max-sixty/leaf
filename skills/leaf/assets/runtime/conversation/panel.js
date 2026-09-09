@@ -114,7 +114,7 @@ threadsBox.tabIndex = -1;
 // And a name, because `g T` lands a reader here and the panel's visible heading alone does
 // not name a focusable container. A page key's arrival has to say where it arrived — the
 // other direct destinations are named by a leaf link, an Ask row, or a Page-map marker
-// — or the press is silent to exactly the reader who cannot see the ring it painted. The
+// — or the press is silent to exactly the reader who cannot see the cue it painted. The
 // same reason the reference dialog carries a role and a label beside its -1.
 // `group` rather than `list`: the box holds run headings as well as threads, so a list
 // role fails `aria-required-children` outright and leaves a screen reader announcing a list
@@ -122,6 +122,11 @@ threadsBox.tabIndex = -1;
 // div may not carry one.
 threadsBox.setAttribute("role", "group");
 threadsBox.setAttribute("aria-label", "Threads");
+// The list scrolls under pinned headings and through whichever thread happens to meet
+// its viewport edge. Its focus outline therefore belongs to the frame's overlay paint
+// layer, not to the list behind those descendants.
+export const threadsFrame = el("div", "lf-threads-frame");
+threadsFrame.append(threadsBox);
 export const generalRow = el("div", "lf-general");
 export const generalInput = document.createElement("textarea");
 generalInput.name = "comment";
@@ -130,7 +135,7 @@ generalRow.append(generalInput, generalSend);
 // The panel's foot: the general box below the scrolling thread list.
 export const panelFoot = el("div", "lf-panel-foot");
 panelFoot.append(generalRow);
-panel.append(panelHead, findRow, filterControls, threadsBox, panelFoot);
+panel.append(panelHead, findRow, filterControls, threadsFrame, panelFoot);
 
 let readingArrangement = null;
 export function mountPanelReadingRegion() {

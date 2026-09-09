@@ -44,12 +44,6 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
   route](notes/workspace-followups.md#item-14).** Exercise the workspace as one keyboard
   task, including reading, pane furniture, local comments and Threads.
 
-### Complete workflows
-
-- **#16 — [Prove a current-versus-proposed
-  comparison](notes/workspace-followups.md#item-16).** Show two real alternatives
-  simultaneously and let the reader discuss each before committing one choice.
-
 ### Authoring and product boundary
 
 - **#19 — [Measure what Leaf saves an authoring

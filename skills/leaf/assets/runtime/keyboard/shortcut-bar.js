@@ -70,8 +70,8 @@ import { lineOwner, shadow, stack } from "./dispatch.js";
 import { LESS_SHORTCUTS, REFERENCE } from "./page.js";
 import { referenceOpen, showReference } from "./reference.js";
 import { announce, noticeEl, setNoticeContext } from "../notifications.js";
-import { paintHere } from "./scopes.js";
 import { addressStatus, setSequence } from "./address.js";
+import { repaint } from "../repaint.js";
 import { setReact } from "../reactions.js";
 import { walkPosition } from "../walk-position.js";
 
@@ -220,7 +220,7 @@ function more() {
   const shown = completeLine(scopes, candidates)?.rows ?? short;
   if (!candidates.some((row) => !shown.has(row))) return showReference(true);
   expanded = true;
-  paintHere();
+  repaint();
   announce(
     "More keyboard shortcuts shown. Press question mark again for all shortcuts, or Escape to show less.",
   );
@@ -228,7 +228,7 @@ function more() {
 export function less({ silent = false } = {}) {
   if (!expanded) return;
   expanded = false;
-  paintHere();
+  repaint();
   if (!silent) announce("Fewer keyboard shortcuts shown.");
 }
 export function renderLine() {
@@ -306,7 +306,7 @@ export function renderLine() {
   // Everything but More, which the reader may be standing on. `textContent = ""` takes
   // it out of the document, and removing a focused element blurs it: it returns on the
   // same line as the same node, connected again, with the reader dropped to `body`. That
-  // lands one frame after they tabbed to it, because this runs under paintHere's frame —
+  // lands one frame after they tabbed to it, because this runs under the repaint frame —
   // so the walk is whole at synthetic speed and broken at every human one, which is the
   // way round that hides from a suite. The line is cleared around the same seated node
   // instead, and the chips are drawn around it.
@@ -389,11 +389,11 @@ export function renderLine() {
     span.hidden = true;
   }
 }
-paintHere();
+repaint();
 // The room is the window's, so the window changing is a scope change like any other. It
 // was the one edge no writer reported: a reader who narrowed their window kept the wide
 // selection until they next moved focus, and the CSS clip did the cutting instead.
-addEventListener("resize", paintHere);
+addEventListener("resize", repaint);
 
 export const shortcutBarExpanded = () => expanded && shortcutAvailable();
 

@@ -62,21 +62,14 @@
    fresh page accepts native scrolling before asynchronous upgrade, without stealing focus
    from a control the reader reaches during that upgrade. */
 import { word } from "./bindings.js";
-import { focusDestination } from "../widget-elements.js";
-import { focused, paintHere } from "./scopes.js";
-import { readingBlock } from "../version.js";
+import { focusDestination } from "../focus.js";
+import { focused } from "./scopes.js";
+import { repaint } from "../repaint.js";
 import {
   currentNativeLayer,
   nativeLayerFor,
   nativeLayerOrder,
 } from "../native-layers.js";
-
-export function captureReturnPlace({ focused, readingBlock }) {
-  const control = focused();
-  return control && control !== document.body
-    ? { control, reading: null }
-    : { control: null, reading: readingBlock() };
-}
 
 export function restoreReturnPlace({ control, reading }) {
   if (control) {
@@ -119,14 +112,13 @@ function descriptorFor(row, binding) {
   return frame;
 }
 
-// Capture before the command runs; publish only after it has really entered the layer.
-// A liveness guard that changed during the command therefore cannot leave a phantom
-// frame behind.
+// The caller captures the origin before the command runs. Evaluate the frame before the
+// run too, because its descriptor may preserve pre-entry workspace state; publish it only
+// after the command has really entered the layer. A liveness guard that changed during
+// the command therefore cannot leave a phantom frame behind.
 export function invoke(row, binding, run, suppliedOrigin = null) {
   const frame = descriptorFor(row, binding);
-  const origin = frame
-    ? (suppliedOrigin ?? captureReturnPlace({ focused, readingBlock }))
-    : null;
+  const origin = frame ? suppliedOrigin : null;
   const result = run();
   prune();
   if (frame?.active()) {
@@ -162,16 +154,16 @@ function back() {
   // for example, clear a live query first and deliberately retain the entry frame.
   const replacement = frame.close();
   if (replacement === false) {
-    paintHere();
+    repaint();
     return true;
   }
   frames.pop();
   restoreReturnPlace(
     replacement instanceof Element
       ? { ...frame.origin, control: replacement }
-      : frame.origin,
+      : (frame.origin ?? { control: null, reading: null }),
   );
-  paintHere();
+  repaint();
   return true;
 }
 

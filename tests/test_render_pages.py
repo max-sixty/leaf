@@ -48,6 +48,8 @@ from render_support import (
     RAIL_FIT,
     REPLY_HOST_PAGE,
     ROOM_GEOMETRY,
+    SEATED_ASK_LAYER,
+    SEATED_ASK_WIDGETS,
     TOKEN,
     TWIN_V1,
     TWIN_V2,
@@ -638,6 +640,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     The first read reaches panel and version rendering before malformed projection data
     rejects it. That candidate must announce nothing and leave no version behind; a
     complete retry announces the reply once with the agent recorded on the message.
+    The rejected reply must also leave the visible conversation until that retry.
     """
     url = serve(TWIN_V1)
     d = serve.page_dir
@@ -656,6 +659,11 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     stamp_version_file(d, 2, "a twin")
     wait_for_revision(page, 2)
     expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
+
+    page.locator(".lf-threads-toggle").click()
+    reply_draft = page.locator(".lf-thread textarea")
+    reply_draft.fill("keep this unfinished reply")
+    page.locator(".lf-threads-toggle").click()
 
     broken = []
 
@@ -702,6 +710,12 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     assert fault.value.text in errors
     errors.remove(fault.value.text)
 
+    expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_count(0)
+    expect(page.locator(".lf-msg.user .lf-msg-body")).to_have_text(
+        "which host answers?"
+    )
+    expect(reply_draft).to_have_value("keep this unfinished reply")
+
     version_menu = page.locator(".lf-version-menu")
     page.locator(".lf-version").click()
     expect(version_menu).not_to_contain_text("Rejected version")
@@ -717,6 +731,221 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     told(page)
     expect(notice_el).to_have_text("Codex replied — open Threads")
     expect(notice_el).to_have_class(re.compile(r"\bshow\b"))
+    expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_text("this one does")
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("draft", [False, True], ids=["empty", "draft"])
+def test_a_failed_agent_root_restores_the_focused_first_message_composer(
+    browser, serve, draft
+):
+    """A rejected inline root gives the authored seat and its focused editor back."""
+    url = serve(
+        leaf_page(
+            "Inline rollback",
+            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
+        ),
+        layer_registry=SEATED_ASK_LAYER,
+        layer_widgets=SEATED_ASK_WIDGETS,
+    )
+    page, errors = open_page(browser, live_url(url))
+    seat = page.locator("#proposal > .lf-conversation")
+    composer = seat.locator(":scope > .lf-say textarea")
+    words = "keep this first message" if draft else ""
+    composer.fill(words)
+    composer.evaluate(
+        "(input, selection) => input.setSelectionRange(...selection)",
+        [3, 12, "backward"] if draft else [0, 0, "none"],
+    )
+    # Read the arrangement back rather than pinning the literal that made it: Chromium
+    # reports a collapsed selection as `forward` whichever direction set it, so the
+    # restored reading is compared with the one the browser actually held.
+    selection = composer.evaluate(
+        "input => [input.selectionStart, input.selectionEnd, input.selectionDirection]"
+    )
+    expect(composer).to_be_focused()
+
+    broken = []
+
+    def fail_after_rendering_the_inline_root(route):
+        if broken:
+            refuse(route)
+            return
+        response = route.fetch()
+        state = response.json()
+        view = state["browser"]["views"][str(state["active"]["revision"])]
+        view["document"]["projection"]["entries"].append(None)
+        broken.append(True)
+        route.fulfill(status=response.status, json=state)
+
+    page.route("**/api/state*", fail_after_rendering_the_inline_root)
+    with page.expect_console_message(
+        lambda message: "read failed" in message.text
+    ) as fault:
+        root = events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "claude",
+                "agent": "Codex",
+                "revision": 1,
+                "anchor": {"section": "proposal"},
+                "text": "candidate root",
+            },
+        )
+    assert fault.value.text in errors
+    errors.remove(fault.value.text)
+
+    inline = seat.locator(
+        f':scope > .lf-conversation-thread[data-thread="{root["id"]}"]'
+    )
+    expect(inline).to_have_count(0)
+    expect(composer).to_have_count(1)
+    expect(composer).to_be_focused()
+    expect(composer).to_have_value(words)
+    assert (
+        composer.evaluate(
+            "input => [input.selectionStart, input.selectionEnd, input.selectionDirection]"
+        )
+        == selection
+    )
+
+    page.unroute("**/api/state*")
+    nudge(serve.page_dir)
+    told(page)
+    expect(inline.locator(".lf-conversation-body")).to_have_text("candidate root")
+    expect(composer).to_have_count(1 if draft else 0)
+    if draft:
+        expect(composer).to_have_value(words)
+    assert errors == []
+    page.close()
+
+
+def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
+    """Inline rollback restores the logical thread's direct reply box and selection."""
+    url = serve(
+        leaf_page(
+            "Inline reply rollback",
+            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
+        ),
+        layer_registry=SEATED_ASK_LAYER,
+        layer_widgets=SEATED_ASK_WIDGETS,
+    )
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "proposal"},
+            "text": "keep discussing this",
+        },
+    )
+    page, errors = open_page(browser, live_url(url))
+    thread = page.locator(
+        f'#proposal > .lf-conversation > [data-thread="{root["id"]}"]'
+    )
+    reply = thread.locator(":scope > .lf-say textarea")
+    reply.fill("keep this inline reply")
+    reply.evaluate("node => node.setSelectionRange(5, 16, 'backward')")
+    expect(reply).to_be_focused()
+
+    broken = []
+
+    def fail_after_resolving_the_inline_thread(route):
+        if broken:
+            refuse(route)
+            return
+        response = route.fetch()
+        state = response.json()
+        view = state["browser"]["views"][str(state["active"]["revision"])]
+        view["document"]["projection"]["entries"].append(None)
+        broken.append(True)
+        route.fulfill(status=response.status, json=state)
+
+    page.route("**/api/state*", fail_after_resolving_the_inline_thread)
+    with page.expect_console_message(
+        lambda message: "read failed" in message.text
+    ) as fault:
+        events_model.append_event(
+            serve.page_dir,
+            {"kind": "resolve", "author": "claude", "parent": root["id"]},
+        )
+    assert fault.value.text in errors
+    errors.remove(fault.value.text)
+
+    expect(reply).to_have_value("keep this inline reply")
+    expect(reply).to_be_focused()
+    assert reply.evaluate(
+        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+    ) == [5, 16, "backward"]
+
+    page.unroute("**/api/state*")
+    nudge(serve.page_dir)
+    told(page)
+    expect(thread.locator(":scope > .lf-say textarea")).to_have_count(0)
+    expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
+    """A refused resolution restores the reader's reply destination and selection."""
+    url = serve(TWIN_V1)
+    page_dir = serve.page_dir
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "which host answers?",
+        },
+    )
+    page, errors = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    draft = page.locator(".lf-thread textarea")
+    draft.fill("keep this unfinished reply")
+    expect(draft).to_be_focused()
+    draft.evaluate("node => node.setSelectionRange(5, 12, 'backward')")
+
+    broken = []
+
+    def fail_after_resolving_the_focused_thread(route):
+        if broken:
+            refuse(route)
+            return
+        response = route.fetch()
+        state = response.json()
+        view = state["browser"]["views"][str(state["active"]["revision"])]
+        view["document"]["projection"]["entries"].append(None)
+        broken.append(True)
+        route.fulfill(status=response.status, json=state)
+
+    page.route("**/api/state*", fail_after_resolving_the_focused_thread)
+    with page.expect_console_message(
+        lambda message: "read failed" in message.text
+    ) as fault:
+        events_model.append_event(
+            page_dir,
+            {"kind": "resolve", "author": "claude", "parent": root["id"]},
+        )
+
+    assert fault.value.text in errors
+    errors.remove(fault.value.text)
+    expect(page.locator(".lf-thread textarea")).to_have_value(
+        "keep this unfinished reply"
+    )
+    expect(page.locator(".lf-thread textarea")).to_be_focused()
+    assert draft.evaluate(
+        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+    ) == [5, 12, "backward"]
+
+    page.unroute("**/api/state*")
+    nudge(page_dir)
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    expect(page.locator(".lf-thread textarea")).to_have_count(0)
     assert errors == []
     page.close()
 

@@ -19,6 +19,7 @@ export { wireInput } from "./composing/input.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { PRESS, labelOf, walkRows } from "./keyboard/bindings.js";
 export { focused, keys as commands, paintKeys, saying } from "./keyboard/scopes.js";
+export { repaint } from "./repaint.js";
 export { beginWalk, listWalkPosition } from "./walk-position.js";
 export {
   MARGIN_ELEMENT_SCHEMA,
@@ -27,7 +28,6 @@ export {
   registerMarginContribution,
 } from "./margin-elements.js";
 export { loadMarkdown, renderMarkdown } from "./markdown.js";
-export { scrollerFor } from "./navigation.js";
 export { pageScroller } from "./scrolling.js";
 export {
   compoundReadingRegionId,
@@ -39,6 +39,7 @@ export {
   readingRegions,
   registerArrangement,
   registerReadingRegion,
+  scrollerFor,
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";

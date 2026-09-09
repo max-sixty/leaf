@@ -1,5 +1,6 @@
 /* This module owns keyboard item hints and whole-page text search. */
-import { aimTargets, anchoringIsReady, sameAnchor, scrollToRange } from "../anchors.js";
+import { aimTargets, anchoringIsReady, scrollToRange } from "../anchors.js";
+import { sameAnchor } from "../anchor-coordinate.js";
 import { bindings } from "../keyboard/bindings.js";
 import { el } from "../widget-elements.js";
 import { banner } from "../banner.js";
@@ -19,7 +20,8 @@ import {
   rangeOf,
 } from "../passages.js";
 import { shownParts, shownRect } from "../geometry.js";
-import { focused, paintHere } from "../keyboard/scopes.js";
+import { focused } from "../keyboard/scopes.js";
+import { repaint } from "../repaint.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "../keyboard/hints.js";
 import { keySequence, progressStates } from "../keyboard/presentation.js";
 import { announce } from "../notifications.js";
@@ -288,7 +290,7 @@ function setOpen(on, restore = false, withHints = true) {
   } else {
     candidates = [];
   }
-  paintHere();
+  repaint();
   if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
 }
 
@@ -308,7 +310,7 @@ function setSearching(on) {
     document.body.focus({ preventScroll: true });
     announce("Select an item — type a hint, or slash to search the page.");
   }
-  paintHere();
+  repaint();
 }
 
 function startSearching() {
@@ -418,7 +420,7 @@ function refreshMatchWalk() {
   matches = found;
   if (repeatedSearch && !searching && active >= 0) repeatedSearch.index = active;
   if (searching) syncStatus();
-  paintHere();
+  repaint();
 }
 
 function search() {
@@ -427,7 +429,7 @@ function search() {
   active = matches.length ? startingMatch(matches) : -1;
   syncStatus();
   showMatch();
-  paintHere();
+  repaint();
 }
 
 function showMatch() {
@@ -446,7 +448,7 @@ function moveMatch(direction) {
   announce(
     `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
   );
-  paintHere();
+  repaint();
 }
 
 function matchDescription(segments) {
@@ -476,7 +478,7 @@ function typeHint(key) {
     prefix = "";
     announce("That hint is not on screen. The hints are reset.");
   } else announce(`${left.length} items remain.`);
-  paintHere();
+  repaint();
 }
 
 const hinted = () => candidates.filter(({ code }) => code.startsWith(prefix));
@@ -492,7 +494,7 @@ function moveHint(direction) {
     }),
   );
   announce(`Hint ${target.code}: ${cut(target.label, 0, 72)}. Press Enter to select.`);
-  paintHere();
+  repaint();
 }
 
 function chooseHint() {
@@ -526,7 +528,7 @@ function repeatSearch(direction) {
     repeatedSearch = null;
     active = -1;
     announce("The page no longer contains that search.");
-    return paintHere();
+    return repaint();
   }
   const from = Math.min(repeatedSearch.index, matches.length - 1);
   active = (from + direction + matches.length) % matches.length;
@@ -551,7 +553,7 @@ function back() {
     prefix = prefix.slice(0, -1);
     hintActive = -1;
     announce(prefix ? `Hint ${prefix}.` : "All item hints.");
-    return paintHere();
+    return repaint();
   }
   setOpen(false, true);
   announce("Selection cancelled.");
@@ -621,7 +623,7 @@ export function paintTargets() {
   }
   if (!refreshed && heard && !drawnTargets.has(heard)) hintActive = -1;
   // The shortcut bar was painted before geometry retired the browsed hint.
-  if (wasActive && hintActive < 0) paintHere();
+  if (wasActive && hintActive < 0) repaint();
   selectionLayer.replaceChildren(...drawn);
   if (!searching)
     spreadHints(hints, {
@@ -637,7 +639,7 @@ addEventListener(
   () => {
     if (!open) return;
     scrolling = true;
-    paintHere();
+    repaint();
   },
   { capture: true, passive: true },
 );
@@ -646,14 +648,14 @@ addEventListener(
   () => {
     if (!open || !scrolling) return;
     scrolling = false;
-    paintHere();
+    repaint();
   },
   { capture: true, passive: true },
 );
 addEventListener("resize", () => {
   if (!open) return;
   scrolling = false;
-  paintHere();
+  repaint();
 });
 document.addEventListener("lf-actions", refreshMatchWalk);
 

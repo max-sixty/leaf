@@ -328,7 +328,7 @@ STANDING = """([text, ids]) => {
 def wait_standing(page, text, ids=()):
     """Wait for the page to be marking exactly this comment's passage.
 
-    The paint follows the focus through the runtime's one coalesced repaint (paintHere),
+    The paint follows focus through the runtime's one coalesced repaint,
     so it lands a frame after the press that moved the reader. Reading straight after the
     key reads the press before its answer, and passes or fails on how loaded the machine
     is. The failure carries what was painted instead, since a timeout on a predicate says

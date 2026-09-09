@@ -247,7 +247,7 @@ def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
 
     `syncLayout` ends in the anchor runtime's `dockSeats`, and the here-paint frame
     ends in `syncLayout`; a margin render ends in `paintKeys`, which ends in the next
-    `paintHere`. So a `dockSeats` that restated every seat's offer closed a cycle —
+    the shared repaint. So a `dockSeats` that restated every seat's offer closed a cycle —
     chrome layout, margin render, paint, chrome layout — on any page carrying a
     standing reaction, and the gallery ran a whole margin render every frame with
     nothing dispatched and nothing on the page moving. Measured then: ~350ms of main

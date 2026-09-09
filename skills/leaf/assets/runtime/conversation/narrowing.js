@@ -25,7 +25,8 @@ import {
 } from "./panel.js";
 import { runtime } from "../context.js";
 import { renderThreads } from "./thread-list.js";
-import { paintAcknowledgments, threadList } from "./reconcile.js";
+import { paintAcknowledgments } from "./reconcile.js";
+import { threadList } from "./state.js";
 
 let finding = "";
 let state = "open";

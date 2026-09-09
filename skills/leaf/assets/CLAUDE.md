@@ -34,11 +34,18 @@ cross-owner behavior from `leaf.js`'s boot sequence or defer reads until a funct
 called. Native module evaluation reports an early read as a startup error, which the
 browser gate observes. The keyboard register follows the same boundary: `keys()` checks
 and stores each declaration unread, and the first repaint after boot evaluates it.
-`runtime/chrome.js` owns the chrome's root, the order its parts stack in, and
-`mountChrome`, the one step that puts them in the document and wires what needs them
-there;
-`runtime/standing.js` owns the one repaint of where the reader stands, in the order
-the geometry demands;
+`runtime/chrome.js` owns only the shared chrome root; `leaf.js` assembles its parts,
+mounts them, and wires behavior that needs them in the document;
+`runtime/repaint.js` owns the shared frame, whose fixed phases are wired at boot:
+first keyboard-scope reflection, standing content, chrome layout, requested page
+movement, then standing geometry. Work requested during a phase belongs to the next
+frame. Synchronous input layout, ResizeObserver height-only placement, and the shell's
+animation frames retain their own timing contracts;
+`runtime/standing.js` owns the standing content and geometry phases;
+`runtime/dom-children.js` reconciles retained children without moving nodes already in
+place; conversation owners supply reaction teardown when removing their surfaces;
+`runtime/focus.js` places focus on destinations, lending a tab stop only when needed;
+`runtime/anchor-coordinate.js` compares anchor records without resolving DOM;
 `runtime/walk-position.js` owns the transient ordinal for semantic Leaf keyboard walks,
 shown in the useful status at the page foot, and the brief boundary state when another
 press stays at the same destination; clamped and cyclic owners use the same reading, while
@@ -64,7 +71,8 @@ Ask-local contextual command projection;
 `runtime/projection-watch.js` owns the lifetime-bound invalidation subscription shared
 by the public semantic projection watchers;
 `runtime/composing/capture.js` owns selection capture and snapping;
-`runtime/composing/surface.js` owns floating comment geometry and page-click routing;
+`runtime/composing/surface.js` owns floating comment geometry, item comment entry,
+and page-click routing;
 `runtime/composing/targets.js` owns keyboard item hints and whole-page text search;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
 `runtime/composing/drawing.js` owns one-stroke pointer capture and drawing replay;
@@ -97,7 +105,8 @@ subscriptions;
 `runtime/keyboard/` owns keyboard binding vocabulary and scoped interaction:
 `bindings.js` the spelling, parsing, row fields, and checks; `scopes.js` where a group
 of rows applies; `dispatch.js` which scope answers a press and what it owes the
-platform; `return-stack.js` what a keyboard entry owes on the way back out;
+platform; `return-stack.js` what a keyboard entry owes on the way back out, using the
+origin its caller captured before executing the command;
 `shortcut-bar.js` the short help at the foot of the page, its More control, the useful
 status opposite it or stacked above it when room is tight, and the shared reading of
 their rendered boxes;
@@ -191,11 +200,13 @@ dynamic widget imports, and initial settlement;
 `runtime/pointer.js` owns the shared unrounded pointer position;
 `runtime/geometry.js` owns the shared readings of visible boxes and clipping, plus the
 conversion from viewport boxes to document-positioned chrome;
-`runtime/navigation.js` owns reader travel and scroller selection;
+`runtime/navigation.js` owns reader travel; `reading-regions.js` selects its scroller;
 `runtime/anchors.js` owns anchor resolution, paint, anchor-specific travel, and
 cross-widget projected-datum travel;
-`runtime/conversation/model.js` adapts server-projected threads to browser callers,
-and folds the reader's unread messages into them from the outbox;
+`runtime/conversation/model.js` folds supplied server threads and unresolved messages
+as values; it reads no runtime store or DOM. `conversation/identity.js` owns pending
+message identity. `conversation/state.js` holds the one derived conversation reading,
+written by reconciliation and consumed by its surfaces;
 `runtime/conversation/messages.js` owns message rendering;
 `runtime/conversation/replies.js` owns reply drafts and delivery;
 `runtime/conversation/inline.js` owns conversation seats rendered into the page;
@@ -207,7 +218,8 @@ and panel arrival;
 `runtime/conversation/narrowing.js` owns comment-panel search and the lifecycle,
 scope, subject, and detached-placement facet state;
 `runtime/conversation/placement.js` owns document-order grouping;
-`runtime/conversation/reaction-strips.js` owns the panel's message reaction surfaces;
+`runtime/conversation/reaction-strips.js` owns the panel's message reaction surfaces
+and disarms reaction keyboard mode before a conversation surface is removed;
 `runtime/conversation/surfaces.js` owns registry-declared widget outlets and the set of
 threads they claim from the living-margin fallback;
 `runtime/conversation/thread-card.js` owns retained panel thread cards, their quote
@@ -243,7 +255,7 @@ Each mutable fact has one writer:
 | the reading the page has applied | the server's `/api/state` answer | `receiveState` writes `runtime.reading` and paints `data-lf-reading` |
 | unresolved browser work | the ordered `outbox` | `post` adds, `accountOutbox` and `releaseProjectedOutbox` remove |
 | rendered semantic state | authored state, log projection, then outbox overlay | `reconcileState` |
-| rendered conversation | the server's thread projection, then the outbox's unread messages | `buildThreads` |
+| rendered conversation | the server's thread projection, then the outbox's unread messages | `foldThreads`, installed by reconciliation |
 | proof of what the DOM currently represents | `committedProjection` | `stageOutboxAction` and `reconcileState` |
 | anchor paint | thread and composer anchor records | `paintAnchors` |
 | where each thread's passage lands | this version's resolution of its anchor | `paintAnchors` writes a rich `placed` record with its element, exact datum, and exact/fallback/outdated status |
@@ -271,7 +283,7 @@ does not remember where an Ask walk last landed.
 
 Startup order is load-bearing:
 
-1. Register the standing painter into the register's repaint frame, adopt the chrome
+1. Wire the shared repaint phases in `leaf.js`, adopt the chrome
    and marks sheets, and mount the chrome (`mountChrome`: the banner's arrangement,
    the parts into the document, the banner's reservations, then every owner's wiring
    of another owner's part).
@@ -286,7 +298,10 @@ Startup order is load-bearing:
 9. Settle optional runtime-owned page interface that composes those widgets.
 10. Mark `body` `data-lf-upgraded="1"`.
 11. Start the state feed; its first answer is applied, reconciled, and presents the
-    page.
+    page. The feed waits a bounded time for that answer and then presents without one,
+    offline, rather than letting a container that has stopped answering decide whether
+    the page arrives at all. The read is not cancelled by that wait: it keeps the page's
+    one read slot, and its answer applies when it lands, as any later read's does.
 
 Authored HTML paints immediately on every page. The prepaint bootstrap marks the root
 `data-lf-live`, and the render-blocking theme uses that fact to reserve the fixed banner

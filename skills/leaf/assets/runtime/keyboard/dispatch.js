@@ -91,13 +91,8 @@ import {
   takesLetters,
   TYPING,
 } from "./page.js";
-import {
-  claimsEsc,
-  focused,
-  paintHere,
-  recoveredLabelFocus,
-  scopesFor,
-} from "./scopes.js";
+import { claimsEsc, focused, recoveredLabelFocus, scopesFor } from "./scopes.js";
+import { repaint } from "../repaint.js";
 import { RETURN, invoke } from "./return-stack.js";
 import { isSequenceActive, setSequence } from "./address.js";
 import { REACT, setReact } from "../reactions.js";
@@ -108,6 +103,7 @@ import {
   nativeLayerFor,
   nativeLayersFor,
 } from "../native-layers.js";
+import { captureReturnPlace } from "../version.js";
 
 const beforeCommand = (row) => {
   if (
@@ -339,10 +335,16 @@ function run(ev) {
       if (!matched.row.native) ev.preventDefault();
       if (ev.repeat && !matched.row.repeat) return true;
       beforeCommand?.(matched.row);
-      invoke(matched.row, matched.binding, () => {
-        if (matched.row.run) return matched.row.run(matched.binding);
-        return recovered.click();
-      });
+      const origin = matched.row.returnFrame ? captureReturnPlace() : null;
+      invoke(
+        matched.row,
+        matched.binding,
+        () => {
+          if (matched.row.run) return matched.row.run(matched.binding);
+          return recovered.click();
+        },
+        origin,
+      );
       return true;
     }
     nearer.past(scope);
@@ -431,8 +433,8 @@ document.addEventListener("focusin", () => {
   if (isSequenceActive() && (takesLetters(active) || claimsEsc(active))) {
     setSequence(false);
   }
-  paintHere();
+  repaint();
 });
 document.addEventListener("focusout", () => {
-  if (!runtime.placingChrome) paintHere();
+  if (!runtime.placingChrome) repaint();
 });

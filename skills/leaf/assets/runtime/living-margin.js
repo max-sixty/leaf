@@ -67,7 +67,8 @@ import {
   renderPageMap,
 } from "./page-map.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
-import { el, focusDestination, keeps, keepsHidden, offer } from "./widget-elements.js";
+import { focusDestination } from "./focus.js";
+import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
 import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { landInConversation, showThread } from "./conversation/landing.js";
@@ -76,8 +77,9 @@ import { runtime } from "./context.js";
 import { readingRegionFor, shownRegionBounds } from "./reading-regions.js";
 import { commentsEdge, panelIsOpen } from "./chrome-layout.js";
 import { designOn } from "./design.js";
-import { focused, keys, paintHere, paintKeys } from "./keyboard/scopes.js";
+import { focused, keys, paintKeys } from "./keyboard/scopes.js";
 import { bottomChromeBoxes } from "./keyboard/shortcut-bar.js";
+import { repaint } from "./repaint.js";
 import { chromeRoot } from "./chrome.js";
 import {
   comparisonBase,
@@ -99,7 +101,7 @@ import {
   traceTarget,
 } from "./anchors.js";
 import { updateSequence, workClaimState } from "./updates.js";
-import { threadList } from "./conversation/reconcile.js";
+import { threadList } from "./conversation/state.js";
 import { threadKey } from "./conversation/model.js";
 import { openAsks } from "./asks/model.js";
 import { goToAsk, standsWith } from "./asks/view.js";
@@ -252,7 +254,7 @@ const toolbar = el("div", "lf-margin-toolbar");
 toolbar.setAttribute("role", "toolbar");
 toolbar.setAttribute(
   "aria-label",
-  "Changes, threadList, asks, delivery status, and activity",
+  "Changes, threads, asks, delivery status, and activity",
 );
 nav.append(toolbar);
 
@@ -2018,7 +2020,7 @@ function moveHost(host, move) {
   // The one case where the placement did move the reader: the control they were
   // standing on did not survive it, so focus is wherever the removal left it and the
   // standing paint is owed the news the guard above withheld.
-  if (held && document.activeElement !== held) paintHere();
+  if (held && document.activeElement !== held) repaint();
 }
 
 function unfoldOpenThreadOwner(entry) {
@@ -2703,7 +2705,7 @@ export const activeInlineThread = () => {
   return conversations.length === 1 ? conversations[0] : null;
 };
 
-// The margin's parts into the chrome, once it is mounted (chrome.js): the map button beside
+// The margin's parts into the chrome, once it is mounted (leaf.js): the map button beside
 // the version chooser, then its own parts in the root.
 export function mountMargin() {
   // The first render, once every owner it reads (the version chooser's comparison, the

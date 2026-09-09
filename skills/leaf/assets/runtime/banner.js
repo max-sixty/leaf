@@ -16,7 +16,7 @@ import { asksBtn, othersBtn } from "./trays.js";
 import { COVERING, syncLayout } from "./chrome-layout.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { post } from "./outbox.js";
-import { paintHere } from "./keyboard/scopes.js";
+import { repaint } from "./repaint.js";
 import { announce, notice } from "./notifications.js";
 
 export const banner = el("header", "lf-ui lf-banner");
@@ -726,7 +726,7 @@ export function paintApproval() {
   approveBtn.title = approved
     ? "Approved. Press z to take it back while it is still your last gesture"
     : "Approve this work; the page stays open for follow-up";
-  paintHere();
+  repaint();
 }
 
 approveBtn.onclick = async () => {

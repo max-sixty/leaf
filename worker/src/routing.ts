@@ -125,8 +125,9 @@ export function isPageApiRequest(route: PageRoute | null): boolean {
   return route?.inside === "api" || route?.inside.startsWith("api/") || false;
 }
 
-export function isPageMediaRequest(route: PageRoute | null): boolean {
-  return route?.inside === "media" || route?.inside.startsWith("media/") || false;
+export function isPageSessionFileRequest(route: PageRoute | null): boolean {
+  const directory = route?.inside.split("/", 1)[0];
+  return ["media", "revisions", "versions"].includes(directory ?? "");
 }
 
 export function needsPageSlash(pathname: string, route: PageRoute): boolean {

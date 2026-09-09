@@ -3202,6 +3202,83 @@ def test_an_inline_version_diff_uses_the_shared_authored_reading(browser, serve)
     page.close()
 
 
+def test_an_inline_version_diff_indexes_astral_text_by_character(browser, serve):
+    """Astral text before an edit cannot shift its insertion and deletion ranges."""
+    first = leaf_page(
+        "Unicode version passage",
+        """
+        <h1>Forecast</h1>
+        <p id='wording'>Weather 🌧: the old wording stood here.</p>
+        <p id='tail'>Weather 🌧: this line keeps a trailing phrase.</p>
+        """,
+    )
+    second = first.replace("old wording stood", "new wording stands").replace(
+        " keeps a trailing phrase", ""
+    )
+    page, errors = open_page(browser, live_url(serve(first)))
+    d = serve.page_dir
+    (d / ".fixture-versions" / "v2.html").write_text(second)
+    stamp_version_file(d, 2, "revise the forecast")
+    wait_for_revision(page, 2)
+
+    compare_with(page, 1)
+    wording = page.locator('[data-lf-margin-for="wording"] [data-lf-kinds~="change"]')
+    wording.click()
+    expect(wording).to_have_attribute("aria-expanded", "true")
+    assert page.locator("#wording del").all_inner_texts() == ["old", "stood"]
+    assert page.evaluate(
+        "() => [...CSS.highlights.get('lf-version-insert')].map(r => r.toString())"
+    ) == ["new", "stands"]
+
+    tail = page.locator('[data-lf-margin-for="tail"] [data-lf-kinds~="change"]')
+    tail.click()
+    expect(tail).to_have_attribute("aria-expanded", "true")
+    expect(page.locator("#tail del")).to_have_text("keeps a trailing phrase")
+    assert errors == []
+    page.close()
+
+
+def test_a_state_only_version_change_does_not_offer_an_empty_text_diff(browser, serve):
+    """A moved block remains marked without promising an inline prose comparison."""
+    first = leaf_page(
+        "Moved card",
+        """
+        <h1>Board</h1>
+        <lf-board id='board'>
+          <lf-column id='left' label='Left'>
+            <lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>
+          </lf-column>
+          <lf-column id='right' label='Right'></lf-column>
+        </lf-board>
+        """,
+    )
+    second = first.replace(
+        "<lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>\n"
+        "          </lf-column>\n"
+        "          <lf-column id='right' label='Right'></lf-column>",
+        "</lf-column>\n"
+        "          <lf-column id='right' label='Right'>\n"
+        "            <lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>\n"
+        "          </lf-column>",
+    )
+    page, errors = open_page(browser, live_url(serve(first)))
+    d = serve.page_dir
+    (d / ".fixture-versions" / "v2.html").write_text(second)
+    stamp_version_file(d, 2, "move the card")
+    wait_for_revision(page, 2)
+
+    compare_with(page, 1)
+    expect(page.locator("#card")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    change = page.locator('[data-lf-margin-for="card"] [data-lf-kinds~="change"]')
+    expect(change).not_to_have_attribute("aria-expanded", re.compile(".*"))
+    expect(change).not_to_have_attribute("aria-controls", re.compile(".*"))
+    change.click()
+    expect(page.locator("#card .lf-version-inline-label")).to_have_count(0)
+    expect(page.locator(".lf-notice")).to_have_text("card changed since v1")
+    assert errors == []
+    page.close()
+
+
 def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     browser, serve
 ):

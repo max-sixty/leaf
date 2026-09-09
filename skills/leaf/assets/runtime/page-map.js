@@ -158,7 +158,9 @@ function syncSheetItem(button, entry, item) {
     icon: faceFor(item).icon,
     label: `Open ${faceFor(item).label.toLowerCase()}: ${label}`,
     visibleLabel: label,
-    context: item.context,
+    // Map rows stay one line unless their producer explicitly owes a second. Version
+    // comparisons do: their pair is provenance rather than part of the account.
+    context: item.mapContext,
   });
   button.disabled = false;
 }

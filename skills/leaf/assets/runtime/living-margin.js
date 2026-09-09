@@ -1055,7 +1055,7 @@ function collectEntries() {
       // promises nothing. The margin element's quieter line carries it, and a block the
       // comparison holds nothing for has none, so no margin element offers a press it has
       // not got.
-      ...(inline ? { context: inline.offer } : {}),
+      ...(inline ? { context: inline.offer, mapContext: inline.offer } : {}),
       // What a Change reading holds, where the comparison kept the base version's
       // words for this block: pressing it splices dropped text into the current
       // passage and paints additions there, so the reader learns what changed without

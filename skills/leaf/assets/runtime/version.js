@@ -979,11 +979,15 @@ function openInlineComparison(target) {
       insertions.push({ offset: afterOffset, node: dropped });
       hasTextChange = true;
     } else {
+      // The passage reading indexes characters by code point while DOM Range offsets
+      // are UTF-16. Keep the alignment cursor in the reading's units; an astral
+      // character must advance it once, not by the two code units String.length sees.
+      const length = [...run.text].length;
       if (run.kind === "insert") {
-        additions.push([afterOffset, afterOffset + run.text.length]);
+        additions.push([afterOffset, afterOffset + length]);
         hasTextChange = true;
       }
-      afterOffset += run.text.length;
+      afterOffset += length;
     }
   }
   insertions
@@ -1013,12 +1017,15 @@ function closeInlineComparison(target) {
   return `inline diff from v${diffBase} hidden`;
 }
 
-// What the comparison holds at a marked block, for the margin's disclosure reading.
-// The one controlled id is a quiet label at the start of the block. It names the
-// versions for assistive reading while the margin and Page map carry that provenance
-// visually, outside the passage whose words are being compared.
+// What a text-changing marked block holds for the margin's disclosure reading. A pure
+// state change remains marked but offers no empty prose comparison. The one controlled
+// id is a quiet label at the start of the block. It names the versions for assistive
+// reading while the margin and Page map carry that provenance visually, outside the
+// passage whose words are being compared.
 export const inlineComparison = (target) =>
-  diffOn && diffBefore.has(target)
+  diffOn &&
+  diffBefore.has(target) &&
+  (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target))
     ? {
         id: inlineId(target),
         open: inlineOpen.has(target),

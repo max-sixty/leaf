@@ -138,11 +138,25 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     )
     assert readings["queue"][1] > readings["queue"][0], readings
     assert readings["detail"][1] > readings["detail"][0], readings
+    expect(queue).to_have_attribute("data-lf-more-below", "")
+    expect(detail).to_have_attribute("data-lf-more-below", "")
     queue.evaluate("el => el.scrollTop = 300")
     page.wait_for_function(
         "() => document.querySelector('#queue > .lf-pane-content > .lf-pane-body').scrollTop > 0"
     )
     assert detail.evaluate("el => el.scrollTop") == 0
+    expect(queue).to_have_attribute("data-lf-more-below", "")
+    queue.evaluate("el => el.scrollTop = el.scrollHeight")
+    expect(queue).not_to_have_attribute("data-lf-more-below", "")
+    queue.evaluate(
+        """el => {
+          const more = document.createElement('div');
+          more.style.height = '200px';
+          el.append(more);
+          el.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}));
+        }"""
+    )
+    expect(queue).to_have_attribute("data-lf-more-below", "")
 
     # Only direct furniture is slotted. An article's native header remains in the
     # pane's reading body rather than becoming pane chrome.
@@ -162,6 +176,8 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
         }"""
     )
     assert flow["detail"]["top"] >= flow["queue"]["bottom"] - 1, flow
+    expect(queue).not_to_have_attribute("data-lf-more-below", "")
+    expect(detail).not_to_have_attribute("data-lf-more-below", "")
     assert errors == []
     page.close()
 
@@ -474,6 +490,22 @@ def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
     assert page.evaluate(
         "document.documentElement.scrollHeight === document.documentElement.clientHeight"
     )
+    overflowing = page.locator(
+        "lf-monitor-region > .lf-pane-content > .lf-pane-body"
+    ).evaluate_all(
+        "bodies => bodies.filter(body => body.scrollHeight > body.clientHeight + 1)"
+        ".map(body => body.closest('lf-monitor-region').id)"
+    )
+    assert overflowing, "the custom reading regions all fit, so no cue is exercised"
+    for region_id in overflowing:
+        expect(
+            page.locator(f"#{region_id} > .lf-pane-content > .lf-pane-body")
+        ).to_have_attribute("data-lf-more-below", "")
+    first_overflowing = page.locator(
+        f"#{overflowing[0]} > .lf-pane-content > .lf-pane-body"
+    )
+    first_overflowing.evaluate("body => body.scrollTop = body.scrollHeight")
+    expect(first_overflowing).not_to_have_attribute("data-lf-more-below", "")
 
     resized(page, 1100, 500)
     expect(monitor).to_have_attribute("data-lf-posture", "flow")

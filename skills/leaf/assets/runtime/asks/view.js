@@ -710,7 +710,7 @@ function paintActionProjections() {
     };
     address.setAttribute("data-lf-ask-address", "");
     address.textContent = spell(binding);
-    address.style.setProperty("display", "block", "important");
+    address.style.display = "block";
     const box = address.checkVisibility() && placement.visibleBox(address);
     if (!placement.reserve(box)) {
       restoreAddress(address, previous);

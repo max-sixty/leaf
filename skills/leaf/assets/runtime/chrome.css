@@ -371,7 +371,7 @@
   border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
   color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
   line-height: 1.478; text-align: center; white-space: nowrap;
-  display: none; z-index: 1; }
+  display: none; z-index: 1; user-select: none; -webkit-user-select: none; }
 /* The general leaf text box, in one rule. The compact response field is excluded
    because it shares its complete control geometry with the response buttons below.
    field-sizing does the growing, so no script

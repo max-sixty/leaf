@@ -2500,6 +2500,41 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
         page.close()
 
 
+def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
+    """The network slot ends with the read, not an unbounded package repaint."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.evaluate(
+        """async () => {
+          const {clocked, clockValue} = await import('/runtime/presence.js');
+          window.probeVersion = 0;
+          window.probePaints = 0;
+          const paint = clocked(document.body, () => {
+            clockValue(() => window.probeVersion);
+            window.probePaints += 1;
+            return new Promise(() => {});
+          });
+          paint();
+          window.probeVersion = 1;
+        }"""
+    )
+    page.route("**/api/state*", lambda route: route.fulfill(status=503, body=""))
+    nudge(serve.page_dir)
+    expect(page.locator(".lf-status-text")).to_contain_text(
+        "Server offline — reconnecting"
+    )
+    page.wait_for_function("() => window.probePaints >= 2")
+
+    page.unroute("**/api/state*")
+    with page.expect_request("**/api/state*", timeout=3000):
+        nudge(serve.page_dir)
+    told(page)
+    expect(page.locator(".lf-status-text")).not_to_contain_text(
+        "Server offline — reconnecting"
+    )
+    assert errors and all("503" in error for error in errors), errors
+    page.close()
+
+
 def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     """A wake-up the page could not act on is not lost. The stream says when the
     page has moved and cannot say it twice, so a read that failed — refused here, a

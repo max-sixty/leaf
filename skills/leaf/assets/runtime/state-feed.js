@@ -220,8 +220,13 @@ export function startFeed(present, initialRead = beginRead()) {
             reportPageError(`presentation failed: ${error?.message ?? error}`);
           });
       else {
-        await readNothing();
-        await present();
+        void readNothing()
+          .then(present)
+          .catch((error) => {
+            readAnswered = false;
+            reportPageError(`read failed: ${error?.message ?? error}`);
+            renderStatus(error);
+          });
       }
     } catch (error) {
       readAnswered = false;

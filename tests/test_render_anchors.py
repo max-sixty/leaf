@@ -3399,10 +3399,13 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_visible()
 
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
+    position = page.locator(".lf-walk-position")
     page.keyboard.press("ArrowDown")
     expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
+    expect(position).to_have_text("Version 3 of 3")
     page.keyboard.press("ArrowDown")  # clamped: the last row keeps the focus
     expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
+    expect(position).to_have_attribute("data-lf-boundary", "")
     page.keyboard.press("ArrowUp")
     page.keyboard.press("ArrowUp")
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()

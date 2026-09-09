@@ -68,10 +68,12 @@ PROFILE_SCRIPT = """(() => {
 
 # One hosted Codex turn runs at the model's pace, not this gate's. `TURN_PATIENCE`
 # is the budget a turn observed healthy has finished well inside; `TURN_LIMIT` is
-# what this step can add and still sit inside the job's thirty minutes beside the
-# release wait ahead of it. Between the two the page's own `activity` reading
-# decides, because a stopwatch cannot tell a turn that is still working from one
-# that has stopped.
+# the far end, past which no reading the page offers is worth waiting on. What holds
+# that tail is the `timeout-minutes` of `.github/workflows/publish-site.yaml`'s job,
+# behind the release wait that runs ahead of this pass, so raising `TURN_LIMIT` is a
+# change there too. Between the two bounds the page's own `activity` reading decides,
+# because a stopwatch cannot tell a turn that is still working from one that has
+# stopped.
 TURN_PATIENCE = 300
 TURN_LIMIT = 600
 # The activity readings that mean a turn is on this work. A page that reads away,
@@ -369,8 +371,8 @@ def agent_session(browser, release: str) -> AgentSession:
     url = f"{ORIGIN}/examples/design-decision/"
     state_url = urljoin(url, "api/state")
     # The release verification ahead of this pass already waited out most of the
-    # rollout, so this is the tail of a drain rather than the drain, and the step's
-    # own budget still has to hold the turn's `TURN_LIMIT` inside the job's thirty.
+    # rollout, so this is the tail of a drain rather than the drain, and this wait
+    # plus the turn's `TURN_LIMIT` still has to sit inside the job's own budget.
     deadline = time.monotonic() + 180
     while True:
         session = reader_session(browser, url, state_url, release)

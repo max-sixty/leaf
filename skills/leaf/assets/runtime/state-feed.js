@@ -58,7 +58,7 @@ async function readState() {
         }),
         // Coalescing bounds concurrency; this bounds its other dimension. A proxy that
         // never answers cannot own the page's single read slot forever.
-        signal: AbortSignal.timeout(STATE_READ_TIMEOUT_MS),
+        signal: globalThis.AbortSignal.timeout(STATE_READ_TIMEOUT_MS),
       });
     } catch {
       // Network absence is a completed answer: there is no log to replay, so the

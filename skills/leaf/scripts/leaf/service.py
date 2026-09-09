@@ -26,7 +26,6 @@ from leaf.host import (
 from leaf.locations import page_key, paths_same
 from leaf.schema import EVENTS_FILE, STATUS_FILE, WIDGET_KINDS
 
-
 # A repeated live detail carries only liveness. Renew it comfortably before the
 # fifteen-minute activity boundary without turning tool output into file churn.
 STREAM_ACTIVITY_RENEWAL = timedelta(minutes=5)

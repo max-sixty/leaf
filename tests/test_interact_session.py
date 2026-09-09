@@ -808,9 +808,10 @@ def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
         patch.setattr(service_model, "now_iso", lambda: renewed_at)
         with service_model.PageTransaction(claimed) as transaction:
             transaction.set_stream_activity("s1", "turn-live", "Reviewing the result")
-    assert files_model.read_json(claimed / "status.json")["stream"]["activity"][
-        "ts"
-    ] == renewed_at
+    assert (
+        files_model.read_json(claimed / "status.json")["stream"]["activity"]["ts"]
+        == renewed_at
+    )
 
 
 def test_declared_work_is_not_suppressed_by_an_older_stream_floor(claimed):

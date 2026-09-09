@@ -80,9 +80,9 @@ leaf reply <page> --to <thread-id> --awaits --text "Which store should own it?"
 ```
 
 A widget whose registry entry declares a local `x-awaits` or
-`x-request.ask` already joins the page's Ask list and keeps its
-thread in "Waiting on you" while that Ask stands. Leaf refuses `--awaits`
-beside such markup; the widget's state or request lifecycle is the one reading.
+`x-request.ask` already joins the page's Ask list and keeps its thread "On you"
+while that Ask stands. Leaf refuses `--awaits` beside such markup; the widget's
+state or request lifecycle is the one reading.
 
 Correct one of this session's sent messages without adding another turn:
 

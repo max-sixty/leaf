@@ -997,7 +997,16 @@ def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve)
     moment it happened to be written."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
-    whole = panel_comment(d, "The middle third is too long.")
+    whole = events_model.append_event(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "about": "layer",
+            "text": "The middle third is too long.",
+        },
+    )["id"]
     merge = panel_comment(d, "Answer this one first.", {"section": "merge-both"})
     cap = panel_comment(d, "Is forty enough?", {"section": "how-cap"})
     lede = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
@@ -1015,6 +1024,13 @@ def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve)
         "§ About the page as a whole",
         whole,
     ], "the panel is not reading in the page's order"
+
+    # A layer comment about the page as a whole has an address to show but no passage
+    # to return to. It is a static label, not a broken anchored-thread control.
+    whole_label = page.locator(f'.lf-thread[data-id="{whole}"] .lf-quote')
+    expect(whole_label).to_have_text("layer · the page")
+    expect(whole_label).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(whole_label).not_to_have_attribute("role", "button")
 
     expect(page.locator(f'.lf-thread[data-id="{lede}"] textarea')).to_have_attribute(
         "placeholder", "Reply"
@@ -1391,6 +1407,10 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
     expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
     expect(page.locator(".lf-panel-title")).to_have_text("Threads")
+    expect(page.locator(".lf-needs")).to_be_disabled()
+    expect(page.locator(".lf-needs")).to_have_attribute(
+        "title", "Nothing is waiting on you"
+    )
 
     assert errors == []
     page.close()
@@ -1694,7 +1714,7 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
     roots = {
         event["anchor"]["section"]: event["id"]
         for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment" and "token" not in event
+        if event["kind"] == "comment" and "token" not in event and event.get("anchor")
     }
     root = roots["bg-resolved-text" if kind == "unresolve" else "bg-thread-text"]
     thread = page.locator(f'.lf-thread[data-id="{root}"]')

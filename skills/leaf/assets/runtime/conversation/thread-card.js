@@ -88,12 +88,11 @@ export function threadNode(t, grow) {
   if (label) {
     const quote = el("blockquote", "lf-quote");
     quote.append(el("span", "lf-quote-label", label));
-    quote.tabIndex = 0;
-    quote.setAttribute("role", "button");
-    // The quote is words and a press at once: it says which passage the comment is
-    // about, and pressing it travels there. A drag across it is the reader taking the
-    // words, so the travel stands down — the reading `offer` makes of its own
-    // controls, which this is not one of.
+    // An anchored label is words and a press at once: it says which passage the
+    // comment is about, and pressing it travels there. A page-wide layer label has no
+    // destination, so paintThreadQuotes leaves it as static words. A drag across an
+    // anchored label is the reader taking the words, so the travel stands down — the
+    // reading `offer` makes of its own controls, which this is not one of.
     quote.onclick = (ev) => {
       if (ev.detail !== 0 && reachedForWords(quote)) return;
       // A covering sheet should spend itself only on a real return. `detached` cannot
@@ -204,12 +203,23 @@ export function paintThreadQuotes() {
     if (!quote) continue;
     const label = quote.querySelector(":scope > .lf-quote-label");
     if (said && label.textContent !== said) label.textContent = said;
-    const outdated = placedAt(div.dataset.id)?.status === "outdated";
+    const anchored = Boolean(thread.anchor);
+    const outdated = anchored && placedAt(div.dataset.id)?.status === "outdated";
     let status = quote.querySelector(":scope > .lf-anchor-status");
     if (outdated && !status) {
       status = el("span", "lf-anchor-status", "Outdated");
       quote.append(status);
     } else if (!outdated) status?.remove();
+    if (!anchored) {
+      quote.classList.remove("detached");
+      quote.removeAttribute("aria-disabled");
+      quote.removeAttribute("role");
+      quote.removeAttribute("tabindex");
+      quote.removeAttribute("title");
+      continue;
+    }
+    quote.tabIndex = 0;
+    quote.setAttribute("role", "button");
     // Resolved threads deliberately carry no mark, but retain the placement their
     // folded quote can return to. One reading owns visual, assistive, keyboard, and
     // pointer availability so the same quote never becomes a pointer-only action.

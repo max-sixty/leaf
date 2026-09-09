@@ -166,7 +166,9 @@ export function paintNarrowing(threads, shown, groups = new Map()) {
   // Through the key-title seat paintCoreControls appends `w` while the panel owns it.
   stateButtons.reader.dataset.lfKeyTitle = needsYou()
     ? "Show open threads"
-    : "Show threads waiting on you";
+    : stateButtons.reader.disabled
+      ? "Nothing is waiting on you"
+      : "Show threads waiting on you";
   stateButtons.reader.title = stateButtons.reader.dataset.lfKeyTitle;
 }
 

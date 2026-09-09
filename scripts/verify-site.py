@@ -95,12 +95,14 @@ STARTUP_READING = """() => {
 # stopped.
 TURN_PATIENCE = 300
 TURN_LIMIT = 600
-# How long the page reloaded after the turn may take to present. The release pass walks
-# pages the edge serves, which present in about a second, and `await_presentation`'s own
-# bound is calibrated for those. This reload is answered by a container that has just run
-# a hosted model turn, whose first `/api/state` read is measured in seconds rather than
-# milliseconds and varies with what the turn did — so it gets the same patience as every
-# other read this pass makes of that container, and reports what it cost.
+# How long the page reloaded after the turn gets to reach each of its two gates. It must
+# first present; the release pass's ordinary bound is calibrated for pages the edge
+# serves in about a second, while this container-backed reload may spend ten seconds at
+# the runtime's own presentation wait. Presentation does not mean that the first state
+# read has answered, so the same patience then lets that read activate the revision the
+# agent published. If it expires, the revision check reports what the page says about
+# the read. This second wait starts after presentation, so it outlasts the runtime's
+# first-read bound and samples only after that read has ended.
 TURN_PRESENTATION = 120_000
 # The activity readings that mean a turn is on this work. A page that reads away,
 # unheld, listening, stalled or closed is not going to answer, so its wait ends at
@@ -116,6 +118,10 @@ ANSWERING = frozenset({"queued", "handling", "working"})
 GENERATION_FAILURE_REPLY = (
     "I couldn’t generate a reply just now. Please send a new message to try again."
 )
+MISSING_REPLY = (
+    "I finished without posting a reply. Please send a new message to try again."
+)
+HOST_FAILURE_REPLIES = frozenset({GENERATION_FAILURE_REPLY, MISSING_REPLY})
 TURN_ASKS = 2
 
 
@@ -516,13 +522,18 @@ def generation_failed(replies: list[dict]) -> bool:
     return any(reply["text"].strip() == GENERATION_FAILURE_REPLY for reply in replies)
 
 
+def turn_failed(replies: list[dict]) -> bool:
+    """Whether the host closed the turn with one of its failure receipts."""
+    return any(reply["text"].strip() in HOST_FAILURE_REPLIES for reply in replies)
+
+
 def deployment_answer(replies: list[dict]) -> dict | None:
-    """Return a real agent reply rather than the host's generation-failure receipt."""
+    """Return a real agent reply rather than a host-generated failure receipt."""
     return next(
         (
             reply
             for reply in replies
-            if reply["text"].strip() != GENERATION_FAILURE_REPLY
+            if reply["text"].strip() not in HOST_FAILURE_REPLIES
         ),
         None,
     )
@@ -625,7 +636,7 @@ def await_turn(
         # reading here is one a live turn can still be passing through — an interim
         # reply, a publication its answer precedes — which is why they wait out the
         # bounds below instead of ending the wait early.
-        if generation_failed(replies):
+        if turn_failed(replies):
             break
         if time.monotonic() >= deadline:
             break
@@ -765,6 +776,30 @@ def verify_agent_turn(browser, release: str) -> None:
     await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
     startup = page.evaluate(STARTUP_READING)
     presented_at = startup.get("presented", {}).get("at")
+    # Presentation no longer says the reload's first read landed: the runtime presents at
+    # its own fixed wait whether or not the container has answered, and following the
+    # agent's revision is the activation that read triggers. So the gate spends its own
+    # patience on the revision rather than sampling it the instant the page appears — a
+    # container that answers a second after the runtime stopped waiting is a reader's page
+    # arriving late, not a deployment that failed to follow the turn. This elapsed wait
+    # is the canonical reading of that post-presentation tail: a resource-timing snapshot
+    # taken when the page presents cannot see an `/api/state` request still in flight and
+    # would report zero for the case measured here. What runs this wait out is a read that
+    # never answered at all, which is the ending the banner below names.
+    followed_at = time.monotonic()
+    try:
+        page.wait_for_function(
+            "want => Number(document.querySelector('meta[name=\"lf-revision\"]')"
+            "?.content) >= want",
+            arg=published["revision"],
+            timeout=TURN_PRESENTATION,
+        )
+    except PlaywrightTimeout:
+        pass
+    followed_in = (time.monotonic() - followed_at) * 1000
+    # After the wait rather than before it: the activation this gate is reading for
+    # happens during that wait, so a page that threw on its way there would otherwise
+    # report the revision it never reached instead of the error that stopped it.
     check(not failures, f"{url} reported browser errors: {failures}")
     # Which of the two ways this can fail: a browser still standing on the built
     # document never followed the agent's revision, while one that followed it and
@@ -772,10 +807,20 @@ def verify_agent_turn(browser, release: str) -> None:
     shown = page.evaluate(
         "() => document.querySelector('meta[name=\"lf-revision\"]')?.content ?? null"
     )
+    # A page standing on the built document has two ways to get there, and the banner
+    # separates them: one whose first read answered was told revision 1 and stands under
+    # that reading's activity line, while one that presented offline was never told
+    # anything and stands under the offline line over the authored page. The gate cannot
+    # see the read, so it reports what the page says about it. A presented page always
+    # has this line — the chrome mounts it reading ‘Connecting…’ and every render
+    # replaces its words — so there is no third answer to guard for.
+    banner = page.evaluate(
+        "() => document.querySelector('.lf-status-text')?.textContent?.trim() || null"
+    )
     check(
         (shown or "").isdigit() and int(shown) >= published["revision"],
         f"{url} stands on revision {shown} rather than following the published "
-        f"{published['revision']}",
+        f"{published['revision']}, with the banner reading ‘{banner}’",
     )
     rendered = page.locator("h1").inner_text()
     check(
@@ -784,17 +829,24 @@ def verify_agent_turn(browser, release: str) -> None:
     )
     # What the turn actually did, on the green run as well as the red one: a gate whose
     # only account of a hosted agent is its own exit status leaves the next reader of a
-    # failure with nothing to compare against. The reload's cost rides along because this
-    # is the only reading anyone has of a container serving a page a hosted turn has just
-    # written to, and a number printed every deployment is what makes a drift in it
-    # visible before it becomes the next timeout.
+    # failure with nothing to compare against. This is the only reading anyone has of a
+    # container serving a page a hosted turn has just written to, and the wait above is
+    # the part of it that can still move: presentation now lands at the runtime's own
+    # fixed wait whether the container answered in three seconds or thirty, while the
+    # time past it before the first read brought the revision back is the read this step
+    # fails on. Printing that every deployment is what makes a drift in it visible
+    # before it becomes the next timeout.
+    followed = (
+        f"followed revision {published['revision']} "
+        f"{followed_in:.0f} ms after presentation"
+    )
     print(
         f"✓ hosted agent published revision {published['revision']} "
         f"and replied: {answer['text']}"
         + (
-            f"; the reloaded page presented in {presented_at:.0f} ms"
+            f"; the reloaded page presented in {presented_at:.0f} ms and {followed}"
             if presented_at is not None
-            else ""
+            else f"; the reloaded page {followed}"
         )
     )
     print(startup_line("changed page", startup))

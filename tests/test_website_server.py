@@ -1217,12 +1217,18 @@ class _DeployedPage:
     """The page the agent pass opens, reloads after its turn, and reads back."""
 
     def __init__(
-        self, heading: str, revision: int, presented_at: float, reload_ok: bool = True
+        self,
+        heading: str,
+        revision: int,
+        presented_at: float,
+        reload_ok: bool = True,
+        banner: str | None = None,
     ):
         self.heading = heading
         self.revision = revision
         self.presented_at = presented_at
         self.reload_ok = reload_ok
+        self.banner = banner
         self.init_scripts: list[str] = []
         self.presentation_waits: list[int] = []
 
@@ -1251,6 +1257,8 @@ class _DeployedPage:
             return self.presented_at
         if "lf-revision" in script:
             return str(self.revision)
+        if "lf-status-text" in script:
+            return self.banner
         return []
 
 
@@ -1350,3 +1358,56 @@ def test_the_page_a_turn_has_just_written_gets_more_than_an_edge_page_to_present
             _DeployedSite(_DeployedContainer(release, refused)), release
         )
     assert refused.presentation_waits == [30_000]
+
+
+def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
+    monkeypatch,
+):
+    """A stale revision has two causes, and the message has to separate them.
+
+    `publish-site` failed on release `5b6be522…` with `stands on revision 1 rather than
+    following the published 2` and nothing else, which reads the same whether the
+    container answered the reload's first state read with revision 1 or never answered
+    it at all. The gate cannot watch that read, but the page says which it was: an
+    answer it never got leaves the offline banner standing over the authored document.
+    """
+    release = "5b6be522" + "0" * 56
+    heading = f"Deployment {release[:8]} verified"
+    published = {"revision": 2, "url": "revisions/2.html"}
+    monkeypatch.setattr(
+        verify_site,
+        "ask_until_answered",
+        lambda *args, **kwargs: verify_site.AgentAsks(
+            verify_site.TurnReading(
+                {"active": {"revision": 2}, "activity": {"kind": "away"}},
+                published,
+                [{"kind": "reply", "text": "deployment verified"}],
+                {"kind": "reply", "text": "deployment verified"},
+            ),
+            1,
+            1,
+        ),
+    )
+
+    offline = _DeployedPage(
+        heading,
+        revision=1,
+        presented_at=11_000.0,
+        banner="Server offline — reconnecting",
+    )
+    with pytest.raises(RuntimeError) as reported:
+        verify_site.verify_agent_turn(
+            _DeployedSite(_DeployedContainer(release, offline)), release
+        )
+    assert "stands on revision 1" in str(reported.value)
+    assert "Server offline — reconnecting" in str(reported.value)
+
+    # A page whose read answered has no banner to report, and the message says only
+    # what it knows rather than trailing an empty quotation.
+    told = _DeployedPage(heading, revision=1, presented_at=1_400.0)
+    with pytest.raises(RuntimeError) as named:
+        verify_site.verify_agent_turn(
+            _DeployedSite(_DeployedContainer(release, told)), release
+        )
+    assert "stands on revision 1" in str(named.value)
+    assert "banner" not in str(named.value)

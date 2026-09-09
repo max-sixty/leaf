@@ -685,10 +685,19 @@ def verify_agent_turn(browser, release: str) -> None:
     shown = page.evaluate(
         "() => document.querySelector('meta[name=\"lf-revision\"]')?.content ?? null"
     )
+    # A page standing on the built document has two ways to get there, and the banner
+    # separates them: one whose first read answered was told revision 1, while one that
+    # presented offline was never told anything and is showing the authored page under a
+    # read that did not complete. The gate cannot see the read, so it reports what the
+    # page says about it.
+    banner = page.evaluate(
+        "() => document.querySelector('.lf-status-text')?.textContent?.trim() || null"
+    )
     check(
         (shown or "").isdigit() and int(shown) >= published["revision"],
         f"{url} stands on revision {shown} rather than following the published "
-        f"{published['revision']}",
+        f"{published['revision']}"
+        + (f", with the banner reading ‘{banner}’" if banner else ""),
     )
     rendered = page.locator("h1").inner_text()
     check(

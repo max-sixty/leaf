@@ -2500,6 +2500,49 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
         page.close()
 
 
+def test_the_state_read_bound_sits_outside_the_readings_a_container_takes(
+    browser, serve
+):
+    """The bound frees the read slot; it is not a verdict on a container that is slow.
+
+    `publish-site` deployed release `5b6be522…`, ran a hosted agent turn on it, and
+    then read the reloaded page standing on the revision from before the turn. A
+    container that has just run a turn answers its next state read in seconds rather
+    than milliseconds — measured against a live deployment at 123 ms before a turn and
+    2252-3918 ms after one — and the whole reload was measured presenting in 28.4 s.
+    A bound inside that spread does not delay such a read, it ends it: an expiry is a
+    completed offline answer, presentation waits on the first completed read, and the
+    reader who has just asked their agent for a change is shown the offline banner over
+    the page as it stood before it.
+
+    So the reading is the bound the runtime installs on its own reads, taken where it
+    takes effect. The deploy gate gives every read of that container 120 seconds, and
+    a runtime that abandons one sooner aborts answers the gate is still waiting for.
+    """
+    record_read_bounds = """
+      window.__leafReadBounds = [];
+      const native = AbortSignal.timeout.bind(AbortSignal);
+      Object.defineProperty(AbortSignal, 'timeout', {
+        value: (ms) => {
+          window.__leafReadBounds.push(ms);
+          return native(ms);
+        },
+      });
+    """
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.add_init_script(record_read_bounds)
+    try:
+        page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
+        expect(page.locator("body[data-lf-presented]")).to_have_count(1)
+        bounds = page.evaluate("() => window.__leafReadBounds")
+        assert bounds, "the page installed no bound on its state read"
+        assert min(bounds) >= 120_000, bounds
+        assert errors == []
+    finally:
+        page.close()
+
+
 def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     """The network slot ends with the read, not an unbounded package repaint."""
     page, errors = open_page(browser, serve(LONG_PAGE))

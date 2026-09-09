@@ -369,6 +369,14 @@ export const RETRY_MS = 2000;
 // on forever.
 const SILENCE_MS = 30_000;
 
-// A healthy container answers state well inside this. On expiry readState produces the
-// same offline answer as any lost request, and the shared retry clock asks again.
-const STATE_READ_TIMEOUT_MS = 10_000;
+// The bound frees the page's one read slot; it does not judge the container. So it sits
+// outside the readings a healthy one takes rather than inside them. A container that has
+// just run a hosted agent turn answers its next state read in seconds rather than
+// milliseconds, and the deploy gate gives every read of that same container 120 seconds
+// for that reason — a runtime bound an order of magnitude tighter aborts answers the
+// gate is still waiting for. What a tighter bound costs is not a delay: presentation
+// waits on the first completed read, and an expiry is a completed offline answer, so the
+// reader who has just asked their agent for a change is shown the offline banner over
+// the page as it stood before it. On expiry readState produces the same offline answer
+// as any lost request, and the shared retry clock asks again.
+const STATE_READ_TIMEOUT_MS = 120_000;

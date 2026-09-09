@@ -170,6 +170,9 @@ const humanized = (value) =>
     .replace(/[-_]+/g, " ")
     .trim();
 
+const readingRegionName = (target) =>
+  String(readingRegionFor(target)?.host.getAttribute("aria-label") ?? "").trim();
+
 function targetPath(target) {
   const root = target.getRootNode();
   // IDs and sibling paths are scoped to a shadow root. Prefix them with the host's
@@ -1138,7 +1141,7 @@ function collectEntries() {
     }
   }
 
-  return [...groups.values()]
+  const collected = [...groups.values()]
     .map((group) => {
       const items = group.items;
       const represented = new Set(
@@ -1171,6 +1174,16 @@ function collectEntries() {
       };
     })
     .sort((left, right) => comesBefore(left.target, right.target));
+  const titleCounts = new Map();
+  for (const entry of collected)
+    titleCounts.set(entry.title, (titleCounts.get(entry.title) ?? 0) + 1);
+  return collected.map((entry) => {
+    if (titleCounts.get(entry.title) === 1) return entry;
+    const region = readingRegionName(entry.target);
+    return region
+      ? { ...entry, title: trimmed(`${region} · ${entry.title}`, 72) }
+      : entry;
+  });
 }
 
 function revealTarget(target, account) {

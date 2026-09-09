@@ -91,6 +91,37 @@ COMMENT_ON_SECOND_SUGGESTION = {
     "anchor": {"section": "sug-thistle"},
 }
 
+DUPLICATE_REGION_PAGE = leaf_page(
+    "duplicate page map subjects",
+    """
+<lf-workspace id="duplicate-map-workspace">
+  <lf-split id="duplicate-map-split" direction="columns">
+    <lf-pane id="current-pane" label="Current">
+      <h2 id="current-deployment">Deployment</h2>
+      <p>The current release remains available to readers.</p>
+      <h2 id="current-summary">Summary</h2>
+      <p>The current result has one unique subject.</p>
+    </lf-pane>
+    <lf-pane id="proposed-pane" label="Proposed">
+      <h2 id="proposed-deployment">Deployment</h2>
+      <p>The proposed release remains available to readers.</p>
+    </lf-pane>
+  </lf-split>
+</lf-workspace>
+""",
+)
+
+DUPLICATE_REGION_COMMENTS = [
+    {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Check this subject.",
+        "anchor": {"section": section},
+    }
+    for section in ("current-deployment", "current-summary", "proposed-deployment")
+]
+
 
 def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     browser, serve
@@ -153,6 +184,36 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
         name: after[name] - before[name] for name in ("LayoutCount", "RecalcStyleCount")
     }
     assert all(count <= 30 for count in work.values()), work
+    assert errors == []
+    page.close()
+
+
+def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
+    browser, serve
+):
+    page, errors = open_page(
+        browser, serve(DUPLICATE_REGION_PAGE, events=DUPLICATE_REGION_COMMENTS)
+    )
+    resized(page, 390, 760)
+    page.locator(".lf-page-map-toggle").click()
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+
+    headings = sheet.get_by_role("heading", level=3)
+    expect(headings).to_have_count(3)
+    assert headings.all_inner_texts() == [
+        "Current · heading · Deployment",
+        "heading · Summary",
+        "Proposed · heading · Deployment",
+    ]
+    expect(
+        sheet.get_by_role("heading", name="Current · heading · Deployment", exact=True)
+    ).to_be_visible()
+    expect(
+        sheet.get_by_role("heading", name="Proposed · heading · Deployment", exact=True)
+    ).to_be_visible()
+    expect(
+        sheet.get_by_role("heading", name="heading · Summary", exact=True)
+    ).to_be_visible()
     assert errors == []
     page.close()
 

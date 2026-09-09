@@ -542,12 +542,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
    (version.js). Its block wash steps back so the insertion highlight can identify only
    the new text; a newly added block keeps the wash because every word is new.
 
-   The compact version label and historical deletions are generated inline. They wear
-   `.lf-ui` so comments, copies, and the next comparison keep reading the current page,
-   then inherit the document's face so the diff remains one passage rather than a piece
-   of interface laid underneath it. */
+   The compact version label stands on its own line; only the changed words join the
+   authored reading. It and the historical deletions wear `.lf-ui`, so comments, copies,
+   and the next comparison keep reading the current page. The deletion inherits the
+   document's face, keeping the diff one passage. */
 .lf-ins-block.lf-version-inline { background: transparent; box-shadow: none; }
-.lf-version-inline-label { display: inline-block; margin-inline-end: .45em;
+.lf-version-inline-label { display: block; width: max-content; margin-block-end: 3px;
   padding: 1px 5px; border: 1px solid var(--border-2); border-radius: 999px;
   background: var(--card); color: var(--muted);
   font: 500 var(--t-6)/1.2 var(--sans); letter-spacing: .02em; vertical-align: .08em; }

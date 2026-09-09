@@ -1982,6 +1982,11 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
         expect(link).to_have_css("pointer-events", "auto")
     expect(links.last).to_be_focused()
     expect(links.last).to_be_in_viewport()
+
+    resized(page, 1400, 700)
+    expect(toc).to_have_attribute("data-lf-outline", "")
+    expect(links.last).to_be_focused()
+    expect(links.last).to_be_in_viewport()
     assert errors == []
     page.close()
 

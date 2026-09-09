@@ -245,7 +245,6 @@ customElements.define(
     }
 
     #fitRows() {
-      const wasOutline = this.hasAttribute("data-lf-outline");
       this.removeAttribute("data-lf-compact");
       this.removeAttribute("data-lf-outline");
       for (const { row } of this.#sections)
@@ -294,11 +293,7 @@ customElements.define(
         this.removeAttribute("data-lf-compact");
         this.setAttribute("data-lf-outline", "");
         const focused = document.activeElement;
-        if (
-          !wasOutline &&
-          focused instanceof HTMLElement &&
-          this.#nav.contains(focused)
-        )
+        if (focused instanceof HTMLElement && this.#nav.contains(focused))
           focused.scrollIntoView({ block: "nearest" });
         return;
       }

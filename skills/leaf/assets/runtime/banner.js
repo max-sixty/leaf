@@ -317,7 +317,42 @@ function statusWords({
 // is measured with the rest.
 let publication = null;
 
+// The public website support handle is available on demand with the banner's other
+// low-frequency addresses. It does not compete with the page's live status sentence.
+let sessionReferenceElement = null;
+let sessionReferenceLabel = "";
+function renderSessionReference() {
+  const reference = runtime.sessionReference;
+  if (!reference) return;
+  sessionReferenceLabel = `Session ${reference}`;
+  if (!sessionReferenceElement) {
+    sessionReferenceElement = el(
+      "button",
+      "lf-btn lf-session-reference",
+      sessionReferenceLabel,
+    );
+    sessionReferenceElement.type = "button";
+    sessionReferenceElement.dataset.lfAlwaysFold = "1";
+    sessionReferenceElement.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(runtime.sessionReference);
+        notice("Copied session reference");
+      } catch (_error) {
+        notice("Couldn't copy session reference");
+      }
+    });
+    arrangeBannerControls();
+  }
+  sessionReferenceElement.textContent = sessionReferenceLabel;
+  sessionReferenceElement.setAttribute(
+    "aria-label",
+    `${sessionReferenceLabel} · copy reference`,
+  );
+  sessionReferenceElement.title = `${sessionReferenceLabel} · copy reference`;
+}
+
 function renderStatusNow(state) {
+  renderSessionReference();
   if (state instanceof Error) {
     showStatus("broken", "offline", BROKEN_LINE);
     return;
@@ -522,8 +557,9 @@ export const isSignoffDeclared = () => signoffDeclared;
 // narrow window changes now is how many of these addresses stand on the row at once; the
 // rest fold into the row's own menu, in this same order (`foldShelf`).
 //
-// A developer preview's identity stands first in the complete address order and always
-// behind its door. It is absent on a reader's page (renderPreview).
+// Low-frequency identifiers stand first in the complete address order and always behind
+// its door. A checkout appears only in a developer preview; a session reference appears
+// only on the public website.
 //
 // This is DOM order rather than CSS `order`, so the tab route says the same thing the row
 // draws. Reordering existing nodes can briefly drop native focus; put it back without
@@ -531,7 +567,13 @@ export const isSignoffDeclared = () => signoffDeclared;
 // the reader was standing on.
 function arrangeBannerControls() {
   const focused = document.activeElement;
-  const edges = new Set([toggleBtn, approveBtn, othersBtn, previewMarginElement]);
+  const edges = new Set([
+    toggleBtn,
+    approveBtn,
+    othersBtn,
+    sessionReferenceElement,
+    previewMarginElement,
+  ]);
   // Registry-declared blanket answers can join the middle of this row after boot, and a
   // folded address is still on it. Preserve every such control in its standing relative
   // order while moving only the edge-owned addresses.
@@ -539,6 +581,7 @@ function arrangeBannerControls() {
     (control) => control !== overflowBtn && !edges.has(control),
   );
   const controls = [
+    ...(sessionReferenceElement ? [sessionReferenceElement] : []),
     ...(previewMarginElement ? [previewMarginElement] : []),
     othersBtn,
     ...middle,
@@ -605,9 +648,19 @@ let coveringRow = null;
 const covering = () => (coveringRow ??= matchMedia(COVERING));
 // The breakpoint the reservations were last measured at, so a crossing renews them.
 let reservedCovering = null;
+let reserveAfterMenuCloses = false;
 export function reserveBannerControls() {
+  // The shelf is a stable reading while it stands open. A breakpoint can cross under
+  // it, but measuring requires moving every address back onto the row; defer that move
+  // until the reader closes the shelf, then renew before its next opening.
+  if (overflowMenu.matches(":popover-open")) {
+    reserveAfterMenuCloses = true;
+    return;
+  }
   unfoldShelf();
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
+  if (sessionReferenceElement)
+    reserve(sessionReferenceElement, [sessionReferenceLabel]);
   if (previewMarginElement) reserve(previewMarginElement, previewLabels);
   // News keeps one readable address while it changes words. The row folds rather than
   // clips, so no control has to collapse into an illegible pressure release.
@@ -627,6 +680,11 @@ export function reserveBannerControls() {
   foldShelf();
   reservedCovering = covering().matches;
 }
+overflowMenu.addEventListener("toggle", (event) => {
+  if (event.newState !== "closed" || !reserveAfterMenuCloses) return;
+  reserveAfterMenuCloses = false;
+  reserveBannerControls();
+});
 
 // The fold chrome-layout.js asks for: renew the reservations for the breakpoint the row
 // is at, then fold what the row cannot hold.

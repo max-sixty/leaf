@@ -26,6 +26,7 @@ export const runtime = {
   // is every reader of where the reader stands.
   placingChrome: false,
   reading: null,
+  sessionReference: null,
   state: null,
   restoringState: false,
   registry: {},

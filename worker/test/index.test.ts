@@ -420,6 +420,7 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
     expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(response.headers.get("Leaf-Session")).toBe("passive");
+    expect(response.headers.get("Leaf-Session-Reference")).toMatch(/^\d{12}$/);
     expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
     const state = await response.json();
     expect(state).toMatchObject({ reading: "published", release: RELEASE });
@@ -441,6 +442,7 @@ describe("product-site delivery", () => {
     );
 
     expect(response.headers.get("Leaf-Session")).toBe("passive");
+    expect(response.headers.get("Leaf-Session-Reference")).toBe("698925386266");
     // The edge names the deployed release whatever a container is running, so a
     // reader asking after a release learns nothing about one from this answer.
     expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
@@ -467,6 +469,7 @@ describe("product-site delivery", () => {
 
     expect(containerFetch).toHaveBeenCalledOnce();
     expect(response.headers.get("Leaf-Session")).toBe("active");
+    expect(response.headers.get("Leaf-Session-Reference")).toBe("610422516507");
     expect(response.headers.get("Set-Cookie")).toBe(
       "__Host-leaf-active=1; Path=/; Secure; HttpOnly; SameSite=Lax",
     );
@@ -493,6 +496,8 @@ describe("product-site delivery", () => {
       env,
     );
     const cookie = document.headers.get("Set-Cookie")!;
+    const reference = document.headers.get("Leaf-Session-Reference");
+    expect(reference).toMatch(/^\d{12}$/);
     const sessionId = /__Host-leaf-page=([0-9a-f]{32})/.exec(cookie)![1];
     const upload = () =>
       worker.fetch(
@@ -511,6 +516,7 @@ describe("product-site delivery", () => {
     expect(containerFetch).toHaveBeenCalledTimes(2);
     for (const response of responses) {
       expect(response.headers.get("Leaf-Session")).toBe("active");
+      expect(response.headers.get("Leaf-Session-Reference")).toBe(reference);
       expect(response.headers.get("Set-Cookie")).toBe(
         "__Host-leaf-active=1; Path=/; Secure; HttpOnly; SameSite=Lax",
       );
@@ -710,6 +716,7 @@ describe("website event analytics", () => {
         "action",
         "choose",
         RELEASE,
+        "663359381809",
       ],
       doubles: [2, 0],
     });
@@ -836,6 +843,7 @@ describe("website page agent", () => {
     "starts one durable workflow for an accepted %s-page event that needs a reply",
     async (_kind, pathname, route) => {
       const sessionId = "01".repeat(16);
+      const sessionReference = "911497130241";
       const eventId = "02".repeat(16);
       const attempt = "reader-attempt-01";
       const containerFetch = vi.fn(async () =>
@@ -850,7 +858,9 @@ describe("website page agent", () => {
       vi.mocked(getContainer).mockReturnValue({
         fetch: containerFetch,
       } as never);
-      const create = vi.fn(async () => ({ id: `reply-${sessionId}-${eventId}` }));
+      const create = vi.fn(async () => ({
+        id: `reply-${sessionReference}-${eventId}`,
+      }));
       const env = environment({
         AGENT_WORKFLOW: { create } as unknown as Workflow,
       });
@@ -871,11 +881,11 @@ describe("website page agent", () => {
       expect(response.status).toBe(200);
       expect(env.WEBSITE_EVENTS.writeDataPoint).toHaveBeenCalledWith({
         indexes: [eventId],
-        blobs: [route, _kind, "comment", null, RELEASE],
+        blobs: [route, _kind, "comment", null, RELEASE, sessionReference],
         doubles: [1, 1],
       });
       expect(create).toHaveBeenCalledWith({
-        id: `reply-${sessionId}-${eventId}`,
+        id: `reply-${sessionReference}-${eventId}`,
         params: {
           sessionId,
           route,

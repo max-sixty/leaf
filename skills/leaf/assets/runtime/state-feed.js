@@ -47,6 +47,7 @@ import { prepareActivation } from "./version.js";
 async function readState() {
   countTraffic("asked");
   try {
+    const signal = globalThis.AbortSignal.timeout(STATE_READ_TIMEOUT_MS);
     let res;
     try {
       const revision = runtime.currentRevision;
@@ -56,6 +57,9 @@ async function readState() {
             "Leaf-View-Revision": String(revision),
           }),
         }),
+        // Coalescing bounds concurrency; this bounds its other dimension. A proxy that
+        // never answers cannot own the page's single read slot forever.
+        signal,
       });
     } catch {
       // Network absence is a completed answer: there is no log to replay, so the
@@ -70,7 +74,12 @@ async function readState() {
     // at 403. A live server refusing the key and a dead one both leave the page
     // unreachable from here, and the terminal link is the recourse for both.
     if (!res?.ok) return null;
-    return await res.json();
+    try {
+      return await res.json();
+    } catch (error) {
+      if (signal.aborted) return null;
+      throw error;
+    }
   } finally {
     // Heard once the read has ended whichever way: the body in hand, or nothing.
     countTraffic("heard");
@@ -175,18 +184,21 @@ export function startFeed(present, initialRead = beginRead()) {
       renderStatus(error);
     }
   };
-  // What the page does when the stream says it has moved. Every wake-up is a read of
-  // its own, and reads may overlap: one held by a slow proxy while the next answers
-  // is the case receiveState orders by sequence, revision and stamp, and a gate that let
-  // one read out at a time would have made a held read a held page. Application is
-  // deliberately not awaited — see readState — and a fault applying one answer is
-  // reported and does not stop the next from arriving. Presentation is chained onto
-  // the application rather than onto the read, because it is a fact about applied
-  // state: a page whose first answer did not present must still present on a later
-  // one. An answer with nothing in it — an unreachable server, a refused key, a layer
-  // that has moved on and is reloading — still presents, since the authored page under
-  // an unreachable server is a page, and saying so is the banner's job.
-  const ask = async () => {
+  // What the page does when the stream says it has moved. State application remains
+  // independent — see readState — but the network side admits only one read at a time.
+  // status.json can move several times while a container is still answering the first
+  // read; those wake-ups mean "read again afterwards", not "open another socket". One
+  // trailing read therefore absorbs the whole burst and keeps reads from queueing behind
+  // the page transaction they are trying to observe.
+  //
+  // Presentation is chained onto application because it is a fact about applied state:
+  // a page whose first answer did not present must still present on a later one. An
+  // answer with nothing in it — an unreachable server, a refused key, a layer that has
+  // moved on and is reloading — still presents, since the authored page under an
+  // unreachable server is a page, and saying so is the banner's job.
+  let reading = false;
+  let readQueued = false;
+  const askOnce = async () => {
     try {
       const state = await readState();
       if (state)
@@ -208,14 +220,32 @@ export function startFeed(present, initialRead = beginRead()) {
             reportPageError(`presentation failed: ${error?.message ?? error}`);
           });
       else {
-        await readNothing();
-        await present();
+        void readNothing()
+          .then(present)
+          .catch((error) => {
+            readAnswered = false;
+            reportPageError(`read failed: ${error?.message ?? error}`);
+            renderStatus(error);
+          });
       }
     } catch (error) {
       readAnswered = false;
       reportPageError(`read failed: ${error?.message ?? error}`);
       renderStatus(error);
     }
+  };
+  const ask = () => {
+    if (reading) {
+      readQueued = true;
+      return;
+    }
+    reading = true;
+    void askOnce().finally(() => {
+      reading = false;
+      if (!readQueued) return;
+      readQueued = false;
+      ask();
+    });
   };
   // The page's ear: one stream per visible interval, on which the server names the
   // page's reading each time it changes, and again every five seconds whether or
@@ -338,3 +368,7 @@ export const RETRY_MS = 2000;
 // which is the one failure the browser cannot see for itself and would otherwise wait
 // on forever.
 const SILENCE_MS = 30_000;
+
+// A healthy container answers state well inside this. On expiry readState produces the
+// same offline answer as any lost request, and the shared retry clock asks again.
+const STATE_READ_TIMEOUT_MS = 10_000;

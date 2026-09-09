@@ -529,7 +529,7 @@ const BACK_OUT = {
   line: () => rung()?.says,
   // Search repeat is the useful contextual hint after Enter accepts the first result.
   // Escape remains live and stays in the complete reference without occupying that slot.
-  lineWhen: () => !threadSearchActive(),
+  lineWhen: () => !threadSearchActive() || !inPanel(),
   // Clearing a captured target is still available, but c and r are the two actions on the
   // thing the reader just chose. Keep both on the short line and leave this row in the full
   // reference until the target is gone.
@@ -1234,7 +1234,7 @@ export function pageScopes() {
         returnFrame: () => ({
           active: () =>
             panelIsOpen() && (findInput === documentFocused() || narrowed()),
-          lineWhen: () => !threadSearchActive(),
+          lineWhen: () => !threadSearchActive() || !inPanel(),
           close: () => {
             if (widen()) return false;
             findInput.blur();
@@ -1314,7 +1314,10 @@ export function pageScopes() {
         ],
         does: "Next / previous open thread",
         line: "threads",
-        when: hasThreads,
+        // Once textual search owns the panel, n/N are the canonical walk there. Keep
+        // t/T as the page's open-thread walk without leaving two spellings for the same
+        // panel action.
+        when: () => hasThreads() && !(threadSearchActive() && inPanel()),
         repeat: true,
         run: (binding) => stepThread(binding === "t" ? 1 : -1),
       },

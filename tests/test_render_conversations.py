@@ -1254,10 +1254,20 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     search_line = shortcut_bar_text(page)
     assert re.search(r"n / N\s*search matches", search_line), search_line
     assert "show all" not in search_line
+    # Search has one canonical walk in this scope; the page-level thread walk stands
+    # down rather than leaving t/T as aliases for the same two movements.
+    page.keyboard.press("t")
+    expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_be_focused()
     page.keyboard.press("n")
     expect(page.locator(f'.lf-thread[data-id="{cap}"]')).to_be_focused()
     page.keyboard.press("Shift+n")
     expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_be_focused()
+    # Leaving the panel leaves n/N's scope. Escape becomes the useful compact action
+    # again because the narrowing still stands and can be cleared from the page.
+    page.locator("#how-store").click()
+    assert re.search(r"esc\s*show all", shortcut_bar_text(page))
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(3)
     page.fill(".lf-find-box", "merge rule")
 
     # Asked for a thread the narrowing hides, the panel shows it rather than nothing:

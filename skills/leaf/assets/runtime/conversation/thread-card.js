@@ -203,6 +203,10 @@ export function paintThreadQuotes() {
     if (!quote) continue;
     const label = quote.querySelector(":scope > .lf-quote-label");
     if (said && label.textContent !== said) label.textContent = said;
+    // A pending card can keep its browser-minted id for the one reconciliation that
+    // adopts the server's event. Its already-painted quote remains valid until that
+    // pass renames or removes the card; there is no current thread to repaint it from.
+    if (!thread) continue;
     const anchored = Boolean(thread.anchor);
     const outdated = anchored && placedAt(div.dataset.id)?.status === "outdated";
     let status = quote.querySelector(":scope > .lf-anchor-status");

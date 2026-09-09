@@ -1913,6 +1913,42 @@ def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
     page.close()
 
 
+def test_co_located_headings_share_the_current_title_and_lens_position(browser, serve):
+    """The last title at one document position owns both readings of that position."""
+    source = leaf_page(
+        "co-located contents destinations",
+        """
+<h1>A migration with a shared handoff point</h1>
+<aside class="sidebar"><lf-toc id="shared-contents"></lf-toc></aside>
+<div style="height: 500px"></div>
+<section style="position: relative; height: 120px">
+  <h2 id="handoff" style="position: absolute; top: 0; margin: 0">Handoff</h2>
+  <h3 id="checks" style="position: absolute; top: 0; margin: 0">Checks at handoff</h3>
+</section>
+<div style="height: 1200px"></div>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1400, 900)
+    nav = page.get_by_role("navigation", name="On this page")
+    handoff = nav.get_by_role("link", name="Handoff", exact=True)
+    checks = nav.get_by_role("link", name="Checks at handoff", exact=True)
+
+    assert handoff.bounding_box()["y"] < checks.bounding_box()["y"]
+    page.locator("#checks").evaluate(
+        "node => node.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    expect(checks).to_have_attribute("aria-current", "location")
+    alignment = checks.evaluate(
+        "node => ({label: node.getBoundingClientRect().top, "
+        "lens: node.closest('nav').querySelector('.lf-toc-window')"
+        ".getBoundingClientRect().top})"
+    )
+    assert alignment["lens"] == pytest.approx(alignment["label"], abs=2), alignment
+    assert errors == []
+    page.close()
+
+
 def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
     """A route that cannot physically fit keeps every heading in one honest form."""
     sections = "\n".join(

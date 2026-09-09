@@ -341,11 +341,16 @@ customElements.define(
     }
 
     #mapPosition(position) {
-      const anchors = this.#positions.flatMap((documentPosition, index) =>
-        this.#shown[index] && Number.isFinite(this.#mapPositions[index])
-          ? [{ documentPosition, mapPosition: this.#mapPositions[index] }]
-          : [],
-      );
+      const anchors = [];
+      this.#positions.forEach((documentPosition, index) => {
+        if (!this.#shown[index] || !Number.isFinite(this.#mapPositions[index])) return;
+        const anchor = { documentPosition, mapPosition: this.#mapPositions[index] };
+        // Several outline entries can name the same rendered position. Current-section
+        // selection walks forward through that run, so the lens must use its last entry
+        // too; retaining the first put the lens beside a different title.
+        if (anchors.at(-1)?.documentPosition === documentPosition) anchors.pop();
+        anchors.push(anchor);
+      });
       if (!anchors.length) {
         const total = Math.max(1, this.#contentEnd - this.#contentStart);
         return (

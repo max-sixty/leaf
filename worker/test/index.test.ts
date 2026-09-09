@@ -430,12 +430,20 @@ describe("product-site delivery", () => {
     const sessionId = "1a".repeat(16);
     const response = await worker.fetch(
       new Request("https://leaf.page/examples/design-decision/api/state", {
-        headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+        headers: {
+          Cookie: `__Host-leaf-page=${sessionId}`,
+          // A release the edge is not serving, so the answer below tells a stamp
+          // of the deployed release apart from an echo of the request.
+          "Leaf-Release": "b".repeat(64),
+        },
       }),
       environment(),
     );
 
     expect(response.headers.get("Leaf-Session")).toBe("passive");
+    // The edge names the deployed release whatever a container is running, so a
+    // reader asking after a release learns nothing about one from this answer.
+    expect(response.headers.get("Leaf-Release")).toBe(RELEASE);
     expect(getContainer).not.toHaveBeenCalled();
   });
 

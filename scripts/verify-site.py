@@ -8,11 +8,12 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 from urllib.parse import urlencode, urljoin, urlsplit
 
 from leaf.render_gate.browser import launch_browser
+from playwright.sync_api import BrowserContext, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
-from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
@@ -63,6 +64,17 @@ PROFILE_SCRIPT = """(() => {
   });
   record();
 })()"""
+
+
+class AgentSession(NamedTuple):
+    """One reader session bound to a container serving the requested release."""
+
+    context: BrowserContext
+    page: Page
+    failures: list[str]
+    url: str
+    state_url: str
+    state: dict
 
 
 def check(condition: bool, message: str) -> None:
@@ -281,8 +293,10 @@ def verify_cross_tab_activation(browser) -> None:
     context.close()
 
 
-def verify_agent_turn(browser, release: str) -> None:
-    """Require one deployed Codex turn to revise and answer a private page."""
+def reader_session(
+    browser, url: str, state_url: str, release: str
+) -> AgentSession | str:
+    """One activated reader session, or the release its container served instead."""
     context = browser.new_context()
     page = context.new_page()
     failures: list[str] = []
@@ -293,15 +307,76 @@ def verify_agent_turn(browser, release: str) -> None:
         ),
     )
     page.on("pageerror", lambda error: failures.append(str(error)))
-    url = f"{ORIGIN}/examples/design-decision/"
     response = page.goto(url, wait_until="load", timeout=120_000)
     check(response is not None and response.ok, f"{url} did not load for its agent")
     await_presentation(page, url, failures)
-    state_url = urljoin(url, "api/state")
-    state_response = context.request.get(state_url, timeout=120_000)
+    passive = context.request.get(state_url, timeout=120_000)
+    check(passive.ok, f"{state_url} returned {passive.status}")
+    activation = activation_url(url, passive.json())
+    activated = context.request.get(activation, timeout=120_000)
+    check(activated.ok, f"{activation} returned {activated.status}")
+    check(
+        activated.headers.get("leaf-session") == "active",
+        f"{activation} did not activate a private container for its agent",
+    )
+    state_response = context.request.get(
+        state_url,
+        headers={"Leaf-Release": release},
+        timeout=120_000,
+    )
     check(state_response.ok, f"{state_url} returned {state_response.status}")
-    state = state_response.json()
+    # The edge answers a passive `api/state` with the deployed release whatever the
+    # containers run, so the release below reads as this container's own only once
+    # the session is known to have left the edge.
+    check(
+        state_response.headers.get("leaf-session") == "active",
+        f"{state_url} did not reach a private container for its agent",
+    )
+    reached = state_response.headers.get("leaf-release")
+    if reached != release:
+        context.close()
+        return reached or "no release"
+    return AgentSession(context, page, failures, url, state_url, state_response.json())
+
+
+def agent_session(browser, release: str) -> AgentSession:
+    """Open one reader session whose private container is serving `release`.
+
+    The Worker keys a container on the reader session alone, so a session that lands
+    on a draining allocation stays on that image for its whole life; only a fresh
+    session can reach a different one. The page checks answer for their own sessions
+    rather than for this one, and the edge answers a passive `api/state` out of the
+    built site whatever the containers are running — so neither establishes the
+    container that has to admit this turn's comment. This does, by activating a
+    session and reading the release back out of an answer the container itself gave,
+    and it takes a fresh session while a rollout drains. Nothing here writes: the
+    turn is posted once, afterwards.
+    """
+    url = f"{ORIGIN}/examples/design-decision/"
+    state_url = urljoin(url, "api/state")
+    # The release verification ahead of this pass already waited out most of the
+    # rollout, so this is the tail of a drain rather than the drain, and the step's
+    # own budget still has to hold the turn's five minutes inside the job's thirty.
+    deadline = time.monotonic() + 180
+    while True:
+        session = reader_session(browser, url, state_url, release)
+        if isinstance(session, AgentSession):
+            return session
+        check(
+            time.monotonic() < deadline,
+            f"{url} reached no container serving release {release[:8]} for its "
+            f"agent; the last allocation served {session[:8]}",
+        )
+        time.sleep(10)
+
+
+def verify_agent_turn(browser, release: str) -> None:
+    """Require one deployed Codex turn to revise and answer a private page."""
+    context, page, failures, url, state_url, state = agent_session(browser, release)
     initial_revision = state["active"]["revision"]
+    # The layer the comment is posted under is the one its own container holds, not
+    # the one the edge describes: an event whose layer the container does not speak
+    # is answered with that container's generation instead of a state.
     layer = state["layer"]["generation"]
     heading = f"Deployment {release[:8]} verified"
     attempt = f"deployment-{release[:24]}"
@@ -321,6 +396,10 @@ def verify_agent_turn(browser, release: str) -> None:
     )
     check(posted.ok, f"{url} rejected its deployment-check comment")
     accepted = posted.json()
+    check(
+        "state" in accepted,
+        f"{url} answered its deployment-check comment without admitting it: {accepted}",
+    )
     comment = next(
         (
             event

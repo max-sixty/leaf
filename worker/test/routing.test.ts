@@ -13,7 +13,7 @@ import {
   containerCookie,
   containerFromCookie,
   isPageApiRequest,
-  isPageMediaRequest,
+  isPageSessionFileRequest,
   isPrivatePageRequest,
   needsPageSlash,
   newSessionId,
@@ -46,9 +46,18 @@ describe("website page routing", () => {
     expect(isPageApiRequest(route("/examples/api/state"))).toBe(true);
     expect(isPageApiRequest(route("/examples/design-decision/api/state"))).toBe(true);
     expect(isPageApiRequest(route("/examples/design-decision/runtime/state-feed.js"))).toBe(false);
-    expect(isPageMediaRequest(route("/media/upload.png"))).toBe(true);
-    expect(isPageMediaRequest(route("/examples/design-decision/media/upload.png"))).toBe(true);
-    expect(isPageMediaRequest(route("/examples/design-decision/theme.css"))).toBe(false);
+    expect(isPageSessionFileRequest(route("/media/upload.png"))).toBe(true);
+    expect(
+      isPageSessionFileRequest(
+        route("/examples/design-decision/revisions/r3-aabbccdd.html"),
+      ),
+    ).toBe(true);
+    expect(
+      isPageSessionFileRequest(route("/examples/design-decision/versions/v3.html")),
+    ).toBe(true);
+    expect(
+      isPageSessionFileRequest(route("/examples/design-decision/theme.css")),
+    ).toBe(false);
     expect(route("/examples.html")).toBeNull();
     expect(route("/examples/missing/")).toBeNull();
     expect(needsPageSlash("/packages", route("/packages")!)).toBe(true);

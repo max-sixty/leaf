@@ -19,6 +19,7 @@ interface DeploymentConfig {
     name: string;
     simple: { limit: number; period: number };
   }>;
+  secrets: { required: string[] };
 }
 
 const config = parse(
@@ -32,6 +33,10 @@ const dockerfile = readFileSync(
 const codexConfig = parse(
   readFileSync(new URL("../codex-config.toml", import.meta.url), "utf8"),
 ) as Record<string, unknown>;
+const workerSource = readFileSync(
+  new URL("../src/index.ts", import.meta.url),
+  "utf8",
+);
 const packageManifest = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ) as { dependencies: Record<string, string> };
@@ -71,11 +76,17 @@ describe("deployment configuration", () => {
   });
 
   it("keeps the model's shell from inheriting the OpenAI credential", () => {
+    expect(config.secrets.required).toEqual(["OPENAI_API_KEY"]);
     expect(codexConfig).toMatchObject({
       shell_environment_policy: {
         inherit: "all",
         exclude: ["OPENAI_API_KEY"],
       },
     });
+  });
+
+  it("registers the outbound handler through Cloudflare's inherited setter", () => {
+    expect(workerSource).toContain("LeafWebsiteSession.outboundByHost = {");
+    expect(workerSource).not.toContain("static outboundByHost = {");
   });
 });

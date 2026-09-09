@@ -36,7 +36,8 @@ rules a new or changed example has to meet.
   own account of the page that stopped it. Pull requests run it for review evidence.
   `.github/workflows/publish-site.yaml` deploys both halves for relevant pushes to
   `main`; it runs the local check before the first public operation, then verifies the
-  exact release again after deployment.
+  exact release again after deployment. That production pass also sends one private
+  comment and requires the hosted Codex task to publish a revision and reply.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws the Leaf
   screenshots that demo uses. Keep the latter while the product can make those frames
   stale.

@@ -136,7 +136,11 @@ creates the next delivery and resumes the same task. The resumed task's App Serv
 status is the turn boundary: any task that is not active closes the preceding Leaf claim
 turn before the delivery opens its next one, while an active task preserves the current
 Leaf claim turn because App Server treats the additional `turn/start` input as steering
-for that turn. This is a
+for that turn. A host that owns the starting connection also observes the terminal
+notification. It closes only the matching Leaf claim turn and settles the exact
+accepted response obligations the model left behind; a failed or interrupted turn gets
+a failure reply, while a completed turn with no reply gets an explicit empty-result
+receipt. This is a
 different host transport over the same page claim, event log, delivery payload, and
 activity projection, not another conversation store.
 

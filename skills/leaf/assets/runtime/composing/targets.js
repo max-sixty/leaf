@@ -24,7 +24,7 @@ import { focused, paintHere } from "../keyboard/scopes.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "../keyboard/hints.js";
 import { keySequence, progressStates } from "../keyboard/presentation.js";
 import { announce } from "../notifications.js";
-import { beginWalk, listWalkPosition } from "../walk-position.js";
+import { beginWalk, listWalkPosition, walkPosition } from "../walk-position.js";
 import { commentOnTarget, updateFab } from "./surface.js";
 import { allButTheReference, hasCapturedTarget } from "../keyboard/page.js";
 
@@ -366,17 +366,31 @@ function matchIdentity(query, segments) {
   return `${query}\u0000${parts.join(",")}`;
 }
 
-function matchWalkPosition(query, current) {
-  if (!query || !current) return null;
-  const live = findText(pageText(), query);
-  const index = live.findIndex((candidate) => sameMatch(candidate, current));
-  if (index < 0) return null;
+function matchWalkPosition(query) {
+  if (!query || active < 0 || active >= matches.length) return null;
   return {
-    target: matchIdentity(query, current),
-    position: index + 1,
-    total: live.length,
+    target: matchIdentity(query, matches[active]),
+    position: active + 1,
+    total: matches.length,
     qualifier: "",
   };
+}
+
+// Page text is the one walk source too expensive to rebuild on every chrome paint.
+// `lf-actions` is the runtime's broad source invalidation, so refresh only while this
+// owner is standing; the read handed to the shared walk remains a cheap cached lookup.
+function refreshMatchWalk() {
+  if (walkPosition()?.kind !== "page-search") return;
+  const query = searching ? selectionInput.value.trim() : repeatedSearch?.query;
+  const current = matches[active];
+  if (!query || !current) return;
+  const found = findText(pageText(), query);
+  const same = found.findIndex((candidate) => sameMatch(candidate, current));
+  active = same >= 0 ? same : found.length ? Math.min(active, found.length - 1) : -1;
+  matches = found;
+  if (repeatedSearch && !searching && active >= 0) repeatedSearch.index = active;
+  if (searching) syncStatus();
+  paintHere();
 }
 
 function search() {
@@ -400,8 +414,7 @@ function moveMatch(direction) {
   syncStatus();
   showMatch();
   const query = selectionInput.value.trim();
-  const current = matches[active];
-  beginWalk("page-search", "Match", () => matchWalkPosition(query, current));
+  beginWalk("page-search", "Match", () => matchWalkPosition(query));
   announce(
     `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
   );
@@ -493,8 +506,7 @@ function repeatSearch(direction) {
   showMatch();
   selectMatch(matches[active]);
   const query = repeatedSearch.query;
-  const current = matches[active];
-  beginWalk("page-search", "Match", () => matchWalkPosition(query, current));
+  beginWalk("page-search", "Match", () => matchWalkPosition(query));
   announce(
     `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
   );
@@ -615,6 +627,7 @@ addEventListener("resize", () => {
   scrolling = false;
   paintHere();
 });
+document.addEventListener("lf-actions", refreshMatchWalk);
 
 export const PAGE_SEARCH = {
   id: "page.search.open",

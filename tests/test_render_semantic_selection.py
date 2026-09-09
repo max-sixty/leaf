@@ -491,22 +491,21 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
           extra.id = 'late-search-match';
           extra.textContent = 'Another button the key occurrence.';
           document.querySelector('main').append(extra);
-          const {paintHere} = await import('/runtime/keyboard/scopes.js');
-          paintHere();
+          document.dispatchEvent(new Event('lf-actions'));
         }"""
     )
     expect(page.locator(".lf-walk-position")).to_have_text("Match 1 of 2")
     page.evaluate(
         """async () => {
           document.querySelector('#late-search-match').remove();
-          const {paintHere} = await import('/runtime/keyboard/scopes.js');
-          paintHere();
+          document.dispatchEvent(new Event('lf-actions'));
         }"""
     )
     expect(page.locator(".lf-walk-position")).to_have_text("Match 1 of 1")
 
     page.keyboard.press("Enter")
     expect(page.locator(".lf-target-search")).to_be_hidden()
+    expect(page.locator(".lf-walk-position")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate("() => getSelection().toString()") == "button the key"

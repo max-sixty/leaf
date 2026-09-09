@@ -22,7 +22,6 @@ import shutil
 import threading
 import time
 import urllib.request
-from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -32,7 +31,7 @@ from leaf import hosting as hosting_model
 from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
-from leaf.structure import VOID_TAGS
+from leaf.structure import parse_structure
 from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -91,51 +90,25 @@ def authored_examples():
     return authored
 
 
-class MainChildren(HTMLParser):
-    """The element children an example authors directly under `main`.
-
-    This is the reading `syncRootWorkspace` takes: a workspace is the page's root
-    only while it is the single element `main` holds. Asked of the source, it says
-    which examples the site note can cost that allocation by landing beside them.
-    """
-
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.tags = []
-        self.depth = 0
-        self.inside = False
-        self.closed = False
-
-    def handle_starttag(self, tag, attrs):
-        if tag in VOID_TAGS or self.closed:
-            return
-        if not self.inside:
-            self.inside = tag == "main"
-            return
-        if self.depth == 0 and tag not in ("script", "style", "template"):
-            self.tags.append(tag)
-        self.depth += 1
-
-    def handle_endtag(self, tag):
-        if tag in VOID_TAGS or self.closed or not self.inside:
-            return
-        if self.depth == 0:
-            self.closed = True
-            return
-        self.depth -= 1
-
-
 def framed_root_examples():
     """Every example whose whole `main` is one framed task, whatever tag it uses.
 
     Derived rather than listed: the site's placement rule holds for a workspace
     root, and reading the corpus keeps a new one gated without naming its tag here.
+    The reading is `leaf.structure`'s, the one `version check` admits and the
+    browser takes, so an omitted `</p>` cannot split the two counts.
     """
     framed = []
     for page in authored_examples():
-        reader = MainChildren()
-        reader.feed(page.read_text(encoding="utf-8"))
-        if len(reader.tags) == 1:
+        parsed = parse_structure(page.read_text(encoding="utf-8"))
+        main = next(node for node in parsed.nodes if node["tag"] == "main")
+        children = [
+            child
+            for child in main["content"]
+            if isinstance(child, dict)
+            and child["tag"] not in ("script", "style", "template")
+        ]
+        if len(children) == 1:
             framed.append(page.stem)
     assert framed, "the corpus published no framed-root example to check"
     return sorted(framed)

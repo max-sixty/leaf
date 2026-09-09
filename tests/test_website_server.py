@@ -638,3 +638,21 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
         "agent": "Leaf guide",
         "install_url": "/#install",
     }
+
+
+def test_a_page_that_never_presents_names_itself_and_how_far_it_got():
+    """The site gate's own timeout says nothing; the message it raises has to.
+
+    A red `Measure the bundled release in Chrome` step carried only Playwright's
+    wait, so a reader could not tell which of the three pages stalled, nor whether
+    widget upgrade or the first state read was the one that never answered.
+    """
+    stalled = verify_site.unpresented(
+        "https://leaf.page/examples/design-decision/", ["upgraded"], []
+    )
+    assert "examples/design-decision" in stalled
+    assert "upgraded" in stalled
+
+    early = verify_site.unpresented("https://leaf.page/", [], ["widget module 404"])
+    assert "no startup milestone" in early
+    assert "widget module 404" in early

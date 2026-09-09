@@ -113,8 +113,8 @@ lf-command [data-lf-command-goal] > .lf-task-meta { grid-column: 2 / 4;
 .lf-task-meta > span, .lf-task-crew { border: 0; border-radius: var(--chip-r); padding: 1px 7px;
   background: var(--chip); color: var(--ink-2); font: inherit; font-size: var(--t-6); }
 .lf-task-crew { cursor: pointer; color: var(--accent); }
-.lf-task-held { color: var(--warn-ink) !important; background: var(--warn-tint) !important; }
-.lf-task-signal { color: var(--accent) !important; }
+.lf-task-meta > .lf-task-held { color: var(--warn-ink); background: var(--warn-tint); }
+.lf-task-meta > .lf-task-signal { color: var(--accent); }
 lf-command [data-lf-command-goal] > :not(strong):not(.lf-task-meta):not([data-lf-command-goal]):not([data-lf-command-worker]):not(.lf-conversation) {
   grid-column: 1 / -1; }
 lf-command [data-lf-command-goal] > [data-lf-command-goal],

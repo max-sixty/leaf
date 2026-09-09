@@ -4848,11 +4848,16 @@ def test_the_g_chord_reaches_a_checkbox_a_widget_built(browser, serve):
     checkbox.evaluate("node => { node.id = 'soft-wrap'; }")
 
     page.keyboard.press("g")
-    chip = page.locator(f'{CHIPS}[data-lf-address-for="soft-wrap"]')
     code = address_code(page, "Control", "soft-wrap")
-    index = chip.evaluate(
-        "node => [...node.parentElement.children]"
-        ".filter(candidate => candidate.dataset.lfAddress).indexOf(node)"
+    # The repaint replaces address chips. Resolve and measure the current chip in
+    # one browser turn rather than retaining a handle across that replacement.
+    index = page.evaluate(
+        """selector => {
+          const node = document.querySelector(selector);
+          return [...node.parentElement.children]
+            .filter(candidate => candidate.dataset.lfAddress).indexOf(node);
+        }""",
+        f'{CHIPS}[data-lf-address-for="soft-wrap"]',
     )
     assert index >= 0
     for _ in range(index + 1):

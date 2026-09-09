@@ -62,7 +62,7 @@
 import { bindings, labelOf, live, spell, word } from "./bindings.js";
 import { addressPlacement } from "./address-placement.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "./hints.js";
-import { shortcutBarEl, walkPositionEl } from "./shortcut-bar.js";
+import { bottomStatusEl, shortcutBarEl } from "./shortcut-bar.js";
 import { keySequence, progressStates } from "./presentation.js";
 import { banner, toggleBtn } from "../banner.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
@@ -80,7 +80,7 @@ import {
   workspaceState,
 } from "./page.js";
 import { fragmentId, itemSays, resolveAnchor, scrollToElement } from "../anchors.js";
-import { announce } from "../notifications.js";
+import { announce, notice } from "../notifications.js";
 import {
   closestAcross,
   containsAcross,
@@ -321,7 +321,7 @@ const TARGET_FILTERS = [
   {
     id: "margin-elements",
     key: "m",
-    word: "margin controls and status indicators",
+    word: "margin targets",
     matches: ({ kind }) => kind === MARGIN_TARGET_KIND,
   },
   {
@@ -523,12 +523,21 @@ function filterTargets(binding) {
   prefix = "";
   candidates = visibleCandidates(targetFilter);
   hintActive = -1;
-  announce(
-    candidates.length
-      ? `${candidates.length} visible ${targetFilter.word}; type a hint or press Tab to hear them.`
-      : `No visible ${targetFilter.word}.`,
-  );
+  const message = candidates.length
+    ? `${candidates.length} visible ${targetFilter.word}; type a hint or press Tab to hear them.`
+    : `No visible ${targetFilter.word}.`;
+  if (candidates.length) notice(message);
+  else announce(message);
   paintHere();
+}
+
+// An empty active filter is useful state, not a four-second event. Read the current
+// visible set so scrolling or reconciliation can add or remove this status in the same
+// paint that redraws the target map.
+export function addressStatus() {
+  if (!sequenceActive || !targetFilter || visibleCandidates(targetFilter).length)
+    return null;
+  return `No visible ${targetFilter.word}.`;
 }
 
 function activateCandidate(candidate) {
@@ -634,7 +643,7 @@ export function paintAddresses() {
   if (wasActive && activeCandidate && !drawn.has(activeCandidate)) hintActive = -1;
   const controlBoxes = paintAddressChips(controlPlaced, chips);
   spreadHints(placed, {
-    barriers: [...controlBoxes, walkPositionEl.getBoundingClientRect()],
+    barriers: [...controlBoxes, bottomStatusEl.getBoundingClientRect()],
     lineBox: shortcutBarEl.getBoundingClientRect(),
     viewportTop: banner.getBoundingClientRect().bottom,
   });

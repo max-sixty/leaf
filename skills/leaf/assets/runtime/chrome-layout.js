@@ -55,9 +55,9 @@ import { focused, paintHere } from "./keyboard/scopes.js";
 import { currentTray, reserveListClearance, showTray, traysEdge } from "./trays.js";
 import { foldBannerRow, toggleBtn } from "./banner.js";
 import {
+  bottomStatusEl,
   bottomChromeBoxes,
   shortcutBarEl,
-  walkPositionEl,
 } from "./keyboard/shortcut-bar.js";
 import { chromeRoot } from "./chrome.js";
 import { dockSeats, pageShifted, refreshHover } from "./anchors.js";
@@ -186,6 +186,10 @@ export function syncLayout() {
     "--lf-shortcut-bar-right",
     (panelBeside ? commentsEdge.width() : 0) + "px",
   );
+  bottomStatusEl.style.setProperty(
+    "--lf-shortcut-bar-right",
+    (panelBeside ? commentsEdge.width() : 0) + "px",
+  );
   // Start at the line's ordinary foot. A covering sheet lifts it only where the sheet's
   // own foot actually occupies the same pixels. The old posture-level answer lifted the
   // line by every covering footer's height even when the footer stood wholly to its
@@ -198,6 +202,17 @@ export function syncLayout() {
     // stylesheet and follows a draft as its textarea grows.
     shortcutBarEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
     line = shortcutBarEl.getBoundingClientRect();
+  }
+  // The status shares the line's baseline when each occupies its own corner. If either
+  // grows until their horizontal spans meet, stack the status above the line instead.
+  bottomStatusEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
+  let status = bottomStatusEl.getBoundingClientRect();
+  if (line.height && status.height && overlapsAcross(status, line)) {
+    bottomStatusEl.style.bottom = `${innerHeight - line.top + 7}px`;
+    status = bottomStatusEl.getBoundingClientRect();
+  } else if (panelCovers() && status.height && overlaps(status, foot)) {
+    bottomStatusEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
+    status = bottomStatusEl.getBoundingClientRect();
   }
   // What a scroll region gives up is the part of the line that stands over it: the band
   // from the line's top down to that region's own foot, plus the air above the line.
@@ -464,7 +479,7 @@ export function mountLayout() {
   layoutSizes.observe(document.body);
   layoutSizes.observe(panelFoot);
   layoutSizes.observe(shortcutBarEl);
-  layoutSizes.observe(walkPositionEl);
+  layoutSizes.observe(bottomStatusEl);
 }
 
 let shellFrame = 0;

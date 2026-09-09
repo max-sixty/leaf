@@ -142,7 +142,7 @@ function presentPage() {
   layoutMarginRows();
   landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)
-    notice(`Updated to ${runtime.currentLabel}`);
+    notice(`Updated to ${runtime.currentLabel}`, { background: true });
   openDraft(savedComposer);
   promoteDeferredModals();
   // The presented attribute and every write after it are one JavaScript task. Give

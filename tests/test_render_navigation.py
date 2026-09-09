@@ -1619,7 +1619,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
 
 
 def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
-    """t/T use page-local threads; g T promotes the focused one into the index."""
+    """t/T use page-local threads; panel search uses n/N for its found list."""
     page, errors = open_page(
         browser,
         serve(INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]),
@@ -1654,7 +1654,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_visible()
     position = page.locator(".lf-walk-position")
     page.locator(".lf-threads").focus()
-    page.keyboard.press("t")
+    page.keyboard.press("n")
     expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_focused()
     expect(position).to_have_text("Thread 1 of 1 shown")
     expect(position.locator("xpath=parent::*")).to_have_class(

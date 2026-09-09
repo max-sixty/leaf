@@ -302,6 +302,20 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch):
             ),
             json.dumps(
                 {
+                    "method": "item/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turnId": "initial-turn",
+                        "item": {
+                            "id": "message-1",
+                            "type": "agentMessage",
+                            "text": "Deployment verified.",
+                        },
+                    },
+                }
+            ),
+            json.dumps(
+                {
                     "method": "turn/completed",
                     "params": {
                         "threadId": "hosted-thread",
@@ -350,6 +364,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch):
     assert updates == [
         ("hosted-thread", "initial-turn", "Starting"),
         ("hosted-thread", "initial-turn", "Running leaf version check ."),
+        ("hosted-thread", "initial-turn", "Deployment verified."),
     ]
     assert clears == [("hosted-thread", "initial-turn")]
     assert finished == [
@@ -359,13 +374,54 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch):
             "leaf-turn",
             ("reader-event",),
             {"id": "initial-turn", "status": "completed"},
+            "Deployment verified.",
         )
     ]
     assert socket.closed
 
 
+def test_a_lost_starting_connection_settles_its_unanswered_delivery(page_dir):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    website_server.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+    [delivery] = website_server.accept_codex_delivery("hosted-thread")
+
+    class Socket:
+        closed = False
+
+        def recv(self, timeout):
+            raise OSError("connection lost")
+
+        def close(self):
+            self.closed = True
+
+    socket = Socket()
+    website_server.WebsiteCodexHost("codex")._follow_turn(
+        socket,
+        page_dir,
+        "hosted-thread",
+        "app-server-turn",
+        delivery["turn"],
+        delivery["events"],
+    )
+
+    events = read_events(page_dir)
+    assert events[-1]["kind"] == "reply"
+    assert events[-1]["parent"] == comment["id"]
+    assert events[-1]["text"] == website_server.GENERATION_FAILURE_REPLY
+    assert website_server.page_claim(page_dir)["turn_closed"] is not None
+    assert website_server.full_state(page_dir, events)["activity"]["obligations"] == []
+    assert socket.closed
+
+
 @pytest.mark.parametrize(
-    ("turn", "reply"),
+    ("turn", "final_message", "reply"),
     [
         (
             {
@@ -373,15 +429,29 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch):
                 "status": "failed",
                 "error": {"message": "model request failed"},
             },
+            None,
             website_server.GENERATION_FAILURE_REPLY,
         ),
         (
             {"id": "app-server-turn", "status": "completed", "error": None},
+            None,
+            website_server.MISSING_REPLY,
+        ),
+        (
+            {"id": "app-server-turn", "status": "completed", "error": None},
+            "  Deployment verified.  ",
+            "Deployment verified.",
+        ),
+        (
+            {"id": "app-server-turn", "status": "completed", "error": None},
+            "![missing](/media/missing.png)",
             website_server.MISSING_REPLY,
         ),
     ],
 )
-def test_a_finished_website_turn_settles_its_unanswered_delivery(page_dir, turn, reply):
+def test_a_finished_website_turn_settles_its_unanswered_delivery(
+    page_dir, turn, final_message, reply
+):
     comment = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
@@ -400,6 +470,7 @@ def test_a_finished_website_turn_settles_its_unanswered_delivery(page_dir, turn,
         delivery["turn"],
         delivery["events"],
         turn,
+        final_message,
     )
 
     events = read_events(page_dir)
@@ -618,6 +689,49 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         with pytest.raises(urllib.error.HTTPError) as stopped:
             urllib.request.urlopen(f"{root}/examples/missing/")
         assert stopped.value.code == 404
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+
+
+def test_a_stale_layer_is_answered_with_the_generation_the_container_holds(
+    page_dir, tmp_path
+):
+    """What a reader posting into a draining rollout gets back.
+
+    A container carries the layer of the image it runs, so a session allocated on a
+    previous image answers a newer generation with its own rather than with state.
+    The website deploy gate reads that answer, so it has to be the shape it names.
+    """
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    (site / "sitenote.js").write_text("export {};")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+
+    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, FakeCodexHost()))
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    root = f"http://127.0.0.1:{httpd.server_address[1]}"
+    try:
+        state = json.loads(get(f"{root}/examples/decision/api/state")[0])
+        before = read_events(published)
+        answer, headers = post(
+            f"{root}/examples/decision/api/event",
+            {
+                "kind": "comment",
+                "revision": state["active"]["revision"],
+                "text": "Posted under a layer this container does not speak.",
+                "attempt": "stale-layer-01",
+            },
+            {"Leaf-Layer": "a-layer-from-another-release"},
+        )
+        generation = state["layer"]["generation"]
+        assert answer == {"layer": generation}
+        assert headers["Leaf-Layer"] == generation
+        assert read_events(published) == before
     finally:
         httpd.shutdown()
         httpd.server_close()

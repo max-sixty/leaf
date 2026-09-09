@@ -2,8 +2,8 @@
    goes.
 
    `showThread` reveals a directly requested thread or message. It clears a narrowing
-   that hides the destination and finishes an outgoing resolution fold before opening
-   the resolved disclosure. A thread opens in its reply box, or on its card when
+   that hides the destination and finishes an outgoing resolution fold before choosing
+   its lifecycle state. A thread opens in its reply box, or on its card when
    resolved; a message takes focus at its own words so Tab reaches its controls. A
    thread too tall for its scrollport starts at the earliest complete content block
    that still leaves its reply area visible. That puts the first visible content on a
@@ -32,7 +32,7 @@ import { scrollToThread } from "../anchors.js";
 import { panelIsOpen, setPanel } from "../chrome-layout.js";
 import { threadsBox } from "./panel.js";
 import { reachedForWords } from "../widget-elements.js";
-import { widen } from "./narrowing.js";
+import { revealThread } from "./narrowing.js";
 import { finishFold } from "./folding.js";
 
 const SAYS_IN = ".lf-thread, .lf-conversation-thread, .lf-conversation";
@@ -262,17 +262,18 @@ const listNode = (id) => {
 // editor through revealConversation instead.
 export function showThread(id, { focus = "reply" } = {}) {
   setPanel(true);
-  if (!listNode(id)) widen();
   let node = listNode(id);
   const going = node?.closest(".lf-going");
   if (going) {
+    revealThread(id);
     finishFold(going.dataset.id);
+    node = listNode(id);
+  } else if (!node) {
+    revealThread(id);
     node = listNode(id);
   }
   if (!node) return;
   const thread = node.closest(".lf-thread");
-  const disclosure = thread.closest(".lf-details");
-  if (disclosure) disclosure.open = true;
   if (focus) {
     const destination =
       focus === "thread"

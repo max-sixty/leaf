@@ -1,9 +1,9 @@
-/* The shortcut bar at the foot of the page, the separate category-walk position on its
-   opposite edge, and the More control that leads from the bar to the reference.
+/* The shortcut bar at the foot of the page, the separate clamped-walk position at the
+   page's head, and the More control that leads from the bar to the reference.
 
-   The readout keeps navigation state out of the command list. It appears only after an
-   Ask or Thread walk and briefly takes the accent face when a repeated press reaches the
-   same clamped destination. The bar gives compact hints rather than reproducing the
+   The readout keeps navigation state out of the command list. It appears after a
+   Leaf-owned list walk and briefly takes the accent face when a repeated press reaches
+   the same clamped destination. The bar gives compact hints rather than reproducing the
    keyboard reference. It walks outward from the reader's innermost scope and drops
    bindings shadowed there. The
    ordinary shortlist is the first live row, then a promotable Escape or the next row.
@@ -26,8 +26,7 @@
 
    The compact line wraps when sequence rows need the room. Ordinary hints yield from the end
    on a window too narrow for them, but active sequence rows do not; More is the one control
-   that always survives. The navigation readout takes the opposite edge first, so the bar
-   yields hints before the two surfaces can overlap.
+   that always survives.
 
    `syncLayout` reserves the line's footprint only in a scroll region whose horizontal
    span meets it. Each reservation is the band from the line's top to that region's own
@@ -35,12 +34,11 @@
    the top of the complete panel foot. The line's height, inset, any lift and the device's
    safe area are therefore one measurement off the rendered box rather than four numbers
    to keep in step. Over a covering thread panel, the line starts at its ordinary bottom
-   inset and rises above the panel foot only when their rendered rectangles collide. Each
-   scroll region reserves whichever bottom surface crosses it. A coarse pointer is drawn
-   no hint line at all — there is no keyboard to advertise, and every hint would name a key
-   the reader cannot press. An attached keyboard can still begin a walk, so its navigation
-   readout stands alone until that walk ends. The line, readout, and chips take no pointer
-   events; the More
+   inset and rises above the panel foot only when their rendered rectangles collide. A
+   coarse pointer is drawn no hint line at all — there is no keyboard to advertise, and
+   every hint would name a key the reader cannot press. A covering-width layout also
+   drops the navigation readout because it has no spare page corner. The line, readout,
+   and chips take no pointer events; the More
    control does, because it is the pointer route to the reference.
 
    The accessible More control and its `?` binding share one progressive route. The first
@@ -67,7 +65,7 @@ import {
   rowSteps,
 } from "./presentation.js";
 import { el } from "../widget-elements.js";
-import { shadow, stack } from "./dispatch.js";
+import { lineOwner, shadow, stack } from "./dispatch.js";
 import { LESS_SHORTCUTS, REFERENCE } from "./page.js";
 import { referenceOpen, showReference } from "./reference.js";
 import { announce } from "../notifications.js";
@@ -92,14 +90,17 @@ export const shortcutBarMoreKey = document.createElement("kbd");
 export const shortcutBarMoreText = el("span", "", "more");
 shortcutBarMore.append(shortcutBarMoreKey, shortcutBarMoreText);
 
-// Every fixed box at the foot of the viewport. Geometry consumers use the same list so
-// an address, target hint, or composer clears both the command bar and the navigation
-// readout without treating the open space between them as covered.
-export const bottomChromeBoxes = () =>
-  [shortcutBarEl, walkPositionEl]
+const boxesOf = (nodes) =>
+  nodes
     .filter((node) => getComputedStyle(node).position === "fixed")
     .map((node) => node.getBoundingClientRect())
     .filter((box) => box.height > 0 && box.width > 0);
+
+// Fixed boxes that generated addresses and target hints must not cover. The bottom-only
+// subset also bounds composers and reserves the document's foot.
+export const bottomChromeBoxes = () => boxesOf([shortcutBarEl]);
+export const walkPositionBoxes = () => boxesOf([walkPositionEl]);
+export const fixedChromeBoxes = () => [...bottomChromeBoxes(), ...walkPositionBoxes()];
 
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
@@ -127,6 +128,7 @@ const effectiveRow = (row, declared, active) => {
   return projected;
 };
 function lineRows(scopes) {
+  const escape = lineOwner("Escape");
   const named = new Set();
   const nearer = shadow();
   const rows = [];
@@ -139,12 +141,15 @@ function lineRows(scopes) {
     const reachable = scope.rows.flatMap((row) => {
       if (!row.line || (!scope.sequence && word(row.lineWhen) === false)) return [];
       const bound = bindings(row);
-      const active = bound.filter((k) => !named.has(k) && !nearer.takes(k));
+      const active = bound.filter((binding) =>
+        binding === "Escape"
+          ? escape?.visible && escape.scope === scope && escape.row === row
+          : !named.has(binding) && !nearer.takes(binding),
+      );
       return active.length ? [effectiveRow(row, bound, active)] : [];
     });
     for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
-      const bound = bindings(row);
-      for (const k of bound) named.add(k);
+      for (const binding of bindings(row)) named.add(binding);
       rows.push(row);
     }
     nearer.past(scope);

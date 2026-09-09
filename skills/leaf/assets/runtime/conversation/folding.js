@@ -103,9 +103,9 @@ export function settlementControl(t, { prepareLanding, liveId } = {}) {
 // A thread the log has resolved and the open list is still holding. Its place is not
 // given up in the frame the log settles it: the node stays where it stood, says what
 // was done to it on the control that was pressed, and folds, so the threads under it
-// rise where the eye can follow instead of arriving somewhere else. The disclosure
-// gets the thread when the fold is over, which is what keeps one node per thread the
-// whole way through.
+// rise where the eye can follow instead of arriving somewhere else. The retained list
+// gets its resolved card when the fold is over, which keeps one node per thread through
+// every settled state.
 //
 // Driven from the reconcile rather than from the press, because the log is what
 // resolves a thread and a resolve with no gesture behind it — a second tab's, or the
@@ -132,8 +132,8 @@ export function foldOut(t) {
   // here rather than written from wherever a node leaves the list, which is the
   // difference between one writer and every caller of setChildren remembering.
   // Dropped rather than passed over, because the two returns below leave without
-  // setting one, and an entry over a thread nothing is folding hides that thread
-  // from the disclosure that should be holding it by then.
+  // setting one, and an entry over a thread nothing is folding would hide the retained
+  // resolved card that should be holding it by then.
   if (going?.isConnected) return going;
   folding.delete(t.root.id);
   const node = threadsBox.querySelector(`:scope > .lf-thread[data-id="${t.root.id}"]`);
@@ -159,7 +159,9 @@ export function foldOut(t) {
   // The pressed control states the outcome in the thread corner it already occupied.
   // Its checkmark changes from a quiet action to the green outcome without changing
   // the control's box, so the fold starts from the layout the reader was looking at.
-  const resolve = node.querySelector(":scope > .lf-resolve");
+  const resolve = node.querySelector(
+    ":scope > .lf-thread-head > .lf-resolve, :scope > .lf-resolve",
+  );
   resolve.setAttribute("aria-label", "Resolved");
   resolve.title = "Resolved";
   resolve.setAttribute("aria-busy", "false");

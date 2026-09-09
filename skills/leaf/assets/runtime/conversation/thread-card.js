@@ -31,8 +31,8 @@ const threadAnchorLabel = (t, outline = pageOutline()) => {
   return anchorLabel(t.anchor, t.root.about, group.target);
 };
 
-// A thread's node is found where it already stands — the open list or the resolved
-// disclosure — and kept: the log is append-only, so a kept node only ever gains
+// A thread's node is found where it already stands in the filtered list and kept: the
+// log is append-only, so a kept node only ever gains
 // messages and refreshes its clocks. A settlement transition reshapes a node: resolving
 // removes the reply box and reopening restores it, so either one rebuilds the node;
 // msgBodies carries the rendered bodies across. `grow` animates what this call creates,
@@ -51,6 +51,7 @@ export function threadNode(t, grow) {
   const existing = standingCard(t);
   const existingResolved = existing && !existing.querySelector(":scope > .lf-compose");
   if (existing && existingResolved === Boolean(t.resolved)) {
+    existing.dataset.resolved = String(Boolean(t.resolved));
     if (existing.dataset.id !== t.root.id) {
       existing.dataset.id = t.root.id;
     }
@@ -86,18 +87,20 @@ export function threadNode(t, grow) {
   const liveId = () => div.dataset.id;
   div.tabIndex = -1; // t/T focus target; the thread scope's Enter drops into its reply box
   div.dataset.id = t.root.id;
+  div.dataset.resolved = String(Boolean(t.resolved));
   if (t.root.attempt) div.dataset.attempt = t.root.attempt;
   if (grow) div.classList.add("grow");
   const label = threadAnchorLabel(t);
+  let threadHead = null;
   if (label) {
+    threadHead = el("div", "lf-thread-head");
     const quote = el("blockquote", "lf-quote");
     quote.append(el("span", "lf-quote-label", label));
-    quote.tabIndex = 0;
-    quote.setAttribute("role", "button");
-    // The quote is words and a press at once: it says which passage the comment is
-    // about, and pressing it travels there. A drag across it is the reader taking the
-    // words, so the travel stands down — the reading `offer` makes of its own
-    // controls, which this is not one of.
+    // An anchored label is words and a press at once: it says which passage the
+    // comment is about, and pressing it travels there. A page-wide layer label has no
+    // destination, so paintThreadQuotes leaves it as static words. A drag across an
+    // anchored label is the reader taking the words, so the travel stands down — the
+    // reading `offer` makes of its own controls, which this is not one of.
     quote.onclick = (ev) => {
       if (ev.detail !== 0 && reachedForWords(quote)) return;
       // A covering sheet should spend itself only on a real return. `detached` cannot
@@ -119,7 +122,8 @@ export function threadNode(t, grow) {
         run: () => quote.click(),
       },
     ]);
-    div.append(quote);
+    threadHead.append(quote);
+    div.append(threadHead);
   }
   let resolve = null;
   if (!t.resolved) {
@@ -140,7 +144,7 @@ export function threadNode(t, grow) {
         };
       },
     });
-    div.append(resolve);
+    (threadHead ?? div).append(resolve);
   }
   turns(t).forEach((m) => div.append(msgNode(m)));
   paintReactStrips(div, t);
@@ -157,8 +161,8 @@ export function threadNode(t, grow) {
     const status = el("span");
     if (t.resolved.author === "claude") {
       // Said only where the reader was not the one who closed it. Their own resolve
-      // needs no telling: they pressed it, and the disclosure they find it under is
-      // already headed "Resolved". A thread closed from the other side settles with
+      // needs no telling: they pressed it, and the selected state already says
+      // "Resolved". A thread closed from the other side settles with
       // nothing in this tab to watch it happen, so the page is the only thing that can
       // say who did.
       const by = t.resolved.agent || "Agent";
@@ -202,18 +206,37 @@ export function paintThreadQuotes() {
     // pass has omitted that heading. Reconcile absence as well as changed words so the
     // temporary duplicate does not become a kept node for the life of the tab.
     if (thread && !said) {
-      quote?.remove();
+      const head = quote?.closest(".lf-thread-head");
+      const resolve = head?.querySelector(":scope > .lf-resolve");
+      if (resolve) div.insertBefore(resolve, head);
+      if (head) head.remove();
+      else quote?.remove();
       continue;
     }
     if (!quote) continue;
     const label = quote.querySelector(":scope > .lf-quote-label");
     if (said && label.textContent !== said) label.textContent = said;
-    const outdated = placedAt(div.dataset.id)?.status === "outdated";
+    // A pending card can keep its browser-minted id for the one reconciliation that
+    // adopts the server's event. Its already-painted quote remains valid until that
+    // pass renames or removes the card; there is no current thread to repaint it from.
+    if (!thread) continue;
+    const anchored = Boolean(thread.anchor);
+    const outdated = anchored && placedAt(div.dataset.id)?.status === "outdated";
     let status = quote.querySelector(":scope > .lf-anchor-status");
     if (outdated && !status) {
       status = el("span", "lf-anchor-status", "Outdated");
       quote.append(status);
     } else if (!outdated) status?.remove();
+    if (!anchored) {
+      quote.classList.remove("detached");
+      quote.removeAttribute("aria-disabled");
+      quote.removeAttribute("role");
+      quote.removeAttribute("tabindex");
+      quote.removeAttribute("title");
+      continue;
+    }
+    quote.tabIndex = 0;
+    quote.setAttribute("role", "button");
     // Resolved threads deliberately carry no mark, but retain the placement their
     // folded quote can return to. One reading owns visual, assistive, keyboard, and
     // pointer availability so the same quote never becomes a pointer-only action.

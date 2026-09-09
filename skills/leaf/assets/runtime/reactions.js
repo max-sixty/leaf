@@ -30,11 +30,10 @@ import {
   marginElementChoices,
   marginElementContextContains,
   foldMarginElementOptions,
-  marginElement,
   openMarginElementOptions,
-  registerMarginContribution,
   unfoldedMarginElements,
 } from "./living-margin.js";
+import { marginElement, registerMarginContribution } from "./margin-elements.js";
 import { runtime } from "./context.js";
 import { CONTROL_WORD_CAP, designOn } from "./design.js";
 import { registry } from "./registry.js";
@@ -475,6 +474,7 @@ const reactTargetWord = () =>
 
 export const REACT = {
   title: "With reactions open",
+  escape: "inner",
   // Opening the modal reference dismisses this transient mode. Its section still reads
   // the liveness captured at that boundary rather than listing every conditional choice.
   liveInReference: true,

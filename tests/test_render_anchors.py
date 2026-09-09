@@ -3399,10 +3399,13 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(menu).to_be_visible()
 
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
+    position = page.locator(".lf-walk-position")
     page.keyboard.press("ArrowDown")
     expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
+    expect(position).to_have_text("Version 3 of 3")
     page.keyboard.press("ArrowDown")  # clamped: the last row keeps the focus
     expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
+    expect(position).to_have_attribute("data-lf-boundary", "")
     page.keyboard.press("ArrowUp")
     page.keyboard.press("ArrowUp")
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
@@ -4253,7 +4256,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     browser, serve, scheme
 ):
     """The diff owns only the row. Core's shared Thread view keeps replies,
-    reactions, settlement, and the compact resolved disclosure working inside it."""
+    reactions, settlement, and resolved-thread rendering working inside it."""
     authored = leaf_page(
         "inline diff thread",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
@@ -4516,10 +4519,10 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     expect(thread.locator(".lf-conversation-msg").first).to_be_hidden()
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, True)
-    panel_resolved = page.locator(".lf-details")
-    if panel_resolved.get_attribute("open") is None:
-        panel_resolved.locator(":scope > summary").click()
-    page.locator(".lf-details .lf-thread .lf-quote").click()
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    page.locator(".lf-thread:not([hidden]) .lf-quote").click()
     expect(summary).to_be_focused()
     summary.click()
     expect(thread.locator(".lf-conversation-msg").first).to_be_visible()

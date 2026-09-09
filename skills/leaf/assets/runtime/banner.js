@@ -14,7 +14,6 @@ import {
 import { latestChip, versionBtn, versionLabels } from "./version.js";
 import { asksBtn, othersBtn } from "./trays.js";
 import { COVERING, syncLayout } from "./chrome-layout.js";
-import { needsBtn } from "./conversation/panel.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { post } from "./outbox.js";
 import { paintHere } from "./keyboard/scopes.js";
@@ -618,7 +617,6 @@ export function reserveBannerControls() {
   ]);
   reserve(versionBtn, versionLabels());
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
-  reserve(needsBtn, ["Waiting on you", "Waiting on you (999)"]);
   reserve(asksBtn, ["Asks 999/999"]);
   reserve(othersBtn, ["All leaves (999)"]);
   // The sentence's own room, taken in the same face and on the same occasions as the

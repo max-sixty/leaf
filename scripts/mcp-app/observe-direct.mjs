@@ -103,16 +103,16 @@ try {
   await page
     .locator("iframe")
     .screenshot({ path: path.join(results, "direct-leaf.png") });
-  const choice = app.locator("#off-workaround-approve").getByRole("checkbox");
+  const choice = app.locator("#heat-opt-floor").getByRole("checkbox");
   await choice.focus();
   await choice.press("Space");
-  await app.locator("#off-workaround-approve[chosen]").waitFor();
+  await app.locator("#heat-opt-floor[chosen]").waitFor();
   const action = await newEvent(
-    (event) => event.kind === "action" && event.widget === "off-workaround-review",
+    (event) => event.kind === "action" && event.widget === "heat-first",
   );
   assert.equal(action.kind, "action");
-  assert.equal(action.widget, "off-workaround-review");
-  await app.locator("#off-lede").evaluate((element) => {
+  assert.equal(action.widget, "heat-first");
+  await app.locator("#heat-lede").evaluate((element) => {
     const range = document.createRange();
     range.selectNodeContents(element);
     const selection = getSelection();

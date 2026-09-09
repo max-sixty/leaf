@@ -17,7 +17,6 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
-from websockets.exceptions import WebSocketException
 from websockets.sync.client import connect, unix_connect
 
 from .event_log import flocked, read_cursor
@@ -709,12 +708,9 @@ class AppServerClient:
             try:
                 self._connect()
                 failures = 0
-            except (
-                OSError,
-                RuntimeError,
-                WebSocketException,
-                json.JSONDecodeError,
-            ) as error:
+            # This is the observer thread's recovery boundary: no connection or
+            # notification failure may leave the adapter marked available.
+            except Exception as error:  # noqa: BLE001
                 self.available.clear()
                 _clear_stream_activity(self.thread_id)
                 for turn_id, binding in self.bindings.items():

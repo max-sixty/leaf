@@ -1360,6 +1360,65 @@ def test_app_server_malformed_start_response_finishes_the_delivery(request):
     release.set()
 
 
+def test_app_server_unexpected_notification_error_clears_availability(request):
+    """Any observer failure must stop new deliveries before reconnecting."""
+    sent = threading.Event()
+    release = threading.Event()
+    request.addfinalizer(release.set)
+
+    def handle(socket):
+        initialize = json.loads(socket.recv())
+        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
+        socket.recv()  # initialized
+        resume = json.loads(socket.recv())
+        socket.send(
+            json.dumps(
+                {
+                    "id": resume["id"],
+                    "result": {
+                        "thread": {
+                            "id": "codex-thread",
+                            "status": {"type": "idle"},
+                            "turns": [],
+                        }
+                    },
+                }
+            )
+        )
+        socket.send(
+            json.dumps(
+                {
+                    "method": "item/started",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turnId": "turn-live",
+                        "item": {"id": "command-live", "type": "commandExecution"},
+                    },
+                }
+            )
+        )
+        sent.set()
+        release.wait(timeout=5)
+
+    server = serve_websocket(handle, "127.0.0.1", 0)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    request.addfinalizer(server.shutdown)
+    endpoint = f"ws://127.0.0.1:{server.socket.getsockname()[1]}"
+    observer = codex_model.AppServerClient(endpoint, "codex-thread")
+    observer.start()
+    request.addfinalizer(observer.stop)
+
+    assert sent.wait(timeout=2)
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline and observer.available.is_set():
+        time.sleep(0.01)
+    assert not observer.available.is_set()
+    assert observer.start_delivery({}, {}) is None
+    observer.stop()
+    release.set()
+
+
 def test_codex_turn_failure_keeps_a_nondurable_thread_draft(page_dir, monkeypatch):
     comment = events_model.append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "Try this"}

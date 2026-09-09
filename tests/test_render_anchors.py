@@ -11,6 +11,7 @@ from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import files as files_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf.registry import storage as registry_storage
@@ -3274,6 +3275,27 @@ def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
     page.close()
 
 
+def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
+    """The compact range derives both ends from the exact numbered routes."""
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, INLINE_PAGE, "two")
+    _publish(serve.page_dir, 3, INLINE_PAGE, "three")
+    first = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "note" and event["version"] == 1
+    )
+    files_model.revision_path(serve.page_dir, first["revision"]).unlink()
+    page, errors = open_page(browser, url.replace("v1.html", "v3.html"))
+
+    open_versions(page)
+    menu_line = shortcut_bar_text(page)
+    assert "2–3\nopen version" in menu_line, menu_line
+    assert "1–3" not in menu_line, menu_line
+    assert errors == []
+    page.close()
+
+
 def test_the_versions_menu_can_close_from_every_door(browser, serve):
     """A version menu opened from either door returns to its actual origin.
 
@@ -3309,20 +3331,25 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     page.keyboard.press("Escape")
     expect(origin).to_be_focused()
 
-    # The pointer's door reaches the same layer, and the same key ends it — and the line
-    # says so. A keyboard entry leaves a return frame, whose "back" takes the key; the
-    # pointer leaves none, and the platform's own dismissal used to be nobody's row to
-    # print, so the menu advertised no way out at all.
+    # The pointer's door reaches the same layer and Escape still ends it. Exact numbered
+    # travel is the unfamiliar menu action and keeps the compact line's second slot from
+    # both doors; Escape remains in the complete reference as the standard way out.
     page.locator(".lf-version").click()
     expect(menu).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close")
+    pointer_line = shortcut_bar_text(page)
+    assert "walk — marking changes" in pointer_line, pointer_line
+    assert "1–2\nopen version" in pointer_line, pointer_line
+    assert "close" not in pointer_line, pointer_line
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
     open_versions(page)
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("close")
+    keyboard_line = shortcut_bar_text(page)
+    assert "walk — marking changes" in keyboard_line, keyboard_line
+    assert "1–2\nopen version" in keyboard_line, keyboard_line
+    assert "back" not in keyboard_line, keyboard_line
     page.keyboard.press("Escape")
 
-    # The line is the menu's while the reader is in it: its own way out is named and the
+    # The line is the menu's while the reader is in it: its own actions are named and the
     # page's keys are gone with the presses the mode took.
     open_versions(page)
     expect(line).to_contain_text("walk — marking changes")
@@ -3391,6 +3418,19 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
         for v in result.response["violations"]
         if v["impact"] in {"serious", "critical"}
     ] == []
+    # The visible word is part of the accessible name too. This rule is not included by
+    # axe's WCAG-tag selection above, so ask for it directly where Compare exists.
+    label_result = Axe().run(
+        page,
+        options={
+            "runOnly": {
+                "type": "rule",
+                "values": ["label-content-name-mismatch"],
+            },
+            "resultTypes": ["violations"],
+        },
+    )
+    assert label_result.response["violations"] == []
 
     # The keys are one declaration, so the "?" reference names them too — a page with
     # a second version is the first that has a list to walk.

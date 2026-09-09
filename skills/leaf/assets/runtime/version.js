@@ -385,7 +385,9 @@ const OPEN_NUMBER = {
   routes: numberedVersionRoutes,
   label: () => {
     const routes = numberedVersionRoutes();
-    return routes.length > 1 ? `1–${routes.at(-1).binding}` : routes[0]?.binding;
+    return routes.length > 1
+      ? `${routes[0].binding}–${routes.at(-1).binding}`
+      : routes[0]?.binding;
   },
   does: "Open a numbered version",
   line: "open version",
@@ -425,43 +427,44 @@ export const NEWEST = {
   // row remains Enter's exact-version destination.
   run: () => goActive(),
 };
+const VERSION_WALK = {
+  id: "version.walk",
+  keys: ["ArrowUp", "ArrowDown"],
+  routes: [
+    { id: "version.later", binding: "ArrowUp", does: "Later version" },
+    { id: "version.earlier", binding: "ArrowDown", does: "Earlier version" },
+  ],
+  // The walk marks as it goes, which is what the list is for: the note says in words
+  // what a version changed and the page behind the menu then says it in the passages
+  // themselves, without the reader having to leave the list to find out. A note is
+  // Claude's sentence about a version and the marks are the version's own account of
+  // itself, so reading them together is the only way to tell the two apart.
+  does: "Walk the versions, marking what changed since the one you are on",
+  line: "walk — marking changes",
+  repeat: true,
+  run: (binding) => {
+    const was = document.activeElement;
+    const row = walkRows(versionRows(), binding === "ArrowDown" ? 1 : -1);
+    // A press at either end lands on the row it started from, and now that the walk
+    // states a comparison, landing is not free — it would re-fetch the base and say
+    // its count again for a press that moved nothing.
+    if (!row || row === was) return;
+    // The comparison the row states: its own version as the base, or none at all where
+    // that version is not older than the one being read. So the reader walks down to mark
+    // from further back and back up to stop, and the row that stops it is the version
+    // they are reading — the end of the walk in the direction they came from, which is
+    // why it needs no key of its own and no reader has to be told where it is — and,
+    // the page having no key for a comparison, the whole of the way off one.
+    const version = +row.dataset.lfVersion;
+    if (comparable(version)) showComparison(version);
+    else setDiff(false);
+  },
+};
 keys(
   versionMenu,
   "In the versions menu",
   [
-    {
-      id: "version.walk",
-      keys: ["ArrowUp", "ArrowDown"],
-      routes: [
-        { id: "version.later", binding: "ArrowUp", does: "Later version" },
-        { id: "version.earlier", binding: "ArrowDown", does: "Earlier version" },
-      ],
-      // The walk marks as it goes, which is what the list is for: the note says in words
-      // what a version changed and the page behind the menu then says it in the passages
-      // themselves, without the reader having to leave the list to find out. A note is
-      // Claude's sentence about a version and the marks are the version's own account of
-      // itself, so reading them together is the only way to tell the two apart.
-      does: "Walk the versions, marking what changed since the one you are on",
-      line: "walk — marking changes",
-      repeat: true,
-      run: (binding) => {
-        const was = document.activeElement;
-        const row = walkRows(versionRows(), binding === "ArrowDown" ? 1 : -1);
-        // A press at either end lands on the row it started from, and now that the walk
-        // states a comparison, landing is not free — it would re-fetch the base and say
-        // its count again for a press that moved nothing.
-        if (!row || row === was) return;
-        // The comparison the row states: its own version as the base, or none at all where
-        // that version is not older than the one being read. So the reader walks down to mark
-        // from further back and back up to stop, and the row that stops it is the version
-        // they are reading — the end of the walk in the direction they came from, which is
-        // why it needs no key of its own and no reader has to be told where it is — and,
-        // the page having no key for a comparison, the whole of the way off one.
-        const version = +row.dataset.lfVersion;
-        if (comparable(version)) showComparison(version);
-        else setDiff(false);
-      },
-    },
+    VERSION_WALK,
     OPEN_NUMBER,
     // The browser's own, the row being a real <button> — no `run`, or the press would
     // click a control the platform has already activated. The word is the line's all the
@@ -500,6 +503,7 @@ export const VERSIONS = {
   // statement rather than a suspension the surfaces have to be told about separately.
   claims: allButTheReference,
   rows: [
+    VERSION_WALK,
     OPEN_NUMBER,
     // Two rows, both live at either end of a one-row menu, so the line prints both at
     // once — and while they shared a word it printed it twice, leaving the reader to
@@ -538,6 +542,10 @@ export const VERSIONS = {
       keys: ["Escape"],
       does: "Close the versions menu",
       line: "close",
+      // Exact travel is the menu's unfamiliar action and keeps the compact line's
+      // second slot from either door. Escape remains live and stays in the complete
+      // reference as the platform-standard close.
+      promoteEscape: false,
       native: true,
       run: closeVersionMenu,
     },
@@ -650,7 +658,7 @@ function menuRows(state, notes) {
     const press = el("button", "lf-version-diff", "Compare");
     press.setAttribute("role", "menuitemcheckbox");
     press.dataset.lfVersion = entry.version;
-    press.setAttribute("aria-label", `Mark what changed since v${entry.version}`);
+    press.setAttribute("aria-label", `Compare with v${entry.version}`);
     press.title = `Mark what changed since v${entry.version}`;
     // The pointer's own door, and it closes the menu: the marks are on the page this
     // hangs over, and a pointer has no walk to be standing in the middle of. The

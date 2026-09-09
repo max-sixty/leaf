@@ -121,7 +121,12 @@ GENERATION_FAILURE_REPLY = (
 MISSING_REPLY = (
     "I finished without posting a reply. Please send a new message to try again."
 )
-HOST_FAILURE_REPLIES = frozenset({GENERATION_FAILURE_REPLY, MISSING_REPLY})
+RATE_LIMIT_REPLY = (
+    "This public demo is busy right now. Please wait a minute, then send a new message."
+)
+HOST_FAILURE_REPLIES = frozenset(
+    {GENERATION_FAILURE_REPLY, MISSING_REPLY, RATE_LIMIT_REPLY}
+)
 TURN_ASKS = 2
 
 
@@ -316,7 +321,8 @@ def startup_line(path: str, startup: dict) -> str:
     paint = startup.get("paint", {}).get("first-contentful-paint")
     return (
         f"  {path} — HTML first byte {startup['first_byte']:.0f} ms, "
-        f"complete {startup['document']:.0f} ms; first paint {observed_time(paint)}; "
+        f"complete {startup['document']:.0f} ms; "
+        f"first contentful paint {observed_time(paint)}; "
         f"JS fetched {observed_time(presented['js_loaded'])}; "
         f"upgraded {startup['upgraded']['at']:.0f} ms; "
         f"state answered {observed_time(presented['state_loaded'])}; "

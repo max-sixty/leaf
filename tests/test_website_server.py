@@ -1198,6 +1198,9 @@ def test_the_deploy_gate_accepts_any_reply_except_a_generation_failure():
         is None
     )
     assert verify_site.deployment_answer([{"text": verify_site.MISSING_REPLY}]) is None
+    assert (
+        verify_site.deployment_answer([{"text": verify_site.RATE_LIMIT_REPLY}]) is None
+    )
 
 
 def test_startup_line_distinguishes_an_unobserved_state_request():
@@ -1247,13 +1250,17 @@ def test_startup_line_distinguishes_an_unobserved_first_paint():
 
     line = verify_site.startup_line("page", startup)
 
-    assert "first paint not observed" in line
-    assert "first paint 0 ms" not in line
+    assert "first contentful paint not observed" in line
+    assert "first contentful paint 0 ms" not in line
 
 
 @pytest.mark.parametrize(
     "failure_reply",
-    [verify_site.GENERATION_FAILURE_REPLY, verify_site.MISSING_REPLY],
+    [
+        verify_site.GENERATION_FAILURE_REPLY,
+        verify_site.MISSING_REPLY,
+        verify_site.RATE_LIMIT_REPLY,
+    ],
 )
 def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
     failure_reply,

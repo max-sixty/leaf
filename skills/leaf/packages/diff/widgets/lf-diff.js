@@ -5,6 +5,7 @@ import {
   DISCLOSE,
   actionAvailable,
   announce,
+  beginWalk,
   dataBody,
   failSoft,
   focused,
@@ -13,6 +14,7 @@ import {
   langForPath,
   layoutChanged,
   loadDataFragment,
+  listWalkPosition,
   offer,
   paintKeys,
   projectData,
@@ -1164,6 +1166,31 @@ customElements.define(
       );
     }
 
+    markHunkWalk() {
+      beginWalk("diff-hunk", "Hunk", () => {
+        const entry = this.entryAroundFocus();
+        return entry
+          ? listWalkPosition(
+              hunkHeads(entry).map(({ node }) => node),
+              this.hereNode(),
+            )
+          : null;
+      });
+    }
+
+    markFileWalk(key = "diff-file", qualifier = "") {
+      beginWalk(key, "File", () => {
+        const entries = this.shownEntries().filter(
+          (entry) => !qualifier || !entry.reviewed,
+        );
+        return listWalkPosition(
+          entries.map(({ node }) => node),
+          this.entryAroundFocus()?.node,
+          { qualifier },
+        );
+      });
+    }
+
     async openEntry(entry) {
       if (!entry.details) return;
       entry.details.open = true;
@@ -1189,9 +1216,11 @@ customElements.define(
         );
         if (!head) continue;
         this.land(head.node);
+        this.markHunkWalk();
         announce(`${entry.record.path} · hunk ${head.hunk + 1} of ${heads.length}`);
         return;
       }
+      this.markHunkWalk();
     }
 
     stepFile(back) {
@@ -1204,13 +1233,14 @@ customElements.define(
         ? order.findIndex((entry) => entry.node.contains(here))
         : -1;
       const entry = order[standing + 1];
-      if (!entry) return;
+      if (!entry) return this.markFileWalk();
       this.reviewCursor = entry;
       // The box rather than the header, which is what the generated fold target settled for
       // the same shape: a header pinned to the banner is already where it is going, so
       // aligning it moves nothing, while aligning the file it heads starts the file at
       // its start. The header is still what takes the focus.
       this.land(entry.node, entry.details?.firstElementChild ?? entry.node);
+      this.markFileWalk();
       announce(entry.record.path);
     }
 
@@ -1266,6 +1296,7 @@ customElements.define(
       const target = entry.details?.firstElementChild ?? entry.review;
       target.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
       target.focus({ preventScroll: true });
+      this.markFileWalk("diff-unreviewed", "unreviewed");
       notice(`Next unreviewed file: ${entry.record.path}`);
     }
 

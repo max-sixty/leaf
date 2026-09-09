@@ -91,6 +91,38 @@ COMMENT_ON_SECOND_SUGGESTION = {
     "anchor": {"section": "sug-thistle"},
 }
 
+DUPLICATE_REGION_PAGE = leaf_page(
+    "duplicate page map subjects",
+    """
+<lf-workspace id="duplicate-map-workspace">
+  <lf-split id="duplicate-map-split" direction="columns">
+    <lf-pane id="current-pane" label="Current">
+      <h2 id="current-deployment">Deployment</h2>
+      <p>The current release remains available to readers.</p>
+      <h2 id="current-summary">Summary</h2>
+      <p>The current result has one unique subject.</p>
+    </lf-pane>
+    <lf-pane id="proposed-pane" label="Proposed">
+      <h2 id="proposed-deployment">Deployment</h2>
+      <p>The proposed release remains available to readers.</p>
+    </lf-pane>
+  </lf-split>
+</lf-workspace>
+""",
+)
+
+DUPLICATE_REGION_COMMENTS = [
+    {
+        "kind": "comment",
+        "id": f"comment-{section}",
+        "author": "user",
+        "revision": 1,
+        "text": "Check this subject.",
+        "anchor": {"section": section},
+    }
+    for section in ("current-deployment", "current-summary", "proposed-deployment")
+]
+
 
 def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     browser, serve
@@ -153,6 +185,57 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
         name: after[name] - before[name] for name in ("LayoutCount", "RecalcStyleCount")
     }
     assert all(count <= 30 for count in work.values()), work
+    assert errors == []
+    page.close()
+
+
+def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
+    browser, serve
+):
+    page, errors = open_page(
+        browser, serve(DUPLICATE_REGION_PAGE, events=DUPLICATE_REGION_COMMENTS)
+    )
+    resized(page, 390, 760)
+    page.locator(".lf-page-map-toggle").click()
+    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+
+    headings = sheet.get_by_role("heading", level=3)
+    expect(headings).to_have_count(3)
+    assert headings.all_inner_texts() == [
+        "Current · heading · Deployment",
+        "heading · Summary",
+        "Proposed · heading · Deployment",
+    ]
+    expect(
+        sheet.get_by_role("heading", name="Current · heading · Deployment", exact=True)
+    ).to_be_visible()
+    expect(
+        sheet.get_by_role("heading", name="Proposed · heading · Deployment", exact=True)
+    ).to_be_visible()
+    expect(
+        sheet.get_by_role("heading", name="heading · Summary", exact=True)
+    ).to_be_visible()
+
+    proposed = sheet.locator(".lf-page-map-group").nth(2)
+    proposed.get_by_role(
+        "button", name="Open thread: Check this subject.", exact=True
+    ).click()
+    expect(sheet).to_be_hidden()
+    threads = page.locator(".lf-threads")
+    expect(threads.locator(":scope > .lf-group")).to_have_text(
+        ["Current · Deployment", "Summary", "Proposed · Deployment"]
+    )
+    expect(
+        threads.get_by_role("button", name="Current · Deployment", exact=True)
+    ).to_be_visible()
+    expect(
+        threads.get_by_role("button", name="Proposed · Deployment", exact=True)
+    ).to_be_visible()
+    expect(
+        threads.locator(
+            ':scope > .lf-thread[data-id="comment-proposed-deployment"] textarea'
+        )
+    ).to_be_focused()
     assert errors == []
     page.close()
 
@@ -1484,6 +1567,7 @@ def test_open_page_map_uses_the_canonical_margin_element_record_and_live_state(
             await import('/runtime/widget-api.js');
           const control = marginElement(offer('button', ''), {
             key: 'inspect', icon: 'question', label: 'Inspect source',
+            context: 'Patch ready',
             behavior: 'disclosure', tone: 'negative', role: 'reading',
             state: 'engaged'
           });
@@ -1519,7 +1603,8 @@ def test_open_page_map_uses_the_canonical_margin_element_record_and_live_state(
           tone: button.dataset.lfTone,
           role: button.dataset.lfRole,
           state: button.dataset.lfState,
-          label: button.querySelector('.lf-page-map-action-label').textContent,
+          label: button.querySelector('.lf-page-map-action-label-word').textContent,
+          context: button.querySelector('.lf-page-map-action-context')?.textContent ?? null,
           expanded: button.getAttribute('aria-expanded'),
           pressed: button.getAttribute('aria-pressed'),
           popup: button.getAttribute('aria-haspopup'),
@@ -1531,6 +1616,7 @@ def test_open_page_map_uses_the_canonical_margin_element_record_and_live_state(
         "role": "reading",
         "state": "engaged",
         "label": "Inspect source…",
+        "context": None,
         "expanded": "true",
         "pressed": "true",
         "popup": "dialog",
@@ -2004,8 +2090,10 @@ def test_left_and_right_walk_the_revealed_margin_element_cluster(browser, serve)
     expect(accept).to_be_focused()
     page.keyboard.press("ArrowRight")
     expect(reject).to_be_focused()
+    expect(page.locator(".lf-walk-position")).to_have_text("Action 2 of 2")
     page.keyboard.press("ArrowLeft")
     expect(accept).to_be_focused()
+    expect(page.locator(".lf-walk-position")).to_have_text("Action 1 of 2")
 
     assert errors == []
     page.close()

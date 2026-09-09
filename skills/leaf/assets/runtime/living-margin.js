@@ -81,8 +81,8 @@ import { chromeRoot } from "./chrome.js";
 import {
   comparisonBase,
   comparisonChanges,
-  comparisonEarlier,
-  toggleEarlier,
+  inlineComparison,
+  toggleInlineComparison,
   versionBtn,
 } from "./version.js";
 import { foldShelf } from "./banner-shelf.js";
@@ -108,6 +108,7 @@ import { iconElement } from "./icons.js";
 import { claimed, focusSurface } from "./conversation/surfaces.js";
 import { anchorLabel } from "./conversation/messages.js";
 import { renderMarginThread } from "./conversation/inline.js";
+import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
 
 const KINDS = {
   action: { label: "Action", icon: "dot", priority: -1 },
@@ -671,9 +672,9 @@ const readingControl = (className) => offer("span", className);
 // panel is closed and the matching panel card while it is open. Any other reading is
 // asked what it discloses, and a single item
 // that answers has named the node and said which way it stands — the Change reading's
-// earlier words, folded into the block itself. An item answering nothing promises
-// nothing, which is what leaves a Change margin element over a block the comparison holds no
-// earlier reading for the plain travel it always was.
+// inline text diff. An item answering nothing promises nothing, which is what leaves a
+// Change margin element over a block the comparison cannot align for the plain travel it
+// always was.
 function syncReadingRelation(control, choice) {
   if (choice?.kind === "comment") {
     const opensInline = !panelIsOpen();
@@ -1057,25 +1058,27 @@ function collectEntries() {
   const base = comparisonBase();
   comparisonChanges().forEach((target, index) => {
     const account = `${itemWord(target)} changed${base == null ? "" : ` since v${base}`}`;
-    const earlier = comparisonEarlier(target);
+    const inline = inlineComparison(target);
+    const mapAccount = inline ? `${itemWord(target)} changed` : account;
     add(groups, target, {
       kind: "change",
       id: `change:${targetPath(target)}:${index}`,
-      text: trimmed(`${account} · ${itemSays(target)}`),
+      text: trimmed(`${mapAccount} · ${itemSays(target)}`),
       // A disclosure has to say what it holds, or its one word reports a fact and
       // promises nothing. The margin element's quieter line carries it, and a block the
       // comparison holds nothing for has none, so no margin element offers a press it has
       // not got.
-      ...(earlier ? { context: earlier.offer } : {}),
+      ...(inline ? { context: inline.offer, mapContext: inline.offer } : {}),
       // What a Change reading holds, where the comparison kept the base version's
-      // words for this block: pressing it folds them open under the block and says
-      // them, so the reader learns what changed without travelling to the other
-      // version and back. Where it kept none, the press is the travel it always was,
-      // and `discloses` answering null is what says so — to the margin element's relation, to
-      // the shortcut bar's word for the press, and to the reference.
-      discloses: () => comparisonEarlier(target),
+      // words for this block: pressing it splices dropped text into the current
+      // passage and paints additions there, so the reader learns what changed without
+      // travelling to the other version and back. Where it kept none, the press is the
+      // travel it always was, and `discloses` answering null is what says so — to the
+      // margin element's relation, to the shortcut bar's word for the press, and to the
+      // reference.
+      discloses: () => inlineComparison(target),
       activate: () => {
-        const said = toggleEarlier(target);
+        const said = toggleInlineComparison(target);
         revealTarget(target, said ? `${account} · ${said}` : account);
       },
     });
@@ -1138,7 +1141,12 @@ function collectEntries() {
     }
   }
 
-  return [...groups.values()]
+  const outline = pageOutline();
+  const collected = [...groups.values()];
+  const subjects = collected
+    .filter((group) => !group.subject)
+    .map((group) => group.target);
+  return collected
     .map((group) => {
       const items = group.items;
       const represented = new Set(
@@ -1146,10 +1154,15 @@ function collectEntries() {
           .filter((item) => item.marker === false && item.represents)
           .map((item) => item.kind),
       );
+      const subject = outlineSubjectFor(group.target, subjects, outline);
       return {
         ...group,
         title: trimmed(
-          [group.word, group.subject ?? itemSays(group.target)]
+          [
+            group.subject ? null : subject.context,
+            group.word,
+            group.subject ?? itemSays(group.target),
+          ]
             .filter(Boolean)
             .join(" · "),
           72,
@@ -1323,6 +1336,11 @@ function stepClusterMarginElements(binding) {
   const direction = binding === "ArrowRight" ? 1 : -1;
   buttons[(at + direction + buttons.length) % buttons.length].focus({
     preventScroll: true,
+  });
+  beginWalk("margin-element", "Action", () => {
+    const standing = focused();
+    const standingHost = closestAcross(standing, "[data-lf-margin-for]");
+    return listWalkPosition(clusterMarginElements(standingHost), standing);
   });
 }
 

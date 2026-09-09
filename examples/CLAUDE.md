@@ -103,10 +103,11 @@ an example lays the log in: `scripts/preview.py`,
 `tests/render_support.py`. `serve` seeds when handed an example rather than
 markup, and sets the cursor past the seed as `preview.py` does. The anchor sweep
 opts out, because it writes its own anchors and compares the whole painted mark
-against exactly those. `ship-review.jsonl` carries a thread and
-`review-queue.jsonl` carries two page-owned decisions. Both reach the browser on
-the published site through the session running in the reader's own tab, since
-published pages are served rather than exported.
+against exactly those. `ship-review.jsonl` carries a thread;
+`review-queue.jsonl` carries two page-owned decisions; and
+`current-proposed-comparison.jsonl` carries the one choice its next version applies.
+These seeds reach the browser on the published site through the session running in the
+reader's own tab, since published pages are served rather than exported.
 
 External data is the other companion state. An example that binds a widget input
 to a source ships `<stem>.data.json`, mapping each page-owned source id to its

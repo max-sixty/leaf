@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Live progress: checkout cutover rehearsal</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
+    <link rel="stylesheet" href="/theme.css" />
+    <script type="module" src="/leaf.js"></script>
+  </head>
+  <body>
+    <main>
+      <lf-monitor id="lp-monitor">
+        <header>
+          <p class="eyebrow">live operations · rehearsal 4 of 5</p>
+          <h1>Checkout cutover rehearsal</h1>
+          <p class="lede" id="lp-lede">
+            Rollback is still running. The page keeps the overview, evidence, and one
+            finance exception visible while the rehearsal changes underneath them.
+          </p>
+        </header>
+        <lf-monitor-grid id="lp-regions">
+          <lf-monitor-region id="lp-overview" label="Overview" zone="overview">
+            <header><h2>Overview</h2></header>
+            <aside class="callout" id="lp-active">
+              <strong>Rollback running.</strong> Traffic is returning to the old
+              checkout service while the final comparison runs.
+            </aside>
+            <lf-metrics id="lp-metrics">
+              <lf-metric id="lp-k-done" value="14 of 18">checks complete</lf-metric>
+              <lf-metric id="lp-k-running" value="2">running now</lf-metric>
+              <lf-metric id="lp-k-blocked" value="1" delta="+1" direction="up-bad"
+                >needs decision</lf-metric
+              >
+            </lf-metrics>
+            <h3 id="lp-crew-heading">On the rehearsal</h3>
+            <lf-roster id="lp-roster">
+              <lf-agent id="lp-agent-router" state="working">
+                <strong>router</strong> Comparing order counts after rollback.
+              </lf-agent>
+              <lf-agent id="lp-agent-ledger" state="blocked">
+                <strong>ledger</strong> Waiting on the finance containment choice.
+              </lf-agent>
+              <lf-agent id="lp-agent-observer" state="waiting">
+                <strong>observer</strong> Guardrails are green; watching the final
+                sample.
+              </lf-agent>
+              <lf-agent id="lp-agent-scribe" state="idle">
+                <strong>scribe</strong> Ready to record the containment decision.
+              </lf-agent>
+            </lf-roster>
+          </lf-monitor-region>
+          <lf-monitor-region id="lp-evidence" label="Evidence stream" zone="evidence">
+            <header><h2>Evidence stream</h2></header>
+            <p id="lp-evidence-note">
+              New samples append here without replacing the overview or the decision.
+            </p>
+            <lf-source id="lp-live-log" source="rehearsal-log"></lf-source>
+            <footer>Newest samples are at the end of the stream.</footer>
+          </lf-monitor-region>
+          <lf-monitor-region id="lp-exception" label="Exception" zone="exception">
+            <header><h2>Exception</h2></header>
+            <aside class="callout" id="lp-finance-note">
+              <strong>Partially refunded order missing from export.</strong> Checkout
+              traffic is healthy, but order <code>co_18427</code> appears in the ledger
+              and not in the finance file.
+            </aside>
+            <lf-milestones id="lp-exception-status">
+              <lf-milestone id="lp-finance-gate" status="blocked" when="now">
+                <strong>Resume the finance export</strong> Waiting on safeguards for the
+                missing partial refund.
+              </lf-milestone>
+            </lf-milestones>
+            <lf-ask id="lp-finance-decision">
+              <h3>
+                Which safeguards should stay active while Ledger rebuilds the fixture?
+              </h3>
+              <p>
+                Choose every safeguard Finance should keep until the fixture passes.
+              </p>
+              <lf-options id="lp-finance-cases" choose multiple>
+                <lf-option id="lp-hold-exports"
+                  ><strong>Hold partial-refund exports</strong> Keep the affected path
+                  paused.</lf-option
+                >
+                <lf-option id="lp-quarantine-order"
+                  ><strong>Quarantine this order</strong> Continue ordinary
+                  exports.</lf-option
+                >
+                <lf-option id="lp-finance-signoff"
+                  ><strong>Require finance sign-off</strong> Review the repaired row
+                  before resuming.</lf-option
+                >
+              </lf-options>
+            </lf-ask>
+          </lf-monitor-region>
+        </lf-monitor-grid>
+        <footer>
+          The overview is authored; the evidence stream is replaceable page data; the
+          containment choices are event-backed reader state.
+        </footer>
+      </lf-monitor>
+    </main>
+  </body>
+</html>

@@ -46,6 +46,7 @@ from interact_support import (
     start_through_the_launcher,
     state_json,
 )
+from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import conversation as conversation_model
@@ -863,13 +864,50 @@ def test_an_active_stream_without_its_adapter_is_presented_as_disconnected(claim
             "active",
         )
 
-    [thread] = page_state(claimed)["browser"]["conversation"]["threads"]
+    state = page_state(claimed)
+    [thread] = state["browser"]["conversation"]["threads"]
     draft = thread["msgs"][-1]
     assert (draft["text"], draft["pending"], draft["stream_state"]) == (
         "A partial answer",
         False,
         "disconnected",
     )
+    assert state["activity"]["reply"]["state"] == "disconnected"
+
+
+def test_a_quiet_stream_reply_is_disconnected_everywhere(claimed):
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "Answer this"}
+    )
+    claim = service_model.page_claim(claimed)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, claim)
+    )
+    assert lease
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.set_stream_reply(
+            "s1",
+            "turn-live",
+            comment["id"],
+            comment["id"],
+            "answer",
+            "A completed but abandoned answer",
+            "active",
+            settles=True,
+        )
+    status = files_model.read_json(claimed / "status.json")
+    status["stream"]["reply"]["ts"] = (
+        datetime.now().astimezone()
+        - activity_model.WORKING_GRACE
+        - timedelta(seconds=1)
+    ).isoformat()
+    files_model.write_json(claimed / "status.json", status)
+
+    state = page_state(claimed)
+    [thread] = state["browser"]["conversation"]["threads"]
+    assert state["activity"]["reply"]["state"] == "disconnected"
+    assert thread["msgs"][-1]["stream_state"] == "disconnected"
+    lease.close()
 
 
 def test_stream_reply_writes_only_changed_readings(claimed):
@@ -945,6 +983,56 @@ def test_app_server_events_report_semantic_codex_progress():
             },
         }
     ) == {"turn": "turn-live", "activity": "Running uv run pytest tests"}
+    assert (
+        events.read(
+            {
+                "method": "item/started",
+                "params": {
+                    "threadId": "codex-thread",
+                    "turnId": "turn-live",
+                    "item": {
+                        "id": "commentary-live",
+                        "type": "agentMessage",
+                        "phase": "commentary",
+                        "text": "I am checking the implementation.",
+                    },
+                },
+            }
+        )
+        is None
+    )
+    assert (
+        events.read(
+            {
+                "method": "item/agentMessage/delta",
+                "params": {
+                    "threadId": "codex-thread",
+                    "turnId": "turn-live",
+                    "itemId": "commentary-live",
+                    "delta": " Next I will run tests.",
+                },
+            }
+        )
+        is None
+    )
+    assert (
+        events.read(
+            {
+                "method": "item/completed",
+                "params": {
+                    "threadId": "codex-thread",
+                    "turnId": "turn-live",
+                    "item": {
+                        "id": "commentary-live",
+                        "type": "agentMessage",
+                        "phase": "commentary",
+                        "text": "I am checking the implementation. Next I will run tests.",
+                    },
+                },
+            }
+        )
+        is None
+    )
     assert events.read(
         {
             "method": "item/agentMessage/delta",
@@ -1150,13 +1238,14 @@ def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, re
 
 
 def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
-    page_dir, monkeypatch, request
+    page_dir, monkeypatch, request, capsys
 ):
     """Streaming notifications cannot make the caller abandon an accepted start."""
     comment = events_model.append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "Can you answer here?"},
     )
+    comment = events_model.read_events(page_dir)[-1]
     claim = record_claim(
         page_dir,
         id="codex-thread",
@@ -1174,6 +1263,8 @@ def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
 
     received = []
     finish = threading.Event()
+    answer_completed = threading.Event()
+    complete_turn = threading.Event()
     completed = threading.Event()
 
     def handle(socket):
@@ -1218,7 +1309,6 @@ def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
                         "item": {
                             "id": "answer",
                             "type": "agentMessage",
-                            "phase": "final_answer",
                             "text": "",
                         },
                     },
@@ -1279,7 +1369,6 @@ def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
         answer = {
             "id": "answer",
             "type": "agentMessage",
-            "phase": "final_answer",
             "text": "Streaming reply",
         }
         socket.send(
@@ -1295,6 +1384,8 @@ def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
                 }
             )
         )
+        answer_completed.set()
+        complete_turn.wait(timeout=5)
         socket.send(
             json.dumps(
                 {
@@ -1321,6 +1412,7 @@ def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
     observer.start()
     request.addfinalizer(observer.stop)
     monkeypatch.setattr(codex_model, "START_TIMEOUT", 0.2)
+    monkeypatch.setattr(hooks_model, "adapter_is_live", lambda *_: True)
     payload = {"format": codex_model.DELIVERY_FORMAT, "id": "delivery-1"}
 
     started = observer.start_delivery(
@@ -1345,19 +1437,60 @@ def test_leaf_started_codex_turn_streams_into_its_thread_and_commits(
         },
         "turnTrigger": "leaf",
     }
-    [thread] = page_state(page_dir)["browser"]["conversation"]["threads"]
+    state = page_state(page_dir)
+    [thread] = state["browser"]["conversation"]["threads"]
     streamed = thread["msgs"][-1]
     assert (streamed["text"], streamed["pending"], streamed["parent"]) == (
         "Streaming",
         True,
         comment["id"],
     )
+    assert state["activity"]["reply"] == {
+        "state": "active",
+        "session": "codex-thread",
+        "turn": "leaf-turn",
+        "conversation": comment["id"],
+        "reply_to": comment["id"],
+        "settles": False,
+        "has_text": True,
+    }
+    assert state["activity"]["next_transition_at"] is not None
     assert set(files_model.read_json(page_dir / "status.json")["stream"]) == {
         "activity",
         "reply",
     }
 
+    with service_model.PageTransaction(page_dir) as transaction:
+        session_model.record_pickup(
+            transaction,
+            [comment],
+            phase="opened",
+            session="codex-thread",
+            turn="leaf-turn",
+        )
+        session_model.acknowledge(transaction, comment["seq"])
+
     finish.set()
+    assert answer_completed.wait(timeout=5)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        stream_reply = files_model.read_json(page_dir / "status.json")["stream"][
+            "reply"
+        ]
+        if stream_reply["settles"]:
+            break
+        time.sleep(0.01)
+    else:
+        pytest.fail("the completed final answer did not reach the page")
+    assert stream_reply["settles"] is True
+    hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
+    assert capsys.readouterr().out == ""
+    assert not [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply" and event["author"] == "claude"
+    ]
+    complete_turn.set()
     assert completed.wait(timeout=5)
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
@@ -5100,6 +5233,37 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     session_model.cmd_status(page, "idle", "")
     hooks_model.cmd_hook({"hook_event_name": "Stop", "session_id": "codex-thread"})
     assert capsys.readouterr().out == ""
+
+
+def test_only_the_exact_completed_stream_answers_a_stop_obligation():
+    state = {"claim_session": "codex-thread", "claim_turn": "leaf-turn"}
+    obligation = {
+        "event": "comment-1",
+        "target": {"kind": "thread", "id": "comment-1"},
+    }
+    reply = {
+        "state": "active",
+        "settles": True,
+        "has_text": True,
+        "session": "codex-thread",
+        "turn": "leaf-turn",
+        "reply_to": "comment-1",
+        "conversation": "comment-1",
+    }
+
+    assert hooks_model._stream_answers(reply, obligation, state)
+    for field, wrong in (
+        ("state", "failed"),
+        ("settles", False),
+        ("has_text", False),
+        ("session", "another-task"),
+        ("turn", "another-turn"),
+        ("reply_to", "another-comment"),
+        ("conversation", "another-thread"),
+    ):
+        assert not hooks_model._stream_answers(
+            {**reply, field: wrong}, obligation, state
+        )
 
 
 def test_a_codex_watcher_task_takes_the_parent_watch_obligation(

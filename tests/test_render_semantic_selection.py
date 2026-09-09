@@ -29,6 +29,7 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     expect(hints).to_have_count(3)  # heading, paragraph, and figure
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("choose hint")
     page.keyboard.press("Tab")
+    expect(page.locator(".lf-walk-position")).to_have_text("Target 1 of 3")
     expect(page.locator(".lf-target-hint.lf-current")).to_have_count(1)
     expect(page.locator(".lf-live")).to_contain_text("Hint a: heading: Targets")
     page.keyboard.press("?")
@@ -477,16 +478,43 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(page.locator(".lf-target-match")).not_to_have_count(0)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("select match")
     page.keyboard.press("Tab")
+    expect(page.locator(".lf-walk-position")).to_have_text("Match 1 of 1")
     expect(page.locator(".lf-live")).to_contain_text(
         "raises the button the key then presses"
     )
 
+    # The readout's cached reading is refreshed on `lf-actions`, the runtime's broad
+    # source invalidation. New page text therefore changes its denominator without
+    # another search gesture.
+    page.evaluate(
+        """async () => {
+          const extra = document.createElement('p');
+          extra.id = 'late-search-match';
+          extra.textContent = 'Another button the key occurrence.';
+          document.querySelector('main').append(extra);
+          document.dispatchEvent(new Event('lf-actions'));
+        }"""
+    )
+    expect(page.locator(".lf-walk-position")).to_have_text("Match 1 of 2")
+    page.evaluate(
+        """async () => {
+          document.querySelector('#late-search-match').remove();
+          document.dispatchEvent(new Event('lf-actions'));
+        }"""
+    )
+    expect(page.locator(".lf-walk-position")).to_have_text("Match 1 of 1")
+
     page.keyboard.press("Enter")
     expect(page.locator(".lf-target-search")).to_be_hidden()
+    expect(page.locator(".lf-walk-position")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate("() => getSelection().toString()") == "button the key"
     assert pending_text(page) == "button the key"
+    page.keyboard.press("n")
+    expect(page.locator(".lf-walk-position")).to_have_text("Match 1 of 1")
+    page.keyboard.press("n")
+    expect(page.locator(".lf-walk-position")).to_have_attribute("data-lf-boundary", "")
     assert errors == []
     page.close()
 
@@ -565,8 +593,27 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
 
     page.keyboard.press("n")
     assert page.evaluate(selected_in) == "second"
+    expect(page.locator(".lf-walk-position")).to_have_text("Match 2 of 2")
     page.keyboard.press("Shift+n")
     assert page.evaluate(selected_in) == "first"
+    position = page.locator(".lf-walk-position")
+    expect(position).to_have_text("Match 1 of 2")
+
+    # A page rewrite can split the text node under a captured match. Its old offsets
+    # then retire the walk rather than throwing from Range construction on every paint.
+    page.evaluate(
+        """async () => {
+          const selected = getSelection().getRangeAt(0);
+          selected.startContainer.splitText(selected.startOffset + 1);
+          const {paintHere} = await import('/runtime/keyboard/scopes.js');
+          paintHere();
+        }"""
+    )
+    expect(position).to_be_hidden()
+    page.keyboard.press("Shift+n")
+    expect(position).to_have_text("Match 2 of 2")
+    page.keyboard.press("n")
+    expect(position).to_have_text("Match 1 of 2")
 
     composer = page.locator(".lf-fab-input")
     composer.focus()
@@ -579,6 +626,14 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
         )
         == "first"
     )
+    page.evaluate(
+        """async () => {
+          getSelection().removeAllRanges();
+          const {paintHere} = await import('/runtime/keyboard/scopes.js');
+          paintHere();
+        }"""
+    )
+    expect(position).to_be_hidden()
     assert errors == []
     page.close()
 

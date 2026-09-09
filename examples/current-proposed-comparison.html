@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Authentication retry comparison</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
+    <link rel="stylesheet" href="/theme.css" />
+    <script type="module" src="/leaf.js"></script>
+  </head>
+  <body>
+    <main>
+      <lf-workspace id="comparison-workspace">
+        <header>
+          <p class="eyebrow">release review · decision recorded</p>
+          <h1>Compare expired-session recovery</h1>
+          <p class="lede" id="comparison-summary">
+            One shared refresh per tab is selected for 2.8. The former policy and
+            selected result remain side by side for audit and comments.
+          </p>
+        </header>
+
+        <lf-split id="comparison-regions" direction="columns">
+          <lf-pane id="comparison-current" label="Current policy">
+            <header>
+              <p class="eyebrow">current result</p>
+              <h2>Refresh every failed request</h2>
+            </header>
+
+            <section id="comparison-current-behavior">
+              <h3>Behavior</h3>
+              <p>
+                Each call that receives an expired-session response starts its own
+                credential refresh, then retries once with the returned token.
+              </p>
+            </section>
+
+            <section id="comparison-current-replay">
+              <h3>Five-call replay</h3>
+              <pre
+                id="comparison-current-trace"
+              ><code>/orders    401 → refresh A → retry
+/cart      401 → refresh B → retry
+/profile   401 → refresh C → retry
+/offers    401 → refresh D → retry
+/delivery  401 → refresh E → retry</code></pre>
+              <dl class="facts">
+                <dt>Refresh requests</dt>
+                <dd>5</dd>
+                <dt>Original calls retried</dt>
+                <dd>5</dd>
+                <dt>Failure fan-out</dt>
+                <dd>Independent</dd>
+              </dl>
+            </section>
+
+            <section id="comparison-current-consequence">
+              <h3>Release consequence</h3>
+              <p>
+                No client behavior changes. A busy tab can still send several refresh
+                requests for one expired credential, and each request can finish with a
+                different refresh result.
+              </p>
+            </section>
+          </lf-pane>
+
+          <lf-pane id="comparison-proposed" label="Proposed policy">
+            <header>
+              <p class="eyebrow">proposed result · selected</p>
+              <h2>Share one refresh per tab</h2>
+            </header>
+
+            <section id="comparison-proposed-behavior">
+              <h3>Behavior</h3>
+              <p>
+                The first expired-session response starts a refresh. Other calls in that
+                tab wait for it, then retry once with the same returned token.
+              </p>
+            </section>
+
+            <section id="comparison-proposed-replay">
+              <h3>Five-call replay</h3>
+              <pre id="comparison-proposed-trace"><code>/orders   ┐
+/cart     │
+/profile  ├→ refresh A → retry all five
+/offers   │
+/delivery ┘</code></pre>
+              <dl class="facts">
+                <dt>Refresh requests</dt>
+                <dd>1</dd>
+                <dt>Original calls retried</dt>
+                <dd>5</dd>
+                <dt>Failure fan-out</dt>
+                <dd>Shared</dd>
+              </dl>
+            </section>
+
+            <section id="comparison-proposed-consequence">
+              <h3>Release consequence</h3>
+              <p>
+                Concurrent calls reuse one refresh result. If that refresh fails, all
+                five calls return the same failure without retrying with a stale token.
+              </p>
+            </section>
+
+            <section id="comparison-rollout">
+              <h3>Recorded rollout</h3>
+              <p>
+                Version 2.8 enables shared refreshes for web clients. The existing
+                single-retry limit and the mobile policy remain unchanged.
+              </p>
+            </section>
+          </lf-pane>
+        </lf-split>
+
+        <footer>
+          <lf-ask id="comparison-policy-decision">
+            <h2>Which policy should ship?</h2>
+            <p>
+              The selected policy is incorporated above and remains recorded with the
+              comparison it was chosen from.
+            </p>
+            <lf-options id="comparison-policy" choose settled>
+              <lf-option id="comparison-policy-current"
+                >Keep independent refreshes</lf-option
+              >
+              <lf-option id="comparison-policy-shared" chosen
+                >Adopt one shared refresh per tab</lf-option
+              >
+            </lf-options>
+          </lf-ask>
+        </footer>
+      </lf-workspace>
+    </main>
+  </body>
+</html>

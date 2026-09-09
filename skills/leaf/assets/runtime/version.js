@@ -6,22 +6,22 @@
  * activation captures the reading landmark before it replaces the authored main. Those
  * are local calls here rather than callbacks across a seam nothing else could stand at.
  *
- * The surface is the three key rows; the chooser's nodes (control, menu, newest-version
+ * The surface is its key rows; the chooser's nodes (control, menu, newest-version
  * chip) and the labels the banner reserves width for (`versionLabels`); the two calls
  * state application drives — `renderVersions` paints the chooser from a state,
  * `prepareActivation` fetches the revision a state names ahead of the commit that
  * installs it; the arrival landing; the menu readings the composing surface and the
  * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
  * `comparisonChanges`, and the pair the margin's Change reading discloses with,
- * `comparisonEarlier` and `toggleEarlier`); and `readingBlock`, the block the decision
+ * `inlineComparison` and `toggleInlineComparison`); and `readingBlock`, the block the decision
  * walk and the keyboard reference start from.
  *
  * A comparison has two depths and both are this owner's. The marks say which blocks
- * changed; the earlier reading says what one of them changed from, folded open inside
- * the block itself. The second is per block and asked for, because a page's worth of
- * before-and-after opened at once is a diff view rather than the version the reader
- * chose to read. Nothing else shows a base version's words: this is the one place that
- * document is ever in hand.
+ * changed; the inline comparison splices dropped text into one of them and paints its
+ * added text in place. The second is per block and asked for, because a page's
+ * worth of before-and-after opened at once is a diff view rather than the version the
+ * reader chose to read. Nothing else shows a base version's words: this is the one place
+ * that document is ever in hand.
  *
  * One surface owns each destination. The version control opens the complete version list
  * with notes and comparison controls. There are no separate older/newer page keys. A
@@ -106,7 +106,6 @@ import {
   paintKeys,
   pruneScopedElements,
 } from "./keyboard/scopes.js";
-import { FOLD_MS, motion } from "./motion.js";
 import { notice } from "./notifications.js";
 import {
   authored,
@@ -117,6 +116,7 @@ import {
   inChrome,
   pageText,
   quoteFrom,
+  readingFrom,
   rangeOf,
   TEXT_BLOCK,
   textNodesUnder,
@@ -148,7 +148,7 @@ import {
   VERSION_PATH,
   versionUrl,
 } from "./storage.js";
-import { alignText, alignedNodes, sentenceUnits } from "./text-alignment.js";
+import { alignInlineText } from "./text-alignment.js";
 import {
   el,
   focusDestination,
@@ -285,6 +285,10 @@ const draftRevisions = () => {
 const versionCount = () => runtime.versions.length + draftRevisions().size;
 const versionsOffered = () => versionCount() > 1;
 const versionsToWalk = () => versionCount() > 1;
+const behindCurrent = () =>
+  runtime.active !== null &&
+  runtime.currentRevision !== null &&
+  runtime.active.revision !== runtime.currentRevision;
 let offeredBefore = null;
 // The walk is the versions, not every press in the menu.
 const versionRows = () => [...versionMenu.querySelectorAll(".lf-version-row")];
@@ -301,13 +305,12 @@ const atVersionBoundary = (end) => {
   return document.activeElement === stops.at(end);
 };
 function focusVersionRow() {
+  const base = selectedBase();
   (
     versionRows().find(
       (r) =>
-        (comparisonBase() !== null &&
-          r.dataset.lfVersion === String(comparisonBase())) ||
-        (comparisonBase() === null &&
-          r.dataset.lfRevision === String(runtime.currentRevision)),
+        (base !== null && r.dataset.lfVersion === String(base)) ||
+        (base === null && r.dataset.lfRevision === String(runtime.currentRevision)),
     ) ?? versionRows()[0]
   )?.focus();
 }
@@ -364,10 +367,47 @@ latestChip.onclick = () => goActive();
 latestChip.dataset.lfUrgent = "1";
 if (!LIVE_ROOT) reserveNewsSlot(latestChip);
 const arriving = (label) => `New page available → open ${label}`;
+const numberedVersionRoutes = () =>
+  versionRows()
+    .map((control) => ({ control, version: +control.dataset.lfVersion }))
+    .filter(({ version }) => version >= 1 && version <= 9)
+    .sort((left, right) => left.version - right.version)
+    .map(({ control, version }) => ({
+      id: `version.open-v${version}`,
+      binding: String(version),
+      does: `Open v${version}`,
+      line: `open v${version}`,
+      control,
+    }));
+const OPEN_NUMBER = {
+  id: "version.open-number",
+  keys: () => numberedVersionRoutes().map(({ binding }) => binding),
+  routes: numberedVersionRoutes,
+  label: () => {
+    const routes = numberedVersionRoutes();
+    return routes.length > 1
+      ? `${routes[0].binding}–${routes.at(-1).binding}`
+      : routes[0]?.binding;
+  },
+  does: "Open a numbered version",
+  line: "open version",
+  when: () => numberedVersionRoutes().length > 0,
+  // The focused menu and its standing mode share this route. The first gives g V a
+  // visible compact hint; the second preserves the key across a browser hand-back that
+  // leaves the menu open with focus at its door. Close first, as the numbered key is the
+  // keyboard form of pressing that row; this matters when it names the version already
+  // being read and travel itself is a no-op.
+  run: (binding) => {
+    closeVersionMenu();
+    goVersion(+binding);
+  },
+};
 // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
 // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
-// button, and the row says so with no `run`. A row's Δ is the same comparison for the
-// pointer, which has no walk to state it with, and takes no key of its own.
+// button, and the row says so with no `run`. A row's Compare is the same comparison for the
+// pointer, which has no walk to state it with. Exact number keys are shared with the
+// standing menu mode below, so they stay visible in this focused scope and survive a
+// browser hand-back that lands at its door.
 //
 // v is the one row worth a key of its own: the current page is where the walk ends, and
 // where a reader who came for the current state is going. It is local to the menu, so the
@@ -387,47 +427,49 @@ export const NEWEST = {
   // row remains Enter's exact-version destination.
   run: () => goActive(),
 };
+const VERSION_WALK = {
+  id: "version.walk",
+  keys: ["ArrowUp", "ArrowDown"],
+  routes: [
+    { id: "version.later", binding: "ArrowUp", does: "Later version" },
+    { id: "version.earlier", binding: "ArrowDown", does: "Earlier version" },
+  ],
+  // The walk marks as it goes, which is what the list is for: the note says in words
+  // what a version changed and the page behind the menu then says it in the passages
+  // themselves, without the reader having to leave the list to find out. A note is
+  // Claude's sentence about a version and the marks are the version's own account of
+  // itself, so reading them together is the only way to tell the two apart.
+  does: "Walk the versions, marking what changed since the one you are on",
+  line: "walk — marking changes",
+  repeat: true,
+  run: (binding) => {
+    const was = document.activeElement;
+    const row = walkRows(versionRows(), binding === "ArrowDown" ? 1 : -1);
+    if (!row) return;
+    beginWalk("version", "Version", () =>
+      listWalkPosition(versionRows(), document.activeElement),
+    );
+    // A press at either end lands on the row it started from, and now that the walk
+    // states a comparison, landing is not free — it would re-fetch the base and say
+    // its count again for a press that moved nothing.
+    if (row === was) return;
+    // The comparison the row states: its own version as the base, or none at all where
+    // that version is not older than the one being read. So the reader walks down to mark
+    // from further back and back up to stop, and the row that stops it is the version
+    // they are reading — the end of the walk in the direction they came from, which is
+    // why it needs no key of its own and no reader has to be told where it is — and,
+    // the page having no key for a comparison, the whole of the way off one.
+    const version = +row.dataset.lfVersion;
+    if (comparable(version)) showComparison(version);
+    else setDiff(false);
+  },
+};
 keys(
   versionMenu,
   "In the versions menu",
   [
-    {
-      id: "version.walk",
-      keys: ["ArrowUp", "ArrowDown"],
-      routes: [
-        { id: "version.previous", binding: "ArrowUp", does: "Previous version" },
-        { id: "version.next", binding: "ArrowDown", does: "Next version" },
-      ],
-      // The walk marks as it goes, which is what the list is for: the note says in words
-      // what a version changed and the page behind the menu then says it in the passages
-      // themselves, without the reader having to leave the list to find out. A note is
-      // Claude's sentence about a version and the marks are the version's own account of
-      // itself, so reading them together is the only way to tell the two apart.
-      does: "Walk the versions, marking what changed since the one you are on",
-      line: "walk — marking changes",
-      repeat: true,
-      run: (binding) => {
-        const was = document.activeElement;
-        const row = walkRows(versionRows(), binding === "ArrowDown" ? 1 : -1);
-        if (!row) return;
-        beginWalk("version", "Version", () =>
-          listWalkPosition(versionRows(), document.activeElement),
-        );
-        // A press at either end lands on the row it started from, and now that the walk
-        // states a comparison, landing is not free — it would re-fetch the base and say
-        // its count again for a press that moved nothing.
-        if (row === was) return;
-        // The comparison the row states: its own version as the base, or none at all where
-        // that version is not older than the one being read. So the reader walks up to mark
-        // from further back and back down to stop, and the row that stops it is the version
-        // they are reading — the end of the walk in the direction they came from, which is
-        // why it needs no key of its own and no reader has to be told where it is — and,
-        // the page having no key for a comparison, the whole of the way off one.
-        const version = +row.dataset.lfVersion;
-        if (comparable(version)) showComparison(version);
-        else setDiff(false);
-      },
-    },
+    VERSION_WALK,
+    OPEN_NUMBER,
     // The browser's own, the row being a real <button> — no `run`, or the press would
     // click a control the platform has already activated. The word is the line's all the
     // same, and the keys are the shared fact rather than this row's reading of it:
@@ -444,10 +486,10 @@ keys(
   versionsToWalk,
 );
 // The mode represents the menu standing, not whether it has multiple versions to walk.
-// It suspends page shortcuts and owns only the Tab-boundary handoff that a popover does
-// not provide. A keyboard-opened menu has CHOOSER's exact return frame; light dismissal
-// stays native for pointer-opened menus, and their Escape is named by the menu's own
-// row (`version.close`), which runs the same close.
+// It suspends page shortcuts and owns exact numbered destinations plus the Tab-boundary
+// handoff that a popover does not provide. A keyboard-opened menu has CHOOSER's exact
+// return frame; light dismissal stays native for pointer-opened menus, and their Escape
+// is named by the menu's own row (`version.close`), which runs the same close.
 export const VERSIONS = {
   title: "In the versions menu",
   root: () => versionMenu,
@@ -465,6 +507,8 @@ export const VERSIONS = {
   // statement rather than a suspension the surfaces have to be told about separately.
   claims: allButTheReference,
   rows: [
+    VERSION_WALK,
+    OPEN_NUMBER,
     // Two rows, both live at either end of a one-row menu, so the line prints both at
     // once — and while they shared a word it printed it twice, leaving the reader to
     // tell them apart by their keycaps. The direction is the whole difference between
@@ -502,6 +546,10 @@ export const VERSIONS = {
       keys: ["Escape"],
       does: "Close the versions menu",
       line: "close",
+      // Exact travel is the menu's unfamiliar action and keeps the compact line's
+      // second slot from either door. Escape remains live and stays in the complete
+      // reference as the platform-standard close.
+      promoteEscape: false,
       native: true,
       run: closeVersionMenu,
     },
@@ -529,6 +577,10 @@ export const CHOOSER = {
     close: closeVersionMenu,
     does: "Return from the versions menu",
     line: "back",
+    // Arrow comparison and exact numbered travel are the two unfamiliar menu actions;
+    // keep both on the compact line. Escape remains the platform-standard way back and
+    // stays in the complete reference.
+    promoteEscape: false,
   }),
   run: () => versionBtn.click(),
 };
@@ -584,7 +636,7 @@ function menuRows(state, notes) {
     });
   }
   entries.sort(
-    (left, right) => left.revision - right.revision || left.version - right.version,
+    (left, right) => right.revision - left.revision || right.version - left.version,
   );
   return entries.flatMap((entry) => {
     const row = el("button", "lf-version-row");
@@ -605,12 +657,12 @@ function menuRows(state, notes) {
     if (!entry.comparable) return [row];
     // The comparison this row offers, in the menu's second column beside the note
     // that says the same thing in words. A grid sibling rather than a child, a
-    // button inside a button being no markup at all, and named in full: the glyph
-    // is the eye's shorthand and says nothing aloud.
-    const press = el("button", "lf-version-diff", "Δ changes");
+    // button inside a button being no markup at all, and named in full for the row
+    // it compares with the document being read.
+    const press = el("button", "lf-version-diff", "Compare");
     press.setAttribute("role", "menuitemcheckbox");
     press.dataset.lfVersion = entry.version;
-    press.setAttribute("aria-label", `Mark what changed since v${entry.version}`);
+    press.setAttribute("aria-label", `Compare with v${entry.version}`);
     press.title = `Mark what changed since v${entry.version}`;
     // The pointer's own door, and it closes the menu: the marks are on the page this
     // hangs over, and a pointer has no walk to be standing in the middle of. The
@@ -701,10 +753,7 @@ export function renderVersions(state) {
   // The keyboard reaches the chip through the chooser rather than past it — g V opens the
   // menu, and its local v takes the current page; the banner spells that motion
   // onto this title.
-  const behind =
-    runtime.active !== null &&
-    runtime.currentRevision !== null &&
-    runtime.active.revision !== runtime.currentRevision;
+  const behind = behindCurrent();
   const sourceFailed = LIVE_ROOT && Boolean(state?.source_error);
   latestChip.disabled = sourceFailed;
   latestChip.dataset.lfKeyTitle = sourceFailed
@@ -763,6 +812,7 @@ const diffOpaqueSel = () =>
 // is written by paintDiff and read back by nothing.
 let diffBase = null;
 let diffOn = false;
+let diffPendingBase = null;
 const diffMarked = [];
 // What each marked block said in the base version, and which of those readings the
 // reader has open. The marks say a block changed; these say what it changed from, at
@@ -775,8 +825,8 @@ const diffMarked = [];
 // nothing either, and for the reason the pass keys those by identity rather than by
 // words: the live one is upgraded and the base one is not, so their texts were never
 // each other's to compare.
-const diffEarlier = new Map(); // marked element -> the base version's words, or null
-const earlierOpen = new Map(); // marked element -> the node standing open under it
+const diffBefore = new Map(); // marked element -> the base version's words, or null
+const inlineOpen = new Map(); // marked element -> its generated nodes and highlight ranges
 // The comparison request that owns the page. Every request takes the next number and every
 // stop takes one too, so a base whose document lands after the reader has moved on is
 // dropped rather than painted over the base they are standing on now. Reachable because the
@@ -904,137 +954,148 @@ function applyDiff(doc, baseVersion, baseReading) {
   for (const block of diffMarked) {
     if (!block.id || block.closest(opaque)) continue;
     const baseBlock = doc.getElementById(block.id);
-    diffEarlier.set(block, baseBlock ? wrote(baseBlock) : null);
+    diffBefore.set(block, baseBlock ? wrote(baseBlock) : null);
   }
   return diffMarked.length;
 }
-// ---------- the earlier reading of a marked block ----------
-// Inside the block rather than beside it, because a text block is the only thing the
-// page reliably lets a sibling stand next to: an <li>'s parent takes list items and
-// nothing else. A span carrying `display: block` is content every one of them may hold.
-// `.lf-ui` is what keeps it out of the page — the anchor pass will not let a quote name
-// it, `wrote` does not read it into a block key, and a copy leaves it behind — and the
-// `lf-` id namespace is reserved from authored pages, so the name can only be this.
-const earlierId = (target) => `lf-earlier-${target.id}`;
+// ---------- one marked block's inline comparison ----------
+// `wrote` is the authority for the two texts. This companion reading keeps the same
+// normalized text with a boundary back into the authored text nodes, so a run the
+// alignment calls inserted can be painted in place. Generated labels and deletions wear
+// `.lf-ui`; comments, copies, and later comparisons therefore continue to read the exact
+// current document rather than the temporary historical words on screen.
+const inlineId = (target) => `lf-version-inline-${target.id}`;
+const authoredReading = (target) =>
+  readingFrom(textNodesUnder(target, authored(target)));
 
-function earlierNode(target) {
-  const before = diffEarlier.get(target);
-  const node = el("span", "lf-ui lf-earlier");
-  node.id = earlierId(target);
-  // The head names the version the words below are from, so a reader arriving at one
-  // open block is told which without reading it off the chooser. A block the base
-  // version never had says that instead, being the one case with no words to show.
-  node.append(
-    el(
-      "span",
-      "lf-earlier-head",
-      before === null ? `New since v${diffBase}` : `v${diffBase}`,
-    ),
-  );
-  if (before !== null) {
-    const body = el("span", "lf-earlier-body");
-    // The `same` and `delete` halves alone, which join to reconstruct the base version
-    // exactly: this is the version the reader is *not* reading, so what it shows is
-    // that version's own paragraph, marked where the words did not survive. The
-    // `insert` half is the paragraph they are looking at, washed and two lines up, and
-    // saying it again here would make the reading twice as long to learn nothing.
-    // `wrote` on both sides, the reading the comparison decided by, so a word an
-    // upgrade generated is in neither the base document nor this one.
-    //
-    // A block the state half marked — a pick moved, a card carried — keeps every word
-    // it had, so nothing in it strikes. That is the answer rather than a third case.
-    body.append(
-      ...alignedNodes(
-        alignText(before, wrote(target), sentenceUnits).filter(
-          (run) => run.kind !== "insert",
-        ),
-      ),
-    );
-    node.append(body);
+function pointAt(target, reading, offset) {
+  if (!reading.units.length) return { node: target, offset: 0 };
+  return offset === reading.units.length
+    ? reading.units.at(-1).end
+    : reading.units[offset].start;
+}
+
+function insertAt(target, reading, offset, node) {
+  const point = pointAt(target, reading, offset);
+  if (point.node.nodeType === Node.ELEMENT_NODE) {
+    point.node.insertBefore(node, point.node.childNodes[point.offset] ?? null);
+    return;
   }
-  return node;
+  const text = point.node;
+  if (point.offset === 0) text.parentNode.insertBefore(node, text);
+  else if (point.offset === text.data.length)
+    text.parentNode.insertBefore(node, text.nextSibling);
+  else text.parentNode.insertBefore(node, text.splitText(point.offset));
 }
 
-// What the press reports. The move, not the words: revealTarget reports through the
-// banner's status line, which holds a moment's news, and a paragraph there is clipped
-// and a hover away. The words go where a reader can read them at their own pace and a
-// screen reader can reach them from the margin element's own `aria-controls` — into the block,
-// which is the whole of what this surface does.
-function earlierSaid(target) {
-  return diffEarlier.get(target) === null
+function rangeAt(reading, start, end) {
+  const first = reading.units[start];
+  const last = reading.units[end - 1];
+  if (!first || !last) return null;
+  const range = document.createRange();
+  range.setStart(first.start.node, first.start.offset);
+  range.setEnd(last.end.node, last.end.offset);
+  return range;
+}
+
+function paintInlineInsertions() {
+  const ranges = [...inlineOpen.values()].flatMap((entry) => entry.ranges);
+  if (ranges.length) CSS.highlights.set("lf-version-insert", new Highlight(...ranges));
+  else CSS.highlights.delete("lf-version-insert");
+}
+
+function openInlineComparison(target) {
+  const before = diffBefore.get(target);
+  const reading = authoredReading(target);
+  const current = currentVersionToken();
+  const label = el(
+    "span",
+    "lf-ui lf-quiet lf-version-inline-label",
+    before === null ? `New since v${diffBase}` : `v${diffBase} → ${current}`,
+  );
+  label.id = inlineId(target);
+  label.setAttribute(
+    "aria-label",
+    before === null
+      ? `New since version ${diffBase}`
+      : `Inline comparison from version ${diffBase} to ${current}`,
+  );
+
+  const nodes = [label];
+  const additions = [];
+  const insertions = [{ offset: 0, node: label }];
+  let afterOffset = 0;
+  let hasTextChange = false;
+  for (const run of before === null ? [] : alignInlineText(before, reading.text)) {
+    if (run.kind === "delete") {
+      const dropped = el("span", "lf-ui lf-version-inline-deletion");
+      dropped.append(el("del", "", run.text));
+      nodes.push(dropped);
+      insertions.push({ offset: afterOffset, node: dropped });
+      hasTextChange = true;
+    } else {
+      // The passage reading indexes characters by code point while DOM Range offsets
+      // are UTF-16. Keep the alignment cursor in the reading's units; an astral
+      // character must advance it once, not by the two code units String.length sees.
+      const length = [...run.text].length;
+      if (run.kind === "insert") {
+        additions.push([afterOffset, afterOffset + length]);
+        hasTextChange = true;
+      }
+      afterOffset += length;
+    }
+  }
+  insertions
+    .sort((left, right) => right.offset - left.offset)
+    .forEach(({ offset, node }) => insertAt(target, reading, offset, node));
+
+  const currentReading = authoredReading(target);
+  const ranges = additions
+    .map(([start, end]) => rangeAt(currentReading, start, end))
+    .filter(Boolean);
+  target.classList.toggle("lf-version-inline", hasTextChange);
+  inlineOpen.set(target, { nodes, ranges });
+  paintInlineInsertions();
+  layoutChanged(target);
+  return before === null
     ? `v${diffBase} had nothing here`
-    : `showing what v${diffBase} said`;
+    : `showing an inline diff from v${diffBase}`;
 }
 
-// Room going in and coming back, at the fold's own length. The reader asked for this
-// content change, so it may reflow what stands under it — provided they can watch it
-// happen rather than find the page moved. One pair of frames, played either way.
-function fold(node, opening) {
-  const style = getComputedStyle(node);
-  const open = {
-    height: `${node.getBoundingClientRect().height}px`,
-    marginTop: style.marginTop,
-    paddingTop: style.paddingTop,
-    paddingBottom: style.paddingBottom,
-    opacity: 1,
-  };
-  const shut = Object.fromEntries(Object.keys(open).map((key) => [key, "0px"]));
-  shut.opacity = 0;
-  return motion(node, opening ? [shut, open] : [open, shut], FOLD_MS);
+function closeInlineComparison(target) {
+  const entry = inlineOpen.get(target);
+  inlineOpen.delete(target);
+  target.classList.remove("lf-version-inline");
+  for (const node of entry?.nodes ?? []) node.remove();
+  paintInlineInsertions();
+  layoutChanged(target);
+  return `inline diff from v${diffBase} hidden`;
 }
 
-function openEarlier(target) {
-  // A reader who presses twice inside the fold's own length finds the last reading
-  // still folding out. It goes now rather than on its own promise: the two carry one
-  // id, and the margin element's `aria-controls` may not name the one that is leaving.
-  target.querySelector(":scope > .lf-earlier")?.remove();
-  const node = earlierNode(target);
-  target.append(node);
-  earlierOpen.set(target, node);
-  fold(node, true);
-  layoutChanged(node);
-  return earlierSaid(target);
-}
-
-function closeEarlier(target) {
-  const node = earlierOpen.get(target);
-  earlierOpen.delete(target);
-  const said = `v${diffBase} hidden`;
-  if (!node?.isConnected) return said;
-  const gone = () => {
-    node.remove();
-    layoutChanged(target);
-  };
-  // Straight off the promise: motion() holds the last frame until this reaction has
-  // made it true, so the room closes once rather than snapping shut and then closing.
-  const played = fold(node, false);
-  if (played) played.finished.then(gone);
-  else gone();
-  return said;
-}
-
-// What the comparison holds at a marked block, for the margin's reading of it: the
-// node it discloses, whether that node stands open, and the promise the margin element makes
-// — named here, where every other version word is. The promise is the shut one alone
-// because the layer hides a margin element's label while it is expanded, what it opened being
-// on screen by then. Null where the comparison holds nothing, which is what leaves a
-// Change margin element over an unidentifiable block the plain travel it always was, promising
-// nothing it cannot do.
-export const comparisonEarlier = (target) =>
-  diffOn && diffEarlier.has(target)
+// What a text-changing marked block holds for the margin's disclosure reading. A pure
+// state change remains marked but offers no empty prose comparison. The one controlled
+// id is a quiet label at the start of the block. It names the versions for assistive
+// reading while the margin and Page map carry that provenance visually, outside the
+// passage whose words are being compared.
+export const inlineComparison = (target) =>
+  diffOn &&
+  diffBefore.has(target) &&
+  (diffBefore.get(target) === null || diffBefore.get(target) !== wrote(target))
     ? {
-        id: earlierId(target),
-        open: earlierOpen.has(target),
-        offer: `Show what v${diffBase} said`,
+        id: inlineId(target),
+        open: inlineOpen.has(target),
+        offer: `v${diffBase} → ${currentVersionToken()}`,
       }
     : null;
 
 // The press, and the sentence to say about it — composed here, where the versions are
 // named. The event is the comparison's, because what changed is its standing
 // rendering: the same pass that reads the marks reads the margin element's relation back.
-export function toggleEarlier(target) {
-  if (!comparisonEarlier(target)) return null;
-  const said = earlierOpen.has(target) ? closeEarlier(target) : openEarlier(target);
+export function toggleInlineComparison(target) {
+  if (!inlineComparison(target)) return null;
+  const said = inlineOpen.has(target)
+    ? closeInlineComparison(target)
+    : openInlineComparison(target);
   document.dispatchEvent(new CustomEvent("lf-comparison"));
   return said;
 }
@@ -1050,30 +1111,36 @@ const comparable = (version) => {
   );
 };
 // Every rendering of the pair above, written in one place: the chooser's word, its
-// paint and what it says it will do, the checked state of each row's Δ, and the rail
+// paint and what it says it will do, the checked state of each row's Compare control, and the rail
 // down the rows the comparison spans. Called by the setter, by every chooser render —
 // the other thing that can leave a rendering behind the state — and so once at load,
 // where what the chooser says it will do is written from the start rather than
 // standing as a second copy of these sentences up where the control is built.
 function paintDiff() {
   versionBtn.textContent = currentVersionToken();
-  versionBtn.classList.toggle("on", diffOn);
+  versionBtn.classList.toggle("on", diffOn || diffPendingBase !== null);
+  versionBtn.toggleAttribute("data-lf-news", behindCurrent());
   const currentLabel = runtime.currentLabel ?? "Draft";
+  const newer = behindCurrent() ? `; ${runtime.active.label} available` : "";
   // Rewritten on every diff change, so the key it names is taken from the row each time
   // rather than typed into one of the two branches and forgotten in the other. The
   // closed face is deliberately compact, so its hover and accessible name keep the
   // full draft-after-version context that the open menu also spells out.
   versionBtn.dataset.lfKeyTitle = versionsOffered()
-    ? diffOn
-      ? `${currentLabel}: showing what changed since v${diffBase} — pick a version, or press its Δ again to stop`
-      : `${currentLabel}: versions; read one, or mark what changed since it`
+    ? diffPendingBase !== null
+      ? `${currentLabel}: loading a comparison with v${diffPendingBase}${newer}`
+      : diffOn
+        ? `${currentLabel}: showing what changed since v${diffBase} — pick a version, or press Compare again to stop${newer}`
+        : `${currentLabel}: versions; read one, or mark what changed since it${newer}`
     : currentLabel;
   versionBtn.setAttribute(
     "aria-label",
     versionsOffered()
-      ? diffOn
-        ? `${currentLabel}: comparing with v${diffBase}; open versions`
-        : `${currentLabel}: open versions`
+      ? diffPendingBase !== null
+        ? `${currentLabel}: loading comparison with v${diffPendingBase}; open versions${newer}`
+        : diffOn
+          ? `${currentLabel}: comparing with v${diffBase}; open versions${newer}`
+          : `${currentLabel}: open versions${newer}`
       : currentLabel,
   );
   // paintCoreControls adds the complete route. Keeping the base title here lets the
@@ -1090,11 +1157,15 @@ function paintDiff() {
         revision <= runtime.currentRevision,
     );
   }
-  for (const press of versionMenu.querySelectorAll(".lf-version-diff"))
+  for (const press of versionMenu.querySelectorAll(".lf-version-diff")) {
+    const pending = +press.dataset.lfVersion === diffPendingBase;
     press.setAttribute(
       "aria-checked",
-      String(diffOn && +press.dataset.lfVersion === diffBase),
+      String(pending || (diffOn && +press.dataset.lfVersion === diffBase)),
     );
+    if (pending) press.setAttribute("aria-busy", "true");
+    else press.removeAttribute("aria-busy");
+  }
   // The base title changed above; the shared projection adds the complete shortcut
   // after this paint, including when a comparison changes without moving focus.
   paintHere();
@@ -1103,18 +1174,14 @@ function paintDiff() {
 // it, the marks and the paint being renderings rather than a second copy.
 function setDiff(on, base) {
   diffOn = on;
+  diffPendingBase = null;
   if (on) diffBase = base;
   if (!on) {
     diffRequest++; // a stop outranks a comparison still on its way
-    // The earlier readings go in the frame the marks do. They are the comparison's
-    // rendering as much as the wash is, and one of them left folding out under a
-    // block nothing marks any more would be the comparison half gone.
-    for (const [target, node] of earlierOpen) {
-      node.remove();
-      layoutChanged(target);
-    }
-    earlierOpen.clear();
-    diffEarlier.clear();
+    // Inline diffs leave with the block marks. Historical words or insertion paint
+    // under a block nothing marks any more would leave half of the comparison behind.
+    for (const target of [...inlineOpen.keys()]) closeInlineComparison(target);
+    diffBefore.clear();
     for (const b of diffMarked) b.classList.remove("lf-ins-block");
     diffMarked.length = 0;
   }
@@ -1132,9 +1199,18 @@ function setDiff(on, base) {
 // that could interleave with the next row's would leave two bases' marks standing
 // under a chooser naming one of them.
 async function showComparison(base) {
+  // Selection is immediate even though its result needs two documents. Clear the prior
+  // marks, move the menu's checked state to the requested base, and expose the wait as
+  // busy. A fast walk then never leaves the last completed base highlighted under focus
+  // on a different row.
+  setDiff(false);
   const mine = ++diffRequest;
+  diffPendingBase = base;
+  paintDiff();
   const baseRevision = stamped(base)?.revision;
   if (baseRevision == null) {
+    diffPendingBase = null;
+    paintDiff();
     notice(`Couldn't load v${base}`);
     return;
   }
@@ -1154,11 +1230,14 @@ async function showComparison(base) {
       if (runtime.view?.basis?.through_seq === throughSeq) break;
     }
   } catch {
-    notice(`Couldn't load v${base}`);
+    if (mine === diffRequest) {
+      diffPendingBase = null;
+      paintDiff();
+      notice(`Couldn't load v${base}`);
+    }
     return;
   }
   if (mine !== diffRequest) return;
-  if (diffOn) setDiff(false); // the old base's marks, before the new base's land
   const n = applyDiff(doc, base, reading);
   setDiff(true, base);
   notice(
@@ -1167,14 +1246,19 @@ async function showComparison(base) {
       : `No text changes since v${base}`,
   );
 }
-// A press names one base, so pressing the standing one again is the way off it: a Δ is a
+// A press names one base, so pressing the standing one again is the way off it: Compare is a
 // toggle where it is lit and a switch of base where it isn't. The keyboard's way off is the
-// walk itself — down to the version being read, which is comparable with nothing and so
+// walk itself — up to the version being read, which is comparable with nothing and so
 // stops rather than re-bases.
 const pressComparison = (base) =>
-  diffOn && base === diffBase ? setDiff(false) : showComparison(base);
+  (diffOn && base === diffBase) || diffPendingBase === base
+    ? setDiff(false)
+    : showComparison(base);
 
 export const comparisonBase = () => (diffOn ? diffBase : null);
+// Selection leads the documents it needs. Menu focus follows that immediate reading,
+// while the public projection above stays paired with the marks that have settled.
+const selectedBase = () => diffPendingBase ?? comparisonBase();
 export const comparisonChanges = () => (diffOn ? [...diffMarked] : []);
 
 // ---------- another version's document ----------
@@ -1263,7 +1347,9 @@ async function activateRevision(doc, revision) {
   const fresh = document.importNode(source, true);
   revisionDocuments.delete(revision.revision);
   const settlingFrom = settling.length;
-  const comparedFrom = comparisonBase();
+  // A pending selection is standing too: cancel its old-document request before the
+  // authored main moves, then restore that base against the arriving revision.
+  const comparedFrom = selectedBase();
   if (comparedFrom !== null) setDiff(false);
 
   resetAuthoredPage();

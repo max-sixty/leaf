@@ -1423,7 +1423,8 @@ def test_an_exported_page_fixture_stands_on_its_own(
             .map(e => e.getAttribute('src') ?? e.getAttribute('href')),
         links: document.querySelectorAll('link[rel="stylesheet"]').length,
         presented: document.body.dataset.lfPresented,
-        column: getComputedStyle(document.querySelector('main')).maxWidth,
+        themeMarker: getComputedStyle(document.querySelector('main'))
+            .getPropertyValue('--lf-column').trim(),
         // A page gives up a CSS shell claim for what it hangs in the margin, and
         // a copy keeps only the strips whose residents came with it: a suggestion's
         // controls are gone from a file that can decide nothing, and its rail with them,
@@ -1548,7 +1549,9 @@ def test_an_exported_page_fixture_stands_on_its_own(
     assert state["toServer"] == [], "the copy still points at a server that isn't there"
     assert state["links"] == 0, "a stylesheet link survived, pointing at nothing"
     assert state["presented"] == "1", "the copy was taken before presentation finished"
-    assert state["column"] != "none", "the theme didn't inline; the copy opens unstyled"
+    assert state["themeMarker"] == "1", (
+        "the theme didn't inline; the copy opens unstyled"
+    )
     assert state["empty"] == [], (
         "the copy holds a strip of its own width open with nothing standing in it, so "
         "the column sits off to one side of a page it has all of — a rail reserved for "
@@ -1573,6 +1576,40 @@ def test_an_exported_page_fixture_stands_on_its_own(
     assert covered == [], f"the copy draws its own words over each other: {covered}"
     assert axe_violations == [], axe_report
     assert errors == [], f"{page_fixture.stem} needs a server to render: {errors}"
+
+
+def test_comparison_export_keeps_both_results_and_the_recorded_choice(
+    browser, serve, tmp_path
+):
+    """A standalone comparison keeps both policy readings and their decision."""
+    example = ROOT / "examples" / "current-proposed-comparison.html"
+    url = serve(example)
+    out = tmp_path / "comparison.html"
+    out.write_text(
+        exporting_model.export_page(browser, url, serve.page_dir, "comparison.html")
+    )
+
+    page = browser.new_page(viewport={"width": 760, "height": 900}, bypass_csp=True)
+    errors = watched(page)
+    page.goto(out.as_uri(), wait_until="load")
+    current = page.locator("#comparison-current")
+    proposed = page.locator("#comparison-proposed")
+    expect(current).to_contain_text("5")
+    expect(proposed).to_contain_text("1")
+    boxes = [
+        current.evaluate("el => el.getBoundingClientRect().toJSON()"),
+        proposed.evaluate("el => el.getBoundingClientRect().toJSON()"),
+    ]
+    assert boxes[0]["right"] <= boxes[1]["x"] + 1, boxes
+    assert page.evaluate(
+        "document.scrollingElement.scrollWidth === document.scrollingElement.clientWidth"
+    )
+    expect(page.locator("#comparison-policy")).to_contain_text(
+        "Adopt one shared refresh per tab"
+    )
+    assert page.locator("script, .lf-chrome").count() == 0
+    assert errors == []
+    page.close()
 
 
 def test_a_copy_carries_a_workers_standing_report(browser, serve, tmp_path):

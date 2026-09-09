@@ -1,9 +1,9 @@
-/* The shortcut bar at the foot of the page, the separate clamped-walk position at the
+/* The shortcut bar at the foot of the page, the separate keyboard-walk position at the
    page's head, and the More control that leads from the bar to the reference.
 
    The readout keeps navigation state out of the command list. It appears after a
-   Leaf-owned list walk and briefly takes the accent face when a repeated press reaches
-   the same clamped destination. The bar gives compact hints rather than reproducing the
+   semantic list walk and briefly takes the accent face when a repeated press cannot move
+   from its destination. The bar gives compact hints rather than reproducing the
    keyboard reference. It walks outward from the reader's innermost scope and drops
    bindings shadowed there. The
    ordinary shortlist is the first live row, then a promotable Escape or the next row.

@@ -171,6 +171,75 @@ def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
     page.close()
 
 
+def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, serve):
+    source = READING_REGIONS_PAGE.replace(
+        '<footer><button id="left-foot">',
+        '<footer style="min-height: 220px"><button id="left-foot">',
+    )
+    page, errors = open_page(browser, serve(source))
+    workspace = page.locator("#reading-workspace")
+    left = page.locator("#left-reading > .lf-pane-content > .lf-pane-body")
+    right = page.locator("#right-reading > .lf-pane-content > .lf-pane-body")
+    target = page.locator("#left-end")
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+
+    left.evaluate("body => body.scrollTop = body.scrollHeight")
+    right.evaluate("body => body.scrollTop = 320")
+    target.click(click_count=3)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    expect(field).to_be_focused()
+    wait_for_pending_mark(page)
+
+    sibling_before = right.evaluate(
+        "body => ({scroll: body.scrollTop, box: body.getBoundingClientRect().toJSON()})"
+    )
+    draft = "\n".join(
+        f"Line {line}: keep this unsent pane comment available through reflow."
+        for line in range(1, 21)
+    )
+    field.fill(draft)
+    expect(field).to_have_value(draft)
+    expect(page.get_by_role("button", name="Comment", exact=True)).to_be_visible()
+    sibling_after = right.evaluate(
+        "body => ({scroll: body.scrollTop, box: body.getBoundingClientRect().toJSON()})"
+    )
+    assert sibling_after == sibling_before, (
+        f"growing the left composer moved its sibling: {sibling_before}, {sibling_after}"
+    )
+    field.evaluate("box => box.scrollTop = box.scrollHeight")
+    assert field.evaluate(
+        "box => box.scrollTop + box.clientHeight >= box.scrollHeight - 1"
+    ), "the complete multiline draft was not reachable in its field"
+
+    resized(page, 520, 900)
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(field).to_be_focused()
+    expect(field).to_have_value(draft)
+    expect(page.get_by_role("button", name="Comment", exact=True)).to_be_visible()
+
+    resized(page, 1200, 900)
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(field).to_be_focused()
+    expect(field).to_have_value(draft)
+    assert right.evaluate("body => body.scrollTop") == pytest.approx(
+        sibling_before["scroll"], abs=1
+    )
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(page.locator(".lf-notice")).to_have_text("Draft kept — g D returns to it")
+    page.keyboard.press("g")
+    assert "your draft" in shortcut_bar_text(page)
+    page.keyboard.press("Shift+d")
+    expect(field).to_be_focused()
+    expect(field).to_have_value(draft)
+    assert "Left end" in pending_text(page)
+    assert errors == []
+    page.close()
+
+
 def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser, serve):
     page, errors = open_page(browser, serve(READING_REGIONS_PAGE))
     workspace = page.locator("#reading-workspace")
@@ -466,6 +535,150 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     page.close()
 
 
+def test_current_and_proposed_results_share_one_review_and_flow_in_order(
+    browser, serve
+):
+    """The comparison is simultaneous when room permits and sequential when it does not."""
+    example = next(e for e in EXAMPLES if e.stem == "current-proposed-comparison")
+    page, errors = open_page(browser, serve(example))
+    workspace = page.locator("#comparison-workspace")
+    current = page.locator("#comparison-current")
+    proposed = page.locator("#comparison-proposed")
+
+    resized(page, 1200, 900)
+    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(current).to_be_visible()
+    expect(proposed).to_be_visible()
+    boxes = [
+        current.evaluate("el => el.getBoundingClientRect().toJSON()"),
+        proposed.evaluate("el => el.getBoundingClientRect().toJSON()"),
+    ]
+    assert boxes[0]["right"] <= boxes[1]["x"] + 1, boxes
+    assert page.locator("lf-ask").count() == 1
+    assert page.locator("lf-options[choose]").count() == 1
+
+    resized(page, 420, 900)
+    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    boxes = [
+        current.evaluate("el => el.getBoundingClientRect().toJSON()"),
+        proposed.evaluate("el => el.getBoundingClientRect().toJSON()"),
+    ]
+    decision = page.locator("#comparison-policy-decision").evaluate(
+        "el => el.getBoundingClientRect().toJSON()"
+    )
+    assert boxes[0]["bottom"] <= boxes[1]["y"] + 1, boxes
+    assert boxes[1]["bottom"] <= decision["y"] + 1, [*boxes, decision]
+    assert errors == []
+    page.close()
+
+
+def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve):
+    """Each policy owns a separate anchor and pane-local return route."""
+    example = next(e for e in EXAMPLES if e.stem == "current-proposed-comparison")
+    page, errors = open_page(
+        browser,
+        serve(
+            example,
+            anchored=[
+                (
+                    "comparison-current-behavior",
+                    "starts its own credential refresh",
+                ),
+                (
+                    "comparison-proposed-behavior",
+                    "Other calls in that tab wait for it",
+                ),
+            ],
+        ),
+    )
+    resized(page, 1600, 700)
+    current = page.locator("#comparison-current .lf-pane-body")
+    proposed = page.locator("#comparison-proposed .lf-pane-body")
+    notes = page.locator(".lf-mark-note")
+    expect(notes).to_have_count(2)
+    assert notes.evaluate_all("els => els.map(el => el.closest('lf-pane').id)") == [
+        "comparison-current",
+        "comparison-proposed",
+    ]
+    current.evaluate("el => el.scrollTop = el.scrollHeight")
+    proposed.evaluate("el => el.scrollTop = el.scrollHeight")
+    initial_scrolls = [
+        current.evaluate("el => el.scrollTop"),
+        proposed.evaluate("el => el.scrollTop"),
+    ]
+    assert min(initial_scrolls) > 0
+
+    page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread", has_text="starts its own credential refresh").locator(
+        ".lf-quote"
+    ).click()
+    expect(page.locator("#comparison-current-behavior")).to_be_in_viewport()
+    page.wait_for_function("el => el.scrollTop === 0", arg=current.element_handle())
+    current_after_current = current.evaluate("el => el.scrollTop")
+    proposed_after_current = proposed.evaluate("el => el.scrollTop")
+    assert current_after_current < initial_scrolls[0]
+    assert proposed_after_current == initial_scrolls[1]
+
+    page.locator(".lf-thread", has_text="Other calls in that tab wait for it").locator(
+        ".lf-quote"
+    ).click()
+    expect(page.locator("#comparison-proposed-behavior")).to_be_in_viewport()
+    page.wait_for_function("el => el.scrollTop === 0", arg=proposed.element_handle())
+    assert proposed.evaluate("el => el.scrollTop") < proposed_after_current
+    assert current.evaluate("el => el.scrollTop") == current_after_current
+    assert errors == []
+    page.close()
+
+
+def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, serve):
+    """One v1 choice remains authoritative in the v2 policy and rollout."""
+    example = next(e for e in EXAMPLES if e.stem == "current-proposed-comparison")
+
+    seeded = serve(example)
+    first = seeded.replace("/versions/v2.html", "/versions/v1.html")
+    page, errors = open_page(browser, first)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
+    assert errors == []
+    page.close()
+
+    newest = serve(example, seed_log=False)
+    first = newest.replace("/versions/v2.html", "/versions/v1.html")
+    page, errors = open_page(browser, first)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect(page.locator("#comparison-policy-shared")).not_to_have_attribute(
+        "chosen", ""
+    )
+
+    page.keyboard.press("a")
+    expect(page.locator("#comparison-policy-decision")).to_be_focused()
+    with sending(page, "the authentication retry policy decision"):
+        page.keyboard.press("2")
+    expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
+
+    page.goto(live_url(newest))
+    page.wait_for_function(RENDERED)
+    expect(page.locator(".lf-version")).to_have_text("v2")
+    expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
+    expect(page.locator("#comparison-proposed > header")).to_contain_text("selected")
+    expect(page.locator("#comparison-rollout")).to_contain_text(
+        "enables shared refreshes for web clients"
+    )
+    expect(page.locator("#comparison-policy")).to_have_attribute("settled", "")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/0")
+
+    actions = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ]
+    assert [event["detail"]["options"] for event in actions] == [
+        ["comparison-policy-shared"]
+    ]
+    assert errors == []
+    page.close()
+
+
 def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
     browser, serve
 ):
@@ -517,7 +730,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     for surface in (
         "status line",
         "Threads",
-        "version picker",
+        "Versions menu",
         "Map",
         "All keyboard shortcuts",
         "All leaves",
@@ -4182,6 +4395,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
+    expect(page.locator(".lf-walk-position")).to_have_text(
+        f"Command 1 of {commands.count()}"
+    )
     expect(help_el.locator(".lf-shortcut-reference-meta")).to_have_text(
         re.compile(r" · ⏎ run$")
     )
@@ -4191,6 +4407,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     )
     page.keyboard.press("ArrowUp")
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
+    expect(page.locator(".lf-walk-position")).to_have_attribute("data-lf-boundary", "")
 
     page.keyboard.press("Escape")
     page.keyboard.press("?")
@@ -4616,6 +4833,9 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     expect(tabs.nth(1)).to_be_focused()
     expect(page.locator("#tab-bath")).not_to_have_attribute("hidden", re.compile(".*"))
     expect(page.locator("#tab-feeders")).to_have_attribute("hidden", re.compile(".*"))
+    page.keyboard.press("ArrowLeft")
+    expect(tabs.first).to_be_focused()
+    expect(page.locator(".lf-walk-position")).to_have_text("Tab 1 of 2")
     assert errors == []
     page.close()
 
@@ -4754,6 +4974,7 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
 
     page.keyboard.press("Tab")
     first_code = address_code(page, "Link", "first")
+    expect(page.locator(".lf-walk-position")).to_have_text("Target 1 of 2")
     expect(page.locator(".lf-live")).to_have_text(
         f"Hint {first_code}: Link, First destination. Press Enter to go there."
     )
@@ -4763,6 +4984,7 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
 
     page.keyboard.press("Tab")
     second_code = address_code(page, "Link", "second")
+    expect(page.locator(".lf-walk-position")).to_have_text("Target 2 of 2")
     expect(page.locator(".lf-live")).to_have_text(
         f"Hint {second_code}: Link, Second destination. Press Enter to go there."
     )

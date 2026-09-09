@@ -16,121 +16,101 @@
   </head>
   <body>
     <main>
-      <p class="eyebrow">live progress · rehearsal 4 of 5</p>
-      <h1>Checkout cutover rehearsal</h1>
-      <p class="lede" id="lp-lede">
-        The rollback proof is running now. This page follows the agent's valid saves, so
-        the release captain can watch checks, ownership, and the one blocked fixture
-        change without refreshing.
-      </p>
-      <aside class="sidebar" id="lp-sidebar">
-        <lf-toc id="lp-contents"></lf-toc>
-      </aside>
-
-      <lf-metrics id="lp-metrics">
-        <lf-metric id="lp-k-done" value="14 of 18" delta="+3" direction="up-good"
-          >checks complete</lf-metric
-        >
-        <lf-metric id="lp-k-running" value="2">running now</lf-metric>
-        <lf-metric id="lp-k-blocked" value="1" delta="+1" direction="up-bad"
-          >blocked</lf-metric
-        >
-        <lf-metric id="lp-k-elapsed" value="31 min">elapsed</lf-metric>
-      </lf-metrics>
-
-      <section id="lp-crew">
-        <h2>On the rehearsal</h2>
-        <lf-roster id="lp-roster">
-          <lf-agent id="lp-agent-router" state="working">
-            <strong>router</strong> Comparing old and new order counts after rollback.
-          </lf-agent>
-          <lf-agent id="lp-agent-ledger" state="blocked">
-            <strong>ledger</strong> Waiting on one partially refunded order fixture.
-          </lf-agent>
-          <lf-agent id="lp-agent-observer" state="waiting">
-            <strong>observer</strong> Guardrails are green; watching the final sample.
-          </lf-agent>
-          <lf-agent id="lp-agent-scribe" state="idle">
-            <strong>scribe</strong> Ready to publish once the drill closes.
-          </lf-agent>
-          <lf-agent id="lp-agent-baseline" state="done">
-            <strong>baseline</strong> Captured the pre-cutover sample and handed it off.
-          </lf-agent>
-        </lf-roster>
-      </section>
-
-      <lf-tabs id="lp-streams">
-        <lf-tab id="lp-tab-rollback" label="Rollback drill">
-          <aside class="callout" id="lp-active">
-            <strong>Step 3 of 4.</strong> Traffic is back on the old checkout service.
-            Order counts are within two of the baseline while the last comparison runs.
-          </aside>
-          <lf-milestones id="lp-milestones">
-            <lf-milestone id="lp-ms-baseline" status="done" when="14:02">
-              <strong>Capture the baseline</strong> Error rate, p95, order count, and
-              queue depth recorded.
-            </lf-milestone>
-            <lf-milestone id="lp-ms-shadow" status="done" when="14:08">
-              <strong>Shadow production traffic</strong> Both services agreed on 2,000
-              sampled checkouts.
-            </lf-milestone>
-            <lf-milestone id="lp-ms-cutover" status="done" when="14:19">
-              <strong>Cut traffic over</strong> Guardrails held for ten minutes at 100%.
-            </lf-milestone>
-            <lf-milestone id="lp-ms-rollback" status="active" when="running">
-              <strong>Prove rollback</strong> Old checkout is live; the final count is
-              still running.
-            </lf-milestone>
-            <lf-milestone
-              id="lp-ms-finance"
-              status="blocked"
-              when="waiting"
-              tags="finance"
-            >
-              <strong>Reconcile the finance export</strong> Waiting on the fixture in
-              the next tab.
-            </lf-milestone>
-            <lf-milestone id="lp-ms-report" status="planned" when="next" tags="handoff">
-              <strong>Publish the rehearsal report</strong> Attach the final sample and
-              name the finance follow-up.
-            </lf-milestone>
-          </lf-milestones>
-        </lf-tab>
-
-        <lf-tab id="lp-tab-finance" label="Finance fixture">
-          <h2>The only blocked check</h2>
-          <p id="lp-finance-note">
-            Traffic has returned successfully; only the final count comparison and
-            finance fixture remain open. Finance needs one order that was captured,
-            partly refunded, and then exported after the cutover. Your picks reach
-            Ledger now; this page stays blocked until the agent runs them and saves the
-            result.
+      <lf-monitor id="lp-monitor">
+        <header>
+          <p class="eyebrow">live operations · rehearsal 4 of 5</p>
+          <h1>Checkout cutover rehearsal</h1>
+          <p class="lede" id="lp-lede">
+            Checkout is stable on the old service. The evidence stream is still moving,
+            while one finance-export exception needs a containment decision.
           </p>
-          <lf-ask id="lp-finance-decision">
-            <h3>Which cases should the fixture cover?</h3>
-            <lf-options id="lp-finance-cases" choose multiple>
-              <lf-option id="lp-finance-partial" for="lp-ms-finance"
-                >One partial refund after capture</lf-option
-              >
-              <lf-option id="lp-finance-two-refunds" for="lp-ms-finance"
-                >Two refunds against the same order</lf-option
-              >
-              <lf-option id="lp-finance-currency" for="lp-ms-finance"
-                >A refund settled in a second currency</lf-option
-              >
-            </lf-options>
-          </lf-ask>
-        </lf-tab>
+        </header>
 
-        <lf-tab id="lp-tab-handoffs" label="Handoffs">
-          <h2>When the drill closes</h2>
-          <ul id="lp-handoff-list">
-            <li>Observer attaches the final guardrail sample.</li>
-            <li>Ledger runs the selected finance cases without reopening cutover.</li>
-            <li>Scribe publishes timings and names the blocked follow-up.</li>
-          </ul>
-        </lf-tab>
-      </lf-tabs>
+        <lf-monitor-grid id="lp-regions">
+          <lf-monitor-region id="lp-overview" label="Overview" zone="overview">
+            <header><h2>Overview</h2></header>
+            <aside class="callout" id="lp-active">
+              <strong>Rollback proved.</strong> The old checkout service is handling all
+              traffic; finance export remains isolated from the customer path.
+            </aside>
+            <lf-metrics id="lp-metrics">
+              <lf-metric id="lp-k-done" value="17 of 18">checks complete</lf-metric>
+              <lf-metric id="lp-k-running" value="0">running now</lf-metric>
+              <lf-metric id="lp-k-blocked" value="1">needs decision</lf-metric>
+            </lf-metrics>
+            <h3 id="lp-crew-heading">On the rehearsal</h3>
+            <lf-roster id="lp-roster">
+              <lf-agent id="lp-agent-router" state="done">
+                <strong>router</strong> Matched order counts after rollback.
+              </lf-agent>
+              <lf-agent id="lp-agent-ledger" state="blocked">
+                <strong>ledger</strong> Waiting on the finance containment choice.
+              </lf-agent>
+              <lf-agent id="lp-agent-observer" state="waiting">
+                <strong>observer</strong> Guardrails are green; watching the old
+                service.
+              </lf-agent>
+              <lf-agent id="lp-agent-scribe" state="idle">
+                <strong>scribe</strong> Ready to record the containment decision.
+              </lf-agent>
+            </lf-roster>
+          </lf-monitor-region>
+
+          <lf-monitor-region id="lp-evidence" label="Evidence stream" zone="evidence">
+            <header><h2>Evidence stream</h2></header>
+            <p id="lp-evidence-note">
+              New samples append here without replacing the overview or the decision.
+              The stream follows the current <code>rehearsal-log</code> data source.
+            </p>
+            <lf-source id="lp-live-log" source="rehearsal-log"></lf-source>
+            <footer>Newest samples are at the end of the stream.</footer>
+          </lf-monitor-region>
+
+          <lf-monitor-region id="lp-exception" label="Exception" zone="exception">
+            <header><h2>Exception</h2></header>
+            <aside class="callout" id="lp-finance-note">
+              <strong>Partially refunded order missing from export.</strong> Checkout
+              traffic is healthy, but order <code>co_18427</code> appears in the ledger
+              and not in the finance file. The export stays isolated until this choice
+              is recorded.
+            </aside>
+            <lf-milestones id="lp-exception-status">
+              <lf-milestone id="lp-finance-gate" status="blocked" when="now">
+                <strong>Resume the finance export</strong> Waiting on safeguards for the
+                missing partial refund.
+              </lf-milestone>
+            </lf-milestones>
+            <lf-ask id="lp-finance-decision">
+              <h3>
+                Which safeguards should stay active while Ledger rebuilds the fixture?
+              </h3>
+              <p>
+                Choose every safeguard Finance should keep until the partial-refund case
+                passes.
+              </p>
+              <lf-options id="lp-finance-cases" choose multiple>
+                <lf-option id="lp-hold-exports">
+                  <strong>Hold partial-refund exports</strong> Keep the affected export
+                  path paused until the rebuilt fixture passes.
+                </lf-option>
+                <lf-option id="lp-quarantine-order">
+                  <strong>Quarantine this order</strong> Continue ordinary exports and
+                  reconcile <code>co_18427</code> by hand.
+                </lf-option>
+                <lf-option id="lp-finance-signoff">
+                  <strong>Require finance sign-off</strong> Keep the export closed until
+                  Finance reviews the repaired row.
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </lf-monitor-region>
+        </lf-monitor-grid>
+
+        <footer>
+          The overview is authored; the evidence stream is replaceable page data; the
+          containment choices are event-backed reader state.
+        </footer>
+      </lf-monitor>
     </main>
   </body>
 </html>

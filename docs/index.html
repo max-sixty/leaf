@@ -92,15 +92,15 @@
           <img
             src="/media/f3883f5c8f6d6f19.png"
             alt="A live leaf in the browser: a migration plan with a comment anchored
-to a highlighted passage, Claude's reply in the thread, a version picker reading
+to a highlighted passage, Claude's reply in the thread, a Versions menu control reading
 v3 (latest), and a banner reading 'Claude awaits'."
           />
         </picture>
         <figcaption>
           A leaf in flight. The user asked about a rollback edge case; Claude replied in
-          the thread and shipped v3 covering it. The picker holds each immutable version
-          with its changelog and a Δ that marks what changed since it, and the banner
-          tracks whether Claude is working or waiting on you.
+          the thread and shipped v3 covering it. The menu holds each immutable version
+          with its changelog and a Compare action that marks what changed since it, and
+          the banner tracks whether Claude is working or waiting on you.
         </figcaption>
       </figure>
 
@@ -189,8 +189,8 @@ v3 (latest), and a banner reading 'Claude awaits'."
           <li id="loop-revise">
             <strong>A revision ships.</strong> Versions are immutable, each with a
             one-line changelog. The page follows the newest while keeping your place on
-            it, and any older version's Δ marks every passage that has changed since it
-            — as far back as you were away.
+            it, and any older version's Compare action marks every passage that has
+            changed since it — as far back as you were away.
           </li>
           <li id="loop-signoff">
             <strong>Conclude deliberately.</strong> Pages seeking approval offer "✓
@@ -262,9 +262,9 @@ whose rehearsal count advances, and the user drags an on-call task to During."
         <h2>Example: Watch work finish</h2>
         <p id="track-setup">
           The <a href="/examples/live-progress/">cutover-rehearsal example</a> is a page
-          the agent keeps current while it works. It names what is running now, marks
-          the one blocked check and what it waits on, and records what has already
-          finished. Run it like any other example:
+          the agent keeps current while it works. It holds a stable overview beside the
+          changing evidence stream and the one exception the release captain must
+          decide. Run it like any other example:
         </p>
         <pre id="progress-command"><code>scripts/preview.py live-progress</code></pre>
         <lf-timeline id="track-versions">

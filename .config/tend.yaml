@@ -2,14 +2,15 @@ bot_name: leaf-agent
 
 # Everything in this repo runs through `uv` (CLAUDE.md): the suite is
 # `uv run pytest tests`, and `leaf` itself is a uv project that syncs its own
-# environment. `setup-uv` is where the agent gets uv, on the same unpinned
-# action `ci.yaml` uses, so both take a uv new enough to read `uv.lock`'s
-# revision; `uv sync --frozen` warms `.venv` so the sandbox
-# inherits it rather than resolving from scratch on every run, and installs the
-# lock as written so a run can't leave lockfile churn in the branch it opens.
+# environment. `setup-uv` is still where the agent gets uv even though it runs
+# as the runner: it installs into the hosted toolcache, which carries into the
+# sandbox ahead of tend's pinned fallback, so the agent and `ci.yaml` take the
+# same unpinned action and both get a uv new enough to read `uv.lock`'s
+# revision. What does not carry is anything `setup:` writes into the runner
+# checkout — the agent works in an independent disposable clone — so the sync
+# that populates `.venv` belongs in `sandbox_setup:` below.
 setup:
   - uses: astral-sh/setup-uv@v7
-  - run: uv sync --frozen
 
 # `setup:` runs as the runner, and Playwright downloads browsers under the
 # home of whoever runs it — a home the sandbox does not inherit. So the agent
@@ -23,7 +24,14 @@ setup:
 # image already carries the system libraries. The launch afterwards is the
 # assertion the install worked, so a broken one stops the job instead of
 # reaching the agent as a suite that cannot start.
+#
+# `uv sync --frozen` leads because the clone arrives with no `.venv`: the
+# environment installs here, once, before the session, rather than partway
+# through the first `uv run` below. `--frozen` installs the lock as written, so
+# the tree a session commits from starts on the resolution the suite was last
+# green on rather than on a fresh resolve.
 sandbox_setup:
+  - uv sync --frozen
   - uv run playwright install chromium --only-shell
   - 'uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.stop()"'
 

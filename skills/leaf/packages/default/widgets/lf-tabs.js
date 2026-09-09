@@ -14,8 +14,10 @@
 import {
   HIDDEN,
   PRESS,
+  beginWalk,
   commands,
   layoutChanged,
+  listWalkPosition,
   offer,
   once,
   relabel,
@@ -76,6 +78,9 @@ customElements.define(
         const next = order[to(at, order.length)];
         next.focus();
         next.click();
+        beginWalk("tab", "Tab", () =>
+          listWalkPosition([...this.#buttons.values()], document.activeElement),
+        );
       };
       commands(strip, "On a tab", [
         {

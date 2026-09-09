@@ -461,8 +461,10 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     for token in ["keep", "change", "clarify", "shorten", "support", "prioritize"]:
         page.keyboard.press("ArrowRight")
         expect(surface.locator(f'[data-token="{token}"]')).to_be_focused()
+    expect(page.locator(".lf-walk-position")).to_have_text("Response 7 of 7")
     page.keyboard.press("ArrowRight")
     expect(surface.get_by_role("button", name="Suggest", exact=True)).to_be_focused()
+    expect(page.locator(".lf-walk-position")).to_have_text("Response 1 of 7")
     assert (
         surface.locator(".lf-fab-input:visible, .lf-react:visible").evaluate_all(
             """els => new Set(els.map(el => {
@@ -556,6 +558,10 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
     expect(item.locator(".lf-margin-spill:visible")).to_have_count(0)
     expect(item.locator(".lf-sug-accept:visible")).to_have_count(0)
     reaction = choices.nth(1)
+    choices.first.focus()
+    page.keyboard.press("ArrowRight")
+    expect(reaction).to_be_focused()
+    expect(page.locator(".lf-walk-position")).to_have_text("Reaction 2 of 6")
     if opener == "click":
         with sending(page, "the direct reaction"):
             reaction.click()

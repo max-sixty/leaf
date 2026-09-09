@@ -22,15 +22,9 @@ produced the following backlog. IDs match the research discussion, not GitHub is
 The [research briefs](notes/workspace-followups.md) retain evidence, completion
 criteria, dependencies, and Sol/Astra assignments. Items are ordered within each group.
 
-Continue with the reader-continuity checks and the remaining composition experiments.
+Continue with the remaining reader-continuity checks and composition experiments.
 Keep the current primitives; let those uses establish demand for more. Defer the
 authoring evaluation until Leaf's shape is stable enough for the comparison to last.
-
-### Examples
-
-- **#7 — [Keep playground presets within reach](notes/workspace-followups.md#item-7).**
-  Try placing the compact preset controls in the controls pane’s header, outside its
-  scrolling body.
 
 ### Reader continuity
 
@@ -46,28 +40,9 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
   beside](notes/workspace-followups.md#item-12).** Try overlay as the quick-access
   default, with an explicit Keep beside choice for sustained conversation.
 
-- **#13 — [Automate long local-comment
-  journeys](notes/workspace-followups.md#item-13).** Protect draft and focus continuity
-  when a long composer meets a short pane, a tall footer and a posture change.
-
 - **#14 — [Verify the complete keyboard and accessibility
   route](notes/workspace-followups.md#item-14).** Exercise the workspace as one keyboard
   task, including reading, pane furniture, local comments and Threads.
-
-- **#15 — [Name the region in ambiguous page-map
-  entries](notes/workspace-followups.md#item-15).** Test whether the compact page map
-  can distinguish identical subjects in different panes.
-
-### Complete workflows
-
-- **#16 — [Prove a current-versus-proposed
-  comparison](notes/workspace-followups.md#item-16).** Show two real alternatives
-  simultaneously and let the reader discuss each before committing one choice.
-
-- **#18 — [Try an exception-driven monitoring
-  workspace](notes/workspace-followups.md#item-18).** Use the existing live-progress
-  example to test a stable overview beside changing evidence and an exception that needs
-  a decision.
 
 ### Authoring and product boundary
 
@@ -79,10 +54,6 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 - **#20 — [Teach the few compositions that earn their
   place](notes/workspace-followups.md#item-20).** Put tested document, configuration and
   queue/detail recipes into the existing package guidance.
-
-- **#21 — [Test whether custom roots need shared fitting
-  policy](notes/workspace-followups.md#item-21).** Use one genuinely different package
-  root to decide whether responsive fit ownership belongs in the shared API.
 
 - **#22 — [Verify workspaces at the experimental MCP
   boundary](notes/workspace-followups.md#item-22).** Check the same workspace in a full

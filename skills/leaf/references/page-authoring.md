@@ -110,7 +110,7 @@ notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text. The
 registry is the only widget vocabulary.
 
-The runtime injects the status banner, thread panel, version picker, keyboard
+The runtime injects the status banner, thread panel, Versions menu, keyboard
 shortcuts, live-leaves tray, and active-asks tray. Authors declare reader asks
 through the registry's Ask sources and surfaces, but do not duplicate that
 chrome or maintain a second list of it in the page.

@@ -39,10 +39,10 @@ and stores each declaration unread, and the first repaint after boot evaluates i
 there;
 `runtime/standing.js` owns the one repaint of where the reader stands, in the order
 the geometry demands;
-`runtime/walk-position.js` owns the transient ordinal for clamped Leaf-owned keyboard
-walks, shown at the page head when the layout has room, and the brief boundary state when
-another press stays at the same destination; cyclic and widget-owned walks keep their
-local feedback;
+`runtime/walk-position.js` owns the transient ordinal for semantic Leaf keyboard walks,
+shown at the page head when the layout has room, and the brief boundary state when another
+press stays at the same destination; clamped and cyclic owners use the same reading, while
+native focus traversal and gestures that rearrange state keep their local feedback;
 `runtime/icons.js` owns the layer's icon table;
 `runtime/context.js` owns the mutable facts shared across the browser layers and
 their direct readers;
@@ -99,7 +99,7 @@ subscriptions;
 of rows applies; `dispatch.js` which scope answers a press and what it owes the
 platform; `return-stack.js` what a keyboard entry owes on the way back out;
 `shortcut-bar.js` the short help at the foot of the page, its More control, the separate
-clamped-walk readout at the page's head, and the shared lists of their rendered boxes;
+keyboard-walk readout at the page's head, and the shared lists of their rendered boxes;
 `reference.js` the complete listing behind `?`; `address.js` the go-to sequence;
 `address-placement.js` shared address visibility and the numeric Ask placement pass;
 `hints.js` prefix-free transient labels and their no-drop placement pass;
@@ -112,7 +112,8 @@ element the banner seats;
 `runtime/reading-regions.js` owns reading-region identities, effective scrollers,
 allocation and bounded/flow posture transitions;
 `runtime/reading-layout.js` owns shared arrangement construction and furniture slots
-used by structural and compound widgets;
+used by structural and compound widgets, plus the page-room observation lifecycle that
+root workspaces apply to their own minimum-size policy;
 `runtime/outbox.js` owns ordered gesture delivery and accounting;
 `runtime/presence.js` owns the calibrated server clock, relative-time wording,
 and the deadline at which canonical activity asks for another server read;
@@ -143,7 +144,7 @@ report, and work-claim feeds;
 `runtime/version.js` owns version travel whole: the chooser control, its menu and the
 newest-version chip, its `g V` destination row and the menu's local `v` scope, forced
 live activation,
-version-comparison state, its marks and chooser paint, the earlier reading a
+version-comparison state, its marks and chooser paint, the inline text diff a
 marked block discloses, version document loading,
 authored-root replacement, the persisted semantic reading landmarks carried across that
 replacement, and the page-block reading directional walks start from;

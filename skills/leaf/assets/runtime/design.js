@@ -7,7 +7,7 @@ import { tabStore } from "./storage.js";
 import { announce } from "./notifications.js";
 import { syncGeneral } from "./conversation/panel.js";
 import { isItem, ITEM, itemAt, itemWord, pageShifted, refreshAim } from "./anchors.js";
-import { paintHere } from "./keyboard/scopes.js";
+import { repaint } from "./repaint.js";
 import { closestAcross, containsAcross, cut, inChrome, layerPart } from "./passages.js";
 import { tagsDeclaring } from "./registry.js";
 import { showFab } from "./composing/surface.js";
@@ -70,7 +70,7 @@ export function setDesign(on, { spoken = true } = {}) {
   syncGeneral(); // the general box's hint says which of the two it posts
   refreshAim(); // the box and the name follow the mode, not only the pointer
   paintLegend(); // and so does the legend — with the class, not a frame behind it
-  paintHere();
+  repaint();
 }
 
 // The legend: what is on the page, shown while the mode stands rather than found by

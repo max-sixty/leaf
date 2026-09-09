@@ -94,7 +94,8 @@ import {
   requirementMatches,
   stageOutboxAction,
 } from "./projection.js";
-import { PENDING, runtime } from "./context.js";
+import { runtime } from "./context.js";
+import { PENDING } from "./conversation/identity.js";
 import { quoted } from "./widget-elements.js";
 import { elementById } from "./passages.js";
 import { RETRY_MS } from "./state-feed.js";
@@ -206,14 +207,12 @@ function stageOutboxConversation(entry) {
 // has already rendered the state carrying the message: keyed on the receipt, the pending
 // record and the server's own thread change places within one render, instead of both
 // standing for a frame.
-export const pendingMessages = () =>
-  outbox
+export const pendingMessages = (entries, receipts) =>
+  entries
     .filter(
       (entry) =>
         entry.message &&
-        !(runtime.browser?.receipts ?? []).some(
-          (candidate) => candidate.attempt === entry.event.attempt,
-        ),
+        !receipts.some((candidate) => candidate.attempt === entry.event.attempt),
     )
     .map((entry) => entry.message);
 

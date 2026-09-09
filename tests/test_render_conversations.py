@@ -2669,6 +2669,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-trigger",
         "lf-react-trigger-icon",
         "lf-resolve",
+        # The same thread header owns settlement in the panel and in inline seats;
+        # the authored theme gives both views the same label/control alignment.
+        "lf-thread-head",
         # Active buttons share the theme's existing .lf-btn.on state.
         "on",
         # Primary buttons keep the authored theme's filled action face when they

@@ -44,11 +44,12 @@ immutable valid revisions, event-backed stamped version aliases, the event log,
 service state, and its vendored layer. Export or copy anything that must outlive
 that live state.
 
-Resolve the directory containing this `SKILL.md`, then use its
-`../../bin/leaf` launcher for every command shown as `leaf`. In Claude Code that
-path is `${CLAUDE_SKILL_DIR}/../../bin/leaf`, and Claude Code also puts it on
-`PATH`. If the resolved file is absent, report that the plugin payload is
-incomplete. A checkout keeps it at `bin/leaf`.
+When the host sets `$LEAF`, use that launcher for every command shown as `leaf`.
+Otherwise resolve the directory containing this `SKILL.md` and use its
+`../../bin/leaf` launcher. In Claude Code that path is
+`${CLAUDE_SKILL_DIR}/../../bin/leaf`, and Claude Code also puts it on `PATH`. If
+the resolved file is absent, report that the plugin payload is incomplete. A
+checkout keeps the launcher at `bin/leaf`.
 
 1. Run `leaf page init <page>`. Optional shapes need their packages named here:
    `diagram` for Mermaid, `diff` for a unified diff, `swipe` for rapid

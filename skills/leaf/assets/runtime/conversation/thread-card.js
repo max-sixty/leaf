@@ -3,7 +3,7 @@ import { isMarked, placedAt, scrollToThread } from "../anchors.js";
 import { threadsBox } from "./panel.js";
 import { turns } from "./model.js";
 import { anchorLabel, msgNode, msgNodeIn, syncMsgNode } from "./messages.js";
-import { paintReactStrips } from "./reaction-strips.js";
+import { paintReactStrips, removeConversationNode } from "./reaction-strips.js";
 import { el, reachedForWords } from "../widget-elements.js";
 import { panelCovers, setPanel } from "../chrome-layout.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
@@ -11,7 +11,8 @@ import { PRESS } from "../keyboard/bindings.js";
 import { wireReply } from "./replies.js";
 import { settlementControl } from "./folding.js";
 import { retainPanelLanding, showThread } from "./landing.js";
-import { openThreads, threadList } from "./reconcile.js";
+import { threadList } from "./state.js";
+import { openThreads } from "./thread-list.js";
 import { focusSurface } from "./surfaces.js";
 import { groupFor, pageOutline } from "./placement.js";
 
@@ -31,9 +32,8 @@ const threadAnchorLabel = (t, outline = pageOutline()) => {
   return anchorLabel(t.anchor, t.root.about, group.target);
 };
 
-// A thread's node is found where it already stands in the filtered list and kept: the
-// log is append-only, so a kept node only ever gains
-// messages and refreshes its clocks. A settlement transition reshapes a node: resolving
+// The adopted log is append-only, but a refused state application can withdraw a
+// candidate message. A kept card reconciles its complete message set. Resolving
 // removes the reply box and reopening restores it, so either one rebuilds the node;
 // msgBodies carries the rendered bodies across. `grow` animates what this call creates,
 // for arrivals into a list the user is already looking at.
@@ -72,10 +72,8 @@ export function threadNode(t, grow) {
       }
       syncMsgNode(msg, m);
     }
-    for (const streamed of existing.querySelectorAll(
-      ':scope > .lf-msg[data-mid^="codex-stream:"]',
-    ))
-      if (!current.has(streamed.dataset.mid)) streamed.remove();
+    for (const message of existing.querySelectorAll(":scope > .lf-msg"))
+      if (!current.has(message.dataset.mid)) removeConversationNode(message);
     paintReactStrips(existing, t);
     return existing;
   }
@@ -257,7 +255,7 @@ export function paintThreadQuotes() {
 // animations — so the class comes off the moment its animation has run. A node grown
 // while its list was off-screen never ran one; the panelOpen gate above is what keeps
 // that replay from greeting the panel's next open.
-// Wired once the chrome is mounted (chrome.js): the list is the panel's.
+// Wired once the chrome is mounted (leaf.js): the list is the panel's.
 export function wireThreadCards() {
   threadsBox.addEventListener("animationend", (ev) =>
     ev.target.classList.remove("grow"),

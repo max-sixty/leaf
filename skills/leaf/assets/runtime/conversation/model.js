@@ -1,17 +1,15 @@
-/* Conversation structure and turn-taking projected by the server.
+/* Pure conversation structure and turn-taking projected by the server.
 
-   This reads the log by `isReaction`, `spoken`, `turns`, and `bareReaction`, the names
-   `events.py` reads it by, and answers `reactionsOn` from the fold it last built. The
-   panel lists `conversational` threads only; a card shows its turns and its root, so a
+   This reads projected threads by `isReaction`, `spoken`, `turns`, and `bareReaction`,
+   the names `events.py` reads them by. The panel lists `conversational` threads only;
+   a card shows its turns and its root, so a
    thread that grew out of a reaction opens on the mark, whose body
    conversation/messages.js writes as the glyph and its word. Whose turn a thread is
    (`awaitsReader`, `awaitsAgent`) is the server's projection, read here rather than
    derived: the banner's Ask count and the panel's narrowing ask the same question
    and must get one answer. */
-import { sameAnchor } from "../anchors.js";
-import { registry } from "../registry.js";
-import { PENDING, runtime } from "../context.js";
-import { pendingMessages, pendingReactions, pendingSettlements } from "../outbox.js";
+import { sameAnchor } from "../anchor-coordinate.js";
+import { PENDING } from "./identity.js";
 
 export const isReaction = (message) => Boolean(message.token);
 export const isAddressable = (message) => message.addressable !== false;
@@ -29,8 +27,6 @@ export const threadKey = (thread) => thread.root.attempt ?? thread.root.id;
 
 export const bareReaction = (thread) => thread.bare_reaction;
 export const conversational = (thread) => !bareReaction(thread);
-export const tokenEntry = (name) => registry.$reactions.tokens[name];
-
 // Which widget's seat a pending thread stands in, by the rule `seat_root` reads the log
 // by: an element anchor naming that widget and carrying nothing else. Spelled again here
 // because the server has not seen this message yet, and a thread that seated itself
@@ -48,10 +44,7 @@ const pendingSeat = (message) =>
 // The derived facts a pending thread carries are the ones the reader just made true: the
 // agent owes the next word, the reader owes none, and a thread the reader opened with
 // words is a conversation rather than a mark.
-function withPending(threads) {
-  const messages = pendingMessages();
-  const reactions = pendingReactions();
-  const settlements = pendingSettlements();
+export function foldThreads(threads, messages, reactions, settlements) {
   if (!messages.length && !reactions.length && !settlements.length) return threads;
   // A thread the reader opened answers to two names for as long as this tab holds a
   // reply written against the first: the one this page gave it, and the one the log
@@ -111,17 +104,11 @@ function withPending(threads) {
   return [...copies, ...opened];
 }
 
-let lastThreads = [];
-export function buildThreads() {
-  lastThreads = withPending(runtime.browser?.conversation?.threads ?? []);
-  return lastThreads;
-}
-
 // The bare reactions standing on exactly this anchor — the bar's own question, asked
 // so its chips can say which tokens are already there. Anchors are compared as
 // records, the way the file compares them.
-export const reactionsOn = (anchor) =>
-  lastThreads
+export const reactionsAt = (threads, anchor) =>
+  threads
     .filter(
       (thread) =>
         bareReaction(thread) && !thread.resolved && sameAnchor(thread.anchor, anchor),

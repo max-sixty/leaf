@@ -56,7 +56,8 @@ import { itemWord, visualActionAnchor, visualPartLabel } from "./anchors.js";
 import { undoable, withdraw } from "./projection.js";
 import { post } from "./outbox.js";
 import { announce, notice } from "./notifications.js";
-import { claimsEsc, focused, paintHere, saying } from "./keyboard/scopes.js";
+import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
+import { repaint } from "./repaint.js";
 import { standingConversation } from "./conversation/landing.js";
 import { allButTheReference, standingItem } from "./keyboard/page.js";
 import { PRESS } from "./keyboard/bindings.js";
@@ -330,7 +331,7 @@ export function setReact(on, { surface = null } = {}) {
     closeSurface(reactSurface);
     closeSurface(marginSurface);
     lowerMarginSurface();
-    paintHere();
+    repaint();
     return;
   }
   if (on === reactArmed && (surface === reactSurface || !surface)) return;
@@ -424,7 +425,7 @@ export function setReact(on, { surface = null } = {}) {
         });
     }
   }
-  paintHere();
+  repaint();
 }
 
 document.addEventListener("lf-margin-element-options-closed", () => {

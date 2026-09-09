@@ -15,6 +15,7 @@ import { shownBox, shownRect } from "./geometry.js";
 import { containsAcross } from "./passages.js";
 import { pageScroller } from "./scrolling.js";
 import { layoutChanged } from "./widget-elements.js";
+import { reachReadingScroller } from "./reach.js";
 
 const regions = new Map();
 const arrangements = new Set();
@@ -90,9 +91,11 @@ const admitRegions = (declared) => {
   return declared.map((declaration) => {
     const { id, host, body } = declaration;
     const region = { id, host, body };
+    const stopReaching = reachReadingScroller(body);
     regions.set(id, region);
     return () => {
       if (regions.get(id) === region) regions.delete(id);
+      stopReaching();
     };
   });
 };
@@ -140,6 +143,20 @@ export function effectiveScroller(regionOrNode) {
     .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
   return containing ? effectiveScroller(containing) : pageScroller;
 }
+
+// Which box scrolls a given element, for anything that has to name its scroller rather
+// than search for one. The document's for everything the document holds — and the
+// panel's own list for a widget an agent put in a reply, which is scrolled by that and
+// by nothing else. A drag naming the wrong one sits at the edge waiting for a scroll
+// that never comes.
+export const scrollerFor = (el) => {
+  let region = readingRegionFor(el);
+  while (region) {
+    if (containsAcross(region.body, el)) return effectiveScroller(region);
+    region = readingRegionFor(region.host.parentElement);
+  }
+  return pageScroller;
+};
 
 export function shownRegionBounds(regionOrNode) {
   const region = asRegion(regionOrNode);

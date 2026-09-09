@@ -80,11 +80,13 @@ import { scrollBehavior } from "../motion.js";
 import { threadsBox } from "./panel.js";
 import { panelIsOpen } from "../chrome-layout.js";
 import { pointerAt } from "../pointer.js";
-import { focused, paintHere } from "../keyboard/scopes.js";
+import { focused } from "../keyboard/scopes.js";
+import { repaint } from "../repaint.js";
 import { conversational } from "./model.js";
 import { runtime } from "../context.js";
 import { ago } from "../presence.js";
-import { setChildren } from "./reconcile.js";
+import { setChildren } from "../dom-children.js";
+import { removeConversationNode } from "./reaction-strips.js";
 import { settling } from "../widget-upgrade.js";
 import { captureAuthoredFacets } from "../projection/authored.js";
 import { reachScrollers } from "../reach.js";
@@ -93,6 +95,15 @@ import { foldOut, hasFolding, isFolding } from "./folding.js";
 import { inPageOrder, pageOutline, threadGroups } from "./placement.js";
 import { inFilter, noMatchNote, paintNarrowing } from "./narrowing.js";
 import { paintThreadQuotes, threadNode } from "./thread-card.js";
+
+// The open threads, in the order t/T walk either surface. The panel's children are the
+// canonical list: folding a settled thread renames it out of this list in that frame.
+export const openThreads = ({ visibleOnly = true } = {}) =>
+  [...threadsBox.querySelectorAll(":scope > .lf-thread")].filter(
+    (thread) =>
+      (!visibleOnly || !thread.hidden) &&
+      (panelIsOpen() || thread.dataset.resolved !== "true"),
+  );
 
 const emptyNote = el(
   "div",
@@ -169,7 +180,7 @@ function paintHeadRoom() {
     `${Math.max(0, ...heads.map((h) => h.offsetHeight))}px`,
   );
 }
-// Observed once the chrome is mounted (chrome.js): the list is the panel's.
+// Observed once the chrome is mounted (leaf.js): the list is the panel's.
 export function mountThreadList() {
   new ResizeObserver(paintHeadRoom).observe(threadsBox);
 }
@@ -452,7 +463,7 @@ function reconcileThreads(all) {
   // answering the last one waiting on the reader is exactly that — and a removed node drops
   // focus to body, which hands the next Space to the page behind the panel. Land them on
   // the list, where Escape lands them and t/T can walk on from.
-  setChildren(threadsBox, wanted);
+  setChildren(threadsBox, wanted, removeConversationNode);
   // A card kept but hidden still contains the focus for a moment: the browser only
   // drops it to body at its next rendering step, after this has run. Read the hidden
   // card as the removal it is for the reader.
@@ -477,7 +488,7 @@ function reconcileThreads(all) {
   // built the nodes that wear it. Both passes therefore repaint it: the one that changes
   // the record, and the one that changes what the record is painted on.
   paintThreadQuotes();
-  paintHere(); // the t/T and g rows, and an armed window's chips, stand on this list
+  repaint(); // the t/T and g rows, and an armed window's chips, stand on this list
   // Narrowing and reconciliation can move another card under a pointer that did not
   // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
   refreshHover();

@@ -1,7 +1,8 @@
-/* Keyboard reachability for scrollable page and shadow content. */
+/* Keyboard reachability and continuation paint for scrollable page and shadow content. */
 
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { shadowRootsIn } from "./shadow.js";
+import { LAYOUT } from "./widget-elements.js";
 
 // Anything a mouse can scroll, a keyboard can reach. A `pre` too wide for the column
 // scrolls, and a user working from the keyboard had no way at all to the half of the
@@ -96,7 +97,38 @@ const mayScroll = new Set();
 // rest, by actually holding more across than it shows; a box that scrolls only downwards
 // never does, and the ones that do were cutting a word off with nothing to say so.
 const sideways = new Set();
+// A reading region is the narrower vertical case. Ordinary vertical overflow is often
+// intentional and self-explanatory (a textarea, disclosure, or the document itself),
+// so `reachScrollers` must not infer this mark from overflow-y. Reading-region owners
+// opt their bounded body in when they register it. The cue follows *remaining* content:
+// unlike the across mark, reaching the end must take it away because the pane's fixed
+// lower edge otherwise keeps promising another part of the reading.
+const downwards = new Set();
 export const runtimeOwnsScrollerStop = (el) => mayScroll.has(el);
+const readingScrolled = (event) => paintReadingReach(event.currentTarget);
+export function reachReadingScroller(el) {
+  downwards.add(el);
+  reachSizes.observe(el);
+  el.addEventListener("scroll", readingScrolled, { passive: true });
+  paintReadingReach(el);
+  return () => {
+    downwards.delete(el);
+    if (!mayScroll.has(el) && !sideways.has(el)) reachSizes.unobserve(el);
+    el.removeEventListener("scroll", readingScrolled);
+    el.removeAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow);
+  };
+}
+
+function paintReadingReach(el) {
+  if (!downwards.has(el)) return;
+  const style = getComputedStyle(el);
+  const scrolls = /^(auto|scroll)$/.test(style.overflowY);
+  el.toggleAttribute(
+    PAGE_PAINT_ATTRIBUTE.moreBelow,
+    scrolls && el.scrollTop + el.clientHeight < el.scrollHeight - 1,
+  );
+}
+
 export function reachScrollers(root) {
   // The root too: a rebuilt widget is handed as itself, and the panel's thread list is
   // its own scroller.
@@ -157,6 +189,7 @@ function gone(el) {
   if (el.isConnected) return false;
   mayScroll.delete(el);
   sideways.delete(el);
+  downwards.delete(el);
   reachSizes.unobserve(el);
   return true;
 }
@@ -173,4 +206,12 @@ function paintReach() {
     if (cut) el.setAttribute(PAGE_PAINT_ATTRIBUTE.cut, "1");
     else el.removeAttribute(PAGE_PAINT_ATTRIBUTE.cut);
   }
+  for (const el of downwards) {
+    if (gone(el)) continue;
+    paintReadingReach(el);
+  }
 }
+// A widget can rearrange descendants without changing its outer box. ResizeObserver
+// cannot hear that case; the layer's shared geometry signal can, and one repaint updates
+// every registered reading region after the new layout is stated.
+document.addEventListener(LAYOUT, paintReach);

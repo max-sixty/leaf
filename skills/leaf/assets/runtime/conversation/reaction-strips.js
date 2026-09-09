@@ -4,12 +4,20 @@ import {
   buildReactSurface,
   paintReactionStanding,
   sendReaction,
+  setReact,
 } from "../reactions.js";
 import { el } from "../widget-elements.js";
 import { isAddressable, isReaction } from "./model.js";
 import { withdraw } from "../projection.js";
 import { runtime } from "../context.js";
-import { reactDone, removeNode } from "./reconcile.js";
+
+// A reaction list owns the keyboard until it closes. Conversation reconciliation can
+// remove its surface without a local gesture, so disarm it before detaching that tree.
+export function removeConversationNode(node) {
+  if (node.matches?.(".lf-react-open") || node.querySelector?.(".lf-react-open"))
+    setReact(false);
+  node.remove();
+}
 
 /* Reaction surfaces rendered in every complete Thread view.
 
@@ -31,12 +39,13 @@ export function paintReactStrips(node, t) {
   )) {
     const m = t.msgs.find((x) => x.id === (msg.dataset.mid ?? msg.dataset.event));
     if (!m || m.author !== "claude" || !isAddressable(m)) {
-      msg.querySelector(":scope > .lf-react-strip")?.remove();
+      const strip = msg.querySelector(":scope > .lf-react-strip");
+      if (strip) removeConversationNode(strip);
       continue;
     }
     let strip = msg.querySelector(":scope > .lf-react-strip");
     if (t.resolved) {
-      if (strip) removeNode(strip);
+      if (strip) removeConversationNode(strip);
       continue;
     }
     if (!strip) {
@@ -58,14 +67,13 @@ export function paintReactStrips(node, t) {
 }
 
 async function pressStrip(m, name, chip) {
-  if (chip.lfReaction) await withdraw(chip.lfReaction);
-  else {
-    const sent = sendReaction(
-      { kind: "reply", parent: m.id, revision: runtime.currentRevision, token: name },
-      chip,
-      `${m.agent || "the agent"}'s reply`,
-    );
-    reactDone();
-    await sent;
-  }
+  const sent = chip.lfReaction
+    ? withdraw(chip.lfReaction)
+    : sendReaction(
+        { kind: "reply", parent: m.id, revision: runtime.currentRevision, token: name },
+        chip,
+        `${m.agent || "the agent"}'s reply`,
+      );
+  setReact(false);
+  await sent;
 }

@@ -2539,17 +2539,15 @@ def test_the_poll_leaves_the_banner_where_it_was(browser, serve):
     page.close()
 
 
-def test_a_recorded_move_is_acknowledged_in_the_banner_and_nowhere_else(browser, serve):
-    """The page has one place for news. A gesture's acknowledgement used to arrive twice
-    — a count in the banner and, at the same moment, a toast in the opposite corner —
-    two places for the reader to watch. The status line says it now: "Moved to Done —
-    recorded" stands in for the line's own words while it lasts, the live region hears
-    the same sentence, and the line's words return when the notice fades. No toast node
-    exists to be the second place."""
+def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser, serve):
+    """The page has one place for brief news. A gesture's acknowledgement used to arrive
+    as both a banner count and a toast in the opposite corner. The bottom status says it
+    now: "Moved to Done — sent" stands in for the line's own words while it lasts, the
+    live region hears the same sentence, and the line's words return when it fades."""
     page, errors = open_page(browser, serve(BOARD_PAGE))
     board = page.locator("#sprint")
     status = page.locator(".lf-status-text")
-    notice = page.locator(".lf-banner-status .lf-notice")
+    notice = page.locator(".lf-bottom-status .lf-notice")
     expect(status).to_be_visible()
     expect(notice).to_be_hidden()
 
@@ -2559,7 +2557,7 @@ def test_a_recorded_move_is_acknowledged_in_the_banner_and_nowhere_else(browser,
     page.keyboard.press("Enter")
     expect(notice).to_have_text("Moved to Done — sent")
     expect(notice).to_be_visible()
-    expect(status).to_be_hidden()
+    expect(status).to_be_visible()
     expect(page.locator(".lf-live")).to_have_text("Moved to Done — sent")
     assert page.locator(".lf-toast").count() == 0, "a second surface says the news"
     round_trip(page)

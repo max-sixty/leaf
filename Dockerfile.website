@@ -23,7 +23,8 @@ COPY --from=codex /codex-bin /codex-bin
 
 COPY pyproject.toml uv.lock ./
 COPY skills/leaf ./skills/leaf
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev \
+    && /app/.venv/bin/leaf --version
 
 COPY .agents/plugins/marketplace.json /opt/leaf-plugin/.agents/plugins/marketplace.json
 COPY .codex-plugin /opt/leaf-plugin/.codex-plugin

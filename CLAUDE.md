@@ -65,6 +65,9 @@ Read the scoped instructions for the area being changed:
 - `tests/CLAUDE.md`: test setup and evidence rules;
 - `scripts/CLAUDE.md`: repository tooling and generated outputs.
 
+For UI exploration or any change to what a reader sees or does, load
+`/developing-leaf`.
+
 ### The install runs this tree
 
 An install is this tracked tree, copied into a host's plugin cache. Claude Code
@@ -221,10 +224,6 @@ npm run typecheck --prefix worker
 npm test --prefix worker
 ```
 
-Re-vendor before trusting a browser result after a runtime, theme, registry, or
-widget change. For a user-visible layer change, an `/ui-sweep` and a look at a
-composed page are worth the time; a green suite does not judge visual quality.
-
 Treat website performance as a phase profile, not one score. For a change that can
 alter browser startup, compare the base and candidate readings from
 `scripts/verify-site-local.sh`: document receipt, widget upgrade, authoritative
@@ -232,15 +231,6 @@ presentation, and the requests and bytes loaded by presentation. Compare request
 and bytes directly; elapsed time is diagnostic because it varies with the machine and
 network. If a change adds work before presentation, state the user-visible benefit and
 why that work cannot wait until after presentation.
-
-Hand off a visible change with the smallest artifact that proves it. For an
-example, `scripts/preview.py [example] --export` prints a standalone HTML file
-for static rendering; `scripts/preview.py [example]` serves an interactive
-preview while its process runs. Build a behavioral prototype in its owning code
-path, then serve an example that reaches it. One sentence and an `lf-shot`
-before/after is the usual artifact for a static change; take the before and after
-from the same fixture, viewport, and state, and add another state or width only
-when the first comparison cannot show the behavior.
 
 Land through a pull request or with `wt merge`, which squash-merges directly to
 `main`. Landing requires the user's authorization. For a local merge, if a newer

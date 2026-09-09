@@ -1964,18 +1964,23 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
 """,
     )
     page, errors = open_page(browser, serve(source))
-    resized(page, 1400, 900)
+    resized(page, 1400, 1800)
     toc = page.locator("#long-contents")
     nav = page.get_by_role("navigation", name="On this page")
+    links = nav.locator("a")
+    expect(links).to_have_count(81)
+    expect(toc).not_to_have_attribute("data-lf-outline", "")
+    links.last.focus()
+    expect(links.last).to_be_focused()
+
+    resized(page, 1400, 900)
     expect(toc).to_have_attribute("data-lf-outline", "")
     expect(nav.locator(".lf-toc-heading")).to_be_visible()
     assert nav.evaluate("node => node.scrollHeight > node.clientHeight")
-    links = nav.locator("a")
-    expect(links).to_have_count(81)
     for link in (links.first, links.last):
         expect(link).to_have_css("opacity", "1")
         expect(link).to_have_css("pointer-events", "auto")
-    links.last.scroll_into_view_if_needed()
+    expect(links.last).to_be_focused()
     expect(links.last).to_be_in_viewport()
     assert errors == []
     page.close()

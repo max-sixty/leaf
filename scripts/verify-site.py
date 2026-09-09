@@ -637,11 +637,9 @@ def await_turn(
         if published is not None and answer is not None:
             profile.mark("answered")
             break
-        # The container posts its generation failure from the same place it closes the
-        # turn, so that reply is the turn's own account of having stopped. Every other
-        # reading here is one a live turn can still be passing through — an interim
-        # reply, a publication its answer precedes — which is why they wait out the
-        # bounds below instead of ending the wait early.
+        # A host failure receipt closes the turn. Either half of a successful outcome
+        # can otherwise arrive first — the agent reply or the requested publication —
+        # so a reading with only one waits for the other under the bounds below.
         if turn_failed(replies):
             break
         if time.monotonic() >= deadline:
@@ -722,14 +720,12 @@ def ask_until_answered(
 def verify_agent_turn(browser, release: str) -> None:
     """Require one deployed Codex turn to revise and answer a private page.
 
-    A turn is a process, not a step: it may publish a checkpoint revision, say
-    something about the work, and only then publish what was asked for. So the wait
-    names the outcome — a published document carrying the requested heading, and a
-    reply that answers for it — rather than the first revision and the first reply to
-    appear, either of which the turn can pass through on its way there. The readings
-    that follow are containments for the same reason: the agent may quote the heading
-    it was handed, and the runtime may add its own words to any text a reader can
-    point at.
+    A turn is a process, not a step: it may publish a checkpoint revision before the
+    requested edit. So the wait names the outcome — a published document carrying the
+    requested heading, and a reply the host did not generate for the turn — rather
+    than the first revision to appear. The heading readings are containments: the
+    agent may quote the heading it was handed, and the runtime may add its own words
+    to any text a reader can point at.
 
     The wait's bound is the page rather than a stopwatch. One fixed budget has to be
     long enough for the slowest healthy turn and short enough to report a dead one

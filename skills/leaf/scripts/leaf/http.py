@@ -212,6 +212,31 @@ def scope_page_urls(value, page_root: str):
     return scoped
 
 
+def source_offset(source: str, position: tuple[int, int]) -> int:
+    """The character index one parsed element's start tag begins at."""
+    line, column = position
+    return sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
+
+
+def _declared_policy(parsed) -> dict:
+    """The one Content-Security-Policy declaration a Leaf document carries."""
+    return next(
+        meta
+        for meta in parsed.http_equivs
+        if meta["equiv"].lower() == "content-security-policy"
+    )
+
+
+def head_policy_offset(source: str) -> int:
+    """Locate the document's CSP declaration, which stands inside head by rule.
+
+    A page may place its runtime module beside main, so the runtime boundary is not
+    a head position. Head metadata is admitted only inside head, and every document
+    declares exactly one policy there, so this is where added metadata belongs.
+    """
+    return source_offset(source, _declared_policy(parse_structure(source))["position"])
+
+
 def canonical_script_offset(source: str, page_root: str = "") -> int:
     """Locate the one authored module script that enters Leaf's runtime."""
     parsed = parse_structure(source)
@@ -225,8 +250,7 @@ def canonical_script_offset(source: str, page_root: str = "") -> int:
     ]
     if len(scripts) != 1:
         raise ValueError("document has no canonical script")
-    line, column = scripts[0]["position"]
-    return sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
+    return source_offset(source, scripts[0]["position"])
 
 
 def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
@@ -259,16 +283,8 @@ def supervised_document(
     """
     source = runtime_document(source, revision, version).decode()
     parsed = parse_structure(source)
-    policy = next(
-        meta
-        for meta in parsed.http_equivs
-        if meta["equiv"].lower() == "content-security-policy"
-    )
-    policy_line, policy_column = policy["position"]
-    policy_offset = (
-        sum(len(part) + 1 for part in source.split("\n")[: policy_line - 1])
-        + policy_column
-    )
+    policy = _declared_policy(parsed)
+    policy_offset = source_offset(source, policy["position"])
     digest = base64.b64encode(hashlib.sha256(bootstrap.encode()).digest()).decode()
     csp = PAGE_CSP + f"; script-src 'self' 'sha256-{digest}'"
     release = (

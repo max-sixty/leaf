@@ -16,7 +16,8 @@ Runtime assets live behind release-addressed URLs with immutable cache headers, 
 the browser sends the document's release and layer identities to every API request. A
 mixed response reloads instead of letting one release interpret another release's
 state. The build-generated manifest is the routing authority shared by the Worker and
-the Python adapter. Published media, revisions, and version documents stay on the edge;
+the Python adapter, and carries each page's title, description, and card image, which
+both halves compose into the head a crawler and a link preview read. Published media, revisions, and version documents stay on the edge;
 when one of those paths is absent from the release, the Worker asks the reader's
 active container so a newly created private revision can become the live document.
 

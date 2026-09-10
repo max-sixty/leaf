@@ -25,11 +25,14 @@ import {
 
 const page = (kind: "product" | "example") => ({
   assets: `/_leaf-release/${"a".repeat(64)}/page`,
+  description: "What a reader does here.",
   directory: "page",
+  image: "/media/0123456789abcdef.jpg",
   kind,
   layer: "layer",
   state: "/_leaf/state/page.json",
   states: { "1": "/_leaf/state/page.json" },
+  title: "The page",
 });
 const pages = {
   "/": page("product"),
@@ -70,6 +73,19 @@ describe("website page routing", () => {
         },
       }),
     ).toThrow('at pages["/"].state');
+
+    // Every page carries the card a shared link unfurls into, so a build that
+    // published one without it is refused here rather than at the reader.
+    const { image: _image, ...cardless } = page("product");
+    expect(() =>
+      parseSiteManifest({ ...manifest, pages: { "/": cardless } }),
+    ).toThrow('at pages["/"].image');
+    expect(() =>
+      parseSiteManifest({
+        ...manifest,
+        pages: { "/": { ...page("product"), image: "https://elsewhere/card.png" } },
+      }),
+    ).toThrow('at pages["/"].image');
   });
 
   it("sends product and concrete example routes to Leaf", () => {
@@ -93,6 +109,10 @@ describe("website page routing", () => {
     ).toBe(false);
     expect(route("/examples.html")).toBeNull();
     expect(route("/examples/missing/")).toBeNull();
+    // A crawler reads these two off the asset binding; a page route would hand
+    // each reader a container session before it had seen a page.
+    expect(route("/robots.txt")).toBeNull();
+    expect(route("/sitemap.xml")).toBeNull();
     expect(needsPageSlash("/packages", route("/packages")!)).toBe(true);
     expect(needsPageSlash("/examples/triage-board/", route("/examples/triage-board/")!)).toBe(false);
     expect(route("/examples/api/event")).toEqual({

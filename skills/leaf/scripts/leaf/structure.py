@@ -123,7 +123,10 @@ class StructParser:
         # representations and let a later parser edit silently misalign them.
         self.external_scripts = []
         self.stylesheets = []
-        self.lf_metas = []  # {name, content, line} per <meta name="lf-*">
+        # {name, content, line} per <meta name>, lf- declarations and ordinary
+        # document metadata alike: one index of what the head names, so a reader
+        # after a description does not need a second parse of the same head.
+        self.named_metas = []
         self.http_equivs = []  # {equiv, content, line, position, raw} per meta
         # The authored page lives under one direct body > main because that is the
         # element the first-replay presentation boundary withholds. Both assets that
@@ -342,8 +345,8 @@ class StructParser:
                     "early_head": in_head and before_body,
                 }
             )
-        if tag == "meta" and (attrs.get("name") or "").startswith("lf-"):
-            self.lf_metas.append(
+        if tag == "meta" and attrs.get("name"):
+            self.named_metas.append(
                 {"name": attrs["name"], "content": attrs.get("content"), "line": line}
             )
         if tag == "meta" and attrs.get("http-equiv"):
@@ -653,6 +656,6 @@ def revision_review_mode(page_dir: Path, revision: int):
     """The review decision declared by an exact working revision, or None."""
     parser = parse_revision(page_dir, revision)
     return next(
-        (meta["content"] for meta in parser.lf_metas if meta["name"] == "lf-review"),
+        (meta["content"] for meta in parser.named_metas if meta["name"] == "lf-review"),
         None,
     )

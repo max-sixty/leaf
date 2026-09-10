@@ -479,11 +479,21 @@ body.lf-drawing main .lf-conversation * { cursor: auto !important; }
 html.lf-copy mark.lf-react { background: var(--react); color: inherit;
   text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
 /* The glyphs of the reactions standing on a target — a margin element per reaction, the margin element
-   being the reaction's own eraser (anchors.js seatReactions). This is an unpositioned
+   revealing the reaction's separate eraser (anchor-controls.js seatReactions). This is an unpositioned
    contribution: the living margin joins it to the target's other RHS controls and
    decides whether their one complete item hangs or docks. */
 .lf-reacts { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .lf-react-mark { text-align: center; }
+/* Opening a standing reaction leaves its familiar face in place and reveals the
+   separately named removal action beside it. The relation changes; the mark does not
+   acquire a selected ring or pretend the reaction itself changed. */
+.lf-react-mark[data-lf-behavior="disclosure"] {
+  border-width: 2px; border-color: var(--border-2); color: var(--ink);
+  box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+}
+.lf-margin-element.lf-react-mark[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
+  border-color: var(--border-2);
+}
 /* The draft's own passage uses the accent contour. An open composer is on screen
    whenever this is, and an already-posted element keeps the posted colour instead, so
    the two states never contend on one element. */
@@ -1421,7 +1431,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      control floats over the page's own content rather than standing in the empty rail,
      so it cannot rely on a hairline to separate it from whatever it happens to cover. */
   :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 32px; }
-  .lf-fab-bar { position: absolute; display: none; width: max-content;
+  .lf-fab-bar { position: fixed; display: none; width: max-content;
     align-items: flex-end; gap: 4px; white-space: nowrap;
     max-width: var(--lf-float-w, calc(100vw - 16px)); }
   .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
@@ -1449,13 +1459,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     box-shadow: var(--here-shadow) color-mix(in srgb, var(--accent) 25%, transparent),
       0 2px 8px var(--shade); }
   /* The field takes the size its words want. A short note is one line; a
-     longer one widens to a readable measure before it wraps, then grows down as far as
-     the room the placement states (--lf-float-h), and only past that does
-     it scroll. placeFab re-places the bar on every input, so a grown bar stands where the
-     one-line bar stood, and a bar hung above its target grows away from the corner it
-     hangs from. The room's width caps the bar, above, and the field is the flex item
-     that shrinks, so on a narrow screen the words wrap sooner and the ellipsis keeps
-     its room. */
+     longer one widens to a readable measure before it wraps, then grows along the edge
+     placement attached and scrolls past the room placement gave the field
+     (--lf-float-h). Floating UI supplies both limits from the reading boundary and the
+     one-line minimum, so content cannot re-seat the bar. The room's width caps the
+     whole bar, and the field is the flex item that shrinks, so on a narrow screen the
+     words wrap sooner and the ellipsis keeps its room. */
   textarea.lf-fab-input { --lf-response-min-width: 216px; width: auto;
     min-width: min(var(--lf-response-min-width), var(--lf-response-room, 100vw));
     max-width: min(80ch, var(--lf-response-room, 100vw));
@@ -1577,8 +1586,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      say how much a press takes and a ring to say where it stops, over everything the
      page can paint — an lf-shot frame flush to its own edges included. pointer-events
      stands down so the press this box promises, and every elementFromPoint behind the
-     promise, still lands on the item under it. Document-anchored like the floats above
-     (place), so a
+     promise, still lands on the item under it. Document-anchored like the page paints
+     around it (place), so a
      scroll moves it with the page between the events that re-derive it; under the
      floats themselves, which are chrome the reader works rather than paint about the
      page. */

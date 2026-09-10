@@ -454,31 +454,34 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     page.close()
 
 
-@pytest.mark.parametrize("width", [1440, 1600])
+@pytest.mark.parametrize("resident", ["sidebar", "sidenote"])
 def test_a_workspace_lands_one_responsive_layout_and_carries_the_column_to_it(
-    browser, serve, width
+    browser, serve, resident
 ):
     """Opening Threads never makes the page visit intermediate responsive postures.
 
-    The gallery composes a left sidebar with the right living margin. At 1440px the
-    final shell withdraws the sidebar; at 1600px it withdraws the full conversation
-    margin. Animating the shell's width crossed either breakpoint in mid-flight, which
-    made the column jump or reverse direction.
+    The two cases supply a left sidebar and a right sidenote. Opening the panel at
+    1440px withdraws either real margin resident, making the column move in opposite
+    directions across the two cases. Animating the shell's width crossed that breakpoint
+    in mid-flight, which made the column jump or reverse.
 
     Hold the runtime motion and seek it deterministically. The shell should already
     have its final width and responsive state at the opening frame, while the column
     starts where the reader left it and travels monotonically to its final position.
     """
-    page, errors = open_page(browser, serve(FEATURE_GALLERY), init_script=HOLD_MOTION)
+    source = leaf_page(
+        "Responsive resident",
+        f'<aside class="{resident}">Margin resident.</aside><h1>Reading</h1>',
+    )
+    page, errors = open_page(browser, serve(source), init_script=HOLD_MOTION)
+    width = 1440
     resized(page, width, 900)
     initial = page.evaluate(
         """() => {
           const main = document.querySelector('main');
           return {
             x: main.getBoundingClientRect().x,
-            claim: getComputedStyle(main).getPropertyValue('--claim-map').trim(),
-            sidebar: getComputedStyle(document.querySelector('aside.sidebar'))
-              .getPropertyValue('--lf-sidebar-posture').trim(),
+            resident: getComputedStyle(document.querySelector('aside')).float,
           };
         }"""
     )
@@ -493,17 +496,14 @@ def test_a_workspace_lands_one_responsive_layout_and_carries_the_column_to_it(
           const main = document.querySelector('main');
           return {
             shell: document.body.getBoundingClientRect().width,
-            claim: getComputedStyle(main).getPropertyValue('--claim-map').trim(),
-            sidebar: getComputedStyle(document.querySelector('aside.sidebar'))
-              .getPropertyValue('--lf-sidebar-posture').trim(),
+            resident: getComputedStyle(document.querySelector('aside')).float,
           };
         }"""
     )
     assert final_layout["shell"] == width - 420
-    assert (initial["claim"], initial["sidebar"]) != (
-        final_layout["claim"],
-        final_layout["sidebar"],
-    ), "the fixture crossed no responsive posture, so it cannot expose the regression"
+    assert initial["resident"] != final_layout["resident"], (
+        "the fixture crossed no responsive posture, so it cannot expose the regression"
+    )
 
     positions = page.evaluate(
         """() => {
@@ -5286,10 +5286,8 @@ RING_SCOPE_CONTROL = {
 # The window a scope's own surface stands in, where that is not the walk's own. These
 # entries are floors the layer states rather than preferences: the Map control is drawn
 # under the margin's breakpoint and nowhere else, while the contents-link and thread-card
-# walks use the wider room where their page-margin surfaces stand beside the source. Ship
-# review stands a contents map too, so that beside posture waits for 1472px of shell
-# rather than 1208px (theme.css). Every other scope is read at the width the page opened
-# at.
+# walks use a wide window where their page-margin surfaces can stand beside the source.
+# Every other scope is read at the width the page opened at.
 RING_WALK_VIEWPORT = (1200, 900)
 # Scopes whose page-margin surfaces the standing panel takes the place of.
 RING_SCOPES_WITHOUT_PANEL = {

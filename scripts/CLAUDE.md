@@ -47,6 +47,9 @@ rules a new or changed example has to meet.
   reply, and browser-reload path against the host's Codex login. It bypasses the
   Cloudflare Worker, Workflow, container resources, and outbound credential proxy, so
   it checks agent behavior without measuring production infrastructure.
+  `query-site-agent-logs.py` reads one canonical event id from production Workers
+  Observability and emits only Leaf's declared timing fields, excluding Cloudflare's
+  surrounding request metadata.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws the Leaf
   screenshots that demo uses. Keep the latter while the product can make those frames
   stale.
@@ -59,10 +62,11 @@ imports it, except `mcp-app`, which no widget imports and which lands in
 `skills/leaf/mcp-app/` for an MCP host to read from the install.
 
 A bundle reproduces its tracked bytes exactly when every input it fetches is pinned,
-which holds for `marked`, `sortable`, `beautiful-mermaid`, and `highlight`, so a clean
-`git status` after a run is the check that the bundle still matches the script. `plot`
-and `pierre` reach npm's resolver for transitive dependencies and inherit its ranges,
-so a diff from either can be an upstream patch rather than drift.
+which holds for `marked`, `sortable`, `beautiful-mermaid`, `floating-ui`, `highlight`,
+and `jsdiff`, so a clean `git status` after a run is the check that the bundle still
+matches the script. `plot`, `pierre`, and `mcp-app` reach npm's resolver for transitive
+dependencies and inherit its ranges, so a diff from one of those can be an upstream
+patch rather than drift.
 
 Rerun a bundle after changing its pin or the registry input it reads; do not patch a
 generated bundle or `examples/corpus.html` directly.

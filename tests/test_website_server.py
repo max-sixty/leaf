@@ -13,6 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from leaf.codex import _queues as codex_queues
 from leaf.event_log import append_event, read_events
 from leaf.hosting import server_at
 
@@ -32,6 +33,11 @@ _verify_spec = importlib.util.spec_from_file_location(
 )
 verify_site = importlib.util.module_from_spec(_verify_spec)
 _verify_spec.loader.exec_module(verify_site)
+_query_logs_spec = importlib.util.spec_from_file_location(
+    "query_site_agent_logs", ROOT / "scripts" / "query-site-agent-logs.py"
+)
+query_site_agent_logs = importlib.util.module_from_spec(_query_logs_spec)
+_query_logs_spec.loader.exec_module(query_site_agent_logs)
 
 
 def get(url: str) -> tuple[bytes, dict]:
@@ -103,6 +109,73 @@ def test_agent_logs_keep_every_event_in_a_batched_turn_searchable():
     assert website_server.agent_event_fields(("event-1", "event-2")) == {
         "eventIds": ("event-1", "event-2")
     }
+
+
+def test_the_agent_log_query_exposes_only_declared_timing_fields():
+    response = {
+        "result": {
+            "events": {
+                "events": [
+                    {
+                        "timestamp": 1200,
+                        "dataset": "containers",
+                        "source": {
+                            "component": "leaf-agent",
+                            "event": "turn_start_completed",
+                            "eventId": "reader-event",
+                            "durationMs": 125,
+                            "turnId": "app-turn",
+                            "$cf": {"city": "private"},
+                        },
+                        "$workers": {
+                            "event": {"request": {"headers": {"cookie": "private"}}}
+                        },
+                    },
+                    {
+                        "timestamp": 1000,
+                        "dataset": "workers",
+                        "source": {
+                            "component": "leaf-agent",
+                            "event": "workflow_started",
+                            "eventId": "reader-event",
+                            "reference": "123456789012",
+                            "route": "/examples/decision",
+                        },
+                    },
+                    {
+                        "timestamp": 900,
+                        "dataset": "workers",
+                        "source": {
+                            "component": "leaf-agent",
+                            "event": "workflow_started",
+                            "eventId": "another-event",
+                        },
+                    },
+                ]
+            }
+        }
+    }
+
+    assert query_site_agent_logs.safe_records(response, "reader-event") == [
+        {
+            "timestamp": 1000,
+            "dataset": "workers",
+            "event": "workflow_started",
+            "eventId": "reader-event",
+            "reference": "123456789012",
+            "route": "/examples/decision",
+            "elapsedMs": 0,
+        },
+        {
+            "timestamp": 1200,
+            "dataset": "containers",
+            "event": "turn_start_completed",
+            "eventId": "reader-event",
+            "durationMs": 125,
+            "turnId": "app-turn",
+            "elapsedMs": 200,
+        },
+    ]
 
 
 def test_the_website_label_follows_the_script_contract_not_its_formatting():
@@ -207,7 +280,12 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
     monkeypatch.setattr(
         website_server,
         "prepare_codex_delivery",
-        lambda *args: prepared.append(args) or "<leaf-delivery />",
+        lambda *args: (
+            prepared.append(args)
+            or SimpleNamespace(
+                payload={"id": "delivery-1", "batches": [{"events": []}]}
+            )
+        ),
     )
     monkeypatch.setattr(
         website_server,
@@ -236,7 +314,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
                 "approvalPolicy": "never",
                 "sandbox": "danger-full-access",
                 "developerInstructions": website_server.CODEX_INSTRUCTIONS,
-                "config": {"model_reasoning_effort": "low"},
+                "config": {"model_reasoning_effort": "none"},
                 "ephemeral": False,
             },
         )
@@ -249,7 +327,12 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
             "turn/start",
             {
                 "threadId": "hosted-thread",
-                "input": [{"type": "text", "text": "<leaf-delivery />"}],
+                "input": [],
+                "toolOutput": {
+                    "name": "leaf_feedback",
+                    "output": '{"id":"delivery-1","batches":[{"events":[]}]}',
+                },
+                "turnTrigger": "leaf",
             },
             [],
         )
@@ -278,6 +361,8 @@ def test_the_local_verifier_requests_ephemeral_codex_tasks(monkeypatch):
     script = (ROOT / "scripts" / "verify-site-agent-local.sh").read_text()
 
     assert "LEAF_AGENT_EPHEMERAL=1" in script
+    assert 'CODEX_HOME="$clean_codex_home"' in script
+    assert 'cp "$host_codex_home/auth.json"' in script
     monkeypatch.setenv("LEAF_AGENT_EPHEMERAL", "1")
     monkeypatch.setattr(website_server, "_agent_host", None)
     assert website_server.website_codex_host().ephemeral is True
@@ -305,10 +390,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
 
     assert host._ensure_server() is not None
     assert launched["options"]["env"]["LEAF"] == website_server.LEAF_COMMAND
-    assert (
-        launched["options"]["env"]["LEAF_SKILL_DIR"]
-        == website_server.LEAF_SKILL_DIRECTORY
-    )
+    assert "LEAF_SKILL_DIR" not in launched["options"]["env"]
     assert launched["command"] == [
         "codex",
         "app-server",
@@ -316,7 +398,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
         host.endpoint,
     ]
     assert "$LEAF" in website_server.CODEX_INSTRUCTIONS
-    assert "$LEAF_SKILL_DIR/SKILL.md" in website_server.CODEX_INSTRUCTIONS
+    assert "structured `leaf_feedback` tool output" in website_server.CODEX_INSTRUCTIONS
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -488,21 +570,40 @@ def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
 def test_the_website_task_preserves_a_delivery_the_app_server_rejects(
     page_dir, monkeypatch
 ):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
     host = website_server.WebsiteCodexHost("codex")
-    monkeypatch.setattr(
-        website_server,
-        "prepare_codex_delivery",
-        lambda *args: "<leaf-delivery />",
-    )
-    monkeypatch.setattr(
-        host,
-        "_send",
-        lambda *args: (_ for _ in ()).throw(RuntimeError("rejected")),
-    )
-    with pytest.raises(RuntimeError, match="rejected"):
-        host._start_turn(
-            "socket", page_dir, "hosted-thread", type("Process", (), {"pid": 41})()
+    during_start = []
+
+    def reject(*args):
+        during_start.append(
+            website_server.full_state(page_dir, read_events(page_dir))["activity"]
         )
+        raise RuntimeError("rejected")
+
+    monkeypatch.setattr(host, "_send", reject)
+    try:
+        with pytest.raises(RuntimeError, match="rejected"):
+            host._start_turn(
+                "socket",
+                page_dir,
+                "hosted-thread",
+                type("Process", (), {"pid": os.getpid()})(),
+            )
+    finally:
+        host.close()
+
+    [(_, queue)] = codex_queues("hosted-thread")
+    assert queue["state"] == "offering"
+    assert queue["batches"][0]["events"] == [{"seq": 1, "id": comment["id"]}]
+    assert during_start[0]["kind"] == "working"
+    assert during_start[0]["detail"] == "Starting"
+    assert (
+        website_server.full_state(page_dir, read_events(page_dir))["activity"]["kind"]
+        != "working"
+    )
 
 
 def test_notifications_before_start_response_reach_the_turn_follower(
@@ -560,7 +661,12 @@ def test_notifications_before_start_response_reach_the_turn_follower(
     monkeypatch.setattr(
         website_server,
         "prepare_codex_delivery",
-        lambda *args: "<leaf-delivery />",
+        lambda *args: SimpleNamespace(
+            payload={
+                "id": "delivery-1",
+                "batches": [{"events": [{"id": "reader-event"}]}],
+            }
+        ),
     )
     monkeypatch.setattr(
         website_server,
@@ -646,7 +752,7 @@ def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
     )
 
 
-def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch):
+def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, capsys):
     messages = iter(
         [
             json.dumps(
@@ -730,6 +836,15 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch):
         ("hosted-thread", "initial-turn", "Deployment verified."),
     ]
     assert clears == [("hosted-thread", "initial-turn")]
+    logs = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [record["event"] for record in logs] == [
+        "turn_following_started",
+        "turn_first_notification",
+        "turn_first_activity",
+        "turn_stream_completed",
+    ]
+    assert logs[2]["eventId"] == "reader-event"
+    assert logs[2]["turnId"] == "initial-turn"
     assert finished == [
         (
             page_dir,

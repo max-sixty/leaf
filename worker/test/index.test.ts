@@ -21,7 +21,12 @@ vi.mock("@cloudflare/containers", () => ({
 }));
 
 import { getContainer } from "@cloudflare/containers";
-import worker, { LeafWebsiteSession, type Env, runAgentWorkflow } from "../src/index";
+import worker, {
+  LeafWebsiteAgentWorkflow,
+  LeafWebsiteSession,
+  type Env,
+  runAgentWorkflow,
+} from "../src/index";
 
 const RELEASE = "a".repeat(64);
 const LAYER = "edge-layer";
@@ -1083,6 +1088,28 @@ describe("website page agent", () => {
     ).toBe(false);
   });
 
+  it("rejects invalid workflow parameters before starting work", async () => {
+    const env = environment();
+    const workflow = new LeafWebsiteAgentWorkflow({}, env);
+    const step = { do: vi.fn() };
+
+    await expect(
+      workflow.run(
+        {
+          payload: {
+            sessionId: "not-a-session",
+            reference: "123456789012",
+            route: "/examples/triage-board",
+            eventId: "04".repeat(16),
+            sourceId: "203.0.113.1",
+          },
+        } as never,
+        step as never,
+      ),
+    ).rejects.toThrow("invalid website agent workflow parameters");
+    expect(step.do).not.toHaveBeenCalled();
+  });
+
   it("accepts a task that the container already settled", async () => {
     const params = {
       sessionId: "21".repeat(16),
@@ -1142,6 +1169,33 @@ describe("website page agent", () => {
       event: params.eventId,
       text: "This public demo is busy right now. Please wait a minute, then send a new message.",
     });
+  });
+
+  it("rejects a container result that belongs to the other action", async () => {
+    const params = {
+      sessionId: "13".repeat(16),
+      reference: "130000000000",
+      route: "/examples/triage-board",
+      eventId: "14".repeat(16),
+      sourceId: "203.0.113.2",
+    };
+    vi.mocked(getContainer).mockReturnValue({
+      fetch: vi.fn(async () =>
+        Response.json({ status: "started", thread: "codex-thread" }),
+      ),
+    } as never);
+    const env = environment({
+      SOURCE_AGENT_RATE_LIMITER: {
+        limit: vi.fn(async () => ({ success: false })),
+      } as RateLimit,
+    });
+    const step = {
+      do: vi.fn(async (_name, _config, callback) => callback()),
+    };
+
+    await expect(runAgentWorkflow(env, params, step as never)).rejects.toThrow(
+      "invalid website agent reply response",
+    );
   });
 
   it("accepts an atomic fallback that the container declines after task pickup", async () => {

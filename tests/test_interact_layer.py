@@ -1,5 +1,6 @@
 """CLI, plugin payload, layer, and customization tests."""
 
+import ast
 import contextlib
 import json
 import os
@@ -297,6 +298,51 @@ def test_the_python_instructions_name_every_module_they_own():
         )
     ]
     assert not unnamed, f"unnamed in scripts/CLAUDE.md: {unnamed}"
+
+
+def test_the_tooling_instructions_place_every_vendored_bundle():
+    """Whether a rebuild reproduces its bytes must be named where sessions read.
+
+    `scripts/CLAUDE.md` says a clean `git status` after `vendor.py <bundle>` is the
+    check that the bundle still matches the script, and that the check holds only for
+    the bundles whose every fetched input is pinned. That sentence is what a session
+    consults before reading a rebuild's diff as drift or as an upstream patch, so a
+    bundle it never places has no answer either way — which is how `floating-ui`, whose
+    pins cover its whole closure, and `mcp-app`, whose do not, both went unplaced. The
+    names come from `vendor.py` rather than a list here, for the reason the routing
+    above states: a list is the second copy, and the bundle added without the sentence
+    would stay green.
+    """
+    tree = ast.parse((ROOT / "scripts" / "vendor.py").read_text(encoding="utf-8"))
+    bundles = {
+        key.value
+        for node in ast.walk(tree)
+        for target in (
+            node.targets
+            if isinstance(node, ast.Assign)
+            else [node.target]
+            if isinstance(node, ast.AnnAssign)
+            else []
+        )
+        if isinstance(target, ast.Name) and target.id in {"BUILDS", "COPIES"}
+        for key in node.value.keys
+        if isinstance(key, ast.Constant)
+    }
+    paragraphs = [
+        paragraph
+        for paragraph in (ROOT / "scripts" / "CLAUDE.md")
+        .read_text(encoding="utf-8")
+        .split("\n\n")
+        if paragraph.startswith("A bundle reproduces its tracked bytes exactly")
+    ]
+
+    assert bundles, "no bundles read — an empty set places itself"
+    assert len(paragraphs) == 1, (
+        "scripts/CLAUDE.md no longer opens one paragraph with "
+        f"'A bundle reproduces its tracked bytes exactly': {len(paragraphs)} found"
+    )
+    unplaced = sorted(name for name in bundles if f"`{name}`" not in paragraphs[0])
+    assert not unplaced, f"unplaced in scripts/CLAUDE.md: {unplaced}"
 
 
 def test_the_root_instructions_name_every_directory_ci_gates_on_its_own():
@@ -853,9 +899,12 @@ def test_init_vendors_the_layer(page_dir):
     for name in ["leaf.js", "theme.css", "registry.json"]:
         assert (page_dir / name).is_file()
     assert (page_dir / "runtime" / "widget-api.js").is_file()
+    assert (page_dir / "vendor" / "jsdiff.esm.js").is_file()
     assert (page_dir / "widgets" / "lf-tabs.js").is_file()
     assert (page_dir / "widgets" / "lf-chart.js").is_file()
     assert (page_dir / "vendor" / "plot.esm.js").is_file()
+    assert (page_dir / "vendor" / "floating-ui.esm.js").is_file()
+    assert (page_dir / "vendor" / "floating-ui.LICENSES.txt").is_file()
     # The selected packages land in the same flat directories as the default one,
     # which is what lets a widget import `/vendor/…` without knowing where it came
     # from (PAGE_PACKAGES).

@@ -3464,20 +3464,28 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
     )
     fixed_link_hint = page.locator(fixed_link_selector)
     expect(fixed_link_hint).to_be_visible()
-    fixed_link_top = page.evaluate(
+    quiet_top = page.evaluate(
         "selector => document.querySelector(selector).getBoundingClientRect().top",
         fixed_link_selector,
     )
+    page.keyboard.press("Escape")
+    expect(fixed_link_hint).to_have_count(0)
+
+    # The paint that can read a notice is the one taken while it shows, and only a
+    # notice wide enough to reach under the hint could move it.
     page.evaluate(
-        "async () => (await import('/runtime/notifications.js')).notice('Links only.')"
+        "async () => (await import('/runtime/notifications.js'))"
+        ".notice('Moved to Done — sent.')"
     )
     expect(page.locator(".lf-notice")).to_be_visible()
+    page.keyboard.press("g")
+    expect(fixed_link_hint).to_be_visible()
     assert (
         page.evaluate(
             "selector => document.querySelector(selector).getBoundingClientRect().top",
             fixed_link_selector,
         )
-        == fixed_link_top
+        == quiet_top
     )
     expect(page.locator(".lf-notice")).to_be_visible()
     assert errors == []
@@ -4112,8 +4120,10 @@ def test_clamped_leaf_lists_share_the_walk_position(browser, serve, live_leaf):
     page.close()
 
 
-def test_a_g_panel_destination_survives_a_completed_asks_tray(browser, serve):
-    """An open panel remains reachable after working its last row completes it."""
+def test_a_completed_asks_tray_stays_reachable_through_its_toggle_address(
+    browser, serve
+):
+    """An answered tray can close and reopen through its panel address."""
     page, errors = open_page(
         browser,
         serve(
@@ -4141,7 +4151,11 @@ def test_a_g_panel_destination_survives_a_completed_asks_tray(browser, serve):
     expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
 
     page.keyboard.press("g")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Asks panel")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close Asks panel")
+    page.keyboard.press("Shift+a")
+    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+
+    page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(page.locator(".lf-asks-row")).to_be_focused()
     assert errors == []
@@ -5304,6 +5318,35 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
     assert staged.evaluate("el => el.parentElement.open") is opened_now
     page.keyboard.press("Enter")
     assert staged.evaluate("el => el.parentElement.open") is not opened_now
+    assert errors == []
+    page.close()
+
+
+def test_named_workspace_chords_toggle_their_panels(browser, serve, live_leaf):
+    """Repeating a panel's complete address closes the panel it opened."""
+    live_leaf("second", "A second leaf")
+    page, errors = open_page(browser, serve(ASKS_PAGE, comments=1))
+
+    for key, command, name, surface, control in (
+        ("Shift+t", "threads", "Threads", ".lf-panel", ".lf-threads-toggle"),
+        ("Shift+a", "asks", "Asks", ".lf-asks-panel", ".lf-asks"),
+        ("Shift+l", "leaves", "All leaves", ".lf-others-panel", ".lf-others"),
+    ):
+        page.keyboard.press("g")
+        page.keyboard.press(key)
+        expect(page.locator(surface)).to_be_visible()
+
+        page.keyboard.press("g")
+        expect(page.locator("body")).to_have_attribute("data-lf-goto", "")
+        close_hint = page.locator(
+            f'.lf-shortcut-bar .lf-key[data-lf-commands~="navigation.panel.{command}"]'
+        )
+        expect(close_hint).to_be_visible()
+        expect(close_hint).to_contain_text(f"close {name} panel")
+        page.keyboard.press(key)
+        expect(page.locator(surface)).to_be_hidden()
+        expect(page.locator(control)).to_have_attribute("aria-expanded", "false")
+
     assert errors == []
     page.close()
 

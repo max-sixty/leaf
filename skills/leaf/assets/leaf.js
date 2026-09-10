@@ -275,6 +275,8 @@ const anchorControls = createAnchorControls({
   invalidatePageGeometry: pageGeometry.invalidate,
   messageReferenceRoot: panel,
   draftQuote: composerQuote,
+  presentedControl: (control) => app.margin.presentedControl(control),
+  focused,
 });
 
 const version = createVersionController({
@@ -422,7 +424,8 @@ selectionComposer = createSelectionComposer({
   anchorTargetAt: (...args) => responseSurface.anchorTargetAt(...args),
   bringForward: (...args) => responseSurface.bringForward(...args),
   fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
-  holdFabLeft: (...args) => responseSurface.holdFabLeft(...args),
+  fabPositioned: (...args) => responseSurface.fabPositioned(...args),
+  beginFabFocus: (...args) => responseSurface.beginFabFocus(...args),
   refreshFab: (...args) => responseSurface.refreshFab(...args),
   showFab: (...args) => responseSurface.showFab(...args),
   goAddress: (...args) => address.goAddress(...args),

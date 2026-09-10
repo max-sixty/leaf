@@ -501,48 +501,102 @@ def test_a_comment_on_a_scrolled_away_paragraph_keeps_the_column_clear(browser, 
     page.close()
 
 
-@pytest.mark.parametrize("width", [700, 1440])
-def test_a_growing_comment_fits_between_the_paragraph_and_page_controls(
-    browser, serve, width
-):
-    """A crowded column is one placement problem, not repeated downward nudges.
+def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
+    """Margin controls may be overlaid; they are not placement obstacles.
 
-    On the narrow corpus the old walk moved the field below controls, then the bottom
-    clamp moved it back onto its paragraph. The field must fit the actual clear band.
+    This is the reported release-notes geometry: the comment begins beside Console,
+    with its target's margin actions immediately below it. Treating those actions as
+    hard obstacles first moved a growing draft above its text, then capped it at one
+    line. Removing the peers must have no effect on the response rectangle at all.
     """
     page, errors = open_page(
         browser,
-        serve(next(example for example in EXAMPLES if example.stem == "corpus")),
+        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
     )
-    resized(page, width, 900)
-    page.get_by_role("tab", name="Notes", exact=True).click()
-    paragraph = page.locator("#rn-lede")
+    resized(page, 1337, 386)
+    page.evaluate("() => { location.hash = '#rn-console-why' }")
+    page.evaluate(RENDERED)
+    paragraph = page.locator("#rn-console-why")
     paragraph.click(modifiers=["Alt"])
     field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    compact = bar.bounding_box()
+    compact_scroll = page.evaluate("scrollY")
+    placement = bar.get_attribute("data-lf-placement")
     compact_height = field.bounding_box()["height"]
-    field.fill(
-        "This longer review paragraph needs room to wrap, and every line must remain "
-        "reachable while the reader moves through the draft. " * 70
-    )
+    field.fill("easato" * 30)
     page.wait_for_function(
+        """height => {
+          const field = document.querySelector('.lf-fab-input');
+          return field.clientHeight === field.scrollHeight && field.clientHeight > height;
+        }""",
+        arg=compact_height,
+    )
+    grown = bar.bounding_box()
+    grown_scroll = page.evaluate("scrollY")
+    assert bar.get_attribute("data-lf-placement") == placement
+    assert abs(grown["x"] - compact["x"]) <= 1, (compact, grown)
+    assert abs(grown["y"] + grown_scroll - compact["y"] - compact_scroll) <= 1, (
+        compact,
+        grown,
+    )
+
+    peers = page.evaluate(
         """() => {
-          const field = document.querySelector('.lf-fab-input').getBoundingClientRect();
-          const clear = node => {
+          const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+          const overlaps = node => {
             const r = node.getBoundingClientRect();
-            return !r.width || !r.height || field.right <= r.left || field.left >= r.right
-              || field.bottom <= r.top || field.top >= r.bottom;
+            return r.width && r.height && r.width <= 64 && r.height <= 64 &&
+              bar.left < r.right && r.left < bar.right &&
+              bar.top < r.bottom && r.top < bar.bottom;
           };
-          const target = document.getElementById('rn-lede');
-          const r = target.getBoundingClientRect();
-          const distance = Math.max(r.top - field.bottom, field.top - r.bottom, 0);
-          return clear(target) && distance <= 8 &&
-            [...document.querySelectorAll('[data-lf-offer]')]
-              .filter(node => !node.closest('.lf-chrome')).every(clear);
+          window.lfPlacementPeers = [...document.querySelectorAll('[data-lf-offer]')]
+            .filter(node => !node.closest('.lf-chrome') && overlaps(node));
+          return window.lfPlacementPeers.length;
         }"""
     )
-    # The corpus's nearby controls bound the clear band; growth need not double the
-    # resting height. The field uses that room, then scrolls the rest of the draft.
-    assert field.bounding_box()["height"] > compact_height
+    assert peers > 0, "the regression fixture has no margin control under the editor"
+    page.evaluate(
+        """() => {
+          for (const node of window.lfPlacementPeers) {
+            node.dataset.lfPriorDisplay = node.style.display;
+            node.style.display = 'none';
+          }
+          dispatchEvent(new Event('resize'));
+        }"""
+    )
+    page.evaluate(RENDERED)
+    without_peers = bar.bounding_box()
+    without_peers_scroll = page.evaluate("scrollY")
+    assert abs(without_peers["x"] - grown["x"]) <= 1, (grown, without_peers)
+    assert (
+        abs(without_peers["y"] + without_peers_scroll - grown["y"] - grown_scroll) <= 1
+    ), (grown, without_peers)
+    assert abs(without_peers["width"] - grown["width"]) <= 1
+    assert abs(without_peers["height"] - grown["height"]) <= 1
+
+    page.evaluate(
+        """() => {
+          for (const node of window.lfPlacementPeers) {
+            node.style.display = node.dataset.lfPriorDisplay;
+            delete node.dataset.lfPriorDisplay;
+          }
+          dispatchEvent(new Event('resize'));
+        }"""
+    )
+    field.fill("A bounded draft remains reachable. " * 200)
+    page.wait_for_function(
+        """() => {
+          const field = document.querySelector('.lf-fab-input');
+          return field.scrollHeight > field.clientHeight;
+        }"""
+    )
+    page.evaluate(RENDERED)
+    bounded = bar.bounding_box()
+    banner = page.locator(".lf-banner").bounding_box()
+    ceiling = max(48, banner["y"] + banner["height"] + 6)
+    assert bounded["y"] >= ceiling and bounded["y"] + bounded["height"] <= 378
+    assert bar.get_attribute("data-lf-placement") == placement
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     scrolled = field.evaluate(
         "node => { node.scrollTop = node.scrollHeight; return node.scrollTop; }"
@@ -552,13 +606,80 @@ def test_a_growing_comment_fits_between_the_paragraph_and_page_controls(
     # Measuring natural growth must not reset the reader to the first line of the draft.
     page.evaluate(RENDERED)
     assert field.evaluate("node => node.scrollTop") == scrolled
-    page.evaluate("() => scrollBy({top: 10, behavior: 'instant'})")
-    page.evaluate(RENDERED)
-    assert page.evaluate("scrollY") > 0
     after = field.evaluate(
         "node => [node.scrollTop, node.scrollHeight - node.clientHeight]"
     )
     assert after[0] == min(scrolled, after[1])  # only the final room may clamp it
+    field.fill("Short again")
+    page.evaluate(RENDERED)
+    returned = bar.bounding_box()
+    returned_scroll = page.evaluate("scrollY")
+    assert abs(returned["x"] - compact["x"]) <= 1, (compact, returned)
+    assert abs(returned["y"] + returned_scroll - compact["y"] - compact_scroll) <= 1, (
+        compact,
+        returned,
+    )
+    assert abs(returned["width"] - compact["width"]) <= 1, (compact, returned)
+    assert abs(returned["height"] - compact["height"]) <= 1, (compact, returned)
+    assert errors == []
+    page.close()
+
+
+def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
+    """The attached side stays stable while vertical shift consumes free room."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A low target",
+                '<div style="height: 620px"></div><p id="low">'
+                "This paragraph is near the bottom of the viewport.</p>"
+                '<div style="height: 420px"></div>',
+            )
+        ),
+    )
+    resized(page, 800, 360)
+    target = page.locator("#low")
+    target.evaluate(
+        """node => scrollBy({
+          top: node.getBoundingClientRect().top - 280,
+          behavior: 'instant'
+        })"""
+    )
+    page.evaluate(RENDERED)
+    target.click(modifiers=["Alt"])
+    field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    compact = bar.bounding_box()
+    compact_target = target.bounding_box()
+    placement = bar.get_attribute("data-lf-placement")
+    assert compact["y"] > 200, compact
+    field.fill(
+        "\n".join(f"Line {n}: the whole draft remains reachable." for n in range(50))
+    )
+    page.wait_for_function(
+        """() => {
+          const field = document.querySelector('.lf-fab-input');
+          return field.scrollHeight > field.clientHeight;
+        }"""
+    )
+    banner = page.locator(".lf-banner").bounding_box()
+    ceiling = max(48, banner["y"] + banner["height"] + 6)
+    box = bar.bounding_box()
+    assert box["y"] >= ceiling and box["y"] + box["height"] <= 352, box
+    assert box["y"] < compact["y"] - 20, (compact, box)
+    assert abs(box["x"] - compact["x"]) <= 1, (compact, box)
+    assert bar.get_attribute("data-lf-placement") == placement
+    assert field.evaluate("node => node.scrollHeight > node.clientHeight")
+    field.fill("Short again")
+    page.evaluate(RENDERED)
+    returned = bar.bounding_box()
+    returned_target = target.bounding_box()
+    assert abs(returned["x"] - compact["x"]) <= 1, (compact, returned)
+    assert (
+        abs(returned["y"] - returned_target["y"] - compact["y"] + compact_target["y"])
+        <= 1
+    )
     assert errors == []
     page.close()
 
@@ -566,7 +687,7 @@ def test_a_growing_comment_fits_between_the_paragraph_and_page_controls(
 def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
     browser, serve
 ):
-    """Without an adjacent free band, the viewport still bounds the writing surface."""
+    """Without an adjacent free rail, the viewport still bounds the writing surface."""
     page, errors = open_page(
         browser,
         serve(
@@ -591,11 +712,107 @@ def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
     banner = page.locator(".lf-banner").bounding_box()
     ceiling = max(48, banner["y"] + banner["height"] + 6)
     assert bounds["y"] <= ceiling and bounds["y"] + bounds["height"] >= 352, (
-        "the target must fill the available viewport so no adjacent band can fit"
+        "the target must fill the available viewport so no adjacent rail can fit"
     )
     box = field.bounding_box()
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 352, box
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
+    assert errors == []
+    page.close()
+
+
+def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
+    """New horizontal room invalidates the old fallback instead of detaching it."""
+    page, errors = open_page(
+        browser,
+        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+    )
+    resized(page, 700, 600)
+    target = page.locator("#rn-console-why")
+    target.scroll_into_view_if_needed()
+    target.click(modifiers=["Alt"], position={"x": 20, "y": 10})
+    field = open_compact_comment(page)
+    field.fill("Keep this comment connected while its paragraph changes width.")
+    page.evaluate(RENDERED)
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
+    placement = bar.get_attribute("data-lf-placement")
+    assert placement in {"top-end", "bottom-end"}, placement
+
+    target.evaluate("node => { node.style.width = '180px' }")
+    expect(bar).to_have_attribute("data-lf-placement", "right-start")
+    after = bar.bounding_box()
+    target_after = target.bounding_box()
+    assert after["x"] >= target_after["x"] + target_after["width"] + 5, (
+        target_after,
+        after,
+    )
+    expect(field).to_have_value(
+        "Keep this comment connected while its paragraph changes width."
+    )
+    assert errors == []
+    page.close()
+
+
+def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
+    browser, serve
+):
+    """Reference geometry, not content size, invalidates the chosen margin rail."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    resized(page, 1440, 800)
+    target = page.locator("#p10")
+    target.scroll_into_view_if_needed()
+    target.click(modifiers=["Alt"])
+    field = open_compact_comment(page)
+    field.fill("Keep this comment connected when its paragraph moves.")
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", "right-start")
+
+    target.evaluate("node => { node.style.transform = 'translateX(600px)' }")
+    expect(bar).to_have_attribute("data-lf-placement", "left-start")
+    target_after = target.bounding_box()
+    after = bar.bounding_box()
+    assert after["x"] + after["width"] <= target_after["x"] - 5, (
+        target_after,
+        after,
+    )
+    expect(field).to_have_value("Keep this comment connected when its paragraph moves.")
+    assert errors == []
+    page.close()
+
+
+def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve):
+    """Moving the reference across the block axis opens a better attachment side."""
+    page, errors = open_page(
+        browser,
+        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
+    )
+    resized(page, 700, 600)
+    target = page.locator("#rn-console-why")
+    target.scroll_into_view_if_needed()
+    target.click(modifiers=["Alt"], position={"x": 20, "y": 10})
+    field = open_compact_comment(page)
+    field.fill("Keep this comment connected when its paragraph moves vertically.")
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
+    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+
+    target.evaluate(
+        """node => {
+          node.style.transform = 'translateY(-180px)';
+        }"""
+    )
+    resized(page, 700, 601)
+    expect(bar).to_have_attribute("data-lf-placement", "bottom-end")
+    target_after = target.bounding_box()
+    after = bar.bounding_box()
+    assert after["y"] >= target_after["y"] + target_after["height"] + 5, (
+        target_after,
+        after,
+    )
+    expect(field).to_have_value(
+        "Keep this comment connected when its paragraph moves vertically."
+    )
     assert errors == []
     page.close()
 

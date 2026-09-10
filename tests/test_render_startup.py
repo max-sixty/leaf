@@ -56,6 +56,7 @@ from render_support import (
     compare_with,
     composer_quote,
     data_projection_page,
+    holding,
     leaf_page,
     live_url,
     live_watcher,
@@ -2272,6 +2273,75 @@ def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
     ]
     assert errors == []
     context.close()
+
+
+def test_floating_ui_loads_only_when_a_reader_opens_a_response(browser, serve):
+    """Pages that receive no response do not pay for its positioning engine."""
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    asked = _asked(context)
+    page, errors = open_page(browser, serve(FEATURE_GALLERY), context=context)
+
+    assert not [path for path in asked if "floating-ui" in path]
+    page.locator("#bg-react-ok").click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    assert [path for path in asked if "floating-ui" in path] == [
+        "/vendor/floating-ui.esm.js"
+    ]
+    assert errors == []
+    context.close()
+
+
+def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
+    """Comment entered from an already-selected passage keeps its focus request while
+    the positioning dependency loads, rather than focusing a still-hidden textarea."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    held = []
+    page.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
+    field = page.locator(".lf-fab-input")
+    try:
+        box = page.locator("#p10").bounding_box()
+        select(
+            page,
+            (box["x"] + 4, box["y"] + 6),
+            (box["x"] + 150, box["y"] + 6),
+        )
+        holding(page, held, 1, "the response placement module")
+        page.keyboard.press("c")
+        expect(field).to_be_hidden()
+        assert page.evaluate("() => document.activeElement === document.body")
+        assert page.evaluate("() => getSelection().toString().length > 0")
+
+        held.pop(0).continue_()
+        page.unroute("**/vendor/floating-ui.esm.js")
+        expect(field).to_be_visible()
+        expect(field).to_be_focused()
+        assert page.evaluate("() => getSelection().toString()") == ""
+        assert errors == []
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        page.close()
+
+
+def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve):
+    """A failed lazy module cannot leave a hidden live composer holding focus."""
+    url = serve(FEATURE_GALLERY)
+    page = browser.new_page(viewport={"width": 1280, "height": 800})
+    errors = watched(page)
+    page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    page.wait_for_function(BOTH_STAMPS)
+
+    with page.expect_event("pageerror") as raised:
+        page.locator("#bg-react-ok").click(modifiers=["Alt"])
+    assert "Failed to fetch dynamically imported module" in str(raised.value)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    assert any(
+        "Failed to fetch dynamically imported module" in error for error in errors
+    )
+    page.close()
 
 
 def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serve):

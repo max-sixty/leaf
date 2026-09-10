@@ -235,10 +235,10 @@ export function createChromeLayout({
     syncFloats();
     dockSeats();
   }
-  // The response bar lives in the document, and syncLayout is where its containing box
-  // changes shape — the panel takes or returns its strip and a resize moves every rect.
-  // Re-place it against the durable anchor so it cannot overhang the narrowed shell and
-  // create sideways-scrollable overflow.
+  // The response bar lives in the viewport plane, and syncLayout is where its usable
+  // reading boundary changes shape — the panel takes or returns its strip and a resize
+  // moves every rect. Re-place it against the durable anchor so it cannot overhang the
+  // narrowed shell.
   function syncFloats() {
     if (syncReactLayout()) return;
     refreshFab();
@@ -246,10 +246,9 @@ export function createChromeLayout({
   // A workspace state is a responsive-layout boundary, not a sequence of temporary
   // viewport sizes. Apply the state first, so every container query reads the final
   // shell in one pass, then carry the reading column from the box it occupied before
-  // the change. Animating body's margin made the shell itself pass through every layout
-  // breakpoint: on the gallery the 520px conversation claim disappeared mid-flight and
-  // sent the column back the way it had come; one window down, the authored sidebar did
-  // the same. The offset moves only paint already laid out against the final shell.
+  // the change. Animating body's margin crosses sidebar and sidenote breakpoints during
+  // motion and can reverse the column's direction. The offset moves only paint already
+  // laid out against the final shell.
   function moveShell(change) {
     const main = document.querySelector("body > main");
     const before = main?.getBoundingClientRect();

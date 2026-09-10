@@ -26,16 +26,6 @@ COPY skills/leaf ./skills/leaf
 RUN uv sync --frozen --no-dev \
     && /app/.venv/bin/leaf --version
 
-COPY .agents/plugins/marketplace.json /opt/leaf-plugin/.agents/plugins/marketplace.json
-COPY .codex-plugin /opt/leaf-plugin/.codex-plugin
-COPY hooks /opt/leaf-plugin/hooks
-COPY bin /opt/leaf-plugin/bin
-COPY skills/leaf /opt/leaf-plugin/skills/leaf
-COPY pyproject.toml uv.lock /opt/leaf-plugin/
-RUN mkdir -p "$CODEX_HOME" \
-    && codex plugin marketplace add /opt/leaf-plugin \
-    && codex plugin add leaf@leaf \
-    && "$CODEX_HOME/plugins/cache/leaf/leaf/local/bin/leaf" --version
 COPY worker/codex-config.toml /app/.codex/config.toml
 
 COPY .tmp/site ./site

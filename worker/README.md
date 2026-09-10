@@ -83,23 +83,32 @@ read the account's other analytics datasets too; if that is broader than the age
 should see, put a fixed session-reference lookup endpoint in front of it instead of
 handing the token to the agent.
 
-Hosted turns also emit content-free structured logs under `component=leaf-agent`.
-Every request log carries the page's public session reference and canonical event id;
-the container continues with that event id through App Server availability, task
-start, first notification, and completion. The logs omit message text, prompts, source
-IP keys, cookies, and private session ids. Follow one live request from `worker/` with:
+Hosted turns also emit structured timing records under `component=leaf-agent`.
+Every request record carries the page's public session reference and canonical event
+id; the container continues with that event id through App Server availability, task
+and turn start, first notification, first model activity, and completion. Leaf's
+record omits message text, prompts, source IP keys, cookies, and private session ids.
+Cloudflare wraps it in invocation metadata, so the raw Observability result or
+`wrangler tail` stream is not a content-free agent interface.
+`scripts/query-site-agent-logs.py` queries the last 24 hours for one exact event id and
+emits only Leaf's declared diagnostic fields:
 
 ```sh
-npx wrangler tail leaf-website --format=json --search leaf-agent
+CLOUDFLARE_API_TOKEN=... uv run scripts/query-site-agent-logs.py EVENT_ID
 ```
 
 Historical Worker and Container logs are available in Workers Observability because
-`wrangler.toml` enables it. An agent that needs those logs requires a separate
-Cloudflare token with `Workers Observability Write`; live `wrangler tail` access also
-requires `Workers Tail Read`. The Analytics-only token above can map a session
-reference to an event id but cannot query or tail runtime logs.
+`wrangler.toml` enables it. The query requires `Workers Observability Write`; the
+Analytics-only token above can map a session reference to an event id but cannot read
+runtime logs. A trusted agent host loads the diagnostic token into the query process
+from its credential store rather than printing or persisting it. In Max's agent setup,
+the `Cloudflare Leaf diagnostics` item in the `Max` 1Password vault carries the account
+id and token. Raw live tailing additionally requires `Workers Tail Read` and remains an
+operator-only diagnostic because its Cloudflare envelope includes request metadata.
 The local end-to-end verifier prints the same container records and leaves them at
-`.tmp/website-agent-local.log` for a later agent to inspect.
+`.tmp/website-agent-local.log` for a later agent to inspect. It gives the child App
+Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and
+website config, matching production without changing personal state.
 
 When Leaf accepts a reader message that its canonical activity projection says needs
 a response, the Worker starts one Cloudflare Workflow named with the public session
@@ -107,20 +116,22 @@ reference and event id. The reference also appears in Analytics Engine, so an op
 can start with the number the reader sees without exposing the private session cookie.
 Its retryable steps reserve source capacity, then ask that reader's container to create or resume one Codex
 App Server task rooted at the actual page directory and deliver the event through
-Leaf's ordinary `leaf-delivery` record. Codex loads the shipped Leaf plugin and uses its
-native filesystem tools, so the hosted task can revise `index.html`, validate it, append
-thread replies, and leave the page waiting exactly as a local Leaf task does. The
-initiating App Server connection projects the turn's native activity notifications
-back through Leaf. A repeated workflow sees the event's durable pickup and does not
-start the work twice. Task startup failure after its retries and a failure while
-following a started turn each append a short failure reply through the same event log.
+Leaf's immutable delivery record, passed inline as structured `leaf_feedback`. The
+website-specific App Server starts without the authoring plugin: its compact developer
+instructions and the ready `$LEAF` CLI are the complete interface, so skill discovery
+cannot turn a small reader response into a full authoring workflow. The hosted task can
+revise `index.html`, validate it, append thread replies, and leave the page waiting. The
+initiating App Server connection projects the turn's native activity notifications back
+through Leaf. A repeated workflow sees the event's durable pickup and does not start
+the work twice. Task startup failure after its retries and a failure while following a
+started turn each append a short failure reply through the same event log.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn and
 gives each accepted input the turn left unanswered its final assistant message. A failed
 or interrupted turn gets a failure reply instead, and a completed turn with no message
 at all gets a completed-without-reply receipt.
 
 The container pins the Codex version its App Server protocol was tested against and
-runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the
+runs `gpt-5.6-luna` without a reasoning phase. The per-reader Cloudflare Container is the
 tool sandbox: nested bubblewrap namespaces are unavailable in that environment, and
 the model has no durable or cross-reader filesystem to reach. Public internet is off.
 The container receives only a dummy OpenAI credential; a trusted Cloudflare outbound

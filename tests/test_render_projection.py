@@ -4449,6 +4449,11 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # reaches Threads. A stray digit there neither travels nor picks; t then Enter makes
     # the repeatable category walk and the thread-local landing explicit.
     page.locator("#tq-one .lf-pick").first.focus()
+    # The address toggles the panel it names, so from the panel `a` opened the first
+    # completion closes it and the second is the arrival on the list.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()

@@ -3618,6 +3618,11 @@ def test_forced_colors_keep_current_conversation_regions_distinct(browser, serve
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
         page.evaluate("() => document.activeElement?.blur()")
+        # The named address toggles the panel it names, so from a panel opened by its
+        # visible control the first completion closes it and the second is the arrival.
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
+        panel_settled(page, open=False)
         page.keyboard.press("g")
         page.keyboard.press("Shift+t")
         threads = page.locator(".lf-threads")
@@ -3702,6 +3707,11 @@ def test_no_focus_mark_the_panel_draws_on_a_walk_down_its_list_is_cut_or_covered
         # typed its keys into the box, which is exactly what the non-vacuity check at the
         # end caught: thirty-two landings asserted, none of them on a thread.
         page.evaluate("() => document.activeElement?.blur()")
+        # The named address toggles the panel it names, so from a panel opened by its
+        # visible control the first completion closes it and the second is the arrival.
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
+        panel_settled(page, open=False)
         page.keyboard.press("g")
         page.keyboard.press("Shift+t")
         expect(page.locator(".lf-threads")).to_be_focused()
@@ -4376,6 +4386,11 @@ def test_the_room_a_run_heading_takes_follows_the_reader_drawing_the_panel(
         # into it as characters. COVERED_TOP answers null for a focus outside the list,
         # so every one of those landings agreed with the invariant by never being asked.
         page.evaluate("() => document.activeElement?.blur()")
+        # The named address toggles the panel it names, so from a panel opened by its
+        # visible control the first completion closes it and the second is the arrival.
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
+        panel_settled(page, open=False)
         page.keyboard.press("g")
         page.keyboard.press("Shift+t")
         expect(page.locator(".lf-threads")).to_be_focused()

@@ -111,7 +111,7 @@ structured query is an output filter, not an access boundary.
 Workers Observability is the operational log store. Each structured record carries
 `component`, `event`, and the canonical `eventId`; Worker-side records also carry the
 public `reference` and `route`. The public reference finds every request from one
-reader session, and the event id follows one request across the Worker, Workflow, and
+reader session, and the event id follows one request across the Worker, Queue, and
 Container datasets. Analytics Engine holds aggregate product events rather than a
 second debugging log. Live incidents use `wrangler tail`; historical incidents use the
 script above or Cloudflare's Observability query builder. An external OpenTelemetry
@@ -124,22 +124,23 @@ Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login
 website config, matching production without changing personal state.
 
 When Leaf accepts a reader message that its canonical activity projection says needs
-a response, the Worker starts one Cloudflare Workflow named with the public session
-reference and event id. The reference also appears in Analytics Engine, so an agent
-can start with the number the reader sees without exposing the private session cookie.
-Its retryable steps reserve source capacity, then ask that reader's container to create or resume one Codex
-App Server task rooted at the actual page directory and deliver the event through
-Leaf's immutable delivery envelope, passed inline as structured `leaf_delivery` when
-the task is idle or queued by its immutable `leaf-delivery` id while a turn is active. The
-website-specific App Server starts without the authoring plugin: its compact developer
+a response, the Worker writes one task to a batch-size-one Cloudflare Queue. The queue
+keeps the browser response independent of consumer scheduling while providing durable,
+retryable delivery. Its consumer reserves source capacity, then asks that reader's
+container to create or resume one Codex App Server task rooted at the actual page
+directory and deliver the event through Leaf's immutable delivery envelope, passed
+inline as structured `leaf_delivery` when the task is idle or queued by its immutable
+`leaf-delivery` id while a turn is active. The website-specific App Server starts
+without the authoring plugin: its compact developer
 instructions and the ready `$LEAF` CLI are the complete interface, so skill discovery
 cannot turn a small reader response into a full authoring workflow. The hosted task can
 revise `index.html`, validate it, append thread replies, and leave the page waiting. The
 initiating App Server connection projects the turn's native activity notifications back
 through Leaf. For queued input it stays subscribed through the active turn, records the
-queued turn opening, and observes that turn to its terminal state. A repeated workflow
-sees the event's durable pickup and does not start the work twice. Task startup failure
-after its retries appends a short failure reply through the same event log.
+queued turn opening, and observes that turn to its terminal state. A repeated queue
+delivery sees the event's durable pickup and does not start the work twice. Task startup
+failure after three deliveries switches the remaining deliveries to appending a short
+failure reply through the same event log.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
 Only explicit `leaf reply`, a page revision closed with `leaf resolve`, and `leaf
 receipt` settle accepted input; the turn's final assistant message remains in the
@@ -166,10 +167,10 @@ npm ci
 npm run dev
 ```
 
-The one standing remote development environment runs the same Worker, Workflow,
+The one standing remote development environment runs the same Worker, Queue,
 Container image, credential proxy, and browser benchmark at
 `https://leaf-website-dev.maxsixty.workers.dev`. It is an ordinary Wrangler `dev`
-environment with its own Worker, container application, Durable Objects, Workflow,
+environment with its own Worker, container application, Durable Objects, Queue,
 and Analytics Engine dataset. The shared rate-limit namespace is the only bound
 resource it reuses from production.
 

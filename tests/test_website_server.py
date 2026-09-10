@@ -197,10 +197,11 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
                         "dataset": "workers",
                         "source": {
                             "component": "leaf-agent",
-                            "event": "workflow_started",
+                            "event": "queue_started",
                             "eventId": "reader-event",
                             "reference": "123456789012",
                             "route": "/examples/decision",
+                            "attempts": 1,
                         },
                     },
                     {
@@ -208,7 +209,7 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
                         "dataset": "workers",
                         "source": {
                             "component": "leaf-agent",
-                            "event": "workflow_started",
+                            "event": "queue_started",
                             "eventId": "another-event",
                         },
                     },
@@ -221,10 +222,11 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
         {
             "timestamp": 1000,
             "dataset": "workers",
-            "event": "workflow_started",
+            "event": "queue_started",
             "eventId": "reader-event",
             "reference": "123456789012",
             "route": "/examples/decision",
+            "attempts": 1,
             "elapsedMs": 0,
         },
         {

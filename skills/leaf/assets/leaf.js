@@ -191,6 +191,7 @@ const panelModality = workspaceModality.register({
   scroller: () => threadsBox,
   covers: navigation.panelCovers,
   focus: () => threadsBox,
+  dismiss: () => panelWorkspace.setPanel(false),
 });
 
 const targetPaintCaps = {
@@ -697,6 +698,7 @@ chromeRoot.append(
   liveEl,
   mediaViewer,
   shortcutReferenceDialog,
+  workspaceModality.scrim,
   bottomStatusEl,
   shortcutBarEl,
   inspectEl,

@@ -1211,6 +1211,7 @@ export function createPageKeys({
     const COVERING_WORKSPACE = {
       title: "In the covering workspace",
       root: coveringWorkspaceSurface,
+      when: () => Boolean(coveringWorkspaceSurface()),
       at: () => Boolean(coveringWorkspaceSurface()),
       rows: [PAGE_MOVE, SCROLL_MOVE, { ...BACK_OUT, when: () => Boolean(rung()) }],
     };

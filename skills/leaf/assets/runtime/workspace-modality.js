@@ -2,10 +2,11 @@
 
    Visibility owners keep their ordinary surfaces and scrollports while responsive
    layout decides whether they stand beside the page or over it. In the covering
-   posture this owner makes every sibling reading surface inert, gives the workspace
-   modal semantics, and moves focus in only when it was outside. Leaving that posture
-   restores exactly the inert and role state it found; it does not rebuild, hide, or
-   scroll either side.
+   posture this owner makes every sibling reading surface inert, dims the covered page,
+   gives the workspace modal semantics, and moves focus in only when it was outside. It
+   re-derives those siblings when the live version replaces the authored page. Leaving
+   that posture restores exactly the inert and role state it found; it does not rebuild,
+   hide, or scroll either side.
 
    Native inertness owns sequential focus and pointer reach. This owner adds the Tab
    wrap and programmatic-focus recovery that a non-top-layer workspace still needs.
@@ -13,6 +14,10 @@
 
 export function createWorkspaceModality({ chromeRoot, focusable }) {
   const controllers = new Set();
+  const scrim = document.createElement("div");
+  scrim.className = "lf-workspace-scrim";
+  scrim.hidden = true;
+  scrim.setAttribute("aria-hidden", "true");
   let active = null;
   let placingFocus = false;
   let mounted = false;
@@ -46,10 +51,27 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
       if (child !== chromeRoot) nodes.push(child);
     }
     for (const child of chromeRoot.children) {
-      if (child !== surface && !overlay(child)) nodes.push(child);
+      if (child !== surface && child !== scrim && !overlay(child)) nodes.push(child);
     }
     return nodes;
   };
+
+  const syncBackground = (controller) => {
+    const next = new Set(background(controller.surface));
+    for (const [node, inert] of controller.suspended) {
+      if (next.has(node)) continue;
+      node.inert = inert;
+      controller.suspended.delete(node);
+    }
+    for (const node of next) {
+      if (!controller.suspended.has(node)) controller.suspended.set(node, node.inert);
+      node.inert = true;
+    }
+  };
+
+  const backgroundMutations = new MutationObserver(() => {
+    if (active) syncBackground(active);
+  });
 
   const focusMutations = new MutationObserver(() => {
     if (
@@ -65,14 +87,15 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
       throw new Error("leaf: two covering workspaces cannot be modal together");
     if (active === controller) return;
 
-    const suspended = background(controller.surface).map((node) => [node, node.inert]);
-    for (const [node] of suspended) node.inert = true;
-    controller.suspended = suspended;
+    active = controller;
+    syncBackground(controller);
     controller.role = controller.surface.getAttribute("role");
     controller.surface.setAttribute("role", "dialog");
     controller.surface.setAttribute("aria-modal", "true");
     document.body.dataset.lfModalWorkspace = controller.surface.id;
-    active = controller;
+    scrim.hidden = false;
+    backgroundMutations.observe(document.body, { childList: true });
+    backgroundMutations.observe(chromeRoot, { childList: true });
     focusMutations.observe(controller.surface, { childList: true, subtree: true });
 
     if (!controller.surface.contains(document.activeElement))
@@ -81,29 +104,32 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
 
   function leave(controller) {
     if (active !== controller) return;
+    backgroundMutations.disconnect();
     focusMutations.disconnect();
     for (const [node, inert] of controller.suspended) node.inert = inert;
-    controller.suspended = [];
+    controller.suspended.clear();
     if (controller.role === null) controller.surface.removeAttribute("role");
     else controller.surface.setAttribute("role", controller.role);
     controller.surface.removeAttribute("aria-modal");
     delete document.body.dataset.lfModalWorkspace;
+    scrim.hidden = true;
     active = null;
   }
 
-  function register({ surface, scroller, covers, focus }) {
-    if (!surface?.id || !scroller || !covers || !focus)
+  function register({ surface, scroller, covers, focus, dismiss }) {
+    if (!surface?.id || !scroller || !covers || !focus || !dismiss)
       throw new Error(
-        "leaf: a modal workspace needs a named surface, scroller, covering reading, and focus destination",
+        "leaf: a modal workspace needs a named surface, scroller, covering reading, focus destination, and dismissal",
       );
     const controller = {
       surface,
       scroller,
       covers,
       focus,
+      dismiss,
       open: false,
       role: null,
-      suspended: [],
+      suspended: new Map(),
       sync(open) {
         controller.open = open;
         if (open && covers()) enter(controller);
@@ -121,6 +147,8 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
   function mount() {
     if (mounted) return;
     mounted = true;
+    scrim.addEventListener("pointerdown", (event) => event.preventDefault());
+    scrim.addEventListener("click", () => active?.dismiss());
     document.addEventListener(
       "keydown",
       (event) => {
@@ -170,5 +198,13 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
     return null;
   };
 
-  return { register, sync, mount, coveringSurface, coveringScroller, openSurfaceFor };
+  return {
+    scrim,
+    register,
+    sync,
+    mount,
+    coveringSurface,
+    coveringScroller,
+    openSurfaceFor,
+  };
 }

@@ -5373,6 +5373,9 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     expect(returning.locator('[data-lf-command="navigation.return"]')).to_contain_text(
         "Return from Threads panel"
     )
+    expect(
+        help_el.get_by_role("heading", name="In the covering workspace", exact=True)
+    ).to_have_count(0)
     expect(help_el.locator('[data-lf-command="navigation.back"]')).to_have_count(0)
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")

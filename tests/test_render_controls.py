@@ -3301,6 +3301,54 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     page.close()
 
 
+def test_a_covering_workspace_keeps_a_replacement_document_inert(browser, serve):
+    """A live version can replace main without reopening the covering workspace.
+
+    The modal boundary follows that replacement, so the new document cannot become a
+    pointer or keyboard target while the sheet still claims modal semantics. Closing
+    restores the new document rather than the detached one it replaced.
+    """
+    url = serve(LONG_PAGE, comments=2)
+    page, errors = open_page(browser, live_url(url))
+    resized(page, 700, 640)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.evaluate("() => { window.__lfReplacedMain = document.querySelector('main'); }")
+    assert page.locator("main").evaluate("el => el.inert")
+
+    revised = LONG_PAGE.replace(
+        '<h1 id="t">Long</h1>', '<h1 id="t">Long after replacement</h1>'
+    )
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(revised)
+    stamp_version_file(serve.page_dir, 2, "replace the document")
+    told(page)
+    expect(page.locator("#t")).to_have_text("Long after replacement")
+
+    state = page.evaluate(
+        """() => ({
+          oldConnected: window.__lfReplacedMain.isConnected,
+          sameMain: window.__lfReplacedMain === document.querySelector('main'),
+          inert: document.querySelector('main').inert,
+          modal: document.querySelector('.lf-panel').getAttribute('aria-modal'),
+          focusInside: document.querySelector('.lf-panel').contains(document.activeElement),
+        })"""
+    )
+    assert state == {
+        "oldConnected": False,
+        "sameMain": False,
+        "inert": True,
+        "modal": "true",
+        "focusInside": True,
+    }, f"the replacement escaped its standing modal workspace: {state}"
+
+    page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, open=False)
+    assert not page.locator("main").evaluate("el => el.inert")
+    expect(page.locator(".lf-threads-toggle")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
 def test_a_covering_tray_uses_the_same_modal_workspace_boundary(browser, serve):
     """The Asks tray gets the covering workspace contract rather than a tray-specific
     focus trap. Its exact Ask and reading place survive both responsive crossings, its
@@ -3408,6 +3456,58 @@ def test_covering_trays_have_a_pointer_route_back_to_their_banner_controls(
         expect(door).to_be_focused()
         assert not page.locator("main").evaluate("el => el.inert")
 
+    assert errors == []
+    page.close()
+
+
+def test_the_shared_workspace_scrim_marks_and_dismisses_a_covering_surface(
+    browser, serve, other_leaf
+):
+    """Leaves dims the page at every width; responsive workspaces use the same scrim."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    resized(page, 1200, 700)
+    scrim = page.locator(".lf-workspace-scrim")
+    expect(scrim).to_be_hidden()
+
+    leaves_door = banner_address(page, ".lf-others")
+    leaves_door.click()
+    leaves = page.locator(".lf-others-panel")
+    expect(leaves).to_have_class(re.compile(r"\bopen\b"))
+    expect(scrim).to_be_visible()
+    assert page.locator("main").evaluate("el => el.inert")
+    scrim_reading = page.evaluate(
+        """() => {
+          const scrim = document.querySelector('.lf-workspace-scrim');
+          const tray = document.querySelector('.lf-others-panel').getBoundingClientRect();
+          const point = {x: Math.max(tray.right + 20, innerWidth * .75), y: innerHeight / 2};
+          return {
+            color: getComputedStyle(scrim).backgroundColor,
+            point,
+            hit: document.elementFromPoint(point.x, point.y) === scrim,
+          };
+        }"""
+    )
+    assert scrim_reading["color"] != "rgba(0, 0, 0, 0)", scrim_reading
+    assert scrim_reading["hit"], scrim_reading
+    page.mouse.click(scrim_reading["point"]["x"], scrim_reading["point"]["y"])
+    expect(leaves).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(leaves_door).to_be_focused()
+    expect(scrim).to_be_hidden()
+    assert not page.locator("main").evaluate("el => el.inert")
+
+    threads_door = page.locator(".lf-threads-toggle")
+    threads_door.click()
+    panel_settled(page)
+    expect(scrim).to_be_hidden()
+    assert not page.locator("main").evaluate("el => el.inert")
+    resized(page, 700, 700)
+    panel_settled(page)
+    expect(scrim).to_be_visible()
+    assert page.locator("main").evaluate("el => el.inert")
+    page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, open=False)
+    expect(threads_door).to_be_focused()
+    expect(scrim).to_be_hidden()
     assert errors == []
     page.close()
 

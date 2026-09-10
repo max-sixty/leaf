@@ -7,11 +7,11 @@ allowed-tools:
 ---
 
 If the input is a named `leaf_feedback` tool output, continue the existing page
-from its inline payload. Answer the reader normally in this turn; the Codex
-adapter streams the final answer into the addressed thread and appends it there.
-Do not repeat that answer with `leaf reply`. Use the payload's handling rules and
-run other Leaf commands only when the event requires a page change or another
-explicit operation.
+from its inline payload. When its top-level `reply` is an address, answer normally:
+the Codex adapter appends the final answer there, so do not repeat it with `leaf
+reply`. When `reply` is null, process each batch's handling rules and use `leaf
+reply` to answer every event that needs a response. Run other Leaf commands only
+when an event requires a page change or another explicit operation.
 
 If the input is a `leaf-delivery` element, continue the existing page. Read its
 payload, then read

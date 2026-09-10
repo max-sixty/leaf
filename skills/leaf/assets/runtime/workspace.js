@@ -62,10 +62,10 @@ export function createWorkspaceNavigation({
     const { panel: hadPanel, tray } = state;
     if (tray) showTray(tray);
     else if (hadPanel) {
-      showTray(null);
+      showTray(null, { returnFocus: false });
       setPanel(true);
     } else {
-      showTray(null);
+      showTray(null, { returnFocus: false });
       setPanel(false);
     }
     return state.control();

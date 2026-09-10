@@ -479,11 +479,21 @@ body.lf-drawing main .lf-conversation * { cursor: auto !important; }
 html.lf-copy mark.lf-react { background: var(--react); color: inherit;
   text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
 /* The glyphs of the reactions standing on a target — a margin element per reaction, the margin element
-   being the reaction's own eraser (anchors.js seatReactions). This is an unpositioned
+   revealing the reaction's separate eraser (anchor-controls.js seatReactions). This is an unpositioned
    contribution: the living margin joins it to the target's other RHS controls and
    decides whether their one complete item hangs or docks. */
 .lf-reacts { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .lf-react-mark { text-align: center; }
+/* Opening a standing reaction leaves its familiar face in place and reveals the
+   separately named removal action beside it. The relation changes; the mark does not
+   acquire a selected ring or pretend the reaction itself changed. */
+.lf-react-mark[data-lf-behavior="disclosure"] {
+  border-width: 2px; border-color: var(--border-2); color: var(--ink);
+  box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+}
+.lf-margin-element.lf-react-mark[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
+  border-color: var(--border-2);
+}
 /* The draft's own passage uses the accent contour. An open composer is on screen
    whenever this is, and an already-posted element keeps the posted colour instead, so
    the two states never contend on one element. */
@@ -1002,6 +1012,14 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     border-right: 1px solid var(--rule); display: none; flex-direction: column;
     padding-bottom: var(--lf-safe-bottom); padding-left: var(--lf-safe-left); }
   .lf-tray-panel.open { display: flex; }
+  /* A modal workspace takes the whole window: the banner is one of the inert siblings,
+     not an available strip above it. Its shared scrim therefore stands above the banner
+     and below the active surface. Chrome-owned targeting and native top-layer dialogs
+     keep their higher planes so a command inside the workspace can still show its aim. */
+  .lf-workspace-scrim { position: fixed; inset: 0;
+    z-index: 9010; background: color-mix(in srgb, var(--ink) 24%, transparent); }
+  .lf-workspace-scrim[hidden] { display: none; }
+  :is(.lf-tray-panel, .lf-panel)[aria-modal="true"] { z-index: 9020; }
   /* The rows scroll in a box of their own rather than in the tray, which is the comment
      panel's shape (.lf-threads) reflected, and here it is what lets the edge exist at
      all: a scroll container clips to its padding box, so an edge straddling the border
@@ -1083,10 +1101,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
        left, and both take the bottom. */
     padding: 0 var(--lf-safe-right) var(--lf-safe-bottom) 0; }
   .lf-panel[open] { display: flex; }
-  /* No ::backdrop: the panel is shown rather than shown modally (showPanelLayer says
-     why), so a non-modal dialog paints none, and a scrim over a page the reader can
-     still press would be saying the opposite of what the page now does. The two layers
-     that are modal keep theirs below. */
+  /* A covering panel shares the workspace scrim with the trays. A beside panel leaves
+     that scrim hidden, so this non-modal dialog needs no ::backdrop of its own. */
   /* An edge, offered as a thing to take hold of — the thread panel's on the right of
      the page, the trays' on the left, and nothing here knows which it is drawing except
      the two lines that place it. It draws nothing of its own: the region's inner border
@@ -1132,7 +1148,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      drag that follows it. */
   .lf-edge:hover::before, .lf-edge:is(:focus-visible, .lf-focus-visible)::before { opacity: 1; }
   .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: edge; }
-  .lf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
+  .lf-panel-head, .lf-tray-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
   /* The words in here, against the apparatus the root has already answered for: a reply
      and the passage it is about. A quote is the page's own words and a message is
      somebody's, so a reader copying either is copying what was said rather than the

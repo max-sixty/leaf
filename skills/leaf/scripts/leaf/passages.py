@@ -1,12 +1,13 @@
 """Text-passage readings of authored HTML."""
 
 import re
-from html.parser import HTMLParser
 from pathlib import Path
 from typing import NamedTuple
 
+import turbohtml
+
 from .files import latest_revision, revision_path
-from .structure import VOID_TAGS, implicit_closes
+from .structure import VOID_TAGS
 
 # ---------- passages: the text an anchor points at ----------
 # The runtime resolves an anchor against the DOM; `leaf comment` writes one down
@@ -156,7 +157,7 @@ TEXT_BLOCK_TAGS = {
 UNQUOTABLE_TAGS = {"script", "style", "head"}
 
 
-class _PassageParser(HTMLParser):
+class _PassageParser:
     """A version's prose as the anchor pass reads it. `text` is the whole page collapsed
     the way a captured quote is; `owner[i]` is the ids enclosing text[i], outermost
     first, so a match can name the section it fell in and be re-read within it.
@@ -184,7 +185,6 @@ class _PassageParser(HTMLParser):
         additions=None,
         source=("page", None),
     ):
-        super().__init__(convert_charrefs=True)
         self.registry = registry or {}
         self.decided = decided or {}
         self.rewrites = rewrites or {}
@@ -286,10 +286,6 @@ class _PassageParser(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         attrs_d = dict(attrs)
-        # Before the void check, unlike the structure lint's: <hr> is both void and a
-        # paragraph closer, and text after it is in a different block.
-        for _ in range(implicit_closes([f["tag"] for f in self.stack], tag)):
-            self._close(self.stack.pop())
         parent = self.stack[-1] if self.stack else None
         # Recorded before the void check, and before anything asks what this element
         # shows: where an element sits is a fact about the markup, so an image, an
@@ -437,11 +433,8 @@ class _PassageParser(HTMLParser):
                 return
 
     def close(self):
-        super().close()
-        # An element still open at EOF owes its close all the same: a frame never
-        # closed loses its `gone` verdict and its trailing x-says values. `version
-        # check` refuses unbalanced markup, but this parser also reads `prev_html`
-        # and fragments that never passed that gate.
+        # Generated fragments call this reader's handlers directly. Close any such
+        # remaining frames just as the browser tree closes them at the fragment edge.
         while self.stack:
             self._close(self.stack.pop())
 
@@ -469,7 +462,27 @@ def page_passages(
     source=("page", None),
 ) -> Passages:
     parser = _PassageParser(registry, decided, rewrites, additions, source)
-    parser.feed(html)
+
+    def attrs(element):
+        return [
+            (name, " ".join(value) if isinstance(value, list) else value)
+            for name, value in element.attrs.items()
+        ]
+
+    def walk(node):
+        if isinstance(node, turbohtml.Text):
+            parser.handle_data(node.data)
+            return
+        if not isinstance(node, turbohtml.Element):
+            return
+        parser.handle_starttag(node.tag, attrs(node))
+        for child in node.children:
+            walk(child)
+        parser.handle_endtag(node.tag)
+
+    document = turbohtml.parse(html, scripting=True)
+    for child in document.children:
+        walk(child)
     parser.close()
     return Passages(
         parser.text,

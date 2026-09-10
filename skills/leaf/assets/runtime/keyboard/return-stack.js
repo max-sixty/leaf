@@ -70,6 +70,11 @@ import {
   nativeLayerFor,
   nativeLayerOrder,
 } from "../native-layers.js";
+import { coveringWorkspaceSurface, openWorkspaceSurfaceFor } from "./register.js";
+
+// A native layer opened above a covering workspace owns entries made inside it. The
+// workspace remains the fallback floor when no browser top layer stands.
+const currentLayer = () => currentNativeLayer(focused()) ?? coveringWorkspaceSurface();
 
 export function restoreReturnPlace({ control, reading }) {
   if (control) {
@@ -122,18 +127,22 @@ export function invoke(row, binding, run, suppliedOrigin = null) {
   const result = run();
   prune();
   if (frame?.active()) {
-    const root = currentNativeLayer(focused()) ?? document;
+    const root = currentLayer() ?? document;
     frames.push({ ...frame, origin, root, order: nativeLayerOrder(root) });
   }
   return result;
 }
 
 function prune() {
-  const layer = currentNativeLayer(focused());
+  const layer = currentLayer();
   while (frames.length) {
     const frame = frames.at(-1);
     if (layer && frame.root !== layer && nativeLayerOrder(layer) > frame.order) return;
-    if (frame.root !== document && nativeLayerFor(frame.root) !== frame.root) {
+    if (
+      frame.root !== document &&
+      !openWorkspaceSurfaceFor(frame.root) &&
+      nativeLayerFor(frame.root) !== frame.root
+    ) {
       frames.pop();
       continue;
     }

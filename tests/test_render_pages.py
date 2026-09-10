@@ -249,8 +249,8 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             # its visible route rather than requiring every margin element to stand at rest.
             item = glyph.locator("xpath=ancestor::*[@data-lf-margin-for][1]")
             visible = item.locator(
-                f'[data-lf-margin-element-key="take-back:{reaction["id"]}"]:visible, '
-                f'[data-lf-margin-element-key="take-back:{reaction["id"]}:proxy"]:visible'
+                f'[data-lf-margin-element-key="reaction:{reaction["id"]}:open"]:visible, '
+                f'[data-lf-margin-element-key="reaction:{reaction["id"]}:open:proxy"]:visible'
             )
             more = item.locator(":scope > .lf-margin-more")
             if not visible.count() and more.is_visible():
@@ -263,8 +263,8 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 sheet = page.get_by_role("dialog", name="Page map", exact=True)
                 expect(
                     sheet.locator(
-                        f'[data-lf-map-margin-element$=":take-back:{reaction["id"]}"], '
-                        f'[data-lf-map-margin-element$=":take-back:{reaction["id"]}:proxy"]'
+                        f'[data-lf-map-margin-element$=":reaction:{reaction["id"]}:open"], '
+                        f'[data-lf-map-margin-element$=":reaction:{reaction["id"]}:open:proxy"]'
                     )
                 ).to_be_visible()
                 page.keyboard.press("Escape")
@@ -1483,8 +1483,7 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
     wide content: the widget's own box scrolls sideways and the document does not."""
     page, errors = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
 
-    # A live page reserves conversation room before its first comment. This width
-    # still leaves the complete drawing room on both supported font platforms.
+    # This width leaves the complete drawing room on both supported font platforms.
     resized(page, 1920, 900)
     wide = page.evaluate(DIAGRAM_ROOM)
     assert wide["natural"] > wide["wide"], (
@@ -1662,9 +1661,8 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     reach it: an overflow off the start edge is unreachable in any direction, and the
     drawing's first node is the one a reader follows the graph from."""
     page, errors = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
-    # Linux's DejaVu labels draw this graph at 1217px. The live page also reserves
-    # conversation room before its first thread, so use a width where the drawing
-    # fits after that strip and a classic scrollbar have both been taken.
+    # Linux's DejaVu labels draw this graph at 1217px. Use a width where the drawing
+    # fits after the control rail and a classic scrollbar have both been taken.
     resized(page, 1920, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
 
@@ -2215,11 +2213,11 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
     page well, because the platform's own scrollbar is the whole of the sign and it draws
     none at rest.
 
-    So the sweep that already asks whether something is out of sight, once per layout,
-    spends the answer on the eye as well as on the keyboard, and the box wears a mark
-    (`reachScrollers`, `[data-lf-cut]`). The reading here is that a cut box has one. The
-    line of code that fits is the control: a mark on a box holding nothing back would be
-    a promise of more with nothing behind it, and this reading would never have noticed.
+    So the sweep that already asks whether something is out of sight spends the answer
+    on the eye as well as on the keyboard. The box fades each edge with content beyond
+    it. The line of code that fits is the control: a mark on a box holding nothing back
+    would be a promise of more with nothing behind it, and this reading would never have
+    noticed.
 
     The plant is the failure that is actually reachable — content grown inside a box
     whose own border box never changes, so the sweep's per-candidate resize observation
@@ -2232,19 +2230,47 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
         const read = (id) => {
             const el = document.getElementById(id);
             return { short: el.scrollWidth - el.clientWidth,
-                     marked: el.hasAttribute('data-lf-cut'),
-                     paints: getComputedStyle(el).boxShadow !== 'none' };
+                     before: el.hasAttribute('data-lf-more-before'),
+                     after: el.hasAttribute('data-lf-more-after'),
+                     paints: getComputedStyle(el).maskImage !== 'none' };
         };
         return { flow: read('flow'), fits: read('short') };
     }""")
     assert marks["flow"]["short"] > 1, (
         f"the graph fits its box here, so nothing is being cut: {marks}"
     )
-    assert marks["flow"]["marked"] and marks["flow"]["paints"], marks
+    assert not marks["flow"]["before"] and marks["flow"]["after"], marks
+    assert marks["flow"]["paints"], marks
     assert marks["fits"]["short"] == 0, (
         f"the control box scrolls too, so it controls nothing: {marks}"
     )
-    assert not marks["fits"]["marked"] and not marks["fits"]["paints"], marks
+    assert not marks["fits"]["before"] and not marks["fits"]["after"], marks
+    assert not marks["fits"]["paints"], marks
+
+    flow = page.locator("#flow")
+    flow.focus()
+    flow.evaluate("el => el.classList.add('lf-focus-visible')")
+    assert flow.evaluate("el => getComputedStyle(el).maskImage") == "none"
+    flow.evaluate("el => { el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2; }")
+    expect(flow).to_have_attribute("data-lf-more-before", "")
+    expect(flow).to_have_attribute("data-lf-more-after", "")
+    assert flow.evaluate("el => getComputedStyle(el).maskImage") == "none"
+    flow.evaluate("el => { el.scrollLeft = el.scrollWidth; }")
+    expect(flow).to_have_attribute("data-lf-more-before", "")
+    expect(flow).not_to_have_attribute("data-lf-more-after", "")
+    assert flow.evaluate("el => getComputedStyle(el).maskImage") == "none"
+    flow.evaluate("el => { el.classList.remove('lf-focus-visible'); el.blur(); }")
+    assert flow.evaluate("el => getComputedStyle(el).maskImage") != "none"
+
+    page.evaluate("""() => {
+        document.documentElement.style.direction = 'rtl';
+        document.dispatchEvent(new Event('lf-layout'));
+    }""")
+    expect(flow).not_to_have_attribute("data-lf-more-before", "")
+    expect(flow).to_have_attribute("data-lf-more-after", "")
+    flow.evaluate("el => { el.scrollLeft = -(el.scrollWidth - el.clientWidth); }")
+    expect(flow).to_have_attribute("data-lf-more-before", "")
+    expect(flow).not_to_have_attribute("data-lf-more-after", "")
     assert render_checks_model.evaluate_probe(page, "silentCuts") == []
 
     # One line grown past its box, on its own text node: the box keeps its width and its
@@ -2256,9 +2282,10 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
     grown = page.evaluate("""() => {
         const el = document.getElementById('short');
         return { short: el.scrollWidth - el.clientWidth,
-                 marked: el.hasAttribute('data-lf-cut') };
+                 before: el.hasAttribute('data-lf-more-before'),
+                 after: el.hasAttribute('data-lf-more-after') };
     }""")
-    assert grown["short"] > 1 and not grown["marked"], grown
+    assert grown["short"] > 1 and not grown["before"] and not grown["after"], grown
     found = render_checks_model.evaluate_probe(page, "silentCuts")
     assert [f for f in found if "<pre id=short>" in f], (
         f"a box hiding {grown['short']}px with no mark on it went unreported: "
@@ -2769,14 +2796,12 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     page.close()
 
 
-def test_a_note_shares_the_page_axis_with_the_widest_right_margin(browser, serve):
-    """The right-side claims share one strip, whose widest claim sets the page's axis.
+def test_a_note_sets_the_page_axis_at_every_roomy_width(browser, serve):
+    """An authored note sets the right-side strip and the page's axis.
 
-    Below the conversation-margin floor, the note's whole 384px strip wins over the
-    margin element rail. Above it, the live page reserves 520px for conversations before the
-    first comment, so the note adds no second strip. Both cases retain readable prose
-    and the complete note on the page. Neither an always-384px expectation nor two
-    roomy readings would exercise both sides of this shared reservation.
+    Possible future conversations reserve no empty column, so widening the page past
+    the former thread breakpoint leaves the note's 384px strip as the widest claim.
+    Both widths retain readable prose and the complete note on the page.
 
     Every reading is against the page's box rather than the window, the two being the
     same width only where a scrollbar takes no room. Body owns the document's scroll and
@@ -2788,7 +2813,8 @@ def test_a_note_shares_the_page_axis_with_the_widest_right_margin(browser, serve
     url = serve(NOTE_AND_WIDE_PAGE)
     page, errors = open_page(browser, url)
 
-    for width, strip in ((1190, 384), (1600, 520)):
+    strip = 384
+    for width in (1190, 1600):
         resized(page, width, 900)
         at = page.evaluate(ROOM_GEOMETRY)
         axis = at["pageBox"]["left"] + (at["pageBox"]["width"] - strip) / 2

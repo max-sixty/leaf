@@ -53,7 +53,6 @@ from render_support import (
     TYPED_PARTS_PAGE,
     TYPED_PARTS_V2,
     aim_targets,
-    banner_address,
     draw_edge,
     edge_settled,
     geometry,
@@ -731,11 +730,12 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
     target.scroll_into_view_if_needed()
-    target.click(modifiers=["Alt"])
+    target.click(modifiers=["Alt"], position={"x": 20, "y": 10})
     field = open_compact_comment(page)
     field.fill("Keep this comment connected while its paragraph changes width.")
     page.evaluate(RENDERED)
     bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
     placement = bar.get_attribute("data-lf-placement")
     assert placement in {"top-end", "bottom-end"}, placement
 
@@ -790,10 +790,11 @@ def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve)
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
     target.scroll_into_view_if_needed()
-    target.click(modifiers=["Alt"])
+    target.click(modifiers=["Alt"], position={"x": 20, "y": 10})
     field = open_compact_comment(page)
     field.fill("Keep this comment connected when its paragraph moves vertically.")
     bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
     expect(bar).to_have_attribute("data-lf-placement", "top-end")
 
     target.evaluate(
@@ -926,20 +927,19 @@ def test_an_aim_tracks_an_equal_width_workspace_swap_every_frame(browser, serve)
 def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
     browser, serve
 ):
-    """A covering workspace owns its pixels until the reader targets that workspace.
+    """A covering workspace owns its pixels and remains a chrome target itself.
 
-    The aim, response bar, design legend, and inspect name share two semantic stacking
-    planes. Paint attached to page content stays below the sheet; paint naming a target
-    inside Leaf's chrome rises above it. The target decides the plane, so the same aim and
-    response bar can serve both without a viewport-width z-index exception.
+    Covered page content is inert, so aim and comment cannot reach it through the visible
+    remainder. The sheet remains part of Leaf's chrome: its aim, inspect name, and response
+    bar use the chrome plane above it, while the page's standing design legend stays below.
     """
     page, errors = open_page(browser, serve(ASKS_PAGE))
-    resized(page, 560, 900)
-    # A window this narrow folds the row's destinations into the banner's one menu, so
-    # the address is asked for where the page has put it rather than where a wider
-    # window would have left it.
-    banner_address(page, ".lf-asks").click()
+    resized(page, 700, 900)
+    page.locator(".lf-asks").click()
     edge_settled(page, EDGES[1])
+    page.keyboard.press("l")
+    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    resized(page, 560, 900)
     tray = page.locator(".lf-asks-panel")
     expect(tray).to_be_visible()
 
@@ -952,37 +952,11 @@ def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
     }
     page.mouse.move(point["x"], point["y"])
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
-    page_plane = page.evaluate(
-        """() => {
-          const tray = document.querySelector('.lf-asks-panel');
-          const aim = document.querySelector('.lf-aim');
-          return {tray: Number(getComputedStyle(tray).zIndex),
-                  aim: Number(getComputedStyle(aim).zIndex),
-                  plane: aim.dataset.lfPaintPlane};
-        }"""
-    )
-    assert page_plane["plane"] == "page" and page_plane["aim"] < page_plane["tray"], (
-        f"page aim paints over the covering Asks sheet: {page_plane}"
-    )
-
     page.mouse.click(point["x"], point["y"])
     page.keyboard.up("Alt")
-    expect(page.locator(".lf-composer")).to_be_visible()
-    response_plane = page.locator(".lf-fab-bar").evaluate(
-        "node => ({plane: node.dataset.lfPaintPlane, "
-        "z: Number(getComputedStyle(node).zIndex), "
-        "tray: Number(getComputedStyle(document.querySelector('.lf-asks-panel')).zIndex)})"
-    )
-    assert (
-        response_plane["plane"] == "page"
-        and response_plane["z"] < response_plane["tray"]
-    ), f"page response bar paints over the covering Asks sheet: {response_plane}"
-    page.keyboard.press("Escape")
+    expect(page.locator('.lf-aim[data-for="lq-keep"]')).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_hidden()
 
-    page.locator("body").focus()
-    page.keyboard.press("l")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
     tray_box = tray.bounding_box()
     assert tray_box is not None
     page.mouse.move(tray_box["x"] + 12, tray_box["y"] + 12)

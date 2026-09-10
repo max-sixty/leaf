@@ -62,8 +62,8 @@
 
    Which question a floor asks belongs to the posture it grants. A floor asking how much
    room is left beside a panel or tray is a container query on `lf-shell`: 1152 and 1416
-   for the sidebar and sidenote strips, 1208 and 1472 for the thread's beside posture. The
-   living margin's 900 asks the window instead, because it is half of a pair — `@media
+   for the sidebar and sidenote strips. The living margin's 900 asks the window instead,
+   because it is half of a pair — `@media
    screen and (max-width: 899px)` stops drawing the margin at all, and a marker's presence
    is not something a container can be asked about without the answer depending on the
    strip the marker is asking for. Both halves of such a pair ask the same medium, or a
@@ -169,7 +169,6 @@
      its full measure and overlays the document above or below its controls instead. */
   --thread-card: 460px;
   --thread-card-min: 320px;
-  --thread-margin: 520px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the reader
      while the document moves, so the whole left edge is spoken for wherever it is in
@@ -497,10 +496,13 @@ body { position: static !important; box-sizing: border-box !important;
   ) body { margin-right: var(--lf-panel-w); }
 }
 @media screen and (width <= 840px) {
-  :is(
-    html[data-lf-restore-panel],
-    html[data-lf-live]:has(body[data-lf-panel])
-  ) { overflow-y: hidden; }
+  html[data-lf-restore-panel] { overflow-y: hidden; }
+}
+/* A workspace that covers the document owns the one visible reading scrollport. The
+ * runtime's shared modality boundary states this independently of which workspace is
+ * open, including Leaves, whose overlay posture does not depend on viewport width. */
+@media screen {
+  html[data-lf-live]:has(body[data-lf-modal-workspace]) { overflow-y: hidden; }
 }
 @media screen and (not (width <= 600px)) {
   :is(
@@ -512,10 +514,7 @@ body { position: static !important; box-sizing: border-box !important;
   }
 }
 @media screen and (width <= 600px) {
-  :is(
-    html[data-lf-restore-tray="asks"],
-    html[data-lf-live]:has(body[data-lf-tray="asks"])
-  ) { overflow-y: hidden; }
+  html[data-lf-restore-tray="asks"] { overflow-y: hidden; }
 }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page
@@ -584,9 +583,8 @@ body { position: static !important; box-sizing: border-box !important;
  * number here. Widgets that want width already scroll (lf-board, lf-diff, pre). */
 main {
   --strip-l: 0px;
-  --lf-thread-beside: 0;
   --strip-r: max(var(--claim-note, 0px), var(--claim-rail, 0px),
-    var(--claim-map, 0px), var(--lf-claim-right, 0px));
+    var(--lf-claim-right, 0px));
   --lf-shift: calc((var(--strip-l) - var(--strip-r)) / 2);
   --lf-room: max(0px, calc(100cqi - var(--strip-l) - var(--strip-r)
     - 2 * var(--col-pad)));
@@ -1497,46 +1495,149 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
  * sweep enters every declared tree, and a diff's lines scroll in one. No offsets:
  * relative moves nothing. */
 [data-lf-holds] { position: relative; }
-/* The layer's mark for a box that shows less than it holds across (reachScrollers, for
- * why the sweep and not a rule beside each overflow decides who wears it). Scrolling is
- * the honest answer when the room ran short, and on a platform drawing overlay
+/* The layer's marks for a box that shows less than it holds across (reachScrollers, for
+ * why the sweep and not a rule beside each overflow decides who wears them). Scrolling
+ * is the honest answer when the room ran short, and on a platform drawing overlay
  * scrollbars it is an answer the reader is never given: a flowchart cut 356px of 1026
  * inside a tab panel read as a finished graph at every width from 1200 to 1920. A cut
  * line of code announces itself by being a line; a drawing announces nothing, so the box
  * says it.
  *
- * A soft inset shade on the side the rest is on, which is the shape a page falling off
- * an edge has. On that side alone, and off the measurement rather than off scroll
- * position: an edge that tracked the travel would be a write on every frame of a drag,
- * and the reader arrives at the start of it, which is where a trailing edge is exactly
- * right and where the whole cut lies. A reader already at the end knows the box scrolls,
- * having scrolled it. Mirrored for a page read the other way, since the side is the
- * inline end and box-shadow can only be told in physical terms.
+ * The visible content fades at each edge that has more beyond it. The fade follows the
+ * scroll position: inline end at the start, both edges in the middle, and inline start
+ * at the end. Masking the box makes the content itself recede instead of casting an
+ * unexplained shadow behind it. Focus within removes the mask so the scroller's complete
+ * ring and controls painted outside its box remain visible; the reader standing there
+ * already has the platform's scroll affordance.
  *
- * Paint and no metric: a shadow lays nothing out, so writing the attribute inside the
- * sweep's own resize observation cannot feed itself. Screen only, because a mark whose
- * whole meaning is "scroll to see the rest" says nothing on a sheet nobody can scroll.
- * A copy keeps the mark it was exported with, the way it keeps the hold beside it and
- * the stop the same sweep granted. */
+ * Neither the mask nor its attributes affect layout, so observing the scroller cannot
+ * feed the measurement back into itself. Screen only, because a mark whose whole
+ * meaning is "scroll to see the rest" says nothing on a sheet nobody can scroll. A
+ * live page writes its reading on each scroll. A copy has no script, so bake replaces
+ * that transient reading with a CSS scroll timeline that follows the native scroller;
+ * a browser without scroll timelines keeps the honest initial inline-end fade. */
+@property --lf-copy-scroll-position {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+@property --lf-copy-left-opacity {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 1;
+}
+@property --lf-copy-right-opacity {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+@keyframes lf-copy-scroll-position {
+  from { --lf-copy-scroll-position: 0; }
+  to { --lf-copy-scroll-position: 1; }
+}
 @media screen {
-  [data-lf-cut] { box-shadow: inset -22px 0 18px -22px var(--shade); }
-  [data-lf-cut]:dir(rtl) { box-shadow: inset 22px 0 18px -22px var(--shade); }
+  [data-lf-more-after]:where(
+      [data-lf-scroll-direction="ltr"]:not([data-lf-more-before])
+    ),
+  [data-lf-more-before]:where(
+      [data-lf-scroll-direction="rtl"]:not([data-lf-more-after])
+    ),
+  [data-lf-copy-scroll="ltr"] {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+  [data-lf-more-before]:where(
+      [data-lf-scroll-direction="ltr"]:not([data-lf-more-after])
+    ),
+  [data-lf-more-after]:where(
+      [data-lf-scroll-direction="rtl"]:not([data-lf-more-before])
+    ),
+  [data-lf-copy-scroll="rtl"] {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
+    mask-image: linear-gradient(to right, transparent, #000 24px);
+  }
+  [data-lf-more-before][data-lf-more-after] {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent
+    );
+  }
+  @supports (animation-timeline: scroll(self inline)) {
+    [data-lf-copy-scroll] {
+      animation: lf-copy-scroll-position 1s linear both;
+      animation-timeline: scroll(self inline);
+      -webkit-mask-image: linear-gradient(
+        to right,
+        rgb(0 0 0 / var(--lf-copy-left-opacity)) 0,
+        #000 24px,
+        #000 calc(100% - 24px),
+        rgb(0 0 0 / var(--lf-copy-right-opacity)) 100%
+      );
+      mask-image: linear-gradient(
+        to right,
+        rgb(0 0 0 / var(--lf-copy-left-opacity)) 0,
+        #000 24px,
+        #000 calc(100% - 24px),
+        rgb(0 0 0 / var(--lf-copy-right-opacity)) 100%
+      );
+    }
+    [data-lf-copy-scroll="ltr"] {
+      --lf-copy-left-opacity: clamp(
+        0,
+        calc(1 - var(--lf-copy-scroll-position) * 1000),
+        1
+      );
+      --lf-copy-right-opacity: clamp(
+        0,
+        /* Chromium can resolve an RTL timeline one layout pixel short of 100%. The cue
+         * reaches its terminal edge inside the final percent so that rounding cannot
+         * leave a false fade at the end. */
+        calc((var(--lf-copy-scroll-position) - .99) * 1000),
+        1
+      );
+    }
+    [data-lf-copy-scroll="rtl"] {
+      --lf-copy-left-opacity: clamp(
+        0,
+        /* Same terminal tolerance, reflected for the RTL inline end. */
+        calc((var(--lf-copy-scroll-position) - .99) * 1000),
+        1
+      );
+      --lf-copy-right-opacity: clamp(
+        0,
+        calc(1 - var(--lf-copy-scroll-position) * 1000),
+        1
+      );
+    }
+  }
+  :is(
+      [data-lf-more-before],
+      [data-lf-more-after],
+      [data-lf-copy-scroll]
+    ):is(
+      :focus-visible,
+      .lf-focus-visible,
+      :has(:is(:focus-visible, .lf-focus-visible))
+    ) {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
   /* A registered reading region with more below it gets the same edge vocabulary on
    * its block end. This shadow is paint behind descendants rather than an overlay over
    * their words or controls. The runtime removes it at the end and in flow posture,
    * and the `@media screen` above already keeps it off a printed sheet. */
   [data-lf-more-below] {
     box-shadow: inset 0 -8px 8px -8px var(--shade);
-  }
-  [data-lf-cut][data-lf-more-below] {
-    box-shadow:
-      inset -22px 0 18px -22px var(--shade),
-      inset 0 -8px 8px -8px var(--shade);
-  }
-  [data-lf-cut][data-lf-more-below]:dir(rtl) {
-    box-shadow:
-      inset 22px 0 18px -22px var(--shade),
-      inset 0 -8px 8px -8px var(--shade);
   }
 }
 /* lf-shadow:end */
@@ -1797,33 +1898,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
        has measured, which is wider wherever a contributed control takes the marker's
        place. What the condition reads is stated with the rest of the claim below. */
     --claim-rail: max(calc(54px + var(--here-ring-room)), var(--rail, 0px));
-  }
-}
-@media screen {
-  /* A live page can receive its first comment at any moment. Reserve conversation
-     room before that gesture so sending and resolving never move the passage.
-     1208px leaves the 640px evidence floor, 520px margin, and two 24px gutters.
-     Static copies need the strip only where they carry a thread marker. */
-  @container lf-shell (min-width: 1208px) {
-  :is(
-      html[data-lf-live] body,
-      body:has(.lf-margin-cluster .lf-margin-marker[data-lf-kinds~="comment"])
-    ) > main:where(:not(:has(> aside.sidebar))) {
-    --claim-map: var(--thread-margin);
-    --lf-thread-beside: 1;
-  }
-  }
-  /* A page-level sidebar claims another 264px on the opposite side. Wait for
-     that strip too: 1208 + 264 = 1472, so the same 640px document floor holds
-     when both contextual surfaces stand. */
-  @container lf-shell (min-width: 1472px) {
-  :is(
-      html[data-lf-live] body,
-      body:has(.lf-margin-cluster .lf-margin-marker[data-lf-kinds~="comment"])
-    ) > main:where(:has(> aside.sidebar)) {
-    --claim-map: var(--thread-margin);
-    --lf-thread-beside: 1;
-  }
   }
 }
 @media screen and (max-width: 899px) {

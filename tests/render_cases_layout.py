@@ -278,8 +278,7 @@ WIDE_TABLE_PAGE = leaf_page(
 # each name is written, and nothing else differs between the two pages below. The
 # names run past ninety characters so that bare they hold the table open on any font:
 # at seventy-nine the bare table scrolled by ten pixels on a Mac and fitted on CI's
-# fonts, where the gate, rightly silent, read as broken. The compact font size leaves
-# enough room that this fixture reaches the same column-allocation case on every runner.
+# fonts, where the gate, rightly silent, read as broken.
 def prose_beside_identifiers(held):
     rows = [
         (
@@ -323,11 +322,6 @@ def prose_beside_identifiers(held):
     return leaf_page(
         "held",
         f"""
-<style>
-@media (max-width: 600px) {{
-  #held :is(th, td, code, a) {{ font-size: 0.75rem; }}
-}}
-</style>
 <h1 id="t">The plan</h1>
 <p id="p">Each item, the mechanism that carries it, and the test that holds it.</p>
 <table id="held">

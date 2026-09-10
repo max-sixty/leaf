@@ -1806,6 +1806,14 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
     assert measured["broke"], "every name fitted whole, so the rule was never asked"
     assert measured["sideways"] == 0
     assert errors == []
+    compact = []
+    for width in range(520, 601, 4):
+        resized(page, width, 720)
+        scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
+        if scrolls > 1:
+            compact.append((width, scrolls))
+            assert render_checks_model.evaluate_probe(page, "squeezedTables") == []
+    assert compact, "no compact width exposed the inline-box scroll artifact"
     page.close()
     assert render_gate_model.render_version(browser, url) == []
 
@@ -1835,6 +1843,55 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
         assert {"Mechanism", "Held by"} <= widths.keys(), finding
         assert int(widths["Held by"]) > 3 * int(widths["Mechanism"]), finding
     assert not [f for f in failures if "<table id=held> scrolls" not in f], failures
+
+
+def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A widget's visible words still decide whether the table genuinely overflows.
+    The host's light tree is empty after upgrade, so a reading that stops at the shadow
+    boundary mistakes this for Chromium's empty inline-box rounding artifact."""
+    monkeypatch.chdir(tmp_path)
+    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-callout"].pop("x-verbatim")
+    entries["lf-callout"]["x-shadow"] = True
+    registry_path.write_text(json.dumps(entries, indent=2))
+    module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
+    module.write_text(
+        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-callout", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        "    const text = this.textContent;\n"
+        '    this.textContent = "";\n'
+        '    const span = document.createElement("span");\n'
+        "    span.textContent = text;\n"
+        "    shadowStage(this, [span]);\n"
+        "  }\n"
+        "});\n"
+    )
+    serial = itertools.count(1)
+    source = re.sub(
+        r"<code>(test_[^<]+)</code>",
+        lambda match: (
+            f'<lf-callout id="shadow-name-{next(serial)}">{match.group(1)}</lf-callout>'
+        ),
+        IDENTIFIERS_IN_CODE_PAGE,
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 540, 720)
+    host = page.locator("lf-callout").first
+    assert host.evaluate("(el) => el.textContent") == ""
+    assert "test_" in host.evaluate("(el) => el.shadowRoot.textContent")
+    table = page.locator("#held")
+    assert table.evaluate("(el) => el.scrollWidth - el.clientWidth") > 1
+    assert errors == []
+
+    squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
+
+    assert any("<table id=held> scrolls" in finding for finding in squeezed), squeezed
 
 
 def test_the_squeeze_reading_sees_a_wrap_between_two_links(browser, serve):

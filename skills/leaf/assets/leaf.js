@@ -598,6 +598,7 @@ address = createAddress({
   placeThreadEdge,
   seenScroller: navigation.seenScroller,
   stopGlide,
+  coveringWorkspaceSurface: workspaceModality.coveringSurface,
   enterPageMap: pageMap.enterPageMap,
   leavePageMap: pageMap.leavePageMap,
   pageMapIsActive: pageMap.pageMapIsActive,

@@ -2910,21 +2910,14 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     expect(btn).to_have_text("All leaves (1)")
     expect(page.locator(".lf-others-self .lf-others-title")).to_have_text("long")
     # The open panel remains the modal destination after its last link leaves. Its own
-    # nav is the fallback landing, and global page sequences cannot escape through the
-    # covered banner while there is nothing in the tray to walk.
+    # nav is the fallback landing, and its global address remains the same toggle as the
+    # banner door even though that inert door is unavailable to a pointer.
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
-    assert page.locator(".lf-others-panel").evaluate(
-        "panel => panel.contains(document.activeElement)"
-    ), page.evaluate("() => document.activeElement.outerHTML")
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("walk the leaves")
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("All leaves panel")
-    assert page.locator(".lf-others-panel").get_attribute("aria-keyshortcuts") is None
-    # The one Escape gives back the one press that opened the tray. Nothing live remains
-    # to reopen it: its button stands while the panel does and stands down with it, which
-    # is the count's other half.
-    page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
+    expect(btn).to_have_attribute("aria-expanded", "false")
+    # Nothing live remains to reopen it: its button stands while the panel does and
+    # stands down with it, which is the count's other half.
     told(page)
     expect(btn).not_to_be_visible()
     assert errors == []
@@ -3923,6 +3916,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     sweep("in the keyboard reference")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
+    page_at_rest(page)
 
     # And the sequence's generated target hints, painted over the visible page rather than
     # inserted into it.
@@ -4123,8 +4117,8 @@ def test_a_sheet_lifts_the_shortcut_bar_text_only_when_its_foot_reaches_the_same
         f"the disjoint line overrode the panel list's own inset: {separate}"
     )
 
-    # A page sequence cannot stand through a modal workspace and manufacture a wider
-    # background line. The line and list therefore remain in the same disjoint posture.
+    # The global address sequence belongs to the modal workspace here. It must not restore
+    # the inert page's wider line, so the line and list remain in the same disjoint posture.
     page.keyboard.press("g")
     page.evaluate(RENDERED)
     sequence = boxes()
@@ -5289,8 +5283,11 @@ RING_SCOPE_CONTROL = {
 # walks use a wide window where their page-margin surfaces can stand beside the source.
 # Every other scope is read at the width the page opened at.
 RING_WALK_VIEWPORT = (1200, 900)
-# Scopes whose page-margin surfaces the standing panel takes the place of.
-RING_SCOPES_WITHOUT_PANEL = {
+# Scopes whose own route starts with Threads shut. A thread card and the narrow map need
+# page-margin surfaces the panel replaces; the thread-list walk's own `g T` is the door
+# under test, and now correctly toggles an already-open panel closed.
+RING_SCOPES_STARTING_WITHOUT_PANEL = {
+    "the thread list",
     "a contents link",
     "a thread card",
     "the page map sheet",
@@ -5648,9 +5645,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             page.evaluate(RING_WALK_START)
             # Threads and a target's own Thread card are one surface offered two ways:
             # with the panel standing, a thread margin element sends the reader there instead of
-            # building the card, so the card's walk is the one scope that starts with the
-            # panel shut. Every other scope starts from the same open-panel page.
-            if scope in RING_SCOPES_WITHOUT_PANEL:
+            # building the card. The scopes listed above need the panel shut either to expose
+            # their own page surface or to exercise the panel's entry route itself.
+            if scope in RING_SCOPES_STARTING_WITHOUT_PANEL:
                 if page.locator(".lf-panel.open").count():
                     page.get_by_role("button", name="Close threads").click()
                     panel_settled(page, open=False)

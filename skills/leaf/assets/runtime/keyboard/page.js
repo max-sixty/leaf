@@ -1213,7 +1213,14 @@ export function createPageKeys({
       root: coveringWorkspaceSurface,
       when: () => Boolean(coveringWorkspaceSurface()),
       at: () => Boolean(coveringWorkspaceSurface()),
-      rows: [PAGE_MOVE, SCROLL_MOVE, { ...BACK_OUT, when: () => Boolean(rung()) }],
+      // The global address vocabulary is still a route out of this workspace. Reuse its
+      // one entry row here; GO moves its own root to the same modal surface while armed.
+      rows: [
+        PAGE_MOVE,
+        SCROLL_MOVE,
+        GOTO,
+        { ...BACK_OUT, when: () => Boolean(rung()) },
+      ],
     };
     const scopes = [
       SHORTCUT_REFERENCE,

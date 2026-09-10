@@ -10,7 +10,8 @@
 
    Native inertness owns sequential focus and pointer reach. This owner adds the Tab
    wrap and programmatic-focus recovery that a non-top-layer workspace still needs.
-   Native dialogs opened above it remain available to their top-layer owner. */
+   Native dialogs and popovers opened above it remain available to their top-layer
+   owner. */
 
 export function createWorkspaceModality({ chromeRoot, focusable }) {
   const controllers = new Set();
@@ -43,8 +44,8 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
       placingFocus = false;
     }
   };
-  const nativeModalContains = (node) => node?.closest?.("dialog:modal");
-  const overlay = (node) => node.matches?.("dialog:not(.lf-panel)");
+  const nativeLayerContains = (node) => node?.closest?.("dialog:modal, :popover-open");
+  const overlay = (node) => node.matches?.("dialog:not(.lf-panel), [popover]");
   const background = (surface) => {
     const nodes = [];
     for (const child of document.body.children) {
@@ -77,7 +78,7 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
     if (
       active &&
       !active.surface.contains(document.activeElement) &&
-      !nativeModalContains(document.activeElement)
+      !nativeLayerContains(document.activeElement)
     )
       place(active.focus() ?? active.surface);
   });
@@ -182,7 +183,7 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
         !active ||
         placingFocus ||
         active.surface.contains(event.target) ||
-        nativeModalContains(event.target)
+        nativeLayerContains(event.target)
       )
         return;
       place(active.focus() ?? active.surface);

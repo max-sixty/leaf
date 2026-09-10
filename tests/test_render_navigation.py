@@ -5323,9 +5323,10 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
 
 
 def test_named_workspace_chords_toggle_their_panels(browser, serve, live_leaf):
-    """Repeating a panel's complete address closes the panel it opened."""
+    """Repeating a covering panel's complete address closes the panel it opened."""
     live_leaf("second", "A second leaf")
     page, errors = open_page(browser, serve(ASKS_PAGE, comments=1))
+    resized(page, 500, 800)
 
     for key, command, name, surface, control in (
         ("Shift+t", "threads", "Threads", ".lf-panel", ".lf-threads-toggle"),
@@ -5346,6 +5347,53 @@ def test_named_workspace_chords_toggle_their_panels(browser, serve, live_leaf):
         page.keyboard.press(key)
         expect(page.locator(surface)).to_be_hidden()
         expect(page.locator(control)).to_have_attribute("aria-expanded", "false")
+
+    assert errors == []
+    page.close()
+
+
+def test_global_destinations_switch_from_a_covering_workspace(
+    browser, serve, live_leaf
+):
+    """A modal workspace keeps the global addresses that can replace or cover it."""
+    live_leaf("second", "A second leaf")
+    page, errors = open_page(browser, serve(ASKS_PAGE, comments=1))
+    resized(page, 500, 800)
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    expect(page.locator(".lf-others-panel")).to_be_visible()
+
+    for key, opened, closed in (
+        ("Shift+a", ".lf-asks-panel", ".lf-others-panel"),
+        ("Shift+t", ".lf-panel", ".lf-asks-panel"),
+    ):
+        page.keyboard.press("g")
+        expect(page.locator("body")).to_have_attribute("data-lf-goto", "")
+        expect(page.locator(".lf-goto-targets > [data-lf-address]")).to_have_count(0)
+        page.keyboard.press(key)
+        expect(page.locator(opened)).to_be_visible()
+        expect(page.locator(closed)).to_be_hidden()
+        assert page.locator("main").evaluate("main => main.inert")
+
+    for key, surface, destination in (
+        ("Shift+m", ".lf-page-map-sheet", ".lf-page-map-search"),
+        ("Shift+v", ".lf-version-menu", ".lf-version-row"),
+    ):
+        page.keyboard.press("g")
+        page.keyboard.press(key)
+        expect(page.locator(surface)).to_be_visible()
+        expect(page.locator(surface).locator(destination).first).to_be_focused()
+        assert page.locator("main").evaluate("main => main.inert")
+        assert not page.locator(surface).evaluate("surface => surface.inert"), (
+            f"{surface} opened above the workspace but remained inert"
+        )
+        page.keyboard.press("Escape")
+        expect(page.locator(surface)).to_be_hidden()
+        expect(page.locator(".lf-panel")).to_be_visible()
+        assert page.locator(".lf-panel").evaluate(
+            "panel => panel.contains(document.activeElement)"
+        ), f"closing {surface} did not return to the covering workspace"
 
     assert errors == []
     page.close()

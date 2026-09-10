@@ -2344,6 +2344,38 @@ def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve
     page.close()
 
 
+def test_an_unavailable_floating_ui_module_withdraws_the_thread_preview(browser, serve):
+    """A failed lazy module cannot leave a hidden thread card holding focus."""
+    url = serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")])
+    page = browser.new_page(viewport={"width": 600, "height": 844})
+    errors = watched(page)
+    page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    page.wait_for_function(BOTH_STAMPS)
+
+    with page.expect_event("pageerror") as raised:
+        page.keyboard.press("t")
+    assert "Failed to fetch dynamically imported module" in str(raised.value)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    focus = page.evaluate(
+        """() => {
+          const active = document.activeElement;
+          return {
+            tag: active?.tagName,
+            className: active?.className,
+            controls: active?.getAttribute('aria-controls'),
+            visible: active?.checkVisibility?.() ?? false,
+            inside: document.querySelector('.lf-margin-preview').contains(active),
+          };
+        }"""
+    )
+    assert not focus["inside"] and focus["visible"], focus
+    assert any(
+        "Failed to fetch dynamically imported module" in error for error in errors
+    )
+    page.close()
+
+
 def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serve):
     """The other side of the narrowing, on a diff bound as a manifest of collapsed files.
 

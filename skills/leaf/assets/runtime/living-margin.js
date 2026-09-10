@@ -421,13 +421,11 @@ export function createLivingMargin({
   function scheduleThreadTransition(origin, entry) {
     clearThreadTransition();
     const epoch = threadTransitionEpoch;
-    // Margin packing finishes on the next frame. Keep the real card transparent until
-    // then, so the carried shell aims at the marker's settled position without flashing
-    // the card at its provisional one.
-    preview.style.opacity = "0";
+    // Margin packing finishes on the next frame. The placement reset keeps the real card
+    // transparent until its asynchronous position lands; this frame must not clear that
+    // gate while the carried shell aims at the marker's settled position.
     requestAnimationFrame(() => {
       if (epoch !== threadTransitionEpoch) return;
-      preview.style.removeProperty("opacity");
       if (previewEntry?.key !== entry.key || !preview.matches(":popover-open")) return;
       placeThreadPreview();
       transitionThread(origin);
@@ -824,22 +822,20 @@ export function createLivingMargin({
         : side.name
       : "bottom-end";
     const fallbackPlacements = !side || crossesSource ? [`top-${alignment}`] : [];
-    const reference = side
-      ? {
-          contextElement: controls,
-          getBoundingClientRect: () =>
-            new DOMRect(
-              crossesSource
-                ? cardLeft
-                : side.name === "right"
-                  ? cardLeft - gap
-                  : cardLeft + width + gap,
-              target.top,
-              crossesSource ? width : 0,
-              target.height,
-            ),
-        }
-      : controls;
+    const reference = {
+      contextElement: controls,
+      getBoundingClientRect: () =>
+        new DOMRect(
+          !side || crossesSource
+            ? cardLeft
+            : side.name === "right"
+              ? cardLeft - gap
+              : cardLeft + width + gap,
+          target.top,
+          !side || crossesSource ? width : 0,
+          target.height,
+        ),
+    };
     preview.style.setProperty("--lf-thread-width", `${width}px`);
     preview.style.setProperty("--lf-thread-max-height", `${boundary.height}px`);
     const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
@@ -902,6 +898,11 @@ export function createLivingMargin({
         preview.style.removeProperty("opacity");
         preview.style.removeProperty("pointer-events");
         keepThreadPreviewFocusVisible();
+      })
+      .catch((error) => {
+        if (!stillCurrent()) return;
+        closePreview(true);
+        throw error;
       });
   }
   function scheduleThreadPreviewPosition(dismissDetached = false) {

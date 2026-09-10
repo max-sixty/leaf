@@ -169,7 +169,7 @@ class _PassageParser:
     widget with nothing — a deletion accepted, an insertion refused — empties the
     wrapper too (`gone`), because an element showing nothing is one nobody can point
     at, however present its markup. `rewrites` is the user's
-    standing text per element whose registry entry records a verb as the body
+    standing text per element whose element declaration records a verb as the body
     (`rewritten_bodies`): their words stand in the authored body's place, because
     replay writes exactly that into the DOM. Without either, the reading is the
     version as authored — every slot pending, every body Claude's. `additions`

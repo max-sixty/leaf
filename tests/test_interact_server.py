@@ -2502,8 +2502,8 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         },
         "required": ["id", "slots"],
         "additionalProperties": False,
-        "x-parent": ["lf-task"],
-        "x-content": "none",
+        "x-owners": ["lf-task"],
+        "x-content": "empty",
         "x-upgrade": True,
         "x-state": {
             "move": {
@@ -2531,7 +2531,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
                 "unit": "widget",
                 "record": record,
                 "requires": {
-                    "target": "parent",
+                    "target": "owner",
                     "awaiting": False,
                 },
             },
@@ -3664,7 +3664,7 @@ def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_
     # page and stop lines name the page directory, which may legitimately sit
     # under the checkout — as it does whenever a run is given a `--basetemp`
     # there. Equality on that one line says what the absence was reaching for.
-    runtime = next(l for l in note.splitlines() if l.startswith("runtime"))
+    runtime = next(line for line in note.splitlines() if line.startswith("runtime"))
     assert runtime == "runtime  unknown payload (unknown source)"
 
 

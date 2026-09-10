@@ -13,7 +13,7 @@ import { uiInside } from "./shadow.js";
 
    - `shownBox` for travel, bounds, and reading-position landmarks;
    - `shownParts` for Ask rings and element-anchor outlines;
-   - `shownRect` for visible placement of floating chrome and address chips;
+   - `shownRect` for visible placement of floating chrome and key badges;
    - `clippedRect` only when the subject has no element box of its own.
 
    Do not read `getBoundingClientRect()` directly when the target may generate no box.
@@ -21,7 +21,7 @@ import { uiInside } from "./shadow.js";
    represent where its contents are. An area greater than zero is not enough for shown
    parts either: clipped note text and hoisted controls can have measurable boxes while
    remaining the wrong semantic target, which is why `shownParts` takes the bounded
-   chrome question (`uiInside`). `unmarkableItems`, in the render checks, detects
+   chrome question (`uiInside`). `unmarkableElements`, in the render checks, detects
    declared items with no visible part on which a mark can land. */
 // Document-anchored chrome is positioned from the document origin, while the boxes it
 // follows are read in viewport coordinates. Convert once at that boundary.

@@ -51,7 +51,7 @@ export function mountApplication(dependencies) {
   const engagement = dependencies.createEngagement({
     hasPending,
     fabAnchorAt: dependencies.activeActionAnchor,
-    isSelecting: dependencies.isSelecting,
+    targetChooserOpen: dependencies.targetChooserOpen,
     pageComposerDrawing: dependencies.pageComposerDrawing,
   });
   let conversation;
@@ -259,18 +259,18 @@ export function mountApplication(dependencies) {
   };
   const surfaceView = inlineView;
 
-  const margin = dependencies.createLivingMargin({
+  const margin = dependencies.createMarginProjection({
     panelIsOpen: dependencies.panelIsOpen,
     bottomChromeBoxes: dependencies.margin.bottomChromeBoxes,
-    designIsOn: dependencies.margin.designIsOn,
+    designModeActive: dependencies.margin.designModeActive,
     comparisonBase: dependencies.margin.comparisonBase,
     comparisonChanges: dependencies.margin.comparisonChanges,
     inlineComparison: dependencies.margin.inlineComparison,
     toggleInlineComparison: dependencies.margin.toggleInlineComparison,
     leavePageMap: dependencies.margin.leavePageMap,
     openPageMap: dependencies.margin.openPageMap,
-    pageMapContextContains: dependencies.margin.pageMapContextContains,
-    renderPageMap: dependencies.margin.renderPageMap,
+    pageMapDialogContains: dependencies.margin.pageMapDialogContains,
+    renderPageMapDialog: dependencies.margin.renderPageMapDialog,
     openAsks,
     standsWith: dependencies.margin.standsWith,
     revealConversation: dependencies.margin.revealConversation,

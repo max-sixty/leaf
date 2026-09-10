@@ -1,6 +1,6 @@
 # Packages
 
-`../references/packages.md` owns the package contract: layout, registry entries,
+`../references/packages.md` owns the package contract: layout, registry declarations,
 theme rules, guidance, data contracts, requests, and what a widget module owes.
 The layer-wide laws a module must keep, and the map naming which runtime module
 owns each concern, are in `../assets/CLAUDE.md`; each runtime module's header

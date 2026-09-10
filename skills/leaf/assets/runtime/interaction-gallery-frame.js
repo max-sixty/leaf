@@ -42,7 +42,7 @@ function neutralChrome() {
   commands.detachComposer();
   commands.closePreview();
   commands.setPanel(false, { remember: false })?.finish();
-  if (commands.currentTray()) commands.showTray(null, { remember: false });
+  if (commands.currentTray()) commands.setOpenTray(null, { remember: false });
 }
 
 async function prepare() {

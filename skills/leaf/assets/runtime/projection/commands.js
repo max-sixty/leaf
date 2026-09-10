@@ -24,14 +24,14 @@ const projectedFacet = (widget, spec, winners = currentProjection().desired) => 
 
 function requirementTarget(widget, target, context) {
   if (target === "self") return widget;
-  const permitted = registry[widget.localName]["x-parent"] ?? [];
+  const owners = registry[widget.localName]["x-owners"] ?? [];
   for (
     let node = projectedParent(widget, context);
     node;
     node = projectedParent(node, context)
   )
     if (registry[node.localName])
-      return permitted.includes(node.localName) && askEntry(node) ? node : null;
+      return owners.includes(node.localName) && askEntry(node) ? node : null;
   return null;
 }
 

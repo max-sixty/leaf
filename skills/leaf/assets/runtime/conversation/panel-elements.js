@@ -1,20 +1,20 @@
 /* Stable DOM scaffold and passive geometry readings shared by panel views and layout.
- * Panel visibility belongs to panel-workspace; the class here only renders that state. */
+ * Panel visibility belongs to thread-panel; the class here only renders that state. */
 import { iconElement } from "../icons.js";
 import { focused } from "../keyboard/scopes.js";
 import { containsAcross } from "../passages.js";
 import { COVERING } from "../chrome-layout.js";
-import { registerArrangement } from "../reading-regions.js";
+import { registerReadingArrangement } from "../reading-regions.js";
 import { el } from "../widget-elements.js";
 
-export const panel = el("dialog", "lf-ui lf-panel");
+export const panel = el("dialog", "lf-ui lf-thread-panel");
 panel.id = "lf-threads";
-export const panelHead = el("div", "lf-panel-head");
+export const panelHead = el("div", "lf-thread-panel-head");
 export const closeBtn = el("button", "lf-btn lf-icon-action lf-close-action");
 closeBtn.append(iconElement("cross", "lf-action-icon"));
 closeBtn.title = "Close threads (Esc)";
 closeBtn.setAttribute("aria-label", "Close threads");
-export const panelTitle = el("span", "lf-panel-title", "Threads");
+export const panelTitle = el("span", "lf-auxiliary-title", "Threads");
 panelHead.append(panelTitle, closeBtn);
 
 const findRow = el("div", "lf-find");
@@ -90,7 +90,7 @@ export const generalInput = document.createElement("textarea");
 generalInput.name = "comment";
 export const generalSend = el("button", "lf-btn primary", "Send");
 generalRow.append(generalInput, generalSend);
-export const panelFoot = el("div", "lf-panel-foot");
+export const panelFoot = el("div", "lf-thread-panel-foot");
 panelFoot.append(generalRow);
 panel.append(panelHead, findRow, filterControls, threadsFrame, panelFoot);
 
@@ -102,10 +102,10 @@ export const panelWouldCover = () => covering.matches;
 let readingArrangement = null;
 export function mountPanelReadingRegion() {
   if (readingArrangement) return;
-  readingArrangement = registerArrangement({
+  readingArrangement = registerReadingArrangement({
     owner: panel,
     content: panel,
     regions: [{ id: "lf-threads", host: panel, body: threadsBox }],
   });
-  void readingArrangement.setPosture("bounded");
+  void readingArrangement.setReadingPosture("bounded");
 }

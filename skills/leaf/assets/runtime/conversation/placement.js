@@ -1,5 +1,5 @@
 /* Document-order placement and grouping for conversation threads. */
-import { itemSays, itemWord, sectionOf } from "../anchor-resolution.js";
+import { addressableSays, addressableWord, sectionOf } from "../anchor-resolution.js";
 import { pageParts } from "../passages.js";
 import { inChrome, layerPart } from "../passages.js";
 import { readingRegionFor } from "../reading-regions.js";
@@ -74,7 +74,7 @@ export function inPageOrder(threads, placedAt) {
 // of the page's outline.
 export const pageOutline = () => pageParts("h1, h2, h3, h4, h5, h6");
 
-const subjectLabel = (target) => itemSays(target) || itemWord(target);
+const subjectLabel = (target) => addressableSays(target) || addressableWord(target);
 
 // A repeated outline subject needs the nearest named reading region to remain
 // distinguishable after a route leaves the page. Unique subjects keep the author's own

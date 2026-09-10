@@ -1,7 +1,7 @@
 /* A playground is an instrument inside the page: controls stay compact and quiet while
  * the real preview owns the larger field. */
 lf-playground {
-  --lf-frame: 1;
+  --lf-block-frame: 1;
   display: block;
   box-sizing: border-box;
   width: min(100%, 58rem);
@@ -16,11 +16,11 @@ lf-playground {
 
 lf-playground > .lf-workspace-content,
 lf-playground .lf-playground-split,
-lf-playground .lf-playground-split > .lf-split-content {
+lf-playground .lf-playground-split > .lf-partition-content {
   min-height: 0;
 }
 
-lf-playground .lf-playground-split > .lf-split-content {
+lf-playground .lf-playground-split > .lf-partition-content {
   gap: var(--sp-4);
   background: transparent;
 }
@@ -179,7 +179,7 @@ lf-playground-setting {
 }
 
 lf-playground-preview {
-  --lf-frame: 1;
+  --lf-block-frame: 1;
   display: grid;
   place-items: center;
   min-width: 0;
@@ -191,7 +191,7 @@ lf-playground-preview {
 }
 
 lf-playground-output {
-  --lf-frame: 1;
+  --lf-block-frame: 1;
   display: block;
   margin: 0;
   padding: var(--sp-2) var(--sp-3);

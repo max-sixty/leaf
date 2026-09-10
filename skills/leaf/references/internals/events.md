@@ -29,9 +29,9 @@ a declared part of a picture and `part` the control a design comment landed on.
 requires the agent to revise its declared answer state rather than reply.
 
 A `drawing` is one bounded freehand stroke attached to an ordinary comment and may be
-that comment's only content. When the drag starts over a semantic item or in the margin
+that comment's only content. When the drag starts over an addressable element or in the margin
 alongside it, its element anchor remains the thread coordinate and points are CSS-pixel
-offsets from that target's top-left origin. A drag starting where no item shares its line
+offsets from that target's top-left origin. A drag starting where no addressable element shares its line
 has no anchor and its points are offsets from the document origin. Either stroke may
 continue anywhere across the page. Leaf derives the stroke's frame and owns ink, weight,
 SVG construction, and replay. A drawing is immutable once sent, follows the thread's

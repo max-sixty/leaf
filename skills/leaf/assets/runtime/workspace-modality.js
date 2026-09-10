@@ -2,11 +2,11 @@
 
    Visibility owners keep their ordinary surfaces and scrollports while responsive
    layout decides whether they stand beside the page or over it. In the covering
-   posture this owner makes every sibling reading surface inert, dims the covered page,
-   gives the workspace modal semantics, and moves focus in only when it was outside. It
-   re-derives those siblings when the live version replaces the authored page. Leaving
-   that posture restores exactly the inert and role state it found; it does not rebuild,
-   hide, or scroll either side.
+   posture this owner makes every sibling reading surface inert, dims that entire
+   background, gives the workspace modal semantics, and moves focus in only when it was
+   outside. It re-derives those siblings when the live version replaces the authored
+   page. Leaving that posture restores exactly the inert and role state it found; it
+   does not rebuild, hide, or scroll either side.
 
    Native inertness owns sequential focus and pointer reach. This owner adds the Tab
    wrap and programmatic-focus recovery that a non-top-layer workspace still needs.

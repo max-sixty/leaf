@@ -240,7 +240,8 @@ export function createTrays({
       surface: panel,
       scroller: () => panel.querySelector(".lf-tray-list"),
       covers: () => key === "leaves" || trayCovers(),
-      focus: () => panel.querySelector("button, a[href]") ?? panel,
+      focus: () =>
+        panel.querySelector(".lf-tray-list button, .lf-tray-list a[href]") ?? panel,
       dismiss: () => showTray(null),
     });
     trays.set(key, { panel, btn, close, paint, workspace });

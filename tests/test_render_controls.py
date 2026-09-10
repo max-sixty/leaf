@@ -3429,9 +3429,10 @@ def test_covering_trays_have_a_pointer_route_back_to_their_banner_controls(
 ):
     """Each tray can be dismissed from inside the modal surface by pointer.
 
-    The banner controls are inert while a tray covers the document, so they cannot be
-    the only pointer route out. Closing either tray returns focus to the control that
-    opened it, ready to reopen the same workspace.
+    Pointer entry starts in the list rather than on its dismissal furniture. The banner
+    controls are inert while a tray covers the document, so they cannot be the only
+    pointer route out. Closing either tray returns focus to the control that opened it,
+    ready to reopen the same workspace.
     """
     page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 500, 640)
@@ -3440,9 +3441,9 @@ def test_covering_trays_have_a_pointer_route_back_to_their_banner_controls(
         "el => Boolean(el.closest('.lf-banner-menu'))"
     ), "the fixture did not fold Leaves behind the banner menu"
 
-    for selector, panel, name in (
-        (".lf-asks", ".lf-asks-panel", "asks"),
-        (".lf-others", ".lf-others-panel", "leaves"),
+    for selector, panel, name, first_destination in (
+        (".lf-asks", ".lf-asks-panel", "asks", ".lf-asks-row"),
+        (".lf-others", ".lf-others-panel", "leaves", "a.lf-others-row"),
     ):
         door = banner_address(page, selector)
         door.click()
@@ -3450,6 +3451,7 @@ def test_covering_trays_have_a_pointer_route_back_to_their_banner_controls(
         expect(tray).to_have_class(re.compile(r"\bopen\b"))
         assert page.locator("main").evaluate("el => el.inert")
         expect(page.locator(".lf-banner-menu")).not_to_be_visible()
+        expect(tray.locator(first_destination).first).to_be_focused()
 
         page.get_by_role("button", name=f"Close {name}").click()
         expect(tray).not_to_have_class(re.compile(r"\bopen\b"))
@@ -3463,7 +3465,7 @@ def test_covering_trays_have_a_pointer_route_back_to_their_banner_controls(
 def test_the_shared_workspace_scrim_marks_and_dismisses_a_covering_surface(
     browser, serve, other_leaf
 ):
-    """Leaves dims the page at every width; responsive workspaces use the same scrim."""
+    """A covering workspace stands above a scrim covering every inert surface."""
     page, errors = open_page(browser, serve(LONG_PAGE))
     resized(page, 1200, 700)
     scrim = page.locator(".lf-workspace-scrim")
@@ -3478,17 +3480,39 @@ def test_the_shared_workspace_scrim_marks_and_dismisses_a_covering_surface(
     scrim_reading = page.evaluate(
         """() => {
           const scrim = document.querySelector('.lf-workspace-scrim');
+          const banner = document.querySelector('.lf-banner');
+          const bannerBox = banner.getBoundingClientRect();
+          const scrimBox = scrim.getBoundingClientRect();
+          const surface = document.querySelector('.lf-others-panel');
           const tray = document.querySelector('.lf-others-panel').getBoundingClientRect();
           const point = {x: Math.max(tray.right + 20, innerWidth * .75), y: innerHeight / 2};
+          const bannerPoint = {
+            x: bannerBox.left + bannerBox.width / 2,
+            y: bannerBox.top + bannerBox.height / 2,
+          };
           return {
             color: getComputedStyle(scrim).backgroundColor,
             point,
             hit: document.elementFromPoint(point.x, point.y) === scrim,
+            top: scrimBox.top,
+            coversBanner: scrimBox.top <= bannerBox.top && scrimBox.bottom >= bannerBox.bottom,
+            bannerHit: document.elementFromPoint(bannerPoint.x, bannerPoint.y) === scrim,
+            bannerLayer: Number(getComputedStyle(banner).zIndex),
+            scrimLayer: Number(getComputedStyle(scrim).zIndex),
+            surfaceLayer: Number(getComputedStyle(surface).zIndex),
           };
         }"""
     )
     assert scrim_reading["color"] != "rgba(0, 0, 0, 0)", scrim_reading
     assert scrim_reading["hit"], scrim_reading
+    assert scrim_reading["top"] == 0, scrim_reading
+    assert scrim_reading["coversBanner"], scrim_reading
+    assert scrim_reading["bannerHit"], scrim_reading
+    assert (
+        scrim_reading["surfaceLayer"]
+        > scrim_reading["scrimLayer"]
+        > scrim_reading["bannerLayer"]
+    ), scrim_reading
     page.mouse.click(scrim_reading["point"]["x"], scrim_reading["point"]["y"])
     expect(leaves).not_to_have_class(re.compile(r"\bopen\b"))
     expect(leaves_door).to_be_focused()
@@ -3504,6 +3528,10 @@ def test_the_shared_workspace_scrim_marks_and_dismisses_a_covering_surface(
     panel_settled(page)
     expect(scrim).to_be_visible()
     assert page.locator("main").evaluate("el => el.inert")
+    assert page.locator(".lf-panel").evaluate(
+        "panel => Number(getComputedStyle(panel).zIndex) > "
+        "Number(getComputedStyle(document.querySelector('.lf-workspace-scrim')).zIndex)"
+    )
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
     expect(threads_door).to_be_focused()

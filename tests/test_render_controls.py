@@ -242,17 +242,15 @@ CONTROL_ARCHETYPES = (
         "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
     },
     {
-        # The gallery's playback row. The runtime injects Play/Pause and Replay beside
-        # the authored demos and rewrites the toggle's own word as a demo runs, so what
-        # the row has to prove is that the word costs the button no width. Replay is the
-        # press for that reason: the toggle is the button that has to hold still, and
-        # pressing Replay is what sends it through every word it has. `example` because
-        # a demo is a scenario the module names rather than markup a page can compose,
-        # so the mechanism stands on the gallery and nowhere a synthetic page reaches.
+        # The gallery's playback row. The runtime injects one Play/Pause/Replay control
+        # beside Loop and Viewport, so the changing word must cost the button no width.
+        # Pressing Replay sends it through every word it has. `example` because a demo is
+        # a scenario the module names rather than markup a page can compose, so the
+        # mechanism stands on the gallery and nowhere a synthetic page reaches.
         "name": "interaction-playback",
         "example": FEATURE_GALLERY,
         "coverage": ".interaction-controls > button",
-        "target": "[data-interaction-replay]",
+        "target": "[data-interaction-toggle]",
     },
 )
 CONTROL_ROW_PRESS = (
@@ -272,7 +270,10 @@ def _pause_gallery_swipe(page):
     expect(status).to_have_text("Swipe a card · Playing")
     page.locator("#bg-interactions [data-interaction-toggle]").click()
     expect(status).to_have_text("Swipe a card · Paused")
-    expect(page.locator("#bg-motion-swipe-queue > lf-swipe-card")).to_have_count(1)
+    frame = page.locator(
+        "#bg-interactions #bg-interaction-swipe [data-interaction-frame]"
+    ).content_frame
+    expect(frame.locator("#bg-motion-swipe-queue > lf-swipe-card")).to_have_count(1)
 
 
 def _touch_drag(cdp, x, y, *, dx=0, dy=0, steps=14):

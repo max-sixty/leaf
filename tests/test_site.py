@@ -777,7 +777,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
         developer_galleries = page.locator("#developer-galleries")
         expect(developer_galleries).to_be_visible()
         developer_galleries.scroll_into_view_if_needed()
-        expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(2)
+        expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(1)
         expect(page.locator("iframe, lf-tabs")).to_have_count(0)
         published = {
             path.name for path in (site / "examples").iterdir() if path.is_dir()
@@ -792,12 +792,8 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
         )
         product_gallery = developer_galleries.locator("#product-gallery")
         expect(product_gallery).to_contain_text("Product gallery")
+        expect(product_gallery).to_contain_text("focused interaction replays")
         expect(product_gallery).to_have_attribute("href", "/examples/feature-gallery/")
-        interaction_gallery = developer_galleries.locator("#interaction-gallery")
-        expect(interaction_gallery).to_contain_text("Interaction gallery")
-        expect(interaction_gallery).to_have_attribute(
-            "href", "/examples/feature-gallery/#bg-interactions"
-        )
         assert not errors, errors[:3]
     finally:
         page.close()
@@ -818,12 +814,62 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         gallery = page.locator("#bg-interactions")
         status = gallery.locator("[data-interaction-status]")
         toggle = gallery.locator("[data-interaction-toggle]")
-        replay = gallery.locator("[data-interaction-replay]")
-        accept = gallery.locator("#bg-motion-accept")
-        card = gallery.locator("#bg-motion-card")
+        loop = gallery.locator("[data-interaction-loop]")
+        viewport = gallery.locator("[data-interaction-viewport-select]")
+        accept_stage = gallery.locator("#bg-interaction-accept .interaction-stage")
+        accept_frame_element = accept_stage.locator("[data-interaction-frame]")
+        accept_frame = accept_frame_element.content_frame
+        accept = accept_frame.locator("#bg-motion-accept")
+        move_frame = gallery.locator(
+            "#bg-interaction-move [data-interaction-frame]"
+        ).content_frame
+        card = move_frame.locator("#bg-motion-card")
 
         expect(status).to_have_text("Accept a suggestion · Playing")
         expect(gallery.locator(".interaction-pointer").first).to_be_visible()
+        expect(accept_frame_element).to_have_attribute("data-interaction-ready", "")
+        accept_controls = accept_frame.locator(
+            '.lf-sug-actions[data-lf-for="bg-motion-accept"]'
+        )
+        expect(accept_controls).to_be_visible()
+        assert accept_controls.evaluate(
+            """controls => {
+                const cluster = controls.closest('.lf-margin-cluster');
+                const box = controls.getBoundingClientRect();
+                return !cluster.classList.contains('lf-docked')
+                    && box.left >= 0 && box.right <= innerWidth;
+            }"""
+        )
+        zoom = accept_frame_element.evaluate(
+            """frame => ({
+                displayedWidth: frame.getBoundingClientRect().width,
+                layoutWidth: frame.offsetWidth,
+                viewportWidth: frame.contentWindow.innerWidth,
+                columnWidth: frame.contentDocument
+                    .querySelector('#bg-motion-accept-copy').getBoundingClientRect().width,
+                declaredColumnWidth: parseFloat(getComputedStyle(
+                    frame.contentDocument.documentElement).getPropertyValue('--col')),
+                columnRight: frame.contentDocument
+                    .querySelector('#bg-motion-accept-copy').getBoundingClientRect().right,
+                controlsLeft: frame.contentDocument
+                    .querySelector('.lf-sug-actions').getBoundingClientRect().left,
+                mainBoxSizing: getComputedStyle(
+                    frame.contentDocument.querySelector('main')).boxSizing,
+            })"""
+        )
+        assert zoom["layoutWidth"] >= zoom["displayedWidth"] * 1.9
+        assert abs(zoom["viewportWidth"] - zoom["layoutWidth"]) <= 1
+        assert zoom["columnWidth"] == zoom["declaredColumnWidth"]
+        assert zoom["columnRight"] < zoom["controlsLeft"]
+        assert zoom["mainBoxSizing"] == "content-box"
+        assert accept_stage.evaluate(
+            """stage => {
+                const pointer = stage.querySelector('.interaction-pointer');
+                const frame = stage.querySelector('.interaction-frame');
+                return getComputedStyle(pointer).zIndex === '5'
+                    && getComputedStyle(frame).zIndex === 'auto';
+            }"""
+        )
         toggle_box = toggle.bounding_box()
         assert toggle_box["y"] + toggle_box["height"] <= 900
         gallery.locator(".interaction-stage").first.evaluate(
@@ -851,9 +897,11 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         assert page.evaluate("window.pauseProbe.playState") == "running"
         page.evaluate("window.pauseProbe.cancel()")
         expect(status).to_have_text("Accept a suggestion · Complete", timeout=10_000)
-        expect(toggle).to_have_text("Played")
-        expect(toggle).to_be_disabled()
-        expect(replay).to_be_enabled()
+        expect(toggle).to_have_text("Replay")
+        expect(toggle).to_be_enabled()
+        expect(loop).not_to_be_checked()
+        expect(viewport).to_have_value("2")
+        expect(viewport.locator("option")).to_have_text(["1×", "2×", "4×"])
         assert gallery.evaluate(
             """async gallery => {
                 const { pageWords, says } = await import('/runtime/passages.js');
@@ -865,13 +913,13 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
             }"""
         )
         assert gallery.locator(
-            ".interaction-control, .interaction-status"
+            ".interaction-control, .interaction-setting, .interaction-status"
         ).evaluate_all(
             "nodes => nodes.map(node => getComputedStyle(node).fontSize)"
-        ) == ["11.5px", "11.5px", "11.5px"]
-        # The live line stands under the two presses at every width rather than beside
-        # them, because the runtime rewrites it as the demo runs and prose that changes
-        # length on a button's line moves the row while the reader is aiming at it.
+        ) == ["11.5px", "11.5px", "11.5px", "11.5px"]
+        # The live line stands under the persistent controls at every width. The runtime
+        # rewrites it as the demo runs, so putting it on their line would move that row
+        # while the reader is aiming at it.
         assert gallery.evaluate(
             """gallery => {
                 const toggle = gallery.querySelector('[data-interaction-toggle]');
@@ -882,6 +930,33 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         expect(accept).to_have_attribute("data-lf-state", "accept")
         assert read_events(page_dir) == before
 
+        loop.check()
+        expect(status).to_have_text("Accept a suggestion · Playing")
+        expect(accept).not_to_have_attribute("data-lf-state", "accept")
+        expect(accept).to_have_attribute("data-lf-state", "accept", timeout=10_000)
+        expect(accept).not_to_have_attribute("data-lf-state", "accept", timeout=10_000)
+        expect(status).to_have_text("Accept a suggestion · Playing")
+        loop.uncheck()
+        expect(status).to_have_text("Accept a suggestion · Complete", timeout=10_000)
+
+        displayed_width = accept_frame_element.evaluate(
+            "frame => frame.getBoundingClientRect().width"
+        )
+        for size in ("1", "4"):
+            viewport.select_option(size)
+            expect(gallery).to_have_attribute("data-interaction-viewport", size)
+            scaled = accept_frame_element.evaluate(
+                """frame => ({
+                    displayedWidth: frame.getBoundingClientRect().width,
+                    layoutWidth: frame.offsetWidth,
+                    viewportWidth: frame.contentWindow.innerWidth,
+                })"""
+            )
+            assert abs(scaled["displayedWidth"] - displayed_width) <= 1
+            assert abs(scaled["layoutWidth"] / displayed_width - int(size)) <= 0.02
+            assert abs(scaled["viewportWidth"] - scaled["layoutWidth"]) <= 1
+        viewport.select_option("2")
+
         move_tab = gallery.get_by_role("tab", name="Move a card")
         move_tab.click()
         expect(status).to_have_text("Move a card · Complete", timeout=10_000)
@@ -889,7 +964,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         assert move_tab.evaluate("tab => document.activeElement === tab")
         assert read_events(page_dir) == before
 
-        gallery.locator("[data-interaction-replay]").click()
+        toggle.click()
         expect(status).to_have_text("Move a card · Playing")
         assert card.evaluate("card => card.parentElement.id") == "bg-motion-ready"
         assert card.evaluate("card => card.getAnimations().length") == 0
@@ -902,14 +977,6 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         comment_frame = gallery.locator(
             "#bg-interaction-comment [data-interaction-frame]"
         ).content_frame
-        comment_input = comment_frame.locator(".lf-fab-input")
-        expect(comment_input).to_be_visible()
-        expect(comment_input).to_have_attribute(
-            "aria-keyshortcuts", "Meta+Enter Control+Enter"
-        )
-        expect(comment_input).to_have_value(
-            re.compile(r"should the practice exercise come before lunch\?")
-        )
         expect(status).to_have_text("Send a comment · Complete", timeout=10_000)
         expect(comment_frame.locator("#lf-margin-preview")).to_be_visible()
         expect(comment_frame.locator("#lf-margin-preview")).to_contain_text(
@@ -939,14 +1006,17 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         swipe_tab = gallery.get_by_role("tab", name="Swipe a card")
         swipe_tab.click()
         expect(status).to_have_text("Swipe a card · Complete", timeout=10_000)
-        swipe_card = gallery.locator("#bg-motion-swipe-card")
+        swipe_frame = gallery.locator(
+            "#bg-interaction-swipe [data-interaction-frame]"
+        ).content_frame
+        swipe_card = swipe_frame.locator("#bg-motion-swipe-card")
         assert swipe_card.evaluate("card => card.parentElement.id") == (
             "bg-motion-swipe-keep"
         )
         expect(page.locator("body")).not_to_have_attribute("data-lf-panel", "")
         assert read_events(page_dir) == before
 
-        replay.click()
+        toggle.click()
         expect(status).to_have_text("Swipe a card · Playing")
         assert swipe_card.evaluate("card => card.parentElement.id") == (
             "bg-motion-swipe-queue"
@@ -956,13 +1026,6 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
             "bg-motion-swipe-keep"
         )
         assert read_events(page_dir) == before
-        page.set_viewport_size({"width": 390, "height": 844})
-        assert gallery.locator("#bg-motion-board").evaluate(
-            "board => board.scrollWidth === board.clientWidth"
-        )
-        assert gallery.locator("#bg-motion-board").evaluate(
-            "board => getComputedStyle(board).gridAutoFlow === 'row'"
-        )
 
         replacement_installed = gallery.evaluate(
             """gallery => {
@@ -979,7 +1042,6 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         assert replacement_installed
         page.emulate_media(media="print")
         expect(toggle).to_be_hidden()
-        expect(replay).to_be_hidden()
         assert not errors, errors[:3]
     finally:
         page.close()
@@ -997,7 +1059,17 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     actually on, which folds their open margin cluster, drops their selection hints and
     leaves the next key they press going somewhere they cannot see.
     """
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    context = browser.new_context()
+    news_frames = []
+    context.on(
+        "request",
+        lambda request: (
+            news_frames.append(request.frame.parent_frame is not None)
+            if request.url.endswith("/api/news")
+            else None
+        ),
+    )
+    page, errors = open_page(browser, serve(FEATURE_GALLERY), context=context)
     try:
         # The reader's own standing intent, written the way a reader writes it. It has to
         # survive out here for the frames' silence about it to say anything.
@@ -1007,13 +1079,28 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         page.wait_for_function(BOTH_STAMPS)
         gallery = page.locator("#bg-interactions")
         ready = gallery.locator("[data-interaction-frame][data-interaction-ready]")
-        expect(ready).to_have_count(2)
+        expect(ready).to_have_count(5)
         expect(page.locator("body")).to_have_attribute("data-lf-panel", "")
         assert page.evaluate(
             """() => [...document.querySelectorAll('[data-interaction-frame]')].map(
                  (frame) => frame.contentDocument?.body.hasAttribute('data-lf-panel'))"""
-        ) == [False, False]
+        ) == [False, False, False, False, False]
         assert page.evaluate("() => document.activeElement?.tagName") != "IFRAME"
+        # The positive ready edge is where each inner page would open its own news
+        # stream and two-second heartbeat. Hold through that interval: only the outer
+        # page owns a live reader lease, while every specimen stops after its first read.
+        page.wait_for_timeout(2_200)
+        assert news_frames and not any(news_frames)
+        assert page.evaluate(
+            """() => [...document.querySelectorAll('[data-interaction-frame]')].every(
+                frame => {
+                    const traffic = JSON.parse(
+                        frame.contentDocument.documentElement.dataset.lfTraffic
+                    );
+                    return traffic.asked === 1 && traffic.heard === 1;
+                }
+            )"""
+        )
 
         # Arrival is the easy half. The Threads replay opens a <dialog> in the frame, and
         # a shown dialog runs the browser's own focusing steps whatever the page around
@@ -1043,7 +1130,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
             page.evaluate(
                 """async () => {
                 const {focusDestination} = await import('/runtime/focus.js');
-                document.querySelector('[data-interaction-replay]').click();
+                document.querySelector('[data-interaction-toggle]').click();
                 focusDestination(document.querySelector('#bg-interactions-title'));
                 return document.activeElement?.id;
             }"""
@@ -1063,7 +1150,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
         assert not errors, errors[:3]
     finally:
-        page.close()
+        context.close()
 
 
 def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
@@ -1075,7 +1162,9 @@ def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
     try:
         gallery = page.locator("#bg-interactions")
         status = gallery.locator("[data-interaction-status]")
-        accept = gallery.locator("#bg-motion-accept")
+        accept = gallery.locator(
+            "#bg-interaction-accept [data-interaction-frame]"
+        ).content_frame.locator("#bg-motion-accept")
         expect(status).to_have_text(
             "Accept a suggestion · Ready — motion will start only when you press Play"
         )
@@ -1090,7 +1179,7 @@ def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
 
 
 def test_interaction_gallery_contains_page_chrome(serve, browser):
-    """A chrome replay changes its compact Leaf document, not the gallery around it."""
+    """A replay changes its zoomed-out Leaf document, not the gallery around it."""
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1280, "height": 900}
@@ -1112,12 +1201,27 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         ).click()
         expect(page.locator("#lf-margin-preview")).to_contain_text(GALLERY_THREAD_TEXT)
         comment_tab.click()
-        toggle.click()
-        expect(status).to_have_text("Send a comment · Complete", timeout=10_000)
-        expect(page.locator("#lf-margin-preview")).to_contain_text(GALLERY_THREAD_TEXT)
         comment_frame = gallery.locator(
             "#bg-interaction-comment [data-interaction-frame]"
         ).content_frame
+        comment_input = comment_frame.locator(".lf-fab-input")
+        assert comment_input.evaluate(
+            """input => {
+                const box = input.getBoundingClientRect();
+                return input.checkVisibility()
+                    && box.left >= 0 && box.right <= innerWidth
+                    && box.top >= 0 && box.bottom <= innerHeight;
+            }"""
+        )
+        expect(comment_input).to_have_attribute(
+            "aria-keyshortcuts", "Meta+Enter Control+Enter"
+        )
+        expect(comment_input).to_have_value(
+            re.compile(r"should the practice exercise come before lunch\?")
+        )
+        toggle.click()
+        expect(status).to_have_text("Send a comment · Complete", timeout=10_000)
+        expect(page.locator("#lf-margin-preview")).to_contain_text(GALLERY_THREAD_TEXT)
         expect(comment_frame.locator("#lf-margin-preview")).to_contain_text(
             GALLERY_THREAD_TEXT
         )
@@ -1136,6 +1240,21 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         expect(threads_frame.locator("body")).not_to_have_attribute("data-lf-panel", "")
         expect(page.locator("body")).to_have_attribute("data-lf-panel", "")
         assert page.evaluate("localStorage.getItem('lf-panel-open')") == "1"
+
+        # Remember this demo beside the reader's open outer workspace, reload, and play
+        # as soon as the frame declares itself ready. The contained thread surface may
+        # finish rendering after the page's presentation edge; the replay waits for it
+        # instead of failing its first attempt.
+        comment_tab.click()
+        page.emulate_media(reduced_motion="no-preference")
+        page.reload(wait_until="domcontentloaded")
+        gallery = page.locator("#bg-interactions")
+        status = gallery.locator("[data-interaction-status]")
+        expect(status).to_have_text("Send a comment · Ready", timeout=15_000)
+        gallery.locator("[data-interaction-toggle]").evaluate("toggle => toggle.click()")
+        expect(gallery.locator("[data-interaction-status]")).to_have_text(
+            "Send a comment · Complete", timeout=15_000
+        )
         assert not errors, errors[:3]
     finally:
         context.close()
@@ -1165,22 +1284,22 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
             }"""
         )
         page.reload(wait_until="domcontentloaded")
-        replay = gallery.locator("[data-interaction-replay]")
+        toggle = gallery.locator("[data-interaction-toggle]")
         page.wait_for_function(
             """() => {
                 const gallery = document.querySelector('#bg-interactions');
                 const status = gallery?.querySelector('[data-interaction-status]');
-                const replay = gallery?.querySelector('[data-interaction-replay]');
+                const toggle = gallery?.querySelector('[data-interaction-toggle]');
                 return status?.textContent
                     === 'Send a comment · Loading'
-                    && replay?.disabled;
+                    && toggle?.disabled;
             }"""
         )
         expect(gallery.locator("[data-interaction-status]")).to_have_text(
             "Send a comment · Ready — motion will start only when you press Play",
             timeout=15_000,
         )
-        expect(replay).to_be_enabled()
+        expect(toggle).to_be_enabled()
         expect(
             gallery.locator(
                 "#bg-interaction-comment [data-interaction-frame]"
@@ -1210,7 +1329,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         navigate(page, errors, f"{url}#bg-interactions")
         gallery = page.locator("#bg-interactions")
         expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
-            2, timeout=20_000
+            5, timeout=20_000
         )
         assert gallery.locator("iframe[data-interaction-ready]").evaluate_all(
             """frames => frames.every(frame =>
@@ -1236,15 +1355,15 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         context.close()
 
 
-def test_a_failed_gallery_frame_does_not_block_local_demos(serve, browser):
-    """A contained page that never presents fails alone; direct widgets still play."""
+def test_a_failed_gallery_frame_does_not_block_other_demos(serve, browser):
+    """A contained page that never presents fails without blocking its neighbors."""
     url = serve(FEATURE_GALLERY)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
     errors = watched(page)
 
     def stop_inner_leaf(route):
-        if route.request.frame.parent_frame:
+        if route.request.frame.name == "interaction-send-comment":
             route.abort()
         else:
             route.continue_()
@@ -1255,7 +1374,6 @@ def test_a_failed_gallery_frame_does_not_block_local_demos(serve, browser):
         gallery = page.locator("#bg-interactions")
         status = gallery.locator("[data-interaction-status]")
         toggle = gallery.locator("[data-interaction-toggle]")
-        replay = gallery.locator("[data-interaction-replay]")
         expect(status).to_have_text(
             "Accept a suggestion · Ready — motion will start only when you press Play"
         )
@@ -1264,12 +1382,14 @@ def test_a_failed_gallery_frame_does_not_block_local_demos(serve, browser):
         gallery.get_by_role("tab", name="Send a comment").click()
         expect(status).to_have_text("Send a comment · Could not play", timeout=5_000)
         expect(toggle).to_be_disabled()
-        expect(replay).to_be_disabled()
 
         gallery.get_by_role("tab", name="Move a card").click()
         expect(status).to_have_text(
             "Move a card · Ready — motion will start only when you press Play"
         )
+        toggle.click()
+        expect(status).to_have_text("Move a card · Complete", timeout=10_000)
+        expect(toggle).to_have_text("Replay")
         expect(toggle).to_be_enabled()
         assert any(
             "contained Leaf page did not load Leaf" in error for error in errors
@@ -1297,7 +1417,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             if source == FEATURE_GALLERY:
                 expect(
                     page.locator("#bg-interactions iframe[data-interaction-ready]")
-                ).to_have_count(2, timeout=15_000)
+                ).to_have_count(5, timeout=15_000)
             assert not errors, f"{source.name}: {errors[:3]}"
 
     finally:

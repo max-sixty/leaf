@@ -13,20 +13,21 @@ import { offer, reserve } from "./widget-elements.js";
 
 class StaleDemo extends Error {}
 
-// Every word the toggle can say, out here because the row reserves the width of all of
-// them before it says the first. The button rewrites its own word as a demo runs, and
-// Replay stands beside it, so a word that costs a different width moves the control the
-// reader is aiming at. Reserved by the runtime rather than by the page, because the
-// runtime is what injects this row: the page it is injected into may carry no rule for
-// it at all, which is exactly the case in the generated corpus.
+// Every word the playback control can say, out here because the row reserves the width
+// of all of them before it says the first. The button rewrites its own word as a demo
+// runs, so a word that costs a different width moves the controls beside it while the
+// reader is aiming. Reserved by the runtime rather than by the page, because the runtime
+// injects this row and the generated corpus may carry no rule for it.
 const TOGGLE_WORDS = {
   idle: "Loading…",
   ready: "Play",
   playing: "Pause",
   paused: "Play",
-  finished: "Played",
+  finished: "Replay",
   error: "Unavailable",
 };
+
+const VIEWPORT_SIZES = ["1", "2", "4"];
 
 const ARRIVAL_PAUSE = 900;
 const POINTER_TRAVEL = 1400;
@@ -64,12 +65,7 @@ function loadFrameModule(frame, source, message) {
   });
 }
 
-async function loadFrameDocument(frame) {
-  const source = document.implementation.createHTMLDocument();
-  const root = source.documentElement;
-  const head = source.head;
-  const body = source.body;
-  const theme = new URL("../theme.css", import.meta.url).href;
+function framePageContent(frame, source) {
   const content = source.createDocumentFragment();
   const eyebrow = source.createElement("p");
   eyebrow.className = "eyebrow";
@@ -80,13 +76,79 @@ async function loadFrameDocument(frame) {
     heading.textContent = frame.dataset.interactionTitle;
     content.append(heading);
   }
-  const copy = source.createElement("p");
-  copy.append(frame.dataset.interactionCopy);
-  if (frame.dataset.interactionTarget) {
-    copy.id = frame.dataset.interactionTarget;
-    copy.className = "interaction-frame-target";
+  if (frame.dataset.interactionCopy) {
+    const copy = source.createElement("p");
+    copy.append(frame.dataset.interactionCopy);
+    if (frame.dataset.interactionSuggestion) {
+      const suggestion = source.createElement("lf-suggestion");
+      suggestion.id = frame.dataset.interactionSuggestion;
+      const old = source.createElement("lf-old");
+      old.textContent = frame.dataset.interactionSuggestionOld;
+      const replacement = source.createElement("lf-new");
+      replacement.textContent = frame.dataset.interactionSuggestionNew;
+      suggestion.append(old, replacement);
+      copy.append(" ", suggestion, " ", frame.dataset.interactionCopyAfter);
+    }
+    if (frame.dataset.interactionTarget) copy.id = frame.dataset.interactionTarget;
+    content.append(copy);
   }
-  content.append(copy);
+  const name = frame.closest("[data-interaction-demo]").dataset.interactionDemo;
+  if (name === "move-card") {
+    const board = source.createElement("lf-board");
+    board.id = "bg-motion-board";
+    const ready = source.createElement("lf-column");
+    ready.id = "bg-motion-ready";
+    ready.setAttribute("label", "Ready");
+    const card = source.createElement("lf-card");
+    card.id = "bg-motion-card";
+    const title = source.createElement("strong");
+    title.textContent = "Verify migration";
+    card.append(title, " Run the schema sample.");
+    ready.append(card);
+    const tried = source.createElement("lf-column");
+    tried.id = "bg-motion-tried";
+    tried.setAttribute("label", "Tried");
+    board.append(ready, tried);
+    content.append(board);
+  }
+  if (name === "swipe-card") {
+    const ask = source.createElement("lf-ask");
+    ask.id = "bg-motion-swipe-ask";
+    const question = source.createElement("h3");
+    question.textContent = "Keep this follow-up?";
+    const deck = source.createElement("lf-swipe-deck");
+    deck.id = "bg-motion-swipe";
+    const queue = source.createElement("lf-swipe-pile");
+    queue.id = "bg-motion-swipe-queue";
+    queue.setAttribute("verdict", "unseen");
+    const card = source.createElement("lf-swipe-card");
+    card.id = "bg-motion-swipe-card";
+    const title = source.createElement("strong");
+    title.textContent = "Document the keyboard route";
+    const detail = source.createElement("p");
+    detail.textContent = "Keep the interaction reachable without a pointer.";
+    card.append(title, detail);
+    queue.append(card);
+    const passed = source.createElement("lf-swipe-pile");
+    passed.id = "bg-motion-swipe-pass";
+    passed.setAttribute("verdict", "pass");
+    const kept = source.createElement("lf-swipe-pile");
+    kept.id = "bg-motion-swipe-keep";
+    kept.setAttribute("verdict", "keep");
+    deck.append(queue, passed, kept);
+    ask.append(question, deck);
+    content.append(ask);
+  }
+  return content;
+}
+
+async function loadFrameDocument(frame) {
+  const source = document.implementation.createHTMLDocument();
+  const root = source.documentElement;
+  const head = source.head;
+  const body = source.body;
+  const theme = new URL("../theme.css", import.meta.url).href;
+  const content = framePageContent(frame, source);
   const meta = (name, value) => {
     const element = source.createElement("meta");
     element.name = name;
@@ -102,16 +164,6 @@ async function loadFrameDocument(frame) {
   const style = source.createElement("style");
   style.textContent = `
       body { overflow: hidden; }
-      main {
-        box-sizing: border-box;
-        min-height: 24rem;
-        padding-block: 6.5rem 3rem;
-      }
-      .interaction-frame-target {
-        max-width: 31rem;
-        font-size: var(--t-3);
-        line-height: 1.7;
-      }
     `;
   const stylesheet = source.createElement("link");
   stylesheet.rel = "stylesheet";
@@ -168,6 +220,8 @@ class Demo {
     this.pointer = this.figure.querySelector(".interaction-pointer");
     this.keypress = this.figure.querySelector("[data-interaction-keypress]");
     this.frameElement = this.figure.querySelector("[data-interaction-frame]");
+    if (!this.frameElement)
+      throw new Error(`interaction gallery page is missing for ${this.name}`);
     this.frameApi = null;
     this.changed = changed;
     this.loadState = "loading";
@@ -181,30 +235,28 @@ class Demo {
   }
 
   async load() {
-    if (this.frameElement) {
-      // The element is the author's; the document about to be written into it is the
-      // runtime's, and both sides of the boundary carry the mark.
-      this.frameElement.toggleAttribute("data-lf-contained", true);
-      await loadFrameDocument(this.frameElement);
-      const adapter = new URL("./interaction-gallery-frame.js", import.meta.url).href;
-      const leafEntry = new URL("../leaf.js", import.meta.url).href;
-      await loadFrameModule(
-        this.frameElement,
-        adapter,
-        "the contained Leaf page did not load its gallery adapter",
-      );
-      const frameApi = this.frameElement.contentWindow?.leafInteractionGalleryFrame;
-      if (!frameApi)
-        throw new Error("the contained Leaf page did not expose its gallery adapter");
-      this.frameApi = frameApi;
-      await loadFrameModule(
-        this.frameElement,
-        leafEntry,
-        "the contained Leaf page did not load Leaf",
-      );
-      await this.frameApi.ready;
-      this.frameElement.dataset.interactionReady = "";
-    }
+    // The element is the author's; the document about to be written into it is the
+    // runtime's, and both sides of the boundary carry the mark.
+    this.frameElement.toggleAttribute("data-lf-contained", true);
+    await loadFrameDocument(this.frameElement);
+    const adapter = new URL("./interaction-gallery-frame.js", import.meta.url).href;
+    const leafEntry = new URL("../leaf.js", import.meta.url).href;
+    await loadFrameModule(
+      this.frameElement,
+      adapter,
+      "the contained Leaf page did not load its gallery adapter",
+    );
+    const frameApi = this.frameElement.contentWindow?.leafInteractionGalleryFrame;
+    if (!frameApi)
+      throw new Error("the contained Leaf page did not expose its gallery adapter");
+    this.frameApi = frameApi;
+    await loadFrameModule(
+      this.frameElement,
+      leafEntry,
+      "the contained Leaf page did not load Leaf",
+    );
+    await this.frameApi.ready;
+    this.frameElement.dataset.interactionReady = "";
     const modulePath = this.figure.dataset.interactionModule;
     if (modulePath) {
       const loaded = await import(modulePath);
@@ -214,11 +266,11 @@ class Demo {
           `${modulePath} does not export an interaction gallery scenario`,
         );
       this.scenario = {
-        reset: () => scenario.reset(this.figure),
+        reset: () => scenario.reset(this.subjectRoot()),
         play: (_, generation) =>
           scenario.play(
             Object.freeze({
-              root: this.figure,
+              root: this.subjectRoot(),
               arrive: () => this.arrive(generation),
               press: async (target) => {
                 await this.movePointer(target, generation);
@@ -341,10 +393,12 @@ class Demo {
   }
 
   widgetAnimations() {
-    return [
-      ...this.stage.getAnimations({ subtree: true }),
-      ...(this.frameElement?.contentDocument?.getAnimations({ subtree: true }) ?? []),
-    ];
+    // Replacement removes a frame's browsing context before this gallery's teardown
+    // runs. The frame is still the only subject; it simply has no document left whose
+    // animations need cancelling.
+    const frameAnimations =
+      this.frameElement.contentDocument?.getAnimations({ subtree: true }) ?? [];
+    return [...this.stage.getAnimations({ subtree: true }), ...frameAnimations];
   }
 
   async animate(element, keyframes, options, generation) {
@@ -395,14 +449,24 @@ class Demo {
     return boundedRead(read, message, () => this.wait(25, generation));
   }
 
+  query(selector) {
+    return this.frameElement.contentDocument.querySelector(selector);
+  }
+
+  subjectRoot() {
+    return this.frameElement.contentDocument;
+  }
+
   pointAt(target) {
     const stage = this.stage.getBoundingClientRect();
     const box = target.getBoundingClientRect();
-    const frame = target.ownerDocument.defaultView?.frameElement;
-    const frameBox = frame?.getBoundingClientRect();
+    const frame = target.ownerDocument.defaultView.frameElement;
+    const frameBox = frame.getBoundingClientRect();
+    const scaleX = frameBox.width / frame.offsetWidth;
+    const scaleY = frameBox.height / frame.offsetHeight;
     return {
-      x: (frameBox?.left ?? 0) + box.left - stage.left + box.width / 2,
-      y: (frameBox?.top ?? 0) + box.top - stage.top + box.height / 2,
+      x: frameBox.left + box.left * scaleX - stage.left + (box.width * scaleX) / 2,
+      y: frameBox.top + box.top * scaleY - stage.top + (box.height * scaleY) / 2,
     };
   }
 
@@ -493,17 +557,15 @@ const placements = {
 
 const scenarios = {
   accept: {
-    reset() {
-      document
-        .querySelector("#bg-motion-accept")
-        .renderState({ settlement: { value: null } });
+    reset(demo) {
+      demo.query("#bg-motion-accept").renderState({ settlement: { value: null } });
     },
     async play(demo, generation) {
       await demo.arrive(generation);
-      const suggestion = document.querySelector("#bg-motion-accept");
+      const suggestion = demo.query("#bg-motion-accept");
       const accept = await demo.waitFor(
         () =>
-          document.querySelector(
+          demo.query(
             '.lf-sug-actions[data-lf-for="bg-motion-accept"] [aria-label^="Accept"]',
           ),
         "the suggestion did not expose its Accept control",
@@ -522,16 +584,16 @@ const scenarios = {
     },
   },
   "move-card": {
-    reset() {
-      document
-        .querySelector("#bg-motion-board")
+    reset(demo) {
+      demo
+        .query("#bg-motion-board")
         .renderState({ placement: { value: placements.ready } });
     },
     async play(demo, generation) {
       await demo.arrive(generation);
-      const board = document.querySelector("#bg-motion-board");
+      const board = demo.query("#bg-motion-board");
       const grip = await demo.waitFor(
-        () => document.querySelector("#bg-motion-card > .lf-grip"),
+        () => demo.query("#bg-motion-card > .lf-grip"),
         "the card did not expose its grip",
         generation,
       );
@@ -540,9 +602,7 @@ const scenarios = {
       await demo.wait(480, generation);
       board.renderState({ placement: { value: placements.tried } });
       await demo.waitFor(
-        () =>
-          document.querySelector("#bg-motion-card").parentElement?.id ===
-          "bg-motion-tried",
+        () => demo.query("#bg-motion-card").parentElement?.id === "bg-motion-tried",
         "the card did not move",
         generation,
       );
@@ -559,10 +619,14 @@ const scenarios = {
     async play(demo, generation) {
       await demo.wait(ARRIVAL_PAUSE, generation);
       await demo.pressKeys(generation);
-      const thread = demo.frameApi.submitComment(
+      const openThread = demo.frameApi.submitComment(
         demo.figure.dataset.interactionThreadId,
       );
-      if (!thread) throw new Error("the comment did not open its inline thread");
+      await demo.waitFor(
+        openThread,
+        "the comment did not open its inline thread",
+        generation,
+      );
       await demo.frame(generation);
       await Promise.all(
         demo
@@ -615,12 +679,28 @@ export function installInteractionGallery() {
   controls.setAttribute("aria-label", "Animation controls");
   const toggle = offer("button", "lf-btn interaction-control", "Loading…");
   toggle.dataset.interactionToggle = "";
-  const replay = offer("button", "lf-btn interaction-control", "Replay");
-  replay.dataset.interactionReplay = "";
+  const loopLabel = offer("label", "interaction-setting");
+  const loop = offer("input", "interaction-loop", undefined, "checkbox");
+  loop.dataset.interactionLoop = "";
+  loopLabel.append(loop, " Loop");
+  const viewportLabel = offer("label", "interaction-setting");
+  viewportLabel.append("Viewport ");
+  const viewport = offer("select", "interaction-viewport");
+  viewport.dataset.interactionViewportSelect = "";
+  for (const size of VIEWPORT_SIZES) {
+    const option = document.createElement("option");
+    option.value = size;
+    option.textContent = `${size}×`;
+    viewport.append(option);
+  }
+  if (!VIEWPORT_SIZES.includes(gallery.dataset.interactionViewport))
+    throw new Error("interaction gallery has an invalid viewport size");
+  viewport.value = gallery.dataset.interactionViewport;
+  viewportLabel.append(viewport);
   const status = offer("span", "interaction-status", "Loading the first interaction…");
   status.dataset.interactionStatus = "";
   status.setAttribute("aria-live", "polite");
-  controls.append(toggle, replay, status);
+  controls.append(toggle, loopLabel, viewportLabel, status);
   tabs.before(controls);
   // After the row is in the document, which is where a width can be measured at all.
   reserve(toggle, Object.values(TOGGLE_WORDS));
@@ -639,8 +719,7 @@ export function installInteractionGallery() {
     if (!active) return;
     const words = TOGGLE_WORDS;
     toggle.textContent = words[active.state];
-    toggle.disabled = ["idle", "finished", "error"].includes(active.state);
-    replay.disabled = ["idle", "error"].includes(active.state);
+    toggle.disabled = ["idle", "error"].includes(active.state);
     const label = active.panel.getAttribute("label");
     const states = {
       idle: "Loading",
@@ -654,7 +733,18 @@ export function installInteractionGallery() {
     };
     status.textContent = `${label} · ${states[active.state]}`;
     toggle.setAttribute("aria-label", `${words[active.state]} ${label} animation`);
-    replay.setAttribute("aria-label", `Replay ${label} animation`);
+    if (active.state === "finished" && loop.checked && onScreen) {
+      const completed = active;
+      queueMicrotask(() => {
+        if (
+          active === completed &&
+          active.state === "finished" &&
+          loop.checked &&
+          onScreen
+        )
+          void active.replay();
+      });
+    }
   }
 
   function maybePlay() {
@@ -679,11 +769,22 @@ export function installInteractionGallery() {
   const togglePlayback = () => {
     if (active?.state === "playing") active.pause();
     else if (active?.state === "paused") active.resume();
+    else if (active?.state === "finished") void active.replay();
     else void active?.play();
   };
-  const replayActive = () => void active?.replay();
+  const changeLoop = () => {
+    if (loop.checked && active?.state === "finished" && onScreen) void active.replay();
+  };
+  const changeViewport = () => {
+    gallery.dataset.interactionViewport = viewport.value;
+    if (!active || !["playing", "paused"].includes(active.state)) return;
+    const paused = active.state === "paused";
+    void active.replay();
+    if (paused) active.pause();
+  };
   toggle.addEventListener("click", togglePlayback);
-  replay.addEventListener("click", replayActive);
+  loop.addEventListener("change", changeLoop);
+  viewport.addEventListener("change", changeViewport);
 
   const tabObserver = new MutationObserver(syncActive);
   tabObserver.observe(tabs, {
@@ -712,7 +813,8 @@ export function installInteractionGallery() {
     tabObserver.disconnect();
     viewObserver.disconnect();
     toggle.removeEventListener("click", togglePlayback);
-    replay.removeEventListener("click", replayActive);
+    loop.removeEventListener("change", changeLoop);
+    viewport.removeEventListener("change", changeViewport);
     stopMotionPreference();
   };
 

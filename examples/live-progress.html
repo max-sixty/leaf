@@ -85,23 +85,27 @@
                 Which safeguards should stay active while Ledger rebuilds the fixture?
               </h3>
               <p>
-                Choose every safeguard Finance should keep until the partial-refund case
+                Pass drops a safeguard; Keep retains it until the partial-refund case
                 passes.
               </p>
-              <lf-options id="lp-finance-cases" choose multiple>
-                <lf-option id="lp-hold-exports">
-                  <strong>Hold partial-refund exports</strong> Keep the affected export
-                  path paused until the rebuilt fixture passes.
-                </lf-option>
-                <lf-option id="lp-quarantine-order">
-                  <strong>Quarantine this order</strong> Continue ordinary exports and
-                  reconcile <code>co_18427</code> by hand.
-                </lf-option>
-                <lf-option id="lp-finance-signoff">
-                  <strong>Require finance sign-off</strong> Keep the export closed until
-                  Finance reviews the repaired row.
-                </lf-option>
-              </lf-options>
+              <lf-swipe-deck id="lp-finance-cases">
+                <lf-swipe-pile id="lp-finance-queue" verdict="unseen">
+                  <lf-swipe-card id="lp-hold-exports">
+                    <strong>Hold every partial-refund export</strong> Pause all
+                    partial-refund orders until the rebuilt fixture passes.
+                  </lf-swipe-card>
+                  <lf-swipe-card id="lp-quarantine-order">
+                    <strong>Quarantine this order</strong> Continue ordinary exports and
+                    reconcile <code>co_18427</code> by hand.
+                  </lf-swipe-card>
+                  <lf-swipe-card id="lp-finance-signoff">
+                    <strong>Require finance sign-off</strong> Keep the export closed
+                    until Finance reviews the repaired row.
+                  </lf-swipe-card>
+                </lf-swipe-pile>
+                <lf-swipe-pile id="lp-finance-pass" verdict="pass"></lf-swipe-pile>
+                <lf-swipe-pile id="lp-finance-keep" verdict="keep"></lf-swipe-pile>
+              </lf-swipe-deck>
             </lf-ask>
           </lf-monitor-region>
         </lf-monitor-grid>

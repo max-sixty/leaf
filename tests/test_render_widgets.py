@@ -567,7 +567,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_decision(
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     page, errors = open_page(browser, live_url(serve(example)))
     evidence = page.locator("#lp-evidence > .lf-pane-content > .lf-pane-body")
-    option = page.locator("#lp-quarantine-order")
+    deck = page.locator("#lp-finance-cases")
     log = page.locator("#lp-live-log")
 
     evidence.evaluate("body => body.scrollTop = 120")
@@ -584,18 +584,52 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_decision(
     expect(log).to_contain_text("sample 49: checkout remains healthy")
     assert evidence.evaluate("body => body.scrollTop") == 120
 
-    with sending(page, "the finance containment decision"):
-        option.locator(".lf-pick").click()
-    expect(option).to_have_attribute("chosen", "")
+    with sending(page, "the export hold classification"):
+        deck.locator(".lf-swipe-pass").click()
+    with sending(page, "the quarantine classification"):
+        deck.locator(".lf-swipe-keep").click()
+    with sending(page, "the finance sign-off classification"):
+        deck.locator(".lf-swipe-pass").click()
+    expect(page.locator("#lp-finance-keep > #lp-quarantine-order")).to_have_count(1)
+    expect(deck.locator(".lf-swipe-progress")).to_have_text("3 done · queue clear")
     data_model.cmd_data_set(
         serve.page_dir,
         "rehearsal-log",
         f"{original.rstrip()}\n14:25:03 ledger WARN co_18427 remains quarantined\n",
     )
     told(page)
-    expect(option).to_have_attribute("chosen", "")
+    expect(page.locator("#lp-finance-keep > #lp-quarantine-order")).to_have_count(1)
+    expect(deck.locator(".lf-swipe-progress")).to_have_text("3 done · queue clear")
     expect(log).to_contain_text("co_18427 remains quarantined")
 
+    # The public monitor is a timeless rehearsal snapshot. Create the worker report
+    # here, where the next version can explicitly overrule it, instead of shipping a
+    # timestamp that makes the example look increasingly stale.
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "report",
+            "author": "claude",
+            "agent": "ledger",
+            "session": "example-ledger",
+            "widget": "lp-agent-ledger",
+            "action": "state",
+            "detail": {
+                "state": "blocked",
+                "doing": "Tracing co_18427 through ledger and finance export",
+            },
+            "revision": 1,
+            "meaning": {
+                "document": {"kind": "page", "revision": 1},
+                "coordinate": [
+                    "lp-agent-ledger",
+                    "lp-agent-ledger",
+                    "activity",
+                ],
+                "depends": ["lp-agent-ledger"],
+            },
+        },
+    )
     current = (serve.page_dir / "index.html").read_text(encoding="utf-8")
     incorporated = current
     revisions = (
@@ -664,14 +698,6 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_decision(
                 "              exports continue while the partial-refund path stays isolated."
             ),
         ),
-        (
-            '<lf-options id="lp-finance-cases" choose multiple>',
-            '<lf-options id="lp-finance-cases" choose multiple settled>',
-        ),
-        (
-            '<lf-option id="lp-quarantine-order">',
-            '<lf-option id="lp-quarantine-order" chosen>',
-        ),
     )
     for before, after in revisions:
         assert before in incorporated
@@ -705,12 +731,45 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_decision(
     expect(page.locator("#lp-finance-note")).to_contain_text(
         "reader quarantined this order"
     )
-    settled = page.locator("#lp-finance-cases")
-    expect(settled).to_have_attribute("settled", "")
-    expect(settled.locator(".lf-settled")).to_contain_text("Quarantine this order")
-    expect(page.locator("#lp-quarantine-order")).to_have_attribute("chosen", "")
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/0")
+    expect(page.locator("#lp-finance-keep > #lp-quarantine-order")).to_have_count(1)
+    expect(deck.locator(".lf-swipe-progress")).to_have_text("3 done · queue clear")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
     expect(page.locator("#lp-live-log")).to_contain_text("co_18427 remains quarantined")
+    assert errors == []
+    page.close()
+
+
+def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser, serve):
+    """The specialized report's signature path reaches reviewable source evidence."""
+    example = Path(__file__).parent.parent / "examples" / "pr-walkthrough.html"
+    page, errors = open_page(browser, live_url(serve(example)))
+
+    page.get_by_role("tab", name="CallDiff").click()
+    call_diff = page.locator("#pr-call-diagram")
+    expect(call_diff.locator(".lf-call-line")).to_have_count(30)
+    call_diff.locator(".lf-call-toggle").click()
+    location = call_diff.get_by_role("link", name="src/summary.rs:259").first
+    expect(location).to_be_visible()
+    location.click()
+
+    line = page.locator(
+        '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
+    )
+    expect(page).to_have_url(re.compile(r"#pr-exact-patch$"))
+    expect(line).to_be_in_viewport()
+    expect(page.locator(".lf-live")).to_have_text(
+        "Opened src/summary.rs:259 in the exact patch"
+    )
+
+    line.click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    page.locator(".lf-composer textarea").fill(
+        "Does this preserve sparse-checkout behavior?"
+    )
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    expect(page.locator(".lf-thread .lf-quote").first).to_contain_text("src/summary.rs")
+
     assert errors == []
     page.close()
 
@@ -2968,8 +3027,8 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
               getComputedStyle(document.querySelector(
                 '#notification-ask > :first-child')).marginTop,
             ].every(margin => margin === '0px'),
-            authoredWords: leaf.wrote(playground).includes('Version 2.8.0'),
-            spokenWords: leaf.says(playground).includes('Version 2.8.0'),
+            authoredWords: leaf.wrote(playground).includes('Checkout 2.8.0'),
+            spokenWords: leaf.says(playground).includes('Checkout 2.8.0'),
           };
         }"""
     )
@@ -3013,8 +3072,8 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     assert controls.evaluate("body => body.scrollTop") > 0
     expect(presets).to_be_visible()
     assert presets.bounding_box()["y"] == pytest.approx(presets_top, abs=1)
-    expect(playground.get_by_role("button", name="Routine release")).to_be_visible()
-    expect(playground.get_by_role("button", name="Needs attention")).to_be_visible()
+    expect(playground.get_by_role("button", name="Healthy rollout")).to_be_visible()
+    expect(playground.get_by_role("button", name="Latency watch")).to_be_visible()
     assert preview.evaluate("body => body.scrollTop") == 0
     action_box = actions.bounding_box()
     playground_box = playground.bounding_box()
@@ -3106,15 +3165,17 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     page, errors = open_page(browser, live_url(serve(source_path)))
     playground = page.locator("#notification-playground")
 
-    playground.get_by_role("button", name="Needs attention").click()
-    page.locator('lf-playground-control[name="title"] input').fill(
-        "Checkout needs attention"
-    )
-    expect(playground).to_have_attribute("data-playground-tone", "urgent")
-    expect(playground).to_have_attribute("data-playground-compact", "true")
+    playground.get_by_role("button", name="Latency watch").click()
+    expect(playground).to_have_attribute("data-playground-state", "latency-watch")
+    expect(playground).to_have_attribute("data-playground-channel", "slack")
     expect(page.locator("#notification-card")).to_have_accessible_name(
-        "Checkout needs attention"
+        "Checkout rollout held at 25%"
     )
+    expect(page.locator("#notification-watch")).to_be_visible()
+    expect(page.locator("#notification-watch")).to_contain_text(
+        "p95 reached 286 ms against the 300 ms rollback threshold"
+    )
+    expect(page.locator("#notification-healthy")).to_be_hidden()
     with sending(page, "the notification configuration"):
         playground.get_by_role("button", name="Create notification").click()
     # The reader can revise the configuration until the host stamps its result.
@@ -3125,16 +3186,16 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         if event.get("widget") == "notification-playground"
     )
     assert action["detail"]["values"] == {
-        "accent": "#b6533c",
-        "compact": True,
-        "radius": 10,
+        "channel": "slack",
         "show-owner": True,
-        "title": "Checkout needs attention",
-        "tone": "urgent",
+        "state": "latency-watch",
+        "title": "Checkout rollout held at 25%",
     }
     assert action["detail"]["instruction"] == (
-        "Create this notification as deployment-notification.html. "
-        "When it is ready, show me the generated source here for review."
+        "Create deployment-notification.html. Use the latency-watch state for slack; "
+        "healthy means 100% rollout and latency-watch means held at 25%. Set owner "
+        "visibility to true and the title to Checkout rollout held at 25%. Show me the "
+        "generated source here for review."
     )
 
     logged_action = next(
@@ -3165,14 +3226,15 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     first_artifact = """<!doctype html>
 <html lang="en">
 <meta charset="utf-8">
-<title>Checkout needs attention</title>
+<title>Checkout rollout held at 25%</title>
 <style>
 body { font-family: system-ui, sans-serif; }
-.notification { border-left: 5px solid #b6533c; border-radius: 10px; padding: 8px 12px; }
+.notification { border-left: 5px solid #b6533c; padding: 12px; }
 </style>
 <article class="notification">
-  <h1>Checkout needs attention</h1>
-  <p>Version 2.8.0 changed the checkout service. Review the deployment run and current service health.</p>
+  <p>Deployment update · Slack</p>
+  <h1>Checkout rollout held at 25%</h1>
+  <p>Checkout 2.8.0 is held at 25%. p95 reached 286 ms against the 300 ms rollback threshold; errors remain at 0.11%.</p>
   <p><strong>Owner:</strong> Payments platform</p>
 </article>
 </html>
@@ -3229,7 +3291,7 @@ body { font-family: system-ui, sans-serif; }
         "source => source.closest('lf-playground-preview') === null"
     )
     expect(source_widget.locator("code")).to_contain_text(
-        "<title>Checkout needs attention</title>"
+        "<title>Checkout rollout held at 25%</title>"
     )
     expect(
         page.locator('[data-lf-margin-for="notification-playground"]')
@@ -3240,7 +3302,7 @@ body { font-family: system-ui, sans-serif; }
     configuration.locator(":scope > summary").click()
     expect(configuration).not_to_have_attribute("open", "")
     configuration.locator(":scope > summary").click()
-    receipt_copy = page.locator("#notification-card > p").first
+    receipt_copy = page.locator("#notification-watch")
     expect(receipt_copy).to_be_visible()
     receipt_copy.select_text()
     page.keyboard.press("c")
@@ -3256,10 +3318,10 @@ body { font-family: system-ui, sans-serif; }
         for event in reversed(sent_events(serve.page_dir))
         if event["kind"] == "comment"
     )
-    assert comment["anchor"]["section"] == "notification-card"
+    assert comment["anchor"]["section"] == "notification-watch"
     assert comment["anchor"]["quote"] == (
-        "Version 2.8.0 changed the checkout service. Review the deployment run and "
-        "current service health."
+        "Checkout 2.8.0 is held at 25%. p95 reached 286 ms against the 300 ms rollback "
+        "threshold; errors remain at 0.11%."
     )
     logged_comment = next(
         event
@@ -3312,8 +3374,8 @@ body { font-family: system-ui, sans-serif; }
         "() => [...CSS.highlights.get('lf-mark')].map(range => range.toString()).join('')"
     )
     assert " ".join(marked.split()) == (
-        "Version 2.8.0 changed the checkout service. Review the deployment run and "
-        "current service health."
+        "Checkout 2.8.0 is held at 25%. p95 reached 286 ms against the 300 ms rollback "
+        "threshold; errors remain at 0.11%."
     )
     assert artifact.read_text(encoding="utf-8") == second_artifact
     assert errors == []
@@ -3505,12 +3567,10 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
             "action": "choose",
             "detail": {
                 "values": {
-                    "accent": "#b6533c",
-                    "compact": True,
-                    "radius": 10,
+                    "channel": "slack",
                     "show-owner": True,
+                    "state": "latency-watch",
                     "title": "Escalation sent",
-                    "tone": "urgent",
                 },
                 "instruction": "Send the configured escalation notification.",
             },
@@ -3583,8 +3643,12 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     """
     page, errors = open_page(browser, serve(SWIPE_PAGE))
     decision = page.locator("#session-triage-decision")
+    deck = page.locator("#session-triage")
 
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect(deck).to_have_attribute(
+        "aria-label", "Which session-store follow-ups should we keep?"
+    )
     # Outside the Ask projection, the package command still spells its real binding;
     # the Decision action name is not a keycap override.
     page.keyboard.press("?")
@@ -4147,6 +4211,7 @@ def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
     page, errors = open_page(browser, serve(source))
     deck = page.locator("#session-triage")
 
+    expect(deck).to_have_attribute("aria-label", "Card classification")
     expect(deck.locator(".lf-swipe-controls")).to_have_count(0)
     expect(deck.get_by_role("button")).to_have_count(0)
     expect(deck.locator("lf-swipe-card[tabindex]")).to_have_count(0)

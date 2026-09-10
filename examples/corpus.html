@@ -45,20 +45,21 @@ catalog.</p>
             downstream import.</lf-card
           >
         </lf-column>
-        <lf-column id="col-fixed" label="Fixed">
+        <lf-column id="col-defer" label="Defer from 2.4">
           <lf-card id="card-logout"
-            ><strong>Logout fails with an expired session</strong> The double-delete
-            guard is merged and covered by the release build.</lf-card
+            ><strong>Logout fails with an expired session</strong> The user can retry
+            safely, and the shared-session cleanup is not ready for this
+            release.</lf-card
           >
         </lf-column>
       </lf-board>
 </lf-tab>
 
 <lf-tab id="corpus-release-notes" label="Notes">
-<h1>Review the four user-visible notes</h1>
+<h1>Review the 3.2 release packet</h1>
       <p class="lede" id="rn-lede">
-        Edit any draft that needs different wording, accept or reject the proposed
-        changes, then approve the finished set.
+        Review four notes for users and operators. Edit any draft that needs different
+        wording, accept or reject the proposed changes, then approve the finished set.
       </p>
 
       <section id="rn-cli-section">
@@ -137,8 +138,8 @@ Run the online schema migration before deploying.
 <h1 id="ret-title">Keep most raw request logs for 45 days</h1>
       <p class="lede" id="ret-lede">
         Ordinary raw logs fall from 400 days to 45; 5xx logs keep 120 days. Aggregates
-        stay at 400 days. The change returns about 18 TB of hot storage and £3,100 a
-        month.
+        stay at 400 days. The change returns about 18 TB of hot storage and £3,000 a
+        month after the 5xx carve-out.
       </p>
 
       <section id="ret-what">
@@ -197,8 +198,9 @@ Run the online schema migration before deploying.
 <h1>Finish the ship review</h1>
       <p class="lede" id="off-lede">
         The resend is accepted for the first patch: it recovered all 500 forced stalls,
-        and beta saw no data loss. One decision remains. Finish choosing the follow-up
-        work in the reconnect thread, then approve the release.
+        and a six-week beta across 96 workspaces saw no data loss. One decision remains.
+        Finish choosing the follow-up work in the reconnect thread, then approve version
+        1 of this review.
       </p>
 
       <section id="off-readiness-section">
@@ -287,6 +289,11 @@ chimney with no cap, 120
 
       <lf-ask id="heat-first-decision">
         <h2>Which measure should be booked first?</h2>
+        <p id="heat-decision-basis">
+          The three jobs below have current installer access and quotes. Rank their
+          estimated loss against cost, lead time, and disruption — not as promised
+          savings.
+        </p>
         <lf-options id="heat-first" choose>
           <lf-option id="heat-opt-hatch">
             <strong>Seal and insulate the loft hatch</strong>
@@ -338,86 +345,114 @@ outside average, before, after
 <lf-tab id="corpus-notification-playground" label="Notification">
 <lf-workspace id="notification-workspace">
         <lf-ask id="notification-ask">
-          <h1>Create the deployment notification</h1>
+          <h1>Write the checkout rollout update</h1>
           <lf-playground
             id="notification-playground"
             submit-label="Create notification"
           >
             <lf-playground-control
-              name="radius"
-              label="Corner radius"
-              kind="range"
-              value="10"
-              min="0"
-              max="24"
-              step="1"
-              unit="px"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="compact"
-              label="Compact spacing"
-              kind="toggle"
-              value="false"
-            ></lf-playground-control>
-            <lf-playground-control name="tone" label="Tone" kind="choice" value="calm">
-              <lf-playground-choice value="calm" label="Calm"></lf-playground-choice>
+              name="state"
+              label="Rollout state"
+              kind="choice"
+              value="healthy"
+            >
               <lf-playground-choice
-                value="urgent"
-                label="Urgent"
+                value="healthy"
+                label="Healthy"
               ></lf-playground-choice>
+              <lf-playground-choice
+                value="latency-watch"
+                label="Latency watch"
+              ></lf-playground-choice>
+            </lf-playground-control>
+            <lf-playground-control
+              name="channel"
+              label="Delivery channel"
+              kind="choice"
+              value="status-page"
+            >
+              <lf-playground-choice
+                value="status-page"
+                label="Status page"
+              ></lf-playground-choice>
+              <lf-playground-choice value="slack" label="Slack"></lf-playground-choice>
             </lf-playground-control>
             <lf-playground-control
               name="show-owner"
               label="Show service owner"
               kind="toggle"
-              value="true"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="accent"
-              label="Accent"
-              kind="color"
-              value="#4f766f"
+              value="false"
             ></lf-playground-control>
             <lf-playground-control
               name="title"
               label="Notification title"
               kind="text"
-              value="Checkout deployed"
+              value="Checkout 2.8.0 deployed"
               placeholder="Notification heading"
             ></lf-playground-control>
 
-            <lf-playground-preset label="Routine release">
-              <lf-playground-setting for="tone" value="calm"></lf-playground-setting>
+            <lf-playground-preset label="Healthy rollout">
               <lf-playground-setting
-                for="compact"
+                for="state"
+                value="healthy"
+              ></lf-playground-setting>
+              <lf-playground-setting
+                for="channel"
+                value="status-page"
+              ></lf-playground-setting>
+              <lf-playground-setting
+                for="show-owner"
                 value="false"
               ></lf-playground-setting>
               <lf-playground-setting
-                for="accent"
-                value="#4f766f"
+                for="title"
+                value="Checkout 2.8.0 deployed"
               ></lf-playground-setting>
             </lf-playground-preset>
-            <lf-playground-preset label="Needs attention">
-              <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
-              <lf-playground-setting for="compact" value="true"></lf-playground-setting>
+            <lf-playground-preset label="Latency watch">
               <lf-playground-setting
-                for="accent"
-                value="#b6533c"
+                for="state"
+                value="latency-watch"
+              ></lf-playground-setting>
+              <lf-playground-setting
+                for="channel"
+                value="slack"
+              ></lf-playground-setting>
+              <lf-playground-setting
+                for="show-owner"
+                value="true"
+              ></lf-playground-setting>
+              <lf-playground-setting
+                for="title"
+                value="Checkout rollout held at 25%"
               ></lf-playground-setting>
             </lf-playground-preset>
 
             <lf-playground-preview id="notification-preview">
+              <aside class="callout" id="notification-brief">
+                <strong>Brief.</strong> Checkout p95 touched 286 ms against a 300 ms
+                rollback threshold. Write the completion or held-rollout update.
+              </aside>
               <article id="notification-card" aria-labelledby="notification-title">
                 <header>
-                  <p class="eyebrow">Deployment update</p>
+                  <p class="eyebrow">
+                    Deployment update ·
+                    <span id="notification-status-page">status page</span>
+                    <span id="notification-slack">Slack</span>
+                  </p>
                   <h2 id="notification-title"></h2>
                 </header>
-                <p>
-                  Version 2.8.0 changed the checkout service. Review the deployment run
-                  and current service health.
+                <p id="notification-healthy">
+                  Checkout 2.8.0 reached 100% at 14:32. All 18 checks passed; p95 is 184
+                  ms and errors are 0.08%.
+                </p>
+                <p id="notification-watch">
+                  Checkout 2.8.0 is held at 25%. p95 reached 286 ms against the 300 ms
+                  rollback threshold; errors remain at 0.11%.
                 </p>
                 <p id="notification-owner"><strong>Owner:</strong> Payments platform</p>
-                <footer>Recorded at 14:32 · 18 checks completed</footer>
+                <div id="notification-progress" aria-hidden="true"></div>
+                <footer>Latest sample 14:32 · 18 checks completed</footer>
               </article>
               <section id="notification-artifact" hidden>
                 <lf-source
@@ -429,8 +464,13 @@ outside average, before, after
             </lf-playground-preview>
 
             <lf-playground-output id="notification-instruction">
-              Create this notification as <code>deployment-notification.html</code>.
-              When it is ready, show me the generated source here for review.
+              Create <code>deployment-notification.html</code>. Use the
+              <lf-playground-value for="state"></lf-playground-value> state for
+              <lf-playground-value for="channel"></lf-playground-value>; healthy means
+              100% rollout and latency-watch means held at 25%. Set owner visibility to
+              <lf-playground-value for="show-owner"></lf-playground-value> and the title
+              to <lf-playground-value for="title"></lf-playground-value>. Show me the
+              generated source here for review.
             </lf-playground-output>
           </lf-playground>
         </lf-ask>
@@ -507,23 +547,27 @@ outside average, before, after
                 Which safeguards should stay active while Ledger rebuilds the fixture?
               </h3>
               <p>
-                Choose every safeguard Finance should keep until the partial-refund case
+                Pass drops a safeguard; Keep retains it until the partial-refund case
                 passes.
               </p>
-              <lf-options id="lp-finance-cases" choose multiple>
-                <lf-option id="lp-hold-exports">
-                  <strong>Hold partial-refund exports</strong> Keep the affected export
-                  path paused until the rebuilt fixture passes.
-                </lf-option>
-                <lf-option id="lp-quarantine-order">
-                  <strong>Quarantine this order</strong> Continue ordinary exports and
-                  reconcile <code>co_18427</code> by hand.
-                </lf-option>
-                <lf-option id="lp-finance-signoff">
-                  <strong>Require finance sign-off</strong> Keep the export closed until
-                  Finance reviews the repaired row.
-                </lf-option>
-              </lf-options>
+              <lf-swipe-deck id="lp-finance-cases">
+                <lf-swipe-pile id="lp-finance-queue" verdict="unseen">
+                  <lf-swipe-card id="lp-hold-exports">
+                    <strong>Hold every partial-refund export</strong> Pause all
+                    partial-refund orders until the rebuilt fixture passes.
+                  </lf-swipe-card>
+                  <lf-swipe-card id="lp-quarantine-order">
+                    <strong>Quarantine this order</strong> Continue ordinary exports and
+                    reconcile <code>co_18427</code> by hand.
+                  </lf-swipe-card>
+                  <lf-swipe-card id="lp-finance-signoff">
+                    <strong>Require finance sign-off</strong> Keep the export closed
+                    until Finance reviews the repaired row.
+                  </lf-swipe-card>
+                </lf-swipe-pile>
+                <lf-swipe-pile id="lp-finance-pass" verdict="pass"></lf-swipe-pile>
+                <lf-swipe-pile id="lp-finance-keep" verdict="keep"></lf-swipe-pile>
+              </lf-swipe-deck>
             </lf-ask>
           </lf-monitor-region>
         </lf-monitor-grid>
@@ -979,34 +1023,6 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
           </details>
         </section>
       </details>
-
-      <section id="pr-outcome">
-        <lf-ask id="pr-outcome-decision">
-          <h2>How would you have reviewed the final revision?</h2>
-          <p id="pr-outcome-context">
-            The pull request is already merged. Choose the review judgment best
-            supported by the captured revision and evidence.
-          </p>
-          <lf-options id="pr-outcome-choice" choose>
-            <lf-option id="pr-outcome-follow-up">
-              <strong>Approve with two follow-ups.</strong> This revision was ready; add
-              a selected-row latency benchmark and a dry-run artifact regression in
-              subsequent work.
-              <em>My take: this best matches the final evidence and review trail.</em>
-            </lf-option>
-            <lf-option id="pr-outcome-approve">
-              <strong>Approve without follow-ups.</strong> This revision was ready;
-              close the two remaining gaps as non-actionable.
-            </lf-option>
-            <lf-option id="pr-outcome-request-changes">
-              <strong>Would have requested two changes.</strong> Add a selected-row
-              latency budget, and prevent <code>wt step commit --dry-run</code> from
-              staging temporary-index artifacts when <code>TMPDIR</code> is inside the
-              worktree.
-            </lf-option>
-          </lf-options>
-        </lf-ask>
-      </section>
 </lf-tab>
 
 <lf-tab id="corpus-security-boundary" label="Security">
@@ -3503,8 +3519,8 @@ gallery/
             <strong>Specimen</strong> and <strong>Shot</strong
             ><span class="bg-feature-detail">: fiction and before/after images</span>
           </h3>
-          <lf-specimen id="bg-specimen" label="an inert sample decision">
-            <lf-options id="bg-specimen-options" choose>
+          <lf-specimen id="bg-specimen" label="an inert multiple-pick decision">
+            <lf-options id="bg-specimen-options" choose multiple>
               <lf-option id="bg-specimen-paper">
                 <strong>Paper signs</strong> Nothing to charge.
               </lf-option>

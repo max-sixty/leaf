@@ -4,13 +4,17 @@ Each top-level authored HTML file is both a complete user page and an integratio
 fixture. The website publishes those pages with the same vendored layer.
 `docs/examples.html` curates six core examples and a specialized section; its active
 cards are the source of truth for catalog membership and generated previews. An
-unlisted page can remain published, as Command Hub does while its TODO is open.
+unlisted page can remain published, as Command Hub and Security Boundary do.
 
 Keep core examples focused and include small pages: a board, a short proposal, or a
 draft can demonstrate Leaf without becoming a product tour. Choose examples for
 reader tasks; the developer gallery owns exhaustive vocabulary coverage. Add a
 contents sidebar when the rendered document needs navigation; judge that in the
 browser review.
+
+Every catalog entry must both stand as a coherent artifact for a real reader task and
+make a distinct Leaf capability apparent on the first visit. Subject novelty, length,
+or vocabulary coverage alone does not qualify a page for the catalog.
 
 Full-page regression journeys whose story no longer belongs in the showcase live
 under `tests/fixtures/pages/`, with their companion logs and `versions/` beside them.

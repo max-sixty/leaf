@@ -103,9 +103,6 @@
         padding: 0;
         list-style: none;
       }
-      .specialized-catalog {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
       .example-link {
         display: block;
         color: inherit;
@@ -239,7 +236,7 @@
           <li>
             <a class="example-link" href="/examples/triage-board/">
               <span class="example-preview">
-                <img src="/media/086de7603b0e0e07.jpg" alt="" fetchpriority="high" />
+                <img src="/media/5403d2343ecdb7e1.jpg" alt="" fetchpriority="high" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Plan a release</span>
@@ -247,8 +244,8 @@
                   >Triage board</span
                 >
                 <span class="example-description">
-                  Set the release order for four defects. Keep the data-risk fix ahead
-                  of the cosmetic work.
+                  Move four defects between release windows. Keep the data-risk fix in
+                  2.4 and defer work that can wait.
                 </span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
@@ -260,7 +257,7 @@
           <li>
             <a class="example-link" href="/examples/release-notes/">
               <span class="example-preview">
-                <img src="/media/0c9e05624a11f1a9.jpg" alt="" loading="lazy" />
+                <img src="/media/1a95560ef5a10b1a.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Edit a draft</span>
@@ -281,7 +278,7 @@
           <li>
             <a class="example-link" href="/examples/log-retention/">
               <span class="example-preview">
-                <img src="/media/1d961286ae88004f.jpg" alt="" loading="lazy" />
+                <img src="/media/4caba53f1605f445.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Revise a proposal</span>
@@ -302,7 +299,7 @@
           <li>
             <a class="example-link" href="/examples/ship-review/">
               <span class="example-preview">
-                <img src="/media/8f24da92f1d8bd7f.jpg" alt="" loading="lazy" />
+                <img src="/media/feae5131ecab939f.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Finish a review</span>
@@ -323,7 +320,7 @@
           <li>
             <a class="example-link" href="/examples/heat-loss/">
               <span class="example-preview">
-                <img src="/media/4dcd2cec1958905e.jpg" alt="" loading="lazy" />
+                <img src="/media/f06e74bc2c9a0478.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Read the evidence</span>
@@ -331,8 +328,8 @@
                   >Heating review</span
                 >
                 <span class="example-description">
-                  Compare heat loss, cost, and disruption before choosing the first home
-                  improvement to book.
+                  Compare two commentable charts with quoted cost, lead time, and
+                  disruption before choosing the first improvement to book.
                 </span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
@@ -344,7 +341,7 @@
           <li>
             <a class="example-link" href="/examples/notification-playground/">
               <span class="example-preview">
-                <img src="/media/0648cec5eb899bc2.jpg" alt="" loading="lazy" />
+                <img src="/media/0a73800a7dba1107.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Shape the result</span>
@@ -352,8 +349,8 @@
                   >Deployment notification</span
                 >
                 <span class="example-description">
-                  Adjust a deployment notification beside its live preview, then send
-                  the configuration to the agent.
+                  Switch a checkout rollout between healthy and latency-watch briefs,
+                  preview it, then send the configuration to the agent.
                 </span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
@@ -367,16 +364,13 @@
       <section class="catalog" id="specialized" aria-labelledby="specialized-title">
         <div class="catalog-prose">
           <h2 id="specialized-title">Specialized examples</h2>
-          <p>
-            Longer investigations and workspaces for code review, operations, and
-            architecture.
-          </p>
+          <p>Data-backed reports and workspaces for live operations and code review.</p>
         </div>
         <ul class="example-catalog specialized-catalog">
           <li>
             <a class="example-link" href="/examples/live-progress/">
               <span class="example-preview">
-                <img src="/media/6651f72aa04c1333.jpg" alt="" loading="lazy" />
+                <img src="/media/2579f282ef432442.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Monitor a rehearsal</span>
@@ -385,7 +379,7 @@
                 >
                 <span class="example-description">
                   Keep rollback evidence and the unresolved finance exception in view
-                  while choosing containment safeguards.
+                  while swiping containment safeguards into or out of the run.
                 </span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
@@ -397,7 +391,7 @@
           <li>
             <a class="example-link" href="/examples/pr-walkthrough/">
               <span class="example-preview">
-                <img src="/media/8cdf961b7431f7a7.jpg" alt="" loading="lazy" />
+                <img src="/media/627b0b39fe2a597e.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Review a real change</span>
@@ -405,8 +399,8 @@
                   >PR walkthrough</span
                 >
                 <span class="example-description">
-                  Inspect a Worktrunk change through its captured patch, diagrams, and
-                  review evidence.
+                  Review a real Worktrunk change by jumping from a semantic call diff
+                  into its exact 46-file patch and commenting in place.
                 </span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
@@ -415,26 +409,6 @@
             </a>
           </li>
 
-          <li>
-            <a class="example-link" href="/examples/security-boundary/">
-              <span class="example-preview">
-                <img src="/media/cee92f8d66037e0c.jpg" alt="" loading="lazy" />
-              </span>
-              <span class="example-caption">
-                <span class="example-index">Study an architecture</span>
-                <span class="example-title" role="heading" aria-level="3"
-                  >Security boundary</span
-                >
-                <span class="example-description">
-                  A detailed case study of disposable agent workspaces, from threat
-                  model to implementation and review.
-                </span>
-                <span class="example-open"
-                  >Open full page <span aria-hidden="true">↗</span></span
-                >
-              </span>
-            </a>
-          </li>
           <!-- TODO(2026-09-09): Return Command Hub to the specialized catalog after
                simplifying its initial task/agent/worktree view and making the stopped
                goal and next action understandable without platform context.

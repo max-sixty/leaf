@@ -18,25 +18,53 @@
         max-width: 32rem;
         padding: var(--sp-3);
         border: 1px solid var(--border-2);
-        border-left: 5px solid var(--playground-accent);
-        border-radius: var(--playground-radius);
+        border-left: 5px solid var(--ok);
+        border-radius: var(--radius);
         background: var(--card);
       }
 
-      #notification-playground[data-playground-compact="true"] #notification-card {
-        padding: var(--sp-2) var(--sp-3);
-      }
-
-      #notification-playground[data-playground-tone="urgent"] #notification-card {
-        background: color-mix(in srgb, var(--playground-accent) 10%, var(--card));
+      #notification-playground[data-playground-state="latency-watch"]
+        #notification-card {
+        border-left-color: var(--danger);
+        background: color-mix(in srgb, var(--danger) 8%, var(--card));
       }
 
       #notification-playground[data-playground-show-owner="false"] #notification-owner {
         display: none;
       }
 
+      #notification-playground[data-playground-state="healthy"] #notification-watch,
+      #notification-playground[data-playground-state="latency-watch"]
+        #notification-healthy,
+      #notification-playground[data-playground-channel="slack"]
+        #notification-status-page,
+      #notification-playground[data-playground-channel="status-page"]
+        #notification-slack {
+        display: none;
+      }
+
       #notification-title::before {
         content: var(--playground-title);
+      }
+
+      #notification-progress {
+        height: 0.42rem;
+        overflow: hidden;
+        border-radius: 999px;
+        background: var(--border);
+      }
+
+      #notification-progress::before {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: currentColor;
+        content: "";
+      }
+
+      #notification-playground[data-playground-state="latency-watch"]
+        #notification-progress::before {
+        width: 25%;
       }
     </style>
     <script type="module" src="/leaf.js"></script>
@@ -45,86 +73,114 @@
     <main>
       <lf-workspace id="notification-workspace">
         <lf-ask id="notification-ask">
-          <h1>Create the deployment notification</h1>
+          <h1>Write the checkout rollout update</h1>
           <lf-playground
             id="notification-playground"
             submit-label="Create notification"
           >
             <lf-playground-control
-              name="radius"
-              label="Corner radius"
-              kind="range"
-              value="10"
-              min="0"
-              max="24"
-              step="1"
-              unit="px"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="compact"
-              label="Compact spacing"
-              kind="toggle"
-              value="false"
-            ></lf-playground-control>
-            <lf-playground-control name="tone" label="Tone" kind="choice" value="calm">
-              <lf-playground-choice value="calm" label="Calm"></lf-playground-choice>
+              name="state"
+              label="Rollout state"
+              kind="choice"
+              value="healthy"
+            >
               <lf-playground-choice
-                value="urgent"
-                label="Urgent"
+                value="healthy"
+                label="Healthy"
               ></lf-playground-choice>
+              <lf-playground-choice
+                value="latency-watch"
+                label="Latency watch"
+              ></lf-playground-choice>
+            </lf-playground-control>
+            <lf-playground-control
+              name="channel"
+              label="Delivery channel"
+              kind="choice"
+              value="status-page"
+            >
+              <lf-playground-choice
+                value="status-page"
+                label="Status page"
+              ></lf-playground-choice>
+              <lf-playground-choice value="slack" label="Slack"></lf-playground-choice>
             </lf-playground-control>
             <lf-playground-control
               name="show-owner"
               label="Show service owner"
               kind="toggle"
-              value="true"
-            ></lf-playground-control>
-            <lf-playground-control
-              name="accent"
-              label="Accent"
-              kind="color"
-              value="#4f766f"
+              value="false"
             ></lf-playground-control>
             <lf-playground-control
               name="title"
               label="Notification title"
               kind="text"
-              value="Checkout deployed"
+              value="Checkout 2.8.0 deployed"
               placeholder="Notification heading"
             ></lf-playground-control>
 
-            <lf-playground-preset label="Routine release">
-              <lf-playground-setting for="tone" value="calm"></lf-playground-setting>
+            <lf-playground-preset label="Healthy rollout">
               <lf-playground-setting
-                for="compact"
+                for="state"
+                value="healthy"
+              ></lf-playground-setting>
+              <lf-playground-setting
+                for="channel"
+                value="status-page"
+              ></lf-playground-setting>
+              <lf-playground-setting
+                for="show-owner"
                 value="false"
               ></lf-playground-setting>
               <lf-playground-setting
-                for="accent"
-                value="#4f766f"
+                for="title"
+                value="Checkout 2.8.0 deployed"
               ></lf-playground-setting>
             </lf-playground-preset>
-            <lf-playground-preset label="Needs attention">
-              <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
-              <lf-playground-setting for="compact" value="true"></lf-playground-setting>
+            <lf-playground-preset label="Latency watch">
               <lf-playground-setting
-                for="accent"
-                value="#b6533c"
+                for="state"
+                value="latency-watch"
+              ></lf-playground-setting>
+              <lf-playground-setting
+                for="channel"
+                value="slack"
+              ></lf-playground-setting>
+              <lf-playground-setting
+                for="show-owner"
+                value="true"
+              ></lf-playground-setting>
+              <lf-playground-setting
+                for="title"
+                value="Checkout rollout held at 25%"
               ></lf-playground-setting>
             </lf-playground-preset>
 
             <lf-playground-preview id="notification-preview">
+              <aside class="callout" id="notification-brief">
+                <strong>Brief.</strong> Checkout p95 touched 286 ms against a 300 ms
+                rollback threshold. Write the completion or held-rollout update.
+              </aside>
               <article id="notification-card" aria-labelledby="notification-title">
                 <header>
-                  <p class="eyebrow">Deployment update</p>
+                  <p class="eyebrow">
+                    Deployment update ·
+                    <span id="notification-status-page">status page</span>
+                    <span id="notification-slack">Slack</span>
+                  </p>
                   <h2 id="notification-title"></h2>
                 </header>
-                <p>
-                  Version 2.8.0 changed the checkout service. Review the deployment run
-                  and current service health.
+                <p id="notification-healthy">
+                  Checkout 2.8.0 reached 100% at 14:32. All 18 checks passed; p95 is 184
+                  ms and errors are 0.08%.
+                </p>
+                <p id="notification-watch">
+                  Checkout 2.8.0 is held at 25%. p95 reached 286 ms against the 300 ms
+                  rollback threshold; errors remain at 0.11%.
                 </p>
                 <p id="notification-owner"><strong>Owner:</strong> Payments platform</p>
-                <footer>Recorded at 14:32 · 18 checks completed</footer>
+                <div id="notification-progress" aria-hidden="true"></div>
+                <footer>Latest sample 14:32 · 18 checks completed</footer>
               </article>
               <section id="notification-artifact" hidden>
                 <lf-source
@@ -136,8 +192,13 @@
             </lf-playground-preview>
 
             <lf-playground-output id="notification-instruction">
-              Create this notification as <code>deployment-notification.html</code>.
-              When it is ready, show me the generated source here for review.
+              Create <code>deployment-notification.html</code>. Use the
+              <lf-playground-value for="state"></lf-playground-value> state for
+              <lf-playground-value for="channel"></lf-playground-value>; healthy means
+              100% rollout and latency-watch means held at 25%. Set owner visibility to
+              <lf-playground-value for="show-owner"></lf-playground-value> and the title
+              to <lf-playground-value for="title"></lf-playground-value>. Show me the
+              generated source here for review.
             </lf-playground-output>
           </lf-playground>
         </lf-ask>

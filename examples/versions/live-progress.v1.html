@@ -82,23 +82,25 @@
               <h3>
                 Which safeguards should stay active while Ledger rebuilds the fixture?
               </h3>
-              <p>
-                Choose every safeguard Finance should keep until the fixture passes.
-              </p>
-              <lf-options id="lp-finance-cases" choose multiple>
-                <lf-option id="lp-hold-exports"
-                  ><strong>Hold partial-refund exports</strong> Keep the affected path
-                  paused.</lf-option
-                >
-                <lf-option id="lp-quarantine-order"
-                  ><strong>Quarantine this order</strong> Continue ordinary
-                  exports.</lf-option
-                >
-                <lf-option id="lp-finance-signoff"
-                  ><strong>Require finance sign-off</strong> Review the repaired row
-                  before resuming.</lf-option
-                >
-              </lf-options>
+              <p>Pass drops a safeguard; Keep retains it until the fixture passes.</p>
+              <lf-swipe-deck id="lp-finance-cases">
+                <lf-swipe-pile id="lp-finance-queue" verdict="unseen">
+                  <lf-swipe-card id="lp-hold-exports"
+                    ><strong>Hold every partial-refund export</strong> Pause all
+                    partial-refund orders until the fixture passes.</lf-swipe-card
+                  >
+                  <lf-swipe-card id="lp-quarantine-order"
+                    ><strong>Quarantine this order</strong> Continue ordinary
+                    exports.</lf-swipe-card
+                  >
+                  <lf-swipe-card id="lp-finance-signoff"
+                    ><strong>Require finance sign-off</strong> Review the repaired row
+                    before resuming.</lf-swipe-card
+                  >
+                </lf-swipe-pile>
+                <lf-swipe-pile id="lp-finance-pass" verdict="pass"></lf-swipe-pile>
+                <lf-swipe-pile id="lp-finance-keep" verdict="keep"></lf-swipe-pile>
+              </lf-swipe-deck>
             </lf-ask>
           </lf-monitor-region>
         </lf-monitor-grid>

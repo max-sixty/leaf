@@ -336,18 +336,21 @@ def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
     )
     runner = CliRunner()
     result = runner.invoke(
-        cli_model.cli, ["page", "state", str(page_dir), "--thread", root["id"]]
+        cli_model.cli, ["conversation", "read", str(page_dir), root["id"]]
     )
     assert result.exit_code == 0, result.output
     reading = json.loads(result.output)
-    assert reading["selection"] == {"kind": "thread", "id": root["id"]}
+    assert reading["conversation"]["id"] == root["id"]
     [message] = reading["content"]
     assert message["text"] == "Choose a route."
     assert message["content"][0] == "Before "
     assert message["content"][-1] == " after."
     frozen = construction_nodes(message["content"])
     assert "chosen" in frozen["second"]["attrs"]
-    assert frozen["frozen"]["edit"] == {"kind": "conversation", "thread": root["id"]}
+    assert frozen["frozen"]["edit"] == {
+        "kind": "conversation",
+        "conversation": root["id"],
+    }
     assert message["source"]["event"] == root["id"]
     drawing = {
         "format": "leaf-drawing/1",
@@ -364,16 +367,16 @@ def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
         },
     )
     result = runner.invoke(
-        cli_model.cli, ["page", "state", str(page_dir), "--thread", drawn["id"]]
+        cli_model.cli, ["conversation", "read", str(page_dir), drawn["id"]]
     )
     assert result.exit_code == 0, result.output
     [drawn_message] = json.loads(result.output)["content"]
     assert "text" not in drawn_message
     assert drawn_message["drawing"] == drawing
     refused = runner.invoke(
-        cli_model.cli, ["page", "state", str(page_dir), "--thread", "missing"]
+        cli_model.cli, ["conversation", "read", str(page_dir), "missing"]
     )
-    assert refused.exit_code != 0 and "unknown thread" in refused.output
+    assert refused.exit_code != 0 and "unknown conversation" in refused.output
 
 
 def test_page_inspection_routes_frozen_captures_to_a_new_reply(page_dir):
@@ -392,7 +395,7 @@ def test_page_inspection_routes_frozen_captures_to_a_new_reply(page_dir):
     data_model.cmd_data_set(page_dir, "instructions", "Reviewed wording.", "reviewed")
     data_model.cmd_data_set(page_dir, "instructions", "Current wording.")
     result = CliRunner().invoke(
-        cli_model.cli, ["page", "state", str(page_dir), "--thread", root["id"]]
+        cli_model.cli, ["conversation", "read", str(page_dir), root["id"]]
     )
     assert result.exit_code == 0, result.output
     [message] = json.loads(result.output)["content"]
@@ -401,7 +404,7 @@ def test_page_inspection_routes_frozen_captures_to_a_new_reply(page_dir):
     current = nodes["current"]["inputs"]["document"]
     assert pinned["value"] == "Reviewed wording."
     assert pinned["edit"]["operation"] == "capture-and-reply"
-    assert pinned["edit"]["thread"] == root["id"]
+    assert pinned["edit"]["conversation"] == root["id"]
     assert current["value"] == "Current wording."
     assert current["edit"]["operation"] == "data set"
 
@@ -1397,6 +1400,8 @@ def test_reply_refuses_a_suggestion(page_dir):
             str(page_dir),
             "--to",
             "c1",
+            "--for",
+            "c1",
             "--text",
             "Fixed:",
             "--markup",
@@ -1568,6 +1573,25 @@ def test_check_owns_the_lf_meta_vocabulary(page_dir):
     assert result.exit_code == 1
     assert "unknown lf- meta" in result.output
     assert "lf-review" in result.output  # the error names the known vocabulary
+
+
+def test_check_leaves_the_pages_own_address_to_delivery(page_dir):
+    """An authored canonical is not an extra hint; it is a competing answer.
+
+    The served document names the page root at every address the page answers, so a
+    second one in the head leaves a crawler choosing, and the usual outcome is that it
+    honours neither. The words a page owes a search result are its title and
+    description, which it writes; the address is the server's.
+    """
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
+        PAGE.replace(
+            "<title>t</title>",
+            '<title>t</title>\n<link rel="canonical" href="https://example.com/p">',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "the served document names the page root itself" in result.output
 
 
 def test_check_rejects_duplicate_ids(page_dir):
@@ -2833,7 +2857,9 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     }
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`.
-    assert state["asks"] == [{"id": "g1-decision", "tag": "lf-ask", "thread": None}]
+    assert state["asks"] == [
+        {"id": "g1-decision", "tag": "lf-ask", "conversation": None}
+    ]
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
     assert state["state"] == []
 
@@ -2862,7 +2888,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             # On every entry, and null for a page widget: the key names which of the
             # page's two documents the decision was made in, and `asks` above has
             # carried it exactly this way all along.
-            "thread": None,
+            "conversation": None,
         }
     ]
     assert state["pending"] == 1 and state["unacked"] == 1
@@ -3500,6 +3526,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
         "data-question",
         "Here it is.",
         '<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
+        for_event="data-question",
     )
 
     data_model.cmd_data_set(page_dir, "reply-feed", [])
@@ -3547,6 +3574,7 @@ def test_thread_markup_cannot_rebind_a_page_source(page_dir):
             "data-question",
             "Here it is.",
             '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
+            for_event="data-question",
         )
 
 
@@ -3598,6 +3626,7 @@ def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
             "draft-data-question",
             "Here it is.",
             '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
+            for_event="draft-data-question",
         )
 
 
@@ -3731,7 +3760,9 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
     publish(page_dir)
 
     state = state_json(page_dir)
-    assert state["asks"] == [{"id": "plan-decision", "tag": "lf-ask", "thread": None}]
+    assert state["asks"] == [
+        {"id": "plan-decision", "tag": "lf-ask", "conversation": None}
+    ]
 
     append_command(
         page_dir,
@@ -3834,7 +3865,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         },
     )
 
-    assert state_json(page_dir)["threads"] == [
+    assert state_json(page_dir)["conversations"] == [
         {
             "id": opened["id"],
             "anchor": {"section": "s-1", "quote": "Ship dark"},
@@ -3842,7 +3873,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         }
     ]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", opened["id"]]
+        cli_model.cli, ["events", str(page_dir), "--conversation", opened["id"]]
     )
     assert history.exit_code == 0, history.output
     assert [json.loads(line)["id"] for line in history.output.splitlines()] == [
@@ -3859,7 +3890,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         [
             "events",
             str(page_dir),
-            "--thread",
+            "--conversation",
             opened["id"],
             "--after",
             str(opening_seq),
@@ -3870,10 +3901,10 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         answered["id"]
     ]
     unknown = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", "not-a-thread"]
+        cli_model.cli, ["events", str(page_dir), "--conversation", "not-a-thread"]
     )
     assert unknown.exit_code != 0
-    assert "unknown thread id 'not-a-thread'" in unknown.output
+    assert "unknown conversation id 'not-a-thread'" in unknown.output
 
 
 def test_page_state_points_to_a_readers_suggestion_record(page_dir):
@@ -3895,9 +3926,9 @@ def test_page_state_points_to_a_readers_suggestion_record(page_dir):
         },
     )
 
-    [thread] = state_json(page_dir)["threads"]
+    [thread] = state_json(page_dir)["conversations"]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", thread["id"]]
+        cli_model.cli, ["events", str(page_dir), "--conversation", thread["id"]]
     )
     assert history.exit_code == 0, history.output
     records = [json.loads(line) for line in history.output.splitlines()]
@@ -3925,7 +3956,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "gm-decision", "tag": "lf-ask", "thread": root["id"]}
+        {"id": "gm-decision", "tag": "lf-ask", "conversation": root["id"]}
     ]
     append_command(
         page_dir,
@@ -3939,7 +3970,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "gm-decision", "tag": "lf-ask", "thread": root["id"]}
+        {"id": "gm-decision", "tag": "lf-ask", "conversation": root["id"]}
     ]
     append_command(
         page_dir,
@@ -3983,8 +4014,8 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
     publish(page_dir)
 
     assert state_json(page_dir)["asks"] == [
-        {"id": "future-decision", "tag": "lf-ask", "thread": None},
-        {"id": "decision-decision", "tag": "lf-ask", "thread": None},
+        {"id": "future-decision", "tag": "lf-ask", "conversation": None},
+        {"id": "decision-decision", "tag": "lf-ask", "conversation": None},
     ]
 
 
@@ -4239,7 +4270,7 @@ def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
     )
     publish(page_dir)
     assert state_json(page_dir)["asks"] == [
-        {"id": "real-decision", "tag": "lf-ask", "thread": None}
+        {"id": "real-decision", "tag": "lf-ask", "conversation": None}
     ]
 
 
@@ -4262,7 +4293,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
     )
     publish(page_dir)
     assert state_json(page_dir)["asks"] == [
-        {"id": "cargo", "tag": "lf-draft", "thread": None}
+        {"id": "cargo", "tag": "lf-draft", "conversation": None}
     ]
 
     append_command(

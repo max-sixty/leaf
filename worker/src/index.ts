@@ -8,7 +8,8 @@
  * so one reader can exercise the real event log without changing another reader's page.
  * During an image rollout, a layer mismatch pins that reader briefly to the container's
  * complete shell so a static document never reloads against an older API in a loop.
- * Accepted browser events also emit content-free canonical metadata to Analytics Engine.
+ * Accepted browser events enter a durable batch-size-one Queue and emit content-free
+ * canonical metadata to Analytics Engine.
  */
 
 import {
@@ -17,13 +18,7 @@ import {
   type OutboundHandlerContext,
 } from "@cloudflare/containers";
 export { ContainerProxy } from "@cloudflare/containers";
-import {
-  type DurableObject,
-  WorkflowEntrypoint,
-  type WorkflowEvent,
-  type WorkflowStep,
-} from "cloudflare:workers";
-import { NonRetryableError } from "cloudflare:workflows";
+import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
 
 import {
@@ -49,13 +44,13 @@ import {
 export interface Env {
   ASSETS: Fetcher;
   PAGES: DurableObjectNamespace<LeafWebsiteSession>;
-  AGENT_WORKFLOW: Workflow<AgentWorkflowParams>;
+  AGENT_QUEUE: Queue<AgentTaskParams>;
   WEBSITE_EVENTS: AnalyticsEngineDataset;
   SOURCE_AGENT_RATE_LIMITER: RateLimit;
   OPENAI_API_KEY: string;
 }
 
-const agentWorkflowParamsSchema = z.object({
+const agentTaskParamsSchema = z.object({
   sessionId: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
   reference: z.string().check(z.regex(/^\d{12}$/)),
   route: z
@@ -65,7 +60,7 @@ const agentWorkflowParamsSchema = z.object({
   sourceId: z.string().check(z.minLength(1), z.maxLength(64)),
 });
 
-export type AgentWorkflowParams = z.infer<typeof agentWorkflowParamsSchema>;
+export type AgentTaskParams = z.infer<typeof agentTaskParamsSchema>;
 
 const settledAgentResultSchema = z.object({ status: z.literal("settled") });
 const agentResultSchemas = {
@@ -168,13 +163,9 @@ function sessionReference(sessionId: string): string {
   return (BigInt(`0x${sessionId}`) % 1_000_000_000_000n).toString().padStart(12, "0");
 }
 
-function agentWorkflowId(reference: string, eventId: string): string {
-  return `reply-${reference}-${eventId}`;
-}
-
 function agentLog(
   event: string,
-  params: Pick<AgentWorkflowParams, "reference" | "route" | "eventId">,
+  params: Pick<AgentTaskParams, "reference" | "route" | "eventId">,
   fields: Record<string, unknown> = {},
 ): void {
   console.log({
@@ -189,7 +180,7 @@ function agentLog(
 
 async function measuredAgentOperation<T>(
   event: string,
-  params: AgentWorkflowParams,
+  params: AgentTaskParams,
   operation: () => Promise<T>,
 ): Promise<T> {
   const started = Date.now();
@@ -207,16 +198,8 @@ async function measuredAgentOperation<T>(
   }
 }
 
-function validatedAgentParams(value: unknown): AgentWorkflowParams {
-  const result = agentWorkflowParamsSchema.safeParse(value);
-  if (!result.success) {
-    throw new NonRetryableError("invalid website agent workflow parameters");
-  }
-  return result.data;
-}
-
 function agentRequest(
-  params: AgentWorkflowParams,
+  params: AgentTaskParams,
   action: "start" | "reply",
   body: object,
 ): Request {
@@ -230,7 +213,7 @@ function agentRequest(
 
 async function askContainer(
   env: Env,
-  params: AgentWorkflowParams,
+  params: AgentTaskParams,
   action: "start" | "reply",
   body: object,
 ): Promise<AgentResult> {
@@ -239,94 +222,88 @@ async function askContainer(
   );
   const raw = await response.text();
   if (!response.ok) {
-    const message = `website agent ${action} failed (${response.status}): ${raw}`;
-    if (response.status < 500) throw new NonRetryableError(message);
-    throw new Error(message);
+    throw new Error(`website agent ${action} failed (${response.status}): ${raw}`);
   }
   let value: unknown;
   try {
     value = JSON.parse(raw);
   } catch {
-    throw new NonRetryableError(`invalid website agent ${action} response`);
+    throw new Error(`invalid website agent ${action} response`);
   }
   const result = agentResultSchemas[action].safeParse(value);
   if (!result.success) {
-    throw new NonRetryableError(`invalid website agent ${action} response`);
+    throw new Error(`invalid website agent ${action} response`);
   }
   return result.data;
 }
 
-export async function runAgentWorkflow(
+async function runAgentTask(
   env: Env,
-  params: AgentWorkflowParams,
-  step: WorkflowStep,
+  params: AgentTaskParams,
 ): Promise<AgentResult> {
-  let fallback = GENERATION_FAILURE_REPLY;
-  let appendStep = "append startup failure";
-  agentLog("workflow_started", params);
-  try {
-    const allowed = await step.do(
-      "reserve model capacity",
-      {
-        retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-        timeout: "1 minute",
-      },
-      () =>
-        measuredAgentOperation(
-          "capacity_reservation",
-          params,
-          async () =>
-            (
-              await env.SOURCE_AGENT_RATE_LIMITER.limit({
-                key: params.sourceId,
-              })
-            ).success,
-        ),
+  const allowed = await measuredAgentOperation(
+    "capacity_reservation",
+    params,
+    async () =>
+      (
+        await env.SOURCE_AGENT_RATE_LIMITER.limit({
+          key: params.sourceId,
+        })
+      ).success,
+  );
+  if (allowed) {
+    return measuredAgentOperation("container_start", params, () =>
+      askContainer(env, params, "start", { event: params.eventId }),
     );
-    if (allowed) {
-      return await step.do(
-        "start Codex task",
-        {
-          retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-          timeout: "2 minutes",
-        },
-        () =>
-          measuredAgentOperation("container_start", params, () =>
-            askContainer(env, params, "start", { event: params.eventId }),
-          ),
-      );
-    } else {
-      fallback = RATE_LIMIT_REPLY;
-      appendStep = "append rate limit";
-    }
-  } catch (error) {
-    // The deterministic fallback closes the exact event after startup retries.
-    agentLog("workflow_startup_failed", params, {
-      error: error instanceof Error ? error.name : "unknown",
-    });
   }
-  return step.do(
-    appendStep,
-    {
-      retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-      timeout: "1 minute",
-    },
-    () =>
-      measuredAgentOperation("fallback_reply", params, () =>
-        askContainer(env, params, "reply", {
-          event: params.eventId,
-          text: fallback,
-        }),
-      ),
+  return measuredAgentOperation("fallback_reply", params, () =>
+    askContainer(env, params, "reply", {
+      event: params.eventId,
+      text: RATE_LIMIT_REPLY,
+    }),
   );
 }
 
-export class LeafWebsiteAgentWorkflow extends WorkflowEntrypoint<
-  Env,
-  AgentWorkflowParams
-> {
-  async run(event: WorkflowEvent<AgentWorkflowParams>, step: WorkflowStep) {
-    return runAgentWorkflow(this.env, validatedAgentParams(event.payload), step);
+const START_ATTEMPTS = 3;
+
+async function processAgentMessage(
+  env: Env,
+  message: Message<unknown>,
+): Promise<void> {
+  const parsed = agentTaskParamsSchema.safeParse(message.body);
+  if (!parsed.success) {
+    console.log({
+      component: "leaf-agent",
+      event: "queue_rejected",
+      error: "invalid_params",
+    });
+    message.ack();
+    return;
+  }
+  const params = parsed.data;
+  agentLog("queue_started", params, {
+    durationMs: Math.max(0, Date.now() - message.timestamp.getTime()),
+    attempts: message.attempts,
+  });
+  try {
+    if (message.attempts <= START_ATTEMPTS) {
+      await runAgentTask(env, params);
+    } else {
+      agentLog("queue_startup_failed", params, { attempts: message.attempts - 1 });
+      await measuredAgentOperation("fallback_reply", params, () =>
+        askContainer(env, params, "reply", {
+          event: params.eventId,
+          text: GENERATION_FAILURE_REPLY,
+        }),
+      );
+    }
+    message.ack();
+  } catch (error) {
+    agentLog("queue_retrying", params, {
+      attempts: message.attempts,
+      error: error instanceof Error ? error.name : "unknown",
+    });
+    message.retry({ delaySeconds: 2 ** Math.min(message.attempts, 3) });
   }
 }
 
@@ -376,32 +353,13 @@ function recordAcceptedEvent(
   });
 }
 
-async function resumeFailedWorkflow(env: Env, workflowId: string): Promise<void> {
-  const instance = await env.AGENT_WORKFLOW.get(workflowId);
-  const state = await instance.status();
-  if (state.status === "errored" || state.status === "terminated") {
-    await instance.restart();
-  }
-}
-
-async function startAgentWorkflow(
+async function enqueueAgentTask(
   env: Env,
-  params: AgentWorkflowParams,
+  params: AgentTaskParams,
 ): Promise<void> {
   const started = Date.now();
-  const workflowId = agentWorkflowId(params.reference, params.eventId);
-  try {
-    await env.AGENT_WORKFLOW.create({ id: workflowId, params });
-  } catch (error) {
-    // Treat a duplicate id as success and revive a failed prior attempt. Preserve
-    // the outbox's retry signal when no workflow exists to answer the durable event.
-    try {
-      await resumeFailedWorkflow(env, workflowId);
-    } catch {
-      throw error;
-    }
-  }
-  agentLog("workflow_admitted", params, { durationMs: Date.now() - started });
+  await env.AGENT_QUEUE.send(params);
+  agentLog("queue_admitted", params, { durationMs: Date.now() - started });
 }
 
 function staticAssetResponse(response: Response): Response {
@@ -480,6 +438,12 @@ async function staticState(
 }
 
 export default {
+  async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+    await Promise.all(
+      batch.messages.map((message) => processAgentMessage(env, message)),
+    );
+  },
+
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const requestStarted = Date.now();
     const url = new URL(request.url);
@@ -585,7 +549,7 @@ export default {
         agentLog("event_accepted", params, {
           durationMs: Date.now() - requestStarted,
         });
-        await startAgentWorkflow(env, params);
+        await enqueueAgentTask(env, params);
       }
     }
     const requestLayer = request.headers.get("Leaf-Layer");

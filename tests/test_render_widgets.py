@@ -3112,7 +3112,11 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     )
     expect(playground).to_have_attribute("data-playground-tone", "urgent")
     expect(playground).to_have_attribute("data-playground-compact", "true")
+    expect(playground).to_have_attribute("data-playground-format", "status strip")
     expect(page.locator("#notification-card")).to_have_accessible_name(
+        "Checkout needs attention"
+    )
+    expect(page.locator("#notification-strip")).to_have_accessible_name(
         "Checkout needs attention"
     )
     with sending(page, "the notification configuration"):
@@ -3127,14 +3131,17 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     assert action["detail"]["values"] == {
         "accent": "#b6533c",
         "compact": True,
+        "format": "status strip",
         "radius": 10,
         "show-owner": True,
         "title": "Checkout needs attention",
         "tone": "urgent",
     }
     assert action["detail"]["instruction"] == (
-        "Create this notification as deployment-notification.html. "
-        "When it is ready, show me the generated source here for review."
+        "Build the status strip deployment notification as deployment-notification.html. "
+        "Use urgent styling, 10px corners, #b6533c accents, compact spacing set to true, "
+        "owner visibility set to true, and title it Checkout needs attention. Show me the "
+        "generated source here for review."
     )
 
     logged_action = next(
@@ -3168,7 +3175,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
 <title>Checkout needs attention</title>
 <style>
 body { font-family: system-ui, sans-serif; }
-.notification { border-left: 5px solid #b6533c; border-radius: 10px; padding: 8px 12px; }
+.notification { border-top: 5px solid #b6533c; border-radius: 10px; padding: 8px 12px; }
 </style>
 <article class="notification">
   <h1>Checkout needs attention</h1>
@@ -3296,6 +3303,7 @@ body { font-family: system-ui, sans-serif; }
         comment["id"],
         "Added the deployment-run link to the artifact.",
         "",
+        for_event=comment["id"],
     )
     refined = stamp_page(
         serve.page_dir,
@@ -3507,6 +3515,7 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
                 "values": {
                     "accent": "#b6533c",
                     "compact": True,
+                    "format": "status strip",
                     "radius": 10,
                     "show-owner": True,
                     "title": "Escalation sent",
@@ -3571,6 +3580,165 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
             && getComputedStyle(root).display === 'block';
         }"""
     )
+    assert errors == []
+    page.close()
+
+
+def test_targeting_selects_names_previews_reverts_and_submits_structured_changes(
+    browser, serve
+):
+    authored = leaf_page(
+        "visual targeting",
+        """
+<h1 id="title">Landing page review</h1>
+<lf-ask id="landing-change-ask">
+  <h2>Which changes should the agent make?</h2>
+  <lf-targeting id="landing-targeting">
+    <lf-target-preview id="landing-preview">
+      <section id="hero" class="landing-card">
+        <h3 class="section-title"><span>Build the next release</span></h3>
+        <p>Keep the request path visible.</p>
+      </section>
+      <section id="evidence" class="landing-card">
+        <h3 class="section-title">Inspect the evidence</h3>
+      </section>
+    </lf-target-preview>
+  </lf-targeting>
+</lf-ask>
+""",
+    )
+    page, errors = open_page(browser, serve(authored, packages=("targeting",)))
+    workbench = page.locator("#landing-targeting")
+
+    workbench.get_by_role("button", name="Select element").click()
+    expect(workbench).to_have_attribute("data-lf-targeting-armed", "")
+    page.locator("#hero span").click()
+    candidates = workbench.locator(".lf-targeting-candidate-choice")
+    expect(candidates).to_have_count(4)
+    candidates.filter(has_text="<section#hero>").click()
+
+    first = workbench.locator('.lf-targeting-target[data-target-key="target-1"]')
+    first.locator(".lf-targeting-name").fill("Hero cards")
+    expect(
+        workbench.locator('[name="landing-targeting-style-target"]')
+    ).to_contain_text("Hero cards")
+    first.locator(".lf-targeting-name").press("Tab")
+    first.locator(".lf-targeting-scope").select_option("class")
+    expect(first.locator(".lf-targeting-class")).to_have_value("landing-card")
+    expect(first.locator(".lf-targeting-class")).to_contain_text("2 matches")
+    expect(workbench.locator(".lf-targeting-candidates")).to_be_hidden()
+
+    workbench.get_by_role("button", name="Select element").click()
+    page.locator("#evidence h3").focus()
+    page.keyboard.press("Enter")
+    workbench.locator(".lf-targeting-candidate-choice").first.click()
+    second = workbench.locator('.lf-targeting-target[data-target-key="target-2"]')
+    second.locator(".lf-targeting-name").fill("Evidence heading")
+    second.locator(".lf-targeting-name").press("Tab")
+    expect(
+        workbench.locator('[name="landing-targeting-instruction-target"]')
+    ).to_have_value("target-2")
+
+    workbench.locator('[name="landing-targeting-style-target"]').select_option(
+        "target-1"
+    )
+    workbench.locator('[name="landing-targeting-style-property"]').select_option(
+        "padding"
+    )
+    workbench.locator('[name="landing-targeting-style-value"]').fill("24")
+    workbench.get_by_role("button", name="Add style").click()
+    assert page.locator("#hero").evaluate("element => element.style.padding") == "24px"
+    assert (
+        page.locator("#evidence").evaluate("element => element.style.padding") == "24px"
+    )
+
+    style_change = workbench.locator(".lf-targeting-change", has_text="padding 24px")
+    style_change.get_by_role("button", name="Remove").click()
+    assert page.locator("#hero").evaluate("element => element.style.padding") == ""
+    assert page.locator("#evidence").evaluate("element => element.style.padding") == ""
+
+    workbench.get_by_role("button", name="Add style").click()
+    workbench.locator('[name="landing-targeting-instruction-target"]').select_option(
+        "target-2"
+    )
+    workbench.locator('[name="landing-targeting-instruction"]').fill(
+        "Use the same sentence case as the navigation label."
+    )
+    workbench.get_by_role("button", name="Add instruction").click()
+
+    with sending(page, "the structured targeting action"):
+        workbench.get_by_role("button", name="Submit changes").click()
+
+    actions = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action" and event["widget"] == "landing-targeting"
+    ]
+    assert len(actions) == 1
+    assert actions[0]["action"] == "submit"
+    assert actions[0]["detail"] == {
+        "targets": [
+            {
+                "key": "target-1",
+                "name": "Hero cards",
+                "scope": "class",
+                "className": "landing-card",
+                "selector": {
+                    "authoredId": "hero",
+                    "path": [{"tag": "section", "index": 0}],
+                    "label": "<section#hero>",
+                    "text": "Build the next release Keep the request path visible.",
+                },
+            },
+            {
+                "key": "target-2",
+                "name": "Evidence heading",
+                "scope": "instance",
+                "className": None,
+                "selector": {
+                    "path": [
+                        {"tag": "section", "index": 1},
+                        {"tag": "h3", "index": 0},
+                    ],
+                    "label": "<h3.section-title>",
+                    "text": "Inspect the evidence",
+                },
+            },
+        ],
+        "changes": [
+            {
+                "id": "change-2",
+                "target": "target-1",
+                "kind": "style",
+                "property": "padding",
+                "value": "24px",
+            },
+            {
+                "id": "change-3",
+                "target": "target-2",
+                "kind": "instruction",
+                "text": "Use the same sentence case as the navigation label.",
+            },
+        ],
+    }
+
+    page.reload(wait_until="load")
+    page.wait_for_function(BOTH_STAMPS)
+    expect(page.locator("#landing-targeting .lf-targeting-name").first).to_have_value(
+        "Hero cards"
+    )
+    assert page.locator("#hero").evaluate("element => element.style.padding") == "24px"
+    assert (
+        page.locator("#evidence").evaluate("element => element.style.padding") == "24px"
+    )
+
+    workbench = page.locator("#landing-targeting")
+    workbench.locator('[name="landing-targeting-style-value"]').fill("40")
+    workbench.get_by_role("button", name="Add style").click()
+    assert page.locator("#hero").evaluate("element => element.style.padding") == "40px"
+    workbench.get_by_role("button", name="Revert draft").click()
+    assert page.locator("#hero").evaluate("element => element.style.padding") == "24px"
+    expect(workbench.locator(".lf-targeting-change")).to_have_count(2)
     assert errors == []
     page.close()
 
@@ -5755,6 +5923,71 @@ def test_ask_action_addresses_stay_aligned_when_focus_enters_a_card(browser, ser
     page.close()
 
 
+def test_ask_actions_replace_unusable_package_address_faces(browser, serve):
+    """Disconnected, shared, and covered faces fall back to core-owned addresses."""
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    resized(page, 900, 900)
+
+    page.evaluate(
+        """async () => {
+          const {commands} = await import('/runtime/widget-api.js');
+          const source = document.getElementById('sug');
+          const face = (id, top) => {
+            const address = document.createElement('span');
+            address.id = id;
+            address.className = 'lf-address';
+            address.style.cssText = `position: fixed; left: 90px; top: ${top}px;`;
+            return address;
+          };
+          const add = (id, top, address) => {
+            const control = document.createElement('button');
+            control.id = id;
+            control.textContent = id;
+            control.style.cssText = `position: fixed; left: 560px; top: ${top}px;`;
+            source.append(control);
+            commands(control, id, [{
+              id: `test.${id}`, keys: [], control, address,
+              decision: id, does: `Activate ${id}`, line: id,
+              run: () => control.click(),
+            }]);
+          };
+
+          add('disconnected-face', 220, face('detached-address', 100));
+          const shared = face('shared-address', 120);
+          source.append(shared);
+          add('shared-face-one', 300, shared);
+          add('shared-face-two', 380, shared);
+          const covered = face('covered-address', 200);
+          source.append(covered);
+          const cover = document.createElement('span');
+          cover.id = 'address-cover';
+          cover.style.cssText =
+            'position: fixed; left: 90px; top: 200px; width: 24px; height: 24px;' +
+            ' z-index: 2; background: black;';
+          source.append(cover);
+          add('covered-face', 460, covered);
+        }"""
+    )
+
+    page.keyboard.press("a")
+    controls = page.locator(
+        "#disconnected-face, #shared-face-one, #shared-face-two, #covered-face"
+    )
+    expect(controls).to_have_count(4)
+    assert controls.evaluate_all(
+        "nodes => nodes.map(node => node.getAttribute('aria-keyshortcuts'))"
+    ) == ["3", "4", "5", "6"]
+    expect(page.locator("#shared-address[data-lf-ask-address]")).to_have_count(0)
+    expect(page.locator("#covered-address[data-lf-ask-address]")).to_have_count(0)
+    for binding in ("3", "4", "5", "6"):
+        expect(
+            page.locator(".lf-ask-addresses > .lf-ask-address", has_text=binding)
+        ).to_have_count(1)
+
+    assert errors == []
+    page.close()
+
+
 def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
     """A row address that reaches the shortcut bar yields to the legend naming its digit."""
     page, errors = open_page(browser, serve(ADDRESS_PAGE))
@@ -6927,12 +7160,19 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
         """() => getComputedStyle(document.body).marginLeft === '0px'"""
     )
 
-    page.locator(".lf-asks").click()
+    # Leaves is a modal covering workspace, so its scrim correctly makes the page and
+    # banner inert. The global destination remains the route from one tray to the other.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
     expect(decisions).to_be_visible()
     expect(leaves).to_be_hidden()
 
+    # The destination captured the covering tray it replaced, so the first Escape
+    # returns there; the second closes that one standing tray.
     page.keyboard.press("Escape")
     expect(decisions).to_be_hidden()
+    expect(leaves).to_be_visible()
+    page.keyboard.press("Escape")
     expect(leaves).to_be_hidden()
     assert errors == []
     page.close()

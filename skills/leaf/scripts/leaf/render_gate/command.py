@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .browser import browser_hint, launch_browser
 from .preview import preview_server
-from .version import render_version
+from .version import RENDER_VIEWPORTS, render_version
 
 
 def render_check(
@@ -48,8 +48,12 @@ def render_check(
         for f in failures:
             print(f"  - {f}", file=sys.stderr)
         return 1
+    viewport_names = " and ".join(
+        f"{viewport['width']}x{viewport['height']}" for viewport in RENDER_VIEWPORTS
+    )
     print(
-        f"✓ index.html: renders clean in {browser_name}, light and dark — no "
+        f"✓ index.html: renders clean in {browser_name}, light and dark at "
+        f"{viewport_names} — no "
         "console errors, every widget takes space, no words on top of other words, code that reads "
         "against the block it is on, boxes showing the inset they draw, nothing past the "
         "column, no sideways scroll"

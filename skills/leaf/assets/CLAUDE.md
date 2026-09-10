@@ -689,7 +689,9 @@ ordered actions keep a canonical binding where they declare one and otherwise ta
 next free `1`–`9`. Core projects that exact list into the shortcut bar and visible control
 chips. Each action is a command route; that route is the one
 binding-to-control identity used by dispatch, the reference, the shortcut bar, its address,
-and `aria-keyshortcuts`; core does not mint a second identity for the projection. Tab
+and `aria-keyshortcuts`; core does not mint a second identity for the projection. A package
+may lend one empty address face per action. Core uses it only while the whole face is visible,
+uncovered, and claimed by that action alone; otherwise core draws its own chip. Tab
 walks the real controls without replacing that action map;
 a control's scope adds only its native or local mechanics. `j`/`k` scroll
 down/up by 60 pixels; `d`/`u` move 60% of

@@ -13,7 +13,8 @@ The main owners are:
 - `files` and `revisioning`: atomic page files and immutable revisions;
 - `locations`: filesystem path identity, containment, and overlap;
 - `page`: vendored page guidance;
-- `agent_state`: the agent-facing folded page-state reading;
+- `agent_state`: the agent-facing folded page-state and exact-conversation readings;
+- `delivery`: the host-neutral immutable delivery envelope and delivery lookup;
 - `document_reading`: the shared document, projection, and decision reading;
 - `construction`: effective document content with source, state, and data origins;
 - `transcript`: raw-event selection and the human-facing Markdown export;

@@ -8,7 +8,7 @@ from leaf.data_contracts import data_binding_errors, measurement_lag
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry
 from leaf.schema import VENDORED_FILES
-from leaf.structure import LF_META, PAGE_CSP, parse_structure
+from leaf.structure import LF_META, PAGE_CSP, links_with_rel, parse_structure
 from leaf.styles import (
     _column_width,
     _overwide_elements,
@@ -104,7 +104,7 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
             "its <head> must be the document's direct, initial head"
         )
 
-    stylesheets = parser.stylesheets
+    stylesheets = links_with_rel(parser.links, "stylesheet")
     if len(stylesheets) != 1 or stylesheets[0]["attrs"] != {
         "rel": "stylesheet",
         "href": "/theme.css",
@@ -118,6 +118,14 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
         errors.append(
             "the /theme.css stylesheet must be in <head> before <body> can paint; "
             "its <head> must be the document's direct, initial head"
+        )
+
+    for link in links_with_rel(parser.links, "canonical"):
+        errors.append(
+            f'<link rel="canonical"> (line {link["line"]}): the served document names '
+            "the page root itself, and a page whose head declares a second address "
+            "leaves a crawler to choose between them. Write the title and description; "
+            "the address is delivery's."
         )
 
     declared_csp = [

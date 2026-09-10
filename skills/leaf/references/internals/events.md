@@ -6,7 +6,7 @@ Every event carries `id`, `ts`, `author`, `kind`, `seq` (its line number in
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |
 | `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "layer"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
-| `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; `awaits`, `markup`, and a replacement `anchor` (CLI only) | answers a thread without closing it; an anchored agent reply also moves the thread's current location |
+| `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` or `initiates`; `awaits`, `markup`, and a replacement `anchor` (CLI only) | answers the exact named obligation without closing its conversation; an anchored agent reply also moves the conversation's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the reader reopens a resolved thread |
@@ -95,6 +95,9 @@ An agent comment opens a question. A reply answers without closing the thread;
 when its prose leaves another question for the reader, `leaf reply --awaits`
 records `awaits: true`. The browser cannot write that field. A reader reply
 always hands the thread back to the agent, so it needs no parallel declaration.
+An agent reply records the delivery event it answers as `responds`; a proactive
+`--initiates` reply records `initiates: true`. Settlement consumes this durable
+scope rather than log order, so answering older work cannot erase newer reader input.
 When a reply carries a widget with a local `x-awaits` or `x-request.ask`
 request, the widget's standing projection or lifecycle declares the request
 instead; the CLI refuses a parallel `--awaits` flag on that markup.

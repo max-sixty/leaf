@@ -32,6 +32,7 @@ from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
 from leaf.structure import parse_structure
+from PIL import Image
 from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -346,9 +347,7 @@ def test_a_crawler_is_given_one_page_per_route(site):
             *sorted((destination / "revisions").glob("*.html")),
         ]
         assert len(documents) > 1, route
-        canonical = (
-            f'<link rel="canonical" href="{site_build.SITE_ORIGIN}{page_root}/">'
-        )
+        canonical = f'<link rel="canonical" href="{page_root}/" data-lf-runtime>'
         for document in documents:
             html = document.read_text(encoding="utf-8")
             head = html[: html.index("</head>")]
@@ -362,14 +361,34 @@ def test_a_crawler_is_given_one_page_per_route(site):
                 f'property="og:title" content="{html_module.escape(page["title"])}"'
                 in head
             ), document
+        if page["kind"] == "product":
+            # Whoever draws the card draws it at 1.91:1 and centre-crops whatever it
+            # is given, so a picture of another shape arrives with a band off the top
+            # and the bottom. The product shot lost its banner that way: the version
+            # control, the approval, the thread count, every part of the picture that
+            # says the page is live.
+            with Image.open(assets / page["image"].lstrip("/")) as card:
+                assert card.size == (1200, 630), route
 
 
 def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
     site, hosted
 ):
-    """Materialization reuses Leaf's delivery transforms rather than approximating them."""
+    """Materialization reuses Leaf's delivery transforms rather than approximating them.
+
+    Every address a page answers is checked, not just its root: the shell and the
+    server compose the same transforms, and a route either of them composes
+    differently is one where a reader's page and a crawler's page part company.
+    """
     assets = site_build.asset_site(site)
     manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
+    board = assets / "examples" / "triage-board"
+    historical = [
+        document.relative_to(assets).as_posix()
+        for directory in ("versions", "revisions")
+        for document in sorted((board / directory).glob("*.html"))
+    ]
+    assert historical, "the example publishes no version or revision documents"
     for route, relative in (
         ("/", "index.html"),
         ("/examples/triage-board/", "examples/triage-board/index.html"),
@@ -377,6 +396,7 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
             "/examples/triage-board/runtime/state-feed.js",
             "examples/triage-board/runtime/state-feed.js",
         ),
+        *((f"/{relative}", relative) for relative in historical),
     ):
         with urllib.request.urlopen(f"{hosted}{route}") as response:
             served = response.read()

@@ -169,9 +169,13 @@ export function bake() {
   // second Leaf page the runtime wrote, naming the runtime, the theme, and its adapter
   // on a server the file has not got; left in place it opens a frame that fetches
   // nothing and shows a blank stage where a replay used to be.
+  //
+  // The canonical address goes with the server that answered at it. It says which page
+  // three live addresses are, and a file is at none of them — carried into a copy that
+  // someone then publishes, it would name a route that copy has nothing to do with.
   all(
-    "script, .lf-chrome, .lf-receipt, .lf-say, .lf-mark-note, " +
-      'iframe[data-lf-contained], [data-lf-behavior="status"]',
+    'script, link[rel="canonical"], .lf-chrome, .lf-receipt, .lf-say, ' +
+      '.lf-mark-note, iframe[data-lf-contained], [data-lf-behavior="status"]',
   ).forEach((el) => el.remove());
   // A measurement of this window is not a fact about the reader's. The live page states
   // each drawn edge's width inline on the root, and an inline value outranks every rule

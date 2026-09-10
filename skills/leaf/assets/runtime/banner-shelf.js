@@ -178,6 +178,18 @@ export function unfoldShelf() {
   for (const control of back) if (newsControls.has(control)) paintPresence(control);
   overflowBtn.hidden = true;
 }
+
+// A workspace can close while its banner address is folded into a popover that light
+// dismissal has just hidden. Restore that address's own surface before returning focus.
+export function focusBannerAddress(control) {
+  const menu = control.closest("[popover]");
+  if (menu && !menu.matches(":popover-open")) menu.showPopover();
+  control.focus({ preventScroll: true });
+}
+
+export function dismissBannerAddresses() {
+  if (overflowMenu.matches(":popover-open")) overflowMenu.hidePopover();
+}
 // The addresses this row may fold, in the row's own order: everything before the
 // reading loop at its end.
 function foldable() {

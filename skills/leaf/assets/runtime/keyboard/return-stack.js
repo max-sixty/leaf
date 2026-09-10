@@ -70,6 +70,23 @@ import {
   nativeLayerFor,
   nativeLayerOrder,
 } from "../native-layers.js";
+import {
+  coveringWorkspaceSurface,
+  openWorkspaceSurfaceFor,
+} from "../workspace-modality.js";
+
+const currentLayer = () => {
+  const workspace = coveringWorkspaceSurface();
+  const native = currentNativeLayer(focused());
+  if (
+    workspace &&
+    native &&
+    !workspace.contains(native) &&
+    !native.matches("dialog:modal")
+  )
+    return workspace;
+  return native ?? workspace;
+};
 
 export function restoreReturnPlace({ control, reading }) {
   if (control) {
@@ -122,18 +139,22 @@ export function invoke(row, binding, run, suppliedOrigin = null) {
   const result = run();
   prune();
   if (frame?.active()) {
-    const root = currentNativeLayer(focused()) ?? document;
+    const root = currentLayer() ?? document;
     frames.push({ ...frame, origin, root, order: nativeLayerOrder(root) });
   }
   return result;
 }
 
 function prune() {
-  const layer = currentNativeLayer(focused());
+  const layer = currentLayer();
   while (frames.length) {
     const frame = frames.at(-1);
     if (layer && frame.root !== layer && nativeLayerOrder(layer) > frame.order) return;
-    if (frame.root !== document && nativeLayerFor(frame.root) !== frame.root) {
+    if (
+      frame.root !== document &&
+      !openWorkspaceSurfaceFor(frame.root) &&
+      nativeLayerFor(frame.root) !== frame.root
+    ) {
       frames.pop();
       continue;
     }

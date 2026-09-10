@@ -36,6 +36,8 @@ browser gate observes. The keyboard register follows the same boundary: `keys()`
 and stores each declaration unread, and the first repaint after boot evaluates it.
 `runtime/chrome.js` owns only the shared chrome root; `leaf.js` assembles its parts,
 mounts them, and wires behavior that needs them in the document;
+`runtime/workspace-modality.js` owns the shared inert, focus, semantic, and reading-scroll
+boundary while an auxiliary workspace covers the document;
 `runtime/repaint.js` owns the shared frame, whose fixed phases are wired at boot:
 first keyboard-scope reflection, standing content, chrome layout, requested page
 movement, then standing geometry. Work requested during a phase belongs to the next

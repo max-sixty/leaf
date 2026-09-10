@@ -114,6 +114,7 @@ import {
 import { awaitsReader } from "../conversation/model.js";
 import { replyBoxHasDraft } from "../conversation/replies.js";
 import { keeps } from "../widget-elements.js";
+import { coveringWorkspaceSurface } from "../workspace-modality.js";
 
 export function pageParts(sel) {
   return pageQueryAll(sel).filter((el) => !inChrome(el));
@@ -266,10 +267,10 @@ export function restoreWorkspace(state) {
   const { panel: hadPanel, tray } = state;
   if (tray) showTray(tray);
   else if (hadPanel) {
-    showTray(null);
+    showTray(null, { returnFocus: false });
     setPanel(true);
   } else {
-    showTray(null);
+    showTray(null, { returnFocus: false });
     setPanel(false);
   }
   return state.control();
@@ -531,6 +532,52 @@ const BACK_OUT = {
   promoteEscape: () => !hasCapturedTarget() || reactionTokens().length === 0,
   when: () => !current() && Boolean(rung()),
   run: () => rung().out(),
+};
+
+const PAGE_MOVE = {
+  id: "page.move",
+  keys: ["d", "u"],
+  routes: [
+    {
+      id: "page.down",
+      binding: "d",
+      does: "Move 60% of a page down",
+      line: "page down",
+    },
+    {
+      id: "page.up",
+      binding: "u",
+      does: "Move 60% of a page up",
+      line: "page up",
+    },
+  ],
+  does: "Move 60% of a page down or up",
+  line: "page down / up",
+  repeat: true,
+  run: (binding) => stepReading(binding === "d" ? 0.6 : -0.6, "page"),
+};
+
+const SCROLL_MOVE = {
+  id: "scroll.move",
+  keys: ["j", "k"],
+  routes: [
+    {
+      id: "scroll.down",
+      binding: "j",
+      does: "Scroll down a little",
+      line: "scroll down",
+    },
+    {
+      id: "scroll.up",
+      binding: "k",
+      does: "Scroll up a little",
+      line: "scroll up",
+    },
+  ],
+  does: "Scroll down or up a little",
+  line: "scroll down / up",
+  repeat: true,
+  run: (binding) => stepReading(binding === "j" ? 60 : -60, "pixel"),
 };
 
 // ---------- what a scope takes ----------
@@ -1262,6 +1309,15 @@ export function pageScopes() {
       PANEL_SAY,
     ],
   };
+  // Covering is a modal keyboard boundary: page actions stand down with the inert
+  // document, while reading and the one route out follow the workspace the reader can
+  // still see. The surface is dynamic because Threads and trays share this scope.
+  const COVERING_WORKSPACE = {
+    title: "In the covering workspace",
+    root: coveringWorkspaceSurface,
+    at: () => Boolean(coveringWorkspaceSurface()),
+    rows: [PAGE_MOVE, SCROLL_MOVE, { ...BACK_OUT, when: () => Boolean(rung()) }],
+  };
   const PAGE = {
     rows: [
       actionRow,
@@ -1349,56 +1405,12 @@ export function pageScopes() {
         repeat: true,
         run: (binding) => stepAsk(binding === "a" ? 1 : -1),
       },
-      {
-        id: "page.move",
-        keys: ["d", "u"],
-        routes: [
-          {
-            id: "page.down",
-            binding: "d",
-            does: "Move 60% of a page down",
-            line: "page down",
-          },
-          {
-            id: "page.up",
-            binding: "u",
-            does: "Move 60% of a page up",
-            line: "page up",
-          },
-        ],
-        does: "Move 60% of a page down or up",
-        line: "page down / up",
-        // An ordinary row, ranked where it stands. It was the one persistent declaration in
-        // the runtime, which spent a third of the resting line restating what every reader
-        // already does with a wheel, a trackpad or the space bar — and spent it on every
-        // page, in every scope, beside whatever the reader was actually doing. Scrolling is
-        // the one capability no page has to advertise. The shelf and the reference still
-        // name it, which is where a key the reader has not asked after belongs.
-        repeat: true,
-        run: (binding) => stepReading(binding === "d" ? 0.6 : -0.6, "page"),
-      },
-      {
-        id: "scroll.move",
-        keys: ["j", "k"],
-        routes: [
-          {
-            id: "scroll.down",
-            binding: "j",
-            does: "Scroll down a little",
-            line: "scroll down",
-          },
-          {
-            id: "scroll.up",
-            binding: "k",
-            does: "Scroll up a little",
-            line: "scroll up",
-          },
-        ],
-        does: "Scroll down or up a little",
-        line: "scroll down / up",
-        repeat: true,
-        run: (binding) => stepReading(binding === "j" ? 60 : -60, "pixel"),
-      },
+      // An ordinary row, ranked where it stands. Scrolling is the one capability no page
+      // has to advertise on the resting line; the shelf and reference still name it.
+      // These exact rows also stand in a covering workspace, where the page scope itself
+      // is suspended but the visible reading region remains available.
+      PAGE_MOVE,
+      SCROLL_MOVE,
       {
         // The last thing the reader did to this page, put back. Its own key rather
         // than the platform's ⌘Z, which belongs to the box a reader is typing in and
@@ -1475,6 +1487,7 @@ export function pageScopes() {
     TYPING,
     THREAD,
     PANEL,
+    COVERING_WORKSPACE,
     LINK,
     DISCLOSURE,
     DRAW,

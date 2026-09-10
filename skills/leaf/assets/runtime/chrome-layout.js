@@ -25,8 +25,9 @@
 // list and by nothing else. Threads and trays are alternate auxiliary workspaces, so only
 // one stands at a time. The strip-taking workspaces—Threads and Asks—take room when the
 // viewport can hold them and cover the page under their respective media query otherwise;
-// Leaves always covers because its rows leave this page. A workspace covering the page is
-// only ever `show()`n; the reference and the page map keep `showModal()`. The shell's
+// Leaves always covers because its rows leave this page. Workspace modality is the shared
+// inert boundary in workspace-modality.js; native `showModal()` remains for top-layer
+// sheets such as the reference and page map. The shell's
 // inline size already reflects the margins a beside panel or tray takes. `--strip-l`, `--strip-r`,
 // `--lf-room`, and `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is
 // the named `lf-page` style container a margin resident asks for them; `--lf-shell-inset-left`
@@ -53,7 +54,13 @@ import {
 } from "./conversation/panel.js";
 import { focused } from "./keyboard/scopes.js";
 import { repaint, repaintPage } from "./repaint.js";
-import { currentTray, reserveListClearance, showTray, traysEdge } from "./trays.js";
+import {
+  currentTray,
+  reserveListClearance,
+  showTray,
+  syncTrayWorkspace,
+  traysEdge,
+} from "./trays.js";
 import { foldBannerRow, toggleBtn } from "./banner.js";
 import {
   bottomStatusEl,
@@ -67,6 +74,7 @@ import { motion } from "./motion.js";
 import { renderPanel } from "./conversation/reconcile.js";
 import { readerStore } from "./storage.js";
 import { showThread } from "./conversation/landing.js";
+import { modalWorkspace } from "./workspace-modality.js";
 
 // The width the panel stands at for a reader who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -117,6 +125,7 @@ const panelChanged = (open) => {
 
 let panelOpen = false;
 let shellMotion = null;
+let panelWorkspace = null;
 export const panelIsOpen = () => panelOpen;
 // Whether the panel stands over the page rather than beside it — the same fact as which
 // of the two rules that take the strip the page is under, and as which region the
@@ -129,19 +138,6 @@ export const panelCovers = () => panelOpen && commentsEdge.over.matches;
 // focus: beside the page the panel is a column of its own, and a reader working down the
 // list is in it whatever the window is wide enough to show behind them.
 export const inPanel = () => panelOpen && containsAcross(panel, focused());
-// The panel is shown, never shown modally, at either posture. A modal dialog makes the
-// rest of the document inert, and the panel covering the page is the posture in which the
-// page most needs to stay live: the toggle that opened it is out in the banner and is how
-// it closes, the Asks toggle beside it is the other workspace this one replaces
-// (test_workspaces_replace_each_other_instead_of_stacking), and the strip of page still
-// showing beside a covering sheet is still page a reader can point a hint at
-// (test_selection_hints_do_not_name_page_content_behind_a_covering_panel, which is the
-// one that states what "covering" means here — the panel covers the page rather than
-// clipping it, and what it covers is out of reach only where it is actually painted over).
-// What modality was carrying instead is already owned elsewhere and stays: the covering
-// sheet's scroll lock is the stylesheet's (COVERING's `overflow-y: hidden`), while this
-// non-modal workspace remains one rung in the keyboard stack.
-//
 // Opening a <dialog> runs the browser's dialog focusing steps whichever way it is opened,
 // so the invoker has to be given its focus back: raising the panel is not a request to
 // leave where the reader was standing, and the toggle that lost it would otherwise hold
@@ -164,6 +160,8 @@ function showPanelLayer() {
 addEventListener("resize", () => {
   commentsEdge.state();
   traysEdge.state();
+  panelWorkspace?.sync(panelOpen);
+  syncTrayWorkspace();
 });
 // Every writer here is a writer of the chrome, so nothing this function does resizes the
 // box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
@@ -349,6 +347,7 @@ export function moveShell(change) {
 }
 export function setPanel(open, { remember = true } = {}) {
   if (open && currentTray()) showTray(null, { remember });
+  if (!open) panelWorkspace?.sync(false);
   // Closing while focus is inside would drop it on body, the user's place
   // lost silently; it lands on the one control that reopens what just closed.
   if (!open && panel.contains(document.activeElement))
@@ -373,6 +372,7 @@ export function setPanel(open, { remember = true } = {}) {
     showPanelLayer();
     renderPanel();
     syncGeneral(); // a restored draft has to reach the Send button's disabled state
+    panelWorkspace?.sync(true);
   } else if (panel.open) panel.close();
   syncLayout();
   panelChanged(open);
@@ -433,6 +433,12 @@ const layoutSizes = new ResizeObserver((entries) => {
 // here are other owners', built as their modules evaluate, which this module cannot count
 // on having happened yet.
 export function mountLayout() {
+  panelWorkspace = modalWorkspace({
+    surface: panel,
+    scroller: () => threadsBox,
+    covers: panelCovers,
+    focus: () => threadsBox,
+  });
   commentsEdge.handle(panel, () => closeBtn);
   let pressedInlineThread = null;
   toggleBtn.addEventListener("pointerdown", () => {

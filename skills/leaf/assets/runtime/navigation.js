@@ -7,6 +7,7 @@ import { narrowed } from "./conversation/narrowing.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { threadsBox } from "./conversation/panel.js";
 import { pageScroller } from "./scrolling.js";
+import { coveringWorkspaceScroller } from "./workspace-modality.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
 import { closestAcross } from "./passages.js";
 import { activeInlineThread, openPageThread } from "./living-margin.js";
@@ -110,12 +111,13 @@ const holding = (box) =>
   glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1;
 // The visible box used by page-edge navigation. A covering panel replaces the page;
 // beside it, the document keeps its own top and bottom.
-export const seenScroller = () => (panelCovers() ? threadsBox : pageScroller);
+export const seenScroller = () => coveringWorkspaceScroller() ?? pageScroller;
 // Reading-page keys follow the region the reader is working in. Focus can put them in a
 // panel beside the page; a covering panel remains the only visible region even when
 // focus is still on the banner control that opened it.
 const stepScroller = () => {
-  if (panelCovers()) return threadsBox;
+  const covering = coveringWorkspaceScroller();
+  if (covering) return covering;
   const region = readingRegionFor(document.activeElement);
   return region ? effectiveScroller(region) : inPanel() ? threadsBox : pageScroller;
 };

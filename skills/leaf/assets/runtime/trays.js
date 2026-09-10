@@ -18,11 +18,14 @@ import { allAsks } from "./asks/model.js";
 import { walkRows } from "./keyboard/bindings.js";
 import { renderMargin } from "./living-margin.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
+import { modalWorkspace } from "./workspace-modality.js";
+import { iconElement } from "./icons.js";
+import { dismissBannerAddresses, focusBannerAddress } from "./banner-shelf.js";
 // The left side holds one tray at a time. `showTray` owns `trayUp` and renders the
 // complete outcome for leaves and asks. The leaves tray overlays the document because its
 // rows leave the page. The asks tray takes a strip because its rows travel within the
 // page and the reader must keep the target visible. Both entry controls call the same
-// tray setter.
+// tray setter, and covering trays join the shared workspace modality boundary.
 //
 // `restoreTray` runs after all declarations exist and after the first projection can
 // populate state-dependent rows. It calls its supplied `beforeOpen` policy to retire
@@ -78,9 +81,17 @@ const beforeOpen = ({ remember = true } = {}) => {
 // walked to the end of. Callers state the clearance; this owner decides which lists it
 // reaches and how each one spends it.
 const trayLists = [];
-function trayList(panel) {
+function trayFurniture(panel, name) {
+  const head = el("div", "lf-tray-head");
+  const title = el("span", "lf-panel-title", name);
+  const close = el("button", "lf-btn lf-icon-action lf-close-action");
+  close.append(iconElement("cross", "lf-action-icon"));
+  close.title = `Close ${name.toLowerCase()} (Esc)`;
+  close.setAttribute("aria-label", `Close ${name.toLowerCase()}`);
+  close.onclick = () => showTray(null);
+  head.append(title, close);
   const list = el("div", "lf-tray-list");
-  panel.append(list);
+  panel.append(head, list);
   trayLists.push(list);
   return list;
 }
@@ -125,7 +136,7 @@ othersPanel.id = "lf-leaves";
 othersPanel.setAttribute("aria-label", "Leaves on this machine");
 othersPanel.tabIndex = -1;
 traysEdge.handle(othersPanel, () => othersBtn);
-export const leavesList = trayList(othersPanel);
+export const leavesList = trayFurniture(othersPanel, "Leaves");
 // A tray of the page's active asks, on the same edge: open and answered rows in the
 // order the page asks them. The list is declaration-driven, so a widget joins without
 // a row here knowing what kind of thing it is standing for.
@@ -134,7 +145,7 @@ asksPanel.id = "lf-asks";
 asksPanel.setAttribute("aria-label", "Asks from this page");
 asksPanel.tabIndex = -1;
 traysEdge.handle(asksPanel, () => asksBtn);
-export const asksList = trayList(asksPanel);
+export const asksList = trayFurniture(asksPanel, "Asks");
 
 // The left edge holds one tray at a time. Leaves and asks are the same furniture asking
 // at two scopes — which page needs me, and what this page needs of me — and each has to
@@ -155,13 +166,17 @@ const trays = new Map();
 let trayUp = null;
 export const currentTray = () => trayUp;
 export const openTray = (key) => trayUp === key;
-export function showTray(key, { remember = true } = {}) {
+export function showTray(key, { remember = true, returnFocus = true } = {}) {
   if (trayUp === key) return;
   // Threads and trays are alternate workspaces. Retire the standing one before another
   // opens so layout, focus, and persisted state never have to reconcile two of them.
-  if (key) beforeOpen({ remember });
+  if (key) {
+    dismissBannerAddresses();
+    beforeOpen({ remember });
+  }
+  trays.get(trayUp)?.workspace.sync(false);
   trayUp = key;
-  for (const [name, { panel, btn, paint }] of trays) {
+  for (const [name, { panel, btn, paint, workspace }] of trays) {
     const open = name === key;
     btn.setAttribute("aria-expanded", String(open));
     if (open) {
@@ -171,12 +186,14 @@ export function showTray(key, { remember = true } = {}) {
       // reader watches the list they just closed blank out and an empty card slide away.
       paint?.();
       panel.classList.add("open");
+      workspace.sync(true);
       motion(
         panel,
         [{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
         200,
       );
     } else if (panel.classList.contains("open")) {
+      workspace.sync(false);
       // Slid out before hidden, and hidden only if still closed on arrival — a
       // reopen mid-slide leaves the panel standing rather than racing the finish.
       const out = motion(
@@ -191,7 +208,8 @@ export function showTray(key, { remember = true } = {}) {
       };
       if (out) out.finished.then(hide, () => {});
       else hide();
-      if (panel.contains(document.activeElement)) btn.focus();
+      if (returnFocus && panel.contains(document.activeElement))
+        focusBannerAddress(btn);
     }
   }
   if (remember) readerStore.set(TRAY_KEY, key ?? "");
@@ -209,7 +227,13 @@ export function showTray(key, { remember = true } = {}) {
 // press, and restoreTrays from the arrangement restore at boot, after every owner has
 // evaluated.
 function trayIs(key, panel, btn, paint) {
-  trays.set(key, { panel, btn, paint });
+  const workspace = modalWorkspace({
+    surface: panel,
+    scroller: () => panel.querySelector(".lf-tray-list"),
+    covers: () => key === "leaves" || traysEdge.over.matches,
+    focus: () => panel.querySelector("button, a[href]") ?? panel,
+  });
+  trays.set(key, { panel, btn, paint, workspace });
   btn.classList.add("lf-workspace");
   btn.onclick = () => showTray(openTray(key) ? null : key);
   btn.setAttribute("aria-expanded", "false");
@@ -219,6 +243,10 @@ function trayIs(key, panel, btn, paint) {
 trayIs("leaves", othersPanel, othersBtn, (...args) => paintLeavesOffer(...args));
 trayIs("asks", asksPanel, asksBtn, (...args) => renderAsks(...args));
 export const trayNames = Object.freeze([...trays.keys()]);
+
+export function syncTrayWorkspace() {
+  for (const [name, { workspace }] of trays) workspace.sync(trayUp === name);
+}
 
 // A persisted tray is state-dependent chrome: Asks folds the log and Leaves comes from
 // the first state response. Keep the remembered intent in trayUp, but restore its pixels
@@ -232,6 +260,7 @@ export function restoreTray() {
   tray.btn.setAttribute("aria-expanded", "true");
   tray.paint?.();
   tray.panel.classList.add("open");
+  tray.workspace.sync(true);
   document.body.dataset.lfTray = trayUp;
 }
 export function restoreTrays() {

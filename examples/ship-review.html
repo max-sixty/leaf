@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>Ship review: the iOS reconnect stall</title>
+    <title>Finish the iOS ship review</title>
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
@@ -18,16 +18,57 @@
   <body>
     <main>
       <p class="eyebrow">ship review · offline editing</p>
-      <h1>The iOS reconnect stall</h1>
+      <h1>Finish the ship review</h1>
       <p class="lede" id="off-lede">
-        Offline editing passed six weeks of beta on 96 workspaces. One exception
-        remains: iOS occasionally leaves a reconnect spinning until the app is
-        backgrounded. The edits stay queued; this review decides whether the tested
-        workaround is enough for the first patch.
+        The resend is accepted for the first patch: it recovered all 500 forced stalls,
+        and beta saw no data loss. One decision remains. Finish choosing the follow-up
+        work in the reconnect thread, then approve the release.
       </p>
-      <aside class="sidebar" id="off-sidebar">
-        <lf-toc id="off-contents"></lf-toc>
-      </aside>
+
+      <section id="off-readiness-section">
+        <h2>Confirm the follow-up work</h2>
+        <p id="off-conversation-note">
+          Open the comment beside the stalled task. Two follow-ups are selected; adjust
+          them if needed, then press Done.
+        </p>
+        <lf-tasks id="off-readiness">
+          <lf-task id="off-t-patch" status="review" owner="mobile">
+            <strong>Ship offline editing in the first patch</strong>
+            <lf-task id="off-t-resync" status="stalled" owner="mobile">
+              <strong>iOS reconnect stall</strong> One reconnect in about 40. Nothing is
+              lost — the edits stay queued — but the reader sees a spinner until they
+              background the app.
+            </lf-task>
+            <lf-task id="off-t-workaround" status="review" owner="mobile">
+              <strong>Keep the resend workaround in the patch</strong> After 20 seconds
+              the client resends the queued batch; 500 forced stalls all recovered.
+              <lf-ask id="off-workaround-decision">
+                <h3>Patch decision: ship with the resend</h3>
+                <lf-options id="off-workaround-review" choose>
+                  <lf-option id="off-workaround-approve" for="off-t-resync">
+                    Ship with the resend and keep chasing the upstream fix.
+                  </lf-option>
+                  <lf-option id="off-workaround-revise" for="off-t-resync">
+                    Hold the patch for a native fix.
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </lf-task>
+            <lf-task id="off-t-vendor" status="blocked" owner="mobile">
+              <strong>Land the upstream fix</strong> The vendor reproduced the stall but
+              has not named a release.
+            </lf-task>
+            <lf-task id="off-t-telemetry" status="done" owner="data">
+              <strong>Keep reconnect telemetry</strong> The beta alert and per-platform
+              count remain on for the release cohort.
+            </lf-task>
+            <lf-task id="off-t-support" status="done" owner="support">
+              <strong>Write the support playbook</strong> It covers the spinner, queued
+              edits, and background-app recovery.
+            </lf-task>
+          </lf-task>
+        </lf-tasks>
+      </section>
 
       <dl class="facts" id="off-facts">
         <dt>Observed</dt>
@@ -39,61 +80,6 @@
         <dt>Upstream fix</dt>
         <dd>acknowledged, no release date</dd>
       </dl>
-
-      <section id="off-readiness-section">
-        <h2>Readiness docket</h2>
-        <lf-tasks id="off-readiness">
-          <lf-task id="off-t-patch" status="review" owner="mobile">
-            <strong>Ship offline editing in the first patch</strong> The beta is green
-            except for the reconnect exception below.
-            <lf-task id="off-t-resync" status="stalled" owner="mobile">
-              <strong>iOS reconnect stall</strong> One reconnect in about 40. Nothing is
-              lost — the edits stay queued — but the reader sees a spinner until they
-              background the app.
-            </lf-task>
-            <lf-task id="off-t-vendor" status="blocked" owner="mobile">
-              <strong>Land the upstream fix</strong> The vendor reproduced the stall and
-              accepted the bug, but has not named a release.
-            </lf-task>
-            <lf-task id="off-t-workaround" status="review" owner="mobile">
-              <strong>Keep the resend workaround in the patch</strong> After 20 seconds
-              the client resends the queued batch; 500 forced stalls all recovered.
-              <lf-ask id="off-workaround-decision">
-                <h3>Is that enough for the first patch?</h3>
-                <lf-options id="off-workaround-review" choose>
-                  <lf-option id="off-workaround-approve" for="off-t-resync">
-                    Approve the workaround — ship now and keep chasing the upstream fix.
-                  </lf-option>
-                  <lf-option id="off-workaround-revise" for="off-t-resync">
-                    Request another pass — hold the patch for a native fix.
-                  </lf-option>
-                </lf-options>
-              </lf-ask>
-            </lf-task>
-            <lf-task id="off-t-telemetry" status="done" owner="data">
-              <strong>Keep reconnect telemetry</strong> The release cohort retains the
-              beta alert and per-platform count.
-            </lf-task>
-            <lf-task id="off-t-support" status="done" owner="support">
-              <strong>Write the support playbook</strong> The spinner, queued-edit
-              check, and background-app recovery are documented.
-            </lf-task>
-          </lf-task>
-        </lf-tasks>
-      </section>
-
-      <section id="off-conversation">
-        <h2>The objection that matters</h2>
-        <p id="off-conversation-note">
-          Open the comment on the reconnect stall to read the objection and the
-          follow-up work proposed if the vendor's release slips. Reply beside the
-          passage, and open the interactive reply in Threads to choose the follow-up
-          work. Select another passage to add a comment; it appears in the view you are
-          using. Resolve a thread when its question is answered. Approval records the
-          direction; task statuses change when the agent publishes the resulting
-          version.
-        </p>
-      </section>
     </main>
   </body>
 </html>

@@ -5854,7 +5854,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_reader(claimed, capsys)
         claimed / schema_model.PREVIEW_FILE,
         {
             "kind": "example",
-            "example": "design-decision",
+            "example": "triage-board",
             "checkout": "leaf",
             "interaction": "reader",
             "started": "2026-09-01T10:00:00+00:00",

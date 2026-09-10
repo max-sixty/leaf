@@ -64,7 +64,7 @@ def test_interrupting_a_live_preview_exits_without_a_traceback(preview_slot, spa
         [
             sys.executable,
             str(ROOT / "scripts" / "preview.py"),
-            "design-decision",
+            "heat-loss",
             "--slot",
             slot,
         ],
@@ -171,9 +171,7 @@ def test_named_live_previews_serve_one_source_in_independent_runtime_slots(
     """
     source = tmp_path / "shared-preview.html"
     source.write_text(
-        (ROOT / "examples" / "design-decision.html")
-        .read_text(encoding="utf-8")
-        .replace("Where sessions live", "Shared runtime comparison", 1),
+        REPLAYED_PAGE.replace("Rollout", "Shared runtime comparison", 1),
         encoding="utf-8",
     )
     prefix = f"pytest-{os.getpid()}-{tmp_path.name}"
@@ -275,7 +273,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     slot, page_dir = preview_slot
     source = tmp_path / "automation.html"
     source.write_text(
-        (ROOT / "examples" / "design-decision.html").read_text(encoding="utf-8"),
+        REPLAYED_PAGE,
         encoding="utf-8",
     )
     runtime = install_payload(tmp_path / "automation-runtime")
@@ -317,8 +315,8 @@ def test_automation_preview_records_real_gestures_outside_the_task(
         f"Automation · {runtime.name}"
     )
     with sending(automation, "the automation option pick"):
-        automation.locator("#opt-redis .lf-pick").click()
-    expect(automation.locator("#opt-redis")).to_have_attribute("chosen", "")
+        automation.locator("#opt-shim .lf-pick").click()
+    expect(automation.locator("#opt-shim")).to_have_attribute("chosen", "")
     [automated_event] = [
         event
         for event in events_model.read_events(page_dir)
@@ -330,14 +328,14 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     with restarting(automation, automation_errors):
         source.write_text(
             source.read_text(encoding="utf-8").replace(
-                "Where sessions live", "Automation follows source edits", 1
+                "Rollout", "Automation follows source edits", 1
             ),
             encoding="utf-8",
         )
         expect(
             automation.get_by_role("heading", name="Automation follows source edits")
         ).to_be_visible(timeout=30000)
-    expect(automation.locator("#opt-redis")).to_have_attribute("chosen", "")
+    expect(automation.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
     assert (page_dir / "events.jsonl").stat().st_ino == inode
     assert service_model.page_claim(page_dir) is None
@@ -392,8 +390,8 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     reader, reader_errors = open_page(browser, reader_url)
     expect(reader.locator(".lf-preview")).to_contain_text(f"Preview · {runtime.name}")
     with sending(reader, "the reader option pick"):
-        reader.locator("#opt-jwt .lf-pick").click()
-    expect(reader.locator("#opt-jwt")).to_have_attribute("chosen", "")
+        reader.locator("#opt-stage .lf-pick").click()
+    expect(reader.locator("#opt-stage")).to_have_attribute("chosen", "")
     [reader_event] = [
         event
         for event in events_model.read_events(reader_dir)
@@ -441,7 +439,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
     expect(reset_page.locator(".lf-preview")).to_contain_text(
         f"Automation · {runtime.name}"
     )
-    expect(reset_page.locator("#opt-jwt")).not_to_have_attribute("chosen", "")
+    expect(reset_page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
     assert reset_errors == []
     reset_page.close()
 
@@ -454,7 +452,7 @@ def test_automation_preview_records_real_gestures_outside_the_task(
 @pytest.fixture
 def watched_preview(tmp_path, preview_slot):
     source = tmp_path / "watched.html"
-    original = (ROOT / "examples" / "design-decision.html").read_text(encoding="utf-8")
+    original = REPLAYED_PAGE
     source.write_text(original, encoding="utf-8")
     runtime = install_payload(tmp_path / "watched-runtime")
     slot, directory = preview_slot
@@ -491,7 +489,7 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
 ):
     """The launcher exits; the real session lifetime survives outside worker ancestry."""
     source = tmp_path / "detached.html"
-    source.write_text((ROOT / "examples" / "design-decision.html").read_text())
+    source.write_text(REPLAYED_PAGE)
     slot, directory = preview_slot
     command = [
         sys.executable,
@@ -529,7 +527,7 @@ def test_a_detached_preview_restarts_under_its_original_codex_claim(
     claim = service_model.page_claim(directory)
     assert claim["pid"] == owner.pid
     try:
-        revised = source.read_text().replace("Where sessions live", "Detached revision")
+        revised = source.read_text().replace("Rollout", "Detached revision")
         source.write_text(revised)
         log = directory.with_name(f"{directory.name}.preview.log")
         deadline = time.monotonic() + 30
@@ -576,8 +574,8 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
     original = source.read_text(encoding="utf-8")
     page, errors = open_page(browser, url)
     with sending(page, "the watched reader option pick"):
-        page.locator("#opt-redis .lf-pick").click()
-    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+        page.locator("#opt-shim .lf-pick").click()
+    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     feedback = (directory / "events.jsonl").read_bytes()
     assert b'"kind": "action"' in feedback
     inode = (directory / "events.jsonl").stat().st_ino
@@ -595,17 +593,17 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
         != generation
     )
-    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
 
-    revised = original.replace("Where sessions live", "A watched source revision", 1)
+    revised = original.replace("Rollout", "A watched source revision", 1)
     with restarting(page, errors):
         source.write_text(revised, encoding="utf-8")
         expect(
             page.get_by_role("heading", name="A watched source revision")
         ).to_be_visible(timeout=30000)
-    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
     with restarting(page, errors):
@@ -640,7 +638,7 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
         )
         assert repeated.returncode == 0, repeated.stdout + repeated.stderr
         assert repeated.stdout.splitlines()[-1] == url
-    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
     assert errors == []
@@ -654,8 +652,8 @@ def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
     source, _, directory, command, url = watched_preview
     page, errors = open_page(browser, url)
     with sending(page, "the reader option pick before reset"):
-        page.locator("#opt-redis .lf-pick").click()
-    expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+        page.locator("#opt-shim .lf-pick").click()
+    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert b'"kind": "action"' in (directory / "events.jsonl").read_bytes()
     assert errors == []
     page.close()
@@ -673,7 +671,7 @@ def test_resetting_a_preview_discards_reader_state_and_starts_it_fresh(
     assert b'"kind": "action"' not in (directory / "events.jsonl").read_bytes()
 
     fresh, fresh_errors = open_page(browser, reset.stdout.splitlines()[-1])
-    expect(fresh.locator("#opt-redis")).not_to_have_attribute("chosen", "")
+    expect(fresh.locator("#opt-shim")).not_to_have_attribute("chosen", "")
     assert fresh_errors == []
     fresh.close()
 
@@ -697,7 +695,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
     if resource == "widgets/lf-options.js":
         standing, errors = open_page(browser, url)
         with sending(standing, "the standing reader option pick"):
-            standing.locator("#opt-redis .lf-pick").click()
+            standing.locator("#opt-shim .lf-pick").click()
         assert errors == []
         standing.close()
     page = browser.new_page()
@@ -744,7 +742,7 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
     )
     expect(status).not_to_be_visible()
     if resource == "widgets/lf-options.js":
-        expect(page.locator("#opt-redis")).to_have_attribute("chosen", "")
+        expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert len(navigations) == 2
     assert (
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
@@ -1589,7 +1587,7 @@ def test_comparison_export_keeps_both_results_and_the_recorded_choice(
     browser, serve, tmp_path
 ):
     """A standalone comparison keeps both policy readings and their decision."""
-    example = ROOT / "examples" / "current-proposed-comparison.html"
+    example = ROOT / "tests" / "fixtures" / "pages" / "current-proposed-comparison.html"
     url = serve(example)
     out = tmp_path / "comparison.html"
     out.write_text(

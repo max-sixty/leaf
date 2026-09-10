@@ -120,11 +120,11 @@ contract.
 
 ## Examples
 
-[`examples/`](examples/) holds a complete page for each kind of work, including a
-dashboard meant to change as work finishes. They are live in the visual index at
-<https://leaf.page/examples/>; every example opens as its own complete, private,
-temporary Leaf session. It has the canonical event log and projection but no agent
-behind it.
+The [examples catalog](https://leaf.page/examples/) starts with six everyday pages,
+including a small board, an editable draft, and a revised proposal. A separate section
+covers specialized code review, operations, and architecture work. Each opens as its
+own private, temporary Leaf page.
+
 After `wt setup`, run the same Worker/container boundary used in production:
 
 ```sh
@@ -139,3 +139,7 @@ Synthetic feature specimens live together in
 [`examples/developer/feature-gallery.html`](examples/developer/feature-gallery.html);
 the website links that developer reference outside the visual catalog, and
 `scripts/preview.py feature-gallery` serves it from a checkout.
+
+Full-page regression journeys live under [`tests/fixtures/pages/`](tests/fixtures/pages/).
+They join the corpus and browser checks without appearing in the catalog. The catalog's
+active cards select the preview images; an unlisted example can keep its published route.

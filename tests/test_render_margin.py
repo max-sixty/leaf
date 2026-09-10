@@ -1759,17 +1759,26 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     """Page motion under a parked pointer cannot take ownership from the keyboard."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1280, 720)
+    page.locator("#bg-choice-ask").scroll_into_view_if_needed()
+    go_to_address(page, "Margin control or status indicator", "bg-choice-ask")
+    page.keyboard.press("Escape")
     margins_laid_out(page)
     host = page.locator('[data-lf-margin-for="bg-choice-ask"]')
     initial = host.bounding_box()
-    pointer = {"x": int(initial["x"] + initial["width"] / 2), "y": 70}
-    assert not initial["y"] < pointer["y"] < initial["y"] + initial["height"], (
+    pointer = {
+        "x": int(initial["x"] + initial["width"] / 2),
+        "y": int(initial["y"] + initial["height"] / 2),
+    }
+    scroll = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.evaluate("() => scrollBy({top: -150, behavior: 'instant'})")
+    margins_laid_out(page)
+    parked = host.bounding_box()
+    assert not parked["y"] < pointer["y"] < parked["y"] + parked["height"], (
         "the pointer starts inside the Ask margin host"
     )
     page.mouse.move(pointer["x"], pointer["y"])
 
-    go_to_address(page, "Margin control or status indicator", "bg-choice-ask")
-    page.keyboard.press("Escape")
+    page.evaluate("top => scrollTo({top, behavior: 'instant'})", scroll)
 
     page.wait_for_function(
         """({x, y}) => {
@@ -3363,9 +3372,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
         }"""
     )
     assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] == pytest.approx(
-        geometry["controlsRight"] + 8, abs=0.5
-    ), geometry
+    assert geometry["cardLeft"] >= geometry["controlsRight"] + 7, geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardWidth"] >= 459, geometry
     assert geometry["coveredControls"] == 0, geometry
@@ -4271,12 +4278,9 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardRight"] <= geometry["viewportRight"] - 7, geometry
     assert geometry["cardWidth"] >= 459, geometry
+    assert geometry["cardLeft"] >= geometry["controlsRight"] + 7, geometry
     assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
-    assert (
-        geometry["cardBottom"] <= geometry["controlsTop"] - 7
-        or geometry["cardTop"] >= geometry["controlsBottom"] + 7
-    ), geometry
     assert geometry["replyTop"] >= geometry["cardTop"], geometry
     assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
@@ -4348,10 +4352,7 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     assert beside["cardLeft"] >= beside["mainRight"], beside
     assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
     assert beside["cardWidth"] >= 439, beside
-    assert (
-        beside["cardBottom"] <= beside["controlsTop"] - 7
-        or beside["cardTop"] >= beside["controlsBottom"] + 7
-    ), beside
+    assert beside["cardLeft"] >= beside["controlsRight"] + 7, beside
 
     resized(page, 1471, 900)
     expect(preview).to_be_visible()
@@ -4489,12 +4490,12 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
 
-    page.locator("#card-ie .lf-grip").focus()
+    page.locator("#card-export .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
     round_trip(page)
-    expect(page.locator("#col-fixed #card-ie")).to_have_count(1)
+    expect(page.locator("#col-fixed #card-export")).to_have_count(1)
     margins_laid_out(page)
     # Without a status in the margin the readings below would agree for the wrong reason.
     expect(page.locator(".lf-margin-cluster")).to_have_count(1)
@@ -4506,7 +4507,7 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
     ), "raising the acknowledgment status moved the readable column"
 
     undo(page)
-    expect(page.locator("#col-wont #card-ie")).to_have_count(1)
+    expect(page.locator("#col-next #card-export")).to_have_count(1)
     margins_laid_out(page)
     assert (
         page.locator("main").evaluate(

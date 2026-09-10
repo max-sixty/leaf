@@ -23,6 +23,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from example_assets import LOCK, specification
+from example_data import catalog_sources
 from leaf.hosting import server_at
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
@@ -176,7 +177,7 @@ def main() -> None:
                 page = browser.new_page(viewport=VIEWPORT, color_scheme="light")
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
-                for source in site_build.worked_example_sources():
+                for source in catalog_sources():
                     errors.clear()
                     page.goto(f"{origin}/examples/{source.stem}/", wait_until="load")
                     page.wait_for_function(READY)
@@ -206,7 +207,7 @@ def main() -> None:
                 print(f"  max-sixty/leaf-assets@{revision}")
         finally:
             browser.close()
-    print(f"✓ {len(site_build.worked_example_sources())} previews")
+    print(f"✓ {len(catalog_sources())} previews")
 
 
 if __name__ == "__main__":

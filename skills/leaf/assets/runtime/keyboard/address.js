@@ -21,9 +21,11 @@
    an edge of the list; from a beside-panel, `g p` returns focus to the page while keeping
    the panel open. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
-   Page map, `g V` Versions, and `g D` the unsent draft the composer put away. Completing
-   one exchanges the transient sequence for a return
-   frame which restores the standing and workspace captured before `g` armed.
+   Page map, `g V` Versions, and `g D` the unsent draft the composer put away. A named
+   panel address toggles that panel, matching its visible control. Completing one that
+   opens a surface exchanges the transient sequence for a return frame which restores the
+   standing and workspace captured before `g` armed; completing it again closes the
+   surface without adding a frame.
 
    `BUILTIN_DIRECT_DESTINATIONS` declares the uppercase destinations this owner implements;
    another owner contributes a complete row through `directDestinations`. `TARGET_KINDS`
@@ -218,15 +220,17 @@ export function createAddress({
     }
   }
 
-  // One-off direct travel is one vocabulary too. The mnemonic completes the trip, and
-  // every destination owns the liveness and landing that make its surface useful rather
-  // than leaving the dispatcher to know which furniture it enters.
+  // One-off direct travel is one vocabulary too. The mnemonic completes the trip or closes
+  // the named panel already standing, and every destination owns the liveness, landing, and
+  // close that make its surface useful rather than leaving the dispatcher to know which
+  // furniture it enters.
   const BUILTIN_DIRECT_DESTINATIONS = [
     {
       id: "navigation.panel.threads",
       key: "Shift+t",
-      does: "Go to the Threads panel",
-      line: "Threads panel",
+      does: () =>
+        panelIsOpen() ? "Close the Threads panel" : "Go to the Threads panel",
+      line: () => (panelIsOpen() ? "close Threads panel" : "Threads panel"),
       control: () => toggleBtn,
       when: () => true,
       go: () => {
@@ -238,12 +242,15 @@ export function createAddress({
         }
       },
       active: (...args) => panelIsOpen(...args),
+      close: () => setPanel(false),
+      toggle: true,
     },
     {
       id: "navigation.panel.asks",
       key: "Shift+a",
-      does: "Go to the Asks panel",
-      line: "Asks panel",
+      does: () =>
+        currentTray() === "asks" ? "Close the Asks panel" : "Go to the Asks panel",
+      line: () => (currentTray() === "asks" ? "close Asks panel" : "Asks panel"),
       control: () => asksBtn,
       when: (...args) => asksOffered(...args),
       go: () => {
@@ -251,12 +258,18 @@ export function createAddress({
         (askRows()[0] ?? asksPanel).focus({ preventScroll: true });
       },
       active: () => currentTray() === "asks",
+      close: () => showTray(null),
+      toggle: true,
     },
     {
       id: "navigation.panel.leaves",
       key: "Shift+l",
-      does: "Go to the All leaves panel",
-      line: "All leaves panel",
+      does: () =>
+        currentTray() === "leaves"
+          ? "Close the All leaves panel"
+          : "Go to the All leaves panel",
+      line: () =>
+        currentTray() === "leaves" ? "close All leaves panel" : "All leaves panel",
       control: () => othersBtn,
       when: (...args) => leavesOffered(...args),
       go: () => {
@@ -264,6 +277,8 @@ export function createAddress({
         (othersLinks()[0] ?? othersPanel).focus({ preventScroll: true });
       },
       active: () => currentTray() === "leaves",
+      close: () => showTray(null),
+      toggle: true,
     },
     {
       id: "navigation.page-map",
@@ -860,13 +875,15 @@ export function createAddress({
                 destination.close?.();
                 return restoreWorkspace(workspace);
               },
-              does: `Return from ${destination.line}`,
+              does: `Return from ${word(destination.line)}`,
               line: "back",
             };
           },
           run: () => {
+            const closing = destination.toggle && destination.active();
             setSequence(false);
-            destination.go();
+            if (closing) destination.close();
+            else destination.go();
           },
         })),
         // A destination whose control belongs to another runtime owner joins this one

@@ -1,5 +1,7 @@
 /** Pure request routing for the public Leaf pages. */
 
+import * as z from "zod/mini";
+
 export const SESSION_COOKIE = "__Host-leaf-page";
 export const HTTP_SESSION_COOKIE = "leaf-page-local";
 export const ACTIVE_COOKIE = "__Host-leaf-active";
@@ -7,80 +9,76 @@ export const HTTP_ACTIVE_COOKIE = "leaf-active-local";
 export const CONTAINER_COOKIE = "__Host-leaf-container";
 export const HTTP_CONTAINER_COOKIE = "leaf-container-local";
 
-export interface PageRoute {
-  root: string;
-  inside: string;
-  kind: "product" | "example";
-  layer: string;
-  state: string;
-  states: Record<string, string>;
-  assets: string;
-}
-
-export interface SitePage {
-  assets: string;
-  directory: string;
-  kind: "product" | "example";
-  layer: string;
-  state: string;
-  states: Record<string, string>;
-}
-
-export interface SiteManifest {
-  release: string;
-  pages: Record<string, SitePage>;
-}
-
 const PAGE_RESOURCE =
   /^(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:\/|$)|^(?:icon\.svg|leaf\.js|registry\.json|sitenote\.js|theme\.css)$/;
 const SESSION_ID = /^[0-9a-f]{32}$/;
+const RELEASE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+const PAGE_ROOT = /^(?:\/|\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)$/;
+const RELEASE_ASSET =
+  /^\/_leaf-release\/(?:[0-9a-f]{40}|[0-9a-f]{64})\/[a-z0-9-]+$/;
+const STATE = /^\/_leaf\/state\/[a-z0-9-]+\.json$/;
+
+const sitePageSchema = z
+  .object({
+    assets: z.string().check(z.regex(RELEASE_ASSET)),
+    directory: z.string().check(
+      z.minLength(1),
+      z.refine(
+        (directory) =>
+          !directory.startsWith("/") && !directory.split("/").includes(".."),
+      ),
+    ),
+    kind: z.union([z.literal("product"), z.literal("example")]),
+    layer: z.string().check(z.minLength(1)),
+    state: z.string().check(z.regex(STATE)),
+    states: z.record(
+      z.string().check(z.regex(/^[1-9][0-9]*$/)),
+      z.string().check(z.regex(STATE)),
+    ),
+  })
+  .check(
+    z.refine(
+      (page) => Object.keys(page.states).length > 0,
+      { path: ["states"] },
+    ),
+    z.refine(
+      (page) => Object.values(page.states).includes(page.state),
+      { path: ["state"] },
+    ),
+  );
+
+const siteManifestSchema = z
+  .object({
+    release: z.string().check(z.regex(RELEASE)),
+    pages: z.record(z.string().check(z.regex(PAGE_ROOT)), sitePageSchema),
+  })
+  .check((context) => {
+    for (const [root, page] of Object.entries(context.value.pages)) {
+      if (page.assets.startsWith(`/_leaf-release/${context.value.release}/`)) {
+        continue;
+      }
+      context.issues.push({
+        code: "custom",
+        input: page.assets,
+        message: "asset path does not match the site release",
+        path: ["pages", root, "assets"],
+      });
+    }
+  });
+
+export type SitePage = z.infer<typeof sitePageSchema>;
+export type SiteManifest = z.infer<typeof siteManifestSchema>;
+export type PageRoute = Omit<SitePage, "directory"> & {
+  root: string;
+  inside: string;
+};
 
 export function parseSiteManifest(value: unknown): SiteManifest {
-  const manifest = value as Partial<SiteManifest> | null;
-  if (
-    manifest === null ||
-    typeof manifest !== "object" ||
-    typeof manifest.release !== "string" ||
-    !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(manifest.release) ||
-    manifest.pages === null ||
-    typeof manifest.pages !== "object"
-  ) {
-    throw new Error("invalid Leaf site manifest");
+  const result = siteManifestSchema.safeParse(value);
+  if (!result.success) {
+    throw new Error(`invalid Leaf site manifest: ${z.prettifyError(result.error)}`);
   }
-  for (const [root, page] of Object.entries(manifest.pages)) {
-    if (
-      (root !== "/" && !/^\/[a-z0-9-]+(?:\/[a-z0-9-]+)*$/.test(root)) ||
-      page === null ||
-      typeof page !== "object" ||
-      !["product", "example"].includes(page.kind) ||
-      typeof page.directory !== "string" ||
-      !page.directory ||
-      page.directory.startsWith("/") ||
-      page.directory.split("/").includes("..") ||
-      typeof page.assets !== "string" ||
-      !/^\/_leaf-release\/(?:[0-9a-f]{40}|[0-9a-f]{64})\/[a-z0-9-]+$/.test(
-        page.assets,
-      ) ||
-      !page.assets.startsWith(`/_leaf-release/${manifest.release}/`) ||
-      typeof page.layer !== "string" ||
-      !page.layer ||
-      typeof page.state !== "string" ||
-      !/^\/_leaf\/state\/[a-z0-9-]+\.json$/.test(page.state) ||
-      page.states === null ||
-      typeof page.states !== "object" ||
-      !Object.keys(page.states).length ||
-      !Object.entries(page.states).every(
-        ([revision, state]) =>
-          /^[1-9][0-9]*$/.test(revision) &&
-          typeof state === "string" &&
-          /^\/_leaf\/state\/[a-z0-9-]+\.json$/.test(state),
-      ) ||
-      !Object.values(page.states).includes(page.state)
-    ) {
-      throw new Error(`invalid Leaf site manifest page: ${root}`);
-    }
-  }
-  return manifest as SiteManifest;
+  return result.data;
 }
 
 export function releaseAssetRoute(

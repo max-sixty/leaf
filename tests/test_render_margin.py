@@ -1007,11 +1007,22 @@ PAGE_MAP_EVENTS = [
 def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
     browser, serve, width
 ):
-    """A secondary action's visible proxy gets its canonical Ask address."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
-    resized(page, width, 900)
-    margins_laid_out(page)
-
+    """Ask travel shows hoisted answers above fixed chrome, with their addresses."""
+    context = browser.new_context(
+        viewport={"width": width, "height": 900}, reduced_motion="reduce"
+    )
+    page, errors = open_page(
+        browser,
+        serve(
+            FEATURE_GALLERY,
+            website_publication={
+                "kind": "example",
+                "agent": "Leaf guide",
+                "install_url": "/#install",
+            },
+        ),
+        context=context,
+    )
     # Twice: the gallery's core surfaces open on a decision, which is the page's first
     # ask and carries no address of its own, and the suggestions this case is about
     # begin after it.
@@ -1034,21 +1045,30 @@ def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
           return {
             controls: controls.map((control) => {
               const box = control.getBoundingClientRect();
-              return {x: box.left, y: box.top};
+              return {x: box.left, y: box.top, bottom: box.bottom};
             }),
+            foot: Math.min(innerHeight, ...[...document.querySelectorAll(
+              '.lf-shortcut-bar, .lf-bottom-status'
+            )].filter(node => node.checkVisibility()).map(
+              node => node.getBoundingClientRect().top
+            )),
             chips: boxes([...document.querySelectorAll(
               '.lf-ask-addresses > .lf-ask-address'
             )]),
           };
         }"""
     )
-    assert len(geometry["controls"]) == len(geometry["chips"]) == 2, geometry
+    assert len(geometry["controls"]) == 2, geometry
+    for control in geometry["controls"]:
+        assert 0 < control["y"] < control["bottom"] <= geometry["foot"], geometry
+    assert len(geometry["chips"]) == 2, geometry
     for control, chip in zip(geometry["controls"], geometry["chips"], strict=True):
         assert abs(control["x"] - chip["x"]) <= 2, geometry
         assert abs(control["y"] - chip["y"]) <= 2, geometry
 
     assert errors == []
     page.close()
+    context.close()
 
 
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])
@@ -3941,10 +3961,13 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     page.close()
 
 
-def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser, serve):
+@pytest.mark.parametrize("width", [1440, 1920])
+def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
+    browser, serve, width
+):
     """The anchored thread is a complete conversation clear of its source controls."""
     page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
-    resized(page, 1440, 900)
+    resized(page, width, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     expect(marker.locator(".lf-margin-element-icon")).to_have_attribute(
         "data-lf-icon", "comment"
@@ -3996,8 +4019,12 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
         }"""
     )
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
-    assert geometry["cardLeft"] >= geometry["controlsRight"] + 7, geometry
-    assert geometry["cardWidth"] >= 459, geometry
+    assert (
+        geometry["cardLeft"] >= geometry["controlsRight"] + 7
+        or geometry["cardBottom"] <= geometry["controlsTop"] - 7
+        or geometry["cardTop"] >= geometry["controlsBottom"] + 7
+    ), geometry
+    assert 319 <= geometry["cardWidth"] <= 460, geometry
     expect(reply).to_be_focused()
     reply.fill("Yes. One visit can cover both jobs.")
     ticked(page)
@@ -4184,7 +4211,7 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     page.close()
 
     page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
-    resized(page, 1440, 900)
+    resized(page, 1920, 900)
     send_anchored_comment(page, "Check the January failure mode.")
 
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
@@ -4231,7 +4258,7 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     example = next(page for page in EXAMPLES if page.stem == "ship-review")
     page, errors = open_page(browser, serve(example))
     page.emulate_media(reduced_motion="reduce")
-    resized_shell(page, 1536, 900)
+    resized_shell(page, 1920, 900)
     marker = page.get_by_role(
         "group", name=re.compile(r"Page actions for task · iOS reconnect stall")
     ).locator(":scope > .lf-margin-marker")
@@ -4293,7 +4320,7 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     page.evaluate("() => dispatchEvent(new Event('resize'))")
     expect(send).to_be_focused()
 
-    resized_shell(page, 1536, 480)
+    resized_shell(page, 1920, 480)
     page.evaluate(
         "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
     )
@@ -4309,7 +4336,7 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     assert capped["top"] >= capped["bannerBottom"] + 7, capped
     assert capped["bottom"] <= 472.5, capped
     assert capped["scrollHeight"] > capped["clientHeight"], capped
-    resized_shell(page, 1536, 900)
+    resized_shell(page, 1920, 900)
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+a")
@@ -4352,8 +4379,12 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     )
     assert beside["cardLeft"] >= beside["mainRight"], beside
     assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
-    assert beside["cardWidth"] >= 439, beside
-    assert beside["cardLeft"] >= beside["controlsRight"] + 7, beside
+    assert beside["cardWidth"] >= 319, beside
+    assert (
+        beside["cardLeft"] >= beside["controlsRight"] + 7
+        or beside["cardBottom"] <= beside["controlsTop"] - 7
+        or beside["cardTop"] >= beside["controlsBottom"] + 7
+    ), beside
 
     resized(page, 1471, 900)
     expect(preview).to_be_visible()
@@ -4415,35 +4446,40 @@ def test_focusing_a_thread_margin_element_does_not_open_its_card(browser, serve)
     page.close()
 
 
-@pytest.mark.parametrize(("width", "room"), [(1000, 59), (1440, 520)])
-def test_a_live_page_reserves_conversation_room_before_its_first_thread(
-    browser, serve, width, room
+@pytest.mark.parametrize("width", [1000, 1207, 1208, 1440, 1720])
+@pytest.mark.parametrize("wide", [False, True], ids=["prose", "catalog"])
+def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_position(
+    browser, serve, width, wide
 ):
-    """Creating and resolving the first thread cannot shift the passage being read."""
-    page, errors = open_page(
-        browser,
-        serve(leaf_page("A passage", '<p id="passage">A passage to discuss.</p>')),
+    """Possible comments cost only the control rail; actual comments never move prose."""
+    source = leaf_page(
+        "A passage",
+        '<p id="passage">A passage to discuss.</p>',
+        head=(
+            "<style>main { width: min(var(--wide), var(--lf-room)); "
+            "max-width: var(--wide); }</style>"
+            if wide
+            else ""
+        ),
     )
+    page, errors = open_page(browser, serve(source))
     resized(page, width, 900)
 
-    # The strip is a claim main resolves from the shell, so it is read off main rather
-    # than off body's padding. A custom property computes to its unresolved expression,
-    # so the reading is taken from a probe the layout actually sizes.
-    def strip_right():
-        return page.evaluate(
-            """() => {
-              const main = document.querySelector('main');
-              const probe = document.createElement('i');
-              probe.style.cssText = 'position:fixed;visibility:hidden;height:0;'
-                + 'padding:0;border:0;width:var(--strip-r)';
-              main.append(probe);
-              const width = probe.getBoundingClientRect().width;
-              probe.remove();
-              return width;
+    def position():
+        return page.locator("main").evaluate(
+            """main => {
+              const box = main.getBoundingClientRect();
+              const shell = document.body.getBoundingClientRect();
+              return {left: box.left, width: box.width, shellWidth: shell.width,
+                offset: (box.left + box.right - shell.left - shell.right) / 2};
             }"""
         )
 
-    assert strip_right() == room
+    initial = position()
+    assert abs(initial["offset"]) < 40, initial
+    assert (
+        initial["width"] >= min(1128 if wide else 768, initial["shellWidth"] - 59) - 1
+    ), initial
 
     comment = events_model.append_event(
         serve.page_dir,
@@ -4456,14 +4492,20 @@ def test_a_live_page_reserves_conversation_room_before_its_first_thread(
         },
     )
     told(page)
-    assert strip_right() == room
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
+    expect(marker).to_be_visible()
+    assert position() == initial
+    marker.click()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    assert position() == initial
 
     events_model.append_event(
         serve.page_dir,
         {"kind": "resolve", "author": "user", "parent": comment["id"]},
     )
     told(page)
-    assert strip_right() == room
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    assert position() == initial
 
     assert errors == []
     page.close()
@@ -4584,7 +4626,7 @@ def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
     assert composition["mainWidth"] >= 639.5, composition
     assert composition["cardLeft"] >= composition["mainRight"], composition
     assert composition["cardRight"] <= composition["shellWidth"] + 0.5, composition
-    assert composition["cardWidth"] >= 459, composition
+    assert composition["cardWidth"] >= 319, composition
     assert (
         composition["cardLeft"] >= composition["controlsRight"] + 7
         or composition["cardBottom"] <= composition["controlsTop"] - 7
@@ -4827,7 +4869,8 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     page.close()
 
 
-def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
+@pytest.mark.parametrize("width", [1440, 1920])
+def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve, width):
     """The card beside or above a cluster follows it when the page moves under it.
 
     A margin row is placed at its target on the next layout pass, and that pass runs
@@ -4836,8 +4879,11 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
     what every one of those cases is to the margin.
     """
     page, errors = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
-    resized(page, 1440, 900)
+    resized(page, width, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    marker.evaluate(
+        "node => node.scrollIntoView({block: 'center', behavior: 'instant'})"
+    )
     marker.click()
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
@@ -4847,17 +4893,13 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
       const card = document.querySelector('.lf-margin-preview');
       const m = controls.getBoundingClientRect();
       const c = card.getBoundingClientRect();
-      const bannerBottom = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
-      const desired = Math.max(bannerBottom + 8,
-        Math.min((m.top + m.bottom - c.height) / 2, innerHeight - c.height - 8));
       const clear = c.left >= m.right + 7 || c.right <= m.left - 7
         || c.bottom <= m.top - 7 || c.top >= m.bottom + 7;
-      return {marker: m.top, clear, desired, controlsRight: m.right,
+      return {marker: m.top, clear, controlsRight: m.right,
               cardLeft: c.left, cardTop: c.top};
     }"""
     before = page.evaluate(placement)
     assert before["clear"], before
-    assert before["cardTop"] == pytest.approx(before["desired"], abs=0.5), before
 
     page.evaluate(
         "() => { document.getElementById('sec-mounts').style.paddingBottom = '48px'; }"
@@ -4870,7 +4912,9 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
     after = page.evaluate(placement)
     assert after["marker"] > before["marker"] + 40, (before, after)
     assert after["clear"], after
-    assert after["cardTop"] == pytest.approx(after["desired"], abs=0.5), after
+    assert after["cardTop"] - before["cardTop"] == pytest.approx(
+        after["marker"] - before["marker"], abs=0.5
+    ), (before, after)
 
     assert errors == []
     page.close()

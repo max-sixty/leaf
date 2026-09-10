@@ -143,11 +143,13 @@ export function createAnchorTravel({
     if (!seen) return false;
     const box = scrollerFor(holder);
     const view = shownBox(box);
-    const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+    const style = getComputedStyle(box);
+    const clearAbove = parseFloat(style.scrollPaddingTop) || 0;
+    const clearBelow = parseFloat(style.scrollPaddingBottom) || 0;
     const close = (a, b) => Math.abs(a - b) <= 0.5;
     return (
-      destination.top >= view.top + clear - 0.5 &&
-      destination.bottom <= view.bottom + 0.5 &&
+      destination.top >= view.top + clearAbove - 0.5 &&
+      destination.bottom <= view.bottom - clearBelow + 0.5 &&
       close(seen.top, destination.top) &&
       close(seen.right, destination.right) &&
       close(seen.bottom, destination.bottom) &&

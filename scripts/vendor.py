@@ -52,6 +52,7 @@ def package_vendor(package: str) -> Path:
 PINS = {
     "highlight.js": "11.12.0",
     "marked": "18.0.11",
+    "diff": "9.0.0",
     "beautiful-mermaid": "1.1.3",
     "elkjs": "0.11.1",
     "entities": "7.0.1",
@@ -168,6 +169,30 @@ def build_highlight(work: Path) -> list[Path]:
         "export default hljs;",
     ]
     (work / "entry.mjs").write_text("\n".join(entry) + "\n", encoding="utf-8")
+    esbuild(
+        "entry.mjs",
+        "--bundle",
+        "--format=esm",
+        "--minify",
+        "--legal-comments=inline",
+        f"--outfile={out}",
+        cwd=work,
+    )
+    return [out]
+
+
+def build_jsdiff(work: Path) -> list[Path]:
+    """Bundle only jsdiff's array comparison for the core browser runtime."""
+    out = ASSETS / "vendor/jsdiff.esm.js"
+    unpack("diff", work)
+    (work / "entry.mjs").write_text(
+        (
+            f"/*! jsdiff {PINS['diff']} — BSD-3-Clause"
+            " — https://github.com/kpdecker/jsdiff */\n"
+            'export { diffArrays } from "./package/libesm/diff/array.js";\n'
+        ),
+        encoding="utf-8",
+    )
     esbuild(
         "entry.mjs",
         "--bundle",
@@ -564,6 +589,7 @@ def build_mcp_app(work: Path) -> list[Path]:
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "beautiful-mermaid": build_beautiful_mermaid,
     "highlight": build_highlight,
+    "jsdiff": build_jsdiff,
     "mcp-app": build_mcp_app,
     "plot": build_plot,
     "pierre": build_pierre,
@@ -585,6 +611,7 @@ def vendor(name: str) -> list[Path]:
 REBUILDS = {
     **{copy.package: (name,) for name, copy in COPIES.items()},
     "highlight.js": ("highlight",),
+    "diff": ("jsdiff",),
     "@observablehq/plot": ("plot",),
     "@pierre/diffs": ("pierre",),
     "@modelcontextprotocol/ext-apps": ("mcp-app",),

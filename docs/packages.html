@@ -56,7 +56,7 @@
         <p class="lede" id="lede">
           A package can restyle Leaf, add one element, or carry a related widget family.
           This tutorial builds the smallest useful package: a reusable callout made from
-          one registry entry and one CSS rule.
+          one element declaration and one CSS rule.
         </p>
       </header>
 
@@ -109,7 +109,7 @@ packages/callout/
           id="widget-init-command"
         ><code class="language-bash">$ leaf package init packages/risk-notes --widget lf-risk-note</code></pre>
         <p>
-          Leaf writes a valid prose-widget registry entry and its one-shot browser
+          Leaf writes a valid markup-widget element declaration and its one-shot browser
           module, then checks the complete candidate before changing the package. The
           tutorial below stays with the smaller CSS-only form so each contract remains
           visible. A behavior module imports Leaf's package API from
@@ -173,7 +173,7 @@ packages/callout/
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "prose",
+    "x-content": "markup",
     "x-upgrade": false,
     "x-example": "&lt;lf-callout id=\"migration-warning\"&gt;&lt;strong&gt;Migration window&lt;/strong&gt; Writes pause for about two minutes.&lt;/lf-callout&gt;"
   }

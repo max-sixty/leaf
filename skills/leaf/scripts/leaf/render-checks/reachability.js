@@ -109,9 +109,9 @@ export function clippedControls() {
   return out;
 }
 
-export function tinyBoxes(widgets) {
+export function tinyBoxes(declarations) {
   const inline = new Set(
-    Object.entries(widgets)
+    Object.entries(declarations)
       .filter(([tag, entry]) => entry["x-inline"])
       .map(([tag]) => tag),
   );

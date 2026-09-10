@@ -557,7 +557,7 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
         },
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-upgrade": True,
     }
     settled = {**entry, "x-example": '<lf-settled-link id="settled"></lf-settled-link>'}
@@ -3810,7 +3810,7 @@ def test_a_failed_thread_surface_returns_its_threads_to_core_fallback(
         "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-upgrade": True,
         "x-thread-surface": True,
         "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
@@ -4056,7 +4056,7 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
         "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-upgrade": True,
         "x-example": '<lf-derived id="derived-example"></lf-derived>',
     }
@@ -4166,7 +4166,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
         "captured source",
         """
 <h1 id="title">Leaf skill</h1>
-<lf-source id="skill-source" source="leaf-skill" language="markdown"></lf-source>
+<lf-text-document id="skill-source" source="leaf-skill" language="markdown"></lf-text-document>
 <p id="latency-line">Import latency: <lf-num source="import-latency" at="2026-08-29T12:00:00Z">10 ms</lf-num>.</p>
 """,
     )
@@ -4179,7 +4179,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     )
 
     page, errors = open_page(browser, url)
-    expect(page.locator("lf-source figcaption")).to_have_text(
+    expect(page.locator("lf-text-document figcaption")).to_have_text(
         f"{long_label} · lines 1–3"
     )
     origin = {
@@ -4191,17 +4191,17 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     }
     datum = page.locator('[data-lf-datum="document"]')
     assert datum.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == origin
-    expect(page.locator("lf-source code")).to_have_text(
+    expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )
     page.set_viewport_size({"width": 320, "height": 720})
-    assert page.locator("lf-source figcaption").evaluate(
+    assert page.locator("lf-text-document figcaption").evaluate(
         "node => node.scrollWidth <= node.clientWidth"
     )
     page.set_viewport_size({"width": 1280, "height": 720})
 
     data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Current instructions.\n")
-    expect(page.locator("lf-source code")).to_have_text("Current instructions.\n")
+    expect(page.locator("lf-text-document code")).to_have_text("Current instructions.\n")
     assert datum.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == {
         **origin,
         "revision": 2,
@@ -4217,18 +4217,18 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
         "froze the reviewed source",
     )
     wait_for_revision(page, 2)
-    expect(page.locator("lf-source figcaption")).to_have_text(
+    expect(page.locator("lf-text-document figcaption")).to_have_text(
         f"{long_label} · lines 1–3 · snapshot 1"
     )
-    expect(page.locator("lf-source code")).to_have_text(
+    expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )
     compare_with(page, 1)
-    expect(page.locator("lf-source")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    expect(page.locator("lf-text-document")).to_have_class(re.compile(r"\blf-ins-block\b"))
     expect(page.locator("#latency-line")).to_have_class(re.compile(r"\blf-ins-block\b"))
     compare_with(page, 1)
 
-    bounds = page.locator("lf-source code").evaluate(
+    bounds = page.locator("lf-text-document code").evaluate(
         """code => {
           const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
           let node;
@@ -4258,7 +4258,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
 
     data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Changed again.\n")
     told(page)
-    expect(page.locator("lf-source code")).to_have_text(
+    expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )
 
@@ -4549,8 +4549,8 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
     authored = leaf_page(
         "source provenance",
         '<h1 id="title">Source</h1>'
-        '<lf-source id="live" source="document" language="python"></lf-source>'
-        '<lf-source id="frozen" source="document" language="python"></lf-source>',
+        '<lf-text-document id="live" source="document" language="python"></lf-text-document>'
+        '<lf-text-document id="frozen" source="document" language="python"></lf-text-document>',
     )
     url = live_url(serve(authored))
     data_model.cmd_data_set(

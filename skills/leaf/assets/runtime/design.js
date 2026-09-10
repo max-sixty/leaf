@@ -134,11 +134,11 @@ export function createDesignController({
         legendBoxes.delete(item);
         legendSizes.unobserve(item);
       }
-    // A widget's part is what its entry says it is — a tag declaring x-parent has a
+    // A widget's part is what its declaration says it is — a tag declaring x-owners has a
     // holder, and is what the holder is made of — rather than what stands inside a
     // widget: a tab holds a whole page, and every heading and paragraph of that page is
     // the author's, and named.
-    const parts = new Set(tagsDeclaring((e) => e["x-parent"]));
+    const parts = new Set(tagsDeclaring((e) => e["x-owners"]));
     for (const item of items) {
       if (legendBoxes.has(item)) continue;
       const box = el("div", "lf-legend-box lf-page-paint");

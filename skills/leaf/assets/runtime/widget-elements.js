@@ -37,7 +37,7 @@
    alternative, not a bare span wearing `aria-label`.
 
    `worksInside` decides whether a container gesture may take a click. It treats
-   platform interactive elements as their own controls and uses `x-parent` to
+   platform interactive elements as their own controls and uses `x-owners` to
    distinguish a container's declared member widgets from nested widgets that own their
    own interaction. Containers may name their own generated apparatus as an exception.
    The general answer fails closed: declining one ambiguous container gesture is safer
@@ -257,7 +257,7 @@ export const WORKS_WITHOUT_TAB_STOP = WORK_SELECTORS.filter(
 //
 // Two vocabularies, because a container holds two kinds of thing. A widget it merely
 // contains is its own world, and that is every lf-* tag bar the parts the registry says
-// this container is made of (x-parent) — declared rather than listed, so the twelfth
+// this container is made of (x-owners) — declared rather than listed, so the twelfth
 // widget is covered by its entry and a widget whose gesture lands on its own words rather
 // than on chrome (a press on lf-draft's own box) is covered with the rest. Inert ones go
 // in with them: a diagram is evidence the reader studies with the pointer on it, and which
@@ -276,7 +276,7 @@ export function worksInside(node, container) {
   for (let grew = true; grew;) {
     grew = false;
     for (const tag of tagsDeclaring((entry) =>
-      (entry["x-parent"] ?? []).some((parent) => parts.has(parent)),
+      (entry["x-owners"] ?? []).some((owner) => parts.has(owner)),
     ))
       if (!parts.has(tag)) {
         parts.add(tag);

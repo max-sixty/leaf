@@ -941,7 +941,7 @@ def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, ser
     ]
     assert sorted(set(found)) == [
         (
-            '<lf-event id=p-seen> paints kind="failure" and says nothing a reader '
+            '<lf-chronology-entry id=p-seen> paints kind="failure" and says nothing a reader '
             "listening can hear"
         )
     ], found

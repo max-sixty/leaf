@@ -2470,8 +2470,8 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         },
         "required": ["id", "slots"],
         "additionalProperties": False,
-        "x-parent": ["lf-task"],
-        "x-content": "none",
+        "x-owners": ["lf-task"],
+        "x-content": "empty",
         "x-upgrade": True,
         "x-state": {
             "move": {
@@ -2499,7 +2499,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
                 "unit": "widget",
                 "record": record,
                 "requires": {
-                    "target": "parent",
+                    "target": "owner",
                     "awaiting": False,
                 },
             },

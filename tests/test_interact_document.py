@@ -385,8 +385,8 @@ def test_page_inspection_routes_frozen_captures_to_a_new_reply(page_dir):
             "author": "claude",
             "revision": 1,
             "text": "The reviewed instructions and their current replacement.",
-            "markup": '<lf-source id="reviewed" source="instructions" snapshot="1"></lf-source>'
-            '<lf-source id="current" source="instructions"></lf-source>',
+            "markup": '<lf-text-document id="reviewed" source="instructions" snapshot="1"></lf-text-document>'
+            '<lf-text-document id="current" source="instructions"></lf-text-document>',
         },
     )
     data_model.cmd_data_set(page_dir, "instructions", "Reviewed wording.", "reviewed")
@@ -473,8 +473,8 @@ def test_check_rejects_widget_violations(page_dir):
             '<lf-metric id="bad-metric" value="1"/>'
             "<figure/>"
             "<lf-bogus></lf-bogus>"
-            '<lf-timeline id="bad-timeline">'
-            '<lf-event id="stray-event" kind="medium">S</lf-event></lf-timeline>'
+            '<lf-chronology id="bad-chronology">'
+            '<lf-chronology-entry id="stray-chronology-entry" kind="medium">S</lf-chronology-entry></lf-chronology>'
             '<lf-option id="stray"><strong>S</strong></lf-option>'
             '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
             '<lf-diagram id="bare-body">graph LR</lf-diagram>',
@@ -488,7 +488,7 @@ def test_check_rejects_widget_violations(page_dir):
     assert out.count("self-closing") == 2
     assert "unknown widget" in out
     assert "'medium' is not one of" in out
-    assert "must be a direct child of <lf-options>" in out
+    assert "must be a direct member of <lf-options>" in out
     assert "'id' is a required property" in out
     assert "does not match" in out  # id pattern
     # A stray element beside the <pre>, and a body that never opened one: both are
@@ -555,7 +555,7 @@ def test_check_rejects_a_language_nothing_will_color(page_dir):
 
 def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     """The list is the layer's fact, not one widget's, so nothing in the lint knows
-    which widget takes a language: a tag whose entry declares x-language is held to
+    which widget takes a language: a tag whose declaration carries x-language is held to
     $languages on the strength of the declaration. A thirteenth widget that colors
     something — a terminal transcript, a diff — is covered without the lint moving."""
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -652,9 +652,9 @@ def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
     )
     lists = [_balanced(theme, found.end()) for found in re.finditer(r":not\(", theme)]
     lists = [found for found in lists if found.startswith("a, abbr")]
-    assert len(lists) == 2, (
-        "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
-    )
+    assert (
+        len(lists) == 2
+    ), "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
     registry = validation_model.incoming_registry(
         [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
     )
@@ -916,8 +916,8 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     assert check(page_dir).exit_code == 0
 
 
-def test_a_chip_is_admissible_in_both_its_holders(page_dir):
-    """x-parent is a list because one element can belong to two holders, and a chip
+def test_a_chip_is_admissible_in_both_its_owners(page_dir):
+    """x-owners is a list because one element can belong to two owners, and a chip
     is written in a lf-option and in a lf-variant — the same shape either side of the
     decision. Neither is special-cased anywhere: the nesting check reads the list."""
     (page_dir / ".fixture-versions" / "v1.html").write_text(
@@ -935,7 +935,7 @@ def test_a_chip_is_admissible_in_both_its_holders(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "must be a direct child of <lf-option> or <lf-variant>" in result.output
+    assert "must be a direct member of <lf-option> or <lf-variant>" in result.output
 
 
 def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
@@ -951,7 +951,7 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
         },
         "required": ["id", "direction"],
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-layout": "split",
         "x-upgrade": False,
     }
@@ -964,7 +964,7 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
         },
         "required": ["id", "label"],
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-layout": "pane",
         "x-upgrade": False,
     }
@@ -1060,14 +1060,16 @@ def test_check_rejects_loose_content_in_items_container(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "admits only ['lf-option'] children" in result.output
+    assert "admits only ['lf-option'] members" in result.output
     assert "'br'" in result.output  # self-closed strays count as children too
     assert "loose text" in result.output
 
 
 def test_check_requires_one_child_for_each_declared_role(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-milestones"]["x-children"] = {"lf-milestone": {"one-each": "status"}}
+    registry["lf-milestones"]["x-required-members"] = {
+        "lf-milestone": {"one-each": "status"}
+    }
     (page_dir / "registry.json").write_text(json.dumps(registry))
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -1139,7 +1141,7 @@ def test_milestones_compose(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "must be a direct child of <lf-milestones>" in result.output
+    assert "must be a direct member of <lf-milestones>" in result.output
 
 
 def test_tabs_validate_and_compose(page_dir):
@@ -1172,7 +1174,7 @@ def test_tabs_reject_structural_violations(page_dir):
     result = check(page_dir)
     assert result.exit_code == 1
     assert "'label' is a required property" in result.output
-    assert "must be a direct child of <lf-tabs>" in result.output
+    assert "must be a direct member of <lf-tabs>" in result.output
     assert "loose text" in result.output
 
 
@@ -1201,7 +1203,7 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
         ),
         (
             "<lf-old><p>orphan</p></lf-old><lf-options>",
-            "must be a direct child of <lf-suggestion>",
+            "must be a direct member of <lf-suggestion>",
         ),
         (
             (
@@ -1748,9 +1750,9 @@ def test_a_version_may_not_quietly_rewrite_what_the_user_decided(page_dir):
     # Re-emitting what v1 said is the ordinary republish, and costs nothing:
     # the user's edit is already on screen over it.
     v2("Ship the flag dark, then backfill.")
-    assert check(page_dir, version=2).exit_code == 0, (
-        "a republish that changes nothing must pass"
-    )
+    assert (
+        check(page_dir, version=2).exit_code == 0
+    ), "a republish that changes nothing must pass"
 
     # Writing their own words back is the other quiet case, and the commoner
     # one: the version agrees with the edit rather than overruling it. A gate
@@ -2268,25 +2270,25 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
 
     # An untouched card rewritten, the moved card's own words left alone.
     write(2, [X, ("card-y", "", "Wire the importer and its backfill")], [])
-    assert check(page_dir, version=2).exit_code == 0, (
-        "an untouched card is not the gate's business"
-    )
+    assert (
+        check(page_dir, version=2).exit_code == 0
+    ), "an untouched card is not the gate's business"
 
     # The card written where the user put it. Redundant now that replay
     # carries the move, but a version that does it anyway is not wrong.
     write(2, [Y], [X])
-    assert check(page_dir, version=2).exit_code == 0, (
-        "relocating the moved card must pass"
-    )
+    assert (
+        check(page_dir, version=2).exit_code == 0
+    ), "relocating the moved card must pass"
 
     # The moved card's own words rewritten: now the decision is in question.
     write(2, [("card-x", "", "Guard the delete behind the flag"), Y], [])
     result = check(page_dir, version=2)
     assert result.exit_code == 1
     assert "card-x" in result.output and "move on r1" in result.output
-    assert "card-y" not in result.output, (
-        "the gate named a card nobody had decided about"
-    )
+    assert (
+        "card-y" not in result.output
+    ), "the gate named a card nobody had decided about"
 
     write(2, [("card-x", " restated", "Guard the delete behind the flag"), Y], [])
     assert check(page_dir, version=2).exit_code == 0
@@ -2349,15 +2351,15 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
 
     # A version may also incorporate the standing pick into authored markup.
     write(2, a=" chosen")
-    assert check(page_dir, version=2).exit_code == 0, (
-        "marking the pick is not a rewrite"
-    )
+    assert (
+        check(page_dir, version=2).exit_code == 0
+    ), "marking the pick is not a rewrite"
 
     # An option nobody picked, rewritten freely.
     write(2, a=" chosen", stage="One table at a time, behind a flag.")
-    assert check(page_dir, version=2).exit_code == 0, (
-        "an unpicked option is free to change"
-    )
+    assert (
+        check(page_dir, version=2).exit_code == 0
+    ), "an unpicked option is free to change"
 
     # The picked one, rewritten — the user chose those words.
     write(2, a=" chosen", shim="Fastest to ship, and we own the shim forever.")
@@ -4372,9 +4374,9 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
 
     for scheme, block in (("light", light), ("dark", dark)):
         steps, paper = _palette(theme, block)
-        assert len(steps) == declared, (
-            f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
-        )
+        assert (
+            len(steps) == declared
+        ), f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
         faint = [c for c in steps if _contrast(c, paper) < 3.0]
         assert not faint, f"{scheme}: {faint} under 3:1 against {paper}"
         pairs = [(a, b) for i, a in enumerate(steps) for b in steps[i + 1 :]]
@@ -4382,20 +4384,20 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
             (min(_apart(a, b, "protan"), _apart(a, b, "deutan")), a, b)
             for a, b in pairs
         )
-        assert blind[0] >= 8.0, (
-            f"{scheme}: {blind[1]} and {blind[2]} are {blind[0]:.1f} apart to a dichromat"
-        )
+        assert (
+            blind[0] >= 8.0
+        ), f"{scheme}: {blind[1]} and {blind[2]} are {blind[0]:.1f} apart to a dichromat"
         seen = min((_apart(a, b), a, b) for a, b in pairs)
-        assert seen[0] >= 15.0, (
-            f"{scheme}: {seen[1]} and {seen[2]} are {seen[0]:.1f} apart"
-        )
+        assert (
+            seen[0] >= 15.0
+        ), f"{scheme}: {seen[1]} and {seen[2]} are {seen[0]:.1f} apart"
 
 
 def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     """A layer can add idless column content without changing card indexes."""
     registry_file = page_dir / "registry.json"
     registry = json.loads(registry_file.read_text())
-    registry["lf-chip"]["x-parent"].append("lf-column")
+    registry["lf-chip"]["x-owners"].append("lf-column")
     registry_file.write_text(json.dumps(registry))
     board = (
         '<lf-board id="reading-board">'

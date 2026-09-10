@@ -12,7 +12,7 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-content": "none",
+    "x-content": "empty",
     "x-exhibit": true,
     "x-upgrade": true,
     "x-example": "<lf-margin-element-gallery id=\"margin-element-gallery\"></lf-margin-element-gallery>"

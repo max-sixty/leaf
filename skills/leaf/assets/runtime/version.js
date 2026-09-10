@@ -766,7 +766,7 @@ export function createVersionController({
     [
       TEXT_BLOCK,
       "aside",
-      ...tagsDeclaring((e) => e["x-parent"] && (e["x-content"] ?? "prose") === "prose"),
+      ...tagsDeclaring((e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
       // Preserving widgets contribute their own prose. The leaf-blocks-only rule
       // below avoids counting nested blocks twice and keeps base and live readings
       // symmetric: a draft's authored <pre> and rendered body key the same words.
@@ -783,11 +783,11 @@ export function createVersionController({
       // External data is absent from both authored documents. Its seat is opaque, and
       // the authored binding and immutable selector below are the comparison key.
       ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
-      // flatMap, so the set holds holder tags rather than the arrays naming them: a set
+      // flatMap, so the set holds owner tags rather than the arrays naming them: a set
       // of arrays never dedupes, two array objects never being equal.
       ...new Set(
         tagsDeclaring((e) => e["x-retired-when"]).flatMap(
-          (tag) => registry[tag]["x-parent"],
+          (tag) => registry[tag]["x-owners"],
         ),
       ),
       "svg",

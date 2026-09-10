@@ -102,7 +102,7 @@ Every package has the same partial layout:
 
 ```text
 package/
-├── registry.json       widget entries and shared $ declarations
+├── registry.json       element declarations and shared $ declarations
 ├── theme.css           rules appended to the cascade
 ├── guidance/           Markdown guides named for their audiences
 ├── runtime/            browser modules and replacements by vendored path
@@ -114,8 +114,8 @@ package/
 
 No individual file is required. The kernel supplies the files every complete layer
 needs. Theme files concatenate. Runtime, icon, widget, and vendor files replace by
-path. A later package replaces a tag's complete registry entry and one member inside
-a shared `$` entry. A tag can be added or replaced whole, but it has no deletion marker.
+path. A later package replaces a tag's complete element declaration and one member inside
+a shared `$` declaration. A tag can be added or replaced whole, but it has no deletion marker.
 Shared `$` entries compose by member, and map-valued members compose one level further
 by key; `null` deletes at either of those shared-entry grains when the merged registry
 still validates. Guidance files with the same audience name concatenate in package order.
@@ -186,30 +186,30 @@ uses the same stamp before it can capture or post a passage coordinate.
 
 ## A widget
 
-The registry entry is JSON Schema over the element's attributes, plus the `x-` keys that
+The element declaration is JSON Schema over the element's attributes, plus the `x-` keys that
 say how the layer treats the tag — its content model, whether a module upgrades it, which
 attributes the reader sees as words, its action verbs and their record forms, whether it
 stands as one of the page's Asks. The merged registry's `$keys` entry defines each key,
-and the shipped widget entries are the worked examples. Every widget entry carries a
+and the shipped element declarations are the worked examples. Every element declaration carries a
 non-empty `description`. Its first plain sentence identifies the widget's purpose; the
 rest explains its detailed contract. An entry's `x-example` must validate and is the
 markup an author queries with that entry.
 
-An items container that needs one child for every semantic role declares
-`x-children: {"CHILD-TAG": {"one-each": "ATTRIBUTE"}}`. The child's attribute is a
-required string enum, and the child admits the container through `x-parent`. `version
+An owned-members container that needs one member for every semantic role declares
+`x-required-members: {"CHILD-TAG": {"one-each": "ATTRIBUTE"}}`. The child's attribute is a
+required string enum, and the child admits the container through `x-owners`. `version
 check` then refuses a missing or repeated enum value. This keeps fixed role sets in the
 package contract without adding their tags or vocabulary to Leaf.
 
 A structural widget declares `x-layout` as `workspace`, `pane`, or `split` and keeps
-`x-content: prose`. Every role requires `id`; a pane also requires a string `label`, and
+`x-content: markup`. Every role requires `id`; a pane also requires a string `label`, and
 a split requires `direction` with the complete `columns`/`rows` enum. A workspace has
 exactly one direct body element between its optional native `header` and `footer`. A
 pane may have one direct native `header` first and one direct native `footer` last. Its
 `label` names the accessible region; a visible heading belongs in the authored header.
-A split contains exactly two direct widgets whose own entries declare pane or split. The
+A split contains exactly two direct structural elements whose declarations name pane or split. The
 validator reads roles rather than tag names, so a package may supply a differently named
-member without changing Leaf or joining an `x-parent` list.
+member without changing Leaf or joining an `x-owners` list.
 
 Behavior modules compose these reading areas with
 `arrangeReadingElement({owner, kind, header, footer, regions})` from the public widget
@@ -257,7 +257,7 @@ When a position action completes an Ask only after its own move empties a queue,
 declare `completion: {empty: {within: "CONTAINER-TAG", when: {ATTRIBUTE: [VALUE]}}}`
 on that x-state verb. `within` names an items container inside the answering widget and
 `when` selects exactly one instance by static authored attributes. POST overlays the
-candidate move on the authoritative holder relation before testing emptiness, and the
+candidate move on the authoritative ownership relation before testing emptiness, and the
 Ask projection uses the same condition for standing state. Do not add a second
 completed attribute or trust the browser's optimistic item count. Re-vendoring must
 preserve the completion condition for every recorded action.
@@ -390,10 +390,10 @@ mapping; core owns the explicit Comment gestures, keyboard proxies, and paint.
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical
 `{element-id: non-empty words}` map schema. The child tag admits the sender through
-`x-parent`, requires only its canonical `id`, and has `x-content: prose`. The append
+`x-owners`, requires only its canonical `id`, and has `x-content: markup`. The append
 transaction records the map's sorted ids in `generated`, allowing historical
 folds to retain their liveness while version checks enforce the declared tag and
-direct-parent relation.
+direct-ownership relation.
 
 Every row passed to `commands()` has a stable dotted `id`, such as `draft.save`. Keep that
 identity when its key or wording changes: the command browser and repeated widget
@@ -538,7 +538,7 @@ that really apply to the package as a whole.
     },
     "required": ["id", "source"],
     "additionalProperties": false,
-    "x-content": "none",
+    "x-content": "empty",
     "x-data": {
       "builds": {
         "contract": "build-status",
@@ -560,11 +560,11 @@ ids.
 
 ```html
 <lf-builds id="release-builds" source="release-ci"></lf-builds>
-<lf-source
+<lf-text-document
   id="release-notes-source"
   source="release-notes"
   language="markdown"
-></lf-source>
+></lf-text-document>
 ```
 
 The host gathers the value; Leaf does not run a provider or fetch a package URL. Set a
@@ -755,9 +755,9 @@ After the main skill's re-vendoring route restores the recorded URL, run
 layer. Note the re-vendor in the next stamped version's changelog.
 
 The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no
-size, a `x-verbatim` the rendered words contradict, a shadow root the entry doesn't
+size, a `x-verbatim` the rendered words contradict, a shadow root the declaration doesn't
 declare, a word the registry promised that never reached the page, an attribute left on
-the element that its entry doesn't declare, a `renderState` that changes the page when handed the same state again.
+the element that its declaration doesn't name, a `renderState` that changes the page when handed the same state again.
 
 Then put it on the page. A widget is reviewed in place: the version that follows the
 comment uses it where the comment asked, and the reader comments on it there. From the

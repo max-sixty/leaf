@@ -84,7 +84,7 @@ export const TEXT_BLOCK =
   "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary";
 
 import { inUi, overIn, pageShadowRoots, uiInside, under, upFrom } from "./shadow.js";
-import { registry, widgetEntries } from "./registry.js";
+import { elementDeclarations, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
 export const opaquePassageRoots = new WeakSet();
@@ -119,7 +119,7 @@ export const verbatimBoundaryIdentity = new WeakMap();
 //
 // Which slots retire is the registry's to say, so this and passages.py's reading of the
 // same page follow one declaration: x-retired-when names the decision that removes the
-// element, x-parent the wrapper the decision is recorded on.
+// element, x-owners the wrapper the decision is recorded on.
 // Computed once — but only once the registry has loaded: the aim listeners are
 // live from module evaluation, and a pointer move in the upgrade window would
 // otherwise seed the cache from the empty pre-fetch registry and disable the
@@ -128,40 +128,40 @@ export const verbatimBoundaryIdentity = new WeakMap();
 let retiredSlotsMemo;
 function retiredSlots() {
   if (retiredSlotsMemo != null) return retiredSlotsMemo;
-  // One selector per holder, never the array interpolated: `x-parent` is a list, and
-  // `${list}` joins it with a comma, so a slot naming two holders wrote a selector
-  // *list* whose first member was a bare tag — every instance of the first holder read
-  // as a retired slot, decided or not, and the pair that was meant matched nothing.
-  const value = widgetEntries()
+  // One selector per owner, never the array interpolated: `x-owners` is a list, and
+  // `${list}` joins it with a comma, so a member naming two owners wrote a selector
+  // *list* whose first member was a bare tag — every instance of the first owner read
+  // as a retired member, decided or not, and the pair that was meant matched nothing.
+  const value = elementDeclarations()
     .filter(([, entry]) => entry["x-retired-when"])
     .flatMap(([tag, entry]) =>
-      entry["x-parent"].map(
-        (parent) => `${parent}[data-lf-state="${entry["x-retired-when"]}"] > ${tag}`,
+      entry["x-owners"].map(
+        (owner) => `${owner}[data-lf-state="${entry["x-retired-when"]}"] > ${tag}`,
       ),
     )
     .join(", ");
   if (Object.keys(registry).length) retiredSlotsMemo = value;
   return value;
 }
-// The same relation read the other way: holder tag → each settling outcome and the
-// slot tags that leave the page under it. Replay reads it to paint the settlement
-// (markSettled, renderRetired), so which verbs settle a holder is the registry's fact
+// The same relation read the other way: owner tag → each settling outcome and the
+// member tags that leave the page under it. Replay reads it to paint the settlement
+// (markSettled, renderRetired), so which verbs settle an owner is the registry's fact
 // here exactly as it is in the selector above. Same registry-loaded guard, for the
 // same aim-window reason.
 let settlementSlotsMemo;
 export function settlementSlots() {
   if (settlementSlotsMemo != null) return settlementSlotsMemo;
   const value = {};
-  for (const [tag, entry] of widgetEntries().filter(([, e]) => e["x-retired-when"]))
-    for (const parent of entry["x-parent"])
-      ((value[parent] ??= {})[entry["x-retired-when"]] ??= []).push(tag);
+  for (const [tag, entry] of elementDeclarations().filter(([, e]) => e["x-retired-when"]))
+    for (const owner of entry["x-owners"])
+      ((value[owner] ??= {})[entry["x-retired-when"]] ??= []).push(tag);
   if (Object.keys(registry).length) settlementSlotsMemo = value;
   return value;
 }
 
 // The rendering of a settlement, in one place for the two occasions that paint it —
 // replay (markSettled) and a module saying its own gesture (lf-suggestion's #settle):
-// reads the holder's mark and paints data-lf-retired onto the slots the standing
+// reads the owner's mark and paints data-lf-retired onto the members the standing
 // outcome retires, clearing it from the rest. One static theme rule hides the marked
 // slots, so a family a project declares hides what a settlement removes the day it
 // declares it — by-name rules in theme.css were the closed list wearing CSS's
@@ -441,7 +441,7 @@ export const elementFromPointAcross = (x, y) => {
 // so is a control the reader can stand on, for the same reason: both are wherever the
 // markup ended up. Which widgets the page holds is a different question and still the
 // document's:
-// a widget staged inside another's tree is a nesting the registry's x-parent contract
+// a widget staged inside another's tree is a nesting the registry's x-owners contract
 // does not model, and answering it here would be inventing that contract in a sweep.
 export const pageQueryAll = (selector) =>
   [document, ...pageShadowRoots()].flatMap((root) => [

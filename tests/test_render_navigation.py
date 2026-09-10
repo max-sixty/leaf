@@ -1357,12 +1357,12 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
 
 
 def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serve):
-    """The strip reads as an index inside the one frame that bounds its workstream.
+    """The strip reads as an index inside the one frame that bounds its views.
 
     The selected name becomes one compact paper face; the tab around it does not grow a
     second frame inside the shared surface. The strip's closing rule keeps the index
     distinct from the panel, whose enclosing frame still answers how far that
-    workstream runs.
+    selected view runs.
     """
     page, errors = open_page(
         browser,
@@ -1371,8 +1371,8 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
                 "bounded tabs",
                 """
 <h1 id="heading">Parallel work</h1>
-<p id="shared">This context belongs to every workstream.</p>
-<lf-tabs id="workstreams">
+<p id="shared">This context belongs to every view.</p>
+<lf-tabs id="views">
   <lf-tab id="implementation" label="Implementation">
     <section id="implementation-section">
       <h2 id="implementation-heading">Build the narrow path</h2>
@@ -1393,7 +1393,7 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
     )
     boundary = page.evaluate(
         """() => {
-          const tabs = document.querySelector('#workstreams');
+          const tabs = document.querySelector('#views');
           const strip = tabs.querySelector('.lf-tabstrip');
           const panel = tabs.querySelector('lf-tab:not([hidden])');
           const selected = strip.querySelector('[aria-selected="true"]');
@@ -1481,7 +1481,7 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
     assert boundary["tabs"]["bottom"] - boundary["closing"]["bottom"] >= 16, boundary
     assert boundary["next"]["top"] > boundary["tabs"]["bottom"], boundary
 
-    selected = page.locator('#workstreams [aria-selected="true"]')
+    selected = page.locator('#views [aria-selected="true"]')
     selected.focus()
     focus = selected.evaluate(
         """element => {

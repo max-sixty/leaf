@@ -209,7 +209,7 @@ def fragment_style_errors(parser: StructParser) -> list:
     property outranked the theme's first cascade layer the same way.
 
     Nothing is lost by refusing them. The layer already dresses a widget an agent
-    sends — that is what a registry entry and its theme rules are for — and a rule
+    sends — that is what an element declaration and its theme rules are for — and a rule
     of a message's own has nowhere honest to sit, because the message is not the
     page and its markup is frozen in the log where no version can revise it."""
     errors = []
@@ -217,7 +217,7 @@ def fragment_style_errors(parser: StructParser) -> list:
         errors.append(
             "<style> in message markup becomes a stylesheet of the whole document it "
             "is put into; a widget's look belongs in the layer's theme, beside its "
-            "registry entry"
+            "element declaration"
         )
     if parser.stylesheets:
         errors.append(

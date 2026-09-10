@@ -14,7 +14,7 @@ from .state import (
 from .widgets import (
     validate_widget_relations,
     validate_widget_schemas,
-    widget_entries,
+    element_declarations,
 )
 
 
@@ -27,10 +27,10 @@ def validate_registry(registry: dict, source) -> dict:
     validate_event_contracts(kinds, path)
     validate_event_handling(registry["$events"], kinds, path)
     validate_layer_declarations(registry, path, names, paths, tones, data, tokens)
-    widgets = widget_entries(registry, path)
-    validate_widget_schemas(widgets, path)
+    declarations = element_declarations(registry, path)
+    validate_widget_schemas(declarations, path)
     slots = retirement_slots(registry)
-    validate_widget_relations(registry, widgets, data, slots, path)
-    validate_retirement_facets(slots, widgets, path)
-    validate_awaiting_units(widgets, path)
+    validate_widget_relations(registry, declarations, data, slots, path)
+    validate_retirement_facets(slots, declarations, path)
+    validate_awaiting_units(declarations, path)
     return registry

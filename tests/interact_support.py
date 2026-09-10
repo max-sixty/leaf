@@ -351,7 +351,7 @@ def declare_data_input(
         },
         "required": ["id", "source"],
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-data": {
             input_name: {
                 "contract": contract,
@@ -566,8 +566,8 @@ def _marker_for(declaration):
 
     Two facts, and the second is the one a stylesheet's exclusion rests on. Being
     allowed to paint a name is _paint_names; what actually puts a mark on a page is a
-    declaration's entry in one of markDeclared's tables, and a selector naming an
-    attribute with no such entry excludes nothing anywhere. Both tables are read,
+    element declaration in one of markDeclared's tables, and a selector naming an
+    attribute with no such declaration excludes nothing anywhere. Both tables are read,
     because which of the two a declaration sits in is a question about where the fact
     holds, and the browser is what answers that."""
     js = (schema_model.ASSETS / "runtime" / "presentation.js").read_text()
@@ -859,11 +859,11 @@ def _report_without_upgrade(registry):
 
 
 def _body_record_with_prose(registry):
-    registry["lf-draft"]["x-content"] = "prose"
+    registry["lf-draft"]["x-content"] = "markup"
 
 
 def _body_record_with_nested_widget(registry):
-    registry["lf-option"]["x-parent"].append("lf-draft")
+    registry["lf-option"]["x-owners"].append("lf-draft")
 
 
 # A holder/slot family core has never heard of. <lf-trial> is decided by `adopt`
@@ -912,7 +912,7 @@ def trial_page(tmp_path, monkeypatch):
         add_test_widget(tmp_path / ".leaf", tag, upgrade)
 
     source = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(source.read_text())
+    declarations = json.loads(source.read_text())
     verb = {
         "detail": {"type": "object", "additionalProperties": False},
         "facet": "settlement",
@@ -922,23 +922,23 @@ def trial_page(tmp_path, monkeypatch):
         ("lf-trial", ("adopt", "shelve"), TRIAL_CACHE),
         ("lf-pilot", ("run", "shelve"), PILOT_PURGE),
     ):
-        entries[tag] |= {
-            "x-content": "items",
+        declarations[tag] |= {
+            "x-content": "members",
             "x-state": {name: dict(verb) for name in state},
             "x-example": example,
         }
-        entries[tag]["properties"]["restated"] = {"type": "boolean"}
-        del entries[tag]["x-verbatim"]  # a module renders the slots
+        declarations[tag]["properties"]["restated"] = {"type": "boolean"}
+        del declarations[tag]["x-verbatim"]  # a module renders the slots
     # Only the trial says what taking it back would mean.
-    entries["lf-trial"]["x-withdrawn-as"] = "shelve"
-    for tag, holders, outcome in (
+    declarations["lf-trial"]["x-withdrawn-as"] = "shelve"
+    for tag, owners, outcome in (
         ("lf-current", ["lf-trial"], "adopt"),
         ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
     ):
-        entries[tag] |= {"x-parent": holders, "x-retired-when": outcome}
-        del entries[tag]["x-example"]  # a slot has no standing of its own
-        del entries[tag]["required"]  # nor an id it must carry
-    source.write_text(json.dumps(entries))
+        declarations[tag] |= {"x-owners": owners, "x-retired-when": outcome}
+        del declarations[tag]["x-example"]  # a slot has no standing of its own
+        del declarations[tag]["required"]  # nor an id it must carry
+    source.write_text(json.dumps(declarations))
 
     page = tmp_path / "page"
     # The version is built out of PAGE, which holds an lf-diagram; the project package
@@ -1405,8 +1405,8 @@ def add_test_widget(package: Path, tag: str, upgrade: bool = False) -> dict:
     """Author one widget in an initialized package fixture."""
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    entry = widget_entry(tag, upgrade)
-    registry[tag] = entry
+    declaration = element_declaration(tag, upgrade)
+    registry[tag] = declaration
     registry_path.write_text(json.dumps(registry))
     with (package / "theme.css").open("a") as theme:
         theme.write(f"\n{tag} {{ display: block; }}\n")
@@ -1414,21 +1414,21 @@ def add_test_widget(package: Path, tag: str, upgrade: bool = False) -> dict:
         (package / "widgets" / f"{tag}.js").write_text(
             f'customElements.define("{tag}", class extends HTMLElement {{}});\n'
         )
-    return entry
+    return declaration
 
 
-def widget_entry(tag: str, upgrade: bool = False) -> dict:
+def element_declaration(tag: str, upgrade: bool = False) -> dict:
     """A minimal package widget declaration for composition fixtures."""
-    entry = {
+    declaration = {
         "description": f"A <{tag}> test block.",
         "type": "object",
         "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-upgrade": upgrade,
         "x-example": f'<{tag} id="example">Example</{tag}>',
     }
     if upgrade:
-        entry["x-verbatim"] = True
-    return entry
+        declaration["x-verbatim"] = True
+    return declaration

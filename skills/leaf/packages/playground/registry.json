@@ -17,7 +17,7 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-guidance": {
       "author": "Use controls for candidates and parameters the reader should vary together. The reader performs the interaction being judged in the preview. Keep that preview as real page markup, bind simple changes with `--playground-NAME` or `data-playground-NAME`, and use a companion package when behavior or computation requires JavaScript. Write the instruction as prose in `lf-playground-output`, with `lf-playground-value` where a current value belongs."
     },
@@ -109,8 +109,8 @@
       }
     ],
     "additionalProperties": false,
-    "x-parent": ["lf-playground"],
-    "x-content": "items",
+    "x-owners": ["lf-playground"],
+    "x-content": "members",
     "x-upgrade": false
   },
   "lf-playground-choice": {
@@ -128,8 +128,8 @@
     },
     "required": ["value", "label"],
     "additionalProperties": false,
-    "x-parent": ["lf-playground-control"],
-    "x-content": "none",
+    "x-owners": ["lf-playground-control"],
+    "x-content": "empty",
     "x-upgrade": false
   },
   "lf-playground-preset": {
@@ -143,8 +143,8 @@
     },
     "required": ["label"],
     "additionalProperties": false,
-    "x-parent": ["lf-playground"],
-    "x-content": "items",
+    "x-owners": ["lf-playground"],
+    "x-content": "members",
     "x-upgrade": false
   },
   "lf-playground-setting": {
@@ -161,8 +161,8 @@
     },
     "required": ["for", "value"],
     "additionalProperties": false,
-    "x-parent": ["lf-playground-preset"],
-    "x-content": "none",
+    "x-owners": ["lf-playground-preset"],
+    "x-content": "empty",
     "x-upgrade": false
   },
   "lf-playground-preview": {
@@ -175,8 +175,8 @@
       }
     },
     "additionalProperties": false,
-    "x-parent": ["lf-playground"],
-    "x-content": "prose",
+    "x-owners": ["lf-playground"],
+    "x-content": "markup",
     "x-upgrade": false
   },
   "lf-playground-output": {
@@ -189,8 +189,8 @@
       }
     },
     "additionalProperties": false,
-    "x-parent": ["lf-playground"],
-    "x-content": "prose",
+    "x-owners": ["lf-playground"],
+    "x-content": "markup",
     "x-upgrade": false
   },
   "lf-playground-value": {
@@ -204,8 +204,8 @@
     },
     "required": ["for"],
     "additionalProperties": false,
-    "x-parent": ["lf-playground-output"],
-    "x-content": "none",
+    "x-owners": ["lf-playground-output"],
+    "x-content": "empty",
     "x-inline": true,
     "x-upgrade": false
   }

@@ -420,11 +420,11 @@ outside average, before, after
                 <footer>Recorded at 14:32 · 18 checks completed</footer>
               </article>
               <section id="notification-artifact" hidden>
-                <lf-source
+                <lf-text-document
                   id="notification-artifact-source"
                   source="notification-artifact"
                   language="html"
-                ></lf-source>
+                ></lf-text-document>
               </section>
             </lf-playground-preview>
 
@@ -484,7 +484,7 @@ outside average, before, after
               This snapshot ends at 14:24:44. During a rehearsal, new samples appear
               here while the overview and containment choice stay in place.
             </p>
-            <lf-source id="lp-live-log" source="rehearsal-log"></lf-source>
+            <lf-text-document id="lp-live-log" source="rehearsal-log"></lf-text-document>
             <footer>Newest samples appear at the end.</footer>
           </lf-monitor-region>
 
@@ -820,36 +820,36 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
         <summary>Review history · four fixes before merge</summary>
         <section id="pr-history">
           <h2>Review history</h2>
-          <lf-timeline id="pr-review-timeline">
-            <lf-event id="pr-event-open" at="03:32 UTC" kind="info">
+          <lf-chronology id="pr-review-chronology">
+            <lf-chronology-entry id="pr-chronology-open" at="03:32 UTC" kind="observation">
               <strong>PR opened</strong> The first revision introduced the unified
               picker tab, shared diff preparation, and broad integration coverage.
-            </lf-event>
-            <lf-event id="pr-event-first-review" at="03:43 UTC" kind="warning">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="pr-chronology-first-review" at="03:43 UTC" kind="warning">
               <strong>First review withheld approval</strong> It found divergent sparse
               handling, a predictable shared temp directory, startup-cost uncertainty,
               and documentation drift.
-            </lf-event>
-            <lf-event id="pr-event-temp-fix" at="04:13 UTC" kind="action">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="pr-chronology-temp-fix" at="04:13 UTC" kind="intervention">
               <strong>Temp indexes became random, exclusive files</strong> Sparse
               registration and worktree-local temp-directory exclusion gained focused
               tests.
-            </lf-event>
-            <lf-event id="pr-event-race-fix" at="04:32 UTC" kind="action">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="pr-chronology-race-fix" at="04:32 UTC" kind="intervention">
               <strong>The index copy kept ownership of its pathname</strong> Writing
               through the still-open file closed the symlink race, and off-screen
               worktrees moved out of eager prewarm.
-            </lf-event>
-            <lf-event id="pr-event-final-review" at="04:57 UTC" kind="info">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="pr-chronology-final-review" at="04:57 UTC" kind="observation">
               <strong>Final review approved with follow-ups</strong> The shared
               <code>TempIndex</code> path and orchestration prose converged;
               selected-row latency and dry-run temp artifacts remained visible notes.
-            </lf-event>
-            <lf-event id="pr-event-merged" at="05:18 UTC" kind="info">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="pr-chronology-merged" at="05:18 UTC" kind="observation">
               <strong>Merged</strong> Six commits landed after all reported checks
               passed.
-            </lf-event>
-          </lf-timeline>
+            </lf-chronology-entry>
+          </lf-chronology>
         </section>
       </details>
 
@@ -970,12 +970,12 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
               This 169-line repository slice contains the source-owning abstraction and
               all three preparation entry points.
             </p>
-            <lf-source
+            <lf-text-document
               id="pr-prepared-diff-source"
               source="pr-prepared-diff-source"
               snapshot="3"
               language="rust"
-            ></lf-source>
+            ></lf-text-document>
           </details>
         </section>
       </details>
@@ -2959,7 +2959,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-external-data">
-        <p class="eyebrow bg-feature-elements">lf-diff · lf-source · lf-num</p>
+        <p class="eyebrow bg-feature-elements">lf-diff · lf-text-document · lf-num</p>
         <h2>
           <strong>External data</strong
           ><span class="bg-feature-detail"
@@ -2982,7 +2982,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </section>
 
         <section id="bg-source-captures">
-          <p class="eyebrow bg-feature-elements">lf-source</p>
+          <p class="eyebrow bg-feature-elements">lf-text-document</p>
           <h3>
             <strong>Source</strong
             ><span class="bg-feature-detail">: live and captured data</span>
@@ -2992,18 +2992,18 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             capture. Their captions show the file, capture label, and line range.
           </p>
           <p><strong>Live binding.</strong></p>
-          <lf-source
+          <lf-text-document
             id="bg-source-live"
             source="gallery-source"
             language="toml"
-          ></lf-source>
+          ></lf-text-document>
           <p><strong>Captured snapshot.</strong></p>
-          <lf-source
+          <lf-text-document
             id="bg-source-snapshot"
             source="gallery-source"
             snapshot="4"
             language="toml"
-          ></lf-source>
+          ></lf-text-document>
         </section>
 
         <section id="bg-measurement-lag">
@@ -3219,7 +3219,7 @@ gallery/
 
         <section id="bg-plans-and-history">
           <p class="eyebrow bg-feature-elements">
-            lf-milestones · lf-milestone · lf-timeline · lf-event
+            lf-milestones · lf-milestone · lf-chronology · lf-chronology-entry
           </p>
           <h3>
             <strong>Milestones</strong>, <strong>Timeline</strong>, and
@@ -3246,23 +3246,23 @@ gallery/
               <strong>Write the note</strong>
             </lf-milestone>
           </lf-milestones>
-          <lf-timeline id="bg-timeline">
-            <lf-event id="bg-event-alert" at="09:14" kind="warning">
+          <lf-chronology id="bg-chronology">
+            <lf-chronology-entry id="bg-chronology-alert" at="09:14" kind="warning">
               <strong>Rain started</strong> The open path became slippery.
-            </lf-event>
-            <lf-event id="bg-event-closed" at="09:18" kind="failure">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="bg-chronology-closed" at="09:18" kind="failure">
               <strong>Path closed</strong> Standing water blocked the crossing.
-            </lf-event>
-            <lf-event id="bg-event-switch" at="09:20" kind="action">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="bg-chronology-switch" at="09:20" kind="intervention">
               <strong>Route changed</strong> The sample moved under cover.
-            </lf-event>
-            <lf-event id="bg-event-clear" at="09:42" kind="info">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="bg-chronology-clear" at="09:42" kind="observation">
               <strong>Walk resumed</strong>
-            </lf-event>
-          </lf-timeline>
+            </lf-chronology-entry>
+          </lf-chronology>
         </section>
 
-        <section id="bg-workstream-tabs">
+        <section id="bg-tab-set">
           <p class="eyebrow bg-feature-elements">lf-tabs · lf-tab</p>
           <h3>
             <strong>Tabs</strong

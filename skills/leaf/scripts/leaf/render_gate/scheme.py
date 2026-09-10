@@ -148,10 +148,11 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
     # them to await, let alone hang in.
     try:
         registry = served_here("/registry.json").json()
-        # The readings in the page mean widgets, so they are handed only those:
+        # The readings in the page consume element declarations, so they are handed
+        # only those:
         # $keys spells its members in the x- keys' own names, and a sweep over
-        # every entry took it for a widget called $keys.
-        widgets = {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
+        # every declaration took it for a widget called $keys.
+        declarations = {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
         state = served_here("/api/state").json()
         markup = served_here(urlsplit(url).path).text()
         # Every replay and conflict check is bounded by immutable revision.
@@ -230,7 +231,7 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
         errors=errors,
         resize_notices=resize_notices,
         registry=registry,
-        widgets=widgets,
+        declarations=declarations,
         state=state,
         markup=markup,
         here=here,

@@ -3313,7 +3313,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                 },
                 "required": ["id"],
                 "additionalProperties": False,
-                "x-content": "prose",
+                "x-content": "markup",
                 "x-upgrade": True,
                 "x-example": '<lf-decoration id="decoration"></lf-decoration>',
             }

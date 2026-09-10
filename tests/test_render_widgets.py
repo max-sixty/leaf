@@ -318,7 +318,7 @@ CUSTOM_WORKSPACE_LAYER = {
         },
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-layout": "workspace",
         "x-upgrade": True,
         "x-verbatim": True,
@@ -3179,11 +3179,11 @@ body { font-family: system-ui, sans-serif; }
 """
     artifact.write_text(first_artifact, encoding="utf-8")
     artifact_binding = """              <section id="notification-artifact" hidden>
-                <lf-source
+                <lf-text-document
                   id="notification-artifact-source"
                   source="notification-artifact"
                   language="html"
-                ></lf-source>
+                ></lf-text-document>
               </section>
 """
     result_source = (
@@ -3200,11 +3200,11 @@ body { font-family: system-ui, sans-serif; }
             """        </lf-workspace>
       </details>
       <section id="notification-artifact">
-        <lf-source
+        <lf-text-document
           id="notification-artifact-source"
           source="notification-artifact"
           language="html"
-        ></lf-source>
+        ></lf-text-document>
       </section>""",
             1,
         )

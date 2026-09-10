@@ -48,7 +48,7 @@ from interact_support import (
     stamp,
     styled,
     trial_version,
-    widget_entry,
+    element_declaration,
 )
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
@@ -986,7 +986,7 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
 ):
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    local = widget_entry("lf-local-thread")
+    local = element_declaration("lf-local-thread")
     (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
     vendoring_model.cmd_init(page_dir)
     publish(page_dir)
@@ -1457,7 +1457,7 @@ def test_revendoring_distinguishes_idless_snapshot_seats_on_one_line(
 @pytest.mark.parametrize(
     ("entry", "message"),
     [
-        (None, "registry entries must be objects"),
+        (None, "registry declarations must be objects"),
         ({"type": "not-a-schema-type"}, "not a valid JSON Schema"),
     ],
 )
@@ -1621,7 +1621,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
 def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
     """The words gate instructs "add `restated`" when a version rewrites decided
     words; a widget whose closed schema lacks the attribute would be told to
-    write markup its own registry entry refuses — every rewrite unpublishable."""
+    write markup its own element declaration refuses — every rewrite unpublishable."""
     registry = json.loads((page_dir / "registry.json").read_text())
     del registry["lf-suggestion"]["properties"]["restated"]
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -1708,9 +1708,9 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         ("x-awaits", []),
         ("x-awaits", {"when": {"choose": True}}),
         ("x-conversation", False),
-        ("x-children", []),
+        ("x-required-members", []),
         ("x-content", "words"),
-        ("x-parent", []),
+        ("x-owners", []),
         # Each of these names attributes, so an empty one declares nothing while
         # reading as a declaration.
         ("x-refers", {}),
@@ -1774,11 +1774,14 @@ def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, message):
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
-        ("unknown-child", "x-children names unknown widget <lf-missing>"),
-        ("wrong-parent", "does not name it in x-parent"),
+        (
+            "unknown-child",
+            "x-required-members names unknown member declaration <lf-missing>",
+        ),
+        ("wrong-owner", "does not name it in x-owners"),
         ("optional-role", "must name a required, non-empty string enum"),
         ("open-role", "must name a required, non-empty string enum"),
-        ("prose-parent", "x-children requires x-content: items"),
+        ("markup-owner", "x-required-members requires x-content: members"),
     ],
 )
 def test_one_each_child_declarations_are_checked_whole(page_dir, mutation, message):
@@ -1786,18 +1789,20 @@ def test_one_each_child_declarations_are_checked_whole(page_dir, mutation, messa
     option = registry["lf-option"]
     option["properties"]["role"] = {"type": "string", "enum": ["first", "second"]}
     option["required"].append("role")
-    registry["lf-options"]["x-children"] = {"lf-option": {"one-each": "role"}}
+    registry["lf-options"]["x-required-members"] = {"lf-option": {"one-each": "role"}}
 
     if mutation == "unknown-child":
-        registry["lf-options"]["x-children"] = {"lf-missing": {"one-each": "role"}}
-    elif mutation == "wrong-parent":
-        option["x-parent"] = ["lf-board"]
+        registry["lf-options"]["x-required-members"] = {
+            "lf-missing": {"one-each": "role"}
+        }
+    elif mutation == "wrong-owner":
+        option["x-owners"] = ["lf-board"]
     elif mutation == "optional-role":
         option["required"].remove("role")
     elif mutation == "open-role":
         option["properties"]["role"] = {"type": "string"}
     else:
-        registry["lf-options"]["x-content"] = "prose"
+        registry["lf-options"]["x-content"] = "markup"
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -1886,7 +1891,7 @@ def test_check_refuses_a_widget_name_that_cannot_form_a_selector(page_dir, tag):
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f"invalid registry entry names: ['{tag}']" in result.output
+    assert f"invalid element declaration names: ['{tag}']" in result.output
 
 
 def test_check_refuses_an_invalid_action_detail_schema(page_dir):
@@ -1914,8 +1919,8 @@ def test_generated_child_declaration_is_valid_as_shipped(page_dir):
         ("unknown-child", "creates unknown child <lf-missing>"),
         ("required-field", "creates detail field `additions` must be optional"),
         ("wrong-map", "canonical non-empty element-id to non-empty string map"),
-        ("wrong-parent", "x-parent does not admit the sender"),
-        ("non-prose", "must declare x-content prose"),
+        ("wrong-owner", "x-owners does not admit the sender"),
+        ("non-markup", "must declare x-content markup"),
         ("extra-required", "must require id and no other authored attributes"),
         ("wrong-id", "required id must use the canonical element-id schema"),
         ("report-creates", "registry extensions are invalid"),
@@ -1933,10 +1938,10 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, mes
         choose["detail"]["required"].append("additions")
     elif mutation == "wrong-map":
         choose["detail"]["properties"]["additions"]["minProperties"] = 0
-    elif mutation == "wrong-parent":
-        option["x-parent"] = ["lf-board"]
-    elif mutation == "non-prose":
-        option["x-content"] = "items"
+    elif mutation == "wrong-owner":
+        option["x-owners"] = ["lf-board"]
+    elif mutation == "non-markup":
+        option["x-content"] = "members"
     elif mutation == "extra-required":
         option["required"].append("for")
     elif mutation == "wrong-id":
@@ -2000,8 +2005,8 @@ def test_request_detail_schemas_match_the_post_object_contract(page_dir):
         ),
         ("optional-id", "x-request instances are addressable"),
         ("no-upgrade", "declares x-request"),
-        ("unknown-offer", "x-request offers unknown widget <lf-unknown>"),
-        ("wrong-parent", "does not name it in x-parent"),
+        ("unknown-offer", "x-request offers unknown member <lf-unknown>"),
+        ("wrong-owner", "does not name it in x-owners"),
         ("freeform-offer", "must be a non-empty string enum"),
         (
             "optional-offer-attribute",
@@ -2048,8 +2053,8 @@ def test_an_x_request_declaration_closes_its_widget_boundary(
         operations["x-upgrade"] = False
     elif mutation == "unknown-offer":
         operations["x-request"]["offers"] = {"lf-unknown": "verb"}
-    elif mutation == "wrong-parent":
-        registry["lf-operation"]["x-parent"] = ["lf-command"]
+    elif mutation == "wrong-owner":
+        registry["lf-operation"]["x-owners"] = ["lf-command"]
     elif mutation == "freeform-offer":
         registry["lf-operation"]["properties"]["verb"] = {"type": "string"}
     elif mutation == "optional-offer-attribute":
@@ -2060,7 +2065,7 @@ def test_an_x_request_declaration_closes_its_widget_boundary(
         registry["lf-operation"]["properties"]["verb"]["enum"].remove("restart")
     elif mutation == "self-framing-decision":
         operations["x-ask-surface"] = True
-        operations["x-content"] = "prose"
+        operations["x-content"] = "markup"
     elif mutation == "dual-decision-source":
         operations["x-awaits"] = {"rollup": True}
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -2413,9 +2418,9 @@ def test_runtime_features_require_an_upgraded_widget(page_dir, tag, key, fallbac
     assert "but has no upgraded handler" in result.output
 
 
-def test_retirement_requires_a_parent(page_dir):
+def test_retirement_requires_an_owner(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    del registry["lf-old"]["x-parent"]
+    del registry["lf-old"]["x-owners"]
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -2451,7 +2456,7 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir):
     accept["unit"] = "part"
     accept["detail"]["required"] = ["part"]
     # Keep the settlement coordinate coherent so this reaches the separate
-    # holder/slot relation being exercised here.
+    # owner/member relation being exercised here.
     reject = registry["lf-suggestion"]["x-state"]["reject"]
     reject["detail"]["properties"] = {"part": {"type": "string"}}
     reject["unit"] = "part"
@@ -2463,8 +2468,8 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir):
     assert "<lf-old> x-retired-when `accept` must fold by widget" in result.output
 
 
-def test_one_holders_retirement_outcomes_share_one_facet(page_dir):
-    """Retirement is one decision even when its holder answers no thread."""
+def test_one_owners_retirement_outcomes_share_one_facet(page_dir):
+    """Retirement is one decision even when its owner answers no thread."""
     registry = json.loads((page_dir / "registry.json").read_text())
     accept = registry["lf-suggestion"]["x-state"]["accept"]
     accept["detail"] = {"type": "object", "additionalProperties": False}
@@ -2477,13 +2482,13 @@ def test_one_holders_retirement_outcomes_share_one_facet(page_dir):
     assert (
         "<lf-suggestion> x-retired-when outcomes span facets (`accept` → "
         "`settlement`, `reject` → `alternative`); every retirement outcome for "
-        "one holder must share one facet" in result.output
+        "one owner must share one facet" in result.output
     )
 
 
 def test_a_layers_own_outcome_licenses_the_ids_it_retires(trial_page):
     """The version that honors a decision drops what the outcome retired, and
-    the licensing that lets it is written in terms of the registry's holder/slot
+    the licensing that lets it is written in terms of the registry's owner/member
     relation — so a family the layer never heard of is licensed the day it is
     declared. It used to be written in terms of the suggestion's own slots, and
     a family like this one got every part of the loop except this: the door
@@ -2745,7 +2750,7 @@ def test_a_completion_verb_can_follow_a_local_parent_but_not_its_rollup(page_dir
         "facet": "answer",
         "unit": "widget",
     }
-    registry["lf-request-parent"] = {
+    registry["lf-request-owner"] = {
         "description": "A parent request used to validate sequencing.",
         "type": "object",
         "properties": {
@@ -2754,7 +2759,7 @@ def test_a_completion_verb_can_follow_a_local_parent_but_not_its_rollup(page_dir
         },
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "items",
+        "x-content": "members",
         "x-upgrade": True,
         "x-awaits": {"answers": ["answer"]},
         "x-state": {"answer": state},
@@ -2768,33 +2773,33 @@ def test_a_completion_verb_can_follow_a_local_parent_but_not_its_rollup(page_dir
         },
         "required": ["id"],
         "additionalProperties": False,
-        "x-parent": ["lf-request-parent"],
-        "x-content": "none",
+        "x-owners": ["lf-request-owner"],
+        "x-content": "empty",
         "x-upgrade": True,
         "x-awaits": {"answers": ["answer"]},
         "x-state": {
             "answer": {
                 **state,
-                "requires": {"target": "parent", "awaiting": False},
+                "requires": {"target": "owner", "awaiting": False},
             }
         },
     }
 
     assert registry_validation.validate_registry(registry, "test registry") is registry
 
-    registry["lf-request-parent"]["x-awaits"] = {"rollup": True}
+    registry["lf-request-owner"]["x-awaits"] = {"rollup": True}
     with pytest.raises(registry_contract.RegistryError) as raised:
         registry_validation.validate_registry(registry, "test registry")
-    assert "aggregate parents ['lf-request-parent']" in str(raised.value)
+    assert "aggregate owners ['lf-request-owner']" in str(raised.value)
     assert "cannot complete it" in str(raised.value)
 
 
-def test_a_parent_prerequisite_requires_addressable_targets(page_dir):
+def test_an_owner_prerequisite_requires_addressable_targets(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-suggestion"]["required"].remove("id")
-    registry["lf-options"]["x-parent"] = ["lf-suggestion"]
+    registry["lf-options"]["x-owners"] = ["lf-suggestion"]
     registry["lf-options"]["x-state"]["choose"]["requires"] = {
-        "target": "parent",
+        "target": "owner",
         "awaiting": True,
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -2817,8 +2822,8 @@ def test_a_parent_prerequisite_requires_addressable_targets(page_dir):
         (
             "lf-options",
             "choose",
-            {"target": "parent", "awaiting": True},
-            "declares no x-parent",
+            {"target": "owner", "awaiting": True},
+            "declares no x-owners",
         ),
     ],
 )
@@ -2853,9 +2858,9 @@ def test_only_reader_actions_admit_current_eligibility(page_dir):
     assert "requires" in result.output
 
 
-def test_a_self_position_record_stays_within_the_declared_parent_relation(page_dir):
+def test_a_self_position_record_stays_within_the_declared_ownership_relation(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-parent"] = ["lf-task"]
+    registry["lf-options"]["x-owners"] = ["lf-task"]
     registry["lf-options"]["x-state"]["move"] = {
         "detail": {
             "type": "object",
@@ -2881,7 +2886,7 @@ def test_a_self_position_record_stays_within_the_declared_parent_relation(page_d
 
     assert result.exit_code != 0
     assert "records its own position within <lf-column>" in result.output
-    assert "x-parent does not admit" in result.output
+    assert "x-owners does not admit" in result.output
 
 
 def test_a_recursive_self_position_record_cannot_create_a_dom_cycle(server, page_dir):
@@ -2948,7 +2953,12 @@ def test_a_recursive_self_position_record_cannot_create_a_dom_cycle(server, page
 @pytest.mark.parametrize(
     ("tag", "key", "value", "missing"),
     [
-        ("lf-event", "x-says", {"at": "before", "colour": "after"}, "colour"),
+        (
+            "lf-chronology-entry",
+            "x-says",
+            {"at": "before", "colour": "after"},
+            "colour",
+        ),
         ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),
         ("lf-task", "x-paints", ["status", "urgency"], "urgency"),
         ("lf-code", "x-lines", ["hi", "upto"], "upto"),
@@ -3584,7 +3594,7 @@ def test_an_ask_role_declares_an_addressable_instance(page_dir):
         "type": "object",
         "properties": {"open": {"type": "boolean"}},
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-awaits": {"when": {"open": [True]}, "answers": ["answer"]},
         "x-state": {
             "answer": {
@@ -3713,7 +3723,7 @@ def test_shared_package_declarations_compose_by_member():
     lane = {"role": "holder", "state": "phase"}
     merged = {"$workflow": {"widgets": {"lf-board": board}}}
 
-    registry_layer.merge_layer_entries(
+    registry_layer.merge_layer_declarations(
         merged, {"$workflow": {"widgets": {"lf-lane": lane}}}
     )
 

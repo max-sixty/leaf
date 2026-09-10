@@ -813,13 +813,13 @@ def test_the_render_gate_requires_a_visual_parts_provider(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-callout"]["properties"]["parts"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-callout"]["properties"]["parts"] = {
         "type": "string",
         "minLength": 1,
     }
-    entries["lf-callout"]["x-visual"] = {"parts": "parts"}
-    registry_path.write_text(json.dumps(entries, indent=2))
+    declarations["lf-callout"]["x-visual"] = {"parts": "parts"}
+    registry_path.write_text(json.dumps(declarations, indent=2))
 
     failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
 
@@ -977,10 +977,10 @@ flowchart LR
 def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     browser, serve, tmp_path, monkeypatch
 ):
-    """Bug-back for two module contracts the gate enforces: an entry that says
+    """Bug-back for two module contracts the gate enforces: a declaration that says
     x-verbatim while the module renders other words in the body's stead (quotes
     would strand on words the screen no longer shows), and a module attaching a
-    shadow root its entry doesn't declare (the passage walk crosses only the
+    shadow root its declaration doesn't declare (the passage walk crosses only the
     declared ones, so an undeclared root's words anchor astray)."""
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
@@ -1039,13 +1039,13 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-shell", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-shell"]["properties"]["mode"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-shell"]["properties"]["mode"] = {
         "type": "string",
         "enum": ["replace"],
     }
-    entries["lf-shell"]["required"] = []
-    registry_path.write_text(json.dumps(entries, indent=2))
+    declarations["lf-shell"]["required"] = []
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
         'import { once } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-shell", class extends HTMLElement {\n'
@@ -1106,8 +1106,8 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
 def _author_stateful_verbatim_widget(tmp_path):
     author_test_widget(tmp_path, "lf-stateful", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    stateful = entries["lf-stateful"]
+    declarations = json.loads(registry_path.read_text())
+    stateful = declarations["lf-stateful"]
     stateful["properties"].update(
         {
             "reader": {"type": "string"},
@@ -1142,7 +1142,7 @@ def _author_stateful_verbatim_widget(tmp_path):
             "record": {"kind": "value", "attr": "agent", "value": "value"},
         }
     }
-    registry_path.write_text(json.dumps(entries, indent=2))
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
         'import { once } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-stateful", class extends HTMLElement {\n'
@@ -1362,19 +1362,19 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
     monkeypatch.chdir(tmp_path)
     _author_stateful_verbatim_widget(tmp_path)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-shell"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-shell"] = {
         "description": "A preserving wrapper around a stateful child.",
         "type": "object",
         "properties": {"id": {"type": "string"}},
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-upgrade": True,
         "x-verbatim": True,
         "x-example": '<lf-shell id="shell-example">Example</lf-shell>',
     }
-    registry_path.write_text(json.dumps(entries, indent=2))
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
         'import { once } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-shell", class extends HTMLElement {\n'
@@ -1426,21 +1426,21 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-shell", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-shell"]["properties"]["mode"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-shell"]["properties"]["mode"] = {
         "type": "string",
         "enum": ["prose", "order"],
     }
-    entries["lf-piece"] = {
+    declarations["lf-piece"] = {
         "description": "An anonymous nested upgraded piece.",
         "type": "object",
         "properties": {},
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-upgrade": True,
         "x-example": "<lf-piece>Example</lf-piece>",
     }
-    registry_path.write_text(json.dumps(entries, indent=2))
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
         'import { once } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-piece", class extends HTMLElement {\n'
@@ -1527,7 +1527,7 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     the document's question — so an element a module stages into its own tree keeps its
     declarations and gets neither pass, and the failure is silence: no error, no missing
     box, nothing a reading of the drawn page can tell from an attribute with nothing to
-    say. Here a project widget stages an <lf-event>, whose entry declares both keys, and
+    say. Here a project widget stages an <lf-chronology-entry>, whose declaration names both keys, and
     the gate is asked for each.
 
     A staged element rather than a module that wipes its own body after the passes have
@@ -1537,13 +1537,13 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
+    declarations = json.loads(registry_path.read_text())
     # The fixture's x-verbatim claim is about a body this module no longer shows, and
     # the gate says so on its own; declaring the root keeps this test's finding the
     # only one about the tree.
-    entries["lf-callout"].pop("x-verbatim")
-    entries["lf-callout"]["x-shadow"] = True
-    registry_path.write_text(json.dumps(entries, indent=2))
+    declarations["lf-callout"].pop("x-verbatim")
+    declarations["lf-callout"]["x-shadow"] = True
+    registry_path.write_text(json.dumps(declarations, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
         'import { once, shadowStage } from "/runtime/widget-api.js";\n'
@@ -1552,8 +1552,8 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
         "  class extends HTMLElement {\n"
         "    connectedCallback() {\n"
         "      if (!once(this)) return;\n"
-        '      const staged = document.createElement("lf-event");\n'
-        '      staged.id = "staged-event";\n'
+        '      const staged = document.createElement("lf-chronology-entry");\n'
+        '      staged.id = "staged-chronology-entry";\n'
         '      staged.setAttribute("at", "09:00");\n'
         '      staged.setAttribute("kind", "failure");\n'
         '      staged.textContent = "The feeder stopped.";\n'
@@ -1583,15 +1583,15 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entry = entries["lf-callout"]
-    entry.pop("x-verbatim")  # the module shows a tree of its own, not the body
-    entry["x-shadow"] = True
-    entry["properties"]["label"] = {"type": "string"}
-    entry["properties"]["urgent"] = {"type": "boolean"}
-    entry["x-says"] = {"label": "before"}
-    entry["x-paints"] = ["urgent"]
-    registry_path.write_text(json.dumps(entries, indent=2))
+    declarations = json.loads(registry_path.read_text())
+    declaration = declarations["lf-callout"]
+    declaration.pop("x-verbatim")  # the module shows a tree of its own, not the body
+    declaration["x-shadow"] = True
+    declaration["properties"]["label"] = {"type": "string"}
+    declaration["properties"]["urgent"] = {"type": "boolean"}
+    declaration["x-says"] = {"label": "before"}
+    declaration["x-paints"] = ["urgent"]
+    registry_path.write_text(json.dumps(declarations, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
         'import { once, shadowStage } from "/runtime/widget-api.js";\n'

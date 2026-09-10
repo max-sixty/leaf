@@ -1448,14 +1448,14 @@ PAINTED_IN_SILENCE_PAGE = leaf_page(
     "silence",
     """
 <h1 id="h">Transport</h1>
-<lf-timeline id="open-group">
-  <lf-event id="p-seen" at="09:12" kind="failure"><strong>Feed stopped</strong></lf-event>
-</lf-timeline>
+<lf-chronology id="open-group">
+  <lf-chronology-entry id="p-seen" at="09:12" kind="failure"><strong>Feed stopped</strong></lf-chronology-entry>
+</lf-chronology>
 <details id="folded">
   <summary>Weighed in March</summary>
-  <lf-timeline id="folded-group">
-    <lf-event id="p-folded" at="10:20" kind="failure"><strong>Feed stopped</strong></lf-event>
-  </lf-timeline>
+  <lf-chronology id="folded-group">
+    <lf-chronology-entry id="p-folded" at="10:20" kind="failure"><strong>Feed stopped</strong></lf-chronology-entry>
+  </lf-chronology>
 </details>
 """,
     head="<style>.lf-quiet { display: none }</style>",

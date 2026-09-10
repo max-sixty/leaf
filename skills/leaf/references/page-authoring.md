@@ -86,7 +86,7 @@ The workspace's optional direct native `footer` follows its body. A pane's direc
 `header` and `footer` frame its reading body; put existing action widgets in the
 footer when they should stay available while the body scrolls. A pane's `label`
 names it for navigation and assistive technology; author a `header` when it needs
-a visible heading. Query the registry entries for their complete markup contracts.
+a visible heading. Query the element declarations for their complete markup contracts.
 
 Keep a compound widget's authoring grammar and state ownership together. A
 playground supplies its own controls and preview regions; its Ask still surrounds
@@ -121,7 +121,7 @@ width. A table that scrolls has every column at its longest unbreakable run, and
 the browser gate refuses one that scrolls with a cell in it wrapped: put an
 identifier in `<code>`, where it breaks inside its cell, rather than bare, where
 it holds its column and squeezes the prose beside it, and keep the columns to
-what the measure holds. Widgets whose registry entry declares a wide shape size
+what the measure holds. Widgets whose element declaration names a wide shape size
 themselves; fix a diagram that is too wide in its source rather than pinning a
 page width.
 

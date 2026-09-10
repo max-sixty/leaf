@@ -463,7 +463,7 @@ outside their module. The test for a general mechanism is whether another widget
 family can join by adding its entry, module, and theme rules without editing a
 consumer.
 
-The registry has two grains. A tag entry is one complete schema and later layers
+The registry has two grains. An element declaration is one complete schema and later layers
 replace it whole. A `$` entry is a shared namespace and layers merge its members.
 Shared facts such as languages, tones, idioms, and event definitions belong
 under `$languages`, `$tones`, `$idioms`, and `$events`. A consumer reaching into
@@ -474,8 +474,8 @@ The extension keys describe general behavior:
 | Declaration | Meaning to the layer |
 | --- | --- |
 | `x-upgrade` | import this tag's module |
-| `x-content` | the element contains prose, items, data, or no authored content |
-| `x-children` | fixed item roles: exactly one direct child for every value of a required child enum |
+| `x-content` | the element contains authored markup, owned members, data, or nothing |
+| `x-required-members` | fixed member roles: exactly one direct member for every value of a required member enum |
 | `x-inline` | the widget stands in an inline run |
 | `x-measured` | authored scalar words are pinned at an instant to one live data input; checks compare that instant with the source's latest update |
 | `x-says` | named attributes are visible words at declared edges |
@@ -486,7 +486,7 @@ The extension keys describe general behavior:
 | `x-report` | report verbs with the same semantic state shape |
 | `x-request` | direct-child command offers, typed one-shot external-operation verbs, and whether a ready lifecycle is an Ask |
 | `x-refers` | element-id attributes and optional package-owned map predicates that type their targets |
-| `x-parent` | the child widgets whose state and Ask membership belong to this holder |
+| `x-owners` | the element types that may directly own this member |
 | `x-retired-when` | outcome-to-slot retirement relations |
 | `x-withdrawn-as` | the author's state for a withdrawn recordless decision |
 | `x-ask-surface` | the complete reading and arrival region around one nested Ask source |

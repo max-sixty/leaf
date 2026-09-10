@@ -214,14 +214,14 @@ def position_record_error(
         )
     # A part record repositions something inside its owning widget, so its
     # destination belongs there too. A self-position record instead moves the
-    # widget among containers admitted by its x-parent (often siblings of its
+    # widget among containers admitted by its x-owners (often siblings of its
     # current parent), and the registry relation below is its complete boundary.
     if unit is not current and not inside(target, current):
         return (
             f"position record destination {target_id!r} is outside action widget "
             f"{event['widget']!r}"
         )
-    if target["tag"] not in (registry.get(unit["tag"]) or {}).get("x-parent", []):
+    if target["tag"] not in (registry.get(unit["tag"]) or {}).get("x-owners", []):
         return (
             f"position record cannot put <{unit['tag']}> {unit_id!r} within "
             f"<{target['tag']}> {target_id!r}"

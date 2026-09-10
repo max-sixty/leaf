@@ -12,7 +12,7 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-content": "prose",
+    "x-content": "markup",
     "x-layout": "workspace",
     "x-upgrade": true,
     "x-verbatim": true,
@@ -31,11 +31,11 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-monitor"
     ],
-    "x-content": "items",
-    "x-children": {
+    "x-content": "members",
+    "x-required-members": {
       "lf-monitor-region": {
         "one-each": "zone"
       }
@@ -70,10 +70,10 @@
       "zone"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-monitor-grid"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-layout": "pane",
     "x-upgrade": true,
     "x-verbatim": true,

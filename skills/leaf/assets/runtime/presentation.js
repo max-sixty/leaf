@@ -70,7 +70,7 @@
    Place injected lines on the block or anchored element, not on an intermediate body
    node from which a draft editor seeds its text. */
 
-import { registry, tagsDeclaring, widgetEntries } from "./registry.js";
+import { elementDeclarations, registry, tagsDeclaring } from "./registry.js";
 import { highlightBlocks } from "./syntax.js";
 
 // Attributes the runtime itself may paint onto elements the page owns. This is the
@@ -375,7 +375,7 @@ export function dress(root) {
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
 // the widget kind says which it is (x-wide) and the theme spends the room the layout
-// resolved by the CSS shell (--lf-room). The value is the kind the entry declares, and the
+// resolved by the CSS shell (--lf-room). The value is the kind the declaration names, and the
 // theme's `[data-lf-wide="box"]` and `[data-lf-wide="drawing"]` rules read it.
 //
 // Whether the widget is set among the words around it is the second (x-inline). What
@@ -449,7 +449,7 @@ export function markDeclared(root, painted) {
     }
 }
 
-// Words a widget says through an attribute — a metric's number, an event's time, an
+// Words a widget says through an attribute — a metric's number, a chronology entry's time, an
 // option's chip band — rendered as text the user can reach. The theme renders the same
 // words with `content: attr()`, and a pseudo-element's glyphs are in no text node: no
 // selection can cover them, so no comment can be anchored on them, and the page shows
@@ -478,7 +478,7 @@ export function markDeclared(root, painted) {
 // theme, whose every rule names the attribute it styles rather than matching the bare
 // marker.
 export function renderSaid(root) {
-  for (const [tag, entry] of widgetEntries()) {
+  for (const [tag, entry] of elementDeclarations()) {
     if (!entry["x-says"]) continue;
     for (const el of elementsIn(root, tag))
       for (const [attr, edge] of Object.entries(entry["x-says"])) {
@@ -506,7 +506,7 @@ export function renderSaid(root) {
         // trailing chrome is passed over by looking for the last authored node, leading
         // chrome by looking for the first node this pass has not already written. The
         // second reading also settles the order of two attributes declared at this edge,
-        // though no shipped entry declares two.
+        // though no shipped declaration names two.
         const pastTrailingChrome = [...el.childNodes].filter(
           (n) => !(n.nodeType === 1 && n.dataset.lfGen),
         );
@@ -524,11 +524,11 @@ export function renderSaid(root) {
 }
 
 // What a widget states without local words. A task's status marker, a milestone's dot, an
-// event's kind band: each is a fact the eye reads off paint alone, so a reader listening
+// entry's kind band: each is a fact the eye reads off paint alone, so a reader listening
 // is handed every word around it and nothing of the fact itself — done sounded exactly
 // like blocked. Same reasoning as renderSaid, one rung quieter: the registry names the
 // attributes (x-paints) and one pass speaks them, because left to each module it is a
-// thing to remember, and lf-event, which has no module at all, could never remember it.
+// thing to remember, and lf-chronology-entry, which has no module at all, could never remember it.
 //
 // The value is the word, or the attribute's own name where the value is empty: an enum
 // means what it says (`blocked`), and a flag attribute means what it is called.

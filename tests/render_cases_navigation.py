@@ -477,7 +477,7 @@ CONTROL_LABEL_PAGE = leaf_page(
     "labels",
     """
 <h1 id="h">Aviary projects</h1>
-<p id="lede">Two workstreams, one page.</p>
+<p id="lede">Two views, one page.</p>
 <lf-tabs id="projects">
   <lf-tab id="tab-feeders" label="Winter feeders">
     <p id="p-feeders">Two of the four feeders are mounted; the south pair waits on brackets.</p>
@@ -1010,7 +1010,7 @@ def data_projection_page(serve):
         },
         "required": ["id", "source"],
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-data": {"rows": {"contract": "deployment-rows", "source": "source"}},
         "x-upgrade": True,
         "x-example": ('<lf-feed id="feed-example" source="deployments"></lf-feed>'),

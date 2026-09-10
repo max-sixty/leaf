@@ -4250,8 +4250,8 @@ def test_a_stale_package_widget_uses_recursive_parent_eligibility(
                     },
                     "required": ["id", "slots"],
                     "additionalProperties": False,
-                    "x-parent": ["lf-task"],
-                    "x-content": "none",
+                    "x-owners": ["lf-task"],
+                    "x-content": "empty",
                     "x-upgrade": True,
                     "x-state": {
                         "move": {
@@ -4293,7 +4293,7 @@ def test_a_stale_package_widget_uses_recursive_parent_eligibility(
                                 "value": "slots",
                             },
                             "requires": {
-                                "target": "parent",
+                                "target": "owner",
                                 "awaiting": False,
                             },
                         },
@@ -5639,7 +5639,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     pencil.click()
                 # A source can sit behind nested disclosures. Open each visible ancestor
                 # in document order so the innermost source becomes a real Tab stop.
-                for source in page.locator("details:has(lf-source)").all():
+                for source in page.locator("details:has(lf-text-document)").all():
                     if source.is_visible() and not source.get_attribute("open"):
                         source.locator(":scope > summary").click()
             page.evaluate(RING_WALK_START)

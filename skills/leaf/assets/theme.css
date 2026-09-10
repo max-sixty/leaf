@@ -87,7 +87,7 @@
 
    Every box that frames authored block flow declares `--lf-frame: 1` where the frame is
    drawn. The declaration may belong to a nested-state selector or a generated internal
-   box rather than the tag's base rule. Widgets with `x-content: prose` or `items` can
+   box rather than the tag's base rule. Widgets with `x-content: markup` or `members` can
    admit authored flow; data-only, empty, and inline widgets do not automatically owe a
    frame declaration.
 
@@ -1674,7 +1674,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
  * Having a box also puts the wrapper in front of the render gate's floors, and the
  * width floor is written for widgets that reserve a region. This one's box is its
  * content's in both forms, words included — a one-word swap is ~30px and correct — so
- * the entry declares x-inline, which is the key that names whose floor is whose. */
+ * the declaration names x-inline, which is the key that names whose floor is whose. */
 lf-suggestion { display: inline; }
 lf-old, lf-new { border-radius: 3px; padding: 0 3px; }
 /* --ink-2, not --muted: the strike and the tint already say retired, and muted on

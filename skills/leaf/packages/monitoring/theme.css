@@ -55,7 +55,7 @@ lf-monitor-region[zone="overview"] lf-metrics {
 lf-monitor-region[zone="overview"] lf-metric {
   padding: 8px 10px;
 }
-lf-monitor-region[zone="evidence"] lf-source {
+lf-monitor-region[zone="evidence"] lf-text-document {
   margin: 0;
 }
 

@@ -23,21 +23,23 @@ from .state import (
 )
 
 
-def widget_entries(registry: dict, path) -> dict:
+def element_declarations(registry: dict, path) -> dict:
     invalid_names = [
         tag
         for tag in registry
         if not tag.startswith("$") and re.fullmatch(WIDGET_NAME, tag) is None
     ]
     if invalid_names:
-        raise RegistryError(f"{path}: invalid registry entry names: {invalid_names}")
+        raise RegistryError(
+            f"{path}: invalid element declaration names: {invalid_names}"
+        )
     return {tag: entry for tag, entry in registry.items() if tag.startswith("lf-")}
 
 
-def validate_widget_schemas(widgets: dict, path) -> None:
-    # First validate every entry in isolation. Cross-entry checks run only after this
+def validate_widget_schemas(declarations: dict, path) -> None:
+    # First validate every declaration in isolation. Cross-declaration checks run only after this
     # pass, so their result cannot depend on which widget happened to be written first.
-    for tag, entry in widgets.items():
+    for tag, entry in declarations.items():
         try:
             Draft202012Validator.check_schema(entry)
         except SchemaError as error:
@@ -80,7 +82,7 @@ def validate_widget_schemas(widgets: dict, path) -> None:
                     f"{path}: <{tag}> {channel} verb `{verb}` detail schema "
                     "must declare an object"
                 )
-            # A verb carries only the detail keys its entry declares — the
+            # A verb carries only the detail keys its declaration names — the
             # premise the layer's own field meanings rest on: both runtimes
             # dispatch thread settlement on `resolves` being present, which
             # is safe exactly because a closed schema makes carrying it a
@@ -166,29 +168,33 @@ def validate_widget_schemas(widgets: dict, path) -> None:
 
 
 def validate_widget_relations(
-    registry: dict, widgets: dict, data: dict, slots: dict, path
+    registry: dict, declarations: dict, data: dict, slots: dict, path
 ) -> None:
-    for tag, entry in widgets.items():
+    for tag, entry in declarations.items():
         properties, said = _validate_widget_structure(
-            tag, entry, registry, widgets, data, path
+            tag, entry, registry, declarations, data, path
         )
         awaits, response = _validate_widget_predicates(tag, entry, properties, path)
         _validate_widget_interactions(tag, entry, properties, awaits, response, path)
-        validate_widget_state_relations(tag, entry, widgets, path)
-        validate_widget_record_contracts(tag, entry, properties, said, widgets, path)
-        validate_widget_retirement(tag, entry, slots, widgets, path)
+        validate_widget_state_relations(tag, entry, declarations, path)
+        validate_widget_record_contracts(
+            tag, entry, properties, said, declarations, path
+        )
+        validate_widget_retirement(tag, entry, slots, declarations, path)
 
 
 def _validate_widget_structure(
-    tag: str, entry: dict, registry: dict, widgets: dict, data: dict, path
+    tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
 ) -> tuple[dict, set]:
-    if unknown := sorted(set(entry.get("x-parent", [])) - set(widgets)):
-        raise RegistryError(f"{path}: <{tag}> x-parent names unknown widgets {unknown}")
+    if unknown := sorted(set(entry.get("x-owners", [])) - set(declarations)):
+        raise RegistryError(
+            f"{path}: <{tag}> x-owners names unknown element declarations {unknown}"
+        )
     properties = entry.get("properties", {})
     layout = entry.get("x-layout")
     if layout:
-        if entry.get("x-content") != "prose":
-            raise RegistryError(f"{path}: <{tag}> x-layout requires x-content: prose")
+        if entry.get("x-content") != "markup":
+            raise RegistryError(f"{path}: <{tag}> x-layout requires x-content: markup")
         required = set(entry.get("required", []))
         if "id" not in required or properties.get("id", {}).get("type") != "string":
             raise RegistryError(
@@ -210,54 +216,57 @@ def _validate_widget_structure(
                 f"{path}: <{tag}> x-layout split instances require direction with "
                 "enum containing columns and rows"
             )
-    children = entry.get("x-children", {})
-    if children and entry.get("x-content") != "items":
-        raise RegistryError(f"{path}: <{tag}> x-children requires x-content: items")
-    for child_tag, constraint in children.items():
-        child = widgets.get(child_tag)
-        if child is None:
+    required_members = entry.get("x-required-members", {})
+    if required_members and entry.get("x-content") != "members":
+        raise RegistryError(
+            f"{path}: <{tag}> x-required-members requires x-content: members"
+        )
+    for member_tag, constraint in required_members.items():
+        member = declarations.get(member_tag)
+        if member is None:
             raise RegistryError(
-                f"{path}: <{tag}> x-children names unknown widget <{child_tag}>"
+                f"{path}: <{tag}> x-required-members names unknown member "
+                f"declaration <{member_tag}>"
             )
-        if tag not in child.get("x-parent", []):
+        if tag not in member.get("x-owners", []):
             raise RegistryError(
-                f"{path}: <{tag}> x-children names <{child_tag}>, but that widget "
-                "does not name it in x-parent"
+                f"{path}: <{tag}> x-required-members names <{member_tag}>, but that member "
+                "does not name it in x-owners"
             )
         attribute = constraint["one-each"]
-        attribute_schema = child.get("properties", {}).get(attribute, {})
+        attribute_schema = member.get("properties", {}).get(attribute, {})
         values = (
             attribute_schema.get("enum") if isinstance(attribute_schema, dict) else None
         )
         if (
-            attribute not in child.get("required", [])
+            attribute not in member.get("required", [])
             or not isinstance(values, list)
             or not values
             or any(not isinstance(value, str) or not value for value in values)
         ):
             raise RegistryError(
-                f"{path}: <{tag}> x-children <{child_tag}> one-each `{attribute}` "
-                "must name a required, non-empty string enum on the child"
+                f"{path}: <{tag}> x-required-members <{member_tag}> one-each `{attribute}` "
+                "must name a required, non-empty string enum on the member"
             )
     request = entry.get("x-request")
     if request:
         if "id" not in entry.get("required", []):
             raise RegistryError(
                 f"{path}: <{tag}> x-request instances are addressable, so the "
-                "entry must require an id"
+                "element declaration must require an id"
             )
         verbs = set(request["verbs"])
         offered = set()
         for member, attribute in request["offers"].items():
-            member_entry = widgets.get(member)
+            member_entry = declarations.get(member)
             if member_entry is None:
                 raise RegistryError(
-                    f"{path}: <{tag}> x-request offers unknown widget <{member}>"
+                    f"{path}: <{tag}> x-request offers unknown member <{member}>"
                 )
-            if tag not in member_entry.get("x-parent", []):
+            if tag not in member_entry.get("x-owners", []):
                 raise RegistryError(
                     f"{path}: <{tag}> x-request offers <{member}>, but that "
-                    "widget does not name it in x-parent"
+                    "member does not name it in x-owners"
                 )
             attribute_schema = member_entry.get("properties", {}).get(attribute)
             values = (
@@ -352,7 +361,7 @@ def _validate_widget_structure(
         ):
             raise RegistryError(
                 f"{path}: <{tag}> {role} instances are addressable, so the "
-                "entry must declare a string `id` attribute"
+                "element declaration must declare a string `id` attribute"
             )
     for key in ATTRIBUTE_KEYS:
         declared = entry.get(key) or ()
@@ -375,7 +384,7 @@ def _validate_widget_structure(
         matches = [
             target
             for target, declaration in relation.items()
-            if target in widgets
+            if target in declarations
             and isinstance(declaration, dict)
             and all(declaration.get(key) == value for key, value in predicate.items())
         ]
@@ -450,7 +459,7 @@ def _validate_widget_predicates(
     if entry.get("x-ask-surface"):
         if "id" not in entry.get("required", []):
             raise RegistryError(f"{path}: <{tag}> x-ask-surface does not require an id")
-        if entry.get("x-content") != "prose":
+        if entry.get("x-content") != "markup":
             raise RegistryError(
                 f"{path}: <{tag}> x-ask-surface must admit prose around the Ask it frames"
             )
@@ -562,7 +571,7 @@ def _validate_widget_interactions(
                 f"{path}: <{tag}> declares a content work seat but is inline; "
                 "local work chrome needs a block slot"
             )
-        if entry.get("x-content") != "prose":
+        if entry.get("x-content") != "markup":
             raise RegistryError(
                 f"{path}: <{tag}> declares a content work seat but x-content is "
                 f"{entry.get('x-content')}; generated local chrome may only join "
@@ -662,7 +671,7 @@ def _validate_widget_interactions(
     # rewrite is unpublishable — the words gate demands an attribute the
     # widget's own schema refuses. Held only where a verb folds on the
     # widget itself: a verb folding per child (move's "card") rests its
-    # decisions on elements this entry doesn't name.
+    # decisions on elements this declaration doesn't name.
     folds_whole = any(
         spec["unit"] == "widget" for spec in entry.get("x-state", {}).values()
     )

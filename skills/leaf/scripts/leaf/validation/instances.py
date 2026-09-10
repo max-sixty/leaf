@@ -27,15 +27,15 @@ def thread_markup_contract_errors(parser, registry: dict) -> list:
 
 def widget_errors(lf_elements: list, registry: dict) -> list:
     """Validate parsed lf-* elements against the registry: schema over the
-    attribute instance, x-parent nesting, and the x-content model."""
+    attribute instance, x-owners nesting, and the x-content model."""
     errors = []
-    # Containers ("items") admit exactly the tags that declare them as x-parent.
-    children_of = {}
+    # Member containers admit exactly the tags that declare them as x-owners.
+    members_of = {}
     for tag, entry in registry.items():
         if not tag.startswith("lf-"):
             continue
-        for parent in entry.get("x-parent", []):
-            children_of.setdefault(parent, set()).add(tag)
+        for owner in entry.get("x-owners", []):
+            members_of.setdefault(owner, set()).add(tag)
 
     for rec in lf_elements:
         tag, where = rec["tag"], at(rec)
@@ -57,18 +57,18 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
             errors.append(f"{where}: {err.message}")
-        want_parents = entry.get("x-parent", [])
-        if want_parents and rec["parent"] not in want_parents:
+        want_owners = entry.get("x-owners", [])
+        if want_owners and rec["parent"] not in want_owners:
             actual = f", found <{rec['parent']}>" if rec["parent"] else ""
-            wanted = " or ".join(f"<{p}>" for p in want_parents)
-            errors.append(f"{where}: must be a direct child of {wanted}{actual}")
-        # Tags declaring this one as x-parent are admissible children under any
-        # content model — that is what x-parent means. "data" takes one <pre> and
-        # those, "items" element children only, "none" nothing at all.
+            wanted = " or ".join(f"<{owner}>" for owner in want_owners)
+            errors.append(f"{where}: must be a direct member of {wanted}{actual}")
+        # Tags that name this declaration in x-owners are its admissible members under
+        # any content model. "data" takes one <pre>, "members" takes element members
+        # only, and "empty" takes nothing at all.
         content = entry["x-content"]
-        allowed = children_of.get(tag, set())
+        allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})
-        if content == "none" and (rec["children"] or rec["text"]):
+        if content == "empty" and (rec["children"] or rec["text"]):
             errors.append(f"{where}: takes no content — write <{tag} …></{tag}>")
         elif content == "data":
             others = [c for c in stray if c != "pre"]
@@ -82,32 +82,32 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
                 errors.append(
                     f"{where}: text outside its <pre> — the whole body goes inside it"
                 )
-        elif content == "items":
+        elif content == "members":
             if stray:
                 errors.append(
-                    f"{where}: admits only {sorted(allowed)} children, found {stray}"
+                    f"{where}: admits only {sorted(allowed)} members, found {stray}"
                 )
             if rec["text"]:
-                errors.append(f"{where}: loose text between its items isn't allowed")
-        for child_tag, constraint in entry.get("x-children", {}).items():
+                errors.append(f"{where}: loose text between its members isn't allowed")
+        for member_tag, constraint in entry.get("x-required-members", {}).items():
             attribute = constraint["one-each"]
-            values = registry[child_tag]["properties"][attribute]["enum"]
+            values = registry[member_tag]["properties"][attribute]["enum"]
             direct = [
-                child
-                for child in lf_elements
-                if child["holder"] is rec
-                and child["parent"] == tag
-                and child["tag"] == child_tag
+                member
+                for member in lf_elements
+                if member["holder"] is rec
+                and member["parent"] == tag
+                and member["tag"] == member_tag
             ]
             counts = {
-                value: sum(child["attrs"].get(attribute) == value for child in direct)
+                value: sum(member["attrs"].get(attribute) == value for member in direct)
                 for value in values
             }
             missing = [value for value, count in counts.items() if count == 0]
             repeated = [value for value, count in counts.items() if count > 1]
             if missing or repeated:
                 errors.append(
-                    f"{where}: must contain exactly one direct <{child_tag}> for "
+                    f"{where}: must contain exactly one direct <{member_tag}> for "
                     f"each `{attribute}` value; missing {missing}, repeated {repeated}"
                 )
     return errors

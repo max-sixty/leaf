@@ -884,7 +884,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
         "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-upgrade": upgrade,
         "x-example": f'<{tag} id="{tag.removeprefix("lf-")}-example">Example</{tag}>',
     }

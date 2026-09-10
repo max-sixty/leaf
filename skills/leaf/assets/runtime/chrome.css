@@ -1900,7 +1900,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      outside the border box so a thread's mark, one pixel inside it, still shows
      beside. Every item but a widget's parts wears its name above the box's corner
      too — the tag and id a fix is written against, the words the composer and the
-     thread will carry — and the parts (a card, an option, a milestone: what x-parent
+     thread will carry — and the parts (a card, an option, a milestone: what x-owners
      declares) keep the hairline alone and are named under the pointer, or a board
      would wear a tag on every card and say nothing. Dashed rather than solid because
      a legend is structural while the solid rail is the annotation's (.lf-mark-el).

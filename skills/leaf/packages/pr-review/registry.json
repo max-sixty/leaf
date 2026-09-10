@@ -140,7 +140,7 @@
       "source"
     ],
     "additionalProperties": false,
-    "x-content": "none",
+    "x-content": "empty",
     "x-data": {
       "request": {
         "contract": "pull-request",
@@ -181,7 +181,7 @@
       "diff"
     ],
     "additionalProperties": false,
-    "x-content": "none",
+    "x-content": "empty",
     "x-data": {
       "document": {
         "contract": "text-document",

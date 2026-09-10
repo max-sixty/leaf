@@ -884,10 +884,10 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-outer-board", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    outer = entries["lf-outer-board"]
+    declarations = json.loads(registry_path.read_text())
+    outer = declarations["lf-outer-board"]
     outer["properties"]["restated"] = {"type": "boolean"}
-    outer["x-content"] = "items"
+    outer["x-content"] = "members"
     outer["x-example"] = (
         '<lf-outer-board id="x-outer"><lf-column id="x-col" label="Todo">'
         '<lf-card id="x-card"><strong>Card</strong></lf-card></lf-column>'
@@ -916,9 +916,9 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
         }
     }
     standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
-    entries["lf-column"] = standard["lf-column"]
-    entries["lf-column"]["x-parent"].append("lf-outer-board")
-    registry_path.write_text(json.dumps(entries))
+    declarations["lf-column"] = standard["lf-column"]
+    declarations["lf-column"]["x-owners"].append("lf-outer-board")
+    registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
         """import { once } from "/runtime/widget-api.js";
 customElements.define("lf-outer-board", class extends HTMLElement {
@@ -2355,7 +2355,7 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
                 "properties": {"id": {"type": "string"}},
                 "required": ["id"],
                 "additionalProperties": False,
-                "x-content": "prose",
+                "x-content": "markup",
                 "x-upgrade": True,
                 "x-example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
             }

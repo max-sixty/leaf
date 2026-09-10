@@ -259,7 +259,7 @@ def constructed_content(
             if (
                 parent is not None
                 and entry.get("x-retired-when")
-                and parent["tag"] in entry.get("x-parent", [])
+                and parent["tag"] in entry.get("x-owners", [])
                 and outcomes.get(parent["attrs"].get("id")) == entry["x-retired-when"]
             ):
                 continue

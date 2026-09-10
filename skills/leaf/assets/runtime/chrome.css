@@ -1369,10 +1369,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-msg-body li { margin: 2px 0; }
   .lf-msg-body pre { padding: 8px 10px; }
   .lf-msg-body blockquote { padding: 2px 10px; }
-  /* A reference to an element this version hasn't got, wearing the same word the
-     quote above wears for the same fact. The whole text-decoration shorthand,
-     because a widget's § reference (lf-ref) undressed its underline and a style
-     alone would paint nothing there. paintAnchors is the one writer. */
+  /* A reference to an element this version hasn't got keeps its underline but
+     changes it to dashed, while muted ink reinforces that its press is disabled.
+     The whole text-decoration shorthand, because a widget's § reference (lf-ref)
+     undressed its underline and a style alone would paint nothing there.
+     paintAnchors is the one writer. */
   .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
   .lf-compose { display: block; margin-top: 8px; }
   .lf-compose textarea { display: block; width: 100%; min-width: 0; }

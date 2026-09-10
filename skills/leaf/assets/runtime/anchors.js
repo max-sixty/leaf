@@ -1219,9 +1219,10 @@ export function paintAnchors(threads) {
   // this version hasn't got. A comment outlives the version it was written on, so
   // that happens without anyone doing anything wrong — and unmarked, the reference
   // reads live, moves nothing on the press, and leaves a fragment nobody holds in the
-  // URL for the next load to honor. So it wears the same detached face a quote whose
-  // passage left the page wears, asked of the same resolveAnchor, and its press is
-  // taken rather than spent. aria-disabled because the title only reaches a pointer.
+  // URL for the next load to honor. So it takes the message reference's detached face:
+  // muted ink, a dashed underline, and a press taken rather than spent. resolveAnchor
+  // supplies the same missing-target fact that detaches a quote, while each surface
+  // keeps its own contour. aria-disabled because the title only reaches a pointer.
   for (const a of panel.querySelectorAll(MSG_REF)) {
     const id = fragmentId(a.getAttribute("href"));
     const alive = Boolean(resolveAnchor({ section: id }));

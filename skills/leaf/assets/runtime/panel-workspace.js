@@ -30,21 +30,9 @@ export function createPanelWorkspace({
   syncGeneral,
   refreshHover,
   rememberOpen,
+  modality,
   repaint,
 }) {
-  // The panel is shown, never shown modally, at either posture. A modal dialog makes the
-  // rest of the document inert, and the panel covering the page is the posture in which the
-  // page most needs to stay live: the toggle that opened it is out in the banner and is how
-  // it closes, the Asks toggle beside it is the other workspace this one replaces
-  // (test_workspaces_replace_each_other_instead_of_stacking), and the strip of page still
-  // showing beside a covering sheet is still page a reader can point a hint at
-  // (test_selection_hints_do_not_name_page_content_behind_a_covering_panel, which is the
-  // one that states what "covering" means here — the panel covers the page rather than
-  // clipping it, and what it covers is out of reach only where it is actually painted over).
-  // What modality was carrying instead is already owned elsewhere and stays: the covering
-  // sheet's scroll lock is the stylesheet's (COVERING's `overflow-y: hidden`), while this
-  // non-modal workspace remains one rung in the keyboard stack.
-  //
   // Opening a <dialog> runs the browser's dialog focusing steps whichever way it is opened,
   // so the invoker has to be given its focus back: raising the panel is not a request to
   // leave where the reader was standing, and the toggle that lost it would otherwise hold
@@ -64,6 +52,7 @@ export function createPanelWorkspace({
   }
   function setPanel(open, { remember = true } = {}) {
     if (open) hideTray({ remember });
+    else modality.sync(false);
     // Closing while focus is inside would drop it on body, the user's place
     // lost silently; it lands on the one control that reopens what just closed.
     if (!open && panel.contains(document.activeElement))
@@ -90,6 +79,7 @@ export function createPanelWorkspace({
       showPanelLayer();
       refreshConversation();
       syncGeneral(); // a restored draft has to reach the Send button's disabled state
+      modality.sync(true);
     } else if (panel.open) panel.close();
     syncLayout();
     if (open) closePreview();

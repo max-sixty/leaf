@@ -1191,9 +1191,9 @@ it reaches this part of the page.</p>
 """,
 )
 
-# Wide enough for an exhibit to grow after the live page's 520px conversation strip,
-# but narrow enough that room, not the 1080px shared cap, binds in both live and copied
-# media. With no surplus over prose, a board never asks to share the note's margin.
+# Wide enough for an exhibit to grow after the note's 384px strip, but narrow enough
+# that room, not the 1080px shared cap, binds in both live and copied media. With no
+# surplus over prose, a board never asks to share the note's margin.
 NOTE_BAND = 1400
 
 

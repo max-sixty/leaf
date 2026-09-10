@@ -155,6 +155,15 @@ export function bake() {
       if (element.shadowRoot) roots.push(element.shadowRoot);
   const all = (selector) =>
     roots.flatMap((root) => [...root.querySelectorAll(selector)]);
+  // A live scroll cue is revised by the runtime as the reader moves. A copy has no
+  // runtime, so replace that transient reading with the stable direction a CSS scroll
+  // timeline needs to keep answering from the copy's own native scroll position.
+  for (const scroller of all("[data-lf-more-before], [data-lf-more-after]")) {
+    scroller.setAttribute("data-lf-copy-scroll", getComputedStyle(scroller).direction);
+    scroller.removeAttribute("data-lf-more-before");
+    scroller.removeAttribute("data-lf-more-after");
+    scroller.removeAttribute("data-lf-scroll-direction");
+  }
   //
   // A contained frame goes for the same reason a script does. The document in it is a
   // second Leaf page the runtime wrote, naming the runtime, the theme, and its adapter
@@ -271,7 +280,14 @@ export function bake() {
       mark.replaceWith(staticMark);
       mark = staticMark;
     }
-    for (const attr of ["tabindex", "data-lf-offer", "title", "type"])
+    for (const attr of [
+      "tabindex",
+      "data-lf-offer",
+      "title",
+      "type",
+      "aria-controls",
+      "aria-expanded",
+    ])
       mark.removeAttribute(attr);
     mark.setAttribute("role", "img");
     mark.setAttribute("aria-label", mark.dataset.token);

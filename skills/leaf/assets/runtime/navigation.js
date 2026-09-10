@@ -117,17 +117,19 @@ const holding = (box) =>
   glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1;
 // The visible box used by page-edge navigation. A covering panel replaces the page;
 // beside it, the document keeps its own top and bottom.
-const seenScroller = (panelCovers) => (panelCovers() ? threadsBox : pageScroller);
+const seenScroller = (coveringWorkspaceScroller) =>
+  coveringWorkspaceScroller() ?? pageScroller;
 // Reading-page keys follow the region the reader is working in. Focus can put them in a
 // panel beside the page; a covering panel remains the only visible region even when
 // focus is still on the banner control that opened it.
-const stepScroller = (panelCovers, inPanel) => {
-  if (panelCovers()) return threadsBox;
+const stepScroller = (coveringWorkspaceScroller, inPanel) => {
+  const covering = coveringWorkspaceScroller();
+  if (covering) return covering;
   const region = readingRegionFor(document.activeElement);
   return region ? effectiveScroller(region) : inPanel() ? threadsBox : pageScroller;
 };
-function stepReading(amount, unit, panelCovers, inPanel) {
-  const box = stepScroller(panelCovers, inPanel);
+function stepReading(amount, unit, coveringWorkspaceScroller, inPanel) {
+  const box = stepScroller(coveringWorkspaceScroller, inPanel);
   if (unit === "page") {
     const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
     amount *= box.clientHeight - clear;
@@ -182,13 +184,14 @@ export function stopGlide(box) {
   glide = null;
 }
 
-export function createNavigation({ panelIsOpen }) {
+export function createNavigation({ panelIsOpen, coveringWorkspaceScroller }) {
   const panelCovers = () => panelIsOpen() && panelWouldCover();
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   return {
     panelCovers,
-    seenScroller: () => seenScroller(panelCovers),
-    stepReading: (amount, unit) => stepReading(amount, unit, panelCovers, inPanel),
+    seenScroller: () => seenScroller(coveringWorkspaceScroller),
+    stepReading: (amount, unit) =>
+      stepReading(amount, unit, coveringWorkspaceScroller, inPanel),
     stepThread: (dir, commands) => stepThread(dir, commands, panelIsOpen),
   };
 }

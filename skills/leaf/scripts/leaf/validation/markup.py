@@ -6,7 +6,6 @@ from pathlib import Path
 from leaf.schema import MEDIA_DIR
 from leaf.structure import (
     HEADING_TAGS,
-    OPTIONAL_END,
     SECTIONING_TAGS,
     StructParser,
 )
@@ -164,13 +163,12 @@ def missing_outline(parser: StructParser, registry: dict) -> list:
 
 
 def structure_errors(parser: StructParser) -> list:
-    """A fed parser's structural complaints, plus the tags it was left holding
-    open at the end of its input."""
+    """Structural complaints and source elements missing a required end tag."""
     errors = list(parser.errors)
-    leftover = [(t, ln) for t, ln, *_ in parser.stack if t not in OPTIONAL_END]
-    if leftover:
+    if parser.unclosed:
         errors.append(
-            "unclosed tags: " + ", ".join(f"<{t}> (line {ln})" for t, ln in leftover)
+            "unclosed tags: "
+            + ", ".join(f"<{tag}> (line {line})" for tag, line in parser.unclosed)
         )
     return errors
 

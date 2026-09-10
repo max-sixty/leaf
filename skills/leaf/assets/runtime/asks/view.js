@@ -999,7 +999,10 @@ export function createAskView({
   function framed(region, ask, box, readableDestination) {
     return (
       readableDestination(ask) &&
-      shownBox(region).top >= shownBox(box).top + clearanceOf(box)
+      shownBox(region).top >= shownBox(box).top + clearanceOf(box) &&
+      availableActions().every(({ control }) =>
+        readableDestination(presentedActionControl(control)),
+      )
     );
   }
 

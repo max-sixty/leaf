@@ -18,12 +18,10 @@
    the selection or use its native context menu, then enter the field with Comment. The
    field grows in place and never transfers text into a second composer card. A
    one-line note uses the shared action corner. A longer one widens up to a readable
-   80ch and then wraps, and grows into the available clear band before it scrolls; its
-   corner stays fixed rather than growing with the box, so it never reaches over the
-   first or last line. Placement states a float's room as `--lf-float-w` and
-   `--lf-float-h`; the bar is capped by it and the field's `--lf-response-room`
-   excludes its neighboring controls. The field's scroll extent supplies its desired
-   height without temporarily resizing it and losing the reader's scroll position.
+   80ch and then wraps, grows toward the available viewport edge, and finally scrolls.
+   The target chooses a placement from the field's minimum footprint once. Later
+   content and margin controls cannot re-seat it; Floating UI shifts and sizes that
+   placement inside the reading region as either one changes.
    When the target fills the viewport, the viewport still caps the field. When a
    covering panel leaves no usable band for the response bar, placement withdraws it
    without discarding its draft. If the disappearing bar held focus, the visible
@@ -40,19 +38,18 @@
    durable draft without moving focus. Submitted words still in flight remain owned by
    their original anchor, while a later target starts clean and keeps focus.
 
-   `placeClear` fits the response bar into a free band bounded by the viewport, its
-   target, and controls carrying `data-lf-offer`. A quoted passage keeps its resolved
-   place clear. Placement prioritizes proximity to the target, then visible writing
-   space; geometry supplies CSS room constraints, while CSS owns the field's content
-   sizing.
+   A quoted passage keeps its resolved block clear when choosing the initial side, while
+   the exact words supply its vertical attachment. The reading region and fixed Leaf
+   chrome are the only collision boundary: page and margin content may be overlaid.
+   Floating UI owns coordinate conversion, overflow, fallback side, and reflow updates;
+   CSS owns content sizing within the width and height its middleware supplies.
 
    Boot supplies composer, travel, and mode commands to one surface owner. Its
    constructor binds no document listeners; mount installs the selection gesture
    lifecycle and field-focus tracking after all capabilities have been composed. */
 import { anchoringIsReady, resolveAnchor, visualAt } from "../anchor-resolution.js";
-import { NOTE } from "../anchor-controls.js";
 import { sameAnchor } from "../anchor-coordinate.js";
-import { documentPoint, shownBox, shownParts, shownRect } from "../geometry.js";
+import { shownBox, shownParts, shownRect } from "../geometry.js";
 import {
   targetElement,
   targetParts,
@@ -85,6 +82,8 @@ import { allThreads } from "../conversation/state.js";
 import { readingRegionFor, shownRegionBounds } from "../reading-regions.js";
 
 export const BANNER_CLEAR = 48;
+let floatingUiModule = null;
+const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 
 export function createResponseSurface({
   panelCovers,
@@ -127,25 +126,12 @@ export function createResponseSurface({
       (panelCovers()
         ? innerWidth - panel.offsetWidth
         : Math.min(innerWidth, document.body.getBoundingClientRect().right))) - 8;
-  const fabFits = (bounds = null) => {
-    const left = (bounds?.left ?? 0) + 8;
-    return (
-      rightEdge(bounds) > left &&
-      fabBar.scrollWidth <= Math.ceil(rightEdge(bounds) - left)
-    );
-  };
-  // The floats live in the document — they scroll with the passage they stand beside —
-  // while every caller reasons in viewport terms: rects, the pointer, the banner's own
-  // band. The fixed floor covers the ordinary one-line banner; its live box takes over
-  // when compact chrome wraps to a second line.
-
+  // The response surface lives in the viewport plane and Floating UI follows the passage
+  // through every scroll ancestor. Every caller therefore reasons in the same coordinates:
+  // rects, the pointer, and the banner's own band. The fixed floor covers the ordinary
+  // one-line banner; its live box takes over when compact chrome wraps to a second line.
   const topEdge = (bounds = null) =>
     bounds?.top ?? Math.max(BANNER_CLEAR, banner.getBoundingClientRect().bottom + 6);
-  const leftEdge = (node, left, bounds = null) =>
-    Math.max(
-      (bounds?.left ?? 0) + 8,
-      Math.min(left, rightEdge(bounds) - node.offsetWidth),
-    );
   const bottomEdge = (left, width, bounds = null) => {
     if (bounds) return bounds.bottom - 8;
     const tops = bottomChromeBoxes()
@@ -153,103 +139,115 @@ export function createResponseSurface({
       .map((box) => box.top - 8);
     return tops.length ? Math.min(...tops) : innerHeight - 8;
   };
-  // So the one writer of their position is where the coordinates change space: clamp in
-  // the viewport and above any shortcut bar it would cross, then store in the document.
-  // The chosen band also caps the float's height. Width is stated before band selection,
-  // because wrapping determines how much height the contents need.
-  function place(node, left, top, height, bounds = null) {
-    node.style.setProperty("--lf-float-h", `${height}px`);
-    const x = leftEdge(node, left, bounds);
-    const bottom = bottomEdge(x, node.offsetWidth, bounds);
-    const at = documentPoint(
-      x,
-      Math.max(topEdge(bounds), Math.min(top, bottom - node.offsetHeight)),
-    );
-    node.style.left = at.left + "px";
-    node.style.top = at.top + "px";
-  }
-  // Controls the page is standing on its own account, as against the ones in the runtime's
-  // layer: a reply's widget is markup frozen in the log, and the layer's own buttons are
-  // what floating chrome is allowed to sit beside. `data-lf-offer` is what makes a thing
-  // pressable (`offer`), so this asks after any widget's controls without naming one.
-  //
-  // Two controls out here still belong to the layer. The line saying how many comments a
-  // block holds and the visual's keyboard proxies wear the marker because a screen reader
-  // reaches them by Tab. Both are clipped to a pixel where they stand and take a box only
-  // on focus, fixed under the banner — so a float stepping down past either would step
-  // around nothing anyone can see, exactly the movement this walk exists to prevent.
-  const pageControls = () =>
-    [...document.querySelectorAll(`[data-lf-offer]:not(.${NOTE})`)].filter(
-      (control) =>
-        !inChrome(control) && !control.matches(".lf-visual-actions, .lf-visual-action"),
-    );
-
-  // The response bar carries the anchor its field will submit on, so targeting and typing
-  // cannot come to different conclusions about what the reader picked. Visibility is
-  // derived from that anchor and never read back off the stylesheet.
-  // The viewport, the target and the page's controls define one set of free bands.
-  // Walking down past controls and then clamping to the viewport could put a growing
-  // editor back on its target. Choose a band first; CSS can then size the field to it.
-  function placeClear(node, left, top, target, wantedHeight, bounds = null) {
-    const x = leftEdge(node, left, bounds);
-    const bottom = bottomEdge(x, node.offsetWidth, bounds);
-    const sharing = [...pageControls().map((c) => c.getBoundingClientRect()), target]
-      .filter((r) => r.width && r.left < x + node.offsetWidth + 6 && x < r.right + 6)
-      .sort((a, b) => a.top - b.top);
-    const bands = [];
-    let start = topEdge(bounds);
-    for (const r of sharing) {
-      const end = Math.min(bottom, r.top - 6);
-      if (end > start) bands.push({ top: start, bottom: end });
-      start = Math.max(start, r.bottom + 6);
-    }
-    if (start < bottom) bands.push({ top: start, bottom });
-    const minimum = composerOpen
-      ? parseFloat(getComputedStyle(fabInput).minHeight)
-      : node.offsetHeight;
-    const candidates = bands
-      .filter((band) => band.bottom - band.top >= minimum)
-      .map((band) => {
-        const height = Math.min(wantedHeight, band.bottom - band.top);
-        const y = Math.max(band.top, Math.min(top, band.bottom - height));
-        const distance = Math.max(target.top - y - height, y - target.bottom, 0);
-        return { left: x, top: y, height, room: band.bottom - y, distance };
-      });
-    // Stay associated with the target, then keep as much writing visible as that band
-    // allows. A distant gap is not a better seat just because it is taller. A target
-    // filling the entire viewport leaves no free band, so the ordinary viewport clamp
-    // remains the last resort.
-    return (
-      candidates.sort(
-        (a, b) =>
-          a.distance - b.distance ||
-          b.height - a.height ||
-          Math.abs(a.top - top) - Math.abs(b.top - top),
-      )[0] ?? { left: x, top, room: bottom - topEdge(bounds) }
-    );
-  }
+  const floatBoundary = (bounds = null) => {
+    const left = (bounds?.left ?? 0) + 8;
+    const right = rightEdge(bounds);
+    const top = topEdge(bounds);
+    const bottom = bottomEdge(left, Math.max(0, right - left), bounds);
+    return {
+      x: left,
+      y: top,
+      left,
+      top,
+      right,
+      bottom,
+      width: Math.max(0, right - left),
+      height: Math.max(0, bottom - top),
+    };
+  };
   let fabAnchor = null;
   let fabOrigin = null;
   let fabFloating = true;
-  // Opening the trailing choices grows or wraps the bar. Hold the compact bar's left
-  // edge through that state, including the ResizeObserver layout pass it causes.
-  let fabFixedLeft = null;
-  let fabFixedRightEdge = null;
-  function releaseFabPosition() {
-    fabFixedLeft = null;
-    fabFixedRightEdge = null;
-  }
-  // A response expansion changes the bar's own width. Capture its left edge before that
-  // mutation so the surface can reflow the larger bar without moving the control the
-  // reader just pressed. Selection state decides when the hold applies; geometry never
-  // leaves this owner.
-  function holdFabLeft(hold) {
-    if (!hold) {
-      releaseFabPosition();
-      return;
+  let fabPlacement = null;
+  let fabInlineConnection = null;
+  let fabPlacementInput = null;
+  let fabMinimumWidth = null;
+  let fabMinimumComposer = null;
+  let fabPositionEpoch = 0;
+  let fabPositionFrame = 0;
+  let fabPositionCleanup = null;
+  let fabPositionTarget = null;
+  let fabPositionWaiters = [];
+
+  // Measure the compact response once per anchor/state. Expanded choices are designed to
+  // wrap and therefore cannot redefine whether the response surface fits at all.
+  const minimumFabWidth = () => {
+    if (fabMinimumWidth === null || fabMinimumComposer !== composerOpen) {
+      fabMinimumComposer = composerOpen;
+      fabMinimumWidth = composerOpen
+        ? parseFloat(
+            getComputedStyle(fabInput).getPropertyValue("--lf-response-min-width"),
+          ) + Math.max(0, fabBar.offsetWidth - fabInput.offsetWidth)
+        : fabBar.scrollWidth;
     }
-    fabFixedLeft = fabBar.getBoundingClientRect().left;
-    fabFixedRightEdge = rightEdge();
+    return fabMinimumWidth;
+  };
+  const fabFits = (bounds = null) => {
+    const boundary = floatBoundary(bounds);
+    return (
+      boundary.width > 0 && Math.ceil(boundary.width) >= Math.ceil(minimumFabWidth())
+    );
+  };
+
+  const answerFabPosition = (positioned) => {
+    const waiters = fabPositionWaiters;
+    fabPositionWaiters = [];
+    for (const resolve of waiters) resolve(positioned);
+  };
+
+  // One lifecycle for the one floating surface. Floating UI observes the target's scroll,
+  // resize, layout shift, and the bar's own content size. Leaf's explicit layout signals
+  // still call placeFab because a document revision can replace the semantic target rather
+  // than merely move its old node.
+  function stopFabPositioning({ reset = false } = {}) {
+    fabPositionEpoch += 1;
+    cancelAnimationFrame(fabPositionFrame);
+    fabPositionFrame = 0;
+    fabPositionCleanup?.();
+    fabPositionCleanup = null;
+    fabPositionTarget = null;
+    if (!reset) return;
+    answerFabPosition(false);
+    fabPlacement = null;
+    fabInlineConnection = null;
+    fabPlacementInput = null;
+    fabMinimumWidth = null;
+    fabMinimumComposer = null;
+    fabBar.removeAttribute("data-lf-placement");
+    for (const property of [
+      "--lf-float-w",
+      "--lf-response-room",
+      "--lf-float-h",
+      "left",
+      "top",
+    ])
+      fabBar.style.removeProperty(property);
+    fabBar.style.visibility = "hidden";
+  }
+
+  const fabPositioned = () =>
+    fabBar.hasAttribute("data-lf-placement") && fabBar.style.visibility !== "hidden"
+      ? Promise.resolve(true)
+      : new Promise((resolve) => fabPositionWaiters.push(resolve));
+
+  function scheduleFabPosition() {
+    if (fabPositionFrame || !fabAnchor || !fabFloating) return;
+    fabPositionFrame = requestAnimationFrame(() => {
+      fabPositionFrame = 0;
+      placeFab();
+    });
+  }
+
+  function watchFabPosition(target, autoUpdate) {
+    if (target === fabPositionTarget) return;
+    fabPositionCleanup?.();
+    fabPositionTarget = target;
+    const reference = {
+      contextElement: target,
+      getBoundingClientRect: () =>
+        anchorBox(fabAnchor) ?? target.getBoundingClientRect(),
+    };
+    fabPositionCleanup = autoUpdate(reference, fabBar, scheduleFabPosition);
   }
   const union = (rects) => {
     if (!rects.length) return null;
@@ -322,24 +320,8 @@ export function createResponseSurface({
     const block = fabAnchor.quote && owner;
     const readingRegion = owner && readingRegionFor(owner);
     const regionBounds = readingRegion && shownRegionBounds(readingRegion);
-    let fixedLeft = fabFixedLeft;
-    const edge = rightEdge(regionBounds);
-    // The lock spans the expansion's own layout frames, not a changed viewport or
-    // workspace. Once the available band changes, re-place the whole group against its
-    // durable anchor instead of letting the old x-coordinate dismiss the draft.
-    if (
-      fixedLeft != null &&
-      fabFixedRightEdge != null &&
-      Math.abs(edge - fabFixedRightEdge) > 0.5
-    ) {
-      releaseFabPosition();
-      fixedLeft = null;
-    }
-    const room = edge - (fixedLeft ?? (regionBounds?.left ?? 0) + 8);
-    // A covering workspace may leave no page band, or less than the controls can
-    // shrink into. Report failed placement instead of assigning negative CSS sizes
-    // and leaving a focused textarea behind that workspace.
-    if (room <= 0) return false;
+    const boundary = floatBoundary(regionBounds);
+    if (boundary.width <= 0 || boundary.height <= 0) return false;
     const clips = new Map();
     const parts = block ? shownParts(block) : [];
     const keepClear =
@@ -352,44 +334,160 @@ export function createResponseSurface({
       // came to rest on the sentences the reader had scrolled to.
       union(parts.map((part) => shownBox(part))) ||
       target;
-    fabBar.style.setProperty("--lf-float-w", `${room}px`);
-    if (composerOpen) {
-      // CSS owns content sizing. Geometry contributes only the real room the field
-      // can use, including the bar's other controls, before deciding where it stands.
-      const controls = fabBar.offsetWidth - fabInput.offsetWidth;
-      const besideRoom = edge - keepClear.right - 6 - controls;
-      const minimum = parseFloat(
-        getComputedStyle(fabInput).getPropertyValue("--lf-response-min-width"),
-      );
+    // The chosen side is a pure reading of the minimum footprint against external
+    // geometry. Cache its answer while those inputs are unchanged so content growth
+    // cannot re-seat the response; invalidate it when either the reading boundary or the
+    // reference moves enough to alter the available rails.
+    const placementInput = [
+      boundary.left,
+      boundary.top,
+      boundary.right,
+      boundary.bottom,
+      keepClear.left,
+      keepClear.top,
+      keepClear.right,
+      keepClear.bottom,
+    ];
+    if (
+      fabPlacementInput &&
+      placementInput.some(
+        (value, index) => Math.abs(value - fabPlacementInput[index]) > 0.5,
+      )
+    ) {
+      fabPlacement = null;
+      fabInlineConnection = null;
+    }
+
+    // Width before coordinates: Floating UI chooses a side from the compact surface,
+    // then its size pass gives CSS that attachment's actual inline room. If a later
+    // resize makes the chosen side narrower than the minimum control, use the whole
+    // boundary and let shift overlap the target instead of silently moving the draft.
+    const setWidth = (available) => {
+      const minimum = minimumFabWidth();
+      const width =
+        Math.ceil(available) >= Math.ceil(minimum)
+          ? available
+          : Math.max(0, boundary.width);
+      fabBar.style.setProperty("--lf-float-w", `${width}px`);
+      if (!composerOpen) return;
+      const controls = Math.max(0, fabBar.offsetWidth - fabInput.offsetWidth);
       fabBar.style.setProperty(
         "--lf-response-room",
-        `${Math.max(0, besideRoom >= minimum ? besideRoom : room - controls)}px`,
+        `${Math.max(0, width - controls)}px`,
       );
-    }
-    if (!fabFits(regionBounds)) return false;
-    const left =
-      fixedLeft ??
-      (keepClear.right + 6 + fabBar.offsetWidth <= edge
-        ? keepClear.right + 6
-        : keepClear.right - fabBar.offsetWidth);
-    // Read the field's scroll extent at its real width, without temporarily enlarging
-    // it in either axis. A temporary enlargement reduces the scroll extent and clamps
-    // scrollTop, so the captured scroll listener would make the last lines unreachable.
-    const wantedHeight = composerOpen
-      ? Math.max(
-          fabBar.offsetHeight,
-          fabInput.scrollHeight + fabInput.offsetHeight - fabInput.clientHeight,
-        )
+    };
+    const setHeight = (available) => {
+      if (!composerOpen) return;
+      const extra = Math.max(0, fabBar.offsetHeight - fabInput.offsetHeight);
+      fabBar.style.setProperty("--lf-float-h", `${Math.max(0, available - extra)}px`);
+    };
+    if (fabPlacement === null) setWidth(boundary.width);
+    setHeight(boundary.height);
+    const minimumHeight = composerOpen
+      ? Math.max(0, fabBar.offsetHeight - fabInput.offsetHeight) +
+        parseFloat(getComputedStyle(fabInput).minHeight)
       : fabBar.offsetHeight;
-    const at = placeClear(
-      fabBar,
-      left,
-      target.top - 6,
-      keepClear,
-      wantedHeight,
-      regionBounds,
-    );
-    place(fabBar, at.left, at.top, at.room, regionBounds);
+    // The choices deliberately wrap inside the response surface, so their intrinsic
+    // scroll width is not a fit requirement. Only the compact control's minimum is: a
+    // covering panel may genuinely leave less than that, while an ordinary narrow page
+    // still has a usable surface once the choices reflow below the field.
+    if (boundary.height < minimumHeight || !fabFits(regionBounds)) return false;
+
+    const reference = {
+      contextElement: owner ?? document.documentElement,
+      getBoundingClientRect: () => keepClear,
+    };
+    const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
+    const epoch = ++fabPositionEpoch;
+    const initial = fabPlacement === null;
+    const stillCurrent = () => epoch === fabPositionEpoch && fabAnchor && fabFloating;
+    void floatingUi()
+      .then(({ autoUpdate, computePosition, flip, offset, shift, size }) => {
+        if (!stillCurrent()) return null;
+        watchFabPosition(owner ?? document.documentElement, autoUpdate);
+        return computePosition(reference, fabBar, {
+          placement: fabPlacement ?? "right-start",
+          strategy: "fixed",
+          middleware: [
+            offset(({ placement, rects }) => {
+              const beside = /^(left|right)/.test(placement);
+              return {
+                mainAxis: 6,
+                // The paragraph chooses the horizontal lane; the selected line chooses
+                // where in that lane the response starts. Above and below, preserve the
+                // initial inline start as the field or its choices grow.
+                crossAxis: beside
+                  ? target.top - keepClear.top - 6
+                  : fabInlineConnection === null
+                    ? 0
+                    : fabInlineConnection + rects.floating.width,
+              };
+            }),
+            // Size precedes the one initial flip so the decision sees the width into
+            // which the compact control can actually shrink. This is Floating UI's
+            // documented initial-placement composition; putting size last makes a
+            // fractional CSS pixel look like a missing margin rail.
+            size({
+              ...overflow,
+              apply({ availableWidth, availableHeight, placement }) {
+                if (!stillCurrent()) return;
+                const side = placement.split("-", 1)[0];
+                const laneWidth =
+                  side === "right"
+                    ? boundary.right - keepClear.right - 6
+                    : side === "left"
+                      ? keepClear.left - boundary.left - 6
+                      : fabInlineConnection === null
+                        ? availableWidth
+                        : boundary.right - (keepClear.right + fabInlineConnection);
+                // A side placement consumes its current rail. Above or below, the
+                // relative connection preserves the field's inline start as its content
+                // grows while allowing target reflow to carry that start with it.
+                setWidth(Math.max(0, Math.min(availableWidth, laneWidth)));
+                const laneHeight =
+                  side === "top"
+                    ? keepClear.top - boundary.top - 6
+                    : side === "bottom"
+                      ? boundary.bottom - keepClear.bottom - 6
+                      : boundary.height;
+                setHeight(
+                  /^(left|right)$/.test(side)
+                    ? boundary.height
+                    : Math.max(0, Math.min(availableHeight, laneHeight)),
+                );
+              },
+            }),
+            initial &&
+              flip({
+                ...overflow,
+                crossAxis: false,
+                fallbackPlacements: ["left-start", "top-end", "bottom-end"],
+                fallbackStrategy: "bestFit",
+              }),
+            shift({ ...overflow, mainAxis: true, crossAxis: true }),
+          ],
+        });
+      })
+      .then((position) => {
+        if (!position) return;
+        const { x, y, placement } = position;
+        if (!stillCurrent()) return;
+        fabPlacement ??= placement;
+        if (!/^(left|right)/.test(placement))
+          fabInlineConnection ??= x - keepClear.right;
+        fabPlacementInput = placementInput;
+        fabBar.dataset.lfPlacement = fabPlacement;
+        fabBar.style.left = `${x}px`;
+        fabBar.style.top = `${y}px`;
+        fabBar.style.removeProperty("visibility");
+        answerFabPosition(true);
+        return true;
+      })
+      .catch((error) => {
+        if (!stillCurrent()) return;
+        showFab(null, null, { returnFocus: "page" });
+        throw error;
+      });
     return true;
   }
   function showFab(
@@ -399,6 +497,7 @@ export function createResponseSurface({
   ) {
     const previous = fabAnchor;
     const previousOrigin = fabOrigin;
+    const previousFloating = fabFloating;
     const leavingBar = !anchor && fabBar.contains(document.activeElement);
     const returnToPanel = leavingBar && panelCovers() && !fabFits();
     const returnTarget =
@@ -409,12 +508,19 @@ export function createResponseSurface({
             ? visualActionAnchor(previous)
             : null
         : null;
+    if (!anchor) fabInputTakingFocus = false;
     if (!anchor || (previous && !sameAnchor(previous, anchor))) resetResponseOptions();
     if (!anchor && composerOpen) hideComposer();
+    if (
+      !anchor ||
+      !previous ||
+      !sameAnchor(previous, anchor) ||
+      !place ||
+      !previousFloating
+    )
+      stopFabPositioning({ reset: true });
     fabAnchor = anchor;
     fabFloating = !fabAnchor || place;
-    if (!fabAnchor) releaseFabPosition();
-    else if (!previous || !sameAnchor(previous, fabAnchor)) releaseFabPosition();
     fabOrigin = fabAnchor && origin?.isConnected ? origin : null;
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
     fabBar.style.display = fabAnchor ? "inline-flex" : "none";
@@ -437,9 +543,10 @@ export function createResponseSurface({
       if (place && !placeFab(target ?? anchorBox(fabAnchor))) {
         fabAnchor = null;
         fabOrigin = null;
-        releaseFabPosition();
+        stopFabPositioning({ reset: true });
         resetResponseOptions();
         fabBar.removeAttribute("data-lf-target-only");
+        fabInputTakingFocus = false;
         if (composerOpen) hideComposer();
         fabBar.style.display = "none";
         fabInput.style.display = "none";
@@ -471,9 +578,11 @@ export function createResponseSurface({
     // semantic place merely because the target's rendered box has scrolled away.
     if (!fabAnchor || !fabFloating) return;
     if (fabAnchor.quote && (composerOpen || fabHoldsCapturedPassage())) {
-      if (!placeFab()) showFab(null, null, { returnFocus: "page" });
+      if (!placeFab() && fabBar.hasAttribute("data-lf-placement"))
+        showFab(null, null, { returnFocus: "page" });
     } else if (fabAnchor.quote) updateFab();
-    else if (!placeFab()) showFab(null, null, { returnFocus: "page" });
+    else if (!placeFab() && fabBar.hasAttribute("data-lf-placement"))
+      showFab(null, null, { returnFocus: "page" });
   }
   // The durable anchor names the authored coordinate an event can replay, while the
   // margin needs the rendered block the gesture is visibly on. Those are deliberately
@@ -582,8 +691,15 @@ export function createResponseSurface({
     clearTimeout(selectionUpdate);
     selectionUpdate = null;
     fabInputTakingFocus = true;
-    if (composerOpen) fabInput.focus({ preventScroll: true });
-    else openComment(structuredClone(fabAnchor), "");
+    if (!composerOpen) {
+      openComment(structuredClone(fabAnchor), "");
+      return;
+    }
+    const anchor = structuredClone(fabAnchor);
+    void fabPositioned().then((positioned) => {
+      if (positioned && composerOpen && sameAnchor(anchor, fabAnchor))
+        fabInput.focus({ preventScroll: true });
+    });
   }
   const fabOptionsAvailable = () =>
     Boolean(fabAnchor && hasOtherResponses(fabAnchor) && responseOptionsAvailable());
@@ -676,11 +792,10 @@ export function createResponseSurface({
   let actionPress = false;
   let targetActivation = false;
   let fabInputTakingFocus = false;
+  const beginFabFocus = () => {
+    fabInputTakingFocus = true;
+  };
   function openComment(anchor, text, options = {}) {
-    // Chromium may collapse the native page Selection before dispatching the textarea's
-    // focus event. Mark the handoff first so that intermediate selectionchange cannot
-    // dismiss the durable anchor the composer is opening on.
-    fabInputTakingFocus = options.focus !== false;
     return openComposer(anchor, text, options);
   }
   function fabHoldsCapturedPassage() {
@@ -957,7 +1072,8 @@ export function createResponseSurface({
     wireFabInput();
   }
   return {
-    holdFabLeft,
+    fabPositioned,
+    beginFabFocus,
     anchorStands,
     showFab,
     dismissFab,

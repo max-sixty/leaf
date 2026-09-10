@@ -146,7 +146,7 @@ def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, ser
     page.close()
 
 
-def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
+def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     browser, serve
 ):
     """The cheapest legal answer to a passage: select, press one token. What the log
@@ -155,8 +155,9 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     meets a comment. What the page gets is paint and nothing else: the words washed
     through the highlight registry, a glyph in the margin level with the paragraph,
     no card in the panel and nothing in its count, because a reaction is a mark and not
-    a conversation. The glyph is its own eraser: pressing it sends the ordinary undo
-    naming the event, and the paint goes with the gesture."""
+    a conversation. Pressing the glyph reveals a separately named remove control;
+    pressing that sends the ordinary undo naming the event, and the paint goes with the
+    gesture."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
@@ -259,7 +260,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     expect(page.locator(".lf-thread")).to_have_count(0)
     # The bar raised on the same passage again says the token stands. Its general
     # response disclosure keeps those choices with the field, while the standing glyph
-    # remains the margin receipt and eraser.
+    # remains the margin receipt and removal disclosure.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
     receipt_item = page.locator('.lf-margin-cluster[data-lf-margin-for="how-store"]')
@@ -279,14 +280,38 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     expect(surface.locator('.lf-react[data-token="keep"]')).to_have_attribute(
         "aria-pressed", "false"
     )
-    page.mouse.click(40, 300)  # the bar down, the glyph is the eraser
+    page.mouse.click(40, 300)  # the bar down, the standing glyph remains
     expect(bar).to_be_hidden()
     expect(receipt_item.locator(":scope > .lf-reacts")).to_have_count(1)
-    # The glyph's own take-back in the wire before the log is read: behind a bare trip
-    # the read answers with the comment this press is taking back, which is the shape
-    # run 33845381848 failed in.
+    mark = page.locator('.lf-reacts .lf-react-mark[data-token="shorten"]')
+    remove = page.locator('[aria-label="Remove shorten reaction"]:visible')
+    face = """button => {
+      const style = getComputedStyle(button);
+      return [style.color, style.backgroundColor, style.borderTopColor, style.boxShadow];
+    }"""
+    mark.hover()
+    resting_face = mark.evaluate(face)
+    before_reveal = events_model.read_events(serve.page_dir)[-1]
+    mark.click()
+    expect(mark).to_have_attribute("aria-expanded", "true")
+    expect(remove).to_be_visible()
+    assert mark.evaluate(face) == resting_face
+    assert events_model.read_events(serve.page_dir)[-1] == before_reveal
+    page.locator("h1").click()
+    expect(mark).to_have_attribute("aria-expanded", "false")
+    expect(remove).to_be_hidden()
+    mark.focus()
+    mark.press("Enter")
+    expect(remove).to_be_focused()
+    remove.press("Escape")
+    expect(mark).to_be_focused()
+    expect(remove).to_be_hidden()
+    mark.click()
+    # The dedicated remove press is in the wire before the log is read: behind a bare
+    # trip the read answers with the comment this press is taking back, which is the
+    # shape run 33845381848 failed in.
     with sending(page, "the take-back the glyph makes"):
-        page.locator('.lf-reacts .lf-react-mark[data-token="shorten"]').click()
+        remove.click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
     assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
@@ -302,6 +327,7 @@ def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     )
     with sending(page, "the withdrawal the gallery opens on"):
         settled.click()
+        page.locator('[aria-label="Remove keep reaction"]:visible').click()
     # The withdrawal applied, and not merely delivered, before the raise below stands its
     # choices inside the target's margin elements. A state that lands after that fold is open
     # re-renders the cluster, and the margin says so on `lf-margin-element-options-closed`, which
@@ -736,7 +762,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
 @pytest.mark.parametrize("width", [390, 1280])
 @pytest.mark.parametrize("opener", ["click", "keyboard"])
 def test_comment_response_choices_expand_in_place(browser, serve, opener, width):
-    """The ellipsis and Tab extend the comment without moving its left edge."""
+    """The ellipsis and Tab extend one placed rectangle without moving its left edge."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     resized(page, width, 900)
     select_paragraph(page, "#how-cap")
@@ -788,6 +814,13 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     assert all(abs(x - before["x"]) <= 1 for x in route), route
     assert abs(after["x"] - before["x"]) <= 1, (before, after)
     assert after["x"] + after["width"] <= width - 8, after
+    target = page.locator("#how-cap").bounding_box()
+    assert (
+        after["x"] + after["width"] <= target["x"]
+        or after["x"] >= target["x"] + target["width"]
+        or after["y"] + after["height"] <= target["y"]
+        or after["y"] >= target["y"] + target["height"]
+    ), (target, after)
     field_box = field.bounding_box()
     choice_boxes = [choice.bounding_box() for choice in choices.all()]
     assert all(abs(choice_box["height"] - 32) <= 1 for choice_box in choice_boxes)
@@ -839,6 +872,13 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
         expect(field).to_have_value("Keep this draft, still anchored 3 lines")
         narrowed = bar.bounding_box()
         assert narrowed["x"] + narrowed["width"] <= 492, narrowed
+        narrowed_target = page.locator("#how-cap").bounding_box()
+        assert (
+            narrowed["x"] + narrowed["width"] <= narrowed_target["x"]
+            or narrowed["x"] >= narrowed_target["x"] + narrowed_target["width"]
+            or narrowed["y"] + narrowed["height"] <= narrowed_target["y"]
+            or narrowed["y"] >= narrowed_target["y"] + narrowed_target["height"]
+        ), (narrowed_target, narrowed)
     page.keyboard.press("Tab")
     expect(suggest).to_be_focused()
     page.keyboard.press("Escape")
@@ -910,12 +950,12 @@ FLOAT_ROOM = """() => {
 def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     browser, serve
 ):
-    """A one-line note uses the shared action corner. A longer one widens before it
-    wraps, grows down as far as the room the placement states — a note of a dozen lines
-    shows them all, and only one taller than the band below the banner scrolls, standing
-    inside that band — and the corner stays fixed through all of that. On a narrow screen
-    the same room caps the bar and the field is what gives, so the ellipsis beside it
-    keeps its room."""
+    """A one-line note uses the shared action corner. A longer one uses the width of
+    its chosen rail and then wraps, growing through the room placement states — a dozen
+    lines shows them all, and only one taller than the band below the banner scrolls,
+    standing inside that band — and the corner stays fixed through all of that. On a
+    narrow screen the same room caps the bar and the field is what gives, so the
+    ellipsis beside it keeps its room."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
@@ -953,10 +993,10 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     )
     page.evaluate(RENDERED)
     wide = field.evaluate(FIELD_BOX)
-    assert wide["w"] > rest["w"] and wide["h"] > rest["h"], (
+    assert wide["w"] >= rest["w"] and wide["h"] > rest["h"], (
         rest,
         wide,
-    )  # wider, wrapped
+    )  # a rail already at its compact minimum wraps without moving or widening
     assert wide["over"] < 0 and wide["r"] == rest["r"], (rest, wide)
     bounds = bar.bounding_box()
     assert bounds and bounds["x"] + bounds["width"] <= room["right"], (room, bounds)
@@ -973,12 +1013,13 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     page.evaluate(RENDERED)  # placeFab answers the input a frame later
     bounds = bar.bounding_box()
     trigger = bar.locator(".lf-response-more").bounding_box()
+    narrow_field = field.bounding_box()
     assert bounds and 8 <= bounds["x"] and bounds["x"] + bounds["width"] <= 382, bounds
     assert trigger and trigger["x"] + trigger["width"] <= 382, (bounds, trigger)
-    assert field.evaluate(FIELD_BOX)["w"] < wide["w"], (
-        wide,
-        bounds,
-    )  # the field gave the room
+    assert narrow_field["x"] + narrow_field["width"] <= trigger["x"], (
+        narrow_field,
+        trigger,
+    )
     assert errors == []
     page.close()
 
@@ -1788,13 +1829,15 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
           selection.addRange(range);
         }"""
     )
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
+    expect(bar).to_be_visible()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
     page.evaluate(
         "() => { document.activeElement.blur(); getSelection().removeAllRanges(); }"
     )
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(bar).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -2169,12 +2212,14 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
             '.lf-margin-cluster[data-lf-margin-for="how-store"] .lf-react-mark'
           )]
             .map(m => [m.innerText, m.getAttribute('role'),
-                       m.getAttribute('aria-label'), m.getAttribute('tabindex')]),
+                       m.getAttribute('aria-label'), m.getAttribute('tabindex'),
+                       m.getAttribute('aria-expanded'),
+                       m.getAttribute('aria-controls')]),
         })"""
     )
     assert copy == {
         "washed": ["every edit"],
-        "glyph": [["✂️", "img", "shorten", None]],
+        "glyph": [["✂️", "img", "shorten", None, None, None]],
     }, copy
     # The other half of the same promise, and the half no gate can see: the copy's
     # `offering` reads the cursor and nothing else, so paint that arrives with the

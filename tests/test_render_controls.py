@@ -454,31 +454,34 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     page.close()
 
 
-@pytest.mark.parametrize("width", [1440, 1600])
+@pytest.mark.parametrize("resident", ["sidebar", "sidenote"])
 def test_a_workspace_lands_one_responsive_layout_and_carries_the_column_to_it(
-    browser, serve, width
+    browser, serve, resident
 ):
     """Opening Threads never makes the page visit intermediate responsive postures.
 
-    The gallery composes a left sidebar with the right living margin. At 1440px the
-    final shell withdraws the sidebar; at 1600px it withdraws the full conversation
-    margin. Animating the shell's width crossed either breakpoint in mid-flight, which
-    made the column jump or reverse direction.
+    The two cases supply a left sidebar and a right sidenote. Opening the panel at
+    1440px withdraws either real margin resident, making the column move in opposite
+    directions across the two cases. Animating the shell's width crossed that breakpoint
+    in mid-flight, which made the column jump or reverse.
 
     Hold the runtime motion and seek it deterministically. The shell should already
     have its final width and responsive state at the opening frame, while the column
     starts where the reader left it and travels monotonically to its final position.
     """
-    page, errors = open_page(browser, serve(FEATURE_GALLERY), init_script=HOLD_MOTION)
+    source = leaf_page(
+        "Responsive resident",
+        f'<aside class="{resident}">Margin resident.</aside><h1>Reading</h1>',
+    )
+    page, errors = open_page(browser, serve(source), init_script=HOLD_MOTION)
+    width = 1440
     resized(page, width, 900)
     initial = page.evaluate(
         """() => {
           const main = document.querySelector('main');
           return {
             x: main.getBoundingClientRect().x,
-            claim: getComputedStyle(main).getPropertyValue('--claim-map').trim(),
-            sidebar: getComputedStyle(document.querySelector('aside.sidebar'))
-              .getPropertyValue('--lf-sidebar-posture').trim(),
+            resident: getComputedStyle(document.querySelector('aside')).float,
           };
         }"""
     )
@@ -493,17 +496,14 @@ def test_a_workspace_lands_one_responsive_layout_and_carries_the_column_to_it(
           const main = document.querySelector('main');
           return {
             shell: document.body.getBoundingClientRect().width,
-            claim: getComputedStyle(main).getPropertyValue('--claim-map').trim(),
-            sidebar: getComputedStyle(document.querySelector('aside.sidebar'))
-              .getPropertyValue('--lf-sidebar-posture').trim(),
+            resident: getComputedStyle(document.querySelector('aside')).float,
           };
         }"""
     )
     assert final_layout["shell"] == width - 420
-    assert (initial["claim"], initial["sidebar"]) != (
-        final_layout["claim"],
-        final_layout["sidebar"],
-    ), "the fixture crossed no responsive posture, so it cannot expose the regression"
+    assert initial["resident"] != final_layout["resident"], (
+        "the fixture crossed no responsive posture, so it cannot expose the regression"
+    )
 
     positions = page.evaluate(
         """() => {
@@ -1871,6 +1871,10 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         assert (
             narrow_decisions["edge"]["right"] <= narrow_decisions["viewport"] + 0.1
         ), narrow_decisions
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-asks-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
+        )
 
         # Exercise both mirrored owners in different layout postures. A swipe beside the
         # visible grip scrolls its list without moving the boundary; a horizontal drag on
@@ -2905,23 +2909,15 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     expect(rows).to_have_count(0)
     expect(btn).to_have_text("All leaves (1)")
     expect(page.locator(".lf-others-self .lf-others-title")).to_have_text("long")
-    # The open panel remains a destination after its last link leaves. Its own nav is
-    # the fallback landing, and it promises no row walk while there is nothing to walk.
+    # The open panel remains the modal destination after its last link leaves. Its own
+    # nav is the fallback landing, and its global address remains the same toggle as the
+    # banner door even though that inert door is unavailable to a pointer.
     page.keyboard.press("g")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("All leaves panel")
     page.keyboard.press("Shift+l")
-    expect(page.locator(".lf-others-panel")).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("walk the leaves")
-    assert page.locator(".lf-others-panel").get_attribute("aria-keyshortcuts") is None
-    # Two presses in, two Escapes out. The second `g L` entered a tray that was already
-    # standing, so its own Escape gives that press back and leaves the workspace it
-    # found; the tray the first press stood up closes on the one after. Nothing live left
-    # to open: the button stands while the panel does and stands down with it, which is
-    # the count's other half.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-others-panel")).to_be_visible()
-    page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_be_visible()
+    expect(btn).to_have_attribute("aria-expanded", "false")
+    # Nothing live remains to reopen it: its button stands while the panel does and
+    # stands down with it, which is the count's other half.
     told(page)
     expect(btn).not_to_be_visible()
     assert errors == []
@@ -3105,6 +3101,8 @@ def test_workspaces_replace_each_other_and_name_the_open_one(
     The open workspace keeps its semantic expanded state and also wears the banner's
     active face. Its peers return to rest as it takes their place, so the tint names
     exactly the workspace the reader can see rather than merely the last one pressed.
+    A workspace beside the page can be replaced directly; a covering one is modal and
+    must close before its banner peers become available again.
     """
     page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, width, 700)
@@ -3146,21 +3144,445 @@ def test_workspaces_replace_each_other_and_name_the_open_one(
     page.locator(".lf-asks").click()
     expect(asks).to_have_class(re.compile(r"\bopen\b"))
     expect_open("asks")
+    if page.locator("main").evaluate("el => el.inert"):
+        page.keyboard.press("Escape")
+        expect(asks).not_to_have_class(re.compile(r"\bopen\b"))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(asks).not_to_have_class(re.compile(r"\bopen\b"))
     expect_open("threads")
 
+    if page.locator("main").evaluate("el => el.inert"):
+        page.keyboard.press("Escape")
+        panel_settled(page, open=False)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     expect(page.locator(".lf-others-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect_open("leaves")
 
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     page.locator(".lf-asks").click()
     panel_settled(page, open=False)
     expect(asks).to_have_class(re.compile(r"\bopen\b"))
     expect(comments).not_to_have_class(re.compile(r"\bopen\b"))
     expect_open("asks")
+    assert errors == []
+    page.close()
+
+
+def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve):
+    """A covering Threads sheet is the one place the reader can work until it closes.
+
+    The same open panel stands beside the document on a wide window and over it on a
+    narrow one. Crossing that line must not rebuild the conversation: the exact thread
+    in focus, the general draft, and the list's reading place survive both directions.
+    While it covers, Tab, the Leaf reading keys, native paging, and the wheel all stay in
+    the panel; none can move to or scroll the covered document. Closing gives a keyboard
+    entrant their prior page focus and unchanged document reading back.
+    """
+    page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
+    resized(page, 1000, 640)
+    page.evaluate("() => document.scrollingElement.scrollTop = 240")
+    document_at = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
+    expect(page.locator(".lf-panel")).not_to_have_attribute("aria-modal", "true")
+
+    draft = "Keep this draft through both workspace postures."
+    page.locator(".lf-general textarea").fill(draft)
+    threads = page.locator(".lf-threads")
+    thread = threads.locator(".lf-thread").nth(5)
+    thread.focus()
+    thread.evaluate("el => el.scrollIntoView({block: 'start'})")
+    list_at = threads.evaluate("el => el.scrollTop")
+    identity = thread.get_attribute("data-id")
+    assert identity and list_at > 0, "the fixture established no thread reading place"
+
+    resized(page, 500, 640)
+    panel_settled(page)
+    assert page.locator("main").evaluate("el => el.inert")
+    expect(page.locator(".lf-panel")).to_have_attribute("aria-modal", "true")
+    expect(page.locator(f'.lf-thread[data-id="{identity}"]')).to_be_focused()
+    expect(page.locator(".lf-general textarea")).to_have_value(draft)
+    assert threads.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
+
+    # A complete pass through more stops than this panel holds has to wrap within it.
+    focus_stops = page.locator(
+        ".lf-panel button:visible, .lf-panel input:visible, "
+        ".lf-panel textarea:visible, .lf-panel [tabindex='0']:visible"
+    )
+    assert focus_stops.count() > 8, (
+        "the panel has too few stops to expose a focus escape"
+    )
+    focus_stops.last.focus()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-panel > .lf-edge")).to_be_focused()
+    for _ in range(focus_stops.count() + 3):
+        page.keyboard.press("Tab")
+        assert page.evaluate(
+            "() => document.querySelector('.lf-panel').contains(document.activeElement)"
+        ), "Tab reached a control behind the covering Threads workspace"
+
+    open_filter = page.locator('[data-filter-value="open"]')
+    open_filter.focus()
+    resized(page, 1000, 640)
+    panel_settled(page)
+    expect(open_filter).to_be_focused()
+    expect(page.locator(".lf-panel")).not_to_have_attribute("aria-modal", "true")
+    resized(page, 500, 640)
+    panel_settled(page)
+    expect(open_filter).to_be_focused()
+    expect(page.locator(".lf-panel")).to_have_attribute("aria-modal", "true")
+
+    threads.evaluate("el => el.scrollTop = 0")
+    page.locator(".lf-threads").focus()
+    page.keyboard.press("d")
+    page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
+    after_key = threads.evaluate("el => el.scrollTop")
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
+
+    page.keyboard.press("PageDown")
+    page.wait_for_function(
+        "at => document.querySelector('.lf-threads').scrollTop > at", arg=after_key
+    )
+    after_page = threads.evaluate("el => el.scrollTop")
+    box = threads.bounding_box()
+    assert box is not None
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 300)
+    page.wait_for_function(
+        "at => document.querySelector('.lf-threads').scrollTop > at", arg=after_page
+    )
+    page.evaluate(
+        "() => { window.__lfWorkspaceScroll = -1;"
+        " window.__lfWorkspaceScrollSince = performance.now(); }"
+    )
+    page.wait_for_function(
+        "hold => { const now = document.querySelector('.lf-threads').scrollTop;"
+        " if (now !== window.__lfWorkspaceScroll) { window.__lfWorkspaceScroll = now;"
+        " window.__lfWorkspaceScrollSince = performance.now(); return false; }"
+        " return performance.now() - window.__lfWorkspaceScrollSince > hold; }",
+        arg=50,
+    )
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
+
+    # Focus already inside the workspace is not a reason to move it at either crossing.
+    thread = page.locator(f'.lf-thread[data-id="{identity}"]')
+    thread.focus()
+    list_at = threads.evaluate("el => el.scrollTop")
+    resized(page, 1000, 640)
+    panel_settled(page)
+    assert not page.locator("main").evaluate("el => el.inert")
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-panel")).not_to_have_attribute("aria-modal", "true")
+    expect(page.locator(".lf-general textarea")).to_have_value(draft)
+    assert threads.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
+    resized(page, 500, 640)
+    panel_settled(page)
+    expect(thread).to_be_focused()
+    expect(page.locator(".lf-panel")).to_have_attribute("aria-modal", "true")
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+    assert not page.locator("main").evaluate("el => el.inert")
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
+    assert errors == []
+    page.close()
+
+
+def test_a_covering_workspace_keeps_a_replacement_document_inert(browser, serve):
+    """A live version can replace main without reopening the covering workspace.
+
+    The modal boundary follows that replacement, so the new document cannot become a
+    pointer or keyboard target while the sheet still claims modal semantics. Closing
+    restores the new document rather than the detached one it replaced.
+    """
+    url = serve(LONG_PAGE, comments=2)
+    page, errors = open_page(browser, live_url(url))
+    resized(page, 700, 640)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.evaluate("() => { window.__lfReplacedMain = document.querySelector('main'); }")
+    assert page.locator("main").evaluate("el => el.inert")
+
+    revised = LONG_PAGE.replace(
+        '<h1 id="t">Long</h1>', '<h1 id="t">Long after replacement</h1>'
+    )
+    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(revised)
+    stamp_version_file(serve.page_dir, 2, "replace the document")
+    told(page)
+    expect(page.locator("#t")).to_have_text("Long after replacement")
+
+    state = page.evaluate(
+        """() => ({
+          oldConnected: window.__lfReplacedMain.isConnected,
+          sameMain: window.__lfReplacedMain === document.querySelector('main'),
+          inert: document.querySelector('main').inert,
+          modal: document.querySelector('.lf-panel').getAttribute('aria-modal'),
+          focusInside: document.querySelector('.lf-panel').contains(document.activeElement),
+        })"""
+    )
+    assert state == {
+        "oldConnected": False,
+        "sameMain": False,
+        "inert": True,
+        "modal": "true",
+        "focusInside": True,
+    }, f"the replacement escaped its standing modal workspace: {state}"
+
+    page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, open=False)
+    assert not page.locator("main").evaluate("el => el.inert")
+    expect(page.locator(".lf-threads-toggle")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_a_covering_tray_uses_the_same_modal_workspace_boundary(browser, serve):
+    """The Asks tray gets the covering workspace contract rather than a tray-specific
+    focus trap. Its exact Ask and reading place survive both responsive crossings, its
+    reading keys move its own list, and closing returns to its door without moving the
+    document behind it."""
+    page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
+    resized(page, 500, 640)
+    page.evaluate("() => document.scrollingElement.scrollTop = 180")
+    document_at = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.locator(".lf-asks").click()
+    tray = page.locator(".lf-asks-panel")
+    expect(tray).to_have_class(re.compile(r"\bopen\b"))
+    assert page.locator("main").evaluate("el => el.inert")
+    expect(tray).to_have_attribute("role", "dialog")
+    expect(tray).to_have_attribute("aria-modal", "true")
+
+    rows = tray.locator(".lf-asks-row")
+    row = rows.nth(8)
+    row.focus()
+    row.evaluate("el => el.scrollIntoView({block: 'start'})")
+    identity = row.get_attribute("data-lf-at")
+    list_box = tray.locator(".lf-tray-list")
+    list_at = list_box.evaluate("el => el.scrollTop")
+    assert identity and list_at > 0, "the fixture established no Ask reading place"
+
+    for _ in range(rows.count() + 3):
+        page.keyboard.press("Tab")
+        assert tray.evaluate("el => el.contains(document.activeElement)"), (
+            "Tab reached a control behind the covering Asks workspace"
+        )
+
+    list_box.evaluate("el => el.scrollTop = 0")
+    rows.first.focus()
+    page.keyboard.press("d")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-asks-panel .lf-tray-list').scrollTop > 0"
+    )
+    page.evaluate(
+        "() => { window.__lfWorkspaceScroll = -1;"
+        " window.__lfWorkspaceScrollSince = performance.now(); }"
+    )
+    page.wait_for_function(
+        "hold => { const now = document.querySelector("
+        "'.lf-asks-panel .lf-tray-list').scrollTop;"
+        " if (now !== window.__lfWorkspaceScroll) { window.__lfWorkspaceScroll = now;"
+        " window.__lfWorkspaceScrollSince = performance.now(); return false; }"
+        " return performance.now() - window.__lfWorkspaceScrollSince > hold; }",
+        arg=50,
+    )
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
+
+    row = tray.locator(f'.lf-asks-row[data-lf-at="{identity}"]')
+    row.focus()
+    list_at = list_box.evaluate("el => el.scrollTop")
+    resized(page, 900, 640)
+    assert not page.locator("main").evaluate("el => el.inert")
+    expect(row).to_be_focused()
+    expect(tray).not_to_have_attribute("aria-modal", "true")
+    expect(tray).not_to_have_attribute("role", "dialog")
+    assert list_box.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
+    resized(page, 500, 640)
+    assert page.locator("main").evaluate("el => el.inert")
+    expect(row).to_be_focused()
+    expect(tray).to_have_attribute("aria-modal", "true")
+    expect(tray).to_have_attribute("role", "dialog")
+
+    page.keyboard.press("Escape")
+    expect(tray).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-asks")).to_be_focused()
+    assert not page.locator("main").evaluate("el => el.inert")
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
+    assert errors == []
+    page.close()
+
+
+def test_covering_trays_have_a_pointer_route_back_to_their_banner_controls(
+    browser, serve, other_leaf
+):
+    """Each tray can be dismissed from inside the modal surface by pointer.
+
+    Pointer entry starts in the list rather than on its dismissal furniture. The banner
+    controls are inert while a tray covers the document, so they cannot be the only
+    pointer route out. Closing either tray returns focus to the control that opened it,
+    ready to reopen the same workspace.
+    """
+    page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
+    resized(page, 500, 640)
+    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+    assert page.locator(".lf-others").evaluate(
+        "el => Boolean(el.closest('.lf-banner-menu'))"
+    ), "the fixture did not fold Leaves behind the banner menu"
+
+    for selector, panel, name, first_destination in (
+        (".lf-asks", ".lf-asks-panel", "asks", ".lf-asks-row"),
+        (".lf-others", ".lf-others-panel", "leaves", "a.lf-others-row"),
+    ):
+        door = banner_address(page, selector)
+        door.click()
+        tray = page.locator(panel)
+        expect(tray).to_have_class(re.compile(r"\bopen\b"))
+        assert page.locator("main").evaluate("el => el.inert")
+        expect(page.locator(".lf-banner-menu")).not_to_be_visible()
+        expect(tray.locator(first_destination).first).to_be_focused()
+
+        page.get_by_role("button", name=f"Close {name}").click()
+        expect(tray).not_to_have_class(re.compile(r"\bopen\b"))
+        expect(door).to_be_focused()
+        assert not page.locator("main").evaluate("el => el.inert")
+
+    assert errors == []
+    page.close()
+
+
+def test_the_shared_workspace_scrim_marks_and_dismisses_a_covering_surface(
+    browser, serve, other_leaf
+):
+    """A covering workspace stands above a scrim covering every inert surface."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    resized(page, 1200, 700)
+    scrim = page.locator(".lf-workspace-scrim")
+    expect(scrim).to_be_hidden()
+
+    leaves_door = banner_address(page, ".lf-others")
+    leaves_door.click()
+    leaves = page.locator(".lf-others-panel")
+    expect(leaves).to_have_class(re.compile(r"\bopen\b"))
+    expect(scrim).to_be_visible()
+    assert page.locator("main").evaluate("el => el.inert")
+    scrim_reading = page.evaluate(
+        """() => {
+          const scrim = document.querySelector('.lf-workspace-scrim');
+          const banner = document.querySelector('.lf-banner');
+          const bannerBox = banner.getBoundingClientRect();
+          const scrimBox = scrim.getBoundingClientRect();
+          const surface = document.querySelector('.lf-others-panel');
+          const tray = document.querySelector('.lf-others-panel').getBoundingClientRect();
+          const point = {x: Math.max(tray.right + 20, innerWidth * .75), y: innerHeight / 2};
+          const bannerPoint = {
+            x: bannerBox.left + bannerBox.width / 2,
+            y: bannerBox.top + bannerBox.height / 2,
+          };
+          return {
+            color: getComputedStyle(scrim).backgroundColor,
+            point,
+            hit: document.elementFromPoint(point.x, point.y) === scrim,
+            top: scrimBox.top,
+            coversBanner: scrimBox.top <= bannerBox.top && scrimBox.bottom >= bannerBox.bottom,
+            bannerHit: document.elementFromPoint(bannerPoint.x, bannerPoint.y) === scrim,
+            bannerLayer: Number(getComputedStyle(banner).zIndex),
+            scrimLayer: Number(getComputedStyle(scrim).zIndex),
+            surfaceLayer: Number(getComputedStyle(surface).zIndex),
+          };
+        }"""
+    )
+    assert scrim_reading["color"] != "rgba(0, 0, 0, 0)", scrim_reading
+    assert scrim_reading["hit"], scrim_reading
+    assert scrim_reading["top"] == 0, scrim_reading
+    assert scrim_reading["coversBanner"], scrim_reading
+    assert scrim_reading["bannerHit"], scrim_reading
+    assert (
+        scrim_reading["surfaceLayer"]
+        > scrim_reading["scrimLayer"]
+        > scrim_reading["bannerLayer"]
+    ), scrim_reading
+    page.mouse.click(scrim_reading["point"]["x"], scrim_reading["point"]["y"])
+    expect(leaves).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(leaves_door).to_be_focused()
+    expect(scrim).to_be_hidden()
+    assert not page.locator("main").evaluate("el => el.inert")
+
+    threads_door = page.locator(".lf-threads-toggle")
+    threads_door.click()
+    panel_settled(page)
+    expect(scrim).to_be_hidden()
+    assert not page.locator("main").evaluate("el => el.inert")
+    resized(page, 700, 700)
+    panel_settled(page)
+    expect(scrim).to_be_visible()
+    assert page.locator("main").evaluate("el => el.inert")
+    assert page.locator(".lf-panel").evaluate(
+        "panel => Number(getComputedStyle(panel).zIndex) > "
+        "Number(getComputedStyle(document.querySelector('.lf-workspace-scrim')).zIndex)"
+    )
+    page.get_by_role("button", name="Close threads").click()
+    panel_settled(page, open=False)
+    expect(threads_door).to_be_focused()
+    expect(scrim).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize(
+    ("key", "surface", "close_name"),
+    [
+        ("Shift+t", ".lf-panel", "Close threads"),
+        ("Shift+a", ".lf-asks-panel", "Close asks"),
+    ],
+)
+def test_a_keyboard_workspace_entry_survives_covering_to_beside(
+    browser, serve, key, surface, close_name
+):
+    """Posture does not retire a live return, while closing its workspace does."""
+    page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
+    resized(page, 500, 640)
+    origin = page.locator("main .lf-pick").first
+    origin.focus()
+
+    page.keyboard.press("g")
+    page.keyboard.press(key)
+    if surface == ".lf-panel":
+        panel_settled(page)
+    else:
+        expect(page.locator(surface)).to_have_class(re.compile(r"\bopen\b"))
+    assert page.locator("main").evaluate("el => el.inert")
+
+    resized(page, 1000, 640)
+    if surface == ".lf-panel":
+        panel_settled(page)
+    assert not page.locator("main").evaluate("el => el.inert")
+    expect(page.locator(surface)).to_have_class(re.compile(r"\bopen\b"))
+
+    page.keyboard.press("Escape")
+    if surface == ".lf-panel":
+        panel_settled(page, open=False)
+    else:
+        expect(page.locator(surface)).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(origin).to_be_focused()
+
+    page.keyboard.press("g")
+    page.keyboard.press(key)
+    if surface == ".lf-panel":
+        panel_settled(page)
+    page.get_by_role("button", name=close_name).click()
+    if surface == ".lf-panel":
+        panel_settled(page, open=False)
+    else:
+        expect(page.locator(surface)).not_to_have_class(re.compile(r"\bopen\b"))
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.activeElement === document.body"), (
+        "closing the workspace left its keyboard return frame live"
+    )
     assert errors == []
     page.close()
 
@@ -3494,6 +3916,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     sweep("in the keyboard reference")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
+    page_at_rest(page)
 
     # And the sequence's generated target hints, painted over the visible page rather than
     # inserted into it.
@@ -3694,20 +4117,13 @@ def test_a_sheet_lifts_the_shortcut_bar_text_only_when_its_foot_reaches_the_same
         f"the disjoint line overrode the panel list's own inset: {separate}"
     )
 
-    # The g sequence is wider in this same viewport. Once it reaches across the footer's
-    # lane, the line lifts and the list reserves the band it really covers.
-    page.locator("body").focus()
+    # The global address sequence belongs to the modal workspace here. It must not restore
+    # the inert page's wider line, so the line and list remain in the same disjoint posture.
     page.keyboard.press("g")
     page.evaluate(RENDERED)
     sequence = boxes()
-    assert sequence["shortcut_bar"]["right"] > sequence["foot"]["left"], sequence
-    assert sequence["shortcut_bar"]["bottom"] <= sequence["foot"]["top"], (
-        f"the intersecting sequence stood on the panel foot: {sequence}"
-    )
-    sequence_cover = sequence["list"]["bottom"] - sequence["shortcut_bar"]["top"]
-    assert sequence_cover > 0 and sequence["listPad"] >= sequence_cover, sequence
-    assert sequence["listScrollPad"] >= sequence_cover, sequence
-    page.keyboard.press("Escape")
+    assert sequence["shortcut_bar"]["right"] < sequence["foot"]["left"], sequence
+    assert sequence["listPad"] < 20 and sequence["listScrollPad"] < 20, sequence
 
     # Beside the page the line is capped left of the panel, so the list keeps the inset
     # the stylesheet gives it rather than room for a line that never reaches it.
@@ -4864,13 +5280,18 @@ RING_SCOPE_CONTROL = {
 # The window a scope's own surface stands in, where that is not the walk's own. These
 # entries are floors the layer states rather than preferences: the Map control is drawn
 # under the margin's breakpoint and nowhere else, while the contents-link and thread-card
-# walks use the wider room where their page-margin surfaces stand beside the source. Ship
-# review stands a contents map too, so that beside posture waits for 1472px of shell
-# rather than 1208px (theme.css). Every other scope is read at the width the page opened
-# at.
+# walks use a wide window where their page-margin surfaces can stand beside the source.
+# Every other scope is read at the width the page opened at.
 RING_WALK_VIEWPORT = (1200, 900)
-# Scopes whose page-margin surfaces the standing panel takes the place of.
-RING_SCOPES_WITHOUT_PANEL = {"a contents link", "a thread card"}
+# Scopes whose own route starts with Threads shut. A thread card and the narrow map need
+# page-margin surfaces the panel replaces; the thread-list walk's own `g T` is the door
+# under test, and now correctly toggles an already-open panel closed.
+RING_SCOPES_STARTING_WITHOUT_PANEL = {
+    "the thread list",
+    "a contents link",
+    "a thread card",
+    "the page map sheet",
+}
 RING_SCOPE_WIDTH = {
     "a contents link": 1600,
     "a thread card": 1600,
@@ -5224,9 +5645,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             page.evaluate(RING_WALK_START)
             # Threads and a target's own Thread card are one surface offered two ways:
             # with the panel standing, a thread margin element sends the reader there instead of
-            # building the card, so the card's walk is the one scope that starts with the
-            # panel shut. Every other scope starts from the same open-panel page.
-            if scope in RING_SCOPES_WITHOUT_PANEL:
+            # building the card. The scopes listed above need the panel shut either to expose
+            # their own page surface or to exercise the panel's entry route itself.
+            if scope in RING_SCOPES_STARTING_WITHOUT_PANEL:
                 if page.locator(".lf-panel.open").count():
                     page.get_by_role("button", name="Close threads").click()
                     panel_settled(page, open=False)

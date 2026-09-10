@@ -226,7 +226,7 @@ threads they claim from the living-margin fallback;
 state, and their reply, resolve, and reopen controls;
 `runtime/conversation/thread-list.js` owns retained panel list reconciliation;
 `runtime/conversation/acknowledgments.js` paints the server-projected interaction
-receipts in conversation seats; and
+receipts and active-work destinations in conversation seats; and
 `runtime/conversation/reconcile.js` composes panel reconciliation and
 `runtime/conversation/panel.js` builds the panel's parts;
 `runtime/projection/authored.js` owns typed authored initial values and anchor
@@ -542,9 +542,10 @@ then uses `ResizeObserver` or the shared layout signal for later changes. An asy
 producer's default may reserve space without painting; a box-derived reading taken before
 replay does paint, and `PRESENTATION` replaces it.
 
-Control state is paint: ink, fill, border, or an inset ring. Do not express it by
-changing font weight, size, padding, border width, or another metric. Reserve
-space before a generated control appears. Transient feedback may repaint a control or
+An action awaiting confirmation may dim its existing control after the shared delay; it
+does not gain another mark or change geometry. Durable workflow state uses the control's
+semantic label or agent-ownership treatment. Reserve space before a generated control
+appears. Transient feedback may repaint a control or
 briefly replace its label, but neither may change its geometry; `reserve` measures all
 enumerable labels in the control's current font and sets a minimum width. Text that
 wraps reserves on the same terms: the narrowest box in which every line it can write

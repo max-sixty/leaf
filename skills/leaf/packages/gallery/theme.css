@@ -1,6 +1,6 @@
 /* The gallery lays the runtime's own margin element anatomy out for comparison. The package
  * owns only the specimen labels and grid; living-margin.js and chrome.css remain the
- * sole owners of each margin element's circle, icon, tone, role, and lifecycle witness. */
+ * sole owners of each margin element's circle, icon, tone, role, and ownership paint. */
 lf-margin-element-gallery {
   display: block;
   margin-block: var(--sp-4);

@@ -17,10 +17,14 @@
    expanded when focus moves within its work. Explicit owner focus temporarily derives
    the cluster from that contribution alone; closing it restores the ordinary cluster.
 
-   Controls are ordered by lifecycle state, semantic role, contribution key, and
+   Controls are ordered by interaction state, semantic role, contribution key, and
    control key. Generated readings follow contributed controls. One target's Threads
    share one reading and one card. Page Map also includes readings that deliberately
    have no target control, such as durable state provenance.
+
+   Pickup and current work decorate the target's primary control with one ownership
+   treatment. A target without another control keeps the generated Activity reading.
+   This preserves the target's own verb while the ring answers whether the agent has it.
 
    Keyboard and pointer expansion share one state. Focus arrival through Tab unfolds a
    compact cluster, Left and Right walk it, and Escape folds only the layer that gesture
@@ -100,7 +104,12 @@ import {
   scrollToThread,
   traceTarget,
 } from "./anchors.js";
-import { updateSequence, workClaimState } from "./updates.js";
+import {
+  agentWorkStage,
+  agentWorkTargetStages,
+  updateSequence,
+  workClaimState,
+} from "./updates.js";
 import { threadList } from "./conversation/state.js";
 import { threadKey } from "./conversation/model.js";
 import { openAsks } from "./asks/model.js";
@@ -129,21 +138,18 @@ const KINDS = {
     icon: "sent",
     priority: 3,
     indication: true,
-    state: "busy",
   },
   pickup: {
     label: "Picked up",
     icon: "pickup",
     priority: 3,
     indication: true,
-    state: "idle",
   },
   waiting: {
     label: "Waiting for pickup",
     icon: "waiting",
     priority: 3,
     indication: true,
-    state: "busy",
   },
   reader: {
     label: "Your change",
@@ -157,7 +163,7 @@ const KINDS = {
     priority: 4,
     indication: true,
   },
-  activity: { label: "Active", icon: "activity", priority: 4, state: "busy" },
+  activity: { label: "Active", icon: "activity", priority: 4 },
 };
 const RESTING_MARGIN_ELEMENT_BUDGET = 2;
 const EXPANDED_MARGIN_ELEMENT_BUDGET = 6;
@@ -431,6 +437,7 @@ const controlProxies = new WeakMap();
 const readingMarginElements = new Map();
 const hosts = new Map();
 const inlineHosts = new Map();
+const agentWorkStages = new Map();
 let optionsOrdinal = 0;
 let pageMapEntries = [];
 let previewEntry = null;
@@ -455,15 +462,15 @@ const offerReadings = (offered) => {
   const items = typeof offered.items === "function" ? offered.items() : offered.items;
   return items ?? [];
 };
-// One target has one lifecycle reading. Failure outranks work in flight, which
+// One target has one interaction reading. Failure outranks work in flight, which
 // outranks an open interaction; the ordinary idle state never forces peers open.
-// Generated acknowledgment readings join through the same state axis rather than a
-// second engagement flag.
+// Generated acknowledgment readings are settled server facts, so only a face that
+// explicitly declares an interaction state joins this axis.
 const entryState = (entry) => {
   const states = [
     ...entry.offers.map(marginContributionState),
     ...entry.items.map(
-      (item) => item.state ?? (item.acknowledgmentFace ? "busy" : "idle"),
+      (item) => item.state ?? item.acknowledgmentFace?.state ?? "idle",
     ),
   ];
   return (
@@ -562,7 +569,7 @@ const readingChoices = (entry) => {
   }
   if (threadList.length)
     choices.push({
-      // One target owns one thread margin element. Membership changes repaint its badge and
+      // One target owns one thread margin element. Membership changes repaint its treatment and
       // card without replacing the control that owns an open conversation.
       key: "threadList",
       kind: "comment",
@@ -643,6 +650,83 @@ function readingFace(choice) {
   );
 }
 
+const threadWorkItems = (choice) =>
+  choice?.kind === "comment" ? choice.items.filter((item) => item.workReceipt) : [];
+
+const activeThreadWork = (choice) =>
+  threadWorkItems(choice).filter((item) => item.agentWorkStage === "working");
+
+const pickedUpThreadWork = (choice) =>
+  threadWorkItems(choice).filter((item) => item.agentWorkStage === "picked-up");
+
+function paintAgentWorkStage(control, stage, description, arriving = false) {
+  if (stage) {
+    keeps(control, "data-lf-agent-stage", stage);
+    if (stage !== "working") control.removeAttribute("data-lf-agent-arrival");
+    else if (arriving) keeps(control, "data-lf-agent-arrival", "1");
+    if (
+      description &&
+      (!control.hasAttribute("aria-description") ||
+        control.hasAttribute("data-lf-agent-description"))
+    ) {
+      keeps(control, "aria-description", description);
+      keeps(control, "data-lf-agent-description", "1");
+    }
+    return;
+  }
+  control.removeAttribute("data-lf-agent-stage");
+  control.removeAttribute("data-lf-agent-arrival");
+  if (control.hasAttribute("data-lf-agent-description")) {
+    control.removeAttribute("aria-description");
+    control.removeAttribute("data-lf-agent-description");
+  }
+}
+
+function syncAgentWorkStage(host, owner, stage, description, arriving) {
+  for (const control of host.querySelectorAll(".lf-margin-element"))
+    paintAgentWorkStage(
+      control,
+      control === owner ? stage : null,
+      control === owner ? description : null,
+      control === owner && arriving,
+    );
+}
+
+const readingTone = (choice) =>
+  activeThreadWork(choice).length ? "positive" : "neutral";
+
+function threadWorkDescription(choice) {
+  const items = threadWorkItems(choice);
+  const working = activeThreadWork(choice);
+  const pickedUp = pickedUpThreadWork(choice);
+  if (!items.length) return null;
+  if (working.length === 1 && choice.items.length === 1) {
+    const receipt = working[0].workReceipt;
+    return `${receipt.agent || runtime.agent || "Agent"} is working in this thread${
+      receipt.detail ? ` — ${receipt.detail}` : ""
+    }`;
+  }
+  if (pickedUp.length === 1 && choice.items.length === 1) {
+    const receipt = pickedUp[0].workReceipt;
+    return `${receipt.agent || runtime.agent || "Agent"} has picked up this thread`;
+  }
+  if (working.length || pickedUp.length) {
+    const held = working.length + pickedUp.length;
+    return `${held} of ${choice.items.length} threads are with an agent${
+      working.length ? `; ${working.length} being worked` : ""
+    }`;
+  }
+  if (items.length === 1 && choice.items.length === 1) {
+    const receipt = items[0].workReceipt;
+    const agent = receipt.agent || runtime.agent || "Agent";
+    const state = receipt.dropped ? "ended with its turn" : "is quiet";
+    return `${agent}'s work in this thread ${state}${
+      receipt.detail ? ` — ${receipt.detail}` : ""
+    }`;
+  }
+  return `${items.length} of ${choice.items.length} threads have quiet agent work`;
+}
+
 function readingState(choice) {
   return (
     (choice?.items ?? [])
@@ -656,6 +740,8 @@ function readingState(choice) {
 const readingBehavior = (face) => (face.indication ? "status" : "disclosure");
 
 function readingContext(choice) {
+  const work = threadWorkDescription(choice);
+  if (work) return work;
   if (choice?.items.length !== 1) return null;
   return choice.items[0].context ?? null;
 }
@@ -927,6 +1013,8 @@ function groupFor(groups, target) {
       title: null,
       items: [],
       offers: [],
+      agentWorkStage: null,
+      agentWorkDescription: null,
     };
     groups.set(target, group);
   }
@@ -937,12 +1025,25 @@ function add(groups, target, item) {
   if (!target?.isConnected || inChrome(target)) return;
   const group = groupFor(groups, target);
   group.items.push(item);
+  const stage = item.agentWorkStage;
+  if (stage === "working" || (stage === "picked-up" && !group.agentWorkStage)) {
+    group.agentWorkStage = stage;
+    group.agentWorkDescription = item.agentWorkDescription ?? null;
+  }
 }
 
 function visibleAcknowledgments() {
   return acknowledgments().filter(
     (projected) => projected.revision <= runtime.currentRevision,
   );
+}
+
+function agentWorkDescription(stage, source, subject = "this item") {
+  const agent = source.agent || runtime.agent || "Agent";
+  if (stage === "picked-up") return `${agent} has picked up ${subject}`;
+  return `${agent} is working ${subject === "this thread" ? "in" : "on"} ${subject}${
+    source.detail ? ` — ${source.detail}` : ""
+  }`;
 }
 
 function acknowledgmentFace(receipt) {
@@ -977,6 +1078,17 @@ const marginThreadItem = (thread) => (thread ? `comment:${threadKey(thread)}` : 
 
 function collectEntries() {
   const groups = new Map();
+  const threadStages = agentWorkTargetStages(runtime.activity, "thread");
+  const threadWorkReceipts = new Map(
+    visibleAcknowledgments()
+      .filter(
+        (receipt) =>
+          receipt.target.kind === "thread" &&
+          agentWorkStage(receipt) === threadStages.get(receipt.target.id),
+      )
+      .map((receipt) => [receipt.target.id, receipt]),
+  );
+  const threadControls = new Set();
   const receiptByCoordinate = new Map();
   for (const receipt of visibleAcknowledgments()) {
     receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
@@ -984,6 +1096,7 @@ function collectEntries() {
   for (const thread of threadList()) {
     if (thread.resolved || !thread.anchor || claimed(thread.root.id)) continue;
     const id = thread.root.id;
+    threadControls.add(id);
     add(groups, placedAt(id)?.element, {
       kind: "comment",
       // One row for one conversation, across the log answering for it. A thread the
@@ -993,6 +1106,17 @@ function collectEntries() {
       id: marginThreadItem(thread),
       text: trimmed(thread.root.text || anchorLabel(thread.anchor, thread.root.about)),
       thread,
+      ...(threadWorkReceipts.has(id)
+        ? {
+            workReceipt: threadWorkReceipts.get(id),
+            agentWorkStage: threadStages.get(id),
+            agentWorkDescription: agentWorkDescription(
+              threadStages.get(id),
+              threadWorkReceipts.get(id),
+              "this thread",
+            ),
+          }
+        : {}),
       activate: () => showThread(id),
     });
   }
@@ -1047,11 +1171,23 @@ function collectEntries() {
     const face = acknowledgmentFace(receipt);
     if (face.kind === "activity")
       activityAlreadyShown.add(`widget:${receipt.target.id}`);
+    const workStage = agentWorkStage(receipt);
     add(groups, target, {
       kind: face.kind,
       id: `acknowledgment:${receipt.id}`,
       text: trimmed(`${face.text} · ${account}`),
       acknowledgmentFace: KINDS[face.kind],
+      ...(workStage === "working"
+        ? {
+            agentWorkStage: "working",
+            agentWorkDescription: agentWorkDescription("working", receipt),
+          }
+        : workStage === "picked-up"
+          ? {
+              agentWorkStage: "picked-up",
+              agentWorkDescription: agentWorkDescription("picked-up", receipt),
+            }
+          : {}),
       ...(face.context ? { context: face.context } : {}),
       activate: () => revealTarget(target, `${face.text}: ${account}`),
     });
@@ -1090,6 +1226,8 @@ function collectEntries() {
     for (const update of updateSequence()) {
       if (update.source !== "claim" || update.disposition !== "effective") continue;
       if (update.revision > runtime.currentRevision) continue;
+      if (update.target.kind === "thread" && threadControls.has(update.target.id))
+        continue;
       if (activityAlreadyShown.has(`${update.target.kind}:${update.target.id}`))
         continue;
       const target =
@@ -1111,6 +1249,15 @@ function collectEntries() {
         id: `activity:${update.id}`,
         text: trimmed(account),
         acknowledgmentFace: KINDS.activity,
+        ...(quiet
+          ? { state: "idle" }
+          : {
+              agentWorkStage: "working",
+              agentWorkDescription: agentWorkDescription("working", {
+                agent: update.agent,
+                detail: update.text,
+              }),
+            }),
         context: [age && `Checked in ${age}`, update.text].filter(Boolean).join(" · "),
         activate: () => revealTarget(target, account),
       });
@@ -1641,12 +1788,16 @@ function paintMarker(row, entry, primary, { suppressed = false } = {}) {
     label,
     context: readingContext(choice),
     behavior,
+    tone: readingTone(choice),
     role: "reading",
     state: readingState(choice),
     writesRelation: false,
     writesSeat: false,
   });
   row.onclick = behavior === "status" ? null : pressMarker;
+  const workDescription = threadWorkDescription(choice);
+  if (workDescription) keeps(row, "aria-description", workDescription);
+  else row.removeAttribute("aria-description");
   syncReadingRelation(row, choice);
   row.removeAttribute("aria-pressed");
   syncMarginElementCount(row, markerCount);
@@ -1740,12 +1891,16 @@ function readingOptionNode(entry, choice) {
     label,
     context: readingContext(choice),
     behavior,
+    tone: readingTone(choice),
     role: "reading",
     state: readingState(choice),
     writesRelation: false,
   });
   node.lfEntry = entry;
   node.lfChoice = choice;
+  const workDescription = threadWorkDescription(choice);
+  if (workDescription) keeps(node, "aria-description", workDescription);
+  else node.removeAttribute("aria-description");
   syncReadingRelation(node, choice);
   keeps(node, "data-lf-kinds", choice.kind);
   keeps(
@@ -2077,6 +2232,22 @@ function renderNow() {
     ]),
   );
   for (const entry of pageMapEntries) entry.shownControls = shownControls;
+  for (const entry of pageMapEntries) {
+    // Pickup and Active are the fallback carrier for agent ownership. Once the
+    // target has another visible control or reading, that control carries the
+    // ownership treatment and the fallback disappears.
+    const ownershipReadings = entry.items.filter(
+      (item) => item.agentWorkStage && ["pickup", "activity"].includes(item.kind),
+    );
+    const semanticReading = markerItems(entry).some(
+      (item) => !ownershipReadings.includes(item),
+    );
+    const visibleControl = directControls(entry).some((control) =>
+      shownControls.has(control),
+    );
+    if (ownershipReadings.length && (semanticReading || visibleControl))
+      entry.items = entry.items.filter((item) => !ownershipReadings.includes(item));
+  }
   const liveHosts = new Set(
     pageMapEntries.filter(entryHasMarginHost).map((entry) => entry.key),
   );
@@ -2102,6 +2273,8 @@ function renderNow() {
       optionGroups.delete(key);
       hosts.delete(key);
     }
+  for (const key of agentWorkStages.keys())
+    if (!liveHosts.has(key)) agentWorkStages.delete(key);
   const externalDocks = new Map();
   let corePosition = 0;
   pageMapEntries.forEach((entry) => {
@@ -2237,6 +2410,20 @@ function renderNow() {
     paintMarker(marker, entry, primary, {
       suppressed: Boolean(focusedOwnerOffer(entry)),
     });
+    const stageOwner = focusedOwnerOffer(entry)
+      ? (clusterMarginElements(options)[0] ?? marker)
+      : (primary ?? marker);
+    const arriving =
+      entry.agentWorkStage === "working" &&
+      agentWorkStages.get(entry.key) !== "working";
+    syncAgentWorkStage(
+      host,
+      stageOwner,
+      entry.agentWorkStage,
+      threadWorkDescription(threadReading(entry)) ?? entry.agentWorkDescription,
+      arriving,
+    );
+    agentWorkStages.set(entry.key, entry.agentWorkStage);
   });
   // Geometry is one read-only batch after every row has reconciled. Reading a target
   // between two marker writes forced one full document layout per Page-map entry —

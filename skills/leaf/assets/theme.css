@@ -1327,6 +1327,10 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           color: var(--ink); overflow-wrap: anywhere; }
 .lf-conversation-thread:is(:focus-within, .lf-focus-within) {
           outline: none; border-radius: var(--r); background: var(--here-surface); }
+.lf-conversation-thread[data-lf-agent-stage="picked-up"] {
+          box-shadow: inset 2px 0 var(--accent); }
+.lf-conversation-thread[data-lf-agent-stage="working"] {
+          box-shadow: inset 3px 0 var(--ok); }
 @media (forced-colors: active) {
   .lf-conversation-thread:is(:focus-within, .lf-focus-within) {
           outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
@@ -1470,7 +1474,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
   border: 1px solid var(--border-2); border-radius: 6px;
   background: color-mix(in srgb, var(--field) 72%, transparent); }
 .lf-receipt-state { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.lf-receipt.is-active .lf-receipt-state { color: var(--accent); }
+.lf-receipt.is-active .lf-receipt-state { color: var(--ok-ink); }
 .lf-receipt .lf-receipt-quiet { flex: none; color: var(--warn-ink);
   background: var(--warn-tint); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
 .lf-receipt time { color: var(--muted-2); white-space: nowrap; }
@@ -1480,8 +1484,8 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
   font-size: inherit; font-weight: 600; line-height: inherit; }
 .lf-message-receipt::before { content: "·"; flex: none; color: var(--muted-2); }
 .lf-message-receipt[data-lf-phase="queued"],
-.lf-message-receipt[data-lf-phase="picked_up"],
-.lf-message-receipt[data-lf-phase="active"] { color: var(--accent); }
+.lf-message-receipt[data-lf-phase="picked_up"] { color: var(--accent); }
+.lf-message-receipt[data-lf-phase="active"] { color: var(--ok-ink); }
 .lf-message-receipt[data-lf-phase="waiting"],
 .lf-message-receipt[data-lf-dropped],
 .lf-message-receipt[data-lf-dropped] .lf-receipt-state { color: var(--warn-ink); }

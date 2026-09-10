@@ -1,6 +1,6 @@
-/* A fixed developer exhibit of the complete margin element schema. It deliberately uses the
- * public marginElement factory rather than reproducing any margin element anatomy or state paint;
- * the only local rendering is the comparison grid and the words that name each cell. */
+/* A fixed developer exhibit of margin element roles and agent-ownership stages. It
+ * deliberately uses the public marginElement factory rather than reproducing any margin element
+ * anatomy or paint; the only local rendering is the comparison grid and the words naming each cell. */
 import { marginElement, once, offer, relabel } from "/runtime/widget-api.js";
 
 const GROUPS = [
@@ -67,32 +67,40 @@ const GROUPS = [
     ],
   },
   {
-    heading: "Lifecycle",
-    summary: "Only work in flight is marked; the rest rank without painting",
+    heading: "Agent ownership",
+    summary: "Not held, picked up, working · whether the agent has the item",
     specimens: [
       {
-        name: "Idle",
-        detail: "no mark",
-        icon: "dot",
-        state: "idle",
+        name: "Not held",
+        detail: "Thread · neutral ring",
+        icon: "comment",
+        behavior: "disclosure",
+        role: "reading",
       },
       {
-        name: "Engaged",
-        detail: "no mark · ranks above idle",
-        icon: "edit",
-        state: "engaged",
+        name: "Picked up",
+        detail: "Thread · single blue ring",
+        icon: "comment",
+        behavior: "disclosure",
+        role: "reading",
+        agentStage: "picked-up",
       },
       {
-        name: "Busy",
-        detail: "moving open ring",
-        icon: "sent",
-        state: "busy",
+        name: "Working",
+        detail: "Thread · green double ring",
+        icon: "comment",
+        behavior: "disclosure",
+        role: "reading",
+        agentStage: "working",
+        arrival: true,
       },
       {
-        name: "Failed",
-        detail: "no mark · ranks first",
-        icon: "retry",
-        state: "failed",
+        name: "Working alone",
+        detail: "Activity dot · no other control can carry it",
+        icon: "activity",
+        behavior: "disclosure",
+        role: "reading",
+        agentStage: "working",
       },
     ],
   },
@@ -121,6 +129,8 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
       state: specimen.state ?? "idle",
     },
   );
+  if (specimen.agentStage) control.dataset.lfAgentStage = specimen.agentStage;
+  if (specimen.arrival) control.dataset.lfAgentArrival = "1";
   if (control instanceof HTMLButtonElement) control.disabled = true;
   if (behavior !== "status") control.setAttribute("aria-disabled", "true");
 

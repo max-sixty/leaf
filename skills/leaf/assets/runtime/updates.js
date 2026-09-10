@@ -85,6 +85,28 @@ export const workClaimState = () => ({
   claimsHeld: claimState.held,
 });
 
+// The canonical activity fold has already decided whether a claim or pickup still
+// represents current attention. Chrome consumers share this target reading rather than
+// each interpreting phases, quiet claims, and ended turns for themselves.
+export function agentWorkStage(receipt) {
+  if (receipt.quiet || receipt.dropped) return null;
+  if (receipt.phase === "active") return "working";
+  if (receipt.phase === "picked_up") return "picked-up";
+  return null;
+}
+
+export function agentWorkTargetStages(activity, kind) {
+  const stages = new Map();
+  for (const receipt of activity?.interactions ?? []) {
+    if (receipt.target.kind !== kind) continue;
+    const stage = agentWorkStage(receipt);
+    if (!stage) continue;
+    if (stage === "working" || !stages.has(receipt.target.id))
+      stages.set(receipt.target.id, stage);
+  }
+  return stages;
+}
+
 export const actionSequence = (widget, action) => {
   const projection = stateProjection();
   return [...projection.classified.values()]

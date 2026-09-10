@@ -53,6 +53,7 @@ from render_support import (
     shortcut_bar_text,
     stamp_page,
     stamp_version_file,
+    token_colour,
     told,
     wait_for_revision,
 )
@@ -1732,6 +1733,23 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     session_model.cmd_ack(d, logged_action["seq"])
     told(page)
     expect(receipt).to_have_attribute("data-lf-kinds", "pickup")
+    expect(receipt).to_have_attribute("data-lf-agent-stage", "picked-up")
+    pickup_paint = receipt.evaluate(
+        """node => ({
+          border: getComputedStyle(node).borderColor,
+          shadow: getComputedStyle(node).boxShadow,
+          pulse: getComputedStyle(node).animationName,
+          before: getComputedStyle(node, '::before').content,
+          after: getComputedStyle(node, '::after').content,
+        })"""
+    )
+    assert pickup_paint == {
+        "border": token_colour(page, "--accent"),
+        "shadow": "none",
+        "pulse": "none",
+        "before": "none",
+        "after": "none",
+    }
     expect(receipt).to_have_attribute("aria-label", re.compile(r"^Picked up, "))
     expect(receipt).to_have_attribute("data-identity-probe", "kept")
 
@@ -1742,6 +1760,26 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     assert active.exit_code == 0, active.output
     told(page)
     expect(receipt).to_have_attribute("data-lf-kinds", "activity")
+    expect(receipt).to_have_attribute("data-lf-agent-stage", "working")
+    expect(receipt).to_have_attribute("data-lf-agent-arrival", "1")
+    working_paint = receipt.evaluate(
+        """node => ({
+          border: getComputedStyle(node).borderColor,
+          background: getComputedStyle(node).backgroundColor,
+          shadow: getComputedStyle(node).boxShadow,
+          pulse: getComputedStyle(node).animationName,
+          before: getComputedStyle(node, '::before').content,
+          oldWitness: getComputedStyle(node, '::after').content,
+        })"""
+    )
+    assert "inset" in working_paint.pop("shadow")
+    assert working_paint == {
+        "border": token_colour(page, "--ok"),
+        "background": token_colour(page, "--ok-tint"),
+        "pulse": "lf-runtime-4f3c2a8d-agent-work-arrival",
+        "before": "none",
+        "oldWitness": "none",
+    }
     expect(receipt.locator(".lf-margin-element-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
@@ -1930,6 +1968,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         '[data-lf-margin-for="card-migration"] > .lf-margin-marker'
     )
     expect(card_button).to_have_attribute("data-lf-kinds", "activity")
+    expect(card_button).to_have_attribute("data-lf-agent-stage", "working")
     expect(card_button.locator(".lf-margin-element-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )

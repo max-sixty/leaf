@@ -1,12 +1,13 @@
 /* Server-projected interaction receipts and explicit work claims.
 
    `.lf-receipt` is transient runtime chrome for a subject with no page-edge margin element.
-   `paintAcknowledgmentsNow` is its one writer. An unsettled reader message carries the
+   `paintAcknowledgmentsNow` is their one writer. An unsettled reader message carries the
    receipt in its existing metadata row; an event-backed widget frozen into conversation
    chrome keeps the full-width fallback beneath its owner. A claim with no preceding
    message uses that fallback too. Inline page conversations and page widgets use their
-   target's existing margin cluster instead; an explicit page-widget claim is the
-   cluster's **Active** reading. Every receipt wears `lf-ui` and `data-lf-gen`: it is an
+   target's existing margin cluster instead. Pickup and current work add one stage badge
+   to that target's primary control; a claim without another control keeps an Active
+   reading. Every receipt wears `lf-ui` and `data-lf-gen`: it is an
    account of the conversation, not authored words, so selection and diff readings skip
    it. Reconcile widget state first and paint receipts afterward, so each receipt
    describes the state the widget now displays. Keep surviving nodes across state
@@ -18,6 +19,7 @@
 import { ago } from "../presence.js";
 import { el } from "../widget-elements.js";
 import { runtime } from "../context.js";
+import { agentWorkTargetStages } from "../updates.js";
 import { threadsBox } from "./panel.js";
 import { elementById, inChrome, pageQueryAll } from "../passages.js";
 import { threadList } from "./state.js";
@@ -31,6 +33,16 @@ const phaseText = (receipt) => {
   if (receipt.phase === "waiting") return "○ Waiting for pickup";
   return "✓ Sent";
 };
+
+function paintThreadWork(activity) {
+  const threads = agentWorkTargetStages(activity, "thread");
+  for (const view of pageQueryAll(".lf-thread, .lf-conversation-thread")) {
+    const id = view.matches(".lf-thread") ? view.dataset.id : view.dataset.thread;
+    const stage = threads.get(id);
+    if (stage) view.dataset.lfAgentStage = stage;
+    else view.removeAttribute("data-lf-agent-stage");
+  }
+}
 
 // One retained node follows one reader move through every semantic phase. Only a
 // phase/detail change touches its live region; the heartbeat updates the separate
@@ -92,6 +104,7 @@ function paintReceipt(host, receipt, before, wanted, metadata = false) {
 export function paintAcknowledgmentsNow() {
   const wanted = new Set();
   const receipts = runtime.activity?.interactions ?? [];
+  paintThreadWork(runtime.activity);
   for (const receipt of receipts) {
     const { kind, id } = receipt.target;
     if (kind === "thread") {

@@ -207,40 +207,44 @@
   border-color: var(--rule); color: var(--ink-2);
   box-shadow: none; cursor: default;
 }
-/* Tone colours only the icon. Category and interaction own the ring and fill;
-   work in flight keeps its separate neutral mark. */
+/* Tone colours only the icon. Category and interaction own the ring and fill. */
 .lf-margin-element[data-lf-tone="positive"] > :is(.lf-margin-element-icon, .lf-margin-element-glyph) {
   color: var(--ok-ink);
 }
 .lf-margin-element[data-lf-tone="negative"] > :is(.lf-margin-element-icon, .lf-margin-element-glyph) {
   color: var(--danger-ink);
 }
-/* Work in flight gets a small lower-right witness, a moving open ring, and it is the
-   only state that gets one. It changes neither the margin element's ring nor its tone. Busy
-   earns the paint because nothing else on the page states it: a busy margin element keeps its
-   full opacity and its pointer, so with no ring an in-flight press looks exactly like
-   an idle one. Every other state is already said in words beside the margin element — a failure
-   by the receipt reading "Failed" and the Retry it swaps in, an open interaction by the
-   editor standing open — and a filled shape this size cannot be told from its
-   neighbours at 1x, so a second mark for them bought a smudge and no fact. The witness
-   is decoration: it must not extend the margin element's pointer target into the gap beside
-   it. */
-.lf-margin-element[data-lf-state="busy"]:not([data-lf-behavior="status"])::after {
-  content: ""; position: absolute; z-index: 2; inline-size: 8px; block-size: 8px;
-  inset-inline-end: -2px; inset-block-end: -2px; box-sizing: border-box;
-  background: var(--paper); border: 2px solid currentColor;
-  border-block-start-color: transparent; border-radius: 50%;
-  pointer-events: none;
-  animation: lf-runtime-4f3c2a8d-margin-element-busy 650ms linear infinite;
+/* Ownership changes the whole control instead of adding another small status mark.
+   Pickup is one blue ring; current work strengthens that to a green double ring and
+   tint without replacing the control's own glyph. */
+.lf-margin-element[data-lf-agent-stage="picked-up"] {
+  border-color: var(--accent); box-shadow: none;
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper));
 }
-@keyframes lf-runtime-4f3c2a8d-margin-element-busy { to { transform: rotate(360deg); } }
-/* The same `:not(...)` the rule above carries, so this override matches its specificity
-   and, standing later, wins. Without it the ring keeps turning for a reader who asked
-   for stillness. */
+.lf-margin-element[data-lf-agent-stage="working"] {
+  --lf-agent-stage-shadow: inset 0 0 0 1px var(--ok);
+  border-color: var(--ok); box-shadow: var(--lf-agent-stage-shadow);
+  background: var(--ok-tint);
+}
+/* Keep an action's depth beneath the ownership treatment. */
+.lf-margin-element[data-lf-agent-stage="picked-up"][data-lf-behavior="action"] {
+  --lf-agent-stage-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+  box-shadow: var(--lf-agent-stage-shadow);
+}
+.lf-margin-element[data-lf-agent-stage="working"][data-lf-behavior="action"] {
+  --lf-agent-stage-shadow: inset 0 0 0 1px var(--ok),
+    0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+}
+.lf-margin-element[data-lf-agent-arrival] {
+  animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out 1;
+}
+@keyframes lf-runtime-4f3c2a8d-agent-work-arrival {
+  0% { box-shadow: var(--lf-agent-stage-shadow), 0 0 0 0 color-mix(in srgb, var(--ok) 42%, transparent); }
+  58% { box-shadow: var(--lf-agent-stage-shadow), 0 0 0 7px color-mix(in srgb, var(--ok) 16%, transparent); }
+  100% { box-shadow: var(--lf-agent-stage-shadow), 0 0 0 10px transparent; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .lf-margin-element[data-lf-state="busy"]:not([data-lf-behavior="status"])::after {
-    animation: none; border-style: dotted;
-  }
+  .lf-margin-element[data-lf-agent-arrival] { animation: none; }
 }
 /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
    and tab stop from standing reaction marks, which retain their shape without
@@ -322,10 +326,9 @@
    that window would be a second flicker put where the first one was removed. Past
    the delay there is something to say, and the cases where there is are the ones
    that need it: a heavy page, or a reader who reached a --host page across a
-   network. So a surface without a margin element goes quiet only once the wait has run long enough
-   to notice, and a fast answer never shows this rule at all. A margin element already
-   carries the separate busy-state ring, so dimming it or replacing its pointer would
-   state the same fact twice and make its hover feedback look disabled. The
+   network. So a surface goes quiet only once the wait has run long enough to notice,
+   and a fast answer never shows this rule at all. A margin element carrying agent
+   ownership keeps that stronger durable signal instead of dimming it. The
    reduced-motion guard (theme.css) zeroes the duration and leaves the delay standing,
    which is the right reading of it: the fade is what a reader asked not to have, the
    waiting is not.
@@ -333,10 +336,10 @@
    Opacity and the cursor, never geometry: the line a press is made on holds still
    (lf-suggestion.js), and a busy surface that reflowed would move the control out
    from under the pointer that just pressed it. */
-[aria-busy="true"]:not(.lf-margin-element) {
+[aria-busy="true"]:not(.lf-margin-element[data-lf-agent-stage]) {
   animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
 }
-[aria-busy="true"]:not(.lf-margin-element),
+[aria-busy="true"],
 [aria-busy="true"] :is(button, [role="button"]) {
   cursor: progress;
 }
@@ -1312,6 +1315,10 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     outline: none;
     background: var(--here-surface);
   }
+  /* The stage line ends at the one conversation the agent has. An inset rail changes
+     only paint, so a pickup cannot reflow the list or move a reply control. */
+  .lf-thread[data-lf-agent-stage="picked-up"] { box-shadow: inset 2px 0 var(--accent); }
+  .lf-thread[data-lf-agent-stage="working"] { box-shadow: inset 3px 0 var(--ok); }
   .lf-quote { margin: 0 0 8px; padding: 2px 8px 2px 12px;
     border-inline-start: 3px solid var(--mark-ink); color: var(--muted);
     font-style: italic; cursor: pointer; overflow-wrap: anywhere; }

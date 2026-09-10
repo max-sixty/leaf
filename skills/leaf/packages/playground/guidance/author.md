@@ -1,8 +1,10 @@
 # Playgrounds
 
-Use `lf-playground` when several values need to be explored together before the reader
-chooses one configuration. Put it inside `lf-ask`, declare controls and optional presets,
-then include exactly one preview and one output.
+Use `lf-playground` when several values or behaviors need to be explored together before
+the reader chooses one configuration. Put it inside `lf-ask`, declare controls and
+optional presets, then include exactly one preview and one output. The preview is the
+surface the reader operates. Controls and presets select a candidate and set its
+parameters; the reader performs the interaction being judged inside the preview.
 
 When you have recommendations, offer two to four presets as coherent starting points.
 Name the outcome—`Trail alert`, not `Preset 2`—and let the reader tune it afterward.
@@ -47,9 +49,9 @@ numeric. A range requires `max`; `min` defaults to zero and `step` defaults to o
 </lf-ask>
 ```
 
-Bind a simple preview with page CSS. Each value is reflected on the playground in both
-forms. A text control's custom property is a quoted CSS string, so it can be used by
-`content`; its data attribute contains the unquoted text:
+Bind simple parameter changes with page CSS. Each value is reflected on the playground
+in both forms. A text control's custom property is a quoted CSS string, so it can be used
+by `content`; its data attribute contains the unquoted text:
 
 ```css
 #sample-card { border-radius: var(--playground-radius); }
@@ -57,7 +59,12 @@ forms. A text control's custom property is a quoted CSS string, so it can be use
 #sample-card::before { content: var(--playground-title); }
 ```
 
-A computed preview belongs to a companion package. Its widget reads
-`closest("lf-playground").values` for the complete current snapshot and listens for the
-bubbling `lf-playground-change` event; `event.detail.values` has the same shape. Page
-authors do not add scripts to the document.
+A preview that needs JavaScript behavior or computation uses a companion package widget.
+Create it with `leaf package init ./PACKAGE --widget TAG`, then include both packages with
+`leaf page init --package playground --package ./PACKAGE PAGE`.
+Follow `references/packages.md` for the behavior-module contract. Inside its own element,
+the widget uses ordinary browser APIs and imports Leaf helpers only from
+`/runtime/widget-api.js`. Wait for `customElements.whenDefined("lf-playground")` before
+reading `closest("lf-playground").values`; later snapshots arrive in the bubbling
+`lf-playground-change` event's `detail.values`. The widget owns the preview's gestures and
+resulting state. Page authors do not add scripts to the document.

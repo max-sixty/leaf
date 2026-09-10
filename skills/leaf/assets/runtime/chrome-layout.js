@@ -305,10 +305,9 @@ function syncFloats() {
 // A workspace state is a responsive-layout boundary, not a sequence of temporary
 // viewport sizes. Apply the state first, so every container query reads the final
 // shell in one pass, then carry the reading column from the box it occupied before
-// the change. Animating body's margin made the shell itself pass through every layout
-// breakpoint: on the gallery the 520px conversation claim disappeared mid-flight and
-// sent the column back the way it had come; one window down, the authored sidebar did
-// the same. The offset moves only paint already laid out against the final shell.
+// the change. Animating body's margin crosses sidebar and sidenote breakpoints during
+// motion and can reverse the column's direction. The offset moves only paint already
+// laid out against the final shell.
 export function moveShell(change) {
   const main = document.querySelector("body > main");
   const before = main?.getBoundingClientRect();

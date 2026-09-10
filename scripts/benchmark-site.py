@@ -7,7 +7,6 @@ import argparse
 import importlib.util
 import json
 import os
-import re
 import subprocess
 import sys
 import tempfile
@@ -17,7 +16,6 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parent.parent
 LOCAL_RUNNER = ROOT / "scripts" / "verify-site-agent-local.sh"
 VERIFY_SITE = ROOT / "scripts" / "verify-site.py"
-RELEASE = re.compile(r"[0-9a-f]{64}")
 
 
 def load_verifier():
@@ -87,14 +85,13 @@ def main() -> None:
         help="start the canonical local adapter, or measure an existing HTTP origin",
     )
     target = parser.parse_args().target
+    output = os.environ.get("LEAF_BENCHMARK_OUTPUT")
+    if output is not None:
+        result = measure(target)
+        Path(output).write_text(json.dumps(result), encoding="utf-8")
+        return
     if target == "local":
         result = measure_local()
-    elif RELEASE.fullmatch(target):
-        result = measure(target)
-        output = os.environ.get("LEAF_BENCHMARK_OUTPUT")
-        if output is not None:
-            Path(output).write_text(json.dumps(result), encoding="utf-8")
-            return
     else:
         configure_origin(target)
         result = measure(None)

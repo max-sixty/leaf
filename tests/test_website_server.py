@@ -33,6 +33,11 @@ _verify_spec = importlib.util.spec_from_file_location(
 )
 verify_site = importlib.util.module_from_spec(_verify_spec)
 _verify_spec.loader.exec_module(verify_site)
+_benchmark_spec = importlib.util.spec_from_file_location(
+    "benchmark_site", ROOT / "scripts" / "benchmark-site.py"
+)
+benchmark_site = importlib.util.module_from_spec(_benchmark_spec)
+_benchmark_spec.loader.exec_module(benchmark_site)
 _query_logs_spec = importlib.util.spec_from_file_location(
     "query_site_agent_logs", ROOT / "scripts" / "query-site-agent-logs.py"
 )
@@ -516,6 +521,18 @@ def test_the_local_verifier_requests_ephemeral_codex_tasks(monkeypatch):
     monkeypatch.setenv("LEAF_AGENT_EPHEMERAL", "1")
     monkeypatch.setattr(website_server, "_agent_host", None)
     assert website_server.website_codex_host().ephemeral is True
+
+
+def test_the_local_benchmark_accepts_a_git_release(tmp_path, monkeypatch):
+    release = "a" * 40
+    output = tmp_path / "benchmark.json"
+    monkeypatch.setenv("LEAF_BENCHMARK_OUTPUT", str(output))
+    monkeypatch.setattr(benchmark_site.sys, "argv", ["benchmark-site.py", release])
+    monkeypatch.setattr(benchmark_site, "measure", lambda target: {"release": target})
+
+    benchmark_site.main()
+
+    assert json.loads(output.read_text()) == {"release": release}
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
@@ -2038,6 +2055,7 @@ class _DeployedPage:
         reload_ok: bool = True,
         banner: str | None = None,
         follows_revision: bool = False,
+        initial_presented_at: float | None = None,
     ):
         self.heading = heading
         self.revision = revision
@@ -2045,6 +2063,9 @@ class _DeployedPage:
         self.reload_ok = reload_ok
         self.banner = banner
         self.follows_revision = follows_revision
+        self.initial_presented_at = (
+            presented_at if initial_presented_at is None else initial_presented_at
+        )
         self.init_scripts: list[str] = []
         self.presentation_waits: list[int] = []
         self.revision_waits: list[tuple[int, int]] = []
@@ -2081,15 +2102,20 @@ class _DeployedPage:
 
     def evaluate(self, script: str):
         if script == verify_site.STARTUP_READING:
+            presented_at = (
+                self.presented_at
+                if len(self.presentation_waits) > 1
+                else self.initial_presented_at
+            )
             return {
                 "first_byte": 100.0,
                 "document": 200.0,
                 "paint": {"first-contentful-paint": 250.0},
                 "upgraded": {"at": 300.0},
                 "presented": {
-                    "at": self.presented_at,
+                    "at": presented_at,
                     "js_loaded": 275.0,
-                    "state_loaded": self.presented_at - 100.0,
+                    "state_loaded": presented_at - 100.0,
                     "js_requests": 16,
                     "js_bytes": 150 * 1024,
                     "code_requests": 20,
@@ -2167,6 +2193,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
         revision=1,
         presented_at=28444.0,
         follows_revision=True,
+        initial_presented_at=1400.0,
     )
     container = _DeployedContainer(release, page)
     published = {"revision": 2, "url": "revisions/2.html"}
@@ -2235,8 +2262,8 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "firstContentfulPaintMs": 250.0,
             "javascriptFetchedMs": 275.0,
             "upgradedMs": 300.0,
-            "stateAnsweredMs": 28344.0,
-            "presentedMs": 28444.0,
+            "stateAnsweredMs": 1300.0,
+            "presentedMs": 1400.0,
             "requestsAtPresentation": 24,
             "bytesAtPresentation": 335 * 1024,
             "javascriptRequestsAtPresentation": 16,

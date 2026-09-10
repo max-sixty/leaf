@@ -322,23 +322,46 @@ def observed_time(value: float | None) -> str:
     return "not observed" if value is None else f"{value:.0f} ms"
 
 
+def startup_profile(startup: dict) -> dict:
+    """Return browser startup readings in a stable machine-readable shape."""
+    presented = startup["presented"]
+    return {
+        "htmlFirstByteMs": startup["first_byte"],
+        "htmlCompleteMs": startup["document"],
+        "firstContentfulPaintMs": startup.get("paint", {}).get(
+            "first-contentful-paint"
+        ),
+        "javascriptFetchedMs": presented["js_loaded"],
+        "upgradedMs": startup["upgraded"]["at"],
+        "stateAnsweredMs": presented["state_loaded"],
+        "presentedMs": presented["at"],
+        "requestsAtPresentation": presented["requests"],
+        "bytesAtPresentation": presented["bytes"],
+        "javascriptRequestsAtPresentation": presented["js_requests"],
+        "javascriptBytesAtPresentation": presented["js_bytes"],
+        "codeRequestsAtPresentation": presented["code_requests"],
+        "codeBytesAtPresentation": presented["code_bytes"],
+    }
+
+
 def startup_line(path: str, startup: dict) -> str:
     """Render observed startup costs without turning machine speed into a gate."""
-    presented = startup["presented"]
-    paint = startup.get("paint", {}).get("first-contentful-paint")
+    profile = startup_profile(startup)
     return (
-        f"  {path} — HTML first byte {startup['first_byte']:.0f} ms, "
-        f"complete {startup['document']:.0f} ms; "
-        f"first contentful paint {observed_time(paint)}; "
-        f"JS fetched {observed_time(presented['js_loaded'])}; "
-        f"upgraded {startup['upgraded']['at']:.0f} ms; "
-        f"state answered {observed_time(presented['state_loaded'])}; "
-        f"presented {presented['at']:.0f} ms; "
-        f"by presentation {presented['js_requests']} JS / "
-        f"{presented['js_bytes'] / 1024:.0f} KiB, "
-        f"{presented['code_requests']} code / "
-        f"{presented['code_bytes'] / 1024:.0f} KiB, "
-        f"{presented['requests']} total / {presented['bytes'] / 1024:.0f} KiB"
+        f"  {path} — HTML first byte {profile['htmlFirstByteMs']:.0f} ms, "
+        f"complete {profile['htmlCompleteMs']:.0f} ms; "
+        "first contentful paint "
+        f"{observed_time(profile['firstContentfulPaintMs'])}; "
+        f"JS fetched {observed_time(profile['javascriptFetchedMs'])}; "
+        f"upgraded {profile['upgradedMs']:.0f} ms; "
+        f"state answered {observed_time(profile['stateAnsweredMs'])}; "
+        f"presented {profile['presentedMs']:.0f} ms; "
+        f"by presentation {profile['javascriptRequestsAtPresentation']} JS / "
+        f"{profile['javascriptBytesAtPresentation'] / 1024:.0f} KiB, "
+        f"{profile['codeRequestsAtPresentation']} code / "
+        f"{profile['codeBytesAtPresentation'] / 1024:.0f} KiB, "
+        f"{profile['requestsAtPresentation']} total / "
+        f"{profile['bytesAtPresentation'] / 1024:.0f} KiB"
     )
 
 
@@ -527,28 +550,6 @@ def print_agent_profile(profile: AgentProfile) -> None:
     for name in ("published", "replied", "answered"):
         if name in profile.milestones:
             print(f"  {name} at {elapsed_time(profile.milestones[name])}")
-
-
-def startup_profile(startup: dict) -> dict:
-    """Return browser startup readings in a stable machine-readable shape."""
-    presented = startup["presented"]
-    return {
-        "htmlFirstByteMs": startup["first_byte"],
-        "htmlCompleteMs": startup["document"],
-        "firstContentfulPaintMs": startup.get("paint", {}).get(
-            "first-contentful-paint"
-        ),
-        "javascriptFetchedMs": presented["js_loaded"],
-        "upgradedMs": startup["upgraded"]["at"],
-        "stateAnsweredMs": presented["state_loaded"],
-        "presentedMs": presented["at"],
-        "requestsAtPresentation": presented["requests"],
-        "bytesAtPresentation": presented["bytes"],
-        "javascriptRequestsAtPresentation": presented["js_requests"],
-        "javascriptBytesAtPresentation": presented["js_bytes"],
-        "codeRequestsAtPresentation": presented["code_requests"],
-        "codeBytesAtPresentation": presented["code_bytes"],
-    }
 
 
 def agent_profile(profile: AgentProfile) -> dict:

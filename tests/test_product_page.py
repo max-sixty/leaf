@@ -14,12 +14,20 @@ from click.testing import CliRunner
 from jsonschema import Draft202012Validator
 from leaf import cli as cli_model
 from leaf.registry import validation as registry_validation
+from leaf.structure import parse_structure
 from leaf.validation import compatibility as validation_model
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "skills" / "leaf" / "assets"
 DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
+EXAMPLES = ROOT / "examples"
+
+_record_demo_spec = importlib.util.spec_from_file_location(
+    "record_demo", ROOT / "scripts" / "record-demo.py"
+)
+record_demo = importlib.util.module_from_spec(_record_demo_spec)
+_record_demo_spec.loader.exec_module(record_demo)
 
 _record_demo_spec = importlib.util.spec_from_file_location(
     "record_demo", ROOT / "scripts" / "record-demo.py"
@@ -59,6 +67,34 @@ def test_docs_pages_use_the_leaf_document_scaffold():
         assert text.count('<script type="module" src="/leaf.js"') == 1, page.name
         assert text.count("Content-Security-Policy") == 1, page.name
         assert '<body class="site-page' in text, page.name
+
+
+def test_every_published_source_says_what_its_page_is():
+    """A search result and an unfurled link show the title and the description.
+
+    The build composes the rest of a page's card from these two and refuses a page
+    without them, so the failure this catches is one that would stop a deploy.
+    """
+    sources = [
+        *DOCS.glob("*.html"),
+        *(page for page in EXAMPLES.glob("*.html") if page.stem != "corpus"),
+        EXAMPLES / "developer" / "feature-gallery.html",
+    ]
+    descriptions = {}
+    for page in sorted(sources):
+        parsed = parse_structure(page.read_text())
+        described = [
+            meta["content"]
+            for meta in parsed.named_metas
+            if meta["name"] == "description"
+        ]
+        assert parsed.title.strip(), page.name
+        assert len(described) == 1, page.name
+        assert described[0].strip(), page.name
+        descriptions[page.name] = described[0]
+    # A description repeated across pages tells a reader nothing about which one
+    # they found, and search engines fold the duplicates together.
+    assert len(set(descriptions.values())) == len(descriptions)
 
 
 def test_docs_pages_use_only_registered_widgets():

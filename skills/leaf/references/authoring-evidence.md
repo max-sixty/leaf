@@ -77,8 +77,10 @@ the rest of a long review without anything authored: each file's header pins und
 the banner while its own rows scroll past, `]` and `[` step by hunk and `}` and `{`
 by file, and a Soft wrap switch in the diff's own header folds lines too long for
 the column — paper takes that wrap whether or not the switch is on, so nothing is
-cut off a printed patch. First add a current-data binding so Leaf can give the
-source its page-lifetime contract:
+cut off a printed patch. Add `review` only when the reader is expected to inspect
+every file and needs persistent progress. A patch that supports a higher-level
+decision or targeted comments omits it. First add a current-data binding so Leaf
+can give the source its page-lifetime contract:
 
 ```html
 <lf-source id="skill-source" source="leaf-skill" language="markdown"></lf-source>

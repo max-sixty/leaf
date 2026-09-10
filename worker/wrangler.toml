@@ -70,3 +70,61 @@ enabled = true
 [[routes]]
 pattern = "leaf.page"
 custom_domain = true
+
+# One standing remote environment for testing an arbitrary checkout before it reaches
+# main. Production remains the top-level environment used by publish-site.yaml. The
+# developer command always names `--env dev`, so it cannot omit its target and replace
+# leaf.page by accident. Bindings are repeated because Wrangler environments
+# intentionally do not inherit them.
+[env.dev]
+name = "leaf-website-dev"
+workers_dev = true
+routes = []
+
+  [env.dev.assets]
+  directory = "../.tmp/site-assets"
+  binding = "ASSETS"
+  run_worker_first = true
+
+  [env.dev.secrets]
+  required = ["OPENAI_API_KEY"]
+
+  [[env.dev.containers]]
+  name = "leaf-website-dev-leafexamplesession"
+  class_name = "LeafWebsiteSession"
+  image = "../Dockerfile.website"
+  max_instances = 10
+  instance_type = "basic"
+  rollout_active_grace_period = 600
+
+  [[env.dev.durable_objects.bindings]]
+  name = "PAGES"
+  class_name = "LeafWebsiteSession"
+
+  [[env.dev.workflows]]
+  name = "leaf-website-agent-dev"
+  binding = "AGENT_WORKFLOW"
+  class_name = "LeafWebsiteAgentWorkflow"
+
+  [[env.dev.analytics_engine_datasets]]
+  binding = "WEBSITE_EVENTS"
+  dataset = "leaf_website_events_dev"
+
+  [[env.dev.ratelimits]]
+  name = "SOURCE_AGENT_RATE_LIMITER"
+  namespace_id = "34302"
+
+    [env.dev.ratelimits.simple]
+    limit = 20
+    period = 60
+
+  [[env.dev.migrations]]
+  tag = "v1"
+  new_sqlite_classes = ["LeafExampleSession"]
+
+  [[env.dev.migrations]]
+  tag = "v2"
+  renamed_classes = [{ from = "LeafExampleSession", to = "LeafWebsiteSession" }]
+
+  [env.dev.observability]
+  enabled = true

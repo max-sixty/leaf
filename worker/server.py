@@ -20,6 +20,7 @@ import tempfile
 import threading
 import time
 from functools import cache
+from html import escape
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -37,7 +38,12 @@ from leaf.codex import (
 )
 from leaf.conversation import cmd_reply
 from leaf.hosting import server_at
-from leaf.http import Handler, canonical_script_offset, scope_page_urls
+from leaf.http import (
+    Handler,
+    canonical_script_offset,
+    head_policy_offset,
+    scope_page_urls,
+)
 from leaf.leases import take_waiter_lease, waiter_lease_path
 from leaf.registry.storage import layer_metadata
 from leaf.revisioning import activate_source
@@ -55,6 +61,11 @@ PUBLICATION = {
     "install_url": "/#install",
 }
 SITE_MANIFEST = "_leaf/site.json"
+# The one origin a published document names itself by. A crawler reads a canonical
+# link and a card image as absolute URLs, and both halves of the site — the build's
+# edge shell and this adapter — have to name the same one.
+SITE_ORIGIN = "https://leaf.page"
+SITE_NAME = "leaf"
 PAGE_RESOURCE = re.compile(
     r"^/(?:api|guidance|media|revisions|runtime|vendor|versions|widgets)(?:/|$)"
     r"|^/(?:icon\.svg|leaf\.js|registry\.json|sitenote\.js|theme\.css)$"
@@ -125,17 +136,56 @@ def page_binding(page_dir: Path) -> tuple[dict, str, dict | None]:
     )
 
 
-def with_sitenote(
-    document: bytes, page_root: str, *, asset_root: str | None = None
+def site_metadata(page_root: str, page: dict) -> str:
+    """Compose one published page's crawler-facing head from its manifest entry.
+
+    A published document stands at its clean route, at every stamped version, and at
+    every revision, and the release-scoped asset root serves those last two a second
+    time. The canonical link is what tells a crawler those are one page, so every
+    document a page publishes carries its page's route, not its own.
+
+    Media paths are absolute because `scope_document_routes` rewrites a root-relative
+    one into the release-scoped tree, which would move a card's image every release.
+    """
+    url = f"{SITE_ORIGIN}{page_root}/"
+    title = page["title"]
+    return "".join(
+        (
+            f'<link rel="canonical" href="{escape(url)}">',
+            '<meta property="og:type" content="website">',
+            f'<meta property="og:site_name" content="{escape(SITE_NAME)}">',
+            f'<meta property="og:title" content="{escape(title)}">',
+            f'<meta property="og:description" content="{escape(page["description"])}">',
+            f'<meta property="og:url" content="{escape(url)}">',
+            f'<meta property="og:image" content="{escape(SITE_ORIGIN + page["image"])}">',
+            f'<meta property="og:image:alt" content="{escape(title)}">',
+            '<meta name="twitter:card" content="summary_large_image">',
+        )
+    )
+
+
+def with_site_head(
+    document: bytes, page_root: str, page: dict, *, asset_root: str | None = None
 ) -> bytes:
-    """Insert website chrome at the canonical runtime boundary."""
+    """Insert the website's crawler metadata and reader chrome into one document.
+
+    The build materializes the edge shell and the container serves the same page, so
+    both call this: what a crawler reads and what a reader is handed stay one
+    document. Splicing runs last offset first, so an earlier one stays valid.
+    """
     source = document.decode()
     assets = asset_root if asset_root is not None else page_root
-    offset = canonical_script_offset(source, assets)
-    site_script = (
-        f'<script type="module" src="{assets}/sitenote.js" data-lf-site></script>'
-    )
-    return (source[:offset] + site_script + source[offset:]).encode()
+    insertions = [(head_policy_offset(source), site_metadata(page_root, page))]
+    if page["kind"] == "example":
+        insertions.append(
+            (
+                canonical_script_offset(source, assets),
+                f'<script type="module" src="{assets}/sitenote.js" data-lf-site></script>',
+            )
+        )
+    for offset, addition in sorted(insertions, reverse=True):
+        source = source[:offset] + addition + source[offset:]
+    return source.encode()
 
 
 def agent_attempt(event_id: str) -> str:
@@ -798,13 +848,10 @@ class WebsitePageHandler(Handler):
         return True
 
     def _send(self, status: int, ctype: str, body: bytes) -> None:
-        if (
-            status == 200
-            and ctype.startswith("text/html")
-            and self.publication
-            and self.publication["kind"] == "example"
-        ):
-            body = with_sitenote(body, self.page_root)
+        if status == 200 and ctype.startswith("text/html") and self.publication:
+            body = with_site_head(
+                body, self.page_root, self.pages[self.page_root or "/"]
+            )
         super()._send(status, ctype, body)
 
     def _get(self) -> None:

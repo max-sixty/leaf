@@ -5497,7 +5497,9 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
 
     page.keyboard.press("a")
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert "1–2\nKeep the store / Signed tokens" in shortcut_bar_text(page)
+    assert "1–3\nKeep the store / Signed tokens / Another option" in shortcut_bar_text(
+        page
+    )
     expect(
         page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_text(["1", "2"])
@@ -5624,7 +5626,11 @@ def test_ask_action_name_functions_must_return_text(browser, serve):
 
 
 def test_ask_explicit_commands_do_not_consume_contextual_address_slots(browser, serve):
-    """Only keyless Decision commands count against the nine numeric addresses."""
+    """Only keyless Decision commands count against the nine numeric addresses.
+
+    A projected Decision still executes its declared command rather than inventing a
+    second click path through its control.
+    """
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     resized(page, 900, 900)
 
@@ -5649,7 +5655,7 @@ def test_ask_explicit_commands_do_not_consume_contextual_address_slots(browser, 
           }
           const later = document.createElement('button');
           later.textContent = 'Later keyless';
-          later.onclick = () => { later.dataset.activated = '1'; };
+          later.onclick = () => { later.dataset.clicked = '1'; };
           suggestion.append(later);
           commands(later, 'Later keyless action', [{
             id: 'test.later-keyless',
@@ -5658,7 +5664,19 @@ def test_ask_explicit_commands_do_not_consume_contextual_address_slots(browser, 
             decision: 'Later keyless',
             does: 'Run the later keyless command',
             line: 'Later keyless',
-            run: () => later.click(),
+            run: () => { later.dataset.activated = '1'; },
+          }]);
+          const native = document.createElement('button');
+          native.textContent = 'Native keyless';
+          native.onclick = () => { native.dataset.clicked = '1'; };
+          suggestion.append(native);
+          commands(native, 'Native keyless action', [{
+            id: 'test.native-keyless',
+            keys: [],
+            control: native,
+            decision: 'Native keyless',
+            does: 'Run the native keyless command',
+            line: 'Native keyless',
           }]);
         }"""
     )
@@ -5672,21 +5690,30 @@ def test_ask_explicit_commands_do_not_consume_contextual_address_slots(browser, 
     expect(page.get_by_role("button", name="Later keyless")).to_have_attribute(
         "data-activated", "1"
     )
+    expect(page.get_by_role("button", name="Later keyless")).not_to_have_attribute(
+        "data-clicked", "1"
+    )
+    page.keyboard.press("4")
+    expect(page.get_by_role("button", name="Native keyless")).to_have_attribute(
+        "data-clicked", "1"
+    )
 
     assert errors == []
     page.close()
 
 
-def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
-    browser, serve
-):
-    """Tab keeps the Ask's address projection on the same option-card faces."""
+def test_ask_action_addresses_stay_aligned_when_focus_enters_a_card(browser, serve):
+    """Tab keeps every Ask address in the titled card's trailing column."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     resized(page, 900, 900)
 
     page.keyboard.press("a")
-    ask = page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
-    expect(ask).to_have_text(["1", "2"])
+    selector = (
+        "#live-question > :is(lf-option, .lf-another) "
+        "> .lf-address[data-lf-ask-address]"
+    )
+    ask = page.locator(selector)
+    expect(ask).to_have_text(["1", "2", "3"])
     ask_centers = ask.evaluate_all(
         """nodes => nodes.map(node => {
           const box = node.getBoundingClientRect();
@@ -5695,20 +5722,35 @@ def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
     )
 
     page.keyboard.press("Tab")
-    focused = page.locator(
-        "#live-question > lf-option > .lf-address[data-lf-ask-address]"
-    )
-    expect(focused).to_have_text(["1", "2"])
+    focused = page.locator(selector)
+    expect(focused).to_have_text(["1", "2", "3"])
     focused_centers = focused.evaluate_all(
         """nodes => nodes.map(node => {
           const box = node.getBoundingClientRect();
           return {x: box.left + box.width / 2, y: box.top + box.height / 2 + scrollY};
         })"""
     )
-    assert len(ask_centers) == len(focused_centers) == 2
+    assert len(ask_centers) == len(focused_centers) == 3
+    assert len({round(point["x"], 1) for point in ask_centers}) == 1
     for ask_point, focused_point in zip(ask_centers, focused_centers, strict=True):
         assert ask_point["x"] == pytest.approx(focused_point["x"], abs=0.5)
         assert ask_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
+
+    addition = page.locator("#live-question > .lf-another")
+    addition.get_by_role("textbox", name="Another option").fill("A fourth option")
+    page.keyboard.press("Tab")
+    address = addition.locator("> .lf-address[data-lf-ask-address]")
+    submit = addition.get_by_role("button", name="Add option")
+    expect(address).to_be_visible()
+    expect(submit).to_be_visible()
+    address_box = address.bounding_box()
+    submit_box = submit.bounding_box()
+    assert address_box is not None
+    assert submit_box is not None
+    assert address_box["x"] + address_box["width"] / 2 == pytest.approx(
+        ask_centers[-1]["x"], abs=0.5
+    )
+    assert submit_box["x"] + submit_box["width"] < address_box["x"]
 
     assert errors == []
     page.close()
@@ -6655,7 +6697,7 @@ def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
     page.keyboard.press("Enter")
     expect(page.locator("#storage-decision")).to_be_focused()
     assert (
-        "1–2\nDrop the oldest documents / Pause offline editing"
+        "1–3\nDrop the oldest documents / Pause offline editing / Another option"
         in shortcut_bar_text(page)
     )
     page.keyboard.press("1")

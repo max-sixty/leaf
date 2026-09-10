@@ -16,7 +16,7 @@ import {
   once,
   paintKeys,
   projectData,
-  registerArrangedElement,
+  registerReadingElement,
   registerThreadSurface,
   relabel,
   sendAction,
@@ -96,7 +96,7 @@ customElements.define(
     #run = null;
     #selected = null;
     #snapshot = null;
-    #split = null;
+    #partition = null;
     #threadSurface = null;
     #title = null;
 
@@ -136,7 +136,7 @@ customElements.define(
       this.#queueHost.append(queueHeader, this.#queue);
       const queue = arrangeReadingElement({
         owner: this.#queueHost,
-        kind: "pane",
+        role: "pane",
         header: queueHeader,
         regions: [
           {
@@ -152,7 +152,7 @@ customElements.define(
       this.#evidenceHost.append(this.#casesBody);
       const evidence = arrangeReadingElement({
         owner: this.#evidenceHost,
-        kind: "pane",
+        role: "pane",
         regions: [
           {
             id: compoundReadingRegionId(this, "evidence"),
@@ -161,44 +161,49 @@ customElements.define(
         ],
       });
 
-      this.#split = make("div", "lf-vr-split");
-      this.#split.dataset.lfDirection = "columns";
-      this.#split.append(this.#queueHost, this.#evidenceHost);
-      const split = arrangeReadingElement({ owner: this.#split, kind: "split" });
+      this.#partition = make("div", "lf-vr-partition");
+      this.#partition.dataset.lfDirection = "columns";
+      this.#partition.append(this.#queueHost, this.#evidenceHost);
+      const partition = arrangeReadingElement({
+        owner: this.#partition,
+        role: "partition",
+      });
 
       this.#footer = make("footer", "lf-vr-foot", "No cases reviewed");
-      this.append(header, this.#split, this.#footer);
+      this.append(header, this.#partition, this.#footer);
       const workspace = arrangeReadingElement({
         owner: this,
-        kind: "workspace",
+        role: "workspace",
         header,
         footer: this.#footer,
       });
       this.#arrangements = [
-        queue.arrangement,
-        evidence.arrangement,
-        split.arrangement,
-        workspace.arrangement,
+        queue.readingArrangement,
+        evidence.readingArrangement,
+        partition.readingArrangement,
+        workspace.readingArrangement,
       ];
       this.#registerCommands();
     }
 
     #registerLayout() {
       const workspaceContent = this.querySelector(":scope > .lf-workspace-content");
-      this.#split = workspaceContent?.querySelector(":scope > .lf-vr-split");
-      const splitContent = this.#split?.querySelector(":scope > .lf-split-content");
-      this.#queueHost = splitContent?.querySelector(":scope > .lf-vr-queue-region");
-      this.#evidenceHost = splitContent?.querySelector(
+      this.#partition = workspaceContent?.querySelector(":scope > .lf-vr-partition");
+      const partitionContent = this.#partition?.querySelector(
+        ":scope > .lf-partition-content",
+      );
+      this.#queueHost = partitionContent?.querySelector(":scope > .lf-vr-queue-region");
+      this.#evidenceHost = partitionContent?.querySelector(
         ":scope > .lf-vr-evidence-region",
       );
       this.#queue = this.#queueHost?.querySelector(".lf-vr-queue");
       this.#casesBody = this.#evidenceHost?.querySelector(".lf-vr-cases");
       this.#title = this.querySelector(".lf-vr-title");
-      this.#footer = this.querySelector(":scope > .lf-arranged-after");
+      this.#footer = this.querySelector(":scope > .lf-reading-after");
       if (
         !workspaceContent ||
-        !this.#split ||
-        !splitContent ||
+        !this.#partition ||
+        !partitionContent ||
         !this.#queueHost ||
         !this.#evidenceHost ||
         !this.#queue ||
@@ -206,9 +211,9 @@ customElements.define(
         !this.#title ||
         !this.#footer
       )
-        throw new Error("visual review lost its arranged regions");
+        throw new Error("visual review lost its reading regions");
       this.#arrangements = [
-        registerArrangedElement({
+        registerReadingElement({
           owner: this.#queueHost,
           content: this.#queueHost.querySelector(":scope > .lf-pane-content"),
           body: this.#queueHost.querySelector(
@@ -221,7 +226,7 @@ customElements.define(
             },
           ],
         }),
-        registerArrangedElement({
+        registerReadingElement({
           owner: this.#evidenceHost,
           content: this.#evidenceHost.querySelector(":scope > .lf-pane-content"),
           body: this.#evidenceHost.querySelector(
@@ -234,8 +239,11 @@ customElements.define(
             },
           ],
         }),
-        registerArrangedElement({ owner: this.#split, content: splitContent }),
-        registerArrangedElement({ owner: this, content: workspaceContent }),
+        registerReadingElement({
+          owner: this.#partition,
+          content: partitionContent,
+        }),
+        registerReadingElement({ owner: this, content: workspaceContent }),
       ];
       this.#registerCommands();
     }

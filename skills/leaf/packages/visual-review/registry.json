@@ -205,7 +205,7 @@
       "source"
     ],
     "additionalProperties": false,
-    "x-content": "none",
+    "x-content": "empty",
     "x-data": {
       "run": {
         "contract": "visual-run",

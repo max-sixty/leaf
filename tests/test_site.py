@@ -346,9 +346,7 @@ def test_a_crawler_is_given_one_page_per_route(site):
             *sorted((destination / "revisions").glob("*.html")),
         ]
         assert len(documents) > 1, route
-        canonical = (
-            f'<link rel="canonical" href="{site_build.SITE_ORIGIN}{page_root}/">'
-        )
+        canonical = f'<link rel="canonical" href="{page_root}/" data-lf-runtime>'
         for document in documents:
             html = document.read_text(encoding="utf-8")
             head = html[: html.index("</head>")]
@@ -367,9 +365,21 @@ def test_a_crawler_is_given_one_page_per_route(site):
 def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
     site, hosted
 ):
-    """Materialization reuses Leaf's delivery transforms rather than approximating them."""
+    """Materialization reuses Leaf's delivery transforms rather than approximating them.
+
+    Every address a page answers is checked, not just its root: the shell and the
+    server compose the same transforms, and a route either of them composes
+    differently is one where a reader's page and a crawler's page part company.
+    """
     assets = site_build.asset_site(site)
     manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
+    board = assets / "examples" / "triage-board"
+    historical = [
+        document.relative_to(assets).as_posix()
+        for directory in ("versions", "revisions")
+        for document in sorted((board / directory).glob("*.html"))
+    ]
+    assert historical, "the example publishes no version or revision documents"
     for route, relative in (
         ("/", "index.html"),
         ("/examples/triage-board/", "examples/triage-board/index.html"),
@@ -377,6 +387,7 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
             "/examples/triage-board/runtime/state-feed.js",
             "examples/triage-board/runtime/state-feed.js",
         ),
+        *((f"/{relative}", relative) for relative in historical),
     ):
         with urllib.request.urlopen(f"{hosted}{route}") as response:
             served = response.read()

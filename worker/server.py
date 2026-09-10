@@ -132,29 +132,32 @@ def page_binding(page_dir: Path) -> tuple[dict, str, dict | None]:
 
 
 def site_metadata(page_root: str, page: dict) -> str:
-    """Compose one published page's crawler-facing head from its manifest entry.
+    """Compose one published page's link card from its manifest entry.
 
-    A published document stands at its clean route, at every stamped version, and at
-    every revision, and the release-scoped asset root serves those last two a second
-    time. The canonical link is what tells a crawler those are one page, so every
-    document a page publishes carries its page's route, not its own.
+    Every document already names its page as canonical, which is what tells a crawler
+    that a clean route, its stamped versions and its revisions are one page. What a
+    publication adds is the part that needs an origin: the absolute address an
+    unfurler shows, and the image it draws beside it.
 
     Media paths are absolute because `scope_document_routes` rewrites a root-relative
     one into the release-scoped tree, which would move a card's image every release.
+
+    Each declaration is marked as delivery's own, so a revision arriving at a page
+    someone is reading brings the author's head across without this one riding in.
     """
     url = f"{SITE_ORIGIN}{page_root}/"
     title = page["title"]
+    mark = " data-lf-runtime"
     return "".join(
         (
-            f'<link rel="canonical" href="{escape(url)}">',
-            '<meta property="og:type" content="website">',
-            f'<meta property="og:site_name" content="{escape(SITE_NAME)}">',
-            f'<meta property="og:title" content="{escape(title)}">',
-            f'<meta property="og:description" content="{escape(page["description"])}">',
-            f'<meta property="og:url" content="{escape(url)}">',
-            f'<meta property="og:image" content="{escape(SITE_ORIGIN + page["image"])}">',
-            f'<meta property="og:image:alt" content="{escape(title)}">',
-            '<meta name="twitter:card" content="summary_large_image">',
+            f'<meta property="og:type" content="website"{mark}>',
+            f'<meta property="og:site_name" content="{escape(SITE_NAME)}"{mark}>',
+            f'<meta property="og:title" content="{escape(title)}"{mark}>',
+            f'<meta property="og:description" content="{escape(page["description"])}"{mark}>',
+            f'<meta property="og:url" content="{escape(url)}"{mark}>',
+            f'<meta property="og:image" content="{escape(SITE_ORIGIN + page["image"])}"{mark}>',
+            f'<meta property="og:image:alt" content="{escape(title)}"{mark}>',
+            f'<meta name="twitter:card" content="summary_large_image"{mark}>',
         )
     )
 
@@ -162,7 +165,7 @@ def site_metadata(page_root: str, page: dict) -> str:
 def with_site_head(
     document: bytes, page_root: str, page: dict, *, asset_root: str | None = None
 ) -> bytes:
-    """Insert the website's crawler metadata and reader chrome into one document.
+    """Insert the website's link card and reader chrome into one document.
 
     The build materializes the edge shell and the container serves the same page, so
     both call this: what a crawler reads and what a reader is handed stay one

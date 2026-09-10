@@ -178,7 +178,8 @@ CLOUDFLARE_API_TOKEN=... OPENAI_API_KEY=... npm run deploy:dev --prefix worker
 
 Later deployments need only `CLOUDFLARE_API_TOKEN`, which the agent host loads from its
 credential store. The command builds the current checkout, deploys only that named
-environment, waits for the exact release, and runs the complete agent benchmark:
+environment, gives its commit plus working-tree state a release identity, waits for
+that exact release, and runs the complete agent benchmark:
 
 ```sh
 npm run deploy:dev --prefix worker

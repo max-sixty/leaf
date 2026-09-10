@@ -10,8 +10,11 @@
 
    Native inertness owns sequential focus and pointer reach. This owner adds the Tab
    wrap and programmatic-focus recovery that a non-top-layer workspace still needs.
-   Native dialogs and popovers opened above it remain available to their top-layer
-   owner. */
+   Entering the boundary dismisses pre-existing outside popovers. Native dialogs, and
+   popovers deliberately opened after entry, remain available to their top-layer owner. */
+
+import { openNativePopovers } from "./native-layers.js";
+import { under } from "./shadow.js";
 
 export function createWorkspaceModality({ chromeRoot, focusable }) {
   const controllers = new Set();
@@ -88,6 +91,8 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
       throw new Error("leaf: two covering workspaces cannot be modal together");
     if (active === controller) return;
 
+    for (const popover of openNativePopovers())
+      if (!under(popover, controller.surface)) popover.hidePopover();
     active = controller;
     syncBackground(controller);
     controller.role = controller.surface.getAttribute("role");

@@ -5439,6 +5439,56 @@ def test_global_destinations_switch_from_a_covering_workspace(
     page.close()
 
 
+def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, serve):
+    """Responsive modal entry closes a native layer that stood over the beside panel."""
+    url = serve(LONG_PAGE, comments=2)
+    _publish(serve.page_dir, 2, LONG_PAGE, "two")
+    page, errors = open_page(browser, url)
+    resized(page, 1000, 800)
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
+    assert not page.locator("main").evaluate("main => main.inert")
+
+    origin = page.locator(".lf-thread").first
+    origin.focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
+    versions = page.locator(".lf-version-menu")
+    expect(versions).to_be_visible()
+    expect(versions.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+
+    resized(page, 500, 800)
+    panel_settled(page)
+    expect(versions).to_be_hidden()
+    expect(origin).to_be_focused()
+    assert page.locator("main").evaluate("main => main.inert")
+    page.evaluate(RENDERED)
+    hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
+    assert {"thread.primary", "navigation.return"} <= hints, hints
+    assert not any(command.startswith("version.") for command in hints), hints
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
+    expect(versions).to_be_visible()
+    page.keyboard.press("ArrowUp")
+    expect(versions.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(versions).to_be_hidden()
+    expect(origin).to_be_focused()
+
+    resized(page, 1000, 800)
+    panel_settled(page)
+    expect(origin).to_be_focused()
+    assert not page.locator("main").evaluate("main => main.inert")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-panel")).to_be_hidden()
+    assert page.evaluate("() => document.activeElement === document.body")
+    assert errors == []
+    page.close()
+
+
 def test_the_key_line_says_what_a_press_will_do(browser, serve):
     """The shortcut bar and dispatcher read one return frame for each keyboard entry."""
     url = serve(NOTED_PAGE)

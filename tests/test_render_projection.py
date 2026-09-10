@@ -1048,11 +1048,12 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     names the visible targets, and the chips are read off whichever document is standing,
     so the window holds through the swap and a fresh hint lands in the new page — minus
     the hint for a link the revision took away, which is the honest reading. The reader's
-    standing is the document's: the Ask's "1–2 One / Two" actions remain live over a
-    focused pick mark, and the swap that replaced main dropped that focus onto body,
-    taking the offer down with it — the digit then picked nothing, silently. The place is
-    written down by id before the swap and handed back after it, so the fresh mark holds the
-    focus and the digit picks, acknowledged in the bottom status. One revision arrives as a
+    standing is the document's: the Ask's "1–3 One / Two / Another option" actions
+    remain live over a focused pick mark, and the swap that replaced main dropped that
+    focus onto body, taking the offer down with it — the digit then picked nothing,
+    silently. The place is written down by id before the swap and handed back after it,
+    so the fresh mark holds the focus and the digit picks, acknowledged in the bottom
+    status. One revision arrives as a
     draft and the next as a stamped version, since both replace the page under the
     reader by the same door."""
     version_url = serve(LIVE_KEYS_V1)
@@ -1076,7 +1077,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     mark = page.locator("#lk-one .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
-    assert "1–2\nOne / Two" in shortcut_bar_text(page)
+    assert "1–3\nOne / Two / Another option" in shortcut_bar_text(page)
     # A stamped version this time, which is the other way a page moves under a reader;
     # the notice names it in the bottom status and no toast stands in the corner.
     stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
@@ -1086,7 +1087,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     assert page.locator(".lf-toast").count() == 0
     # The fresh mark: main was replaced whole, so the one the reader pressed on is gone.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
-    assert "1–2\nOne / Two" in shortcut_bar_text(page), (
+    assert "1–3\nOne / Two / Another option" in shortcut_bar_text(page), (
         "the swap took the reader's keys down"
     )
     page.keyboard.press("2")

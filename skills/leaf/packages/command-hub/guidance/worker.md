@@ -22,7 +22,7 @@ For a routed user comment, reply under your assigned identity, then report any
 resulting state change:
 
 ```bash
-LEAF_AGENT="$WORKER" "$LEAF" reply "$PAGE" --to "$THREAD" <<'EOF'
+LEAF_AGENT="$WORKER" "$LEAF" reply "$PAGE" --to "$THREAD" --for "$EVENT" <<'EOF'
 The reconnect drops the queue, so the retry sends against a closed socket.
 
 - the handler clears `pending` before it awaits the write

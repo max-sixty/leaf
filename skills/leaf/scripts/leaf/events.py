@@ -255,13 +255,15 @@ def anchored_ids(events: list, within: dict) -> set:
 def awaits_agent(thread: dict) -> bool:
     """Whether a thread's next word is the agent's.
 
-    Anyone other than the agent spoke last and it waits on the agent. An agent-last
-    thread and a resolved thread do not. This reading deliberately says nothing about
-    whether the reader owes a word: an ordinary agent reply may leave the open thread
-    awaiting nobody, while an agent comment, an explicit prose question, or a structured
-    widget Ask awaits the reader. The runtime's `awaitsAgent` is the same sentence,
-    and it has to be: the panel telling the reader a seated thread is with the agent
-    while the banner counts the same question as theirs is one fact told two ways.
+    The newest non-agent turn waits until an agent reply explicitly records that exact
+    event in ``responds``. Mere log order is not settlement: an agent answering an older
+    frozen-widget move after newer reader input must leave that newer input with the
+    agent. This reading deliberately says nothing about whether the reader owes a word:
+    an ordinary agent reply may leave the open thread awaiting nobody, while an agent
+    comment, an explicit prose question, or a structured widget Ask awaits the reader.
+    The runtime's `awaitsAgent` is the same server projection, and it has to be: the
+    panel telling the reader a seated thread is with the agent while the banner counts
+    the same question as theirs is one fact told two ways.
 
     Not the agent, rather than the reader: `author` is an open string on every message
     contract, and the two the code writes are `user` and `claude`. A line from anywhere
@@ -273,7 +275,19 @@ def awaits_agent(thread: dict) -> bool:
     thread back, and a reaction nobody has replied to is no conversation at all. The
     runtime's `awaitsAgent` reads the same list for the same reason."""
     said = spoken_turns(thread)
-    return not thread["resolved"] and bool(said) and said[-1]["author"] != "claude"
+    unanswered = next(
+        (message for message in reversed(said) if message["author"] != "claude"),
+        None,
+    )
+    return bool(
+        not thread["resolved"]
+        and unanswered
+        and not any(
+            message["author"] == "claude"
+            and message.get("responds") == unanswered["id"]
+            for message in said
+        )
+    )
 
 
 def seat_root(thread: dict) -> str | None:

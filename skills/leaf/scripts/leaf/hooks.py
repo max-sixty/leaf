@@ -22,20 +22,6 @@ from .service import (
 from .session import record_pickup
 
 
-def _stream_answers(reply: dict | None, obligation: dict, state: dict) -> bool:
-    """Whether App Server has finished the answer this Stop is closing."""
-    return bool(
-        reply
-        and reply.get("state") == "active"
-        and reply.get("settles")
-        and reply.get("has_text")
-        and reply.get("session") == state["claim_session"]
-        and reply.get("turn") == state["claim_turn"]
-        and reply.get("reply_to") == obligation["event"]
-        and reply.get("conversation") == obligation["target"]["id"]
-    )
-
-
 def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
     """The pages this session owes something, each with what to do about it.
     Two invariants hold between turns. A page is watched or idle, so anything
@@ -64,12 +50,8 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
         # Queue acceptance belongs to the originating turn, so it is not debt
         # there. The later UserPromptSubmit still opens it below; from that
         # point its ordinary unanswered debt is enforced again.
-        reply = state["activity"].get("reply") if adapter else None
         stale = [
-            obligation
-            for obligation in acknowledged
-            if obligation["phase"] != "queued"
-            and not _stream_answers(reply, obligation, state)
+            obligation for obligation in acknowledged if obligation["phase"] != "queued"
         ]
         if stale:
             ids = ", ".join(

@@ -129,19 +129,22 @@ reference and event id. The reference also appears in Analytics Engine, so an ag
 can start with the number the reader sees without exposing the private session cookie.
 Its retryable steps reserve source capacity, then ask that reader's container to create or resume one Codex
 App Server task rooted at the actual page directory and deliver the event through
-Leaf's immutable delivery record, passed inline as structured `leaf_feedback`. The
+Leaf's immutable delivery envelope, passed inline as structured `leaf_delivery` when
+the task is idle or queued by its immutable `leaf-delivery` id while a turn is active. The
 website-specific App Server starts without the authoring plugin: its compact developer
 instructions and the ready `$LEAF` CLI are the complete interface, so skill discovery
 cannot turn a small reader response into a full authoring workflow. The hosted task can
 revise `index.html`, validate it, append thread replies, and leave the page waiting. The
 initiating App Server connection projects the turn's native activity notifications back
-through Leaf. A repeated workflow sees the event's durable pickup and does not start
-the work twice. Task startup failure after its retries and a failure while following a
-started turn each append a short failure reply through the same event log.
-Once App Server reports a terminal turn, the container closes that exact Leaf turn and
-gives each accepted input the turn left unanswered its final assistant message. A failed
-or interrupted turn gets a failure reply instead, and a completed turn with no message
-at all gets a completed-without-reply receipt.
+through Leaf. For queued input it stays subscribed through the active turn, records the
+queued turn opening, and observes that turn to its terminal state. A repeated workflow
+sees the event's durable pickup and does not start the work twice. Task startup failure
+after its retries appends a short failure reply through the same event log.
+Once App Server reports a terminal turn, the container closes that exact Leaf turn.
+Only explicit `leaf reply`, a page revision closed with `leaf resolve`, and `leaf
+receipt` settle accepted input; the turn's final assistant message remains in the
+Codex transcript.
+A failed or interrupted turn still gets a deterministic failure reply from the host.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the

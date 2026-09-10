@@ -1,21 +1,18 @@
 """Agent status, waiting, and acknowledgement policy."""
 
+import json
 import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
-from .event_log import jsonl_line
+from .delivery import batch_data, freeze_delivery
 from .files import read_json, write_json
 from .host import host_identity
 from .hosting import start_server
 from .leases import take_waiter_lease, waiter_lease_path
 from .locations import path_location, paths_same
-from .passages import active_enclosing
-from .registry.contract import RegistryError, handling
-from .registry.reactions import described
-from .registry.storage import load_registry
 from .revisioning import activate_source
 from .schema import (
     ACK_BATCH_INSTRUCTION,
@@ -33,7 +30,6 @@ from .service import (
     owned_pages,
     unacknowledged,
 )
-from .thread_context import batch_threads
 from .work import work_subject
 
 
@@ -274,63 +270,12 @@ class _WatchPass(NamedTuple):
     outcome: int | None
 
 
-def _batch_registry(page_dir: Path):
-    """The vendored registry, for a batch's `means` and `handling` readings."""
-    try:
-        return load_registry(page_dir)
-    except RegistryError:
-        return None  # the batch still reaches the agent, unexplained
-
-
-def batch_data(
-    page_dir: Path,
-    transaction: PageTransaction,
-    batch: list[dict],
-) -> dict:
-    """Build one complete delivery batch without taking receipt for it."""
-    # The batch carries the page's own vendored vocabulary: a reaction's token,
-    # optionally its package-supplied `means`, and under `handling` what the layer asks
-    # of the agent for each kind present. A stale registry must not block the batch.
-    registry = _batch_registry(page_dir)
-    return {
-        "page": str(page_dir),
-        "threads": batch_threads(
-            transaction.events,
-            batch,
-            active_enclosing(page_dir),
-        ),
-        "handling": handling(batch, registry),
-        "events": [described(event, registry) for event in batch],
-    }
-
-
-def serialize_batch(
-    page_dir: Path,
-    transaction: PageTransaction,
-    batch: list[dict],
-) -> str:
-    """Serialize one complete delivery batch without taking receipt for it."""
-    # Whose events follow, said in-band: no event line names its page, and the
-    # ack has to go back to the right one. The conversations they land in come
-    # with them, because a delivered reply names only the message it answers and
-    # the session that knew what that was may since have compacted.
-    data = batch_data(page_dir, transaction, batch)
-    lines = [
-        jsonl_line(
-            {
-                "page": data["page"],
-                "threads": data["threads"],
-                "handling": data["handling"],
-            }
-        )
-    ]
-    lines.extend(jsonl_line(event) for event in data["events"])
-    return "\n".join(lines)
-
-
-def batch_jsonl(reading: PageTick) -> str:
-    """Serialize a watcher reading as one complete delivery batch."""
-    return serialize_batch(reading.page_dir, reading.transaction, reading.batch)
+def delivery_json(reading: PageTick) -> str:
+    """Freeze and serialize a watcher reading as one delivery envelope."""
+    payload = freeze_delivery(
+        [batch_data(reading.page_dir, reading.transaction, reading.batch)]
+    )
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def record_pickup(
@@ -391,7 +336,7 @@ def _deliver_batch(reading: PageTick) -> bool:
     opening: `leaf wait` returns with the batch on stdout and the words are in
     model context before anything else runs.
     """
-    print(batch_jsonl(reading), flush=True)
+    print(delivery_json(reading), flush=True)
     return True
 
 
@@ -505,7 +450,7 @@ def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
     that flag, an ack re-arm uses PAGE only as the delivered batch's coordinate:
     a host resumes the session-wide set it already owns, while outside a host
     the named page remains the whole watch set. A batch is one page's events, so
-    its first line names the page and carries the conversations they land in,
+    its envelope names the page and carries the conversations they land in,
     and `leaf ack` goes back to that page. The JSON envelope says nothing about
     what consumes it. The wait owner advances the cursor only after the complete
     batch reaches that next durable consumer.

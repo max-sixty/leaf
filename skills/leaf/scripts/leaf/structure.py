@@ -42,6 +42,7 @@ OPTIONAL_END = {
     "tfoot",
     "option",
     "optgroup",
+    "caption",
     "colgroup",
     "rp",
     "rt",
@@ -105,32 +106,64 @@ class StructParser:
     """One browser-compatible structural reading of authored HTML.
 
     TurboHTML owns HTML recovery and source locations. This class retains Leaf's
-    authoring-specific indexes and its stricter errors for ambiguous source constructs;
-    it does not maintain a second element stack or tree-building grammar.
+    authoring-specific indexes and its stricter errors for ambiguous source constructs:
+    element ids and their enclosing widget, external assets and metadata, each lf-*
+    element's attributes and direct contents, title and width declarations, and the
+    exact authored construction. It does not maintain a second element stack or
+    tree-building grammar, and it keeps foreign SVG as exact source rather than
+    reconstructing it.
     """
 
     def __init__(self):
         self.errors = []
         self.unclosed = []  # source elements whose required end tag is absent
         self.all_ids = []
+        # {attrs, parent, position, early_head} per external asset. Applicability and
+        # placement belong to the asset record: parallel lists made one fact several
+        # representations and let a later parser edit silently misalign them.
         self.external_scripts = []
         self.stylesheets = []
-        self.lf_metas = []
-        self.http_equivs = []
+        self.lf_metas = []  # {name, content, line} per <meta name="lf-*">
+        self.http_equivs = []  # {equiv, content, line, position, raw} per meta
+        # The authored page lives under one direct body > main because that is the
+        # element the first-replay presentation boundary withholds. Both assets that
+        # establish that boundary belong in head; anything paintable outside main would
+        # stand outside it. Body lines come from source tokens because recovery erases a
+        # duplicate <body>; main placement comes from the recovered tree.
         self.body_lines = []
-        self.head_elements = []
-        self.main_elements = []
-        self.outside_main = []
+        self.head_elements = []  # (line, direct child of authored html)
+        self.main_elements = []  # (line, direct child of authored body)
+        self.outside_main = []  # paintable content with no main ancestor
+        # /media/ paths any attribute points at, so the check reads references and not
+        # mentions: a page documenting Leaf can write one in prose without demanding a
+        # screenshot that nothing displays.
         self.media_refs = set()
+        # What the version says about width, each where a document says it: CSS is what
+        # a <style> block holds, and a fixed width is what a rule, style="", or width=""
+        # states. The column check reads these three and nothing else.
         self.css = ""
-        self.inline_styles = []
-        self.attr_widths = []
-        self.title = ""
+        self.inline_styles = []  # each style="" declaration list
+        self.attr_widths = []  # (tag, value) per width="" that counts as pixels
+        self.title = ""  # what <title> says, for the transcript's heading
+        # {tag, line, attrs, parent, direct, children, text, body, holder}
         self.lf_elements = []
+        # id → the innermost lf-* element standing around it, an element's own id
+        # standing in itself. Where an id lives is structure; which of those elements is
+        # a slot a decision retires and which widget holds it is the registry's word,
+        # read by whoever has one, so this parse need not know a widget by name.
         self.within = {}
+        # {tag, parent, lang, line} per element claiming a language — the coloring the
+        # runtime honors on a plain <pre><code>.
         self.language_blocks = []
+        # {tag, line, under} per id-less pointable block, where under is the nearest
+        # ancestor carrying an id. This is where a user's aim would otherwise land.
         self.bare_blocks = []
+        # (tag, line, markers) per element wearing a data-lf-* attribute or lf-* class.
+        # The prefix reserves names the runtime may coin later, without another list.
         self.reserved_markers = []
+        # The same parse retains ordinary HTML, exact text, and construction locations
+        # for inspection. Widget validation keeps its specialized index; content is one
+        # tree, with no reconstructed HTML or parent objects.
         self.content = []
         self.nodes = []
         self.document = None
@@ -162,9 +195,13 @@ class StructParser:
 
     def _span_source(self, span) -> str:
         return self._source[
-            self._line_offsets[span.start_line - 1]
-            + span.start_col : self._line_offsets[span.end_line - 1] + span.end_col
+            self._source_index(span.start_line, span.start_col) : self._source_index(
+                span.end_line, span.end_col
+            )
         ]
+
+    def _source_index(self, line: int, column: int) -> int:
+        return self._line_offsets[line - 1] + column
 
     @staticmethod
     def _source_element(element) -> bool:
@@ -200,8 +237,7 @@ class StructParser:
                 continue
             start_source = self._span_source(location.start_tag).rstrip()
             if (
-                element.namespace is turbohtml.Namespace.HTML
-                and element.tag not in VOID_TAGS | OPTIONAL_END
+                element.tag not in VOID_TAGS | OPTIONAL_END
                 and not start_source.endswith("/>")
             ):
                 self.unclosed.append((element.tag, element.source_line))
@@ -216,11 +252,37 @@ class StructParser:
                     f"stray </{token.tag}> at line {token.line} with no matching open tag"
                 )
 
+        duplicates = {}
+        start_tokens = list(starts.values())
         for error in self.document.errors:
             if error.code == "duplicate-attribute":
-                self.errors.append(
-                    f"duplicate attribute at line {error.line}; HTML keeps the first value"
+                error_index = self._source_index(error.line, error.col)
+                token = next(
+                    (
+                        token
+                        for token in reversed(start_tokens)
+                        if (start := self._source_index(token.line, token.col))
+                        <= error_index
+                        < start + len(token.source)
+                    ),
+                    None,
                 )
+                if token is None:
+                    self.errors.append(
+                        f"duplicate attribute at line {error.line}; "
+                        "HTML keeps the first value"
+                    )
+                    continue
+                start = self._source_index(token.line, token.col)
+                match = re.search(
+                    r"([^\t\n\f\r />=]+)\s*$", token.source[: error_index - start]
+                )
+                duplicate = duplicates.setdefault(
+                    (token.line, token.col),
+                    {"tag": token.tag, "line": token.line, "names": set()},
+                )
+                if match:
+                    duplicate["names"].add(match.group(1).lower())
             elif error.code == "non-void-html-element-start-tag-with-trailing-solidus":
                 token = starts.get((error.line, error.col))
                 tag = token.tag if token is not None else "element"
@@ -229,6 +291,13 @@ class StructParser:
                     f"slash and the element would swallow what follows — write "
                     f"<{tag} …></{tag}>"
                 )
+        for duplicate in duplicates.values():
+            names = sorted(duplicate["names"])
+            detail = f" names {names}" if names else ""
+            self.errors.append(
+                f"<{duplicate['tag']}> at line {duplicate['line']} has duplicate "
+                f"attribute{detail}; HTML keeps the first value"
+            )
 
     def _record_element(
         self,
@@ -492,7 +561,7 @@ class StructParser:
                     and "main" not in next_ancestors
                     and element.tag not in {"script", "style", "title"}
                 ):
-                    self.outside_main.append(f"text at line {line}")
+                    self.outside_main.append(f"text in <{element.tag}> at line {line}")
 
         if element.tag == "style":
             self.css += element.text

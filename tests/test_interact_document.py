@@ -137,7 +137,12 @@ def test_structural_errors_distinguish_recovery_from_ambiguous_source():
     caption = structure_model.parse_structure(
         "<main><table><caption>Title<tbody><tr><td>Cell</table></main>"
     )
-    assert caption.unclosed == [("caption", 1)]
+    assert caption.unclosed == []
+
+    svg = structure_model.parse_structure(
+        '<main><svg id="plot"><circle cx="5" cy="5" r="4"/></main>'
+    )
+    assert svg.unclosed == [("svg", 1)]
 
     stray = structure_model.parse_structure("<main><div>Text</span></div></main>")
     assert stray.errors == ["stray </span> at line 1 with no matching open tag"]
@@ -503,14 +508,17 @@ def test_check_rejects_duplicate_attributes_the_browser_reads_differently(page_d
         'id="feeder-board"', 'id="browser-board" id="file-board"'
     )
     version = page_dir / ".fixture-versions" / "v1.html"
-    version.write_text(
-        version.read_text().replace("</section>", board + "\n</section>")
-    )
+    source = version.read_text().replace("</section>", board + "\n</section>")
+    version.write_text(source)
+    line = source[: source.index('<lf-board id="browser-board"')].count("\n") + 1
 
     result = check(page_dir)
 
     assert result.exit_code == 1
-    assert "duplicate attribute" in result.output
+    assert (
+        f"<lf-board> at line {line} has duplicate attribute names ['id']; "
+        "HTML keeps the first value"
+    ) in result.output
 
 
 def test_check_rejects_a_language_nothing_will_color(page_dir):

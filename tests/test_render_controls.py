@@ -1341,51 +1341,22 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
     page.close()
 
 
-def test_one_version_is_a_passive_label(browser, serve):
-    """A lone version orients the reader without advertising an empty choice."""
+def test_one_version_opens_a_menu_with_its_version(browser, serve):
+    """A lone version keeps its note reachable without advertising a version walk."""
     page, errors = open_page(browser, serve(LONG_PAGE))
     version = page.locator(".lf-version")
-    expect(version).to_be_disabled()
-    expect(version).to_have_text("v1")
-    expect(version).not_to_have_attribute("aria-haspopup", re.compile(r".+"))
-    expect(version).not_to_have_attribute("aria-expanded", re.compile(r".+"))
-    expect(page.locator(".lf-version-menu")).to_be_hidden()
-    threads = page.locator(".lf-threads-toggle")
-    expect(threads).to_have_css("border-top-color", "rgba(0, 0, 0, 0)")
-    expect(threads).to_have_css("background-color", "rgba(0, 0, 0, 0)")
-    expect(threads).to_have_css("border-bottom-left-radius", "0px")
-    expect(threads).to_have_css("border-bottom-right-radius", "0px")
-    threads.click()
-    expect(threads).to_have_attribute("aria-expanded", "true")
-    expect(threads).not_to_have_css("box-shadow", "none")
-    assert errors == []
-    page.close()
-
-
-def test_a_yielded_version_returns_when_it_becomes_a_choice(browser, serve):
-    """A quiet label hidden for room can become an active destination later."""
-    html = SUGGESTION_PAGE.replace(
-        "<title>suggestions</title>",
-        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
-    )
-    url = serve(html)
-    page, errors = open_page(browser, url)
-    version = page.locator(".lf-version")
-
-    resized(page, 320, 844)
-    expect(version).to_be_hidden()
-    expect(version).to_have_attribute("data-lf-yielded", "1")
-
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
-    stamp_version_file(serve.page_dir, 2, "two")
     expect(version).to_be_enabled()
+    expect(version).to_have_text("v1")
     expect(version).to_have_attribute("aria-haspopup", "menu")
-    expect(version).not_to_have_attribute("data-lf-yielded", re.compile(r".+"))
-    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
-
-    resized(page, 1200, 844)
-    expect(version).to_be_visible()
-    expect(version).not_to_have_attribute("data-lf-yielded", re.compile(r".+"))
+    expect(version).to_have_attribute("aria-expanded", "false")
+    version.click()
+    expect(version).to_have_attribute("aria-expanded", "true")
+    menu = page.locator(".lf-version-menu")
+    expect(menu).to_be_visible()
+    expect(menu.locator(".lf-version-row")).to_have_count(1)
+    expect(menu.locator(".lf-version-row")).to_have_attribute("aria-current", "true")
+    expect(menu.locator(".lf-version-num")).to_have_text("v1 (latest version)")
+    expect(menu.locator(".lf-version-note")).to_have_text("t")
     assert errors == []
     page.close()
 
@@ -1402,10 +1373,7 @@ def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     the button's own box rather than against numbers, because what the anchor promises is
     a relation and not a coordinate.
     """
-    url = serve(LONG_PAGE)
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(LONG_PAGE)
-    stamp_version_file(serve.page_dir, 2, "two")
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, serve(LONG_PAGE))
     chooser = page.locator(".lf-version")
     expect(chooser).to_be_enabled()
     chooser.click()
@@ -1490,9 +1458,6 @@ def test_a_phone_banner_folds_its_addresses_into_one_menu(browser, serve, other_
     # The row keeps the reading loop and the door; everything else is behind it.
     expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
     expect(page.locator(".lf-banner-actions > .lf-threads-toggle")).to_be_visible()
-    expect(page.locator(".lf-banner-actions > .lf-version.lf-passive")).to_be_visible()
-    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(0)
-
     # Every folded address, from the keyboard, through that one door. The press is the
     # popover's own invoker, so the menu opens and puts the reader on its first address
     # without anything here focusing it for them.

@@ -747,7 +747,6 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser,
     page.get_by_role("tab", name="CallDiff").click()
     call_diff = page.locator("#pr-call-diagram")
     expect(call_diff.locator(".lf-call-line")).to_have_count(30)
-    call_diff.locator(".lf-call-toggle").click()
     location = call_diff.get_by_role("link", name="src/summary.rs:259").first
     expect(location).to_be_visible()
     location.click()

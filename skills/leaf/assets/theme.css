@@ -1319,7 +1319,8 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
           color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
 .lf-conversation { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
-.lf-conversation-thread { box-sizing: border-box; min-width: 0; position: relative;
+.lf-conversation-thread { --lf-thread-action-hit: max(28px, var(--aim-floor));
+          box-sizing: border-box; min-width: 0; position: relative;
           padding: var(--sp-1);
           font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
           color: var(--ink); overflow-wrap: anywhere; }
@@ -1334,6 +1335,13 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-thread > .lf-say:not([hidden]) { display: flex; }
 .lf-say textarea { flex: 1; min-width: 0; }
 .lf-conversation-thread > .lf-say { flex-direction: column; align-items: stretch; }
+.lf-conversation-thread > .lf-say.lf-reply-collapsed > :not(.lf-reply-disclosure) {
+          display: none; }
+.lf-reply-disclosure { width: 100%; padding: 7px 10px; border-color: var(--border);
+          background: transparent; color: var(--muted-2); text-align: start; }
+.lf-reply-disclosure[hidden] { display: none; }
+.lf-reply-disclosure:hover { border-color: var(--border-2); color: var(--ink);
+          background: var(--chip); }
 .lf-conversation-resolved { display: flex;
           align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .lf-conversation > .lf-say { margin-top: 0; }
@@ -1345,9 +1353,13 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-msg.claude { position: relative; }
 .lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
           font-size: var(--t-6); }
-.lf-conversation-thread > .lf-thread-head { display: grid;
-          grid-template-columns: minmax(0, 1fr) auto; align-items: center;
-          margin-bottom: var(--sp-2); }
+.lf-conversation-thread > .lf-thread-head { position: absolute; z-index: 2;
+          inset-block-start: calc(var(--sp-1) + var(--sp-2)); inset-inline-end: var(--sp-1); }
+.lf-conversation-thread:has(> .lf-thread-head) >
+          .lf-conversation-msg:first-of-type > .lf-conversation-head {
+          box-sizing: border-box; min-height: var(--lf-thread-action-hit);
+          padding-inline-end: calc(var(--lf-thread-action-hit) + var(--sp-1));
+          align-items: center; }
 .lf-conversation-msg.claude .lf-conversation-head b { color: var(--accent); }
 .lf-conversation-head time { color: var(--muted-2); }
 .lf-conversation-head .lf-edited { color: var(--muted-2); }

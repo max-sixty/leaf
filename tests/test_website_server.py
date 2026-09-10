@@ -111,7 +111,7 @@ def test_agent_logs_keep_every_event_in_a_batched_turn_searchable():
     }
 
 
-def test_the_agent_log_query_exposes_only_declared_timing_fields():
+def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
     response = {
         "result": {
             "events": {
@@ -156,7 +156,11 @@ def test_the_agent_log_query_exposes_only_declared_timing_fields():
         }
     }
 
-    assert query_site_agent_logs.safe_records(response, "reader-event") == [
+    assert query_site_agent_logs.event_ids(response) == {
+        "reader-event",
+        "another-event",
+    }
+    assert query_site_agent_logs.safe_records([response], {"reader-event"}) == [
         {
             "timestamp": 1000,
             "dataset": "workers",
@@ -176,6 +180,148 @@ def test_the_agent_log_query_exposes_only_declared_timing_fields():
             "elapsedMs": 200,
         },
     ]
+
+
+def test_the_agent_log_query_deduplicates_a_batched_turn(monkeypatch, capsys):
+    shared = {
+        "timestamp": 1200,
+        "dataset": "containers",
+        "source": {
+            "component": "leaf-agent",
+            "event": "turn_start_completed",
+            "eventIds": ["event-1", "event-2"],
+            "durationMs": 125,
+        },
+    }
+    responses = {
+        ("reference", "123456789012"): {"result": {"events": {"events": [shared]}}},
+        ("eventId", "event-1"): {
+            "result": {
+                "events": {
+                    "events": [
+                        {
+                            "timestamp": 1000,
+                            "dataset": "workers",
+                            "source": {
+                                "component": "leaf-agent",
+                                "event": "workflow_started",
+                                "eventId": "event-1",
+                            },
+                        },
+                        shared,
+                    ]
+                }
+            }
+        },
+        ("eventId", "event-2"): {
+            "result": {
+                "events": {
+                    "events": [
+                        {
+                            "timestamp": 1050,
+                            "dataset": "workers",
+                            "source": {
+                                "component": "leaf-agent",
+                                "event": "workflow_started",
+                                "eventId": "event-2",
+                            },
+                        },
+                        shared,
+                    ]
+                }
+            }
+        },
+    }
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "token")
+    monkeypatch.setattr(
+        query_site_agent_logs,
+        "query",
+        lambda key, value, token, now_ms: responses[(key, value)],
+    )
+
+    assert query_site_agent_logs.main(["123456789012"]) == 0
+
+    assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == [
+        {
+            "timestamp": 1000,
+            "dataset": "workers",
+            "event": "workflow_started",
+            "eventId": "event-1",
+            "elapsedMs": 0,
+        },
+        {
+            "timestamp": 1050,
+            "dataset": "workers",
+            "event": "workflow_started",
+            "eventId": "event-2",
+            "elapsedMs": 50,
+        },
+        {
+            "timestamp": 1200,
+            "dataset": "containers",
+            "event": "turn_start_completed",
+            "eventIds": ["event-1", "event-2"],
+            "durationMs": 125,
+            "elapsedMs": 200,
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "lookup"),
+    [
+        (
+            "eventId",
+            "reader-event",
+            {
+                "needle": {
+                    "value": "reader-event",
+                    "isRegex": False,
+                    "matchCase": True,
+                }
+            },
+        ),
+        (
+            "reference",
+            "123456789012",
+            {
+                "filters": [
+                    {
+                        "key": "reference",
+                        "operation": "eq",
+                        "type": "string",
+                        "value": "123456789012",
+                    }
+                ]
+            },
+        ),
+    ],
+)
+def test_the_agent_log_query_finds_an_event_or_reference(key, value, lookup):
+    parameters = {
+        "datasets": [],
+        "filterCombination": "and",
+        "filters": [
+            {
+                "key": "component",
+                "operation": "eq",
+                "type": "string",
+                "value": "leaf-agent",
+            }
+        ],
+    }
+    if "filters" in lookup:
+        parameters["filters"].extend(lookup["filters"])
+    else:
+        parameters.update(lookup)
+
+    assert query_site_agent_logs.query_body(key, value, 86_400_000) == {
+        "queryId": "leaf-agent-diagnostic",
+        "timeframe": {"from": 0, "to": 86_400_000},
+        "view": "events",
+        "limit": 100,
+        "parameters": parameters,
+    }
 
 
 def test_the_website_label_follows_the_script_contract_not_its_formatting():

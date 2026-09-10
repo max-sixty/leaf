@@ -89,9 +89,9 @@ id; the container continues with that event id through App Server availability, 
 and turn start, first notification, first model activity, and completion. Leaf's
 record omits message text, prompts, source IP keys, cookies, and private session ids.
 Cloudflare wraps it in invocation metadata, so the raw Observability result or
-`wrangler tail` stream is not a
-content-free agent interface. `scripts/query-site-agent-logs.py` queries the last 24
-hours for one exact event id and emits only Leaf's declared diagnostic fields:
+`wrangler tail` stream is not a content-free agent interface.
+`scripts/query-site-agent-logs.py` queries the last 24 hours for one exact event id and
+emits only Leaf's declared diagnostic fields:
 
 ```sh
 CLOUDFLARE_API_TOKEN=... uv run scripts/query-site-agent-logs.py EVENT_ID
@@ -117,11 +117,11 @@ App Server task rooted at the actual page directory and deliver the event throug
 Leaf's immutable delivery record, passed inline as structured `leaf_feedback`. Codex
 loads the shipped Leaf plugin and uses its native filesystem tools, so the hosted task
 can revise `index.html`, validate it, append thread replies, and leave the page waiting
-exactly as a local Leaf task does. The
-initiating App Server connection projects the turn's native activity notifications
-back through Leaf. A repeated workflow sees the event's durable pickup and does not
-start the work twice. Task startup failure after its retries and a failure while
-following a started turn each append a short failure reply through the same event log.
+exactly as a local Leaf task does. The initiating App Server connection projects the
+turn's native activity notifications back through Leaf. A repeated workflow sees the
+event's durable pickup and does not start the work twice. Task startup failure after
+its retries and a failure while following a started turn each append a short failure
+reply through the same event log.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn and
 gives each accepted input the turn left unanswered its final assistant message. A failed
 or interrupted turn gets a failure reply instead, and a completed turn with no message

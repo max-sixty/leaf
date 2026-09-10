@@ -62,6 +62,18 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Add fast inspection modes to visual reviews.** Extend each existing case with
+  side-by-side and opacity views, disclosed masks, fit and actual-size zoom, and
+  changed-region navigation. Keep the current visual-run contract and case ids.
+
+- **Open visual-review targets beside Leaf through the host.** Coordinate the exact
+  case URL in a real browser pane and report mutable-preview staleness without treating
+  arbitrary iframes as live evidence.
+
+- **Add typed motion evidence after the media boundary supports it.** Define durable
+  video, poster, caption, transcript, and chapter handling in Leaf core; then let visual
+  runs attach motion only to cases whose timing or continuity is under review.
+
 - **Add a foreground path for other agent hosts.** Document a blocking `leaf wait` flow
   for any host that can run a command, then use that experience to define a shared host
   adapter only if another integration needs it.

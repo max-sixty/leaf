@@ -3625,6 +3625,36 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
     assert (page / "widgets" / "lf-call-diff.js").is_file()
 
 
+def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    package = schema_model.BUNDLED_PACKAGES / "visual-review"
+    page = tmp_path / "visual-review"
+
+    checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(package)])
+    initialized = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "init", "--package", "visual-review", str(page)],
+    )
+
+    assert checked.exit_code == 0, checked.output
+    assert initialized.exit_code == 0, initialized.output
+    registry = json.loads((page / "registry.json").read_text())
+    widget = registry["lf-visual-review"]
+    assert registry["$layer"]["packages"] == ["visual-review"]
+    assert widget["x-data"] == {
+        "run": {
+            "contract": "visual-run",
+            "source": "source",
+            "snapshot": "snapshot",
+        }
+    }
+    assert widget["x-state"]["review"]["unit"] == "case"
+    assert widget["x-thread-surface"] is True
+    assert "visual-run" in registry["$data"]["contracts"]
+    assert (page / "widgets" / "lf-visual-review.js").is_file()
+    assert (page / "guidance" / "author.md").is_file()
+
+
 def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     local = tmp_path / "command-hub"

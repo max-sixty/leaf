@@ -866,10 +866,13 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
                 used.setdefault(rec["tag"], {}).setdefault(attr, set()).add(value)
     # An example pins a snapshot by writing the data revision a capture retained, and
     # a source that only ever takes `data set` retains none: examples/*.data.json can
-    # attach a capture label to a `$captures` file and not to a set value, so
-    # pr-review-facts has no revision for lf-pull-request to name. The manifest, not
-    # this floor, is where that is fixed.
-    unreachable = {("lf-pull-request", "snapshot")}
+    # attach a capture label to a `$captures` file and not to a typed set value, so the
+    # pull-request and visual-run records have no retained revision for their widgets
+    # to name. The manifest, not this floor, is where that is fixed.
+    unreachable = {
+        ("lf-pull-request", "snapshot"),
+        ("lf-visual-review", "snapshot"),
+    }
     missing = []
     for tag, entry in sorted(registry.items()):
         if not tag.startswith("lf-"):

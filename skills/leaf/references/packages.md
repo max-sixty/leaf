@@ -70,7 +70,9 @@ previews, and one typed configuration action; `targeting` lets readers select pr
 elements and submit structured, reversible change proposals; `command-hub` adds multi-agent
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
 description and compact checks table, plus a data-backed unified call diff; `monitoring`
-adds an asymmetric overview, evidence, and exception workspace. `gallery`
+adds an asymmetric overview, evidence, and exception workspace; `visual-review` adds an
+ordered website run, aligned before-and-after evidence, exact preview links, and case
+dispositions. `gallery`
 adds the static gallery of page-edge action controls, disclosure controls, and status
 indicators used only by the developer feature gallery, so ordinary pages do not select it:
 
@@ -83,6 +85,7 @@ leaf page init --package targeting PAGE
 leaf page init --package command-hub PAGE
 leaf page init --package diff --package pr-review PAGE
 leaf page init --package monitoring PAGE
+leaf page init --package visual-review PAGE
 ```
 
 Those two renderers are about 3.2MB, and most pages draw neither, so they travel in

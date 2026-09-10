@@ -691,8 +691,15 @@ export function createResponseSurface({
     clearTimeout(selectionUpdate);
     selectionUpdate = null;
     fabInputTakingFocus = true;
-    if (composerOpen) fabInput.focus({ preventScroll: true });
-    else openComment(structuredClone(fabAnchor), "");
+    if (!composerOpen) {
+      openComment(structuredClone(fabAnchor), "");
+      return;
+    }
+    const anchor = structuredClone(fabAnchor);
+    void fabPositioned().then((positioned) => {
+      if (positioned && composerOpen && sameAnchor(anchor, fabAnchor))
+        fabInput.focus({ preventScroll: true });
+    });
   }
   const fabOptionsAvailable = () =>
     Boolean(fabAnchor && hasOtherResponses(fabAnchor) && responseOptionsAvailable());

@@ -56,6 +56,7 @@ from render_support import (
     compare_with,
     composer_quote,
     data_projection_page,
+    holding,
     leaf_page,
     live_url,
     live_watcher,
@@ -2288,6 +2289,39 @@ def test_floating_ui_loads_only_when_a_reader_opens_a_response(browser, serve):
     ]
     assert errors == []
     context.close()
+
+
+def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
+    """Comment entered from an already-selected passage keeps its focus request while
+    the positioning dependency loads, rather than focusing a still-hidden textarea."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    held = []
+    page.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
+    field = page.locator(".lf-fab-input")
+    try:
+        box = page.locator("#p10").bounding_box()
+        select(
+            page,
+            (box["x"] + 4, box["y"] + 6),
+            (box["x"] + 150, box["y"] + 6),
+        )
+        holding(page, held, 1, "the response placement module")
+        page.keyboard.press("c")
+        expect(field).to_be_hidden()
+        assert page.evaluate("() => document.activeElement === document.body")
+        assert page.evaluate("() => getSelection().toString().length > 0")
+
+        held.pop(0).continue_()
+        page.unroute("**/vendor/floating-ui.esm.js")
+        expect(field).to_be_visible()
+        expect(field).to_be_focused()
+        assert page.evaluate("() => getSelection().toString()") == ""
+        assert errors == []
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        page.close()
 
 
 def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve):

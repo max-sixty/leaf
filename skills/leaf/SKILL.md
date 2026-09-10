@@ -105,6 +105,9 @@ whole state and put each Ask where that state makes it answerable. The visible
 page follows the subject's shape, whether a scrolling document or a workspace;
 `references/page-authoring.md` owns the concrete choices.
 
+The page contract and widget capabilities are choices, not a checklist. Include
+only controls and gestures whose results advance the reader's task.
+
 A page states what is true now, not how it got there. Correct a wrong figure in
 place and drop a superseded claim rather than narrating its withdrawal; the
 `version stamp` changelog and the event log carry the history. Save freely as

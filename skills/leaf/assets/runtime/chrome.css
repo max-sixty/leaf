@@ -239,7 +239,7 @@
    for stillness. */
 @media (prefers-reduced-motion: reduce) {
   .lf-margin-element[data-lf-state="busy"]:not([data-lf-behavior="status"])::after {
-    animation: none; border-style: dotted;
+    animation: none;
   }
 }
 /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
@@ -1334,8 +1334,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      scrolled rather than clipped a few rules down, because it stands alone in a box
      the reader is typing into and has no thread beneath it to bury. */
   .lf-thread .lf-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
-  .lf-quote.detached { border-inline-start-style: dashed;
-    border-inline-start-color: var(--border-2); color: var(--muted-2); cursor: default; }
+  .lf-quote.detached { border-inline-start-color: var(--border-2);
+    color: var(--muted-2); cursor: default; }
   /* Out of the picture, still in the accessibility tree — see the composer's quote in
      paintAnchors for the one thing that wears this and why. */
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
@@ -1369,10 +1369,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-msg-body li { margin: 2px 0; }
   .lf-msg-body pre { padding: 8px 10px; }
   .lf-msg-body blockquote { padding: 2px 10px; }
-  /* A reference to an element this version hasn't got, wearing the same word the
-     quote above wears for the same fact. The whole text-decoration shorthand,
-     because a widget's § reference (lf-ref) undressed its underline and a style
-     alone would paint nothing there. paintAnchors is the one writer. */
+  /* A reference to an element this version hasn't got keeps its underline but
+     changes it to dashed, while muted ink reinforces that its press is disabled.
+     The whole text-decoration shorthand, because a widget's § reference (lf-ref)
+     undressed its underline and a style alone would paint nothing there.
+     paintAnchors is the one writer. */
   .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
   .lf-compose { display: block; margin-top: 8px; }
   .lf-compose textarea { display: block; width: 100%; min-width: 0; }

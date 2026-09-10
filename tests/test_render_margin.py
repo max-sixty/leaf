@@ -2264,7 +2264,7 @@ def test_margin_element_tone_colors_only_the_icon(browser, serve, scheme):
         assert len({reading["icon"] for reading in readings}) == 3
 
     # Busy is the one state that paints, so it is the one state with a shape to read.
-    # This page is emulating `reduce`, where the ring is held still and dotted, so the
+    # This page is emulating `reduce`, where the open ring is held still, so the
     # transform is a settled `none` rather than a sample of a turning one — which is
     # what makes it the reading that catches the override losing to the rule it
     # overrides, a specificity away from turning forever for a reader who asked for
@@ -2272,7 +2272,7 @@ def test_margin_element_tone_colors_only_the_icon(browser, serve, scheme):
     shapes = {
         "idle": None,
         "engaged": None,
-        "busy": ["8px", "8px", "50%", False, "2px", "dotted"],
+        "busy": ["8px", "8px", "50%", False, "2px", "solid"],
         "failed": None,
     }
     for state, shape in shapes.items():

@@ -314,7 +314,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
                 "approvalPolicy": "never",
                 "sandbox": "danger-full-access",
                 "developerInstructions": website_server.CODEX_INSTRUCTIONS,
-                "config": {"model_reasoning_effort": "low"},
+                "config": {"model_reasoning_effort": "none"},
                 "ephemeral": False,
             },
         )

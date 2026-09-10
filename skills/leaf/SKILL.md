@@ -12,8 +12,9 @@ read <id>` to read that same envelope. Then read
 `references/event-batches.md`, the current host contract, and, for reader
 messages, `references/conversation-threads.md`. Process every batch and every
 event. Each event's `obligation.response`, when present, names the explicit Leaf
-operation it required when captured: `leaf reply`, `leaf version stamp`, or `leaf
-receipt`. Recheck current page or conversation state before writing because a
+operation it required when captured: `leaf reply`, a page revision closed with
+`leaf resolve`, or `leaf receipt`. Recheck current page or conversation state
+before writing because a
 later event may already have settled it. A normal assistant final message never
 settles a Leaf obligation. Do not initialize or hand the page over again in
 response to an existing delivery.

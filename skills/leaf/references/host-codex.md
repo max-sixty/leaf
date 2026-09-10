@@ -65,7 +65,8 @@ neither case changes its shape or response rules.
 The Leaf-started turn, its `functionCallOutput`, and Codex's response remain in the
 Codex transcript. The assistant's normal final message is transcript output only.
 It is never copied into a Leaf conversation and never settles a Leaf obligation;
-the task records each required `reply`, `version stamp`, or `receipt` explicitly.
+the task records each required `reply`, `resolve` on the revised page, or
+`receipt` explicitly.
 Keep the CLI open because it is still the interactive client for approvals and
 user input.
 

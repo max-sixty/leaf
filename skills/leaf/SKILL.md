@@ -130,6 +130,8 @@ so a phase does not depend on discovering a chain of references.
 
 ### Author a version
 
+- `references/glossary.md`: before naming or revising reader-facing elements,
+  interaction contexts, navigation, chrome, or view state.
 - `references/page-authoring.md`: before writing or revising any version.
 - `references/authoring-asks.md`: while authoring a new, unanswered ask or
   sign-off.
@@ -163,6 +165,8 @@ so a phase does not depend on discovering a chain of references.
 
 ### Change Leaf itself
 
+- `references/glossary.md`: when changing reader-facing ontology or any identifier
+  governed by it. The agent communication protocol has separate owners below.
 - `references/internals/page-storage.md`: when changing page files or storage
   invariants.
 - `references/internals/session-lifetime.md`: when changing work claims,

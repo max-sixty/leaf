@@ -658,6 +658,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/hooks.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",
+        "skills/leaf/references/glossary.md",
         "skills/leaf/references/authoring-asks.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",

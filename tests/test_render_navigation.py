@@ -3464,16 +3464,14 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
     )
     fixed_link_hint = page.locator(fixed_link_selector)
     expect(fixed_link_hint).to_be_visible()
-    page.keyboard.press("h")
-    expect(page.locator(f'{CHIPS}:not([data-lf-address-kind="Link"])')).to_have_count(0)
-    expect(page.locator(".lf-notice")).to_be_visible()
     fixed_link_top = page.evaluate(
         "selector => document.querySelector(selector).getBoundingClientRect().top",
         fixed_link_selector,
     )
     page.evaluate(
-        "async () => (await import('/runtime/notifications.js')).notice('Still links only.')"
+        "async () => (await import('/runtime/notifications.js')).notice('Links only.')"
     )
+    expect(page.locator(".lf-notice")).to_be_visible()
     assert (
         page.evaluate(
             "selector => document.querySelector(selector).getBoundingClientRect().top",

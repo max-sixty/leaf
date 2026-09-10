@@ -76,11 +76,17 @@ ORDER BY timestamp
 
 Trusted agents use one Cloudflare token for the account that hosts Leaf. Its account
 permissions cover the Leaf runtime: `Account Analytics: Read`, `Workers Scripts:
-Edit`, `Workers Containers: Edit`, `Workers Tail: Read`, and `Workers Observability:
-Write`. Cloudflare scopes Workers permissions to an account rather than one script. If
-the agent also manages the custom domain, its zone permissions cover only `leaf.page`
-and include `Workers Routes: Edit`; the token has no DNS permission. Store the token
-in the agent host's credential store rather than in this repository.
+Edit`, `Workers Containers: Edit`, `Queues: Edit`, `Workers Tail: Read`, and `Workers
+Observability: Write`. Cloudflare scopes Workers permissions to an account rather than
+one script. If the agent also manages the custom domain, its zone permissions cover
+only `leaf.page` and include `Workers Routes: Edit`; the token has no DNS permission.
+Store the token in the agent host's credential store rather than in this repository.
+
+Wrangler does not create a Queue named in a producer or consumer binding. Before the
+first deployment, create the standing `leaf-website-agent` and
+`leaf-website-agent-dev` Queues with `wrangler queues create`; subsequent deploys bind
+the Worker to them. The `cloudflare-deploy` GitHub environment's token also needs
+`Queues: Edit` so Wrangler can attach the production consumer.
 
 Hosted turns also emit structured timing records under `component=leaf-agent`.
 Every request record carries the page's public session reference and canonical event

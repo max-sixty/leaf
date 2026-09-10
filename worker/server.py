@@ -721,27 +721,36 @@ class WebsiteCodexHost:
                 raise
             return False
 
-    def attach(self, page_dir: Path, event_id: str) -> str:
+    def attach(self, page_dir: Path, event_id: str) -> str | None:
         """Create or resume the page's task and deliver its pending reader input."""
         started = time.monotonic()
         log_agent("container_start_received", eventId=event_id)
         try:
             with self.lock:
-                server_started = time.monotonic()
-                process = self._ensure_server()
-                log_agent(
-                    "app_server_available",
-                    eventId=event_id,
-                    durationMs=round((time.monotonic() - server_started) * 1000),
-                )
-                claim = page_claim(page_dir)
-                thread_id = (
-                    claim.get("id") if claim and claim.get("host") == "codex" else None
-                )
-                if thread_id is None or not self._resume_and_start(
-                    page_dir, thread_id, process, event_id
-                ):
-                    thread_id = self._start_thread(page_dir, process, event_id)
+                if not agent_event_pending(page_dir, event_id):
+                    thread_id = None
+                else:
+                    thread_id = agent_event_thread(page_dir, event_id)
+                    if thread_id is None:
+                        server_started = time.monotonic()
+                        process = self._ensure_server()
+                        log_agent(
+                            "app_server_available",
+                            eventId=event_id,
+                            durationMs=round(
+                                (time.monotonic() - server_started) * 1000
+                            ),
+                        )
+                        claim = page_claim(page_dir)
+                        thread_id = (
+                            claim.get("id")
+                            if claim and claim.get("host") == "codex"
+                            else None
+                        )
+                        if thread_id is None or not self._resume_and_start(
+                            page_dir, thread_id, process, event_id
+                        ):
+                            thread_id = self._start_thread(page_dir, process, event_id)
         except (OSError, RuntimeError, ValueError) as error:
             log_agent(
                 "container_start_failed",
@@ -879,12 +888,10 @@ class WebsitePageHandler(Handler):
             self._json({"error": str(error)}, 400)
             return
         if path == AGENT_START_PATH:
-            if not agent_event_pending(self.page_dir, event_id):
+            thread_id = self.agent_host.attach(self.page_dir, event_id)
+            if thread_id is None:
                 self._json({"status": "settled"})
                 return
-            thread_id = agent_event_thread(self.page_dir, event_id)
-            if thread_id is None:
-                thread_id = self.agent_host.attach(self.page_dir, event_id)
             self._json({"status": "started", "thread": thread_id})
             return
 

@@ -96,10 +96,10 @@ publication, reply, HTML, first contentful paint, JavaScript, state, upgrade, an
 presentation timings. It stops every process and removes the disposable reader page
 when it finishes.
 
-This fast loop bypasses the Cloudflare Worker, Workflow, container allocation and
+This fast loop bypasses the Cloudflare Worker, Queue, container allocation and
 resource limits, and outbound credential proxy. When a change touches one of those
 boundaries and `OPENAI_API_KEY` is exported, build the Worker and run the same check
-through Wrangler's local Workflow and Docker container:
+through Wrangler's local Queue and Docker container:
 
 ```bash
 npm ci --prefix <root>/worker

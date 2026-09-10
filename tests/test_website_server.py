@@ -84,7 +84,12 @@ class FakeCodexHost:
     def __init__(self):
         self.attached = []
 
-    def attach(self, page_dir: Path, event_id: str) -> str:
+    def attach(self, page_dir: Path, event_id: str) -> str | None:
+        if not website_server.agent_event_pending(page_dir, event_id):
+            return None
+        thread_id = website_server.agent_event_thread(page_dir, event_id)
+        if thread_id is not None:
+            return thread_id
         self.attached.append(page_dir)
         return "codex-thread"
 
@@ -447,6 +452,7 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         tmp_path / "app-server.log",
     )
     process = type("Process", (), {"pid": 41})()
+    monkeypatch.setattr(website_server, "agent_event_pending", lambda *_: True)
     monkeypatch.setattr(host, "_ensure_server", lambda: process)
     monkeypatch.setattr(
         website_server,
@@ -829,6 +835,7 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
     fail_prewarm = threading.Event()
     calls = []
     process = type("Process", (), {"pid": 41})()
+    monkeypatch.setattr(website_server, "agent_event_pending", lambda *_: True)
 
     def ensure_server():
         calls.append(None)
@@ -856,6 +863,54 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
 
     assert attached == ["hosted-thread"]
     assert calls == [None, None]
+
+
+def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
+    host = website_server.WebsiteCodexHost("codex")
+    process = type("Process", (), {"pid": 41})()
+    started = threading.Event()
+    release = threading.Event()
+    second_called = threading.Event()
+    accepted = []
+    start_calls = []
+
+    monkeypatch.setattr(website_server, "agent_event_pending", lambda *_: True)
+    monkeypatch.setattr(
+        website_server,
+        "agent_event_thread",
+        lambda *_: accepted[0] if accepted else None,
+    )
+    monkeypatch.setattr(host, "_ensure_server", lambda: process)
+    monkeypatch.setattr(website_server, "page_claim", lambda page: None)
+
+    def start_thread(*args):
+        start_calls.append(None)
+        started.set()
+        release.wait(timeout=2)
+        accepted.append("hosted-thread")
+        return "hosted-thread"
+
+    monkeypatch.setattr(host, "_start_thread", start_thread)
+    attached = []
+    first = threading.Thread(
+        target=lambda: attached.append(host.attach(page_dir, "reader-event"))
+    )
+
+    def attach_second():
+        second_called.set()
+        attached.append(host.attach(page_dir, "reader-event"))
+
+    second = threading.Thread(target=attach_second)
+    first.start()
+    assert started.wait(timeout=2)
+    second.start()
+    assert second_called.wait(timeout=2)
+    release.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert attached == ["hosted-thread", "hosted-thread"]
+    assert start_calls == [None]
 
 
 def test_the_website_host_prewarms_app_server_in_the_background(monkeypatch):

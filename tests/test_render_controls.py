@@ -265,6 +265,16 @@ CONTROL_ROW_PRESS = (
 CONTROL_ROW_NEIGHBOUR = CONTROL_ROW_PRESS + ", a[href]"
 
 
+def _pause_gallery_swipe(page):
+    """Expose the live swipe controls and hold the card in its unseen pile."""
+    page.get_by_role("tab", name="Swipe a card", exact=True).click()
+    status = page.locator("#bg-interactions [data-interaction-status]")
+    expect(status).to_have_text("Swipe a card · Playing")
+    page.locator("#bg-interactions [data-interaction-toggle]").click()
+    expect(status).to_have_text("Swipe a card · Paused")
+    expect(page.locator("#bg-motion-swipe-queue > lf-swipe-card")).to_have_count(1)
+
+
 def _touch_drag(cdp, x, y, *, dx=0, dy=0, steps=14):
     """Send the touch stream a device produces, through Chromium's input boundary."""
     x, y = round(x), round(y)
@@ -2089,12 +2099,8 @@ def test_the_composed_corpus_declares_every_control_row_archetype(browser, serve
     page.evaluate(DEFINE_BOXES)
     observed = set()
     undeclared = []
-    labels = page.locator("#corpus > lf-tab").evaluate_all(
-        "tabs => tabs.map(tab => tab.getAttribute('label'))"
-    )
-    assert labels, "the composed corpus has no panels to sweep"
-    for tab_label in labels:
-        page.get_by_role("tab", name=tab_label, exact=True).click()
+
+    def collect_controls(state):
         controls = page.locator(CONTROL_ROW_PRESS)
         for index in range(controls.count()):
             control = controls.nth(index)
@@ -2117,8 +2123,19 @@ def test_the_composed_corpus_declares_every_control_row_archetype(browser, serve
                 "        + JSON.stringify((el.textContent || '').trim().slice(0, 24))"
             )
             if len(matches) != 1:
-                undeclared.append(f"{tab_label}: {label}: {matches or 'no archetype'}")
+                undeclared.append(f"{state}: {label}: {matches or 'no archetype'}")
             observed.update(matches)
+
+    labels = page.locator("#corpus > lf-tab").evaluate_all(
+        "tabs => tabs.map(tab => tab.getAttribute('label'))"
+    )
+    assert labels, "the composed corpus has no panels to sweep"
+    for tab_label in labels:
+        page.get_by_role("tab", name=tab_label, exact=True).click()
+        collect_controls(tab_label)
+        if tab_label == "Features":
+            _pause_gallery_swipe(page)
+            collect_controls("Features > Swipe a card")
 
     assert not undeclared, (
         "controls with neighbours need one archetype:\n  " + "\n  ".join(undeclared)
@@ -4743,8 +4760,8 @@ RING_WALKS = (
         (),
         (
             "corpus",
-            "design-decision",
-            "postmortem",
+            "feature-gallery",
+            "heat-loss",
             "pr-walkthrough",
             "release-notes",
             "triage-board",
@@ -4773,6 +4790,14 @@ RING_WALKS = (
         ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
         ("corpus", "ship-review"),
     ),
+    # These controls live behind exact page-owned view states. Give each one a focused
+    # stop rather than changing the active panel for the whole page walk: selecting a
+    # late outer corpus tab would make its preceding until-found panels part of that
+    # sequential walk, and a playing gallery would move the swipe card before Tab arrived.
+    ("a settled decision", (), ("corpus",)),
+    ("a settled option", (), ("corpus",)),
+    ("a swipe card", (), ("feature-gallery",)),
+    ("a contents link", (), ("feature-gallery",)),
     ("the comments", ("c",), ("ship-review",)),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip
@@ -4798,7 +4823,7 @@ RING_WALKS = (
 )
 # The corpus is the open-ended page and design-mode anchor. The authored pages now
 # give each interaction family a focused page, so the page walk names those owners:
-# Design contributes settled and joined options, Postmortem a visual target, PR source
+# The gallery contributes option shapes, Heat a visual target, PR source
 # and code, Release drafts and a shot, Triage a card grip, Ship the log-hosted widgets
 # and element mark, and the developer gallery its message media. Chrome with no
 # page-owned contents is walked on the corpus.
@@ -4860,23 +4885,43 @@ RING_SCOPE_CONTROL = {
         ".lf-react-strip > .lf-react-trigger",
         ".lf-react-strip.lf-react-open > .lf-react-palette > .lf-react",
     ),
+    "a settled decision": (
+        None,
+        "#comparison-policy[settled] > .lf-settled",
+    ),
+    "a settled option": (
+        None,
+        "#comparison-policy[settled] > lf-option > .lf-pick",
+    ),
+    "a swipe card": (None, "#bg-motion-swipe-card"),
+    "a contents link": (None, "#bg-contents li a"),
 }
-# The window a scope's own surface stands in, where that is not the walk's own. Both
-# entries are a floor the layer states rather than a preference: the Map control is drawn
-# under the margin's breakpoint and nowhere else, while the thread-card walk uses the
-# wider room where Ship review can stand its card beside the source instead of overlaying
-# the page. Ship review stands a contents map, so that beside posture waits for 1472px of
-# shell rather than 1208px (theme.css). Every other scope is read at the width the page
-# opened at.
+# The window a scope's own surface stands in, where that is not the walk's own. These
+# entries are floors the layer states rather than preferences: the Map control is drawn
+# under the margin's breakpoint and nowhere else, while the contents-link and thread-card
+# walks use the wider room where their page-margin surfaces stand beside the source. Ship
+# review stands a contents map too, so that beside posture waits for 1472px of shell
+# rather than 1208px (theme.css). Every other scope is read at the width the page opened
+# at.
 RING_WALK_VIEWPORT = (1200, 900)
-# The one scope whose surface the standing panel takes the place of.
-RING_SCOPES_WITHOUT_PANEL = {"a thread card"}
-RING_SCOPE_WIDTH = {"a thread card": 1600, "the page map sheet": 760}
+# Scopes whose page-margin surfaces the standing panel takes the place of.
+RING_SCOPES_WITHOUT_PANEL = {"a contents link", "a thread card"}
+RING_SCOPE_WIDTH = {
+    "a contents link": 1600,
+    "a thread card": 1600,
+    "the page map sheet": 760,
+}
 # Message media exists only in the developer gallery's seeded conversation. Its direct
 # control setup is the causal ring specimen; walking all 250+ unrelated gallery stops
 # after reading it adds no evidence and can keep the page's moving margin perpetually
 # outside the settled probe.
-RING_SINGLE_STOPS = {"message media"}
+RING_SINGLE_STOPS = {
+    "a settled decision",
+    "a settled option",
+    "a swipe card",
+    "a contents link",
+    "message media",
+}
 # Focus put back at the document's start. `document.body.focus()` and not a blur: a blur
 # leaves the sequential focus navigation starting point where the blurred control stood,
 # so the next Tab carries on from the chrome, runs off the end of the order and never
@@ -5192,17 +5237,25 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             # A draft editor and captured source are conditional chrome: Tab can stand
             # on them only after their explicit doors have opened. Do that after the
             # scope reset, whose Escape presses would otherwise put the draft away.
+            if scope in {"a settled decision", "a settled option"}:
+                page.get_by_role(
+                    "tab", name="Current Proposed Comparison", exact=True
+                ).click()
+                settled = page.locator("#comparison-policy[settled] > .lf-settled")
+                expect(settled).to_be_visible()
+                if settled.get_attribute("aria-expanded") != "true":
+                    settled.click()
+            elif scope == "a swipe card":
+                _pause_gallery_swipe(page)
             if scope == "the page":
                 pencil = page.locator(".lf-draft-controls .lf-draft-pencil").first
                 if pencil.count() and pencil.is_visible():
                     pencil.click()
-                source = page.locator("details:has(lf-source)").first
-                if (
-                    source.count()
-                    and source.is_visible()
-                    and not source.get_attribute("open")
-                ):
-                    source.locator(":scope > summary").click()
+                # A source can sit behind nested disclosures. Open each visible ancestor
+                # in document order so the innermost source becomes a real Tab stop.
+                for source in page.locator("details:has(lf-source)").all():
+                    if source.is_visible() and not source.get_attribute("open"):
+                        source.locator(":scope > summary").click()
             page.evaluate(RING_WALK_START)
             # Threads and a target's own Thread card are one surface offered two ways:
             # with the panel standing, a thread margin element sends the reader there instead of
@@ -5237,7 +5290,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 # target and the walk wants a card rather than a particular one.
                 if opener:
                     page.locator(opener).first.click()
-                page.locator(arrival).first.focus()
+                target = page.locator(arrival).first
+                expect(target).to_be_visible()
+                target.focus()
                 # A press opened the scope and a script placed the reader in it, and
                 # neither is the keyboard: `:focus-visible` answers the input device, so
                 # a control arrived at that way wears no ring and reads exactly like one
@@ -5361,6 +5416,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 for _ in range(3):
                     page.keyboard.press("Escape")
                 resized(page, *RING_WALK_VIEWPORT)
+                page_at_rest(page)
+            if scope in {"a settled decision", "a settled option"}:
+                page.get_by_role("tab", name="Triage", exact=True).click()
                 page_at_rest(page)
 
         for declared in page.evaluate(RING_NAMES):

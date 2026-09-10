@@ -21,8 +21,8 @@
           <p class="eyebrow">live operations · rehearsal 4 of 5</p>
           <h1>Checkout cutover rehearsal</h1>
           <p class="lede" id="lp-lede">
-            Checkout is stable on the old service. The evidence stream is still moving,
-            while one finance-export exception needs a containment decision.
+            Checkout is stable on the old service and rollback is proved. The next step
+            waits while one finance-export exception needs a containment decision.
           </p>
         </header>
 
@@ -56,14 +56,14 @@
             </lf-roster>
           </lf-monitor-region>
 
-          <lf-monitor-region id="lp-evidence" label="Evidence stream" zone="evidence">
-            <header><h2>Evidence stream</h2></header>
+          <lf-monitor-region id="lp-evidence" label="Run log" zone="evidence">
+            <header><h2>Captured run log</h2></header>
             <p id="lp-evidence-note">
-              New samples append here without replacing the overview or the decision.
-              The stream follows the current <code>rehearsal-log</code> data source.
+              This snapshot ends at 14:24:44. During a rehearsal, new samples appear
+              here while the overview and containment choice stay in place.
             </p>
             <lf-source id="lp-live-log" source="rehearsal-log"></lf-source>
-            <footer>Newest samples are at the end of the stream.</footer>
+            <footer>Newest samples appear at the end.</footer>
           </lf-monitor-region>
 
           <lf-monitor-region id="lp-exception" label="Exception" zone="exception">
@@ -107,8 +107,7 @@
         </lf-monitor-grid>
 
         <footer>
-          The overview is authored; the evidence stream is replaceable page data; the
-          containment choices are event-backed reader state.
+          Checkout can remain on the old service while Finance contains the export gap.
         </footer>
       </lf-monitor>
     </main>

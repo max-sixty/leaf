@@ -21,8 +21,8 @@
           <p class="eyebrow">live operations · rehearsal 4 of 5</p>
           <h1>Checkout cutover rehearsal</h1>
           <p class="lede" id="lp-lede">
-            Rollback is still running. The page keeps the overview, evidence, and one
-            finance exception visible while the rehearsal changes underneath them.
+            Rollback is in progress and checkout guardrails remain green. One finance
+            exception needs a containment decision before export resumes.
           </p>
         </header>
         <lf-monitor-grid id="lp-regions">
@@ -56,13 +56,14 @@
               </lf-agent>
             </lf-roster>
           </lf-monitor-region>
-          <lf-monitor-region id="lp-evidence" label="Evidence stream" zone="evidence">
-            <header><h2>Evidence stream</h2></header>
+          <lf-monitor-region id="lp-evidence" label="Run log" zone="evidence">
+            <header><h2>Captured run log</h2></header>
             <p id="lp-evidence-note">
-              New samples append here without replacing the overview or the decision.
+              This snapshot records the rehearsal through 14:24:44. Later samples can
+              replace it without displacing the overview or the containment choice.
             </p>
             <lf-source id="lp-live-log" source="rehearsal-log"></lf-source>
-            <footer>Newest samples are at the end of the stream.</footer>
+            <footer>Newest samples appear at the end.</footer>
           </lf-monitor-region>
           <lf-monitor-region id="lp-exception" label="Exception" zone="exception">
             <header><h2>Exception</h2></header>
@@ -102,8 +103,7 @@
           </lf-monitor-region>
         </lf-monitor-grid>
         <footer>
-          The overview is authored; the evidence stream is replaceable page data; the
-          containment choices are event-backed reader state.
+          Checkout remains on the old service while the rollback proof completes.
         </footer>
       </lf-monitor>
     </main>

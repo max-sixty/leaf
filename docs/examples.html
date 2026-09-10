@@ -28,6 +28,7 @@
     <link rel="stylesheet" href="/theme.css" />
     <style>
       body.examples-page main {
+        width: min(var(--wide), var(--lf-room));
         max-width: var(--wide);
       }
       .catalog-prose {
@@ -102,8 +103,8 @@
         padding: 0;
         list-style: none;
       }
-      .example-catalog > li:nth-child(even) {
-        margin-top: 56px;
+      .specialized-catalog {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
       .example-link {
         display: block;
@@ -193,9 +194,7 @@
           grid-template-columns: minmax(0, 1fr);
           gap: 48px;
         }
-        .example-catalog > li:nth-child(even) {
-          margin-top: 0;
-        }
+
         .developer-galleries {
           margin-block: 72px 64px;
           padding-top: 28px;
@@ -221,142 +220,35 @@
 
       <header class="hero catalog-prose" id="top">
         <p class="eyebrow">examples</p>
-        <h1>See the whole page</h1>
+        <h1>A page for the next step</h1>
         <p class="lede" id="lede">
-          Worked examples, each previewed from its own browser view. Pick a page by what
-          it looks like, then open the complete, working version at full size.
+          A Leaf can be one short proposal, a draft, or a board. These six examples show
+          the everyday work; specialized pages go further below.
         </p>
         <p id="live">
-          Each example has its own information shape, rhythm, and job to do. Open one to
-          get a private browser session; an agent joins the loop when you
-          <a href="#run">run it from a checkout</a>.
+          Open an example to try its controls in a private browser session.
+          <a href="#run">Run it from a checkout</a> to work with your own agent.
         </p>
       </header>
 
       <section class="catalog" id="pages" aria-labelledby="pages-title">
         <div class="catalog-prose">
-          <p class="eyebrow">the catalog</p>
-          <h2 id="pages-title">Worked pages</h2>
+          <h2 id="pages-title">Start here</h2>
         </div>
-        <ol class="example-catalog">
+        <ul class="example-catalog">
           <li>
-            <a class="example-link" href="/examples/design-decision/">
+            <a class="example-link" href="/examples/triage-board/">
               <span class="example-preview">
-                <img src="/media/0f534c3e7d742784.jpg" alt="" fetchpriority="high" />
+                <img src="/media/086de7603b0e0e07.jpg" alt="" fetchpriority="high" />
               </span>
               <span class="example-caption">
-                <span class="example-index">01 · architecture decision</span>
+                <span class="example-index">Plan a release</span>
                 <span class="example-title" role="heading" aria-level="3"
-                  >Design decision</span
+                  >Triage board</span
                 >
                 <span class="example-description">
-                  Compare two operating regimes, weigh their consequences, and choose
-                  where session state should live after a monolith split.
-                </span>
-                <span class="example-open"
-                  >Open full page <span aria-hidden="true">↗</span></span
-                >
-              </span>
-            </a>
-          </li>
-
-          <li>
-            <a class="example-link" href="/examples/security-boundary/">
-              <span class="example-preview">
-                <img src="/media/ba6ddf996e0f4e21.jpg" alt="" loading="lazy" />
-              </span>
-              <span class="example-caption">
-                <span class="example-index">02 · security architecture</span>
-                <span class="example-title" role="heading" aria-level="3"
-                  >Security boundary</span
-                >
-                <span class="example-description">
-                  Trace principals, states, and four policy bottlenecks from a live
-                  threat model through an independently reviewed implementation.
-                </span>
-                <span class="example-open"
-                  >Open full page <span aria-hidden="true">↗</span></span
-                >
-              </span>
-            </a>
-          </li>
-
-          <li>
-            <a class="example-link" href="/examples/heat-loss/">
-              <span class="example-preview">
-                <img src="/media/530deffd6a18e153.jpg" alt="" loading="lazy" />
-              </span>
-              <span class="example-caption">
-                <span class="example-index">03 · analytical story</span>
-                <span class="example-title" role="heading" aria-level="3"
-                  >Heating review</span
-                >
-                <span class="example-description">
-                  Turn one winter of meter readings into a five-chart argument for the
-                  first retrofit worth booking.
-                </span>
-                <span class="example-open"
-                  >Open full page <span aria-hidden="true">↗</span></span
-                >
-              </span>
-            </a>
-          </li>
-
-          <li>
-            <a class="example-link" href="/examples/live-progress/">
-              <span class="example-preview">
-                <img src="/media/1205b0d52c4f8c03.jpg" alt="" loading="lazy" />
-              </span>
-              <span class="example-caption">
-                <span class="example-index">04 · live operations</span>
-                <span class="example-title" role="heading" aria-level="3"
-                  >Live progress</span
-                >
-                <span class="example-description">
-                  Keep a rollback overview, changing evidence, and one finance exception
-                  in view while the decision survives later updates.
-                </span>
-                <span class="example-open"
-                  >Open full page <span aria-hidden="true">↗</span></span
-                >
-              </span>
-            </a>
-          </li>
-
-          <li>
-            <a class="example-link" href="/examples/postmortem/">
-              <span class="example-preview">
-                <img src="/media/ecc718973ba610a2.jpg" alt="" loading="lazy" />
-              </span>
-              <span class="example-caption">
-                <span class="example-index">05 · incident account</span>
-                <span class="example-title" role="heading" aria-level="3"
-                  >Postmortem</span
-                >
-                <span class="example-description">
-                  Follow one bad export job through its failure loop, customer impact,
-                  chronology, and corrective work.
-                </span>
-                <span class="example-open"
-                  >Open full page <span aria-hidden="true">↗</span></span
-                >
-              </span>
-            </a>
-          </li>
-
-          <li>
-            <a class="example-link" href="/examples/pr-walkthrough/">
-              <span class="example-preview">
-                <img src="/media/bb554de2c57b4563.jpg" alt="" loading="lazy" />
-              </span>
-              <span class="example-caption">
-                <span class="example-index">06 · code review</span>
-                <span class="example-title" role="heading" aria-level="3"
-                  >PR walkthrough</span
-                >
-                <span class="example-description">
-                  Review a data-sourced PR through agent orientation, commentable
-                  diagrams, a call diff, the captured patch, and explicit evidence.
+                  Set the release order for four defects. Keep the data-risk fix ahead
+                  of the cosmetic work.
                 </span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
@@ -368,16 +260,16 @@
           <li>
             <a class="example-link" href="/examples/release-notes/">
               <span class="example-preview">
-                <img src="/media/b4a2685df5c17626.jpg" alt="" loading="lazy" />
+                <img src="/media/0c9e05624a11f1a9.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
-                <span class="example-index">07 · editorial workbench</span>
+                <span class="example-index">Edit a draft</span>
                 <span class="example-title" role="heading" aria-level="3"
                   >Release notes</span
                 >
                 <span class="example-description">
-                  Rewrite four notes, decide proposed changes in the margin, and flip
-                  the release's visual before-and-after.
+                  Rewrite a release note and accept or reject a proposed edit beside the
+                  words it changes.
                 </span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
@@ -387,18 +279,18 @@
           </li>
 
           <li>
-            <a class="example-link" href="/examples/triage-board/">
+            <a class="example-link" href="/examples/log-retention/">
               <span class="example-preview">
-                <img src="/media/e7cd674d07e447a6.jpg" alt="" loading="lazy" />
+                <img src="/media/1d961286ae88004f.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
-                <span class="example-index">08 · release planning</span>
+                <span class="example-index">Revise a proposal</span>
                 <span class="example-title" role="heading" aria-level="3"
-                  >Triage board</span
+                  >Log retention</span
                 >
                 <span class="example-description">
-                  Assign six defects to ship windows on one wide board, then revise the
-                  release plan by dragging the work itself.
+                  A reader spots an exception to a storage cut. The revised proposal
+                  keeps the comment beside the changed passage.
                 </span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
@@ -407,6 +299,145 @@
             </a>
           </li>
 
+          <li>
+            <a class="example-link" href="/examples/ship-review/">
+              <span class="example-preview">
+                <img src="/media/8f24da92f1d8bd7f.jpg" alt="" loading="lazy" />
+              </span>
+              <span class="example-caption">
+                <span class="example-index">Finish a review</span>
+                <span class="example-title" role="heading" aria-level="3"
+                  >Ship review</span
+                >
+                <span class="example-description">
+                  Follow the reconnect objection and accepted workaround, then confirm
+                  the remaining follow-up work in the thread.
+                </span>
+                <span class="example-open"
+                  >Open full page <span aria-hidden="true">↗</span></span
+                >
+              </span>
+            </a>
+          </li>
+
+          <li>
+            <a class="example-link" href="/examples/heat-loss/">
+              <span class="example-preview">
+                <img src="/media/4dcd2cec1958905e.jpg" alt="" loading="lazy" />
+              </span>
+              <span class="example-caption">
+                <span class="example-index">Read the evidence</span>
+                <span class="example-title" role="heading" aria-level="3"
+                  >Heating review</span
+                >
+                <span class="example-description">
+                  Compare heat loss, cost, and disruption before choosing the first home
+                  improvement to book.
+                </span>
+                <span class="example-open"
+                  >Open full page <span aria-hidden="true">↗</span></span
+                >
+              </span>
+            </a>
+          </li>
+
+          <li>
+            <a class="example-link" href="/examples/notification-playground/">
+              <span class="example-preview">
+                <img src="/media/0648cec5eb899bc2.jpg" alt="" loading="lazy" />
+              </span>
+              <span class="example-caption">
+                <span class="example-index">Shape the result</span>
+                <span class="example-title" role="heading" aria-level="3"
+                  >Deployment notification</span
+                >
+                <span class="example-description">
+                  Adjust a deployment notification beside its live preview, then send
+                  the configuration to the agent.
+                </span>
+                <span class="example-open"
+                  >Open full page <span aria-hidden="true">↗</span></span
+                >
+              </span>
+            </a>
+          </li>
+        </ul>
+      </section>
+
+      <section class="catalog" id="specialized" aria-labelledby="specialized-title">
+        <div class="catalog-prose">
+          <h2 id="specialized-title">Specialized examples</h2>
+          <p>
+            Longer investigations and workspaces for code review, operations, and
+            architecture.
+          </p>
+        </div>
+        <ul class="example-catalog specialized-catalog">
+          <li>
+            <a class="example-link" href="/examples/live-progress/">
+              <span class="example-preview">
+                <img src="/media/6651f72aa04c1333.jpg" alt="" loading="lazy" />
+              </span>
+              <span class="example-caption">
+                <span class="example-index">Monitor a rehearsal</span>
+                <span class="example-title" role="heading" aria-level="3"
+                  >Live progress</span
+                >
+                <span class="example-description">
+                  Keep rollback evidence and the unresolved finance exception in view
+                  while choosing containment safeguards.
+                </span>
+                <span class="example-open"
+                  >Open full page <span aria-hidden="true">↗</span></span
+                >
+              </span>
+            </a>
+          </li>
+
+          <li>
+            <a class="example-link" href="/examples/pr-walkthrough/">
+              <span class="example-preview">
+                <img src="/media/8cdf961b7431f7a7.jpg" alt="" loading="lazy" />
+              </span>
+              <span class="example-caption">
+                <span class="example-index">Review a real change</span>
+                <span class="example-title" role="heading" aria-level="3"
+                  >PR walkthrough</span
+                >
+                <span class="example-description">
+                  Inspect a Worktrunk change through its captured patch, diagrams, and
+                  review evidence.
+                </span>
+                <span class="example-open"
+                  >Open full page <span aria-hidden="true">↗</span></span
+                >
+              </span>
+            </a>
+          </li>
+
+          <li>
+            <a class="example-link" href="/examples/security-boundary/">
+              <span class="example-preview">
+                <img src="/media/cee92f8d66037e0c.jpg" alt="" loading="lazy" />
+              </span>
+              <span class="example-caption">
+                <span class="example-index">Study an architecture</span>
+                <span class="example-title" role="heading" aria-level="3"
+                  >Security boundary</span
+                >
+                <span class="example-description">
+                  A detailed case study of disposable agent workspaces, from threat
+                  model to implementation and review.
+                </span>
+                <span class="example-open"
+                  >Open full page <span aria-hidden="true">↗</span></span
+                >
+              </span>
+            </a>
+          </li>
+          <!-- TODO(2026-09-09): Return Command Hub to the specialized catalog after
+               simplifying its initial task/agent/worktree view and making the stopped
+               goal and next action understandable without platform context.
           <li>
             <a class="example-link" href="/examples/command-hub/">
               <span class="example-preview">
@@ -427,111 +458,8 @@
               </span>
             </a>
           </li>
-
-          <li>
-            <a class="example-link" href="/examples/ship-review/">
-              <span class="example-preview">
-                <img src="/media/155e0d8141782c68.jpg" alt="" loading="lazy" />
-              </span>
-              <span class="example-caption">
-                <span class="example-index">10 · readiness review</span>
-                <span class="example-title" role="heading" aria-level="3"
-                  >Ship review</span
-                >
-                <span class="example-description">
-                  Enter mid-conversation on the one iOS reconnect objection that could
-                  still hold an offline-editing patch.
-                </span>
-                <span class="example-open"
-                  >Open full page <span aria-hidden="true">↗</span></span
-                >
-              </span>
-            </a>
-          </li>
-
-          <li>
-            <a class="example-link" href="/examples/log-retention/">
-              <span class="example-preview">
-                <img src="/media/6074d20e89ce09e6.jpg" alt="" loading="lazy" />
-              </span>
-              <span class="example-caption">
-                <span class="example-index">11 · revised proposal</span>
-                <span class="example-title" role="heading" aria-level="3"
-                  >Log retention</span
-                >
-                <span class="example-description">
-                  Read the second version of a storage cut, mark what changed since the
-                  first, and find the comment that changed it still on its passage.
-                </span>
-                <span class="example-open"
-                  >Open full page <span aria-hidden="true">↗</span></span
-                >
-              </span>
-            </a>
-          </li>
-          <li>
-            <a class="example-link" href="/examples/notification-playground/">
-              <span class="example-preview">
-                <img src="/media/1867d956581ee1b6.jpg" alt="" loading="lazy" />
-              </span>
-              <span class="example-caption">
-                <span class="example-index">12 · configuration workspace</span>
-                <span class="example-title" role="heading" aria-level="3"
-                  >Deployment notification</span
-                >
-                <span class="example-description">
-                  Tune a notification beside its preview, then ask the agent to create a
-                  local HTML artifact you can inspect and refine.
-                </span>
-                <span class="example-open"
-                  >Open full page <span aria-hidden="true">↗</span></span
-                >
-              </span>
-            </a>
-          </li>
-
-          <li>
-            <a class="example-link" href="/examples/review-queue/">
-              <span class="example-preview">
-                <img src="/media/c8d489012db50e90.jpg" alt="" loading="lazy" />
-              </span>
-              <span class="example-caption">
-                <span class="example-index">13 · queue and detail</span>
-                <span class="example-title" role="heading" aria-level="3"
-                  >Release review queue</span
-                >
-                <span class="example-description">
-                  Keep the release queue beside its evidence, follow an item into its
-                  detail, and comment where a concern belongs.
-                </span>
-                <span class="example-open"
-                  >Open full page <span aria-hidden="true">↗</span></span
-                >
-              </span>
-            </a>
-          </li>
-
-          <li>
-            <a class="example-link" href="/examples/current-proposed-comparison/">
-              <span class="example-preview">
-                <img src="/media/6bee9e58b07ea383.jpg" alt="" loading="lazy" />
-              </span>
-              <span class="example-caption">
-                <span class="example-index">14 · side-by-side decision</span>
-                <span class="example-title" role="heading" aria-level="3"
-                  >Authentication retry comparison</span
-                >
-                <span class="example-description">
-                  Compare current and proposed retry behavior together, discuss either
-                  result in place, and retain the chosen policy in the next revision.
-                </span>
-                <span class="example-open"
-                  >Open full page <span aria-hidden="true">↗</span></span
-                >
-              </span>
-            </a>
-          </li>
-        </ol>
+          -->
+        </ul>
       </section>
 
       <section class="catalog-prose" id="run">

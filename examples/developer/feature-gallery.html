@@ -859,6 +859,22 @@ run, baseline, candidate
 3, 9, 12
 </pre>
           </lf-chart>
+          <lf-chart id="bg-chart-bars" kind="bars" y="checks complete">
+            <pre>
+run, checks
+first, 5
+second, 9
+third, 12
+</pre>
+          </lf-chart>
+          <lf-chart id="bg-chart-stack" kind="stack" y="checks">
+            <pre>
+run, passed, failed
+first, 5, 3
+second, 9, 2
+third, 12, 0
+</pre>
+          </lf-chart>
         </section>
 
         <section id="bg-diagrams">
@@ -936,18 +952,60 @@ gallery/
             <strong>Chips</strong
             ><span class="bg-feature-detail">: parallel alternatives</span>
           </h3>
+          <aside class="sidenote" id="bg-compare-note">
+            Short variants share a row. Paragraphs make the alternatives stack. Resize
+            the page with Threads open to see this note return to the text flow.
+          </aside>
           <p id="bg-compare-guide">
             Compare gives each Variant the same frame. Chips label short attributes.
           </p>
           <lf-compare id="bg-compare">
             <lf-variant id="bg-variant-paper">
-              <lf-chip>power: none</lf-chip><lf-chip tone="ok">weight: low</lf-chip>
-              <strong>Paper map</strong> Easy to annotate and fold.
+              <lf-chip id="bg-chip-power">power: none</lf-chip
+              ><lf-chip tone="ok">weight: low</lf-chip> <strong>Paper map</strong> Easy
+              to annotate and fold.
             </lf-variant>
             <lf-variant id="bg-variant-screen">
               <lf-chip>power: daily</lf-chip
               ><lf-chip tone="warn">weight: medium</lf-chip>
               <strong>Tablet map</strong> Searchable and backlit.
+            </lf-variant>
+          </lf-compare>
+          <table id="bg-route-distances">
+            <caption>
+              Route distances — numeric columns align on the right
+            </caption>
+            <thead>
+              <tr>
+                <th>Route</th>
+                <th scope="col">Distance (km)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Courtyard loop</th>
+                <td class="num">1.4</td>
+              </tr>
+              <tr>
+                <th scope="row">Riverside path</th>
+                <td class="num">12.6</td>
+              </tr>
+            </tbody>
+          </table>
+          <lf-compare id="bg-compare-prose">
+            <lf-variant id="bg-variant-paper-detail">
+              <strong>Paper on the trail</strong>
+              <p>
+                Mark the route before leaving. The map stays readable when the battery
+                runs out.
+              </p>
+            </lf-variant>
+            <lf-variant id="bg-variant-screen-detail">
+              <strong>Screen at a junction</strong>
+              <p>
+                Search the nearest stop and update the route. Carry enough power for the
+                return journey.
+              </p>
             </lf-variant>
           </lf-compare>
         </section>
@@ -984,6 +1042,9 @@ gallery/
           <lf-timeline id="bg-timeline">
             <lf-event id="bg-event-alert" at="09:14" kind="warning">
               <strong>Rain started</strong> The open path became slippery.
+            </lf-event>
+            <lf-event id="bg-event-closed" at="09:18" kind="failure">
+              <strong>Path closed</strong> Standing water blocked the crossing.
             </lf-event>
             <lf-event id="bg-event-switch" at="09:20" kind="action">
               <strong>Route changed</strong> The sample moved under cover.

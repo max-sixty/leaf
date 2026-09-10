@@ -34,7 +34,7 @@ const pages = {
   "/": page("product"),
   "/examples": page("product"),
   "/packages": page("product"),
-  "/examples/design-decision": page("example"),
+  "/examples/triage-board": page("example"),
 };
 const route = (pathname: string) => pageRoute(pathname, pages);
 
@@ -44,39 +44,39 @@ describe("website page routing", () => {
     expect(route("/api/state")).not.toBeNull();
     expect(route("/examples/")).not.toBeNull();
     expect(isPageApiRequest(route("/examples/api/state"))).toBe(true);
-    expect(isPageApiRequest(route("/examples/design-decision/api/state"))).toBe(true);
-    expect(isPageApiRequest(route("/examples/design-decision/runtime/state-feed.js"))).toBe(false);
+    expect(isPageApiRequest(route("/examples/triage-board/api/state"))).toBe(true);
+    expect(isPageApiRequest(route("/examples/triage-board/runtime/state-feed.js"))).toBe(false);
     expect(isPageSessionFileRequest(route("/media/upload.png"))).toBe(true);
     expect(
       isPageSessionFileRequest(
-        route("/examples/design-decision/revisions/r3-aabbccdd.html"),
+        route("/examples/triage-board/revisions/r3-aabbccdd.html"),
       ),
     ).toBe(true);
     expect(
-      isPageSessionFileRequest(route("/examples/design-decision/versions/v3.html")),
+      isPageSessionFileRequest(route("/examples/triage-board/versions/v3.html")),
     ).toBe(true);
     expect(
-      isPageSessionFileRequest(route("/examples/design-decision/theme.css")),
+      isPageSessionFileRequest(route("/examples/triage-board/theme.css")),
     ).toBe(false);
     expect(route("/examples.html")).toBeNull();
     expect(route("/examples/missing/")).toBeNull();
     expect(needsPageSlash("/packages", route("/packages")!)).toBe(true);
-    expect(needsPageSlash("/examples/design-decision/", route("/examples/design-decision/")!)).toBe(false);
+    expect(needsPageSlash("/examples/triage-board/", route("/examples/triage-board/")!)).toBe(false);
     expect(route("/examples/api/event")).toEqual({
       root: "/examples",
       inside: "api/event",
       ...pages["/examples"],
     });
-    expect(route("/examples/design-decision/api/event")).toEqual({
-      root: "/examples/design-decision",
+    expect(route("/examples/triage-board/api/event")).toEqual({
+      root: "/examples/triage-board",
       inside: "api/event",
-      ...pages["/examples/design-decision"],
+      ...pages["/examples/triage-board"],
     });
     expect(isPrivatePageRequest("/_leaf/pages/index/index.html")).toBe(true);
-    expect(isPrivatePageRequest("/examples/design-decision/_leaf/agent/reply")).toBe(
+    expect(isPrivatePageRequest("/examples/triage-board/_leaf/agent/reply")).toBe(
       true,
     );
-    expect(isPrivatePageRequest("/examples/design-decision/api/state")).toBe(false);
+    expect(isPrivatePageRequest("/examples/triage-board/api/state")).toBe(false);
   });
 
   it("pins a mismatched page until its container catches the edge", () => {

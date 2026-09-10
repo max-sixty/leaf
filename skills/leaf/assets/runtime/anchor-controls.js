@@ -241,6 +241,8 @@ export function createAnchorControls({
   }
 
   function paintMessageReferences() {
+    // Missing targets share the quote's detached meaning, but retain the message
+    // link's own contour: muted ink and a dashed underline, with its press withheld.
     for (const anchor of messageReferenceRoot.querySelectorAll(MSG_REF)) {
       const id = fragmentId(anchor.getAttribute("href"));
       const alive = Boolean(resolveAnchor({ section: id }));

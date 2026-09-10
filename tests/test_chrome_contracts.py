@@ -1,8 +1,10 @@
 """Everyday browser contracts for shared chrome."""
 
+import io
 import re
 
 import pytest
+from PIL import Image
 from playwright.sync_api import expect
 from render_support import (
     BANNER_ORDER,
@@ -268,5 +270,58 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     page.mouse.move(0, page.viewport_size["height"] - 1)
     expect(control).to_have_attribute("aria-expanded", "true")
     expect(control).to_have_css("background-color", token_colour(page, "--chip"))
+    assert errors == []
+    page.close()
+
+
+def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
+    """A notice keeps the page's right corner through panel and viewport changes."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    notice = page.locator(".lf-notice")
+    for width, panel_open in [
+        (1200, False),
+        (1200, True),
+        (390, True),
+        (320, True),
+        (390, False),
+    ]:
+        resized(page, width, 800)
+        if panel_open != page.locator(".lf-thread-panel").is_visible():
+            if panel_open:
+                page.locator(".lf-threads-toggle").click()
+            else:
+                page.get_by_role("button", name="Close threads", exact=True).click()
+            panel_settled(page, open=panel_open)
+        page.evaluate("""async () => {
+          const {notice} = await import('/runtime/notifications.js');
+          notice('Update recorded');
+        }""")
+        expect(notice).to_be_visible()
+        geometry = page.locator(".lf-bottom-status").evaluate("""status => {
+          const box = status.getBoundingClientRect();
+          const panel = document.querySelector('.lf-thread-panel').getBoundingClientRect();
+          const beside = panel.width > 0 && innerWidth > 840;
+          return {right: box.right, left: box.left, bottom: box.bottom, top: box.top,
+            availableRight: beside ? panel.left : innerWidth};
+        }""")
+        assert geometry["right"] == pytest.approx(
+            geometry["availableRight"] - 18, abs=1
+        ), (width, panel_open, geometry)
+        assert geometry["left"] >= 0, (width, panel_open, geometry)
+        assert geometry["bottom"] <= 800 - 14, (width, panel_open, geometry)
+        if panel_open and width <= 840:
+            foot = page.locator(".lf-thread-panel-foot").bounding_box()
+            assert geometry["bottom"] == pytest.approx(foot["y"] - 14, abs=1)
+        pixels = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+        accent = tuple(map(int, re.findall(r"\d+", token_colour(page, "--accent"))))
+        assert (
+            pixels.getpixel(
+                (
+                    round(geometry["left"] + 5),
+                    round((geometry["top"] + geometry["bottom"]) / 2),
+                )
+            )
+            == accent
+        ), (width, panel_open, "the notice is covered by the panel or its scrim")
     assert errors == []
     page.close()

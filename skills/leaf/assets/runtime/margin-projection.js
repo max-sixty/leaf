@@ -20,7 +20,10 @@
    Controls are ordered by lifecycle state, rank, contribution key, and
    control key. Generated readings follow contributed controls. One target's Threads
    share one reading and one card. Page Map also includes readings that deliberately
-   have no target control, such as durable state provenance.
+   have no target control, such as durable state provenance. Canonical pickup and work
+   receipts color the exact thread reading or the target's surviving semantic control;
+   only a target without a carrier gets a separate activity reading. Aggregated thread
+   controls prefer working over picked up, while Page Map keeps each thread's phase.
 
    Keyboard and pointer expansion share one state. Focus arrival through Tab unfolds a
    compact cluster, Left and Right walk it, and Escape folds only the layer that gesture
@@ -61,6 +64,7 @@ import {
   marginEntryStateRank,
   syncForwardedMarginEntryState,
   syncMarginEntryCount,
+  syncMarginAgentPhase,
   watchMarginContributions,
 } from "./margin-entries.js";
 import { mapButton } from "./page-map-dialog.js";
@@ -449,6 +453,20 @@ export function createMarginProjection({
     });
   }
 
+  let agentCarriers = new Set();
+  const agentReceipt = (items) =>
+    items
+      .map((item) => item.agentReceipt)
+      .filter(
+        (receipt) =>
+          receipt &&
+          !receipt.dropped &&
+          ["active", "picked_up"].includes(receipt.phase),
+      )
+      .sort(
+        (left, right) =>
+          (left.phase === "active" ? 0 : 1) - (right.phase === "active" ? 0 : 1),
+      )[0] ?? null;
   const rows = new Map();
   const moreMarginEntries = new Map();
   const spillMarginEntries = new Map();
@@ -1039,10 +1057,22 @@ export function createMarginProjection({
     for (const receipt of visibleAcknowledgments()) {
       receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
     }
+    const threadReceipts = new Map();
+    for (const receipt of visibleAcknowledgments()) {
+      if (receipt.target.kind !== "thread") continue;
+      const previous = threadReceipts.get(receipt.target.id);
+      threadReceipts.set(
+        receipt.target.id,
+        agentReceipt([{ agentReceipt: previous }, { agentReceipt: receipt }]),
+      );
+    }
+    const representedThreads = new Set();
     for (const thread of threadList()) {
       if (thread.resolved || !thread.anchor || claimed(thread.root.id)) continue;
       const id = thread.root.id;
-      add(groups, placedAt(id)?.element, {
+      const target = placedAt(id)?.element;
+      if (target?.isConnected && !inChrome(target)) representedThreads.add(id);
+      add(groups, target, {
         kind: "comment",
         // One row for one conversation, across the log answering for it. A thread the
         // reader just opened is known by its attempt until the log names it, and a row
@@ -1053,6 +1083,7 @@ export function createMarginProjection({
           thread.root.text || anchorLabel(thread.anchor, thread.root.about),
         ),
         thread,
+        agentReceipt: threadReceipts.get(id),
         activate: () => showThread(id),
       });
     }
@@ -1123,6 +1154,7 @@ export function createMarginProjection({
         id: `acknowledgment:${receipt.id}`,
         text: trimmed(`${face.text} · ${account}`),
         acknowledgmentFace: KINDS[face.kind],
+        agentReceipt: receipt,
         ...(face.context ? { context: face.context } : {}),
         activate: () =>
           revealTarget(target, `${face.text}: ${account}`, scrollToElement),
@@ -1166,6 +1198,8 @@ export function createMarginProjection({
       for (const update of updateSequence()) {
         if (update.source !== "claim" || update.disposition !== "effective") continue;
         if (update.revision > runtime.currentRevision) continue;
+        if (update.target.kind === "thread" && representedThreads.has(update.target.id))
+          continue;
         if (activityAlreadyShown.has(`${update.target.kind}:${update.target.id}`))
           continue;
         const target =
@@ -1188,6 +1222,7 @@ export function createMarginProjection({
           id: `activity:${update.id}`,
           text: trimmed(account),
           acknowledgmentFace: KINDS.activity,
+          agentReceipt: claimActivity.get(`${update.target.kind}:${update.target.id}`),
           context: [age && `Checked in ${age}`, update.text]
             .filter(Boolean)
             .join(" · "),
@@ -1728,6 +1763,7 @@ export function createMarginProjection({
       writesRelation: false,
       writesSeat: false,
     });
+    syncMarginAgentPhase(row, agentReceipt(choice?.items ?? []));
     row.onclick = behavior === "status" ? null : pressMarker;
     syncReadingRelation(row, choice);
     row.removeAttribute("aria-pressed");
@@ -1826,6 +1862,7 @@ export function createMarginProjection({
       state: readingState(choice),
       writesRelation: false,
     });
+    syncMarginAgentPhase(node, agentReceipt(choice.items));
     node.lfEntry = entry;
     node.lfChoice = choice;
     syncReadingRelation(node, choice);
@@ -2159,7 +2196,22 @@ export function createMarginProjection({
         ...new Set(pageInventory.flatMap((entry) => entry.offers.flatMap(controlsOf))),
       ]),
     );
-    for (const entry of pageInventory) entry.shownControls = shownControls;
+    const nextAgentCarriers = new Set();
+    for (const entry of pageInventory) {
+      entry.shownControls = shownControls;
+      const primary = choosePrimary(entry);
+      const receipt = agentReceipt(entry.items);
+      if (primary && receipt) {
+        syncMarginAgentPhase(primary, receipt);
+        nextAgentCarriers.add(primary);
+        entry.items = entry.items.filter(
+          (item) => !(item.acknowledgmentFace && agentReceipt([item])),
+        );
+      }
+    }
+    for (const control of agentCarriers)
+      if (!nextAgentCarriers.has(control)) syncMarginAgentPhase(control, null);
+    agentCarriers = nextAgentCarriers;
     const liveHosts = new Set(
       pageInventory.filter(entryHasMarginHost).map((entry) => entry.key),
     );

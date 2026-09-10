@@ -138,8 +138,8 @@ function paintTab() {
 }
 // One writer for the dot, the line, the tab and the live region, offline included: null
 // is the poll saying it couldn't reach the server, not a second function's own
-// rendering. The line wins the row's width now and wraps to two, so what a narrow
-// window still clips is a hover away, the way the version chooser's label is. Written
+// rendering. The line truncates to the room the controls leave it; the complete
+// sentence is a hover away, the way the version chooser's label is. Written
 // every time rather than only when the box clips, because whether it does is a fact
 // about the rendering and nothing here reads that back.
 //
@@ -226,15 +226,11 @@ function renderPreview(state) {
   previewMarginEntry.textContent = label;
   previewMarginEntry.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
 }
-// The two lines the page cannot reach through its own state, said here because the
-// reservation below has to know them as well as the reading does.
+// Status sentences for an unreachable server or a state the page cannot apply.
 const OFFLINE_LINE =
   "Server offline — reconnecting. Keep this page open so pending changes can send.";
 const BROKEN_LINE = "Page couldn't apply current state — reload";
-// A published page's own line, in the two parts it is written in: the sentence, and the
-// link that ends it. Said once, so what the row measures is what the row says. The two
-// subjects are the two kinds of published page, and the longer of them is what the room
-// is measured against, since which one this page is arrives with its first state.
+// A published page states who replies and where to install Leaf.
 const publicationWords = (published) => [
   `${
     published.kind === "example"
@@ -244,11 +240,7 @@ const publicationWords = (published) => [
   "Install Leaf",
 ];
 
-// The words one reading is written in, from the facts that decide them. They are a
-// writer of their own rather than a chain inside the reading because the reservation
-// below asks this same writer for every line this page could say: what the row keeps
-// room for and what the row says are then one set of words rather than two lists to
-// keep in step.
+// The status sentence follows the canonical activity reading.
 function statusWords({
   agent,
   dated,
@@ -308,11 +300,6 @@ function statusWords({
   return `${why} ${saved} ${how}`;
 }
 
-// Whether this page is published, once it has said so, because the line a published
-// page writes is longer than any a reader's own page can reach and the room it needs
-// is measured with the rest.
-let publication = null;
-
 // The public website support handle is available on demand with the banner's other
 // low-frequency controls. It does not compete with the page's live status sentence.
 let sessionReferenceElement = null;
@@ -358,16 +345,17 @@ function renderStatusNow(state) {
     return;
   }
   renderPreview(state);
-  publication = state.publication ?? null;
-  // Before the words, because the row folds against the room they will need: a page
-  // learning its agent's name, or that it is published, is a page whose longest line has
-  // just changed, and the controls beside it are what pay for the difference.
-  if (reserveStatusRoom()) foldShelf();
+  const publication = state.publication;
   if (publication) {
     const [said, installs] = publicationWords(publication);
     const install = el("a", "lf-publication-install", installs);
     install.href = publication.install_url;
-    showStatus("unattended", TONE.unattended, said, install);
+    showStatus(
+      "unattended",
+      TONE.unattended,
+      el("span", "lf-publication-copy", said),
+      install,
+    );
     return;
   }
   const { activity } = state;
@@ -404,130 +392,6 @@ function renderStatusNow(state) {
 }
 
 export const renderStatus = clocked(document.body, renderStatusNow);
-
-// ---------- the room the sentence keeps ----------
-// Every line this page can write about its own state. The writer chooses its words from
-// seven facts, so every one of them is a list here and the lines are the whole cross of
-// them, rather than one value per fact that somebody judged the widest. Judging them one
-// at a time is how the last line went missing: `saved` was pinned at its counted
-// spelling, and the spelling for a page with no count — "Your comments are saved." — is
-// wider, so a page nobody had commented on wrapped to three lines and lost the remedy off
-// the end of the clamp. Which fact makes a line widest is not a thing to reason about
-// per fact; the cross is what measures it.
-//
-// Most of these repeat. A kind that names no count writes the same line for all three
-// savings, and the two thousand readings collapse to a couple of dozen distinct lines.
-// What the cross buys is that nothing is left out by a fact nobody thought to vary, and
-// a fact that gains a spelling gains it here beside the writer's own branch.
-//
-// `detail` is the one fact with a single value, and that is not a judgment: those are the
-// agent's own words, they arrive long after any reservation could be taken, and the clamp
-// and the title are what carry them (see the stylesheet, beside the clamp).
-function pageLines() {
-  const agent = agentName();
-  // The widest word each shape of `ago` writes (presence.js), which is the largest count
-  // each of them reaches — the same convention the row's counters are reserved at.
-  const ages = ["just now", "59m ago", "23h ago", "999d ago"];
-  const facts = {
-    agent: [agent],
-    dated: ages.flatMap((age) => [
-      `${agent} left this when its turn ended ${age}`,
-      `${agent} last checked in ${age}`,
-    ]),
-    detail: [""],
-    kind: Object.keys(TONE),
-    obligations: [1, 999],
-    pending: [0, 1],
-    quiet: [false, true],
-    saved: ["Your comments are saved.", "1 update is saved.", "999 updates are saved."],
-  };
-  const names = Object.keys(facts);
-  const lines = [OFFLINE_LINE, BROKEN_LINE];
-  const cross = (depth, chosen) => {
-    if (depth === names.length) {
-      lines.push(statusWords(chosen));
-      return;
-    }
-    for (const value of facts[names[depth]])
-      cross(depth + 1, { ...chosen, [names[depth]]: value });
-  };
-  cross(0, {});
-  if (publication) lines.push(publicationWords(publication).join(""));
-  return [...new Set(lines)];
-}
-
-// The narrowest box those lines all fit the clamp in — the floor the stylesheet's cap
-// hands the controls as the room they may not have.
-//
-// Measured, because what it has to cover is the width a wrapped line of these words
-// takes in the face the row is set in, and no count of characters tracks that: a `ch`
-// is the advance of a zero, and how many of them a sentence takes is a property of the
-// face rather than of its size. Two lines of the longest of these take 37.5 characters
-// where `system-ui` is SF — this desk — and 40.4 where it is DejaVu, which is what the
-// image CI runs on resolves it to. Stated as thirty-four it was under both, and a number
-// over the second reserves on the first room the row can only find by folding a control.
-// This is the question `reserve` asks of a control's words, asked of the sentence's.
-//
-// A copy of the sentence, seated where the sentence sits, so it is measured in the face,
-// size and leading the row is actually using. The clamp is read rather than restated:
-// the stylesheet gives the sentence one line on a phone and two on a desk, and the floor
-// is whatever that is worth here.
-function measureStatusRoom(lines) {
-  const rig = statusText.cloneNode(false);
-  rig.style.cssText =
-    "position:absolute;left:-9999px;top:0;visibility:hidden;display:block;" +
-    "-webkit-line-clamp:none";
-  bannerStatus.append(rig);
-  const step = parseFloat(getComputedStyle(rig).lineHeight);
-  const allowed =
-    Number.parseInt(getComputedStyle(statusText).webkitLineClamp, 10) || 2;
-  const wrapsTo = (text, width) => {
-    rig.textContent = text;
-    rig.style.width = width + "px";
-    return Math.round(rig.scrollHeight / step);
-  };
-  const unwrapped = (text) => {
-    rig.textContent = text;
-    rig.style.width = "max-content";
-    return rig.getBoundingClientRect().width;
-  };
-  // Widest first, so the one line that decides the floor is the one searched for and
-  // every other line is a single reading: a line that already fits what the floor
-  // stands at asks nothing more of it.
-  const across = new Map(lines.map((text) => [text, unwrapped(text)]));
-  let floor = 0;
-  for (const text of [...across.keys()].sort((a, b) => across.get(b) - across.get(a))) {
-    if (floor && wrapsTo(text, floor) <= allowed) continue;
-    let short = floor;
-    let long = across.get(text);
-    while (long - short > 0.05) {
-      const between = (short + long) / 2;
-      if (wrapsTo(text, between) <= allowed) long = between;
-      else short = between;
-    }
-    floor = Math.ceil(long);
-  }
-  rig.remove();
-  return floor;
-}
-
-// The words the standing floor was measured against, so the row is measured again when
-// they change and not on every poll. Renewed outright at a breakpoint, where the row's
-// type and padding move under the same words (reserveBannerControls).
-let reservedWords = null;
-function reserveStatusRoom() {
-  if (!banner.isConnected) return false;
-  // What the page supplies to those words: the name of the agent behind it, and the line
-  // a published page writes. Everything else the cross varies is the writer's own and
-  // cannot change under a reader, so this is the whole of what a later reading could say
-  // differently — and asking it costs two string reads on a poll that would otherwise
-  // build two thousand lines to find out nothing had.
-  const words = `${agentName()}\n${publication ? publicationWords(publication).join("") : ""}`;
-  if (words === reservedWords) return false;
-  reservedWords = words;
-  banner.style.setProperty("--lf-status-floor", `${measureStatusRoom(pageLines())}px`);
-  return true;
-}
 
 // Sign-off is the page's decision, not standing chrome: the approve button exists only
 // when the version declares <meta name="lf-review" content="sign-off"> — a plan or
@@ -682,11 +546,6 @@ export function reserveBannerControls() {
   reserve(toggleBtn, ["Threads", "Threads (999)"]);
   reserve(asksBtn, ["Asks 999/999"]);
   reserve(othersBtn, ["All leaves (999)"]);
-  // The sentence's own room, taken in the same face and on the same occasions as the
-  // controls' — the words have not changed, but what they set has, which is the whole
-  // reason none of these is a number.
-  reservedWords = null;
-  reserveStatusRoom();
   foldShelf();
   reservedCovering = covering().matches;
 }

@@ -71,6 +71,7 @@ function paintReceipt(host, receipt, before, wanted, metadata = false) {
   const state = line.querySelector(":scope > .lf-receipt-state");
   const semantic = phaseText(receipt);
   if (state.textContent !== semantic) state.textContent = semantic;
+  if (state.title !== semantic) state.title = semantic;
   line.classList.toggle("is-active", receipt.phase === "active");
   line.dataset.lfPhase = receipt.phase;
   line.toggleAttribute("data-lf-dropped", Boolean(receipt.dropped));

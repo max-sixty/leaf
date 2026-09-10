@@ -250,10 +250,10 @@
   cursor: pointer;
 }
 .lf-margin-entry:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not([aria-disabled="true"]) {
-  background: var(--chip);
+  background: var(--lf-agent-tint, var(--chip));
 }
 .lf-margin-entry[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
-  border-color: var(--accent);
+  border-color: var(--lf-agent-color, var(--accent));
 }
 .lf-margin-entry:is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring); --lf-here-ring: margin-entry; outline-offset: 1px;
@@ -261,6 +261,21 @@
 .lf-margin-entry[aria-disabled="true"] { cursor: default; }
 .lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
+}
+/* Agent ownership colors the semantic carrier without changing its glyph or action.
+   The inset working ring leaves the keyboard focus outline independent. */
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="picked_up"] {
+  --lf-agent-color: var(--accent);
+  --lf-agent-tint: var(--chip);
+}
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="active"] {
+  --lf-agent-color: var(--ok-ink);
+  --lf-agent-tint: var(--ok-tint);
+  box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--ok-ink);
+}
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase] {
+  color: var(--lf-agent-color); border-color: var(--lf-agent-color);
+  background: var(--lf-agent-tint);
 }
 .lf-margin-entry-glyph { line-height: 1; }
 .lf-margin-entry-icon {
@@ -722,15 +737,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border: 0; border-radius: 0 !important; background: none; }
   .lf-target-trace-shape {
     display: block; width: 100%; height: 100%; overflow: hidden; }
-  /* The gap between anything on this row, said once here because the cap below has to
-     agree about it. The third number the cap names is --lf-status-floor, and it is not
-     written here: banner.js measures the lines this page can say and states the floor
-     in pixels on this element (reserveStatusRoom). The floor is the sentence's own room
-     and nothing else's — the cap adds the furniture back itself — because a floor
-     stated for the status box as a whole is one the mark and anything else standing in
-     that box spends first, and it was: a developer preview's identity chip left the
-     line 114 pixels, twelve characters, two of the four lines it had to say. */
-  .lf-banner { --lf-banner-gap: 10px;
+  .lf-banner { --lf-banner-gap: 10px; --lf-status-floor: 24ch;
     position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
     display: flex;
     align-items: center; gap: var(--lf-banner-gap);
@@ -745,60 +752,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      keeps the row still: a status ageing from "is working" to "last checked in" is a
      longer sentence in a box that has not changed size, so nothing beside it moves. */
   .lf-banner-status { flex: 1 1 auto; min-width: 0; }
-  /* The controls take the room the sentence's floor leaves them, and whatever does not
-     fit that cap folds into the shelf's own menu (foldShelf). So the row sheds
-     controls before the status sheds words, and it sheds them into somewhere rather
-     than off an edge: there is no strip here to scroll, and no control reachable only
-     by discovering that there is.
-
-     The floor is not written here. banner.js asks its own status writer for every line
-     this page can say, measures the narrowest box they all fit the clamp below in, and
-     states that in pixels on .lf-banner (reserveStatusRoom). A number here could not
-     have been right: the quantity is the width a wrapped line of those words sets in the
-     face this row is using, and neither pixels nor characters track it. Pixels stopped
-     covering the line the day --t-5 went from 13.5px to 14px. Characters read as though
-     they would — both ends measured in the same face, so the size cancels — but what is
-     bounded is a line's average advance over the advance of a zero, and that is a
-     property of the face rather than of its size: two lines of the banner's longest
-     sentence take 37.5 characters where system-ui is SF — this desk — and 40.4 where it
-     is DejaVu, which is what the image CI runs on resolves it to. Thirty-four was under
-     both. Measured, it is the same statement on either, and on the next face nobody has
-     looked at.
-
-     Two lines, and no more than the words need. A floor generous enough to hold any of
-     them on one line would be paid for in controls folded away at widths that had room
-     for them; two lines is what readable means here. A published page's own line ("This
-     is an example on the Leaf website. … Install Leaf") is longer than any line a
-     reader's own page can reach, and it is in the reservation exactly where it is in the
-     writing: on the pages that say it, whose rows carry no Accept all and no Asks and
-     can afford it.
-
-     The row does not shrink. A flexible one gives up room in the same breath the
-     sentence does, so a row already folded to its floor goes on clipping while the
-     sentence beside it has room to spare — the cap, not the shrink, is what decides
-     who yields, and the fold is what the row yields with.
-
-     Nor does the row wrap. A banner that took a second line when its contents stopped
-     fitting would be answering the right question with the one measurement it must not
-     move: --lf-banner-h is the document's own top offset, so the height changing walks
-     the whole page down. What could legally decide it is a set that cannot change under
-     a reader — and the standing controls are not that set. Asks is absent until a page
-     has one, and the first ask arriving with no gesture behind it would then push the
-     document down while somebody was reading it, which is the fault every reservation on
-     this row exists to prevent. The set that is stable is every control that could ever
-     stand, at its reserved width — and most of it is not there: on a pinned version that
-     is the latest chip's 251 reserved pixels for news that has not arrived, so the
-     banner would take two rows on a 1200px window showing four controls. The row is an
-     open layer besides, and a package can seat a control after boot, so that set is not
-     knowable for the page's life either. The fold is the answer: what a crowded row
-     cannot hold goes behind a door standing where it would have, reachable by press and
-     by key, and the page under the banner never moves.
-
-     The row packs against its end, so a control changing size moves itself and
-     whatever stands before it while everything after it keeps its place. Safe
-     alignment is what keeps that true while a fold is still being measured: an
-     overflowing end-packed row hangs off its start edge, where nothing can see it.
-     Four pixels around the contents belong to the controls' outset focus ring. */
+  /* Keep a readable start of the status sentence while the shelf folds complete
+     controls into its menu. The reservation is independent of changing status copy,
+     so updates cannot move controls under the reader's pointer. */
   .lf-banner-actions { flex: 0 0 auto; min-width: 0;
     max-width: calc(100% - var(--lf-status-floor) - var(--lf-mark-w)
       - 2 * var(--lf-banner-gap));
@@ -843,17 +799,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     cursor: pointer; }
   .lf-preview:hover { color: var(--ink); }
   .lf-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  /* Two lines, because one was not enough for the sentences the banner actually writes:
-     the offline line is eighty-four characters and a single row of them ellipsized at
-     "Server offline — reconnectin…", which is a status readout that has stopped saying
-     what to do about it. The clamp is what keeps a runaway detail from growing the
-     banner instead; the title carries the whole line either way. It is also the number
-     the floor is measured against — the runtime reads this declaration rather than
-     restating it, so a clamp changed here changes the room the row keeps with it. */
+  /* One stable line at every width; the title exposes the complete sentence. */
   .lf-status-text { color: var(--ink-2); min-width: 0; overflow: hidden;
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-    line-height: 1.35; }
+    display: block; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
   .lf-status-text .lf-age { color: var(--muted); }
+  /* The website invitation truncates its copy while its install action stays reachable. */
+  .lf-status-text:has(.lf-publication-install) { display: flex; gap: 0.3em; }
+  .lf-publication-copy { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .lf-publication-install { flex: none; }
   /* The door onto the folded controls. It stands where they would have: at the row's
      start, so the menu's contents read straight on into the row's and the two are one
      order rather than two to keep in step. */
@@ -1747,7 +1700,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
     color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
-  .lf-page-map-action:is(:hover, :focus-visible) { background: var(--chip); }
+  .lf-page-map-action:is(:hover, :focus-visible) { background: var(--lf-agent-tint, var(--chip)); }
   .lf-page-map-action .lf-margin-kind { width: 16px; height: 16px;
     align-self: center; fill: none; stroke: currentColor; stroke-width: 1.5;
     stroke-linecap: round; stroke-linejoin: round; }
@@ -1824,7 +1777,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-bottom-status { position: fixed;
     right: calc(18px + var(--lf-safe-right) + var(--lf-shortcut-bar-right, 0px));
     bottom: calc(14px + var(--lf-safe-bottom));
-    z-index: 8940; pointer-events: none;
+    /* Passive feedback remains visible above a covering auxiliary surface. */
+    z-index: 9030; pointer-events: none;
     max-width: calc(100vw - var(--lf-shortcut-bar-right, 0px) - 36px
       - var(--lf-safe-left) - var(--lf-safe-right));
     width: max-content; min-height: calc(var(--lf-key-badge-size) + 12px); align-content: center;
@@ -1843,9 +1797,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-bottom-status:has(> .lf-notice.show) > :not(.lf-notice) { display: none; }
   .lf-bottom-status:has(> .lf-go-to-status:not([hidden])) > .lf-walk-position {
     display: none; }
-  @media screen and (width <= 840px) {
-    .lf-bottom-status { right: auto; left: calc(18px + var(--lf-safe-left)); }
-  }
   /* A touch device has no keyboard hints to advertise, so the resting line stands down
      whole rather than shrinking. Every hint on it names a key the reader cannot press,
      and the box they cost stands over the words and the controls of a page whose window
@@ -1980,14 +1931,13 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
 
      The status keeps to one line in its own 36px row. Two would be a row that changes
      height as a sentence ages, which moves every control under it for no gesture; the
-     whole line is a press away in the title, as the wide row's runaway detail is. */
+     complete status remains available in its hover title at every width. */
   @media screen and (width <= 840px) {
     .lf-banner { display: grid; grid-template-columns: minmax(0, 1fr);
       grid-template-rows: 36px minmax(0, 1fr); gap: 0;
       padding: var(--lf-safe-top) 0 0; }
     .lf-banner-status { grid-row: 1; padding: 0 calc(14px + var(--lf-safe-right)) 0
         calc(14px + var(--lf-safe-left)); gap: 9px; }
-    .lf-status-text { -webkit-line-clamp: 1; }
     .lf-banner-actions { grid-row: 2; width: 100%; max-width: 100%; min-width: 0;
       justify-content: flex-start;
       padding: 4px calc(10px + var(--lf-safe-right)) 4px

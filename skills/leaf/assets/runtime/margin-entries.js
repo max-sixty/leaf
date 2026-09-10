@@ -79,6 +79,9 @@ const FORWARDED_ATTRIBUTES = [
   "aria-expanded",
   "aria-haspopup",
   "aria-pressed",
+  "aria-description",
+  "data-lf-agent-phase",
+  "title",
 ];
 
 const changed = () => {
@@ -156,6 +159,61 @@ function validateMarginEntries(offered) {
     keys.add(record.key);
     record.owner = offered.key;
     control.dataset.lfMarginEntryOwner = offered.key;
+  }
+}
+
+// Ownership is independent of a control's action and delivery state. A semantic
+// carrier keeps its glyph and press while the canonical receipt supplies its color.
+const agentDescriptions = new WeakMap();
+export function syncMarginAgentPhase(control, receipt) {
+  const phase =
+    receipt && !receipt.dropped && ["active", "picked_up"].includes(receipt.phase)
+      ? receipt.phase
+      : null;
+  if (phase) {
+    if (!agentDescriptions.has(control))
+      agentDescriptions.set(control, {
+        description: control.getAttribute("aria-description"),
+        title: control.getAttribute("title"),
+      });
+    keeps(control, "data-lf-agent-phase", phase);
+    keeps(
+      control,
+      "aria-description",
+      [
+        agentDescriptions.get(control).description,
+        phase === "active" ? "Working" : "Picked up",
+        receipt.detail,
+        receipt.quiet ? "quiet" : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+    keeps(
+      control,
+      "title",
+      [
+        agentDescriptions.get(control).title,
+        phase === "active" ? "Working" : "Picked up",
+        receipt.detail,
+        receipt.quiet ? "quiet" : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+  } else {
+    control.removeAttribute("data-lf-agent-phase");
+    if (agentDescriptions.has(control)) {
+      const original = agentDescriptions.get(control);
+      for (const [attribute, value] of [
+        ["aria-description", original.description],
+        ["title", original.title],
+      ]) {
+        if (value === null) control.removeAttribute(attribute);
+        else keeps(control, attribute, value);
+      }
+      agentDescriptions.delete(control);
+    }
   }
 }
 

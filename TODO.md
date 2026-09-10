@@ -15,6 +15,19 @@ the relevant design note or in git history.
   Threads, use the existing Map sheet on narrow pages, and never leave both margin
   presentations visible at once.
 
+## General reader continuity
+
+- **#11 — [Let newer navigation win over revision
+  restoration](notes/workspace-followups.md#item-11).** Use navigation intent to prevent
+  an old reading capture from overwriting input made during revision activation. The
+  race belongs to version travel generally; independent pane scrollports only exposed
+  more instances of it.
+
+- **#24 — Make covering workspaces modal.** When Threads or a tray covers the document,
+  keep focus and scrolling inside that workspace instead of leaving covered document
+  controls keyboard-reachable. Preserve the subject, draft, and reading landmark when
+  crossing the responsive threshold.
+
 ## Workspace follow-ups
 
 The workspace research after [PR #455](https://github.com/max-sixty/leaf/pull/455)
@@ -22,23 +35,11 @@ produced the following backlog. IDs match the research discussion, not GitHub is
 The [research briefs](notes/workspace-followups.md) retain evidence, completion
 criteria, dependencies, and Sol/Astra assignments. Items are ordered within each group.
 
-Continue with the remaining reader-continuity checks and composition experiments.
+Continue with the remaining composition verification.
 Keep the current primitives; let those uses establish demand for more. Defer the
 authoring evaluation until Leaf's shape is stable enough for the comparison to last.
 
-### Reader continuity
-
-- **#10 — [Make pane overflow discoverable](notes/workspace-followups.md#item-10).**
-  Test a subtle continuation cue for bounded panes with more content below the visible
-  edge.
-
-- **#11 — [Let newer navigation win over revision
-  restoration](notes/workspace-followups.md#item-11).** Use navigation intent to prevent
-  an old reading capture from overwriting input made during revision activation.
-
-- **#12 — [Compare Threads overlay with Keep
-  beside](notes/workspace-followups.md#item-12).** Try overlay as the quick-access
-  default, with an explicit Keep beside choice for sustained conversation.
+### Composition verification
 
 - **#14 — [Verify the complete keyboard and accessibility
   route](notes/workspace-followups.md#item-14).** Exercise the workspace as one keyboard

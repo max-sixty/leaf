@@ -11,7 +11,12 @@ import { clocked } from "../presence.js";
 
 import { runtime } from "../context.js";
 import { PENDING } from "./identity.js";
-import { outbox, pendingMessages } from "../outbox.js";
+import {
+  outbox,
+  pendingMessages,
+  pendingReactions,
+  pendingSettlements,
+} from "../outbox.js";
 import { setChildren } from "../dom-children.js";
 
 import { el } from "../widget-elements.js";
@@ -108,6 +113,8 @@ function renderPanelNow(currentRuntime, currentOutbox) {
   const threads = foldThreads(
     currentRuntime.browser?.conversation?.threads ?? [],
     pendingMessages(currentOutbox, currentRuntime.browser?.receipts ?? []),
+    pendingReactions(),
+    pendingSettlements(),
   );
   setThreads(threads);
   const conversations = threadList();

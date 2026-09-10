@@ -47,7 +47,7 @@ place; conversation owners supply reaction teardown when removing their surfaces
 `runtime/focus.js` places focus on destinations, lending a tab stop only when needed;
 `runtime/anchor-coordinate.js` compares anchor records without resolving DOM;
 `runtime/walk-position.js` owns the transient ordinal for semantic Leaf keyboard walks,
-shown at the page head when the layout has room, and the brief boundary state when another
+shown in the useful status at the page foot, and the brief boundary state when another
 press stays at the same destination; clamped and cyclic owners use the same reading, while
 native focus traversal and gestures that rearrange state keep their local feedback;
 `runtime/icons.js` owns the layer's icon table;
@@ -107,8 +107,9 @@ subscriptions;
 of rows applies; `dispatch.js` which scope answers a press and what it owes the
 platform; `return-stack.js` what a keyboard entry owes on the way back out, using the
 origin its caller captured before executing the command;
-`shortcut-bar.js` the short help at the foot of the page, its More control, the separate
-keyboard-walk readout at the page's head, and the shared lists of their rendered boxes;
+`shortcut-bar.js` the short help at the foot of the page, its More control, the useful
+status opposite it or stacked above it when room is tight, and the shared reading of
+their rendered boxes;
 `reference.js` the complete listing behind `?`; `address.js` the go-to sequence;
 `address-placement.js` shared address visibility and the numeric Ask placement pass;
 `hints.js` prefix-free transient labels and their no-drop placement pass;
@@ -116,7 +117,7 @@ keyboard-walk readout at the page's head, and the shared lists of their rendered
 `runtime/keyboard/disclosure.js` owns the shared disclosure bindings and the
 disclosure watch; `runtime/keyboard/page.js` owns the page's own scopes and rows;
 `runtime/notifications.js` owns visual and assistive announcements and the notice
-element the banner seats;
+element the bottom status seats;
 `runtime/arrangements.js` owns the browser-state arrangements the arrival gate exercises;
 `runtime/reading-regions.js` owns reading-region identities, effective scrollers,
 allocation and bounded/flow posture transitions;

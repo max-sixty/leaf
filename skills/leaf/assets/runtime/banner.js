@@ -15,19 +15,16 @@ import { latestChip, versionBtn, versionLabels } from "./version.js";
 import { asksBtn, othersBtn } from "./trays.js";
 import { COVERING, syncLayout } from "./chrome-layout.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
-import { post } from "./outbox.js";
+import { pendingApprovals, post } from "./outbox.js";
 import { repaint } from "./repaint.js";
-import { announce, notice, noticeEl } from "./notifications.js";
+import { announce, notice } from "./notifications.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 export const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
-// The line's momentary other words (notifications.js): a gesture recorded, a version
-// arrived, a send refused. Seated after the line it stands in for, so the row holds
-// one sentence at a time.
 const bannerStatus = el("div", "lf-banner-status");
-bannerStatus.append(dot, statusText, noticeEl);
+bannerStatus.append(dot, statusText);
 
 export const toggleBtn = el(
   "button",
@@ -709,7 +706,10 @@ function currentBannerReservations() {
 let approving = false;
 
 export function paintApproval() {
-  const approved = (runtime.browser?.conversation?.done ?? []).some(
+  const approved = [
+    ...(runtime.browser?.conversation?.done ?? []),
+    ...pendingApprovals(),
+  ].some(
     (e) =>
       e.kind === "done" &&
       e.revision === runtime.currentRevision &&
@@ -750,3 +750,5 @@ approveBtn.onclick = async () => {
     paintApproval();
   }
 };
+
+document.addEventListener("lf-actions", paintApproval);

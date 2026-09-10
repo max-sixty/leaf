@@ -27,6 +27,14 @@ def page_reading(page_dir: Path) -> str:
 
     Stat stamps rather than contents: the question is only whether anything moved, and
     the answer has to be cheap enough to ask many times a second.
+
+    A stamp taken while a file is being written in place is not a state that file was
+    ever at: the kernel puts the new modification time on the inode before the write
+    lands, so a stat crossing an append to the log can pair that time with the size
+    before it. `page_state` takes its reading inside the page transaction, under the
+    log's own lease, so a state answer never names one. The news stream stats without
+    the lease, which is what keeps a look cheap, so its word can — and the look after
+    it, naming the settled reading, is what puts the tab right.
     """
     stamps = sorted(
         (entry.name, file_stamp(entry))

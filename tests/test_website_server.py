@@ -224,6 +224,112 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
     assert accepted == [("hosted-thread",)]
 
 
+def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
+    """A hosted task must not discover or initialize another plugin environment."""
+    host = website_server.WebsiteCodexHost(
+        "codex",
+        tmp_path / "app-server.sock",
+        tmp_path / "app-server.log",
+    )
+    launched = {}
+
+    class Process:
+        def poll(self):
+            return None
+
+    def popen(command, **options):
+        launched.update(command=command, options=options)
+        host.socket_path.touch()
+        return Process()
+
+    monkeypatch.setattr(website_server.subprocess, "Popen", popen)
+
+    assert host._ensure_server() is not None
+    assert launched["options"]["env"]["LEAF"] == website_server.LEAF_COMMAND
+    assert (
+        launched["options"]["env"]["LEAF_SKILL_DIR"]
+        == website_server.LEAF_SKILL_DIRECTORY
+    )
+    assert launched["command"] == [
+        "codex",
+        "app-server",
+        "--listen",
+        host.endpoint,
+    ]
+    assert "$LEAF" in website_server.CODEX_INSTRUCTIONS
+    assert "$LEAF_SKILL_DIR/SKILL.md" in website_server.CODEX_INSTRUCTIONS
+
+
+def test_closing_the_website_host_stops_its_app_server(tmp_path):
+    """The host adapter owns the process it starts, including during local runs."""
+    host = website_server.WebsiteCodexHost(
+        "codex", tmp_path / "app-server.sock", tmp_path / "app-server.log"
+    )
+
+    class Process:
+        stopped = False
+
+        def poll(self):
+            return 0 if self.stopped else None
+
+        def terminate(self):
+            self.stopped = True
+
+        def wait(self, timeout=None):
+            return 0
+
+    process = Process()
+    host.process = process
+    host.socket_path.touch()
+
+    host.close()
+
+    assert process.stopped
+    assert host.process is None
+    assert not host.socket_path.exists()
+
+
+def test_closing_a_host_that_started_no_server_preserves_the_shared_socket(tmp_path):
+    """A passive host does not own another host's process-global socket."""
+    socket_path = tmp_path / "app-server.sock"
+    socket_path.touch()
+    host = website_server.WebsiteCodexHost("codex", socket_path)
+
+    host.close()
+
+    assert socket_path.exists()
+
+
+def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
+    class Requests:
+        def __init__(self):
+            self.request = self
+            self.posts = []
+
+        def post(self, url, data, **options):
+            self.posts.append((url, data))
+            status = "ready" if url.endswith("/turn") else "started"
+            return _Read({"status": status})
+
+    context = Requests()
+    verify_site.start_direct_agent(
+        context,
+        "http://127.0.0.1:8080/examples/design-decision/",
+        {"id": "comment-id"},
+    )
+
+    assert context.posts == [
+        (
+            "http://127.0.0.1:8080/examples/design-decision/_leaf/agent/turn",
+            {"event": "comment-id"},
+        ),
+        (
+            "http://127.0.0.1:8080/examples/design-decision/_leaf/agent/start",
+            {"event": "comment-id"},
+        ),
+    ]
+
+
 def test_the_website_task_preserves_a_delivery_the_app_server_rejects(
     page_dir, monkeypatch
 ):
@@ -1152,8 +1258,89 @@ def test_the_deploy_gate_sends_the_new_message_the_container_asks_for():
     assert second["revision"] == 1
 
 
-def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():
-    """A settled generation failure is terminal, so the wait ends where it lands.
+def test_the_deploy_gate_accepts_any_reply_except_a_generation_failure():
+    exact = {"text": "deployment verified"}
+    assert verify_site.deployment_answer([exact]) is exact
+    verbose = {
+        "text": (
+            "Updated the heading and published revision 2. "
+            "Reply confirmation: ‘deployment verified’."
+        )
+    }
+    assert verify_site.deployment_answer([verbose]) is verbose
+    assert (
+        verify_site.deployment_answer([{"text": verify_site.GENERATION_FAILURE_REPLY}])
+        is None
+    )
+    assert verify_site.deployment_answer([{"text": verify_site.MISSING_REPLY}]) is None
+    assert (
+        verify_site.deployment_answer([{"text": verify_site.RATE_LIMIT_REPLY}]) is None
+    )
+
+
+def test_startup_line_distinguishes_an_unobserved_state_request():
+    startup = {
+        "first_byte": 20,
+        "document": 30,
+        "paint": {"first-contentful-paint": 40},
+        "upgraded": {"at": 50},
+        "presented": {
+            "at": 60,
+            "js_loaded": 45,
+            "state_loaded": None,
+            "requests": 3,
+            "bytes": 3072,
+            "code_requests": 2,
+            "code_bytes": 2048,
+            "js_requests": 1,
+            "js_bytes": 1024,
+        },
+    }
+
+    line = verify_site.startup_line("page", startup)
+
+    assert "JS fetched 45 ms" in line
+    assert "state answered not observed" in line
+    assert "state answered 0 ms" not in line
+
+
+def test_startup_line_distinguishes_an_unobserved_first_paint():
+    startup = {
+        "first_byte": 20,
+        "document": 30,
+        "paint": {},
+        "upgraded": {"at": 50},
+        "presented": {
+            "at": 60,
+            "js_loaded": 45,
+            "state_loaded": 55,
+            "requests": 3,
+            "bytes": 3072,
+            "code_requests": 2,
+            "code_bytes": 2048,
+            "js_requests": 1,
+            "js_bytes": 1024,
+        },
+    }
+
+    line = verify_site.startup_line("page", startup)
+
+    assert "first contentful paint not observed" in line
+    assert "first contentful paint 0 ms" not in line
+
+
+@pytest.mark.parametrize(
+    "failure_reply",
+    [
+        verify_site.GENERATION_FAILURE_REPLY,
+        verify_site.MISSING_REPLY,
+        verify_site.RATE_LIMIT_REPLY,
+    ],
+)
+def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
+    failure_reply,
+):
+    """A host failure receipt is terminal, so the wait ends where it lands.
 
     Every other reading the wait takes is one a live turn can still be passing
     through, which is why they run to `TURN_PATIENCE`. This one is posted from where
@@ -1171,11 +1358,12 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():
             {
                 "kind": "reply",
                 "parent": "comment-id",
-                "text": website_server.GENERATION_FAILURE_REPLY,
+                "text": failure_reply,
             }
         ],
     }
     context = _StateReads([working])
+    profile = verify_site.AgentProfile()
     turn = verify_site.await_turn(
         context,
         "https://leaf.page/examples/design-decision/",
@@ -1189,13 +1377,14 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed():
         # Seconds rather than `TURN_LIMIT`: a wait that stopped reading this reply
         # would come back on the next assertion instead of running the real budget.
         time.monotonic() + 5,
+        profile,
     )
     # One read, though the page still names a turn on the comment: the wait ended on
     # the reply rather than on `still_answering` or a clock.
     assert context.reads == 1
     assert verify_site.still_answering(working, "comment-id")
     assert turn.answer is None
-    assert verify_site.generation_failed(turn.replies)
+    assert verify_site.turn_failed(turn.replies)
 
 
 class _PresentationWait:
@@ -1267,6 +1456,24 @@ class _DeployedPage:
         return _PresentationWait(self.presentation_waits)
 
     def evaluate(self, script: str):
+        if script == verify_site.STARTUP_READING:
+            return {
+                "first_byte": 100.0,
+                "document": 200.0,
+                "paint": {"first-contentful-paint": 250.0},
+                "upgraded": {"at": 300.0},
+                "presented": {
+                    "at": self.presented_at,
+                    "js_loaded": 275.0,
+                    "state_loaded": self.presented_at - 100.0,
+                    "js_requests": 16,
+                    "js_bytes": 150 * 1024,
+                    "code_requests": 20,
+                    "code_bytes": 330 * 1024,
+                    "requests": 24,
+                    "bytes": 335 * 1024,
+                },
+            }
         if "presented?.at" in script:
             return self.presented_at
         if "lf-revision" in script:
@@ -1338,6 +1545,19 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     )
     container = _DeployedContainer(release, page)
     published = {"revision": 2, "url": "revisions/2.html"}
+    profile = verify_site.AgentProfile()
+    profile.ask_count = 1
+    profile.milestones = {
+        "acknowledged 1": 0.250,
+        "published": 12.0,
+        "replied": 12.5,
+        "answered": 12.5,
+    }
+    profile.activities = [
+        (0.250, "queued", ""),
+        (1.0, "working", "Editing the page"),
+        (12.5, "away", ""),
+    ]
     monkeypatch.setattr(
         verify_site,
         "ask_until_answered",
@@ -1350,6 +1570,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             ),
             1,
             1,
+            profile,
         ),
     )
     # The first sample sets `agent_session`'s rollout deadline; the next two surround
@@ -1376,6 +1597,10 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     reported = capsys.readouterr().out
     assert "presented in 28444 ms" in reported
     assert "followed revision 2 2500 ms after presentation" in reported
+    assert "request acknowledged 250 ms" in reported
+    assert "activity working: Editing the page at 1.0 s" in reported
+    assert "published at 12.0 s" in reported
+    assert "changed page — HTML first byte 100 ms" in reported
     assert container.closed
 
     # A reload the container never answered is its own reading, taken before the wait.

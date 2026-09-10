@@ -62,7 +62,7 @@
 import { bindings, labelOf, live, spell, word } from "./bindings.js";
 import { addressPlacement } from "./address-placement.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "./hints.js";
-import { shortcutBarEl, walkPositionEl } from "./shortcut-bar.js";
+import { shortcutBarEl, standingStatusBoxes } from "./shortcut-bar.js";
 import { keySequence, progressStates } from "./presentation.js";
 import { banner, toggleBtn } from "../banner.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
@@ -80,7 +80,7 @@ import {
   workspaceState,
 } from "./page.js";
 import { fragmentId, itemSays, resolveAnchor, scrollToElement } from "../anchors.js";
-import { announce } from "../notifications.js";
+import { announce, notice } from "../notifications.js";
 import {
   closestAcross,
   containsAcross,
@@ -322,7 +322,7 @@ const TARGET_FILTERS = [
   {
     id: "margin-elements",
     key: "m",
-    word: "margin controls and status indicators",
+    word: "margin targets",
     matches: ({ kind }) => kind === MARGIN_TARGET_KIND,
   },
   {
@@ -524,12 +524,20 @@ function filterTargets(binding) {
   prefix = "";
   candidates = visibleCandidates(targetFilter);
   hintActive = -1;
-  announce(
-    candidates.length
-      ? `${candidates.length} visible ${targetFilter.word}; type a hint or press Tab to hear them.`
-      : `No visible ${targetFilter.word}.`,
-  );
+  const message = candidates.length
+    ? `${candidates.length} visible ${targetFilter.word}; type a hint or press Tab to hear them.`
+    : `No visible ${targetFilter.word}.`;
+  if (candidates.length) notice(message);
+  else announce(message);
   repaint();
+}
+
+// An empty active filter is useful state, not a four-second event. The candidate map is
+// the reading paintAddresses already owns; using it here keeps the shortcut repaint out
+// of the expensive visibility and hit-test pass.
+export function addressStatus() {
+  if (!sequenceActive || !targetFilter || candidates.length) return null;
+  return `No visible ${targetFilter.word}.`;
 }
 
 function activateCandidate(candidate) {
@@ -601,6 +609,7 @@ export function paintAddresses() {
   const detached = candidates.some(({ member }) => !member.isConnected);
   const refreshed =
     !prefix && !scrolling && (refreshCandidates || detached || !candidates.length);
+  const emptyBeforeRefresh = candidates.length === 0;
   if (refreshed) {
     candidates = visibleCandidates(targetFilter);
     hintActive = heard
@@ -611,6 +620,8 @@ export function paintAddresses() {
       : -1;
     refreshCandidates = false;
   }
+  const filterStatusChanged =
+    Boolean(targetFilter) && emptyBeforeRefresh !== (candidates.length === 0);
   const activeCandidate = hinted()[hintActive];
   const placement = addressPlacement();
   const chips = [];
@@ -635,11 +646,11 @@ export function paintAddresses() {
   if (wasActive && activeCandidate && !drawn.has(activeCandidate)) hintActive = -1;
   const controlBoxes = paintAddressChips(controlPlaced, chips);
   spreadHints(placed, {
-    barriers: [...controlBoxes, walkPositionEl.getBoundingClientRect()],
+    barriers: [...controlBoxes, ...standingStatusBoxes()],
     lineBox: shortcutBarEl.getBoundingClientRect(),
     viewportTop: banner.getBoundingClientRect().bottom,
   });
-  if (wasActive && hintActive < 0) repaint();
+  if ((wasActive && hintActive < 0) || filterStatusChanged) repaint();
 }
 // A page that moves under an armed window makes opaque labels temporarily untrustworthy,
 // so the scroll pass hides them and remaps once the scene settles. Capture, because the

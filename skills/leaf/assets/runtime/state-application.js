@@ -264,7 +264,7 @@ export async function receiveState(state) {
     if (finishActivation) {
       await finishActivation();
       updateFab();
-      notice(`Updated to ${runtime.currentLabel}`);
+      notice(`Updated to ${runtime.currentLabel}`, { background: true });
     }
     // Only a complete application advances the read boundary. A render fault may
     // already have changed some local surfaces, but it has not made a state safe to use
@@ -355,5 +355,5 @@ export async function receiveState(state) {
     if (applying === running) applying = null;
   }
   if (nextAgentMsgCount !== null) agentMsgCount = nextAgentMsgCount;
-  if (replyNotice) notice(replyNotice);
+  if (replyNotice) notice(replyNotice, { background: true });
 }

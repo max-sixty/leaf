@@ -1052,7 +1052,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     focused pick mark, and the swap that replaced main dropped that focus onto body,
     taking the offer down with it — the digit then picked nothing, silently. The place is
     written down by id before the swap and handed back after it, so the fresh mark holds the
-    focus and the digit picks, acknowledged in the banner. One revision arrives as a
+    focus and the digit picks, acknowledged in the bottom status. One revision arrives as a
     draft and the next as a stamped version, since both replace the page under the
     reader by the same door."""
     version_url = serve(LIVE_KEYS_V1)
@@ -1078,11 +1078,11 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     expect(mark).to_be_focused()
     assert "1–2\nOne / Two" in shortcut_bar_text(page)
     # A stamped version this time, which is the other way a page moves under a reader;
-    # the notice names it in the banner and no toast stands in the corner.
+    # the notice names it in the bottom status and no toast stands in the corner.
     stamp_page(serve.page_dir, LIVE_KEYS_V3, "third")
     told(page)
     expect(page).to_have_title("Live keys third")
-    expect(page.locator(".lf-banner-status .lf-notice")).to_have_text("Updated to v2")
+    expect(page.locator(".lf-bottom-status .lf-notice")).to_have_text("Updated to v2")
     assert page.locator(".lf-toast").count() == 0
     # The fresh mark: main was replaced whole, so the one the reader pressed on is gone.
     expect(page.locator("#lk-one .lf-pick")).to_be_focused()
@@ -1091,7 +1091,7 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     )
     page.keyboard.press("2")
     expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
-    expect(page.locator(".lf-banner-status .lf-notice")).to_have_text(
+    expect(page.locator(".lf-bottom-status .lf-notice")).to_have_text(
         "Chose “Two” — sent"
     )
     round_trip(page)
@@ -4581,10 +4581,9 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     page.close()
 
 
-def test_refusal_does_not_paint_a_queued_recordless_thread_action(browser, serve):
-    """The outbox is delivery order, not wholly an optimistic overlay. A recorded
-    choice is already painted, but the record-less Done press waits for acceptance;
-    correcting the older choice must not paint that queued press early."""
+def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, serve):
+    """A queued recordless action paints immediately and each refusal removes only
+    the local outcome belonging to that attempt."""
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page, errors = open_page(browser, url)
@@ -4596,7 +4595,7 @@ def test_refusal_does_not_paint_a_queued_recordless_thread_action(browser, serve
     done = page.locator("#tq-set .lf-done")
     done.click()
     expect(done).to_have_attribute("aria-busy", "true")
-    expect(done).to_have_attribute("aria-pressed", "false")
+    expect(done).to_have_attribute("aria-pressed", "true")
 
     first_attempt = held[0].request.post_data_json["attempt"]
     with page.expect_request(
@@ -4616,7 +4615,7 @@ def test_refusal_does_not_paint_a_queued_recordless_thread_action(browser, serve
         )
 
     expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
-    expect(done).to_have_attribute("aria-pressed", "false")
+    expect(done).to_have_attribute("aria-pressed", "true")
     second_attempt = held[1].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[1].fulfill(
@@ -4636,18 +4635,9 @@ def test_refusal_does_not_paint_a_queued_recordless_thread_action(browser, serve
     page.close()
 
 
-def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
-    """The Done press has no local projection, so it waits for the log and owes the
-    reader what every waiting press owes: `aria-busy` while the answer is in
-    the wire, and the pressed state only once the log has taken it. Nothing said the
-    press had landed before this, and a `button` styled by the theme gets no `:active`
-    of its own, so the reader had the round trip with no answer of any kind.
-
-    One press is one `answer` action, which this group's own comment has always
-    claimed and nothing checked. A second press cannot be caught in the wire — `post`
-    sends one action at a time, so it never reaches the route — so what it would leave
-    is a second line in the log once the queue drains, and that is where this reads it.
-    """
+def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
+    """Done paints its semantic result while delivery is held, and repeated presses
+    still produce one action."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
         events_model.append_event(serve.page_dir, event)
@@ -4661,9 +4651,7 @@ def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
     holding(page, held, 1, "the answer")
 
     expect(done).to_have_attribute("aria-busy", "true")
-    # The press is acknowledged; the answer it asks for is not painted, the log not
-    # having taken it yet.
-    expect(done).to_have_attribute("aria-pressed", "false")
+    expect(done).to_have_attribute("aria-pressed", "true")
     done.click()
     done.click()
 
@@ -4882,8 +4870,11 @@ def test_command_goal_conversation_follows_its_declaration_not_talk(
     page.close()
 
 
-def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
-    """A typed host request locks its siblings until its exact receipt arrives."""
+def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt(
+    browser, serve
+):
+    """A typed host request paints and locks its siblings before the log answers,
+    then waits for its exact receipt."""
     page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     operations = page.locator("#dedupe-operations")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
@@ -4912,11 +4903,18 @@ def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
           });
         }"""
     )
-    with sending(page, "the restart request"):
-        operations.get_by_role("button", name="Restart with a fresh worker").click()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    operations.get_by_role("button", name="Restart with a fresh worker").click()
+    holding(page, held, 1, "the restart request")
+    expect(operations).to_contain_text("restart requested · waiting for the host")
+    expect(request_row).to_have_attribute("data-lf-answer-state", "answered")
     assert page.evaluate("() => window.__lfFirstRequestAnswer") == (
         "Restart with a fresh worker"
     ), "the open Asks tray missed the package's first request projection"
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     requests = [
         event
         for event in events_model.read_events(serve.page_dir)

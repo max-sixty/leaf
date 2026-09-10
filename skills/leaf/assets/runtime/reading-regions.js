@@ -15,6 +15,7 @@ import { shownBox, shownRect } from "./geometry.js";
 import { containsAcross } from "./passages.js";
 import { pageScroller } from "./scrolling.js";
 import { layoutChanged } from "./widget-elements.js";
+import { reachReadingScroller } from "./reach.js";
 
 const regions = new Map();
 const arrangements = new Set();
@@ -90,9 +91,11 @@ const admitRegions = (declared) => {
   return declared.map((declaration) => {
     const { id, host, body } = declaration;
     const region = { id, host, body };
+    const stopReaching = reachReadingScroller(body);
     regions.set(id, region);
     return () => {
       if (regions.get(id) === region) regions.delete(id);
+      stopReaching();
     };
   });
 };

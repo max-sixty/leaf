@@ -62,6 +62,23 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Review the guided-still workflow across repeated website changes.** The initial
+  visual-review package passed one end-to-end five-case run. Use it on changes with
+  different navigation, responsive states, and authentication boundaries before
+  treating its authoring choices as settled.
+
+- **Add fast inspection modes to visual reviews.** Extend each existing case with
+  side-by-side and opacity views, disclosed masks, fit and actual-size zoom, and
+  changed-region navigation. Keep the current visual-run contract and case ids.
+
+- **Open visual-review targets beside Leaf through the host.** Coordinate the exact
+  case URL in a real browser pane and report mutable-preview staleness without treating
+  arbitrary iframes as live evidence.
+
+- **Add typed motion evidence after the media boundary supports it.** Define durable
+  video, poster, caption, transcript, and chapter handling in Leaf core; then let visual
+  runs attach motion only to cases whose timing or continuity is under review.
+
 - **Name the keyboard's visible carriers once the command-route model settles.** Add
   *key badge* and *binding badge* to the developer glossary, then cut code, docs, and
   tests over. A key badge carries a binding or transient hint code; a binding badge is

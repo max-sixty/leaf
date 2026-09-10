@@ -1091,6 +1091,11 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 -    return "plastic"
 +    return "steel"
 </pre></lf-diff>
+<lf-visual-review id="ab-visual" source="ab-run"></lf-visual-review>
+<lf-ask id="ab-target-decision"><h2>How should the release card change?</h2>
+<lf-targeting id="ab-target">
+  <lf-target-preview id="ab-target-preview"><section id="ab-release-card"><strong>Release notes</strong></section></lf-target-preview>
+</lf-targeting></lf-ask>
 """,
 )
 
@@ -1119,6 +1124,40 @@ STANDING_ACTIONS = [
         {"card": "ab-capacity", "to": "ab-keep", "index": 0},
     ),
     ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
+    (
+        "ab-visual",
+        "review",
+        {"case": "status-column", "disposition": "looks-right"},
+    ),
+    (
+        "ab-target",
+        "submit",
+        {
+            "targets": [
+                {
+                    "key": "target-1",
+                    "name": "Release card",
+                    "scope": "instance",
+                    "className": None,
+                    "selector": {
+                        "authoredId": "ab-release-card",
+                        "path": [{"tag": "section", "index": 0}],
+                        "label": "<section#ab-release-card>",
+                        "text": "Release notes",
+                    },
+                }
+            ],
+            "changes": [
+                {
+                    "id": "change-1",
+                    "target": "target-1",
+                    "kind": "style",
+                    "property": "padding",
+                    "value": "24px",
+                }
+            ],
+        },
+    ),
     (
         "ab-card",
         "choose",

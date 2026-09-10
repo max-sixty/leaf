@@ -6993,12 +6993,19 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
         """() => getComputedStyle(document.body).marginLeft === '0px'"""
     )
 
-    page.locator(".lf-asks").click()
+    # Leaves is a modal covering workspace, so its scrim correctly makes the page and
+    # banner inert. The global destination remains the route from one tray to the other.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
     expect(decisions).to_be_visible()
     expect(leaves).to_be_hidden()
 
+    # The destination captured the covering tray it replaced, so the first Escape
+    # returns there; the second closes that one standing tray.
     page.keyboard.press("Escape")
     expect(decisions).to_be_hidden()
+    expect(leaves).to_be_visible()
+    page.keyboard.press("Escape")
     expect(leaves).to_be_hidden()
     assert errors == []
     page.close()

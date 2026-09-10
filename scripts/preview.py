@@ -37,7 +37,7 @@ Named slots let several previews coexist. `--source` keeps one authored fixture
 fixed while `--runtime` vendors it from another Leaf checkout. `--background`
 detaches the watcher and returns its URL instead of holding the terminal.
 
-Usage: preview.py [page] [options]  (default: design-decision)
+Usage: preview.py [page] [options]  (default: triage-board)
 Stop:  preview.py [page] [--slot name] --stop
 """
 
@@ -54,12 +54,12 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from example_data import data_operations, example_versions
+from example_data import TEST_PAGES, data_operations, example_versions
 
 ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".tmp"
 DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
-NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer")
+NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer", TEST_PAGES)
 SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
 
@@ -180,7 +180,7 @@ def arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     parser.add_argument(
         "example",
         nargs="?",
-        help="public example or developer fixture name (default: design-decision)",
+        help="public example or developer fixture name (default: triage-board)",
     )
     parser.add_argument("--source", type=Path, help="authored HTML source to preview")
     parser.add_argument(
@@ -266,7 +266,7 @@ def authored_source(
         if not selected.is_file():
             parser.error(f"no authored source at {selected}")
         return selected
-    name = (example or "design-decision").removesuffix(".html")
+    name = (example or "triage-board").removesuffix(".html")
     candidates = [root / f"{name}.html" for root in NAMED_SOURCE_DIRS]
     found = [path for path in candidates if path.is_file()]
     if len(found) == 1:

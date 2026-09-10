@@ -58,7 +58,6 @@ PAGE_RESOURCE = re.compile(
     r"|^/(?:icon\.svg|leaf\.js|registry\.json|sitenote\.js|theme\.css)$"
 )
 AGENT_EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
-AGENT_TURN_PATH = "/_leaf/agent/turn"
 AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_REPLY_PATH = "/_leaf/agent/reply"
 RUNTIME_DIRECTORY = Path(tempfile.gettempdir()).resolve()
@@ -86,6 +85,24 @@ subagents, and do not read or change any other files outside the page directory.
 the page path. This published session remains live after each response: finish handled
 input with `$LEAF status . waiting`, never `idle`. Keep transcript-only final messages
 brief; the Leaf page is the user interface."""
+
+
+def log_agent(event: str, **fields) -> None:
+    """Emit one content-free structured boundary reading to Worker observability."""
+    print(
+        json.dumps(
+            {"component": "leaf-agent", "event": event, **fields},
+            separators=(",", ":"),
+        ),
+        flush=True,
+    )
+
+
+def agent_event_fields(event_ids: tuple[str, ...]) -> dict:
+    """Keep every accepted event searchable when one turn carries a batch."""
+    if len(event_ids) == 1:
+        return {"eventId": event_ids[0]}
+    return {"eventIds": event_ids}
 
 
 @cache
@@ -169,6 +186,34 @@ class WebsiteCodexHost:
         self.next_request_id = 0
         self.waiter_leases = {}
 
+    def prewarm(self) -> threading.Thread:
+        """Start App Server behind HTTP readiness instead of the first agent request."""
+        thread = threading.Thread(
+            target=self._prewarm,
+            name="leaf-codex-prewarm",
+            daemon=True,
+        )
+        thread.start()
+        return thread
+
+    def _prewarm(self) -> None:
+        started = time.monotonic()
+        log_agent("app_server_prewarm_started")
+        try:
+            with self.lock:
+                self._ensure_server()
+        except (OSError, RuntimeError) as error:
+            log_agent(
+                "app_server_prewarm_failed",
+                durationMs=round((time.monotonic() - started) * 1000),
+                error=type(error).__name__,
+            )
+            return
+        log_agent(
+            "app_server_prewarm_completed",
+            durationMs=round((time.monotonic() - started) * 1000),
+        )
+
     def _hold_waiter(self, page_dir: Path, thread_id: str) -> None:
         if thread_id in self.waiter_leases:
             return
@@ -187,20 +232,29 @@ class WebsiteCodexHost:
             process = self.process
             self.process = None
         if process is not None:
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
-            self.socket_path.unlink(missing_ok=True)
+            self._stop_server(process)
+
+    def _stop_server(self, process: subprocess.Popen) -> None:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+        self.socket_path.unlink(missing_ok=True)
 
     def _ensure_server(self) -> subprocess.Popen:
         if self.codex_path is None:
             raise RuntimeError("cannot find the `codex` executable on PATH")
-        if self.process is not None and self.process.poll() is None:
-            return self.process
+        if self.process is not None:
+            if self.process.poll() is None and self.socket_path.exists():
+                return self.process
+            stale = self.process
+            self.process = None
+            self._stop_server(stale)
+        started = time.monotonic()
+        log_agent("app_server_spawn_started")
         self.socket_path.unlink(missing_ok=True)
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.log_path, "ab", buffering=0) as log:
@@ -219,16 +273,26 @@ class WebsiteCodexHost:
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
             if self.socket_path.exists():
+                log_agent(
+                    "app_server_spawn_completed",
+                    durationMs=round((time.monotonic() - started) * 1000),
+                )
                 return self.process
             if self.process.poll() is not None:
                 detail = self.log_path.read_text(encoding="utf-8", errors="replace")
+                self.process = None
+                self.socket_path.unlink(missing_ok=True)
                 raise RuntimeError(detail.strip() or "Codex App Server exited")
             time.sleep(0.05)
+        process = self.process
+        self.process = None
+        self._stop_server(process)
         raise RuntimeError("Codex App Server did not become ready")
 
     def _request(self, method: str, params: dict, before_close=None) -> dict:
         socket = _app_server_connect(self.endpoint)
         followed = False
+        pending = []
         try:
             self._send(
                 socket,
@@ -240,15 +304,16 @@ class WebsiteCodexHost:
                         "version": "0",
                     }
                 },
+                pending,
             )
             socket.send(json.dumps({"method": "initialized", "params": {}}))
-            result = self._send(socket, method, params)
+            result = self._send(socket, method, params, pending)
             if before_close is not None:
-                follow = before_close(socket, result)
+                follow = before_close(socket, result, pending)
                 if follow is not None:
                     threading.Thread(
                         target=self._follow_turn,
-                        args=(socket, *follow),
+                        args=(socket, *follow, tuple(pending)),
                         daemon=True,
                     ).start()
                     followed = True
@@ -334,6 +399,7 @@ class WebsiteCodexHost:
         turn_id: str,
         leaf_turn: str,
         event_ids: tuple[str, ...],
+        initial_messages: tuple[dict, ...] = (),
     ) -> None:
         """Project notifications and account for the turn's terminal outcome."""
         events = AppServerEvents(thread_id)
@@ -341,13 +407,32 @@ class WebsiteCodexHost:
         last_stream_update = 0.0
         terminal: dict
         final_message = None
+        started = time.monotonic()
+        first_notification = True
+        event_fields = agent_event_fields(event_ids)
+        pending = list(initial_messages)
         _set_stream_activity(thread_id, turn_id, "Starting")
+        log_agent("turn_following_started", **event_fields, turnId=turn_id)
         try:
             while True:
-                try:
-                    message = json.loads(socket.recv(timeout=1))
-                except TimeoutError:
-                    continue
+                if pending:
+                    message = pending.pop(0)
+                    buffered = True
+                else:
+                    try:
+                        message = json.loads(socket.recv(timeout=1))
+                    except TimeoutError:
+                        continue
+                    buffered = False
+                if first_notification:
+                    log_agent(
+                        "turn_first_notification",
+                        **event_fields,
+                        turnId=turn_id,
+                        durationMs=round((time.monotonic() - started) * 1000),
+                        buffered=buffered,
+                    )
+                    first_notification = False
                 update = events.read(message)
                 last_stream_update = project_app_server_activity(
                     events,
@@ -375,6 +460,13 @@ class WebsiteCodexHost:
             }
         finally:
             socket.close()
+        log_agent(
+            "turn_stream_completed",
+            **event_fields,
+            turnId=turn_id,
+            durationMs=round((time.monotonic() - started) * 1000),
+            status=terminal.get("status"),
+        )
         with self.lock:
             self._finish_turn(
                 page_dir,
@@ -385,13 +477,21 @@ class WebsiteCodexHost:
                 final_message,
             )
 
-    def _send(self, socket, method: str, params: dict) -> dict:
+    def _send(
+        self,
+        socket,
+        method: str,
+        params: dict,
+        pending: list[dict] | None = None,
+    ) -> dict:
         request_id = self.next_request_id
         self.next_request_id += 1
         socket.send(json.dumps({"method": method, "id": request_id, "params": params}))
         while True:
             message = json.loads(socket.recv(timeout=20))
             if message.get("id") != request_id or "method" in message:
+                if pending is not None:
+                    pending.append(message)
                 continue
             if error := message.get("error"):
                 raise RuntimeError(error.get("message") or str(error))
@@ -403,7 +503,9 @@ class WebsiteCodexHost:
         page_dir: Path,
         thread_id: str,
         process: subprocess.Popen,
+        pending: list[dict] | None = None,
     ) -> tuple[Path, str, str, str, tuple[str, ...]]:
+        started = time.monotonic()
         with PageTransaction(page_dir) as page:
             if page.status["state"] == "idle":
                 page.set_status("waiting", "")
@@ -417,6 +519,7 @@ class WebsiteCodexHost:
                 "threadId": thread_id,
                 "input": [{"type": "text", "text": prompt}],
             },
+            pending,
         )["turn"]
         accepted = accept_codex_delivery(thread_id)
         if len(accepted) != 1 or accepted[0]["page"] != page_dir:
@@ -424,18 +527,31 @@ class WebsiteCodexHost:
                 "the website Codex turn accepted an unexpected page batch"
             )
         delivery = accepted[0]
+        event_ids = delivery["events"]
+        log_agent(
+            "turn_start_completed",
+            **agent_event_fields(event_ids),
+            turnId=turn["id"],
+            durationMs=round((time.monotonic() - started) * 1000),
+        )
         return (
             page_dir,
             thread_id,
             turn["id"],
             delivery["turn"],
-            delivery["events"],
+            event_ids,
         )
 
-    def _start_thread(self, page_dir: Path, process: subprocess.Popen) -> str:
-        def attach(socket, result: dict) -> tuple[Path, str, str, str, tuple[str, ...]]:
+    def _start_thread(
+        self, page_dir: Path, process: subprocess.Popen, event_id: str
+    ) -> str:
+        started = time.monotonic()
+
+        def attach(
+            socket, result: dict, pending: list[dict]
+        ) -> tuple[Path, str, str, str, tuple[str, ...]]:
             thread_id = result["thread"]["id"]
-            return self._start_turn(socket, page_dir, thread_id, process)
+            return self._start_turn(socket, page_dir, thread_id, process, pending)
 
         result = self._request(
             "thread/start",
@@ -451,6 +567,11 @@ class WebsiteCodexHost:
             },
             attach,
         )
+        log_agent(
+            "thread_start_completed",
+            eventId=event_id,
+            durationMs=round((time.monotonic() - started) * 1000),
+        )
         return result["thread"]["id"]
 
     def _resume_and_start(
@@ -458,16 +579,20 @@ class WebsiteCodexHost:
         page_dir: Path,
         thread_id: str,
         process: subprocess.Popen,
+        event_id: str,
     ) -> bool:
+        started = time.monotonic()
         resumed = False
 
-        def attach(socket, result: dict) -> tuple[Path, str, str, str, tuple[str, ...]]:
+        def attach(
+            socket, result: dict, pending: list[dict]
+        ) -> tuple[Path, str, str, str, tuple[str, ...]]:
             nonlocal resumed
             resumed = True
             status = result["thread"]["status"]["type"]
             if status != "active":
                 close_session_turn(thread_id)
-            return self._start_turn(socket, page_dir, thread_id, process)
+            return self._start_turn(socket, page_dir, thread_id, process, pending)
 
         try:
             self._request(
@@ -479,32 +604,70 @@ class WebsiteCodexHost:
                 },
                 attach,
             )
+            log_agent(
+                "thread_resume_completed",
+                eventId=event_id,
+                durationMs=round((time.monotonic() - started) * 1000),
+            )
             return True
         except RuntimeError:
             if resumed:
                 raise
             return False
 
-    def attach(self, page_dir: Path) -> str:
+    def attach(self, page_dir: Path, event_id: str) -> str:
         """Create or resume the page's task and deliver its pending reader input."""
-        with self.lock:
-            process = self._ensure_server()
-            claim = page_claim(page_dir)
-            thread_id = (
-                claim.get("id") if claim and claim.get("host") == "codex" else None
+        started = time.monotonic()
+        log_agent("container_start_received", eventId=event_id)
+        try:
+            with self.lock:
+                server_started = time.monotonic()
+                process = self._ensure_server()
+                log_agent(
+                    "app_server_available",
+                    eventId=event_id,
+                    durationMs=round((time.monotonic() - server_started) * 1000),
+                )
+                claim = page_claim(page_dir)
+                thread_id = (
+                    claim.get("id") if claim and claim.get("host") == "codex" else None
+                )
+                if thread_id is None or not self._resume_and_start(
+                    page_dir, thread_id, process, event_id
+                ):
+                    thread_id = self._start_thread(page_dir, process, event_id)
+        except (OSError, RuntimeError, ValueError) as error:
+            log_agent(
+                "container_start_failed",
+                eventId=event_id,
+                durationMs=round((time.monotonic() - started) * 1000),
+                error=type(error).__name__,
             )
-            if thread_id is None or not self._resume_and_start(
-                page_dir, thread_id, process
-            ):
-                return self._start_thread(page_dir, process)
-            return thread_id
+            raise
+        log_agent(
+            "container_start_completed",
+            eventId=event_id,
+            durationMs=round((time.monotonic() - started) * 1000),
+        )
+        return thread_id
 
-    def abandon(self, page_dir: Path, event_id: str) -> None:
-        """Retire a delivery only after any concurrent startup has completed."""
+    def fallback_reply(self, page_dir: Path, event_id: str, text: str) -> dict | None:
+        """Settle unclaimed input without racing a turn that is starting."""
         with self.lock:
+            accepted = cmd_reply(
+                page_dir,
+                event_id,
+                text,
+                "",
+                attempt=agent_attempt(event_id),
+                only_if_pending=True,
+                only_if_unclaimed=True,
+                identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
+            )
             claim = page_claim(page_dir)
             if claim and claim.get("host") == "codex":
                 abandon_codex_delivery(claim["id"], event_id)
+            return accepted
 
 
 _agent_host: WebsiteCodexHost | None = None
@@ -596,7 +759,7 @@ class WebsitePageHandler(Handler):
 
     def _post(self) -> None:
         path = urlsplit(self.path).path
-        if path not in {AGENT_TURN_PATH, AGENT_START_PATH, AGENT_REPLY_PATH}:
+        if path not in {AGENT_START_PATH, AGENT_REPLY_PATH}:
             super()._post()
             return
         if self.posted_error:
@@ -609,37 +772,21 @@ class WebsitePageHandler(Handler):
         except ValueError as error:
             self._json({"error": str(error)}, 400)
             return
-        if path in {AGENT_TURN_PATH, AGENT_START_PATH}:
+        if path == AGENT_START_PATH:
             if not agent_event_pending(self.page_dir, event_id):
                 self._json({"status": "settled"})
                 return
-            if path == AGENT_TURN_PATH:
-                thread_id = agent_event_thread(self.page_dir, event_id)
-                if thread_id is not None:
-                    self._json({"status": "connected", "thread": thread_id})
-                    return
-                self._json({"status": "ready"})
-                return
             thread_id = agent_event_thread(self.page_dir, event_id)
             if thread_id is None:
-                thread_id = self.agent_host.attach(self.page_dir)
+                thread_id = self.agent_host.attach(self.page_dir, event_id)
             self._json({"status": "started", "thread": thread_id})
             return
 
         try:
-            accepted = cmd_reply(
-                self.page_dir,
-                event_id,
-                text,
-                "",
-                attempt=agent_attempt(event_id),
-                only_if_pending=True,
-                identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
-            )
+            accepted = self.agent_host.fallback_reply(self.page_dir, event_id, text)
         except SystemExit as error:
             self._json({"error": str(error)}, 400)
             return
-        self.agent_host.abandon(self.page_dir, event_id)
         if accepted is None:
             self._json({"status": "settled"})
             return
@@ -712,6 +859,8 @@ def main() -> None:
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     agent_host = website_codex_host()
     httpd = server_at("0.0.0.0", PORT, handler_for(site_root, agent_host))
+    log_agent("container_http_ready")
+    agent_host.prewarm()
     previous_term = signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     try:
         httpd.serve_forever()

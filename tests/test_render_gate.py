@@ -30,6 +30,7 @@ from render_support import (
     EDGES,
     EXAMPLES,
     FAINT_CODE_PAGE,
+    FEATURE_GALLERY,
     FLAT_SHADOW_PAGE,
     FLOATING_PAGE,
     GENERIC_VISUAL_LAYER,
@@ -2343,7 +2344,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     Three readings distinguish a real container response from either never floating the
     note or releasing it whenever the panel opens: the note begins in the margin, returns
     to flow when space is tight, and stays in the margin when the wider box holds both."""
-    example = next(p for p in EXAMPLES if p.stem == "design-decision")
+    example = FEATURE_GALLERY
     url = serve(example)
     page, errors = open_page(browser, url)
     reading = """() => {

@@ -21,7 +21,7 @@ ORIGIN = os.environ.get("LEAF_SITE_ORIGIN", "https://leaf.page").rstrip("/")
 DIRECT_AGENT = os.environ.get("LEAF_VERIFY_DIRECT_AGENT") == "1"
 PAGES = (
     ("/", "product", True),
-    ("/examples/design-decision/", "example", True),
+    ("/examples/triage-board/", "example", True),
     ("/examples/feature-gallery/versions/v1.html", "example", False),
 )
 PROFILE_SCRIPT = """(() => {
@@ -339,7 +339,7 @@ def startup_line(path: str, startup: dict) -> str:
 def verify_cross_tab_activation(browser) -> None:
     """One interacting tab must wake another tab sharing its browser session."""
     context = browser.new_context()
-    url = f"{ORIGIN}/examples/design-decision/"
+    url = f"{ORIGIN}/examples/triage-board/"
     leader = context.new_page()
     follower = context.new_page()
     for page in (leader, follower):
@@ -434,7 +434,7 @@ def agent_session(browser, release: str) -> AgentSession:
     and it takes a fresh session while a rollout drains. Nothing here writes: the
     turn is posted once, afterwards.
     """
-    url = f"{ORIGIN}/examples/design-decision/"
+    url = f"{ORIGIN}/examples/triage-board/"
     state_url = urljoin(url, "api/state")
     # The release verification ahead of this pass already waited out most of the
     # rollout, so this is the tail of a drain rather than the drain, and this wait
@@ -487,6 +487,8 @@ class AgentProfile:
         self.milestones: dict[str, float] = {}
         self.activities: list[tuple[float, str, str]] = []
         self.ask_count = 0
+        self.reference: str | None = None
+        self.event_ids: list[str] = []
 
     def mark(self, name: str) -> None:
         self.milestones.setdefault(name, time.monotonic() - self.started)
@@ -516,6 +518,10 @@ def elapsed_time(seconds: float) -> str:
 def print_agent_profile(profile: AgentProfile) -> None:
     """Print the request and hosted-agent milestones."""
     print("Hosted agent profile (observed from the first request):")
+    if profile.reference is not None:
+        print(f"  session reference {profile.reference}")
+    for event_id in profile.event_ids:
+        print(f"  event {event_id}")
     for ask in range(1, profile.ask_count + 1):
         suffix = "" if ask == 1 else f" {ask}"
         print(
@@ -556,22 +562,13 @@ def start_direct_agent(context, url: str, comment: dict) -> None:
     """Run the local adapter's side of the production Workflow handoff."""
     endpoint = urljoin(url, "_leaf/agent/")
     event = {"event": comment["id"]}
-    ready = context.request.post(urljoin(endpoint, "turn"), data=event, timeout=120_000)
-    check(ready.ok, f"{endpoint}turn returned {ready.status}")
-    reading = ready.json()
-    check(
-        reading.get("status") in {"ready", "connected"},
-        f"{endpoint}turn returned {reading}",
-    )
-    if reading["status"] == "connected":
-        return
     started = context.request.post(
         urljoin(endpoint, "start"), data=event, timeout=120_000
     )
     check(started.ok, f"{endpoint}start returned {started.status}")
     reading = started.json()
     check(
-        reading.get("status") == "started",
+        reading.get("status") in {"started", "settled"},
         f"{endpoint}start returned {reading}",
     )
 
@@ -604,6 +601,7 @@ def ask_for_the_heading(
     )
     check(posted.ok, f"{url} rejected its deployment-check comment")
     accepted = posted.json()
+    profile.reference = posted.headers.get("leaf-session-reference")
     profile.mark(f"acknowledged {ask}")
     check(
         "state" in accepted,
@@ -619,6 +617,7 @@ def ask_for_the_heading(
         None,
     )
     check(comment is not None, f"{url} did not return its deployment-check comment")
+    profile.event_ids.append(comment["id"])
     if DIRECT_AGENT:
         start_direct_agent(context, url, comment)
     return comment

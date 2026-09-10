@@ -8,6 +8,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -65,14 +66,43 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
 class FakeCodexHost:
     def __init__(self):
         self.attached = []
-        self.abandoned = []
 
-    def attach(self, page_dir: Path) -> str:
+    def attach(self, page_dir: Path, event_id: str) -> str:
         self.attached.append(page_dir)
         return "codex-thread"
 
-    def abandon(self, page_dir: Path, event_id: str) -> None:
-        self.abandoned.append((page_dir, event_id))
+    def fallback_reply(self, page_dir: Path, event_id: str, text: str) -> dict | None:
+        return website_server.cmd_reply(
+            page_dir,
+            event_id,
+            text,
+            "",
+            attempt=website_server.agent_attempt(event_id),
+            only_if_pending=True,
+            only_if_unclaimed=True,
+            identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
+        )
+
+
+def test_agent_logs_are_structured_and_content_free(capsys):
+    website_server.log_agent(
+        "container_start_completed",
+        eventId="reader-event",
+        durationMs=125,
+    )
+
+    assert json.loads(capsys.readouterr().out) == {
+        "component": "leaf-agent",
+        "event": "container_start_completed",
+        "eventId": "reader-event",
+        "durationMs": 125,
+    }
+
+
+def test_agent_logs_keep_every_event_in_a_batched_turn_searchable():
+    assert website_server.agent_event_fields(("event-1", "event-2")) == {
+        "eventIds": ("event-1", "event-2")
+    }
 
 
 def test_the_website_label_follows_the_script_contract_not_its_formatting():
@@ -118,6 +148,7 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
             before_close(
                 "socket",
                 {"thread": {"id": "hosted-thread", "status": {"type": status}}},
+                [],
             )
         return {"thread": {"id": "hosted-thread", "status": {"type": status}}}
 
@@ -135,7 +166,7 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         lambda *args: closed.append(args),
     )
 
-    thread_id = host.attach(page_dir)
+    thread_id = host.attach(page_dir, "reader-event")
 
     assert thread_id == "hosted-thread"
     assert requests == [
@@ -148,7 +179,7 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
             },
         )
     ]
-    assert started == [("socket", page_dir, "hosted-thread", process)]
+    assert started == [("socket", page_dir, "hosted-thread", process, [])]
     assert closed == ([("hosted-thread",)] if closes_turn else [])
 
 
@@ -163,13 +194,13 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
         requests.append((method, params))
         result = {"thread": {"id": "hosted-thread"}}
         if before_close is not None:
-            before_close("socket", result)
+            before_close("socket", result, [])
         return result
 
     monkeypatch.setattr(host, "_request", request)
 
-    def send(socket, method, params):
-        sent.append((socket, method, params))
+    def send(socket, method, params, pending=None):
+        sent.append((socket, method, params, pending))
         return {"turn": {"id": "initial-turn"}}
 
     monkeypatch.setattr(host, "_send", send)
@@ -193,9 +224,9 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
         ),
     )
 
-    assert host._start_thread(page_dir, type("Process", (), {"pid": 41})()) == (
-        "hosted-thread"
-    )
+    assert host._start_thread(
+        page_dir, type("Process", (), {"pid": 41})(), "reader-event"
+    ) == ("hosted-thread")
     assert requests == [
         (
             "thread/start",
@@ -219,6 +250,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
                 "threadId": "hosted-thread",
                 "input": [{"type": "text", "text": "<leaf-delivery />"}],
             },
+            [],
         )
     ]
     assert accepted == [("hosted-thread",)]
@@ -258,6 +290,107 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     ]
     assert "$LEAF" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF_SKILL_DIR/SKILL.md" in website_server.CODEX_INSTRUCTIONS
+
+
+def test_a_timed_out_app_server_is_stopped_before_startup_retries(
+    tmp_path, monkeypatch
+):
+    host = website_server.WebsiteCodexHost(
+        "codex",
+        tmp_path / "app-server.sock",
+        tmp_path / "app-server.log",
+    )
+    clock = [0.0]
+    processes = []
+
+    class Process:
+        stopped = False
+
+        def poll(self):
+            return 0 if self.stopped else None
+
+        def terminate(self):
+            self.stopped = True
+
+        def wait(self, timeout=None):
+            return 0
+
+    def popen(*args, **kwargs):
+        process = Process()
+        processes.append(process)
+        if len(processes) == 2:
+            host.socket_path.touch()
+        return process
+
+    monkeypatch.setattr(website_server.subprocess, "Popen", popen)
+    monkeypatch.setattr(website_server.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        website_server.time,
+        "sleep",
+        lambda seconds: clock.__setitem__(0, clock[0] + 21),
+    )
+
+    with pytest.raises(RuntimeError, match="did not become ready"):
+        host._ensure_server()
+
+    assert processes[0].stopped
+    assert host.process is None
+    assert host._ensure_server() is processes[1]
+
+
+def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypatch):
+    host = website_server.WebsiteCodexHost("codex")
+    prewarm_started = threading.Event()
+    fail_prewarm = threading.Event()
+    calls = []
+    process = type("Process", (), {"pid": 41})()
+
+    def ensure_server():
+        calls.append(None)
+        if len(calls) == 1:
+            prewarm_started.set()
+            fail_prewarm.wait(timeout=2)
+            raise RuntimeError("startup failed")
+        return process
+
+    monkeypatch.setattr(host, "_ensure_server", ensure_server)
+    monkeypatch.setattr(website_server, "page_claim", lambda page: None)
+    monkeypatch.setattr(host, "_start_thread", lambda *args: "hosted-thread")
+
+    prewarm = host.prewarm()
+    assert prewarm_started.wait(timeout=2)
+    attached = []
+    request = threading.Thread(
+        target=lambda: attached.append(host.attach(page_dir, "reader-event"))
+    )
+    request.start()
+    assert calls == [None]
+    fail_prewarm.set()
+    prewarm.join(timeout=2)
+    request.join(timeout=2)
+
+    assert attached == ["hosted-thread"]
+    assert calls == [None, None]
+
+
+def test_the_website_host_prewarms_app_server_in_the_background(monkeypatch):
+    host = website_server.WebsiteCodexHost("codex")
+    started = threading.Event()
+    release = threading.Event()
+
+    def ensure_server():
+        started.set()
+        release.wait(timeout=2)
+
+    monkeypatch.setattr(host, "_ensure_server", ensure_server)
+
+    thread = host.prewarm()
+
+    assert started.wait(timeout=2)
+    assert thread.is_alive()
+    release.set()
+    thread.join(timeout=2)
+    assert not thread.is_alive()
 
 
 def test_closing_the_website_host_stops_its_app_server(tmp_path):
@@ -308,23 +441,18 @@ def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
 
         def post(self, url, data, **options):
             self.posts.append((url, data))
-            status = "ready" if url.endswith("/turn") else "started"
-            return _Read({"status": status})
+            return _Read({"status": "started"})
 
     context = Requests()
     verify_site.start_direct_agent(
         context,
-        "http://127.0.0.1:8080/examples/design-decision/",
+        "http://127.0.0.1:8080/examples/triage-board/",
         {"id": "comment-id"},
     )
 
     assert context.posts == [
         (
-            "http://127.0.0.1:8080/examples/design-decision/_leaf/agent/turn",
-            {"event": "comment-id"},
-        ),
-        (
-            "http://127.0.0.1:8080/examples/design-decision/_leaf/agent/start",
+            "http://127.0.0.1:8080/examples/triage-board/_leaf/agent/start",
             {"event": "comment-id"},
         ),
     ]
@@ -348,6 +476,106 @@ def test_the_website_task_preserves_a_delivery_the_app_server_rejects(
         host._start_turn(
             "socket", page_dir, "hosted-thread", type("Process", (), {"pid": 41})()
         )
+
+
+def test_notifications_before_start_response_reach_the_turn_follower(
+    page_dir, monkeypatch
+):
+    messages = iter(
+        [
+            json.dumps({"id": 0, "result": {}}),
+            json.dumps({"id": 1, "result": {"thread": {"id": "hosted-thread"}}}),
+            json.dumps(
+                {
+                    "method": "item/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turnId": "initial-turn",
+                        "item": {
+                            "id": "message-1",
+                            "type": "agentMessage",
+                            "text": "Deployment verified.",
+                        },
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "method": "turn/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turn": {"id": "initial-turn", "status": "completed"},
+                    },
+                }
+            ),
+            json.dumps({"id": 2, "result": {"turn": {"id": "initial-turn"}}}),
+        ]
+    )
+
+    class Socket:
+        closed = False
+
+        def send(self, message):
+            pass
+
+        def recv(self, timeout):
+            return next(messages)
+
+        def close(self):
+            self.closed = True
+
+    socket = Socket()
+    monkeypatch.setattr(website_server, "_app_server_connect", lambda endpoint: socket)
+    monkeypatch.setattr(website_server, "_set_stream_activity", lambda *args: None)
+    monkeypatch.setattr(website_server, "_clear_stream_activity", lambda *args: None)
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(host, "_hold_waiter", lambda *args: None)
+    monkeypatch.setattr(
+        website_server,
+        "prepare_codex_delivery",
+        lambda *args: "<leaf-delivery />",
+    )
+    monkeypatch.setattr(
+        website_server,
+        "accept_codex_delivery",
+        lambda *args: [
+            {
+                "page": page_dir,
+                "events": ("reader-event",),
+                "turn": "leaf-turn",
+            }
+        ],
+    )
+    finished = []
+    completed = threading.Event()
+
+    def finish(*args):
+        finished.append(args)
+        completed.set()
+
+    monkeypatch.setattr(host, "_finish_turn", finish)
+
+    assert (
+        host._start_thread(
+            page_dir,
+            type("Process", (), {"pid": 41})(),
+            "reader-event",
+        )
+        == "hosted-thread"
+    )
+
+    assert completed.wait(timeout=2)
+    assert finished == [
+        (
+            page_dir,
+            "hosted-thread",
+            "leaf-turn",
+            ("reader-event",),
+            {"id": "initial-turn", "status": "completed"},
+            "Deployment verified.",
+        )
+    ]
+    assert socket.closed
 
 
 def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(
@@ -631,6 +859,92 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     assert read_events(page_dir) == before
 
 
+def test_a_host_fallback_does_not_answer_input_an_agent_turn_already_claimed(
+    page_dir,
+):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    website_server.accept_codex_delivery("hosted-thread")
+
+    reply = website_server.cmd_reply(
+        page_dir,
+        comment["id"],
+        website_server.GENERATION_FAILURE_REPLY,
+        "",
+        attempt=website_server.agent_attempt(comment["id"]),
+        only_if_pending=True,
+        only_if_unclaimed=True,
+        identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
+    )
+
+    assert reply is None
+
+
+def test_a_fallback_waits_for_external_turn_acceptance_to_be_recorded(
+    page_dir, monkeypatch
+):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    process = type("Process", (), {"pid": os.getpid()})()
+    turn_started = threading.Event()
+    record_acceptance = threading.Event()
+    fallback_waiting = threading.Event()
+
+    class ObservedLock:
+        def __init__(self):
+            self.lock = threading.Lock()
+
+        def __enter__(self):
+            if self.lock.locked():
+                fallback_waiting.set()
+            self.lock.acquire()
+
+        def __exit__(self, *args):
+            self.lock.release()
+
+    host.lock = ObservedLock()
+    monkeypatch.setattr(host, "_ensure_server", lambda: process)
+
+    def start_thread(page, process, event_id):
+        website_server.prepare_codex_delivery(
+            page,
+            {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+            {"pid": process.pid},
+        )
+        turn_started.set()
+        record_acceptance.wait(timeout=2)
+        website_server.accept_codex_delivery("hosted-thread")
+        return "hosted-thread"
+
+    monkeypatch.setattr(host, "_start_thread", start_thread)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attached = pool.submit(host.attach, page_dir, comment["id"])
+        assert turn_started.wait(timeout=2)
+        settled = pool.submit(
+            host.fallback_reply,
+            page_dir,
+            comment["id"],
+            website_server.GENERATION_FAILURE_REPLY,
+        )
+
+        assert fallback_waiting.wait(timeout=2)
+        record_acceptance.set()
+        assert attached.result(timeout=2) == "hosted-thread"
+        assert settled.result(timeout=2) is None
+    assert not any(
+        event["kind"] == "reply" and event.get("parent") == comment["id"]
+        for event in read_events(page_dir)
+    )
+
+
 def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
     first = append_event(
         page_dir,
@@ -742,11 +1056,6 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             for obligation in answer["state"]["activity"]["obligations"]
         }
 
-        ready, _ = post(
-            f"{root}/examples/decision/_leaf/agent/turn",
-            {"event": comment["id"]},
-        )
-        assert ready == {"status": "ready"}
         started, _ = post(
             f"{root}/examples/decision/_leaf/agent/start",
             {"event": comment["id"]},
@@ -892,8 +1201,6 @@ def test_a_product_route_uses_the_same_real_page_server(
             for event in answer["state"]["events"]
             if event.get("attempt") == posted["attempt"]
         )
-        ready, _ = post(f"{root}{page_root}/_leaf/agent/turn", {"event": comment["id"]})
-        assert ready == {"status": "ready"}
         started, _ = post(
             f"{root}{page_root}/_leaf/agent/start", {"event": comment["id"]}
         )
@@ -1023,9 +1330,9 @@ def test_a_page_that_never_presents_names_itself_and_how_far_it_got():
     widget upgrade or the first state read was the one that never answered.
     """
     stalled = verify_site.unpresented(
-        "https://leaf.page/examples/design-decision/", ["upgraded"], []
+        "https://leaf.page/examples/triage-board/", ["upgraded"], []
     )
-    assert "examples/design-decision" in stalled
+    assert "examples/triage-board" in stalled
     assert "upgraded" in stalled
 
     early = verify_site.unpresented("https://leaf.page/", [], ["widget module 404"])
@@ -1241,8 +1548,8 @@ def test_the_deploy_gate_sends_the_new_message_the_container_asks_for():
     context = _FailedFirstTurn(heading)
     asked = verify_site.ask_until_answered(
         context,
-        "https://leaf.page/examples/design-decision/",
-        "https://leaf.page/examples/design-decision/api/state",
+        "https://leaf.page/examples/triage-board/",
+        "https://leaf.page/examples/triage-board/api/state",
         "layer",
         "release",
         heading,
@@ -1366,8 +1673,8 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
     profile = verify_site.AgentProfile()
     turn = verify_site.await_turn(
         context,
-        "https://leaf.page/examples/design-decision/",
-        "https://leaf.page/examples/design-decision/api/state",
+        "https://leaf.page/examples/triage-board/",
+        "https://leaf.page/examples/triage-board/api/state",
         "layer",
         "release",
         comment,

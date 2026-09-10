@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <meta name="lf-review" content="sign-off" />
-    <title>Release notes: 3.2 — drafts for review</title>
+    <title>Release 3.2 notes for review</title>
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
@@ -18,27 +18,17 @@
   <body>
     <main>
       <p class="eyebrow">release 3.2</p>
-      <h1>Release notes, drafted</h1>
+      <h1>Review the four user-visible notes</h1>
       <p class="lede" id="rn-lede">
-        Four notes cover everything user-visible in 3.2. Every page-edge action control,
-        disclosure control, and status indicator is circular. A heavier ring acts now; a
-        regular ring reveals context. Icon color carries positive or negative intent; a
-        turning corner mark says a press is still travelling. A selected reaction keeps
-        its fill even under the pointer. One peer stays visible, while … unfolds larger
-        sets. Accept or reject a change, undo that choice, or rewrite a draft and save
-        it. Press
-        <kbd>g</kbd> to reveal the contents labels and navigation shortcuts, or use
-        <kbd>j</kbd>/<kbd>k</kbd> to scroll down/up a little while reading.
+        Edit any draft that needs different wording, accept or reject the proposed
+        changes, then approve the finished set.
       </p>
-      <aside class="sidebar" id="rn-sidebar">
-        <lf-toc id="rn-contents"></lf-toc>
-      </aside>
 
       <section id="rn-cli-section">
         <h2>CLI</h2>
         <lf-draft id="rn-cli">
           <pre>
-Adds --dry-run to every mutating command. Running without it is unchanged, so existing scripts keep working.
+Adds --dry-run to every command that changes state. Existing scripts continue to work without it.
 </pre>
         </lf-draft>
       </section>
@@ -46,17 +36,17 @@ Adds --dry-run to every mutating command. Running without it is unchanged, so ex
       <section id="rn-api-section">
         <h2>API</h2>
         <p id="rn-api-why">
-          The v1 header is <span class="tag">deprecated</span>, not gone.<lf-suggestion
-            id="rn-sug-dry"
-            ><lf-old>
-              The Sunset header does the announcing, and the migration guide carries the
-              detail.</lf-old
+          The v1 header is <span class="tag">deprecated</span> and keeps working until
+          4.0.
+          <lf-suggestion id="rn-sug-dry"
+            ><lf-old
+              >The migration guide carries the implementation detail.</lf-old
             ></lf-suggestion
           >
         </p>
         <lf-draft id="rn-api">
           <pre>
-Deprecates the v1 auth header. It keeps working until the next major, and the server now sets a Sunset header on every v1 response.
+Deprecates the v1 auth header. It keeps working until 4.0, and v1 responses now include a Sunset header.
 </pre>
         </lf-draft>
       </section>
@@ -64,12 +54,11 @@ Deprecates the v1 auth header. It keeps working until the next major, and the se
       <section id="rn-console-section">
         <h2>Console</h2>
         <p id="rn-console-why">
-          The run list grew a status column, so a failure now reads off the list instead
-          of costing a click each. It is the release's
+          The status column is the
           <lf-suggestion id="rn-sug-only"
-            ><lf-old id="rn-console-old">only visual change.</lf-old
+            ><lf-old id="rn-console-old">release's only visual change.</lf-old
             ><lf-new id="rn-console-new"
-              >one user-visible layout change.</lf-new
+              >only change to the run-list layout.</lf-new
             ></lf-suggestion
           >
         </p>
@@ -81,7 +70,7 @@ Deprecates the v1 auth header. It keeps working until the next major, and the se
         ></lf-shot>
         <lf-draft id="rn-console">
           <pre>
-Run status now shows on the run list itself. Filtering by it lands in 3.3.
+Run status now appears in the run list. Filtering by status is planned for 3.3.
 </pre>
         </lf-draft>
       </section>
@@ -89,41 +78,21 @@ Run status now shows on the run list itself. Filtering by it lands in 3.3.
       <section id="rn-ops-section">
         <h2>Operations</h2>
         <p id="rn-ops-why">
-          The minute figure is from staging (1.1M rows) on a warm cache — rounded rather
-          than promised. If operators will book a window around it, the note should give
-          a range instead.
+          Staging migrated 1.1 million rows in 45–75 seconds on a warm cache.
         </p>
         <lf-suggestion id="rn-sug-window">
           <lf-new
             ><p>
-              Plan a brief deployment window for this migration; staging took 45–75
-              seconds on 1.1 million rows.
+              Plan a brief deployment window; staging took 45–75 seconds for 1.1 million
+              rows.
             </p></lf-new
           >
         </lf-suggestion>
         <lf-draft id="rn-migration">
           <pre>
-Run the schema migration before deploying. It is online and takes about a minute on a million rows.
+Run the online schema migration before deploying.
 </pre>
         </lf-draft>
-      </section>
-
-      <section id="rn-omitted">
-        <h2>Left out on purpose</h2>
-        <p id="rn-omitted-body">
-          The dependency bumps and the flaky-test fixes stay in the changelog only —
-          nothing a user would change behavior over. If one of them deserves a note
-          after all, Alt-click this section and type in the focused field beside it;
-          Enter starts the thread, and a draft arrives in the next version.
-        </p>
-        <lf-specimen id="rn-bump-shape" label="the shape such a note would take">
-          <lf-draft id="rn-bump-example">
-            <pre>
-Bumps the PDF renderer to 4.1.
-Output is unchanged on our corpus; the bump is for the upstream security fix.
-</pre>
-          </lf-draft>
-        </lf-specimen>
       </section>
     </main>
   </body>

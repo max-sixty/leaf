@@ -6,7 +6,7 @@ set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel)
 run_root=$(mktemp -d "${TMPDIR:-/tmp}/leaf-site-agent.XXXXXX")
 site_root="$run_root/site"
-log="$run_root/server.log"
+log="$repo_root/.tmp/website-agent-local.log"
 server=
 
 cleanup() {
@@ -42,3 +42,5 @@ if ! LEAF_SITE_ORIGIN=http://127.0.0.1:8080 \
   cat "$log"
   exit 1
 fi
+
+grep --fixed-strings '"component":"leaf-agent"' "$log"

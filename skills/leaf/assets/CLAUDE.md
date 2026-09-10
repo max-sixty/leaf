@@ -530,6 +530,13 @@ arriving without a gesture must not move any chrome control. A content change
 the reader requested may reflow the content it replaces, provided the change is
 shown as trackable motion rather than an unexplained jump.
 
+Leaf's chrome and widgets use solid contours by default. A dotted or dashed line is
+appropriate when its style is the non-color cue that separates a state or affordance
+from an ordinary contour; editable drafts, drag placeholders, design-mode geometry,
+and detached references use it this way. Prefer an existing label, action, or shape
+when that already makes the distinction. Lines inside authored diagrams retain the
+document's own semantics.
+
 The parent laying out adjacent actions owns their complete allocations. Different
 actions have disjoint hit boxes, and a compact control's larger aim may not cover a
 sibling's visible surface.

@@ -44,15 +44,15 @@ const MANIFEST = {
       state: "/_leaf/state/examples.json",
       states: { "1": "/_leaf/state/examples.json" },
     },
-    "/examples/design-decision": {
-      assets: `/_leaf-release/${RELEASE}/examples--design-decision`,
-      directory: "examples/design-decision",
+    "/examples/triage-board": {
+      assets: `/_leaf-release/${RELEASE}/examples--triage-board`,
+      directory: "examples/triage-board",
       kind: "example",
       layer: LAYER,
-      state: "/_leaf/state/examples--design-decision--r2.json",
+      state: "/_leaf/state/examples--triage-board--r2.json",
       states: {
-        "1": "/_leaf/state/examples--design-decision--r1.json",
-        "2": "/_leaf/state/examples--design-decision--r2.json",
+        "1": "/_leaf/state/examples--triage-board--r1.json",
+        "2": "/_leaf/state/examples--triage-board--r2.json",
       },
     },
     "/how-it-works": {
@@ -134,7 +134,7 @@ describe("product-site delivery", () => {
     "/how-it-works/",
     "/registry/",
     "/examples/",
-    "/examples/design-decision/",
+    "/examples/triage-board/",
     "/packages/",
   ])(
     "serves the product document %s without starting its container",
@@ -183,7 +183,7 @@ describe("product-site delivery", () => {
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
 
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/api/state", {
+      new Request("https://leaf.page/examples/triage-board/api/state", {
         headers: {
           Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-active=1`,
           "Leaf-Layer": LAYER,
@@ -208,7 +208,7 @@ describe("product-site delivery", () => {
     });
 
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/runtime/state-feed.js"),
+      new Request("https://leaf.page/examples/triage-board/runtime/state-feed.js"),
       env,
     );
 
@@ -221,7 +221,7 @@ describe("product-site delivery", () => {
 
   it("identifies a fresh historical document without allocating its session", async () => {
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/versions/v1.html"),
+      new Request("https://leaf.page/examples/triage-board/versions/v1.html"),
       environment({
         ASSETS: {
           fetch: async () =>
@@ -251,13 +251,13 @@ describe("product-site delivery", () => {
 
     const response = await worker.fetch(
       new Request(
-        `https://leaf.page/_leaf-release/${RELEASE}/examples--design-decision/runtime/state-feed.js`,
+        `https://leaf.page/_leaf-release/${RELEASE}/examples--triage-board/runtime/state-feed.js`,
       ),
       env,
     );
 
     expect(assetFetch.mock.calls[0][0].url).toBe(
-      "https://leaf.page/examples/design-decision/runtime/state-feed.js",
+      "https://leaf.page/examples/triage-board/runtime/state-feed.js",
     );
     expect(response.headers.get("Cache-Control")).toBe(
       "public, max-age=31536000, immutable",
@@ -282,7 +282,7 @@ describe("product-site delivery", () => {
     });
 
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/", {
+      new Request("https://leaf.page/examples/triage-board/", {
         headers: {
           Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-active=1`,
         },
@@ -297,7 +297,7 @@ describe("product-site delivery", () => {
     expect(waitUntil).toHaveBeenCalledWith(started);
   });
 
-  it.each(["/media/upload.png", "/examples/design-decision/media/upload.png"])(
+  it.each(["/media/upload.png", "/examples/triage-board/media/upload.png"])(
     "falls back to the reader's container for uploaded media at %s",
     async (pathname) => {
       const sessionId = "08".repeat(16);
@@ -338,7 +338,7 @@ describe("product-site delivery", () => {
     });
     const assetFetch = vi.fn(async () => media);
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/media/published.png"),
+      new Request("https://leaf.page/examples/triage-board/media/published.png"),
       environment({
         ASSETS: { fetch: assetFetch } as unknown as Fetcher,
       }),
@@ -352,13 +352,11 @@ describe("product-site delivery", () => {
   });
 
   it.each([
-    "/examples/design-decision/revisions/r3-aabbccdd.html",
-    "/examples/design-decision/versions/v3.html",
+    "/examples/triage-board/revisions/r3-aabbccdd.html",
+    "/examples/triage-board/versions/v3.html",
   ])("falls back to the active reader's container for %s", async (pathname) => {
     const sessionId = "18".repeat(16);
-    const assetFetch = vi.fn(
-      async () => new Response("not found", { status: 404 }),
-    );
+    const assetFetch = vi.fn(async () => new Response("not found", { status: 404 }));
     const containerFetch = vi.fn(
       async () =>
         new Response("<!doctype html><title>Private revision</title>", {
@@ -387,13 +385,11 @@ describe("product-site delivery", () => {
   });
 
   it.each([
-    "/examples/design-decision/media/private.png",
-    "/examples/design-decision/revisions/r3-aabbccdd.html",
-    "/examples/design-decision/versions/v3.html",
+    "/examples/triage-board/media/private.png",
+    "/examples/triage-board/revisions/r3-aabbccdd.html",
+    "/examples/triage-board/versions/v3.html",
   ])("does not allocate a container for an anonymous %s", async (pathname) => {
-    const assetFetch = vi.fn(
-      async () => new Response("not found", { status: 404 }),
-    );
+    const assetFetch = vi.fn(async () => new Response("not found", { status: 404 }));
     const env = environment({
       ASSETS: { fetch: assetFetch } as unknown as Fetcher,
     });
@@ -413,7 +409,7 @@ describe("product-site delivery", () => {
     const env = environment();
 
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/api/state"),
+      new Request("https://leaf.page/examples/triage-board/api/state"),
       env,
     );
 
@@ -430,7 +426,7 @@ describe("product-site delivery", () => {
   it("keeps an identified but inactive reader on passive edge state", async () => {
     const sessionId = "1a".repeat(16);
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/api/state", {
+      new Request("https://leaf.page/examples/triage-board/api/state", {
         headers: {
           Cookie: `__Host-leaf-page=${sessionId}`,
           // A release the edge is not serving, so the answer below tells a stamp
@@ -461,7 +457,7 @@ describe("product-site delivery", () => {
 
     const response = await worker.fetch(
       new Request(
-        "https://leaf.page/examples/design-decision/api/view?revision=2&through_seq=0",
+        "https://leaf.page/examples/triage-board/api/view?revision=2&through_seq=0",
         { headers: { Cookie: `__Host-leaf-page=${sessionId}` } },
       ),
       environment(),
@@ -492,7 +488,7 @@ describe("product-site delivery", () => {
       } as unknown as Fetcher,
     });
     const document = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/"),
+      new Request("https://leaf.page/examples/triage-board/"),
       env,
     );
     const cookie = document.headers.get("Set-Cookie")!;
@@ -501,7 +497,7 @@ describe("product-site delivery", () => {
     const sessionId = /__Host-leaf-page=([0-9a-f]{32})/.exec(cookie)![1];
     const upload = () =>
       worker.fetch(
-        new Request("https://leaf.page/examples/design-decision/api/media", {
+        new Request("https://leaf.page/examples/triage-board/api/media", {
           method: "POST",
           headers: { Cookie: cookie, "Content-Type": "image/png" },
           body: new Uint8Array([1, 2, 3]),
@@ -527,7 +523,7 @@ describe("product-site delivery", () => {
     const env = environment();
 
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/api/state", {
+      new Request("https://leaf.page/examples/triage-board/api/state", {
         headers: { "Leaf-View-Revision": "1" },
       }),
       env,
@@ -535,14 +531,14 @@ describe("product-site delivery", () => {
 
     expect(response.status).toBe(200);
     expect(vi.mocked(env.ASSETS.fetch).mock.calls[1][0].url).toBe(
-      "https://leaf.page/_leaf/state/examples--design-decision--r1.json",
+      "https://leaf.page/_leaf/state/examples--triage-board--r1.json",
     );
     expect(getContainer).not.toHaveBeenCalled();
   });
 
   it("rejects a historical revision absent from the release manifest", async () => {
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/api/state", {
+      new Request("https://leaf.page/examples/triage-board/api/state", {
         headers: { "Leaf-View-Revision": "99" },
       }),
       environment(),
@@ -555,7 +551,7 @@ describe("product-site delivery", () => {
 
   it.each([
     ["product", "/api/state", "/"],
-    ["example", "/examples/design-decision/api/state", "/examples/design-decision/"],
+    ["example", "/examples/triage-board/api/state", "/examples/triage-board/"],
   ])(
     "pins a mismatched %s edge layer to the container shell",
     async (_kind, statePath, documentPath) => {
@@ -617,7 +613,7 @@ describe("product-site delivery", () => {
     const env = environment();
 
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/api/state", {
+      new Request("https://leaf.page/examples/triage-board/api/state", {
         headers: {
           Cookie:
             `__Host-leaf-page=${sessionId}; __Host-leaf-active=1; ` +
@@ -686,7 +682,7 @@ describe("website event analytics", () => {
     const env = environment({ WEBSITE_EVENTS: { writeDataPoint } });
     const request = (body: object) =>
       worker.fetch(
-        new Request("https://leaf.page/examples/design-decision/api/event", {
+        new Request("https://leaf.page/examples/triage-board/api/event", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -711,7 +707,7 @@ describe("website event analytics", () => {
     expect(writeDataPoint).toHaveBeenCalledWith({
       indexes: [eventId],
       blobs: [
-        "/examples/design-decision",
+        "/examples/triage-board",
         "example",
         "action",
         "choose",
@@ -734,15 +730,12 @@ describe("website page agent", () => {
     expect(session.envVars).toMatchObject({
       LEAF_AGENT: "Leaf guide",
       OPENAI_API_KEY: "leaf-outbound-proxy",
-      CODEX_CA_CERTIFICATE:
-        "/etc/cloudflare/certs/cloudflare-containers-ca.crt",
+      CODEX_CA_CERTIFICATE: "/etc/cloudflare/certs/cloudflare-containers-ca.crt",
     });
 
     const upstream = vi.fn(async () => new Response("ok"));
     vi.stubGlobal("fetch", upstream);
-    const handler = containerHandlers.get("LeafWebsiteSession")?.[
-      "api.openai.com"
-    ];
+    const handler = containerHandlers.get("LeafWebsiteSession")?.["api.openai.com"];
     expect(handler).toBeDefined();
     const context = {
       containerId: "reader-container",
@@ -795,9 +788,7 @@ describe("website page agent", () => {
     );
 
     expect(response.status).toBe(503);
-    expect(await response.text()).toBe(
-      "website agent credential is not configured",
-    );
+    expect(await response.text()).toBe("website agent credential is not configured");
     expect(upstream).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
@@ -828,7 +819,7 @@ describe("website page agent", () => {
   it("never exposes the container's agent routes on the public origin", async () => {
     const env = environment();
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/_leaf/agent/turn"),
+      new Request("https://leaf.page/examples/triage-board/_leaf/agent/start"),
       env,
     );
 
@@ -838,7 +829,7 @@ describe("website page agent", () => {
 
   it.each([
     ["product", "/api/event", "/"],
-    ["example", "/examples/design-decision/api/event", "/examples/design-decision"],
+    ["example", "/examples/triage-board/api/event", "/examples/triage-board"],
   ])(
     "starts one durable workflow for an accepted %s-page event that needs a reply",
     async (_kind, pathname, route) => {
@@ -888,6 +879,7 @@ describe("website page agent", () => {
         id: `reply-${sessionReference}-${eventId}`,
         params: {
           sessionId,
+          reference: sessionReference,
           route,
           eventId,
           sourceId: "203.0.113.1",
@@ -904,9 +896,7 @@ describe("website page agent", () => {
         Response.json({
           ok: true,
           state: {
-            events: [
-              { id: "07".repeat(16), attempt, kind: "comment", revision: 1 },
-            ],
+            events: [{ id: "07".repeat(16), attempt, kind: "comment", revision: 1 }],
             activity: { obligations: [] },
           },
         }),
@@ -917,7 +907,7 @@ describe("website page agent", () => {
     });
 
     await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/api/event", {
+      new Request("https://leaf.page/examples/triage-board/api/event", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -958,7 +948,7 @@ describe("website page agent", () => {
     });
 
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/api/event", {
+      new Request("https://leaf.page/examples/triage-board/api/event", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1000,7 +990,7 @@ describe("website page agent", () => {
 
     await expect(
       worker.fetch(
-        new Request("https://leaf.page/examples/design-decision/api/event", {
+        new Request("https://leaf.page/examples/triage-board/api/event", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1042,7 +1032,7 @@ describe("website page agent", () => {
     });
 
     const response = await worker.fetch(
-      new Request("https://leaf.page/examples/design-decision/api/event", {
+      new Request("https://leaf.page/examples/triage-board/api/event", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1060,13 +1050,13 @@ describe("website page agent", () => {
   it("starts the page's hosted Codex task inside its container", async () => {
     const params = {
       sessionId: "03".repeat(16),
-      route: "/examples/design-decision",
+      reference: "123456789012",
+      route: "/examples/triage-board",
       eventId: "04".repeat(16),
       sourceId: "203.0.113.1",
     };
     const containerFetch = vi
       .fn()
-      .mockResolvedValueOnce(Response.json({ status: "ready" }))
       .mockResolvedValueOnce(
         Response.json({ status: "started", thread: "codex-thread" }),
       );
@@ -1080,14 +1070,10 @@ describe("website page agent", () => {
 
     expect(result).toEqual({ status: "started", thread: "codex-thread" });
     expect(step.do.mock.calls.map(([name]) => name)).toEqual([
-      "read turn",
       "reserve model capacity",
       "start Codex task",
     ]);
     expect(await containerFetch.mock.calls[0][0].json()).toEqual({
-      event: params.eventId,
-    });
-    expect(await containerFetch.mock.calls[1][0].json()).toEqual({
       event: params.eventId,
     });
     expect(
@@ -1097,16 +1083,15 @@ describe("website page agent", () => {
     ).toBe(false);
   });
 
-  it("leaves later events to the page's standing Codex carrier", async () => {
+  it("accepts a task that the container already settled", async () => {
     const params = {
       sessionId: "21".repeat(16),
-      route: "/examples/design-decision",
+      reference: "210000000000",
+      route: "/examples/triage-board",
       eventId: "22".repeat(16),
       sourceId: "203.0.113.4",
     };
-    const containerFetch = vi.fn(async () =>
-      Response.json({ status: "connected", thread: "codex-thread" }),
-    );
+    const containerFetch = vi.fn(async () => Response.json({ status: "settled" }));
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
     const env = environment();
     const step = {
@@ -1115,21 +1100,23 @@ describe("website page agent", () => {
 
     const result = await runAgentWorkflow(env, params, step as never);
 
-    expect(result).toEqual({ status: "connected", thread: "codex-thread" });
-    expect(step.do.mock.calls.map(([name]) => name)).toEqual(["read turn"]);
-    expect(env.SOURCE_AGENT_RATE_LIMITER.limit).not.toHaveBeenCalled();
+    expect(result).toEqual({ status: "settled" });
+    expect(step.do.mock.calls.map(([name]) => name)).toEqual([
+      "reserve model capacity",
+      "start Codex task",
+    ]);
   });
 
   it("settles an over-limit task start visibly", async () => {
     const params = {
       sessionId: "13".repeat(16),
-      route: "/examples/design-decision",
+      reference: "130000000000",
+      route: "/examples/triage-board",
       eventId: "14".repeat(16),
       sourceId: "203.0.113.2",
     };
     const containerFetch = vi
       .fn()
-      .mockResolvedValueOnce(Response.json({ status: "ready" }))
       .mockResolvedValueOnce(
         Response.json({ status: "appended", event: "15".repeat(16) }),
       );
@@ -1148,26 +1135,54 @@ describe("website page agent", () => {
     expect(deny).toHaveBeenCalledOnce();
     expect(deny).toHaveBeenCalledWith({ key: params.sourceId });
     expect(step.do.mock.calls.map(([name]) => name)).toEqual([
-      "read turn",
       "reserve model capacity",
       "append rate limit",
     ]);
-    expect(await containerFetch.mock.calls[1][0].json()).toEqual({
+    expect(await containerFetch.mock.calls[0][0].json()).toEqual({
       event: params.eventId,
       text: "This public demo is busy right now. Please wait a minute, then send a new message.",
     });
   });
 
+  it("accepts an atomic fallback that the container declines after task pickup", async () => {
+    const params = {
+      sessionId: "23".repeat(16),
+      reference: "230000000000",
+      route: "/examples/triage-board",
+      eventId: "24".repeat(16),
+      sourceId: "203.0.113.5",
+    };
+    const containerFetch = vi.fn(async () => Response.json({ status: "settled" }));
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const env = environment({
+      SOURCE_AGENT_RATE_LIMITER: {
+        limit: vi.fn(async () => ({ success: false })),
+      } as RateLimit,
+    });
+    const step = {
+      do: vi.fn(async (_name, _config, callback) => callback()),
+    };
+
+    const result = await runAgentWorkflow(env, params, step as never);
+
+    expect(result).toEqual({ status: "settled" });
+    expect(step.do.mock.calls.map(([name]) => name)).toEqual([
+      "reserve model capacity",
+      "append rate limit",
+    ]);
+    expect(containerFetch).toHaveBeenCalledOnce();
+  });
+
   it("settles a turn visibly after Codex startup exhausts its retries", async () => {
     const params = {
       sessionId: "08".repeat(16),
-      route: "/examples/design-decision",
+      reference: "080000000000",
+      route: "/examples/triage-board",
       eventId: "09".repeat(16),
       sourceId: "203.0.113.3",
     };
     const containerFetch = vi
       .fn()
-      .mockResolvedValueOnce(Response.json({ status: "ready" }))
       .mockResolvedValueOnce(
         Response.json({ status: "appended", event: "10".repeat(16) }),
       );
@@ -1183,12 +1198,11 @@ describe("website page agent", () => {
 
     expect(result).toEqual({ status: "appended", event: "10".repeat(16) });
     expect(step.do.mock.calls.map(([name]) => name)).toEqual([
-      "read turn",
       "reserve model capacity",
       "start Codex task",
       "append startup failure",
     ]);
-    expect(await containerFetch.mock.calls[1][0].json()).toEqual({
+    expect(await containerFetch.mock.calls[0][0].json()).toEqual({
       event: params.eventId,
       text: "I couldn’t generate a reply just now. Please send a new message to try again.",
     });

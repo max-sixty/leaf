@@ -34,6 +34,7 @@ from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
 from example_assets import example_previews
+from example_data import catalog_sources
 from leaf.files import latest_revision, list_revisions
 from leaf.http import scope_document_routes
 from leaf.live_shell import write_live_shell
@@ -267,7 +268,10 @@ def publish_pages(out: Path, env: dict, catalog_previews: Path | None = None) ->
             path for pattern in ("*.gif", "*.png") for path in DOCS.glob(pattern)
         )
         preview_source = catalog_previews or example_previews()
-        product_media.extend(sorted(preview_source.glob("example-*.jpg")))
+        product_media.extend(
+            preview_source / f"example-{source.stem}.jpg"
+            for source in catalog_sources()
+        )
         leaf(
             env,
             "page",

@@ -66,80 +66,12 @@ function loadFrameModule(frame, source, message) {
 }
 
 function framePageContent(frame, source) {
-  const content = source.createDocumentFragment();
-  const eyebrow = source.createElement("p");
-  eyebrow.className = "eyebrow";
-  eyebrow.textContent = frame.dataset.interactionEyebrow;
-  content.append(eyebrow);
-  if (frame.dataset.interactionTitle) {
-    const heading = source.createElement("h1");
-    heading.textContent = frame.dataset.interactionTitle;
-    content.append(heading);
-  }
-  if (frame.dataset.interactionCopy) {
-    const copy = source.createElement("p");
-    copy.append(frame.dataset.interactionCopy);
-    if (frame.dataset.interactionSuggestion) {
-      const suggestion = source.createElement("lf-suggestion");
-      suggestion.id = frame.dataset.interactionSuggestion;
-      const old = source.createElement("lf-old");
-      old.textContent = frame.dataset.interactionSuggestionOld;
-      const replacement = source.createElement("lf-new");
-      replacement.textContent = frame.dataset.interactionSuggestionNew;
-      suggestion.append(old, replacement);
-      copy.append(" ", suggestion, " ", frame.dataset.interactionCopyAfter);
-    }
-    if (frame.dataset.interactionTarget) copy.id = frame.dataset.interactionTarget;
-    content.append(copy);
-  }
-  const name = frame.closest("[data-interaction-demo]").dataset.interactionDemo;
-  if (name === "move-card") {
-    const board = source.createElement("lf-board");
-    board.id = "bg-motion-board";
-    const ready = source.createElement("lf-column");
-    ready.id = "bg-motion-ready";
-    ready.setAttribute("label", "Ready");
-    const card = source.createElement("lf-card");
-    card.id = "bg-motion-card";
-    const title = source.createElement("strong");
-    title.textContent = "Verify migration";
-    card.append(title, " Run the schema sample.");
-    ready.append(card);
-    const tried = source.createElement("lf-column");
-    tried.id = "bg-motion-tried";
-    tried.setAttribute("label", "Tried");
-    board.append(ready, tried);
-    content.append(board);
-  }
-  if (name === "swipe-card") {
-    const ask = source.createElement("lf-ask");
-    ask.id = "bg-motion-swipe-ask";
-    const question = source.createElement("h3");
-    question.textContent = "Keep this follow-up?";
-    const deck = source.createElement("lf-swipe-deck");
-    deck.id = "bg-motion-swipe";
-    const queue = source.createElement("lf-swipe-pile");
-    queue.id = "bg-motion-swipe-queue";
-    queue.setAttribute("verdict", "unseen");
-    const card = source.createElement("lf-swipe-card");
-    card.id = "bg-motion-swipe-card";
-    const title = source.createElement("strong");
-    title.textContent = "Document the keyboard route";
-    const detail = source.createElement("p");
-    detail.textContent = "Keep the interaction reachable without a pointer.";
-    card.append(title, detail);
-    queue.append(card);
-    const passed = source.createElement("lf-swipe-pile");
-    passed.id = "bg-motion-swipe-pass";
-    passed.setAttribute("verdict", "pass");
-    const kept = source.createElement("lf-swipe-pile");
-    kept.id = "bg-motion-swipe-keep";
-    kept.setAttribute("verdict", "keep");
-    deck.append(queue, passed, kept);
-    ask.append(question, deck);
-    content.append(ask);
-  }
-  return content;
+  const template = frame
+    .closest("[data-interaction-demo]")
+    .querySelector(":scope > template[data-interaction-page]");
+  if (!template)
+    throw new Error("interaction gallery page is missing its authored content");
+  return source.importNode(template.content, true);
 }
 
 async function loadFrameDocument(frame) {
@@ -612,6 +544,7 @@ const scenarios = {
   "send-comment": {
     reset(demo) {
       demo.frameApi.resetComment(
+        demo.figure.dataset.interactionTarget,
         "Gallery conversation: should the practice exercise come before lunch? " +
           "Try replying here; the agenda is fictional.",
       );

@@ -57,9 +57,9 @@ window.leafInteractionGalleryFrame = {
     mountCommands();
   },
   ready: prepare(),
-  resetComment(text) {
+  resetComment(section, text) {
     neutralChrome();
-    commands.openComposer({ section: "bg-thread-text" }, text, { focus: false });
+    commands.openComposer({ section }, text, { focus: false });
   },
   commentInput() {
     return commands.fabInput;

@@ -1415,19 +1415,23 @@ gallery/
         <lf-tabs id="bg-interaction-tabs">
           <lf-tab id="bg-interaction-accept" label="Accept a suggestion">
             <figure class="interaction-demo" data-interaction-demo="accept">
+              <template data-interaction-page>
+                <p class="eyebrow">proposed release note</p>
+                <p id="bg-motion-accept-copy">
+                  The importer now
+                  <lf-suggestion id="bg-motion-accept"
+                    ><lf-old>usually finishes</lf-old
+                    ><lf-new>finishes</lf-new></lf-suggestion
+                  >
+                  before the next run begins.
+                </p>
+              </template>
               <div
                 class="interaction-stage interaction-frame-stage interaction-suggestion-stage"
               >
                 <iframe
                   class="interaction-frame"
                   data-interaction-frame
-                  data-interaction-copy="The importer now"
-                  data-interaction-copy-after="before the next run begins."
-                  data-interaction-eyebrow="proposed release note"
-                  data-interaction-suggestion="bg-motion-accept"
-                  data-interaction-suggestion-new="finishes"
-                  data-interaction-suggestion-old="usually finishes"
-                  data-interaction-target="bg-motion-accept-copy"
                   name="interaction-accept"
                   title="Contained Leaf suggestion animation"
                   tabindex="-1"
@@ -1444,12 +1448,22 @@ gallery/
 
           <lf-tab id="bg-interaction-move" label="Move a card">
             <figure class="interaction-demo" data-interaction-demo="move-card">
+              <template data-interaction-page>
+                <p class="eyebrow">migration checklist</p>
+                <h1>Schema migration</h1>
+                <lf-board id="bg-motion-board">
+                  <lf-column id="bg-motion-ready" label="Ready">
+                    <lf-card id="bg-motion-card"
+                      ><strong>Verify migration</strong> Run the schema sample.</lf-card
+                    >
+                  </lf-column>
+                  <lf-column id="bg-motion-tried" label="Tried"></lf-column>
+                </lf-board>
+              </template>
               <div class="interaction-stage interaction-frame-stage">
                 <iframe
                   class="interaction-frame"
                   data-interaction-frame
-                  data-interaction-eyebrow="migration checklist"
-                  data-interaction-title="Schema migration"
                   name="interaction-move-card"
                   title="Contained Leaf board animation"
                   tabindex="-1"
@@ -1468,16 +1482,20 @@ gallery/
             <figure
               class="interaction-demo"
               data-interaction-demo="send-comment"
+              data-interaction-target="bg-motion-comment-text"
               data-interaction-thread-id="2be2443f0bb6cc49fc86b52f340e6073"
             >
+              <template data-interaction-page>
+                <p class="eyebrow">review note</p>
+                <h1>Agenda draft</h1>
+                <p id="bg-motion-comment-text">
+                  The sample agenda has room for one more topic.
+                </p>
+              </template>
               <div class="interaction-stage interaction-frame-stage">
                 <iframe
                   class="interaction-frame"
                   data-interaction-frame
-                  data-interaction-eyebrow="review note"
-                  data-interaction-target="bg-thread-text"
-                  data-interaction-title="Agenda draft"
-                  data-interaction-copy="The sample agenda has room for one more topic."
                   name="interaction-send-comment"
                   title="Contained Leaf comment animation"
                   tabindex="-1"
@@ -1500,14 +1518,17 @@ gallery/
 
           <lf-tab id="bg-interaction-threads" label="Open and close Threads">
             <figure class="interaction-demo" data-interaction-demo="open-threads">
+              <template data-interaction-page>
+                <p class="eyebrow">review workspace</p>
+                <h1>Release notes</h1>
+                <p id="bg-motion-threads-text">
+                  The sample agenda has room for one more topic.
+                </p>
+              </template>
               <div class="interaction-stage interaction-frame-stage">
                 <iframe
                   class="interaction-frame"
                   data-interaction-frame
-                  data-interaction-eyebrow="review workspace"
-                  data-interaction-title="Release notes"
-                  data-interaction-target="bg-thread-text"
-                  data-interaction-copy="The sample agenda has room for one more topic."
                   name="interaction-open-threads"
                   title="Contained Leaf Threads animation"
                   tabindex="-1"
@@ -1529,12 +1550,33 @@ gallery/
               data-interaction-demo="swipe-card"
               data-interaction-module="/widgets/lf-swipe-deck.js"
             >
+              <template data-interaction-page>
+                <p class="eyebrow">design review</p>
+                <h1>Follow-ups</h1>
+                <lf-ask id="bg-motion-swipe-ask">
+                  <h3>Keep this follow-up?</h3>
+                  <lf-swipe-deck id="bg-motion-swipe">
+                    <lf-swipe-pile id="bg-motion-swipe-queue" verdict="unseen">
+                      <lf-swipe-card id="bg-motion-swipe-card">
+                        <strong>Document the keyboard route</strong>
+                        <p>Keep the interaction reachable without a pointer.</p>
+                      </lf-swipe-card>
+                    </lf-swipe-pile>
+                    <lf-swipe-pile
+                      id="bg-motion-swipe-pass"
+                      verdict="pass"
+                    ></lf-swipe-pile>
+                    <lf-swipe-pile
+                      id="bg-motion-swipe-keep"
+                      verdict="keep"
+                    ></lf-swipe-pile>
+                  </lf-swipe-deck>
+                </lf-ask>
+              </template>
               <div class="interaction-stage interaction-frame-stage">
                 <iframe
                   class="interaction-frame"
                   data-interaction-frame
-                  data-interaction-eyebrow="design review"
-                  data-interaction-title="Follow-ups"
                   name="interaction-swipe-card"
                   title="Contained Leaf swipe animation"
                   tabindex="-1"

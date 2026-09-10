@@ -1471,6 +1471,55 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         context.close()
 
 
+def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
+    """A specimen retries startup state without retaining a live page feed."""
+    url = serve(FEATURE_GALLERY)
+    context = browser.new_context(reduced_motion="reduce")
+    page = context.new_page()
+    errors = watched(page)
+    failed = []
+    news_frames = []
+    context.on(
+        "request",
+        lambda request: (
+            news_frames.append(request.frame.parent_frame is not None)
+            if request.url.endswith("/api/news")
+            else None
+        ),
+    )
+
+    def fail_first_contained_read(route):
+        if route.request.frame.name == "interaction-accept" and not failed:
+            failed.append(route.request.url)
+            route.fulfill(status=200, content_type="application/json", body="{")
+        else:
+            route.continue_()
+
+    page.route("**/api/state*", fail_first_contained_read)
+    try:
+        navigate(page, errors, f"{url}#bg-interactions")
+        gallery = page.locator("#bg-interactions")
+        expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
+            5, timeout=20_000
+        )
+        page.wait_for_timeout(2_200)
+        target = gallery.locator('[name="interaction-accept"]')
+        assert target.evaluate(
+            """frame => {
+                const {asked, heard} = JSON.parse(
+                    frame.contentDocument.documentElement.dataset.lfTraffic
+                );
+                return {asked, heard};
+            }"""
+        ) == {"asked": 2, "heard": 2}
+        assert failed
+        assert news_frames and not any(news_frames)
+        assert len(errors) == 1
+        assert errors[0].startswith("leaf: read failed:")
+    finally:
+        context.close()
+
+
 def test_a_failed_gallery_frame_does_not_block_other_demos(serve, browser):
     """A contained page that never presents fails without blocking its neighbors."""
     url = serve(FEATURE_GALLERY)

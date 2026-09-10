@@ -398,7 +398,16 @@ export function createStateFeed({
       // the first reading to render production chrome, but another news stream and
       // heartbeat would duplicate the outer page's connection for a picture that cannot
       // accept reader input or durable updates.
-      if (containedPage) return;
+      if (containedPage) {
+        const retry = () => {
+          if (document.body.hasAttribute("data-lf-presented")) return;
+          if (!readAnswered) void ask();
+          void present();
+          setTimeout(retry, TICK_MS);
+        };
+        retry();
+        return;
+      }
       feedStarted = true;
       // One shared clock serves temporal paint, deferred work, and failed reads.
       setInterval(() => {

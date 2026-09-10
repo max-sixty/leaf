@@ -1,6 +1,6 @@
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI
-// all describe the same reading position. Auxiliary workspaces still own their nested
+// all describe the same reading position. Auxiliary surfaces still own their nested
 // scrollports; scrollerFor is the shared answer when a caller may stand in either.
 export const pageScroller = document.scrollingElement;
 

@@ -9,8 +9,8 @@ import { runtime } from "../context.js";
 import { repaint } from "../repaint.js";
 const standing = (scope) => readerIn(scope) && (!scope.when || scope.when());
 export function mountKeyboard({
-  isSequenceActive,
-  setSequence,
+  goToSequenceActive,
+  setGoToSequence,
   REACT,
   setReact,
   captureReturnPlace,
@@ -30,8 +30,8 @@ export function mountKeyboard({
     // gives it. A modifier alone is half a press rather than a key: the Shift that
     // capitalizes G arrives as a keydown of its own ahead of it, and disarming on that
     // took the window down before the G it was armed for.
-    if ((isSequenceActive() || standing(REACT)) && !MODIFIER_KEYS.includes(ev.key)) {
-      setSequence(false);
+    if ((goToSequenceActive() || standing(REACT)) && !MODIFIER_KEYS.includes(ev.key)) {
+      setGoToSequence(false);
       setReact(false);
       run(ev);
     }
@@ -51,13 +51,13 @@ export function mountKeyboard({
   // is nothing here to paint.
   document.addEventListener("focusin", () => {
     if (runtime.placingChrome) return;
-    // The same question `setSequence` asks before arming, so it takes the same answer: two
+    // The same question `setGoToSequence` asks before arming, so it takes the same answer: two
     // readings of where the reader is standing would refuse to arm somewhere they then
     // failed to disarm.
     const active = focused();
     if (standing(REACT) && (takesLetters(active) || claimsEsc(active))) setReact(false);
-    if (isSequenceActive() && (takesLetters(active) || claimsEsc(active))) {
-      setSequence(false);
+    if (goToSequenceActive() && (takesLetters(active) || claimsEsc(active))) {
+      setGoToSequence(false);
     }
     repaint();
   });

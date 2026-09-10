@@ -103,7 +103,7 @@ function positionedParents(projection) {
       parent &&
       moved &&
       holder &&
-      (registry[moved.localName]?.["x-parent"] ?? []).includes(holder.localName)
+      (registry[moved.localName]?.["x-owners"] ?? []).includes(holder.localName)
     )
       parents.set(unit, parent);
   }

@@ -8,7 +8,7 @@ import { composerOpen } from "./selection.js";
 export function createEngagement({
   hasPending,
   fabAnchorAt,
-  isSelecting,
+  targetChooserOpen,
   pageComposerDrawing,
 }) {
   function unaccountedGesture() {
@@ -23,7 +23,7 @@ export function createEngagement({
     return (
       composerOpen ||
       Boolean(pageComposerDrawing()) ||
-      isSelecting() ||
+      targetChooserOpen() ||
       Boolean(fabAnchorAt()) ||
       unaccountedGesture() ||
       (active?.tagName === "TEXTAREA" &&

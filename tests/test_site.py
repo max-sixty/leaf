@@ -793,9 +793,9 @@ def test_published_workspaces_keep_their_allocation_under_site_context(
     page, errors = open_page(browser, f"{hosted}/examples/{name}/")
     try:
         page.set_viewport_size({"width": 1200, "height": 900})
-        workspace = page.locator("body > main > .lf-workspace-arranged")
-        expect(workspace).to_have_attribute("data-lf-root-workspace", "")
-        expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+        workspace = page.locator("body > main > .lf-workspace-reading")
+        expect(workspace).to_have_attribute("data-lf-workspace-context", "root")
+        expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
         expect(workspace.locator(":scope > header > .sitenote")).to_be_visible()
         expect(page.locator("body > main > .sitenote")).to_have_count(0)
         page.wait_for_function(
@@ -1011,17 +1011,25 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         threads_frame = gallery.locator(
             "#bg-interaction-threads [data-interaction-frame]"
         ).content_frame
-        expect(threads_frame.locator("body")).to_have_attribute("data-lf-panel", "")
-        expect(threads_frame.locator(".lf-panel")).to_be_visible()
-        expect(page.locator("body")).not_to_have_attribute("data-lf-panel", "")
+        expect(threads_frame.locator("body")).to_have_attribute(
+            "data-lf-auxiliary-surface", "threads"
+        )
+        expect(threads_frame.locator(".lf-thread-panel")).to_be_visible()
+        expect(page.locator("body")).not_to_have_attribute(
+            "data-lf-auxiliary-surface", "threads"
+        )
         toggle.click()
         expect(status).to_have_text("Open and close Threads · Paused")
         page.wait_for_timeout(1_500)
-        expect(threads_frame.locator("body")).to_have_attribute("data-lf-panel", "")
+        expect(threads_frame.locator("body")).to_have_attribute(
+            "data-lf-auxiliary-surface", "threads"
+        )
         toggle.click()
         expect(status).to_have_text("Open and close Threads · Complete", timeout=15_000)
-        expect(threads_frame.locator("body")).not_to_have_attribute("data-lf-panel", "")
-        expect(threads_frame.locator(".lf-panel")).to_be_hidden()
+        expect(threads_frame.locator("body")).not_to_have_attribute(
+            "data-lf-auxiliary-surface", "threads"
+        )
+        expect(threads_frame.locator(".lf-thread-panel")).to_be_hidden()
         assert read_events(page_dir) == before
 
         swipe_tab = gallery.get_by_role("tab", name="Swipe a card")
@@ -1031,7 +1039,9 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         assert swipe_card.evaluate("card => card.parentElement.id") == (
             "bg-motion-swipe-keep"
         )
-        expect(page.locator("body")).not_to_have_attribute("data-lf-panel", "")
+        expect(page.locator("body")).not_to_have_attribute(
+            "data-lf-auxiliary-surface", "threads"
+        )
         assert read_events(page_dir) == before
 
         replay.click()
@@ -1077,9 +1087,9 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     """A framed replay is a picture, and the reader is standing in the page holding it.
 
     Each frame runs a whole second Leaf page, and a Leaf page arrives: it restores the
-    workspace this reader last had open and puts them on its own body. Neither is this
+    auxiliary surface this reader last had open and puts them on its own body. Neither is this
     document's to do. The arrangements are the reader's, read from a store the frame
-    shares with the page around it, so restoring them opens a workspace inside the
+    shares with the page around it, so restoring them opens an auxiliary surface inside the
     picture that nobody asked this gallery for. The focus is worse, because a document
     has only one: focus taken into a frame is focus taken off the page the reader is
     actually on, which folds their open margin cluster, drops their selection hints and
@@ -1090,16 +1100,18 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         # The reader's own standing intent, written the way a reader writes it. It has to
         # survive out here for the frames' silence about it to say anything.
         page.locator(".lf-threads-toggle").click()
-        expect(page.locator(".lf-panel")).to_be_visible()
+        expect(page.locator(".lf-thread-panel")).to_be_visible()
         page.reload(wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
         gallery = page.locator("#bg-interactions")
         ready = gallery.locator("[data-interaction-frame][data-interaction-ready]")
         expect(ready).to_have_count(2)
-        expect(page.locator("body")).to_have_attribute("data-lf-panel", "")
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-auxiliary-surface", "threads"
+        )
         assert page.evaluate(
             """() => [...document.querySelectorAll('[data-interaction-frame]')].map(
-                 (frame) => frame.contentDocument?.body.hasAttribute('data-lf-panel'))"""
+                 (frame) => frame.contentDocument?.body.hasAttribute('data-lf-auxiliary-surface'))"""
         ) == [False, False]
         assert page.evaluate("() => document.activeElement?.tagName") != "IFRAME"
 
@@ -1113,7 +1125,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         threads_frame = gallery.locator(
             "#bg-interaction-threads [data-interaction-frame]"
         ).content_frame
-        expect(threads_frame.locator(".lf-panel")).to_be_visible()
+        expect(threads_frame.locator(".lf-thread-panel")).to_be_visible()
         assert threads_tab.evaluate("tab => document.activeElement === tab")
         status = gallery.locator("[data-interaction-status]")
         expect(status).to_have_text("Open and close Threads · Complete", timeout=20_000)
@@ -1138,7 +1150,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
             )
             == "bg-interactions-title"
         )
-        expect(threads_frame.locator(".lf-panel")).to_be_visible()
+        expect(threads_frame.locator(".lf-thread-panel")).to_be_visible()
         assert page.evaluate("() => document.activeElement?.id") == (
             "bg-interactions-title"
         )
@@ -1148,7 +1160,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         )
 
         page.keyboard.press("w")
-        expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
+        expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
         assert not errors, errors[:3]
     finally:
         page.close()
@@ -1211,19 +1223,29 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         )
 
         page.locator(".lf-threads-toggle").click()
-        expect(page.locator("body")).to_have_attribute("data-lf-panel", "")
-        assert page.evaluate("localStorage.getItem('lf-panel-open')") == "1"
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-auxiliary-surface", "threads"
+        )
+        assert page.evaluate("localStorage.getItem('lf-thread-panel-open')") == "1"
         threads_tab.evaluate("tab => tab.click()")
         toggle.click()
         threads_frame = gallery.locator(
             "#bg-interaction-threads [data-interaction-frame]"
         ).content_frame
-        expect(threads_frame.locator("body")).to_have_attribute("data-lf-panel", "")
-        expect(page.locator("body")).to_have_attribute("data-lf-panel", "")
+        expect(threads_frame.locator("body")).to_have_attribute(
+            "data-lf-auxiliary-surface", "threads"
+        )
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-auxiliary-surface", "threads"
+        )
         expect(status).to_have_text("Open and close Threads · Complete", timeout=15_000)
-        expect(threads_frame.locator("body")).not_to_have_attribute("data-lf-panel", "")
-        expect(page.locator("body")).to_have_attribute("data-lf-panel", "")
-        assert page.evaluate("localStorage.getItem('lf-panel-open')") == "1"
+        expect(threads_frame.locator("body")).not_to_have_attribute(
+            "data-lf-auxiliary-surface", "threads"
+        )
+        expect(page.locator("body")).to_have_attribute(
+            "data-lf-auxiliary-surface", "threads"
+        )
+        assert page.evaluate("localStorage.getItem('lf-thread-panel-open')") == "1"
         assert not errors, errors[:3]
     finally:
         context.close()
@@ -1537,17 +1559,17 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
         assert opened and resolved, "the shipped seed must cover both thread states"
         expect(page.locator(".lf-threads-toggle")).to_have_text(f"Threads ({opened})")
         page.locator(".lf-threads-toggle").click()
-        expect(page.locator('.lf-panel [data-filter-value="resolved"]')).to_have_text(
-            f"Resolved ({resolved})"
-        )
+        expect(
+            page.locator('.lf-thread-panel [data-filter-value="resolved"]')
+        ).to_have_text(f"Resolved ({resolved})")
         # Named rather than taken first: the assertion follows the shipped objection,
         # independent of where a later seed might place another thread.
-        thread = page.locator(".lf-panel .lf-thread").filter(
+        thread = page.locator(".lf-thread-panel .lf-thread").filter(
             has_text="One reconnect in forty is worse"
         )
         expect(thread).to_have_count(1)
         expect(thread.locator("blockquote")).to_have_text("“One reconnect in about 40”")
-        assert page.locator(".lf-panel .lf-quote.detached").count() == 0, (
+        assert page.locator(".lf-thread-panel .lf-quote.detached").count() == 0, (
             "the shipped anchor found nothing on the page it was captured from"
         )
         # Painted, not merely resolved: the mark is what puts the reader at the passage.
@@ -1595,7 +1617,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
         # What the page opens with, since an example that ships a log opens with
         # threads already counted. The claim here is that the reader's own comment
         # adds one, which is a claim about the gesture rather than about the corpus.
-        opened_with = page.locator(".lf-panel .lf-thread").count()
+        opened_with = page.locator(".lf-thread-panel .lf-thread").count()
         box = page.locator("#triage-lede").bounding_box()
         select(
             page,
@@ -1616,7 +1638,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
         # theirs would be first. triage-board ships none today, so `.first` was
         # right by accident and would stop being on the day it does.
         thread = page.locator(
-            ".lf-panel .lf-thread", has_text="Can the migration fix ship first?"
+            ".lf-thread-panel .lf-thread", has_text="Can the migration fix ship first?"
         )
         expect(thread).to_contain_text("Can the migration fix ship first?")
         expect(thread.locator("blockquote")).to_contain_text(selected)
@@ -1627,7 +1649,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
         page.reload(wait_until="load")
         page.wait_for_function(BOTH_STAMPS)
         thread = page.locator(
-            ".lf-panel .lf-thread", has_text="Can the migration fix ship first?"
+            ".lf-thread-panel .lf-thread", has_text="Can the migration fix ship first?"
         )
         expect(thread).to_contain_text("Can the migration fix ship first?")
         expect(thread.locator("blockquote")).to_contain_text(selected)

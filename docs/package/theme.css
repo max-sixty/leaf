@@ -49,7 +49,7 @@ body.site-page footer.site-footer {
   border-top: 1px solid var(--rule);
   color: var(--muted);
   font-size: var(--t-5);
-  --lf-frame: 1;
+  --lf-block-frame: 1;
 }
 
 body.site-page footer.site-footer p {

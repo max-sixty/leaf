@@ -23,7 +23,7 @@ class _SchemeContext:
     errors: list
     resize_notices: list
     registry: dict
-    widgets: dict
+    declarations: dict
     state: dict
     markup: str
     here: int
@@ -75,7 +75,7 @@ def _expected_verbatim(markup, events, registry, here):
 
 
 def _verbatim_findings(context: _SchemeContext) -> list[str]:
-    shown = evaluate_probe(context.page, "shownVerbatim", context.widgets)
+    shown = evaluate_probe(context.page, "shownVerbatim", context.declarations)
     if not shown:
         return []
     expected = _expected_verbatim(
@@ -115,7 +115,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     page = context.page
     scheme = context.scheme
     registry = context.registry
-    widgets = context.widgets
+    declarations = context.declarations
     state = context.state
     markup = context.markup
     here = context.here
@@ -126,10 +126,12 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     unsettled = context.unsettled
     failsoft = evaluate_probe(page, "failSoftErrors")
     invalid_paints = evaluate_probe(page, "invalidPaints")
-    missing_upgrades = evaluate_probe(page, "missingUpgrades", widgets)
-    visual_provider_problems = evaluate_probe(page, "invalidVisualProviders", widgets)
-    tiny = evaluate_probe(page, "tinyBoxes", widgets)
-    unmarkable = evaluate_probe(page, "unmarkableItems")
+    missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
+    visual_provider_problems = evaluate_probe(
+        page, "invalidVisualProviders", declarations
+    )
+    tiny = evaluate_probe(page, "tinyBoxes", declarations)
+    unmarkable = evaluate_probe(page, "unmarkableElements")
     overflow = evaluate_probe(page, "rootOverflow")
     misplaced = evaluate_probe(page, "misplacedBoxes")
     withheld = evaluate_probe(page, "withheldRoom")
@@ -164,17 +166,19 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         # thread chrome already has the thread's reply surface and conversationBox
         # deliberately returns none there. Everywhere else, ask the merged registry
         # for the instances and the module's own marker for the host it placed.
-        missing_conversations = evaluate_probe(page, "missingConversations", widgets)
+        missing_conversations = evaluate_probe(
+            page, "missingConversations", declarations
+        )
         # Behind the caught-up wait above: a report moves a painted attribute and
         # the pass that speaks it runs before the stamp, so a reading taken any
         # earlier asks after a word the page has not been asked to say yet. A page
         # that never caught up is already reported there and read no further.
         if replayed:
-            silent = evaluate_probe(page, "silentWords", widgets)
+            silent = evaluate_probe(page, "silentWords", declarations)
             # Behind the same wait, because reconciliation is one of the two
             # writers: a renderState states one declared fact whole, and a
             # record form is exactly the attribute it may state that fact in.
-            undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", widgets)
+            undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", declarations)
             # Behind it too: the settlement mark is replay's own write, so a
             # reading taken earlier asks after paint the page has not been
             # asked to make yet. The expected outcomes are the file's, scoped
@@ -357,7 +361,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     for u in {(x["tag"], x["attr"]): x for x in undeclared_attrs}.values():
         found.append(
             f"[{scheme}] <{u['tag']} id={u['id']!r}> carries {u['attr']!r}, which "
-            "its registry entry does not declare — declare it as a verb's record "
+            "its element declaration does not name — declare it as a verb's record "
             "form (x-state) if a version is meant to carry it, or write the state "
             "on the chrome the module built"
         )
@@ -369,7 +373,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             f"(id={t['id']!r}): its {t['edge'] == 'above' and 'first' or 'last'} "
             f"block is a <{t['child']}> reserving {t['margin']:g}px against a "
             f"neighbour it hasn't got, and the box is where that margin stops. "
-            f"Declare --lf-frame: 1 in the rule that draws the frame, so the trim "
+            f"Declare --lf-block-frame: 1 in the rule that draws the frame, so the trim "
             f"in theme.css reaches it"
         )
 

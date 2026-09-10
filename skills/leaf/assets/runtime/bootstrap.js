@@ -13,17 +13,18 @@
 
   // Reader-arranged workspaces are page geometry, so their saved shape must reach the
   // document before the module graph that builds their contents. The theme consumes
-  // these provisional root facts; restoreArrangements replaces them with live state.
+  // these provisional root facts; restoreReaderView replaces them with live state.
   try {
-    const tray = localStorage.getItem("lf-tray-up");
+    const tray = localStorage.getItem("lf-tray-slot-open");
     if (tray) root.dataset.lfRestoreTray = tray;
-    else if (localStorage.getItem("lf-panel-open") === "1")
+    else if (localStorage.getItem("lf-thread-panel-open") === "1")
       root.toggleAttribute("data-lf-restore-panel", true);
 
-    const panelWidth = parseFloat(localStorage.getItem("lf-panel-width"));
-    const trayWidth = parseFloat(localStorage.getItem("lf-tray-width"));
-    if (panelWidth) root.style.setProperty("--lf-panel-choice", `${panelWidth}px`);
-    if (trayWidth) root.style.setProperty("--lf-tray-choice", `${trayWidth}px`);
+    const panelWidth = parseFloat(localStorage.getItem("lf-thread-panel-width"));
+    const trayWidth = parseFloat(localStorage.getItem("lf-tray-slot-width"));
+    if (panelWidth)
+      root.style.setProperty("--lf-thread-panel-choice", `${panelWidth}px`);
+    if (trayWidth) root.style.setProperty("--lf-tray-slot-choice", `${trayWidth}px`);
   } catch {
     // A page that cannot remember still starts in the default arrangement.
   }

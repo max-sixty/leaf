@@ -4,7 +4,7 @@ import {
   arrangeReadingElement,
   fitRootReadingElement,
   once,
-  registerArrangedElement,
+  registerReadingElement,
   settle,
 } from "/runtime/widget-api.js";
 
@@ -15,8 +15,8 @@ const MIN_WORKSPACE_WIDTH = 560;
 const direct = (owner, tag) =>
   [...owner.children].find((child) => child.tagName === tag.toUpperCase()) ?? null;
 
-const furniture = (owner) => {
-  const nodes = [...owner.querySelectorAll(":scope > .lf-arranged-furniture")];
+const readingFrameSize = (owner) => {
+  const nodes = [...owner.querySelectorAll(":scope > .lf-reading-frame")];
   return {
     height: nodes.reduce(
       (height, node) => height + node.getBoundingClientRect().height,
@@ -48,7 +48,7 @@ const frameSize = (node) => ({
   ]),
 });
 
-const ARRANGED = ".lf-workspace-arranged, .lf-pane-arranged, .lf-split-arranged";
+const ARRANGED = ".lf-workspace-reading, .lf-pane-reading, .lf-partition-reading";
 
 const arrangedChildren = (owner, content) => {
   const nodes = [...content.childNodes].filter(
@@ -60,7 +60,7 @@ const arrangedChildren = (owner, content) => {
     nodes.some(
       (node) => node.nodeType !== Node.ELEMENT_NODE || !node.matches(ARRANGED),
     ) ||
-    nodes.length !== (owner.classList.contains("lf-split-arranged") ? 2 : 1)
+    nodes.length !== (owner.classList.contains("lf-partition-reading") ? 2 : 1)
   )
     return null;
   return nodes;
@@ -68,26 +68,26 @@ const arrangedChildren = (owner, content) => {
 
 const minimumSize = (owner) => {
   if (
-    !owner.hasAttribute("data-lf-root-workspace") &&
-    owner.dataset.lfPosture === "flow"
+    owner.dataset.lfWorkspaceContext !== "root" &&
+    owner.dataset.lfReadingPosture === "flow"
   )
     return null;
   const frame = frameSize(owner);
-  if (owner.classList.contains("lf-pane-arranged")) {
-    const furnitureSize = furniture(owner);
+  if (owner.classList.contains("lf-pane-reading")) {
+    const furnitureSize = readingFrameSize(owner);
     return {
       height: frame.height + furnitureSize.height + MIN_BODY_HEIGHT,
       width: frame.width + MIN_PANE_WIDTH,
     };
   }
-  const content = owner.querySelector(":scope > .lf-arranged-content");
+  const content = owner.querySelector(":scope > .lf-reading-content");
   const children = content ? arrangedChildren(owner, content) : [];
   if (!children?.length) return null;
   const minima = children.map(minimumSize);
   if (minima.some((size) => size === null)) return null;
   let size;
   if (
-    owner.classList.contains("lf-split-arranged") &&
+    owner.classList.contains("lf-partition-reading") &&
     owner.dataset.lfDirection === "rows"
   )
     size = {
@@ -102,19 +102,19 @@ const minimumSize = (owner) => {
     size = {
       height:
         Math.max(...minima.map((item) => item.height)) +
-        (owner.classList.contains("lf-split-arranged") ? frame.height : 0),
+        (owner.classList.contains("lf-partition-reading") ? frame.height : 0),
       width:
-        owner.classList.contains("lf-split-arranged") &&
+        owner.classList.contains("lf-partition-reading") &&
         owner.dataset.lfDirection === "columns"
           ? minima.length * Math.max(...minima.map((item) => item.width)) +
             (minima.length - 1) *
               (Number.parseFloat(getComputedStyle(content).columnGap) || 0) +
             frame.width
           : Math.max(...minima.map((item) => item.width)) +
-            (owner.classList.contains("lf-split-arranged") ? frame.width : 0),
+            (owner.classList.contains("lf-partition-reading") ? frame.width : 0),
     };
-  if (owner.classList.contains("lf-workspace-arranged")) {
-    size.height += furniture(owner).height + frame.height;
+  if (owner.classList.contains("lf-workspace-reading")) {
+    size.height += readingFrameSize(owner).height + frame.height;
     size.width += frame.width;
   }
   return size;
@@ -123,7 +123,7 @@ const minimumSize = (owner) => {
 customElements.define(
   "lf-workspace",
   class extends HTMLElement {
-    #arrangement = null;
+    #readingArrangement = null;
     #content = null;
     #fitting = null;
 
@@ -131,22 +131,22 @@ customElements.define(
       if (once(this)) {
         const arranged = arrangeReadingElement({
           owner: this,
-          kind: "workspace",
+          role: "workspace",
           header: direct(this, "header"),
           footer: direct(this, "footer"),
         });
-        this.#arrangement = arranged.arrangement;
+        this.#readingArrangement = arranged.readingArrangement;
         this.#content = arranged.content;
       } else {
         this.#content = this.querySelector(":scope > .lf-workspace-content");
-        this.#arrangement = registerArrangedElement({
+        this.#readingArrangement = registerReadingElement({
           owner: this,
           content: this.#content,
         });
       }
       this.#fitting = fitRootReadingElement({
         owner: this,
-        arrangement: this.#arrangement,
+        readingArrangement: this.#readingArrangement,
         minimumSize: () => {
           const size = minimumSize(this);
           return (
@@ -163,8 +163,8 @@ customElements.define(
     disconnectedCallback() {
       this.#fitting?.cleanup();
       this.#fitting = null;
-      this.#arrangement?.cleanup();
-      this.#arrangement = null;
+      this.#readingArrangement?.cleanup();
+      this.#readingArrangement = null;
     }
   },
 );

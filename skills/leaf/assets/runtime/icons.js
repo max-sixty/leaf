@@ -2,7 +2,7 @@
    module: composing/selection.js builds its response button with an icon as it
    evaluates. */
 
-// Built-in margin element faces use one stroked, currentColor icon vocabulary. Reaction tokens
+// Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
 // are authored content and may supply emoji; structural Leaf faces keep their line
 // weight and baseline stable across systems.
 const SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
@@ -37,7 +37,7 @@ const ICONS = {
   waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>',
 };
 
-export function iconElement(icon, className = "lf-margin-element-icon") {
+export function iconElement(icon, className = "lf-margin-entry-icon") {
   if (!ICONS[icon]) throw new TypeError(`Unknown Leaf icon: ${icon}`);
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 16 16");

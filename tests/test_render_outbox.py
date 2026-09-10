@@ -428,7 +428,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     sent = _traffic(page).sends
     page.keyboard.press("z")
     assert _traffic(page).sends == sent
-    # The local margin element shares the keyboard's guard; it cannot post around an
+    # The local margin entry shares the keyboard's guard; it cannot post around an
     # accepted event whose authoritative state is still incomplete.
     first_item = page.locator('[data-lf-margin-for="sug-refill"]')
     first_item.get_by_role("button", name=re.compile(r"^Undo accepting")).click()
@@ -454,7 +454,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     lifted = True
     told(page)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
-    page.locator("[data-lf-for='sug-in-card']").get_by_role(
+    page.locator("[data-lf-margin-for='sug-in-card']").get_by_role(
         "button", name="Retry", exact=True
     ).click()
     round_trip(page)
@@ -884,10 +884,10 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-outer-board", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    outer = entries["lf-outer-board"]
+    declarations = json.loads(registry_path.read_text())
+    outer = declarations["lf-outer-board"]
     outer["properties"]["restated"] = {"type": "boolean"}
-    outer["x-content"] = "items"
+    outer["x-content"] = "members"
     outer["x-example"] = (
         '<lf-outer-board id="x-outer"><lf-column id="x-col" label="Todo">'
         '<lf-card id="x-card"><strong>Card</strong></lf-card></lf-column>'
@@ -916,9 +916,9 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
         }
     }
     standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
-    entries["lf-column"] = standard["lf-column"]
-    entries["lf-column"]["x-parent"].append("lf-outer-board")
-    registry_path.write_text(json.dumps(entries))
+    declarations["lf-column"] = standard["lf-column"]
+    declarations["lf-column"]["x-owners"].append("lf-outer-board")
+    registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
         """import { once } from "/runtime/widget-api.js";
 customElements.define("lf-outer-board", class extends HTMLElement {
@@ -2115,7 +2115,7 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
 def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     browser, serve
 ):
-    """Opening the thread workspace stands the compact field down, so its old absolute
+    """Opening the thread panel stands the compact field down, so its old absolute
     position cannot create sideways overflow after the page narrows. The words remain
     the passage's draft and return when the reader selects that passage again."""
     page, errors = open_page(browser, serve(LONG_PAGE))
@@ -2128,7 +2128,7 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     page.locator(".lf-composer textarea").fill("held open across the panel opening")
-    # A press on the banner's own button gives the workspace the screen and focus.
+    # A press on the banner's own button gives the Thread panel the screen and focus.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -2355,7 +2355,7 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
                 "properties": {"id": {"type": "string"}},
                 "required": ["id"],
                 "additionalProperties": False,
-                "x-content": "prose",
+                "x-content": "markup",
                 "x-upgrade": True,
                 "x-example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
             }
@@ -2550,7 +2550,7 @@ def test_undo_waits_for_the_candidate_view_to_commit_or_roll_back(browser, serve
         preparations[0].fulfill(status=204)
     expect(page.locator("body")).to_have_attribute("data-lf-reading", before)
     expect(
-        page.locator("[data-lf-for='sug-refill'] [data-lf-margin-element-key='undo']")
+        page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
     ).to_be_visible()
     expect(page.locator("#sug-thistle")).not_to_have_attribute(
         "data-lf-state", "accept"
@@ -2604,9 +2604,7 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     round_trip(page)
 
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
-    undo = page.locator(
-        "[data-lf-for='sug-refill'] [data-lf-margin-element-key='undo']"
-    )
+    undo = page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
     expect(undo).to_have_attribute("aria-disabled", "false")
     assert [event["action"] for event in actions(serve.page_dir)] == ["accept"]
     expected = [

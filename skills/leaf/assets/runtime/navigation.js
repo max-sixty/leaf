@@ -28,8 +28,8 @@ const threadPosition = (activeInlineThread, panelIsOpen) => {
 };
 
 // t/T walk open threads in page order. A closed panel keeps the walk at the thread's
-// inline address: a declared widget outlet first, then the thread margin element's card. A thread
-// with no page address is indexed only by Threads, so that destination opens the panel.
+// inline destination: a declared widget outlet first, then the thread margin entry's card. A
+// thread with no page destination is indexed only by Threads, so that destination opens the panel.
 // Once the panel is open, the walk stays in its list. Both paths are clamped, not wrapped.
 function stepThread(
   dir,
@@ -117,19 +117,19 @@ const holding = (box) =>
   glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1;
 // The visible box used by page-edge navigation. A covering panel replaces the page;
 // beside it, the document keeps its own top and bottom.
-const seenScroller = (coveringWorkspaceScroller) =>
-  coveringWorkspaceScroller() ?? pageScroller;
+const seenScroller = (coveringAuxiliaryScroller) =>
+  coveringAuxiliaryScroller() ?? pageScroller;
 // Reading-page keys follow the region the reader is working in. Focus can put them in a
 // panel beside the page; a covering panel remains the only visible region even when
 // focus is still on the banner control that opened it.
-const stepScroller = (coveringWorkspaceScroller, inPanel) => {
-  const covering = coveringWorkspaceScroller();
+const stepScroller = (coveringAuxiliaryScroller, inPanel) => {
+  const covering = coveringAuxiliaryScroller();
   if (covering) return covering;
   const region = readingRegionFor(document.activeElement);
   return region ? effectiveScroller(region) : inPanel() ? threadsBox : pageScroller;
 };
-function stepReading(amount, unit, coveringWorkspaceScroller, inPanel) {
-  const box = stepScroller(coveringWorkspaceScroller, inPanel);
+function stepReading(amount, unit, coveringAuxiliaryScroller, inPanel) {
+  const box = stepScroller(coveringAuxiliaryScroller, inPanel);
   if (unit === "page") {
     const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
     amount *= box.clientHeight - clear;
@@ -184,14 +184,14 @@ export function stopGlide(box) {
   glide = null;
 }
 
-export function createNavigation({ panelIsOpen, coveringWorkspaceScroller }) {
+export function createNavigation({ panelIsOpen, coveringAuxiliaryScroller }) {
   const panelCovers = () => panelIsOpen() && panelWouldCover();
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   return {
     panelCovers,
-    seenScroller: () => seenScroller(coveringWorkspaceScroller),
+    seenScroller: () => seenScroller(coveringAuxiliaryScroller),
     stepReading: (amount, unit) =>
-      stepReading(amount, unit, coveringWorkspaceScroller, inPanel),
+      stepReading(amount, unit, coveringAuxiliaryScroller, inPanel),
     stepThread: (dir, commands) => stepThread(dir, commands, panelIsOpen),
   };
 }

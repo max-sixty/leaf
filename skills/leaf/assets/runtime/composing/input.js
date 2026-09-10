@@ -26,25 +26,24 @@ const inputDrafts = new WeakMap();
 // this module ask through this seam for the complete draft; an unwired textarea keeps
 // the platform's ordinary value.
 export const draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
-// Boot binds one input owner to the app's upload command and contextual-address
+// Boot binds one input owner to the app's upload command and contextual-hint
 // reading. Fields keep those capabilities for their lifetime; importing this module
 // never installs or replaces application callbacks.
-export function createCompositionInputs({ uploadMedia, inputAddress }) {
+export function createCompositionInputs({ uploadMedia, inputHint }) {
   // Focus and contextual-entry hints join the runtime's one standing paint. Repaint the
   // previous and current box for each fact, since either may need to lose or gain its hint.
   const inputPaints = new WeakMap();
   let paintedInput = null;
-  let paintedAddress = null;
+  let paintedHintTarget = null;
   const paintInputs = () => {
     const held = focused();
     const input = held && inputPaints.has(held) ? held : null;
-    const addressed = inputAddress();
-    const address =
-      addressed?.box && inputPaints.has(addressed.box) ? addressed.box : null;
-    for (const ta of new Set([paintedInput, input, paintedAddress, address]))
-      inputPaints.get(ta)?.(addressed);
+    const hint = inputHint();
+    const hintedInput = hint?.box && inputPaints.has(hint.box) ? hint.box : null;
+    for (const ta of new Set([paintedInput, input, paintedHintTarget, hintedInput]))
+      inputPaints.get(ta)?.(hint);
     paintedInput = input;
-    paintedAddress = address;
+    paintedHintTarget = hintedInput;
   };
   // `sends` states the box's own submit action. Composers send by default; a caller whose
   // action differs, such as adding an option, supplies the matching icon.
@@ -132,10 +131,14 @@ export function createCompositionInputs({ uploadMedia, inputAddress }) {
       const word = sendWord();
       return word.charAt(0).toUpperCase() + word.slice(1);
     };
-    const paint = (addressed = inputAddress()) => {
+    const paint = (contextualHint = inputHint()) => {
       // Read the shared logical focus so this hint agrees with the shortcut bar and rings.
       const standing = focused() === ta;
-      const suffix = standing ? sendKeys : addressed?.box === ta ? addressed.label : "";
+      const suffix = standing
+        ? sendKeys
+        : contextualHint?.box === ta
+          ? contextualHint.label
+          : "";
       const placeholder = suffix ? `${label()} · ${suffix}` : label();
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
       const ariaLabel = name();
@@ -250,7 +253,7 @@ export function createCompositionInputs({ uploadMedia, inputAddress }) {
         if (ta.isConnected) ta.focus();
       }
     });
-    // The box's own scope: one row, so the shortcut bar's word, the shortcut reference dialog's sentence and
+    // The box's own scope: one row, so the shortcut bar's word, the command reference dialog's sentence and
     // the press are the same object. Every box the runtime wires gets it — the general box,
     // each thread's reply, the selection composer, a widget conversation — where the reference
     // used to carry one row saying "in the focused composer" for a sequence that fires in all

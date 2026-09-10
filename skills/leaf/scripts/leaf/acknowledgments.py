@@ -210,7 +210,7 @@ def canonical_acknowledgments(
     # the thread showed "✓ Sent · just now" twice under one question. The later move
     # supersedes the earlier for what the reader is owed — that the press landed.
     # Units stay apart: two moved cards, two reviewed files, are two subjects with a
-    # margin element each in the margin. Chosen before a receipt is minted, so a claim is
+    # margin entry each in the margin. Chosen before a receipt is minted, so a claim is
     # spent on a move that survives rather than on one dropped here.
     newest: dict[tuple[str, str], dict] = {}
     for source, target, coordinate, _requires_response, _unsettled in moves:

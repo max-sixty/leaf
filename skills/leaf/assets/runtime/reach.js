@@ -53,7 +53,7 @@ export const FOCUSABLE =
 // The declaration picks the candidates and the measurement decides. A rule saying a box
 // may scroll is not the same fact as a box with something out of sight: the theme sets
 // `table { display: block; overflow-x: auto }` on every table there is, so the declaration
-// alone gave all fourteen tables in the keyboard reference a tab stop, none of which
+// alone gave all fourteen tables in the command reference a tab stop, none of which
 // overflows — and leaving that reference by Tab went from one press to fifteen, each stop
 // wearing the browser's own ring rather than the layer's.
 //

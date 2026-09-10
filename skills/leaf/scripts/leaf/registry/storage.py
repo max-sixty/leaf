@@ -6,7 +6,7 @@ from pathlib import Path
 
 from leaf.files import file_stamp
 
-from .contract import RegistryError, read_registry_entries
+from .contract import RegistryError, read_registry_declarations
 from .validation import validate_registry
 
 _registries = {}  # registry.json -> (its stamp, the vocabulary it holds)
@@ -22,8 +22,8 @@ def read_registry(path: Path):
     stamp = file_stamp(path)
     if stamp and (held := _registries.get(path)) and held[0] == stamp:
         return held[1]
-    entries = read_registry_entries(path)
-    registry = None if entries is None else validate_registry(entries, path)
+    declarations = read_registry_declarations(path)
+    registry = None if declarations is None else validate_registry(declarations, path)
     if stamp:
         _registries[path] = (stamp, registry)
     return registry
@@ -37,7 +37,7 @@ def load_registry(page_dir: Path):
 def layer_metadata(page_dir: Path) -> dict:
     """The identity recorded by this page's complete vendored layer."""
     path = page_dir / "registry.json"
-    registry = read_registry_entries(path)
+    registry = read_registry_declarations(path)
     layer = (registry or {}).get("$layer", {})
     generation = layer.get("generation")
     if not isinstance(generation, str) or not generation:

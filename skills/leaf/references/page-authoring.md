@@ -86,18 +86,19 @@ and revisions; packages supply the vocabulary and guidance for the task.
 For a workspace, make `lf-workspace` the sole content element directly inside
 `main`, with the page title in its optional direct native `header`. Its body is
 exactly one element. Put prose in an `lf-pane`; compose multiple named panes with
-one `lf-split`, where each split takes two panes or splits in `columns` or `rows`.
+one `lf-partition`, where each partition takes two panes or partitions in `columns` or
+`rows`.
 The workspace's optional direct native `footer` follows its body. A pane's direct
 `header` and `footer` frame its reading body; put existing action widgets in the
 footer when they should stay available while the body scrolls. A pane's `label`
 names it for navigation and assistive technology; author a `header` when it needs
-a visible heading. Query the registry entries for their complete markup contracts.
+a visible heading. Query the element declarations for their complete markup contracts.
 
 Keep a compound widget's authoring grammar and state ownership together. A
 playground supplies its own controls and preview regions; its Ask still surrounds
-the playground. Structural and compound owners register their arrangements so the
+the playground. Structural and compound owners register their reading arrangements so the
 workspace can allocate them directly; a plain wrapper does not carry allocation to
-an arranged descendant. An embedded workspace stays within its containing content.
+a registered descendant. An embedded workspace stays within its containing content.
 Constrained windows and standalone copies expose regions in authored order, so
 choose an order that remains useful when stacked. Let Leaf allocate the space;
 page-specific positioning should not be needed to keep a pane or footer reachable.
@@ -109,7 +110,7 @@ where each one comes with the markup it is written as. The vendored theme owns
 palette, type, spacing, headings, tables, code, and widget presentation. Use a
 page-local `<style>` only for presentation unique to this page.
 
-Widget attributes carry scalars; children carry prose; an item's title is a
+Widget attributes carry scalars; children carry prose; a titled compound member uses a
 leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text. The
@@ -126,13 +127,13 @@ width. A table that scrolls has every column at its longest unbreakable run, and
 the browser gate refuses one that scrolls with a cell in it wrapped: put an
 identifier in `<code>`, where it breaks inside its cell, rather than bare, where
 it holds its column and squeezes the prose beside it, and keep the columns to
-what the measure holds. Widgets whose registry entry declares a wide shape size
+what the measure holds. Widgets whose element declaration names a wide shape size
 themselves; fix a diagram that is too wide in its source rather than pinning a
 page width.
 
 ## Stable anchors
 
-Give each section, major block, and widget item a stable, meaningful `id` at the
+Give each section, major block, and Leaf element a stable, meaningful `id` at the
 tightest semantic boundary a reader can distinguish. Where a sole child fills a
 transparent wrapper, let the child carry the pair's one id.
 Put a titled section's public id on the `<section>`, not on its heading just for

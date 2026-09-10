@@ -59,8 +59,7 @@ import { closestAcross, elementById } from "../passages.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
 import { authoredParents } from "../projection/authored.js";
-import { stateProjection } from "../projection/fold.js";
-import { pendingRequests } from "../outbox.js";
+import { currentProjection } from "../projection/state.js";
 
 /* Server-projected ask state, resolved onto the browser's live DOM. */
 const authoredParentOf = (node) => authoredParents.get(node);
@@ -119,7 +118,7 @@ const awaitingValues = (answered) => ({
 });
 
 function context(answered = false) {
-  const projection = stateProjection();
+  const projection = currentProjection();
   return {
     awaiting: awaitingValues(answered),
     positionedParents: positionedParents(projection),
@@ -134,9 +133,11 @@ export const projectedParent = (el, reading) =>
   authoredParentOf(el) ??
   el.parentElement;
 
-function asks(kind) {
+function asks(kind, pendingRequestEvents) {
   if (!pagePresented()) return [];
-  const requested = new Set(pendingRequests().map((event) => event.widget));
+  const requested = new Set(
+    kind === "all" ? [] : pendingRequestEvents.map((event) => event.widget),
+  );
   const documentAsks = runtime.view?.document?.asks?.[kind] ?? [];
   const conversationAsks = runtime.browser?.conversation?.asks?.[kind] ?? [];
   const elements = [...documentAsks, ...conversationAsks]
@@ -153,16 +154,19 @@ function asks(kind) {
 }
 
 export const allAsks = () => asks("all");
-export const openAsks = () => asks("reader");
-export const unansweredAsks = () => asks("unanswered");
+export const openAsks = (pendingRequestEvents) => asks("reader", pendingRequestEvents);
+export const unansweredAsks = (pendingRequestEvents) =>
+  asks("unanswered", pendingRequestEvents);
 
 // A package subscribes to the semantic projection, never to the transport's broad
 // invalidation event. The first reading is synchronous, which lets a connected
 // widget paint one complete state without a separate setup path. The owner exists
 // only to bind lifetime; the reading stays page-wide because a command hub observes
 // asks elsewhere in the document.
-export function watchAsks(owner, callback) {
+export function watchAsks(owner, pendingRequests, callback) {
+  if (typeof pendingRequests !== "function")
+    throw new TypeError("An Ask watcher needs a pending-request reading");
   if (typeof callback !== "function")
     throw new TypeError("An Ask watcher needs a callback");
-  return watchProjection(owner, () => callback(openAsks()));
+  return watchProjection(owner, () => callback(openAsks(pendingRequests())));
 }

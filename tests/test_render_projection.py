@@ -1751,7 +1751,8 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     expect(task).to_have_attribute("status", "review")
     expect(task).to_have_attribute("data-lf-reported", "1")
     expect(task).not_to_have_attribute("data-lf-reader-override", "1")
-    page.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
     report_reading = page.get_by_role(
         "button", name=re.compile(r"^Open reported update: Reported update")
     )
@@ -2695,7 +2696,10 @@ def test_state_origin_readings_compose_on_one_target(browser, serve):
     page, errors = open_page(browser, serve(REPORT_PAGE))
     origins = page.evaluate(
         """async () => {
-          const {stateOrigins} = await import('/runtime/projection/fold.js');
+          const [{projectionOrigins}, {authoredStates}] = await Promise.all([
+            import('/runtime/projection/model.js'),
+            import('/runtime/projection/authored.js'),
+          ]);
           const entry = (id, kind, facet) => ({
             unit: 't-parser',
             e: {id, kind},
@@ -2712,7 +2716,7 @@ def test_state_origin_readings_compose_on_one_target(browser, serve):
               ['report-progress', entry('report-progress', 'report', 'progress')],
             ]),
           };
-          return stateOrigins(projection);
+          return projectionOrigins(authoredStates, projection);
         }"""
     )
     assert origins == [
@@ -3367,7 +3371,8 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
             exact=True,
         )
     ).to_be_visible()
-    second.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
+    second.keyboard.press("g")
+    second.keyboard.press("Shift+m")
     reader_origin = second.get_by_role(
         "button", name=re.compile(r"^Open your change: Your change")
     )
@@ -6143,5 +6148,68 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     assert spent["cursor"] == "default", (
         "a spent request still takes the hand, so the page invites a press it will refuse"
     )
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("replacement", ["rebuilt", "removed"])
+def test_datum_travel_resolves_the_destination_after_reveal(
+    browser, serve, replacement
+):
+    url = serve(
+        leaf_page(
+            "reveal replaces projection",
+            '<h1 id="title">Call change</h1>'
+            '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
+            '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
+        ),
+        packages=("pr-review", "diff"),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "calls-data",
+        "calldiff diff main → feature\n  changed()  app.py:1\n+ └─ added()  app.py:2",
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1 +1,2 @@\n changed()\n+added()\n",
+    )
+    page, errors = open_page(browser, url)
+    page.locator("#calls .lf-call-toggle").click()
+    # A container may synchronously rebuild its projection while revealing it.
+    # Repeat that lifecycle on every reveal so a second reveal after resolution
+    # cannot hide a stale-node scroll behind the first successful re-query.
+    page.locator("#patch").evaluate(
+        """(source, replacement) => {
+          let revealed = false;
+          source.addEventListener('lf-reveal', () => {
+            const row = source.shadowRoot.querySelector(
+              `[data-lf-datum='["app.py","new",2]']`);
+            if (!row) return;
+            if (replacement === 'removed' || revealed) {
+              row.remove();
+            } else {
+              const next = row.cloneNode(true);
+              row.replaceWith(next);
+              revealed = true;
+            }
+          });
+        }""",
+        replacement,
+    )
+    page.locator("#calls .lf-call-location").last.click()
+    if replacement == "rebuilt":
+        expect(page.locator(".lf-live")).to_have_text(
+            "Opened app.py:2 in the exact patch"
+        )
+        expect(
+            page.locator('lf-diff [data-lf-datum=\'["app.py","new",2]\']')
+        ).to_be_in_viewport()
+    else:
+        expect(page.locator(".lf-live")).to_have_text(
+            "app.py:2 is not present in the exact patch"
+        )
     assert errors == []
     page.close()

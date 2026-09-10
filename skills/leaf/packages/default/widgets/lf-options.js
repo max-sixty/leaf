@@ -266,7 +266,7 @@ customElements.define(
       this.#answered(true);
       const sent = sendAction(this, "answer", {}).then((accepted) => {
         this.#sending(null);
-        if (!accepted) return false; // unsent means unrecorded, and nothing was painted
+        if (!accepted) return false; // reconciliation restored the prior state
         // Usually replay has painted the accepted answer already. Repeat the absolute
         // paint for a partial render, but never over a same-read undo of this action.
         if (actionStands(accepted)) this.#answered(true);

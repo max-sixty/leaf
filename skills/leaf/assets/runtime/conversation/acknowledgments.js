@@ -18,7 +18,7 @@
 import { ago } from "../presence.js";
 import { el } from "../widget-elements.js";
 import { runtime } from "../context.js";
-import { threadsBox } from "./panel.js";
+import { threadsBox } from "./panel-elements.js";
 import { elementById, inChrome, pageQueryAll } from "../passages.js";
 import { threadList } from "./state.js";
 

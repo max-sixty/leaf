@@ -409,6 +409,7 @@ export function answers(binding, ev) {
 export function checked(rows, where) {
   const ids = new Set();
   rows.forEach((row, i) => {
+    if (!row) throw new TypeError(`${where}: row ${i + 1} is missing`);
     if (
       row.decision !== undefined &&
       !(

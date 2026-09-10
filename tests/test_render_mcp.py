@@ -201,8 +201,8 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
             """async textarea => {
               const entry = document.querySelector('script[type="module"][src$="leaf.js"]');
               const input = await import(new URL('runtime/composing/input.js', entry.src));
-              const keyboard = await import(new URL('runtime/keyboard/page.js', entry.src));
-              return {draft: input.draftOf(textarea), composing: keyboard.midComposition()};
+              const application = await import(new URL('runtime/application.js', entry.src));
+              return {draft: input.draftOf(textarea), composing: application.midComposition()};
             }"""
         )
         assert complete == {

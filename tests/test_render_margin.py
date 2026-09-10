@@ -2647,7 +2647,8 @@ def test_page_map_only_origins_do_not_count_as_margin_elements(browser, serve):
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, 1 of 1,"))
     expect(page.locator('[data-lf-margin-for="t-mounts"]')).to_have_count(0)
     expect(page.get_by_role("navigation", name="Page map, 2 locations")).to_be_visible()
-    page.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
     origin = page.get_by_role(
         "button", name=re.compile(r"^Open reported update: Reported update")
     )

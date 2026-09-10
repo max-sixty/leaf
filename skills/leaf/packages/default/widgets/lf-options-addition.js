@@ -22,6 +22,7 @@ export class OptionAddition {
   #commit;
   #context;
   #form = null;
+  #address = null;
   #input = null;
   #add = null;
   #syncInput = () => {};
@@ -55,6 +56,10 @@ export class OptionAddition {
     return this.#input;
   }
 
+  get address() {
+    return this.#address;
+  }
+
   refresh() {
     if (this.#form) this.#syncInput();
   }
@@ -67,8 +72,10 @@ export class OptionAddition {
     this.#input.setAttribute("aria-label", ANOTHER);
     this.#add = offer("button", "lf-btn", "Add");
     this.#add.setAttribute("aria-label", "Add option");
+    this.#address = offer("span", "lf-address");
+    this.#address.setAttribute("aria-hidden", "true");
     this.#input.value = loadDraft(this.#context) ?? "";
-    this.#form.append(this.#input, this.#add);
+    this.#form.append(this.#address, this.#input, this.#add);
     this.#syncInput = wireInput(this.#input, {
       hint: ANOTHER,
       sends: "add option",

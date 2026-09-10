@@ -557,9 +557,9 @@ export function createAskView({
   // The Ask-local action map. A package contributes exact controls through the same
   // command scopes dispatch and Help already consume. Core preserves a contributed
   // binding and gives each keyless action the next free contextual digit. The map stays
-  // active as Tab moves into the Ask; nearer local scopes still own the bindings they
-  // declare, and the dispatcher's ordinary shadowing keeps actions out of text entry and
-  // nested modes.
+  // active as Tab moves into the Ask; activation calls the contributed command's run,
+  // while nearer local scopes still own the bindings they declare and the dispatcher's
+  // ordinary shadowing keeps actions out of text entry and nested modes.
   function ownedAskControl(askSource, commandSource) {
     const selector = tagsDeclaring(
       (entry) => entry["x-awaits"] || entry["x-request"]?.ask,
@@ -598,13 +598,14 @@ export function createAskView({
   // control-facing projections all consume the same binding-to-control identity.
   const actionRoutes = () =>
     availableActions().map(
-      ({ id, control, label, address, resolvedBinding: binding }) => ({
+      ({ id, control, label, address, run, resolvedBinding: binding }) => ({
         id,
         binding,
         does: `Activate the “${label}” action`,
         line: label,
         control,
         address,
+        run,
       }),
     );
   const actionRow = {
@@ -629,7 +630,7 @@ export function createAskView({
     run: (binding) =>
       actionRoutes()
         .find((route) => route.binding === binding)
-        ?.control.click(),
+        ?.run(),
   };
   const reachableActionRoutes = () => {
     const available = availableCommands();

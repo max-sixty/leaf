@@ -66,7 +66,8 @@ Leaf also ships optional packages that select by bare name. `diagram` adds `lf-d
 and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
 technical backlog deck; `playground` adds declarative controls, presets, CSS-bound
-previews, and one typed configuration action; `command-hub` adds multi-agent
+previews, and one typed configuration action; `targeting` lets readers select preview
+elements and submit structured, reversible change proposals; `command-hub` adds multi-agent
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
 description and compact checks table, plus a data-backed unified call diff; `monitoring`
 adds an asymmetric overview, evidence, and exception workspace. `gallery`
@@ -78,6 +79,7 @@ leaf page init --package diagram PAGE
 leaf page init --package diff PAGE
 leaf page init --package swipe PAGE
 leaf page init --package playground PAGE
+leaf page init --package targeting PAGE
 leaf page init --package command-hub PAGE
 leaf page init --package diff --package pr-review PAGE
 leaf page init --package monitoring PAGE
@@ -290,8 +292,9 @@ Non-widget facets contain `units`, keyed by unit id, and position facets also co
 recordless units are undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
 `false` is the only return value state projection interprets: return it while a live
-edit prevents rendering. When the edit closes, dispatch `lf-projection` on `document`
-so Leaf retries deferred state after the gesture has finished staging its local action.
+edit prevents rendering. After the edit closes, call `projectionChanged()` so the state
+feed retries the deferred authoritative projection after the gesture has finished
+staging its local action.
 Projection ignores every other return value. A renderer may return the `Animation` for
 its production transition so an interaction-gallery scenario can join that motion to
 the gallery's playback controls; the same call must still reach its complete state when

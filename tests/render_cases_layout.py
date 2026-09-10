@@ -389,16 +389,18 @@ UNMARKABLE_PAGE = LONG_PAGE.replace(
 # margin carries it: far enough and the whole box is out in the margin, which is what a
 # sidenote is; not far enough and the box straddles the edge, which is a spill. The
 # fourth says the same side in the logical spelling, and the fifth is the run of prose a
-# resident holds — every one of which inherits the box its parent put out there.
+# resident holds — every one of which inherits the box its parent put out there. The
+# compact posture has no margin for these synthetic residents, so it removes them.
 FLOATING_PAGE = LONG_PAGE.replace(
     "</main>",
-    "<div id='in-the-margin' style='float: left; clear: left; width: 180px;"
+    "<style>@media (max-width: 600px) { .fixture-margin-float { display: none; } }</style>"
+    "<div class='fixture-margin-float' id='in-the-margin' style='float: left; clear: left; width: 180px;"
     " margin-left: -204px'>Beside <code id='inner-word'>--flag</code>.</div>"
-    "<div id='half-out' style='float: left; clear: left; width: 180px;"
+    "<div class='fixture-margin-float' id='half-out' style='float: left; clear: left; width: 180px;"
     " margin-left: -90px'>Across.</div>"
-    "<div id='logical' style='float: inline-start; clear: left; width: 180px;"
+    "<div class='fixture-margin-float' id='logical' style='float: inline-start; clear: left; width: 180px;"
     " margin-left: -204px'>Beside.</div>"
-    "<div id='off-window' style='float: left; clear: left; width: 180px;"
+    "<div class='fixture-margin-float' id='off-window' style='float: left; clear: left; width: 180px;"
     " margin-left: -900px'>Gone.</div>\n</main>",
 )
 SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(

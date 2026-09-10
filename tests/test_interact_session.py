@@ -152,7 +152,15 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     assert prompt.prompt.startswith("```xml\n<leaf-delivery ")
     assert 'operation="delivery read"' in prompt.prompt
     assert "skill=" not in prompt.prompt
-    assert prompt.payload["batches"][0]["events"][0]["id"] == comment["id"]
+    [batch] = prompt.payload["batches"]
+    assert set(batch) == {
+        "page",
+        "through_seq",
+        "conversations",
+        "handling",
+        "events",
+    }
+    assert batch["events"][0]["id"] == comment["id"]
     claim = service_model.page_claim(page_dir)
     assert {key: claim[key] for key in ("id", "host", "pid", "agent")} == {
         "id": "hosted-thread",
@@ -3706,7 +3714,6 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
                 {
                     "page": str(page),
                     "session": "codex-thread",
-                    "url": None,
                     "conversations": [],
                     "events": [event],
                     "receipted": False,
@@ -3837,67 +3844,6 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
     ]
     assert files_model.read_json(Path(pending["page"]) / "cursor.json") == {"seq": 1}
     assert not codex_model._has_delivery_work("codex-thread")
-
-
-def test_codex_refreshes_every_page_url_before_offering_a_delivery(
-    tmp_path, monkeypatch
-):
-    page = tmp_path / "page"
-    vendoring_model.cmd_init(page)
-    first_port = available_loopback_port()
-    second_port = first_port + 1 if first_port < 65535 else first_port - 1
-    serving(page, first_port)
-    record_claim(page, id="codex-thread", host="codex", agent="Codex")
-    with service_model.PageTransaction(page) as transaction:
-        transaction.close_turn("codex-thread")
-
-    for event_id in ("first", "second"):
-        events_model.append_event(
-            page,
-            {
-                "kind": "comment",
-                "id": event_id,
-                "author": "user",
-                "text": event_id,
-            },
-        )
-        delivered = events_model.read_events(page)[-1]
-        with service_model.PageTransaction(page) as transaction:
-            reading = session_model.PageTick(
-                page,
-                transaction.status,
-                [delivered],
-                True,
-                "watching",
-                False,
-                None,
-                transaction,
-            )
-            assert codex_model.capture_batch("codex-thread", reading)
-        if event_id == "first":
-            service = files_model.read_json(page / "service.json")
-            files_model.write_json(
-                page / "service.json",
-                {**service, "port": second_port},
-            )
-
-    epoch_path, before = current_codex_queue("codex-thread")
-    assert len({batch["url"] for batch in before["batches"]}) == 2
-    queued = []
-    monkeypatch.setattr(
-        codex_model,
-        "queue_delivery",
-        lambda _codex, _session, prompt: queued.append(prompt),
-    )
-
-    assert codex_model._recover_delivery("codex", "codex-thread")
-
-    assert len(queued) == 1 and epoch_path.stem in queued[0]
-    current_url = server_model.running_server(page)["url"]
-    pointer = ElementTree.fromstring(queued[0].splitlines()[1])
-    assert pointer.attrib == {"id": epoch_path.stem, "operation": "delivery read"}
-    payload = files_model.read_json(codex_model.delivery_path(pointer.attrib["id"]))
-    assert {batch["url"] for batch in payload["batches"]} == {current_url}
 
 
 def test_one_conversation_delivery_starts_and_receipts_its_app_server_turn(
@@ -4291,9 +4237,9 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             assert payload_path.exists()
             payload = files_model.read_json(payload_path)
             assert payload["format"] == delivery_model.DELIVERY_FORMAT
-            assert all("receipted" not in batch for batch in payload["batches"])
             assert all(
-                batch["url"] == server_model.running_server(page)["url"]
+                set(batch)
+                == {"page", "through_seq", "conversations", "handling", "events"}
                 for batch in payload["batches"]
             )
             queue_history = (

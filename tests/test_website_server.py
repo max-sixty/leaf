@@ -160,7 +160,7 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
         "reader-event",
         "another-event",
     }
-    assert query_site_agent_logs.safe_records(response, "reader-event") == [
+    assert query_site_agent_logs.safe_records([response], {"reader-event"}) == [
         {
             "timestamp": 1000,
             "dataset": "workers",
@@ -177,6 +177,93 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
             "eventId": "reader-event",
             "durationMs": 125,
             "turnId": "app-turn",
+            "elapsedMs": 200,
+        },
+    ]
+
+
+def test_the_agent_log_query_deduplicates_a_batched_turn(monkeypatch, capsys):
+    shared = {
+        "timestamp": 1200,
+        "dataset": "containers",
+        "source": {
+            "component": "leaf-agent",
+            "event": "turn_start_completed",
+            "eventIds": ["event-1", "event-2"],
+            "durationMs": 125,
+        },
+    }
+    responses = {
+        ("reference", "123456789012"): {
+            "result": {"events": {"events": [shared]}}
+        },
+        ("eventId", "event-1"): {
+            "result": {
+                "events": {
+                    "events": [
+                        {
+                            "timestamp": 1000,
+                            "dataset": "workers",
+                            "source": {
+                                "component": "leaf-agent",
+                                "event": "workflow_started",
+                                "eventId": "event-1",
+                            },
+                        },
+                        shared,
+                    ]
+                }
+            }
+        },
+        ("eventId", "event-2"): {
+            "result": {
+                "events": {
+                    "events": [
+                        {
+                            "timestamp": 1050,
+                            "dataset": "workers",
+                            "source": {
+                                "component": "leaf-agent",
+                                "event": "workflow_started",
+                                "eventId": "event-2",
+                            },
+                        },
+                        shared,
+                    ]
+                }
+            }
+        },
+    }
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "token")
+    monkeypatch.setattr(
+        query_site_agent_logs,
+        "query",
+        lambda key, value, token, now_ms: responses[(key, value)],
+    )
+
+    assert query_site_agent_logs.main(["123456789012"]) == 0
+
+    assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == [
+        {
+            "timestamp": 1000,
+            "dataset": "workers",
+            "event": "workflow_started",
+            "eventId": "event-1",
+            "elapsedMs": 0,
+        },
+        {
+            "timestamp": 1050,
+            "dataset": "workers",
+            "event": "workflow_started",
+            "eventId": "event-2",
+            "elapsedMs": 50,
+        },
+        {
+            "timestamp": 1200,
+            "dataset": "containers",
+            "event": "turn_start_completed",
+            "eventIds": ["event-1", "event-2"],
+            "durationMs": 125,
             "elapsedMs": 200,
         },
     ]

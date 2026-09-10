@@ -90,17 +90,30 @@ def event_ids(response: dict) -> set[str]:
     return found
 
 
-def safe_records(response: dict, event_id: str) -> list[dict]:
-    """Keep only Leaf's declared timing fields from matching telemetry events."""
+def safe_records(responses: list[dict], wanted_event_ids: set[str]) -> list[dict]:
+    """Deduplicate telemetry and keep Leaf's declared timing fields."""
     records = []
-    events = response.get("result", {}).get("events", {}).get("events", [])
-    for item in events:
+    seen = set()
+    for item in (
+        item
+        for response in responses
+        for item in response.get("result", {}).get("events", {}).get("events", [])
+    ):
+        fingerprint = json.dumps(item, sort_keys=True, separators=(",", ":"))
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
         source = item.get("source") or {}
         if source.get("component") != "leaf-agent":
             continue
-        if source.get("eventId") != event_id and event_id not in source.get(
-            "eventIds", []
-        ):
+        carried_event_ids = {
+            event_id
+            for event_id in source.get("eventIds", [])
+            if isinstance(event_id, str)
+        }
+        if isinstance(source.get("eventId"), str):
+            carried_event_ids.add(source["eventId"])
+        if carried_event_ids.isdisjoint(wanted_event_ids):
             continue
         record = {
             "timestamp": item.get("timestamp"),
@@ -159,12 +172,11 @@ def main(arguments: list[str]) -> int:
         wanted_event_ids = event_ids(response)
     else:
         wanted_event_ids = {lookup}
-    records = [
-        record
+    responses = [
+        query("eventId", event_id, token, now_ms)
         for event_id in sorted(wanted_event_ids)
-        for record in safe_records(query("eventId", event_id, token, now_ms), event_id)
     ]
-    records.sort(key=lambda record: record["timestamp"])
+    records = safe_records(responses, wanted_event_ids)
     if not records:
         print(f"no recent leaf-agent logs found for {lookup}", file=sys.stderr)
         return 1

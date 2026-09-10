@@ -162,6 +162,20 @@ def unpresented(url: str, reached: list[str], failures: list[str]) -> str:
     return f"{url} never presented, reaching {milestones}{reported}"
 
 
+def observe_startup(page: Page) -> list[str]:
+    """Every verifier page records milestones and the errors that stop reaching them."""
+    page.add_init_script(PROFILE_SCRIPT)
+    failures: list[str] = []
+    page.on(
+        "console",
+        lambda message: (
+            failures.append(message.text) if message.type == "error" else None
+        ),
+    )
+    page.on("pageerror", lambda error: failures.append(str(error)))
+    return failures
+
+
 def await_presentation(
     page, url: str, failures: list[str], timeout: int = 30_000
 ) -> None:
@@ -187,15 +201,7 @@ def activation_url(page_url: str, state: dict) -> str:
 def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> dict:
     context = browser.new_context()
     page = context.new_page()
-    page.add_init_script(PROFILE_SCRIPT)
-    failures: list[str] = []
-    page.on(
-        "console",
-        lambda message: (
-            failures.append(message.text) if message.type == "error" else None
-        ),
-    )
-    page.on("pageerror", lambda error: failures.append(str(error)))
+    failures = observe_startup(page)
     url = urljoin(f"{ORIGIN}/", path.lstrip("/"))
     response = page.goto(url, wait_until="load", timeout=120_000)
     check(response is not None and response.ok, f"{url} did not load")
@@ -343,10 +349,10 @@ def verify_cross_tab_activation(browser) -> None:
     leader = context.new_page()
     follower = context.new_page()
     for page in (leader, follower):
-        page.add_init_script(PROFILE_SCRIPT)
+        failures = observe_startup(page)
         response = page.goto(url, wait_until="load", timeout=120_000)
         check(response is not None and response.ok, f"{url} did not load")
-        await_presentation(page, url, [])
+        await_presentation(page, url, failures)
     follower.evaluate(
         """() => {
           window.__leafActivated = 0;
@@ -371,18 +377,7 @@ def reader_session(
     """One activated reader session, or the release its container served instead."""
     context = browser.new_context()
     page = context.new_page()
-    # The same startup stamps `verify_page` records, because this page is reloaded
-    # after the turn and `unpresented` has no other way to say how far it got. Without
-    # it every stall here reports "no startup milestone" whatever stalled.
-    page.add_init_script(PROFILE_SCRIPT)
-    failures: list[str] = []
-    page.on(
-        "console",
-        lambda message: (
-            failures.append(message.text) if message.type == "error" else None
-        ),
-    )
-    page.on("pageerror", lambda error: failures.append(str(error)))
+    failures = observe_startup(page)
     response = page.goto(url, wait_until="load", timeout=120_000)
     check(response is not None and response.ok, f"{url} did not load for its agent")
     await_presentation(page, url, failures)
@@ -911,16 +906,15 @@ def main() -> None:
                 target = "the local adapter" if DIRECT_AGENT else "leaf.page"
                 print(f"✓ {target} ran one agent turn on release {release}")
                 return
-            profiles = [
-                (path, verify_page(browser, path, kind, release, activate))
-                for path, kind, activate in PAGES
-            ]
+            print(
+                "Leaf startup profile (observed, not a pass/fail budget):", flush=True
+            )
+            for path, kind, activate in PAGES:
+                profile = verify_page(browser, path, kind, release, activate)
+                print(startup_line(path, profile), flush=True)
             verify_cross_tab_activation(browser)
         finally:
             browser.close()
-    print("Leaf startup profile (observed, not a pass/fail budget):")
-    for path, profile in profiles:
-        print(startup_line(path, profile))
     print(f"✓ leaf.page serves release {release} in {browser_name}")
 
 

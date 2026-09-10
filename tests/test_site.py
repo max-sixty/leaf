@@ -326,6 +326,10 @@ def test_a_crawler_is_given_one_page_per_route(site):
     robots = (assets / "robots.txt").read_text(encoding="utf-8")
 
     assert f"Sitemap: {site_build.SITE_ORIGIN}/sitemap.xml" in robots
+    # Silence is not neutral here: a zone that states no signal is given
+    # `ai-train=no` by Cloudflare's managed robots.txt. This site permits all three.
+    assert "Content-Signal: search=yes, ai-input=yes, ai-train=yes" in robots
+    assert "Disallow" not in robots
     listed = set(re.findall(r"<loc>(.*?)</loc>", sitemap))
     routes = {
         f"{site_build.SITE_ORIGIN}{'' if route == '/' else route}/"

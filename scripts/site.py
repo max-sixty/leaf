@@ -281,9 +281,16 @@ def write_crawler_directives(assets: Path, routes: list[str]) -> None:
 
     Nothing is disallowed: the version and revision documents a page also publishes
     are settled by their canonical link, and a crawler has to fetch them to read it.
+
+    The content signals are stated rather than left open, because Cloudflare's managed
+    robots.txt otherwise supplies `search=yes, ai-train=no` for a zone that says
+    nothing, and this site wants to be read by all three.
     """
     (assets / "robots.txt").write_text(
-        f"User-agent: *\nAllow: /\n\nSitemap: {SITE_ORIGIN}/sitemap.xml\n",
+        "User-agent: *\n"
+        "Content-Signal: search=yes, ai-input=yes, ai-train=yes\n"
+        "Allow: /\n"
+        f"\nSitemap: {SITE_ORIGIN}/sitemap.xml\n",
         encoding="utf-8",
     )
     locations = "".join(

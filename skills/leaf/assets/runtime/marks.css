@@ -12,7 +12,8 @@
    a border and the pointer's cursor comes from a class the hit-test puts on body. A
    posted thread's mark wears the comment layer's own violet (--mark-ink and the wash
    beside it, which is the same colour a marked element's contour is drawn in); the open
-   composer's draft wears the accent, and outranks it where they overlap.
+   composer's draft wears the accent, and outranks it where they overlap. The rail
+   stays solid so the annotation reads as one continuous contour.
 
    The wash and the ink answer two questions, so they are moved by two things. The wash
    says how near the reader's attention is, in three steps of one hue: --mark for a mark

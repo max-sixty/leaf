@@ -1320,7 +1320,7 @@ lf-card .lf-grip:hover { background: var(--chip); }
 lf-card .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: card-grip; outline-offset: calc(-1 * var(--here-ring-w));
           color: var(--ink-2); }
 /* SortableJS drag states: the in-flow slot, the pressed card, the follower. */
-lf-card.lf-ghost { opacity: .4; border-color: var(--accent); }
+lf-card.lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
 lf-card.lf-lift { box-shadow: 0 2px 8px var(--shade); }
 /* (No transform here: Sortable positions the follower with an inline matrix.) */
 lf-card.lf-inhand { opacity: 1; cursor: grabbing;
@@ -1935,8 +1935,8 @@ lf-source pre:is(:focus-visible, .lf-focus-visible) {
   outline-offset: calc(-1 * var(--here-ring-w));
 }
 
-/* lf-draft rendered form: a block of text the user owns. The border says "editable"
-   and sharpens under the pointer, because the box is the door a press opens
+/* lf-draft rendered form: a block of text the user owns. The dashed border says
+   "editable" and sharpens under the pointer, because the box is the door a press opens
    (lf-draft.js); the ✎ button is the door the keyboard uses. Newlines in a draft are
    content, so the body preserves them. A reader-edited body differing from authored
    text is named as the reader's change in Page map. Unupgraded, the same box shows raw
@@ -1950,8 +1950,8 @@ lf-source pre:is(:focus-visible, .lf-focus-visible) {
    gap under it. So the word under the press stays under the pointer, which is what makes
    the gesture worth aiming. field-sizing (that same rule) does the growing, so the box
    is as tall as its text and no taller — what read mode showed. The affordance moves to
-   the host, since a border on the textarea is a border read mode hasn't got: the
-   border turns accent for as long as an edit is open.
+   the host, since a border on the textarea is a border read mode hasn't got: the dashed
+   border goes solid and accent for as long as an edit is open.
 
    The controls are a fixed part of that box rather than something an edit adds to it:
    one row under the text in both views, holding ✎ while reading and Save and Cancel
@@ -1973,7 +1973,7 @@ lf-source pre:is(:focus-visible, .lf-focus-visible) {
    layout, so every rect agreed nothing had happened and it took a screenshot diff to
    find. Inside the border there is padding to paint on and nothing of the page's to
    disturb. */
-lf-draft { display: block; border: 1px solid var(--border-2); border-radius: 6px;
+lf-draft { display: block; border: 1px dashed var(--border-2); border-radius: 6px;
            padding: 10px 14px; margin: 12px 0; background: var(--card); }
 .lf-draft-body, .lf-draft-edit.lf-ui { white-space: pre-wrap; }
 .lf-draft-pencil { opacity: 1; }
@@ -1988,14 +1988,14 @@ lf-draft { display: block; border: 1px solid var(--border-2); border-radius: 6px
 .lf-draft-controls, .lf-draft-history { display: none; }
 @media screen {
   html:not(.lf-copy) {
-    /* The box is the door (lf-draft.js), so the box answers the pointer: the
+    /* The box is the door (lf-draft.js), so the box answers the pointer: the dashed
        edge it already wears to say "editable" sharpens under the aim, the way the
        layer's own pressables warm their ground. Not the ground here — the reader is
        about to type on it, and the words have to stay the page's words while they
        decide. A quoted draft is an exhibit with no door and gets none of this. */
     lf-draft:not(:where([data-lf-exhibit]) *):not(:has(.lf-draft-edit)):hover {
                border-color: var(--muted); }
-    lf-draft:has(.lf-draft-edit) {
+    lf-draft:has(.lf-draft-edit) { border-style: solid;
                border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
                box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
     lf-draft:has(.lf-draft-edit:focus-visible) { outline: var(--here-ring);

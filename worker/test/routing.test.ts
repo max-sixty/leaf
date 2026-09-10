@@ -58,7 +58,7 @@ describe("website page routing", () => {
           },
         },
       }),
-    ).toThrow("invalid Leaf site manifest");
+    ).toThrow('at pages["/"].assets');
     expect(() =>
       parseSiteManifest({
         ...manifest,
@@ -69,7 +69,7 @@ describe("website page routing", () => {
           },
         },
       }),
-    ).toThrow("invalid Leaf site manifest");
+    ).toThrow('at pages["/"].state');
   });
 
   it("sends product and concrete example routes to Leaf", () => {

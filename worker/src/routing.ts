@@ -38,9 +38,12 @@ const sitePageSchema = z
   })
   .check(
     z.refine(
-      (page) =>
-        Object.keys(page.states).length > 0 &&
-        Object.values(page.states).includes(page.state),
+      (page) => Object.keys(page.states).length > 0,
+      { path: ["states"] },
+    ),
+    z.refine(
+      (page) => Object.values(page.states).includes(page.state),
+      { path: ["state"] },
     ),
   );
 
@@ -49,13 +52,19 @@ const siteManifestSchema = z
     release: z.string().check(z.regex(RELEASE)),
     pages: z.record(z.string().check(z.regex(PAGE_ROOT)), sitePageSchema),
   })
-  .check(
-    z.refine((manifest) =>
-      Object.values(manifest.pages).every((page) =>
-        page.assets.startsWith(`/_leaf-release/${manifest.release}/`),
-      ),
-    ),
-  );
+  .check((context) => {
+    for (const [root, page] of Object.entries(context.value.pages)) {
+      if (page.assets.startsWith(`/_leaf-release/${context.value.release}/`)) {
+        continue;
+      }
+      context.issues.push({
+        code: "custom",
+        input: page.assets,
+        message: "asset path does not match the site release",
+        path: ["pages", root, "assets"],
+      });
+    }
+  });
 
 export type SitePage = z.infer<typeof sitePageSchema>;
 export type SiteManifest = z.infer<typeof siteManifestSchema>;
@@ -66,7 +75,9 @@ export type PageRoute = Omit<SitePage, "directory"> & {
 
 export function parseSiteManifest(value: unknown): SiteManifest {
   const result = siteManifestSchema.safeParse(value);
-  if (!result.success) throw new Error("invalid Leaf site manifest");
+  if (!result.success) {
+    throw new Error(`invalid Leaf site manifest: ${z.prettifyError(result.error)}`);
+  }
   return result.data;
 }
 

@@ -13,6 +13,7 @@ import threading
 import time
 import uuid
 from contextlib import ExitStack, contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
@@ -60,6 +61,14 @@ STREAM_HEARTBEAT_METHODS = {
 STREAM_THROTTLED_METHODS = (
     STREAM_TEXT_METHODS | STREAM_HEARTBEAT_METHODS | {STREAM_REPLY_METHOD}
 )
+
+
+@dataclass(frozen=True)
+class PreparedDelivery:
+    """One immutable delivery in pointer and structured forms."""
+
+    prompt: str
+    payload: dict
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -799,10 +808,14 @@ def _prompt(path: Path) -> str:
     return f"```xml\n{pointer}\n```"
 
 
-def _offer_delivery(path: Path, queue: dict) -> str:
+def _offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
     """Freeze one payload before offering its permanent pointer."""
     if queue["state"] == "offering":
-        return _prompt(Path(queue["payload"]))
+        payload_path = Path(queue["payload"])
+        payload = read_json(payload_path)
+        if payload is None:
+            raise RuntimeError("the Codex delivery payload is missing")
+        return PreparedDelivery(_prompt(payload_path), payload)
 
     urls = {}
     for batch in queue["batches"]:
@@ -852,7 +865,7 @@ def _offer_delivery(path: Path, queue: dict) -> str:
     queue["reply"] = target
     queue["state"] = "offering"
     _write_queue(path, queue)
-    return _prompt(payload_path)
+    return PreparedDelivery(_prompt(payload_path), payload)
 
 
 def _queues(session_id: str) -> list[tuple[Path, dict]]:
@@ -1075,18 +1088,18 @@ def _recover_delivery(
             path, queue = unoffered
             queued = path, queue, _offer_delivery(path, queue)
     if queued is not None:
-        path, offered, prompt = queued
+        path, offered, prepared = queued
         direct = None
         if app_client is not None and offered.get("reply") is not None:
             direct = app_client.start_delivery(
                 {"id": path.stem, **offered["reply"]},
-                read_json(Path(offered["payload"])),
+                prepared.payload,
             )
         if direct is None:
             if app_server is None:
-                queue_delivery(codex_path, session_id, prompt)
+                queue_delivery(codex_path, session_id, prepared.prompt)
             else:
-                queue_delivery(codex_path, session_id, prompt, app_server)
+                queue_delivery(codex_path, session_id, prepared.prompt, app_server)
             transport = {"phase": "queued", "turn": None}
         else:
             transport = {"phase": "opened", "turn": direct["turn"]}
@@ -1432,8 +1445,8 @@ def prepare_codex_delivery(
     page_dir: Path,
     identity: dict,
     lifetime: dict,
-) -> str:
-    """Claim PAGE and create the pointer that opens an embedded task's first turn."""
+) -> PreparedDelivery:
+    """Claim PAGE and freeze the input for an embedded task's first turn."""
     session_id = identity["id"]
     transition = None
     try:

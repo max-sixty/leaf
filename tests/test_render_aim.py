@@ -234,6 +234,29 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     for dimension in ("x", "y", "width", "height"):
         assert carried[dimension] == pytest.approx(source[dimension], abs=1)
     expect(preview).to_have_css("opacity", "0")
+    destination = page.evaluate(
+        """() => {
+          const preview = document.querySelector('.lf-margin-preview');
+          const card = preview.getBoundingClientRect();
+          const motion = window.__lfHeld.find((played) =>
+            played.effect.target.classList.contains('lf-thread-transition'));
+          const end = motion.effect.getKeyframes().at(-1);
+          return {
+            card: {
+              x: parseFloat(preview.style.left), y: parseFloat(preview.style.top),
+              width: card.width, height: card.height,
+            },
+            end: {
+              x: parseFloat(end.left), y: parseFloat(end.top),
+              width: parseFloat(end.width), height: parseFloat(end.height),
+            },
+          };
+        }"""
+    )
+    for dimension in ("x", "y", "width", "height"):
+        assert destination["end"][dimension] == pytest.approx(
+            destination["card"][dimension], abs=1
+        ), destination
     page.evaluate(
         """() => {
           const words = window.__lfHeld.find((played) =>

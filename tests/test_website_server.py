@@ -237,6 +237,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
                 "sandbox": "danger-full-access",
                 "developerInstructions": website_server.CODEX_INSTRUCTIONS,
                 "config": {"model_reasoning_effort": "low"},
+                "ephemeral": False,
             },
         )
     ]
@@ -254,6 +255,28 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
         )
     ]
     assert accepted == [("hosted-thread",)]
+
+
+def test_an_ephemeral_website_task_is_not_persisted(page_dir, monkeypatch):
+    host = website_server.WebsiteCodexHost("codex", ephemeral=True)
+    requests = []
+
+    def request(method, params, before_close=None):
+        requests.append((method, params))
+        return {"thread": {"id": "ephemeral-thread"}}
+
+    monkeypatch.setattr(host, "_request", request)
+
+    assert host._start_thread(
+        page_dir, type("Process", (), {"pid": 41})(), "reader-event"
+    ) == "ephemeral-thread"
+    assert requests[0][1]["ephemeral"] is True
+
+
+def test_the_local_verifier_requests_ephemeral_codex_tasks():
+    script = (ROOT / "scripts" / "verify-site-agent-local.sh").read_text()
+
+    assert 'LEAF_SITE_ROOT="$site_root" LEAF_AGENT_EPHEMERAL=1' in script
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):

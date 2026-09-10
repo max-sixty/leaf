@@ -22,7 +22,7 @@ uv run --project "$repo_root" "$repo_root/scripts/site.py"
 cp -R "$repo_root/.tmp/site" "$site_root"
 release=$(jq --raw-output .release "$site_root/_leaf/site.json")
 
-LEAF_SITE_ROOT="$site_root" uv run --project "$repo_root" \
+LEAF_SITE_ROOT="$site_root" LEAF_AGENT_EPHEMERAL=1 uv run --project "$repo_root" \
   python "$repo_root/worker/server.py" >"$log" 2>&1 &
 server=$!
 

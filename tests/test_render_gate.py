@@ -2111,6 +2111,15 @@ def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve
     )
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     overflow = render_checks_model.evaluate_probe(page, "rootOverflow")
+    page.locator(".lf-margin-cluster").evaluate(
+        """cluster => {
+          cluster.id = 'visible-leaf-chrome';
+          Object.assign(cluster.style, {
+            left: '700px', opacity: '1', position: 'relative', visibility: 'visible'
+          });
+        }"""
+    )
+    visible_chrome = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     assert errors == []
     page.close()
 
@@ -2122,6 +2131,11 @@ def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve
     assert [finding for finding in misplaced if "<div id=root-spill>" in finding], (
         misplaced
     )
+    assert [
+        finding
+        for finding in visible_chrome
+        if "<div id=visible-leaf-chrome>" in finding
+    ], visible_chrome
     assert overflow > 1, "the true page spill did not reach the root scrollport"
 
 

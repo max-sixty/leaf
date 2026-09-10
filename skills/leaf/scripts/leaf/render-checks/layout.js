@@ -107,11 +107,13 @@ export function misplacedBoxes() {
   // formatting context keeps in.)
   const main = document.querySelector("main");
   if (!main) return [];
-  // The column belongs to the page. Leaf's controls may stand inside `main`, but
-  // their own labels and boxes are chrome rather than content the page placed there.
-  // Ask the shared layer boundary rather than a class directly: a widget may declare
-  // words inside that chrome as the page speaking, and those remain the page's boxes.
-  const pageBox = (el) => !uiInside(el, main);
+  // The column belongs to the page. Visible Leaf chrome still has to fit it, but chrome
+  // hidden with opacity or visibility has no box a reader can lose. checkVisibility()
+  // ignores both properties unless they are requested, which made a hidden margin label
+  // look like compact-width overflow.
+  const pageBox = (el) =>
+    !uiInside(el, main) ||
+    el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   const { isResident, left, residents, right } = marginReading(main);
   // A widget the registry declares wide is answered for out here, the way an
   // absolutely-positioned resident is: standing past the column is what it was

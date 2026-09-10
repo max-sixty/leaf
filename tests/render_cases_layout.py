@@ -278,9 +278,8 @@ WIDE_TABLE_PAGE = leaf_page(
 # each name is written, and nothing else differs between the two pages below. The
 # names run past ninety characters so that bare they hold the table open on any font:
 # at seventy-nine the bare table scrolled by ten pixels on a Mac and fitted on CI's
-# fonts, where the gate, rightly silent, read as broken. At compact width the table
-# becomes an honest horizontal scroller, because this fixture isolates the wide
-# column-allocation case rather than testing responsive table design.
+# fonts, where the gate, rightly silent, read as broken. The compact font size leaves
+# enough room that this fixture reaches the same column-allocation case on every runner.
 def prose_beside_identifiers(held):
     rows = [
         (
@@ -326,7 +325,7 @@ def prose_beside_identifiers(held):
         f"""
 <style>
 @media (max-width: 600px) {{
-  #held :is(th, td, code) {{ white-space: nowrap; }}
+  #held :is(th, td, code, a) {{ font-size: 0.75rem; }}
 }}
 </style>
 <h1 id="t">The plan</h1>

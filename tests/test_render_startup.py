@@ -2324,6 +2324,44 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
         page.close()
 
 
+def test_thread_focus_waits_for_the_lazy_placement_module(browser, serve):
+    """A thread opened while its placement module loads keeps focus on the page."""
+    page, errors = open_page(
+        browser,
+        serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]),
+        context=browser.new_context(viewport={"width": 600, "height": 844}),
+    )
+    held = []
+    page.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
+    preview = page.locator(".lf-margin-preview")
+    thread = preview.locator(".lf-conversation-thread")
+    try:
+        page.keyboard.press("t")
+        holding(page, held, 1, "the thread placement module")
+        expect(preview).to_have_css("opacity", "0")
+        assert not page.evaluate(
+            "card => card.contains(document.activeElement)", preview.element_handle()
+        )
+        page.evaluate(
+            """() => new Promise(resolve => {
+              dispatchEvent(new Event('resize'));
+              requestAnimationFrame(() => requestAnimationFrame(resolve));
+            })"""
+        )
+        expect(preview).to_have_css("opacity", "0")
+
+        held.pop(0).continue_()
+        page.unroute("**/vendor/floating-ui.esm.js")
+        expect(preview).to_have_css("opacity", "1")
+        expect(thread).to_be_focused()
+        assert errors == []
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        page.context.close()
+
+
 def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve):
     """A failed lazy module cannot leave a hidden live composer holding focus."""
     url = serve(FEATURE_GALLERY)

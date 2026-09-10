@@ -340,7 +340,6 @@ export function createLivingMargin({
     for (const played of threadTransitionMotions) played.cancel();
     threadTransitionMotions = [];
     chromeRoot.querySelector(".lf-thread-transition")?.remove();
-    preview.style.removeProperty("opacity");
   }
 
   // A comment written beside the page becomes this larger inline thread. Carry its
@@ -424,11 +423,29 @@ export function createLivingMargin({
     // Margin packing finishes on the next frame. The placement reset keeps the real card
     // transparent until its asynchronous position lands; this frame must not clear that
     // gate while the carried shell aims at the marker's settled position.
-    requestAnimationFrame(() => {
-      if (epoch !== threadTransitionEpoch) return;
-      if (previewEntry?.key !== entry.key || !preview.matches(":popover-open")) return;
-      placeThreadPreview();
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        if (
+          epoch !== threadTransitionEpoch ||
+          previewEntry?.key !== entry.key ||
+          !preview.matches(":popover-open")
+        ) {
+          resolve(false);
+          return;
+        }
+        resetThreadPreviewPosition();
+        placeThreadPreview();
+        resolve(threadPreviewPositioned());
+      });
+    }).then((positioned) => {
+      if (
+        !positioned ||
+        epoch !== threadTransitionEpoch ||
+        previewEntry?.key !== entry.key
+      )
+        return false;
       transitionThread(origin);
+      return true;
     });
   }
 
@@ -718,6 +735,15 @@ export function createLivingMargin({
   let previewPositionDismissDetached = false;
   let previewPositionEpoch = 0;
   let previewReferenceSeen = false;
+  let previewPositionWaiters = [];
+  let previewFocusPending = null;
+  function answerThreadPreviewPosition(positioned) {
+    const waiters = previewPositionWaiters;
+    previewPositionWaiters = [];
+    for (const resolve of waiters) resolve(positioned);
+  }
+  const threadPreviewPositioned = () =>
+    new Promise((resolve) => previewPositionWaiters.push(resolve));
   function resetThreadPreviewPosition() {
     previewPositionEpoch += 1;
     cancelAnimationFrame(previewPositionFrame);
@@ -746,6 +772,19 @@ export function createLivingMargin({
     else if (activeBox.top < card.top + inset)
       preview.scrollTop -= card.top + inset - activeBox.top;
   }
+  function deferThreadPreviewFocus(positioned, focus) {
+    const pending = { key: previewEntry?.key, holding: document.activeElement };
+    previewFocusPending = pending;
+    void positioned?.then((placed) => {
+      if (previewFocusPending !== pending || pending.key !== previewEntry?.key) return;
+      previewFocusPending = null;
+      const holdingGone =
+        document.activeElement === document.body &&
+        (!pending.holding?.isConnected || !pending.holding?.checkVisibility());
+      if (placed && (document.activeElement === pending.holding || holdingGone))
+        focus();
+    });
+  }
 
   function placeThreadPreview({ dismissDetached = false } = {}) {
     if (
@@ -753,7 +792,7 @@ export function createLivingMargin({
       !preview.hasAttribute("data-lf-thread") ||
       !previewMarginElement?.isConnected
     )
-      return;
+      return Promise.resolve(false);
     const controls =
       previewMarginElement.closest("[data-lf-margin-for]") ?? previewMarginElement;
     const target = controls.getBoundingClientRect();
@@ -812,7 +851,8 @@ export function createLivingMargin({
       Math.max(0, boundaryRight - boundaryLeft),
       Math.max(0, bottomFor(cardLeft, width) - firstTop),
     );
-    if (!boundary.width || !boundary.height) return;
+    if (!boundary.width || !boundary.height) return Promise.resolve(false);
+    const sourceOutside = target.bottom <= firstTop || target.top >= baseBottom;
     const crossesSource =
       cardLeft < target.right + gap && target.left - gap < cardLeft + width;
     const alignment = side?.name === "left" ? "start" : "end";
@@ -844,7 +884,7 @@ export function createLivingMargin({
       epoch === previewPositionEpoch &&
       preview.matches(":popover-open") &&
       previewMarginElement?.isConnected;
-    void floatingUi()
+    return floatingUi()
       .then(({ computePosition, flip, hide, offset, shift, size }) =>
         computePosition(reference, preview, {
           placement,
@@ -876,18 +916,18 @@ export function createLivingMargin({
             shift({
               ...overflow,
               mainAxis: true,
-              crossAxis: false,
+              crossAxis: (!side || crossesSource) && sourceOutside,
             }),
             hide({ boundary: [], rootBoundary: visibleBoundary, padding: 0 }),
           ],
         }),
       )
       .then(({ x, y, placement, middlewareData }) => {
-        if (!stillCurrent()) return;
+        if (!stillCurrent()) return false;
         const referenceHidden = middlewareData.hide?.referenceHidden ?? false;
         if (referenceHidden && previewReferenceSeen && dismissDetached) {
           closePreview();
-          return;
+          return false;
         }
         if (!referenceHidden) previewReferenceSeen = true;
         preview.dataset.lfThreadPlacement =
@@ -898,9 +938,11 @@ export function createLivingMargin({
         preview.style.removeProperty("opacity");
         preview.style.removeProperty("pointer-events");
         keepThreadPreviewFocusVisible();
+        answerThreadPreviewPosition(true);
+        return true;
       })
       .catch((error) => {
-        if (!stillCurrent()) return;
+        if (!stillCurrent()) return false;
         closePreview(true);
         throw error;
       });
@@ -2461,17 +2503,20 @@ export function createLivingMargin({
             if (previewMarginElement === button && button.isConnected)
               showPreview(entry, button, false);
           });
+        else answerThreadPreviewPosition(false);
       } finally {
         previewShowing = false;
       }
     }
     placeThreadPreview();
+    const positioned = threadPreviewPositioned();
     refreshHighlight();
     for (const row of rows.values())
       syncReadingRelation(row, primaryReading(row.lfEntry));
     for (const button of readingMarginElements.values())
       syncReadingRelation(button, button.lfChoice);
     paintKeys();
+    return positioned;
   }
 
   function togglePinned(entry, button) {
@@ -2481,12 +2526,15 @@ export function createLivingMargin({
       return;
     }
     pinnedKey = entry.key;
-    showPreview(entry, button);
-    const reply = previewList.querySelector("textarea");
-    if (reply) {
-      reply.focus({ preventScroll: true });
-      revealConversation(reply.closest(".lf-conversation-thread"), reply);
-    }
+    const positioned = showPreview(entry, button);
+    if (previewList.querySelector("textarea"))
+      deferThreadPreviewFocus(positioned, () => {
+        if (previewEntry?.key !== entry.key) return;
+        const reply = previewList.querySelector("textarea");
+        if (!reply) return;
+        reply.focus({ preventScroll: true });
+        revealConversation(reply.closest(".lf-conversation-thread"), reply);
+      });
   }
 
   function closePreview(returnFocus = false) {
@@ -2497,6 +2545,8 @@ export function createLivingMargin({
     forcedInlineOptionsKey = null;
     previewEntry = null;
     previewMarginElement = null;
+    previewFocusPending = null;
+    answerThreadPreviewPosition(false);
     resetThreadPreviewPosition();
     if (preview.matches(":popover-open")) preview.hidePopover();
     refreshHighlight();
@@ -2568,7 +2618,7 @@ export function createLivingMargin({
     togglePinned(entry, button);
   }
 
-  function openInlineThread(id, transition = null) {
+  function openInlineThread(id, transition = null, onPositioned = null) {
     const itemId = marginThreadItem(threadList().find((t) => t.root.id === id));
     const entry = pageMapEntries.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
@@ -2606,13 +2656,23 @@ export function createLivingMargin({
       return null;
     }
     pinnedKey = entry.key;
-    showPreview(entry, button);
+    const initiallyPositioned = showPreview(entry, button);
     const item = [...previewList.children].find(
       (candidate) => candidate.dataset.lfMarginElement === itemId,
     );
     item?.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
-    if (transition) scheduleThreadTransition(transition, entry);
-    return item?.querySelector(".lf-conversation-thread") ?? null;
+    const thread = item?.querySelector(".lf-conversation-thread") ?? null;
+    const positioned = transition
+      ? scheduleThreadTransition(transition, entry)
+      : initiallyPositioned;
+    if (thread && onPositioned)
+      deferThreadPreviewFocus(positioned, () => {
+        const current = [...previewList.children]
+          .find((candidate) => candidate.dataset.lfMarginElement === itemId)
+          ?.querySelector(".lf-conversation-thread");
+        if (current) onPositioned(current);
+      });
+    return thread;
   }
 
   // A route that starts on the page stays on the page while that thread has an inline
@@ -2632,19 +2692,28 @@ export function createLivingMargin({
         scrollToThread(id);
         return local;
       }
-      const thread = openInlineThread(id);
+      const thread = openInlineThread(id, null, (positionedThread) => {
+        const destination =
+          focus === "thread"
+            ? positionedThread
+            : (positionedThread.querySelector("textarea:not([disabled])") ??
+              positionedThread);
+        if (destination === positionedThread) {
+          positionedThread.focus({ preventScroll: true });
+          positionedThread.scrollIntoView({
+            behavior: scrollBehavior(),
+            block: "nearest",
+          });
+          scrollToThread(id);
+        } else {
+          landInConversation(destination);
+        }
+      });
       if (thread) {
         const destination =
           focus === "thread"
             ? thread
             : (thread.querySelector("textarea:not([disabled])") ?? thread);
-        if (destination === thread) {
-          thread.focus({ preventScroll: true });
-          thread.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
-          scrollToThread(id);
-        } else {
-          landInConversation(destination);
-        }
         return destination;
       }
     }
@@ -2687,10 +2756,11 @@ export function createLivingMargin({
       ? active.closest?.(".lf-conversation-thread")
       : null;
     if (held) return held;
-    if (active !== previewMarginElement) return null;
     const conversations = previewList.querySelectorAll(
       ".lf-margin-thread .lf-conversation-thread",
     );
+    const pending = previewFocusPending?.key === previewEntry.key;
+    if (!pending && active !== previewMarginElement) return null;
     return conversations.length === 1 ? conversations[0] : null;
   };
 
@@ -2714,6 +2784,8 @@ export function createLivingMargin({
       forcedInlineOptionsKey = null;
       previewEntry = null;
       previewMarginElement = null;
+      previewFocusPending = null;
+      answerThreadPreviewPosition(false);
       resetThreadPreviewPosition();
       refreshHighlight();
       for (const row of rows.values())

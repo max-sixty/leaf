@@ -288,9 +288,10 @@ export function createVersionController({
   const currentVersionToken = () =>
     runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
 
-  // One version is a label, not a choice. The chooser and its key become active only when
-  // there is a neighbouring destination; the current token remains on the banner as quiet
-  // orientation.
+  // Whether there is a menu to open is not whether there is anywhere to walk: a first
+  // version has no neighbour, but its menu still explains that version. The browser owns
+  // dismissal; Leaf enables its version-walk bindings only when a neighbouring destination
+  // exists.
   const draftRevisions = () => {
     const revisions = new Set();
     if (runtime.currentStamp === null && runtime.currentRevision !== null)
@@ -299,7 +300,7 @@ export function createVersionController({
     return revisions;
   };
   const versionCount = () => runtime.versions.length + draftRevisions().size;
-  const versionsOffered = () => versionCount() > 1;
+  const versionsOffered = () => versionCount() > 0;
   const versionsToWalk = () => versionCount() > 1;
   const behindCurrent = () =>
     runtime.active !== null &&
@@ -390,7 +391,7 @@ export function createVersionController({
     },
     does: "Open a numbered version",
     line: "open version",
-    when: () => numberedVersionRoutes().length > 0,
+    when: () => versionsToWalk() && numberedVersionRoutes().length > 0,
     // The focused menu and its standing mode share this route. The first gives g V a
     // visible compact hint; the second preserves the key across a browser hand-back that
     // leaves the menu open with focus at its door. Close first, as the numbered key is the
@@ -441,6 +442,7 @@ export function createVersionController({
     does: "Walk the versions, marking what changed since the one you are on",
     line: "walk — marking changes",
     repeat: true,
+    when: versionsToWalk,
     run: (binding) => {
       const was = document.activeElement;
       const row = walkRows(versionRows(), binding === "ArrowDown" ? 1 : -1);
@@ -474,6 +476,9 @@ export function createVersionController({
     root: () => versionMenu,
     when: versionsOffered,
     at: versionMenuIsOpen,
+    // Opening the modal reference dismisses this popover. Retain the menu-boundary
+    // reading so the reference filters member-dependent rows by their actual liveness.
+    liveInReference: true,
     // A mode over the page suspends the page, which the two modes above this one always did
     // and this one did not — so a reader in the middle of choosing a version could press `l`
     // and take focus out of the menu into the leaves tray, `d` and scroll a page they were
@@ -712,7 +717,6 @@ export function createVersionController({
     const offered = state !== null && versionsOffered();
     if (!offered) closeVersionMenu();
     versionBtn.disabled = !offered;
-    versionBtn.classList.toggle("lf-passive", !offered);
     if (offered) {
       versionBtn.setAttribute("aria-haspopup", "menu");
       versionBtn.setAttribute("aria-expanded", String(versionMenuIsOpen()));

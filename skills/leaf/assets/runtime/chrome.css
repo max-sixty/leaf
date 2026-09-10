@@ -941,7 +941,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      border-and-ink vocabulary as a folded-news door, without adding words or width. */
   :is(.lf-banner-actions, .lf-banner-menu) > .lf-version[data-lf-news] {
     border-color: var(--accent); color: var(--accent); }
-  .lf-version.lf-passive { opacity: 1; color: var(--muted); cursor: default; }
   .lf-version-menu { position: fixed; position-anchor: --lf-version-btn;
     top: calc(anchor(bottom) + 6px); right: anchor(right);
     bottom: auto; left: auto; margin: 0; z-index: 8950;

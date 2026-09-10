@@ -130,8 +130,9 @@ function buildToolbar(owner) {
   return toolbar;
 }
 
-function buildGroup(owner, key) {
+function buildGroup(owner, key, open) {
   const group = make("details", "lf-call-group");
+  group.open = open;
   const summary = buildLine("summary");
   const body = make("div", "lf-call-group-body");
   group.dataset.callGroup = key;
@@ -302,10 +303,10 @@ customElements.define(
         ]),
       );
       const groups = new Map();
-      for (const root of roots)
+      for (const [index, root] of roots.entries())
         groups.set(
           root.groupKey,
-          oldGroups.get(root.groupKey) ?? buildGroup(this, root.groupKey),
+          oldGroups.get(root.groupKey) ?? buildGroup(this, root.groupKey, index === 0),
         );
 
       const headerTarget =

@@ -3331,11 +3331,17 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
             .filter(node => node.checkVisibility())
             .map(node => node.getBoundingClientRect())
             .filter(other => other.width && other.height && overlaps(card, other)).length;
+          const bottomChrome = [...document.querySelectorAll(
+              '.lf-shortcut-bar, .lf-bottom-status')]
+            .filter(node => node.checkVisibility())
+            .map(node => node.getBoundingClientRect());
           return {placement: cardNode.dataset.lfThreadPlacement,
                   mainRight: main.right,
                   controlsTop: controls.top, controlsBottom: controls.bottom,
                   cardLeft: card.left, cardTop: card.top, cardBottom: card.bottom,
-                  cardWidth: card.width, coveredControls};
+                  cardWidth: card.width, coveredControls,
+                  bottomChrome: bottomChrome.length,
+                  coveredBottomChrome: bottomChrome.filter(box => overlaps(card, box)).length};
         }"""
     )
     assert geometry["placement"] == "right", geometry
@@ -3346,6 +3352,8 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardWidth"] >= 459, geometry
     assert geometry["coveredControls"] == 0, geometry
+    assert geometry["bottomChrome"] > 0, geometry
+    assert geometry["coveredBottomChrome"] == 0, geometry
     reply = page.locator(".lf-margin-preview textarea")
     reply.click()
     reply.fill("The covered terrace is easier to find.")
@@ -3425,6 +3433,8 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     assert moved["after"]["card"] - moved["after"]["controls"] == pytest.approx(
         moved["before"]["card"] - moved["before"]["controls"], abs=0.5
     )
+    page.evaluate("scrollBy(0, innerHeight)")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
     assert errors == []
     page.close()
@@ -3985,10 +3995,11 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
             const box = card.getBoundingClientRect();
             resolve({open: card.matches(':popover-open'),
                      thread: card.hasAttribute('data-lf-thread'),
+                     opacity: getComputedStyle(card).opacity,
                      left: box.left,
                      top: box.top,
-                     placedLeft: card.style.getPropertyValue('--lf-thread-left'),
-                     placed: card.style.getPropertyValue('--lf-thread-top')});
+                     placedLeft: card.style.left,
+                     placedTop: card.style.top});
           }));
           marker.focus();
           marker.click();
@@ -4000,14 +4011,21 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     reply = thread.locator("textarea")
 
     assert first_frame["open"] and first_frame["thread"], first_frame
-    assert first_frame["placed"], first_frame
-    assert first_frame["placedLeft"], first_frame
-    assert first_frame["left"] == pytest.approx(
-        float(first_frame["placedLeft"].removesuffix("px")), abs=0.5
+    assert first_frame["opacity"] == "0" or (
+        first_frame["placedLeft"] and first_frame["placedTop"]
     ), first_frame
-    assert first_frame["top"] == pytest.approx(
-        float(first_frame["placed"].removesuffix("px")), abs=0.5
-    ), first_frame
+    expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
+    placed = preview.evaluate(
+        """card => ({left: card.getBoundingClientRect().left,
+                      top: card.getBoundingClientRect().top,
+                      placedLeft: card.style.left, placedTop: card.style.top})"""
+    )
+    assert placed["left"] == pytest.approx(
+        float(placed["placedLeft"].removesuffix("px")), abs=0.5
+    ), placed
+    assert placed["top"] == pytest.approx(
+        float(placed["placedTop"].removesuffix("px")), abs=0.5
+    ), placed
     expect(thread.locator(".lf-conversation-body")).to_have_text(COMMENT_ON_ASK["text"])
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     expect(thread.locator(".lf-conversation-open")).to_have_count(0)

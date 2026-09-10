@@ -33,6 +33,11 @@ _verify_spec = importlib.util.spec_from_file_location(
 )
 verify_site = importlib.util.module_from_spec(_verify_spec)
 _verify_spec.loader.exec_module(verify_site)
+_benchmark_spec = importlib.util.spec_from_file_location(
+    "benchmark_site", ROOT / "scripts" / "benchmark-site.py"
+)
+benchmark_site = importlib.util.module_from_spec(_benchmark_spec)
+_benchmark_spec.loader.exec_module(benchmark_site)
 _query_logs_spec = importlib.util.spec_from_file_location(
     "query_site_agent_logs", ROOT / "scripts" / "query-site-agent-logs.py"
 )
@@ -60,7 +65,13 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
     manifest = {
         "release": "0" * 64,
         "pages": {
-            route: {"directory": directory, "kind": kind}
+            route: {
+                "directory": directory,
+                "kind": kind,
+                "title": f"The {route} page",
+                "description": f"What a reader does at {route}.",
+                "image": "/media/card.png",
+            }
             for route, (directory, kind) in pages.items()
         },
     }
@@ -90,6 +101,55 @@ class FakeCodexHost:
         )
 
 
+PAGE_SOURCE = """<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Choose the next fix</title>
+    <meta name="description" content="Pick one." />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'" />
+    <script type="module" src="/leaf.js"></script>
+  </head>
+  <body>
+    <main><h1>Choose</h1></main>
+  </body>
+</html>
+"""
+
+
+@pytest.mark.parametrize(
+    ("page_root", "kind", "url"),
+    (
+        ("", "product", "https://leaf.page/"),
+        ("/examples/decision", "example", "https://leaf.page/examples/decision/"),
+    ),
+)
+def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
+    """A crawler reads absolute URLs, and reads them from inside the head."""
+    page = {
+        "kind": kind,
+        "title": 'Choose the "next" fix',
+        "description": "Pick one.",
+        "image": "/media/card.png",
+    }
+    served = website_server.with_site_head(
+        PAGE_SOURCE.encode(), page_root, page
+    ).decode()
+    head = served[: served.index("</head>")]
+    assert f'<link rel="canonical" href="{url}">' in head
+    assert f'<meta property="og:url" content="{url}">' in head
+    assert (
+        '<meta property="og:image" content="https://leaf.page/media/card.png">' in head
+    )
+    assert (
+        '<meta property="og:title" content="Choose the &quot;next&quot; fix">' in head
+    )
+    assert '<meta name="twitter:card" content="summary_large_image">' in head
+    # The sitenote is website chrome for the examples, and rides the runtime
+    # boundary rather than the head the metadata went into.
+    assert ("sitenote.js" in served) is (kind == "example")
+
+
 def test_agent_logs_are_structured_and_content_free(capsys):
     website_server.log_agent(
         "container_start_completed",
@@ -111,7 +171,7 @@ def test_agent_logs_keep_every_event_in_a_batched_turn_searchable():
     }
 
 
-def test_the_agent_log_query_exposes_only_declared_timing_fields():
+def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
     response = {
         "result": {
             "events": {
@@ -156,7 +216,7 @@ def test_the_agent_log_query_exposes_only_declared_timing_fields():
         }
     }
 
-    assert query_site_agent_logs.safe_records(response, "reader-event") == [
+    assert query_site_agent_logs.safe_records([response], {"reader-event"}) == [
         {
             "timestamp": 1000,
             "dataset": "workers",
@@ -178,12 +238,180 @@ def test_the_agent_log_query_exposes_only_declared_timing_fields():
     ]
 
 
+def test_the_agent_log_query_deduplicates_a_batched_turn(monkeypatch, capsys):
+    shared = {
+        "timestamp": 1200,
+        "dataset": "containers",
+        "source": {
+            "component": "leaf-agent",
+            "event": "turn_start_completed",
+            "eventIds": ["event-1", "event-2"],
+            "durationMs": 125,
+        },
+    }
+    responses = {
+        "event-1": {
+            "result": {
+                "events": {
+                    "events": [
+                        {
+                            "timestamp": 1000,
+                            "dataset": "workers",
+                            "source": {
+                                "component": "leaf-agent",
+                                "event": "workflow_started",
+                                "eventId": "event-1",
+                            },
+                        },
+                        shared,
+                    ]
+                }
+            }
+        },
+        "event-2": {
+            "result": {
+                "events": {
+                    "events": [
+                        {
+                            "timestamp": 1050,
+                            "dataset": "workers",
+                            "source": {
+                                "component": "leaf-agent",
+                                "event": "workflow_started",
+                                "eventId": "event-2",
+                            },
+                        },
+                        shared,
+                    ]
+                }
+            }
+        },
+    }
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "token")
+    monkeypatch.setattr(
+        query_site_agent_logs,
+        "indexed_events",
+        lambda lookup, token: {"event-1": 1_000, "event-2": 1_050},
+    )
+    monkeypatch.setattr(
+        query_site_agent_logs,
+        "query",
+        lambda event_id, accepted_ms, token: responses[event_id],
+    )
+
+    assert query_site_agent_logs.main(["123456789012"]) == 0
+
+    assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == [
+        {
+            "timestamp": 1000,
+            "dataset": "workers",
+            "event": "workflow_started",
+            "eventId": "event-1",
+            "elapsedMs": 0,
+        },
+        {
+            "timestamp": 1050,
+            "dataset": "workers",
+            "event": "workflow_started",
+            "eventId": "event-2",
+            "elapsedMs": 50,
+        },
+        {
+            "timestamp": 1200,
+            "dataset": "containers",
+            "event": "turn_start_completed",
+            "eventIds": ["event-1", "event-2"],
+            "durationMs": 125,
+            "elapsedMs": 200,
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    ("lookup", "field"),
+    [
+        ("reader-event", "index1"),
+        ("123456789012", "blob6"),
+    ],
+)
+def test_the_agent_log_query_indexes_an_event_or_reference(lookup, field):
+    assert query_site_agent_logs.analytics_statement("leaf_events", lookup) == (
+        "SELECT timestamp,index1 FROM leaf_events "
+        f"WHERE {field}='{lookup}' AND timestamp > NOW() - INTERVAL '1' DAY "
+        "ORDER BY timestamp LIMIT 100"
+    )
+
+
+def test_the_agent_log_query_searches_every_hosted_environment(monkeypatch):
+    calls = []
+    rows = {
+        "leaf_website_events": [
+            {"timestamp": "2026-09-10 18:50:03", "index1": "production-event"}
+        ],
+        "leaf_website_events_dev": [
+            {"timestamp": "2026-09-10 18:51:03", "index1": "dev-event"}
+        ],
+    }
+
+    def analytics_rows(dataset, lookup, token):
+        calls.append((dataset, lookup, token))
+        return rows[dataset]
+
+    monkeypatch.setattr(query_site_agent_logs, "analytics_rows", analytics_rows)
+
+    assert query_site_agent_logs.analytics_datasets() == (
+        "leaf_website_events",
+        "leaf_website_events_dev",
+    )
+    assert query_site_agent_logs.indexed_events("123456789012", "token") == {
+        "production-event": 1_789_066_203_000,
+        "dev-event": 1_789_066_263_000,
+    }
+    assert calls == [
+        ("leaf_website_events", "123456789012", "token"),
+        ("leaf_website_events_dev", "123456789012", "token"),
+    ]
+
+
+def test_the_agent_log_query_uses_the_indexed_event_window():
+    assert query_site_agent_logs.query_body("reader-event", 1000, 2000) == {
+        "queryId": "leaf-agent-diagnostic",
+        "timeframe": {"from": 1000, "to": 2000},
+        "view": "events",
+        "limit": 100,
+        "parameters": {
+            "datasets": [],
+            "filterCombination": "and",
+            "filters": [
+                {
+                    "key": "component",
+                    "operation": "eq",
+                    "type": "string",
+                    "value": "leaf-agent",
+                }
+            ],
+            "needle": {
+                "value": "reader-event",
+                "isRegex": False,
+                "matchCase": True,
+            },
+        },
+    }
+
+
 def test_the_website_label_follows_the_script_contract_not_its_formatting():
     document = (
-        b'<!doctype html><html><head><script\n type="module" '
+        b'<!doctype html><html><head><meta http-equiv="Content-Security-Policy" '
+        b'content="default-src \'self\'"><script\n type="module" '
         b'src="/leaf.js"></script></head><body></body></html>'
     )
-    injected = website_server.with_sitenote(document, "/examples/decision")
+    page = {
+        "kind": "example",
+        "title": "Decision",
+        "description": "Pick one.",
+        "image": "/media/card.png",
+    }
+    injected = website_server.with_site_head(document, "/examples/decision", page)
     assert injected.index(b"/examples/decision/sitenote.js") < injected.index(
         b'src="/leaf.js"'
     )
@@ -363,9 +591,25 @@ def test_the_local_verifier_requests_ephemeral_codex_tasks(monkeypatch):
     assert "LEAF_AGENT_EPHEMERAL=1" in script
     assert 'CODEX_HOME="$clean_codex_home"' in script
     assert 'cp "$host_codex_home/auth.json"' in script
+    assert (
+        "runner=${LEAF_SITE_AGENT_RUNNER:-$repo_root/scripts/verify-site.py}" in script
+    )
+    assert 'uv run --project "$repo_root" "$runner" "$release"' in script
     monkeypatch.setenv("LEAF_AGENT_EPHEMERAL", "1")
     monkeypatch.setattr(website_server, "_agent_host", None)
     assert website_server.website_codex_host().ephemeral is True
+
+
+def test_the_local_benchmark_accepts_a_git_release(tmp_path, monkeypatch):
+    release = "a" * 40
+    output = tmp_path / "benchmark.json"
+    monkeypatch.setenv("LEAF_BENCHMARK_OUTPUT", str(output))
+    monkeypatch.setattr(benchmark_site.sys, "argv", ["benchmark-site.py", release])
+    monkeypatch.setattr(benchmark_site, "measure", lambda target: {"release": target})
+
+    benchmark_site.main()
+
+    assert json.loads(output.read_text()) == {"release": release}
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
@@ -1888,6 +2132,7 @@ class _DeployedPage:
         reload_ok: bool = True,
         banner: str | None = None,
         follows_revision: bool = False,
+        initial_presented_at: float | None = None,
     ):
         self.heading = heading
         self.revision = revision
@@ -1895,6 +2140,9 @@ class _DeployedPage:
         self.reload_ok = reload_ok
         self.banner = banner
         self.follows_revision = follows_revision
+        self.initial_presented_at = (
+            presented_at if initial_presented_at is None else initial_presented_at
+        )
         self.init_scripts: list[str] = []
         self.presentation_waits: list[int] = []
         self.revision_waits: list[tuple[int, int]] = []
@@ -1931,15 +2179,20 @@ class _DeployedPage:
 
     def evaluate(self, script: str):
         if script == verify_site.STARTUP_READING:
+            presented_at = (
+                self.presented_at
+                if len(self.presentation_waits) > 1
+                else self.initial_presented_at
+            )
             return {
                 "first_byte": 100.0,
                 "document": 200.0,
                 "paint": {"first-contentful-paint": 250.0},
                 "upgraded": {"at": 300.0},
                 "presented": {
-                    "at": self.presented_at,
+                    "at": presented_at,
                     "js_loaded": 275.0,
-                    "state_loaded": self.presented_at - 100.0,
+                    "state_loaded": presented_at - 100.0,
                     "js_requests": 16,
                     "js_bytes": 150 * 1024,
                     "code_requests": 20,
@@ -1975,6 +2228,7 @@ class _DeployedContainer:
             {
                 "active": {"revision": 1, "url": "revisions/1.html"},
                 "layer": {"generation": "generation-1"},
+                "release": self.release,
                 "events": [],
             },
             headers=answered,
@@ -2016,6 +2270,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
         revision=1,
         presented_at=28444.0,
         follows_revision=True,
+        initial_presented_at=1400.0,
     )
     container = _DeployedContainer(release, page)
     published = {"revision": 2, "url": "revisions/2.html"}
@@ -2056,7 +2311,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "time",
             SimpleNamespace(monotonic=following_clock.__next__),
         )
-        verify_site.verify_agent_turn(_DeployedSite(container), release)
+        benchmark = verify_site.verify_agent_turn(_DeployedSite(container), None)
 
     # The ordinary first load uses the edge-page presentation bound. The post-turn
     # reload gets its own bound for both presentation and the later revision follow.
@@ -2075,6 +2330,64 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     assert "activity working: Editing the page at 1.0 s" in reported
     assert "published at 12.0 s" in reported
     assert "changed page — HTML first byte 100 ms" in reported
+    assert benchmark == {
+        "origin": verify_site.ORIGIN,
+        "release": release,
+        "page": {
+            "htmlFirstByteMs": 100.0,
+            "htmlCompleteMs": 200.0,
+            "firstContentfulPaintMs": 250.0,
+            "javascriptFetchedMs": 275.0,
+            "upgradedMs": 300.0,
+            "stateAnsweredMs": 1300.0,
+            "presentedMs": 1400.0,
+            "requestsAtPresentation": 24,
+            "bytesAtPresentation": 335 * 1024,
+            "javascriptRequestsAtPresentation": 16,
+            "javascriptBytesAtPresentation": 150 * 1024,
+            "codeRequestsAtPresentation": 20,
+            "codeBytesAtPresentation": 330 * 1024,
+        },
+        "comment": {
+            "sessionReference": None,
+            "eventIds": [],
+            "asks": 1,
+            "acknowledgedMs": [250.0],
+            "activity": [
+                {"atMs": 250.0, "kind": "queued", "detail": ""},
+                {
+                    "atMs": 1000.0,
+                    "kind": "working",
+                    "detail": "Editing the page",
+                },
+                {"atMs": 12500.0, "kind": "away", "detail": ""},
+            ],
+            "publishedMs": 12000.0,
+            "repliedMs": 12500.0,
+            "answeredMs": 12500.0,
+        },
+        "change": {
+            "heading": heading,
+            "revision": 2,
+            "reply": "deployment verified",
+        },
+        "changedPage": {
+            "htmlFirstByteMs": 100.0,
+            "htmlCompleteMs": 200.0,
+            "firstContentfulPaintMs": 250.0,
+            "javascriptFetchedMs": 275.0,
+            "upgradedMs": 300.0,
+            "stateAnsweredMs": 28344.0,
+            "presentedMs": 28444.0,
+            "requestsAtPresentation": 24,
+            "bytesAtPresentation": 335 * 1024,
+            "javascriptRequestsAtPresentation": 16,
+            "javascriptBytesAtPresentation": 150 * 1024,
+            "codeRequestsAtPresentation": 20,
+            "codeBytesAtPresentation": 330 * 1024,
+            "followedRevisionMs": 2500.0,
+        },
+    }
     assert container.closed
 
     # A reload the container never answered is its own reading, taken before the wait.

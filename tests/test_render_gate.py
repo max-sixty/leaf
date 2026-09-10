@@ -670,6 +670,23 @@ def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, se
     assert sum("ordinary error from first attempt" in f for f in failures) == 1
 
 
+def test_a_console_warning_fails_the_render_gate(browser, serve):
+    def prepare(page):
+        page.add_init_script(
+            "addEventListener('DOMContentLoaded', () => "
+            "console.warn('authored warning'), {once: true});"
+        )
+
+    failures = render_gate_model.render_version(
+        primed(browser, prepare), serve(LONG_PAGE)
+    )
+
+    warnings = [
+        failure for failure in failures if "warning: authored warning" in failure
+    ]
+    assert len(warnings) == 2, failures
+
+
 def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
     pages = []
 
@@ -1617,7 +1634,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
 @pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
 def test_page_fixture_renders(browser, serve, page_fixture):
     """Every shipped example and the developer gallery lay out in both color schemes: no
-    fail-soft error box, no console error, every visible widget occupies real
+    fail-soft error box, no console warning or error, every visible widget occupies real
     space, no sideways scroll, no words on screen a selection can't reach. A
     widget that upgrades into a 1x1 box, or a heading painted by a pseudo-element,
     is the shape of failure a static lint cannot see. The invariants live in

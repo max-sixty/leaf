@@ -710,9 +710,10 @@ with a page action, or a dead destination can fall through into a different oper
 `c` is reserved for commenting. Enter keeps native activation or text editing, and the
 focused control's local continuation. A page option mark is a checkbox and toggles with
 Space or its Ask digit; it gives Enter no second meaning. The Another option field is an
-ordinary Tab stop and follows the same text-box contract as every other textarea: Enter
-writes a newline and Mod+Enter adds the option. In a thread there is no second add form,
-so Enter from its option mark continues into the thread's existing reply.
+ordinary Tab stop and takes the next Ask digit after the authored options when one of the
+nine addresses remains. It follows the same text-box contract as every other textarea:
+Enter writes a newline and Mod+Enter adds the option. In a thread there is no second add
+form, so Enter from its option mark continues into the thread's existing reply.
 
 A row whose press turns a mode on and off states the mode rather than the toggle.
 `does` and `line` are functions of whether it stands, so the sentence says which

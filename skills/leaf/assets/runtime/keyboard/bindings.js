@@ -26,7 +26,9 @@
      its containing Ask. The row may carry an existing `address` and has zero or one live
      binding. A keyless decision command receives its contextual number from the Ask
      projection. Routes may carry the same fields when one row describes a parameterized
-     family of controls.
+     family of controls. The Ask projection invokes the row's declared `run`, passing its
+     declared binding when it has one; a run-less native command falls back to the
+     control's click.
    - `does` is the sentence for the press, or a function when the current state changes
      the sentence.
    - `line` is the shortcut bar's word: a row carrying one stands on the shortcut bar, and a row
@@ -319,6 +321,7 @@ export function decisionControls(commands, where = "an Ask") {
         label,
         binding: active[0] ?? null,
         address,
+        run: row.run ? () => row.run(active[0]) : () => control.click(),
       };
       const prior = controls.get(control);
       if (prior) {

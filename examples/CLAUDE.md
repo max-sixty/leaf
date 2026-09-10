@@ -6,6 +6,11 @@ fixture. The website publishes those pages with the same vendored layer.
 cards are the source of truth for catalog membership and generated previews. An
 unlisted page can remain published, as Command Hub does while its TODO is open.
 
+A published page says what it is in its own head: a `<title>` and a
+`<meta name="description">`, distinct from every other page's. Those two are what a
+search result and a shared link show, and the site build composes the rest of the
+card from them and refuses a page missing either.
+
 Keep core examples focused and include small pages: a board, a short proposal, or a
 draft can demonstrate Leaf without becoming a product tour. Choose examples for
 reader tasks; the developer gallery owns exhaustive vocabulary coverage. Add a

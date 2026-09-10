@@ -54,6 +54,10 @@ other role.
 Write a complete HTML document. The head contains exactly one `/theme.css` link
 and one external `/leaf.js` module. Every `lf-*` element has an explicit end tag.
 
+The title and description are what the page says it is anywhere outside itself: a
+tab, a search result, a link someone pastes into a chat. Write a description that
+stands alone, since whoever reads it there has none of the page around it.
+
 ```html
 <!doctype html>
 <html lang="en">
@@ -61,6 +65,7 @@ and one external `/leaf.js` module. Every `lf-*` element has an explicit end tag
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>…</title>
+  <meta name="description" content="…">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
   <link rel="stylesheet" href="/theme.css">
   <script type="module" src="/leaf.js"></script>

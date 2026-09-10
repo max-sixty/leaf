@@ -38,11 +38,14 @@ from example_data import catalog_sources
 from leaf.files import latest_revision, list_revisions
 from leaf.http import scope_document_routes
 from leaf.live_shell import write_live_shell
+from leaf.media import media_name
+from leaf.schema import MEDIA_DIR
+from leaf.structure import parse_structure
 from preview import prepare
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from worker.server import SITE_MANIFEST, initial_state, with_sitenote
+from worker.server import SITE_MANIFEST, SITE_ORIGIN, initial_state, with_site_head
 
 LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
@@ -63,6 +66,9 @@ PRODUCT_ROUTES = {
     "registry.html": "/registry/",
 }
 SITE_PACKAGE = "./docs/package"
+# The card a link to a product page unfurls into. An example names its own catalog
+# preview instead, so a shared example shows the page rather than the product shot.
+DEFAULT_SOCIAL_IMAGE = DOCS / "session-light.png"
 
 
 class Links(HTMLParser):
@@ -148,6 +154,13 @@ def check_links(out: Path) -> None:
                 public_target = urljoin(public_page, target)
                 if not resolves(out, pages, public_target):
                     dead.append(f"{public_page} → {target}")
+    # A card image is named in a content attribute rather than an href, so the sweep
+    # above never sees it: an unfurled link is the one surface whose broken image
+    # nobody browsing the site would notice.
+    manifest = json.loads((out / SITE_MANIFEST).read_text(encoding="utf-8"))
+    for route, page in sorted(manifest["pages"].items()):
+        if not resolves(out, pages, page["image"]):
+            dead.append(f"{route} → {page['image']} (og:image)")
     if dead:
         sys.exit(
             "the site would publish links that reach nothing:\n  " + "\n  ".join(dead)
@@ -212,6 +225,84 @@ def product_page(out: Path, source_name: str) -> Path:
 def asset_site(out: Path) -> Path:
     """The sibling tree exposed through Cloudflare's static asset binding."""
     return out.with_name(f"{out.name}-assets")
+
+
+def media_url(source: Path) -> str:
+    """The page path an image takes once `leaf page media` has stored it."""
+    return f"/{MEDIA_DIR}/{media_name(source.read_bytes(), source.suffix.lower())}"
+
+
+def social_images(catalog_previews: Path | None = None) -> dict[str, str]:
+    """The public card image behind each page root.
+
+    Both are named at the page root that publishes the file: the product shot at the
+    site root, and an example's preview in the catalog, which is the page the previews
+    were stored against. Every root serves the whole media set, so the two paths hold
+    for a card unfurled from any page.
+    """
+    previews = catalog_previews or example_previews()
+    catalog = PRODUCT_ROUTES["examples.html"].rstrip("/")
+    images = {
+        f"{catalog}/{source.stem}": catalog
+        + media_url(previews / f"example-{source.stem}.jpg")
+        for source in catalog_sources()
+    }
+    return {"": media_url(DEFAULT_SOCIAL_IMAGE), **images}
+
+
+def document_metadata(page_dir: Path) -> tuple[str, str]:
+    """What a published page says it is: the title and description it authored.
+
+    The build refuses a page missing either, because a crawler and an unfurled link
+    show exactly these two and have nothing else to fall back to.
+    """
+    parsed = parse_structure((page_dir / "index.html").read_text(encoding="utf-8"))
+    title = parsed.title.strip()
+    description = next(
+        (
+            (meta["content"] or "").strip()
+            for meta in parsed.named_metas
+            if meta["name"] == "description"
+        ),
+        "",
+    )
+    if not title or not description:
+        missing = " and ".join(
+            part
+            for part, present in (("<title>", title), ("a description", description))
+            if not present
+        )
+        sys.exit(f"{page_dir.name}: a published page needs {missing}")
+    return title, description
+
+
+def write_crawler_directives(assets: Path, routes: list[str]) -> None:
+    """Publish the two files a crawler reads before it reads a page.
+
+    Nothing is disallowed: the version and revision documents a page also publishes
+    are settled by their canonical link, and a crawler has to fetch them to read it.
+
+    The content signals are stated rather than left open, because Cloudflare's managed
+    robots.txt otherwise supplies `search=yes, ai-train=no` for a zone that says
+    nothing, and this site wants to be read by all three.
+    """
+    (assets / "robots.txt").write_text(
+        "User-agent: *\n"
+        "Content-Signal: search=yes, ai-input=yes, ai-train=yes\n"
+        "Allow: /\n"
+        f"\nSitemap: {SITE_ORIGIN}/sitemap.xml\n",
+        encoding="utf-8",
+    )
+    locations = "".join(
+        f"  <url><loc>{SITE_ORIGIN}{route.rstrip('/')}/</loc></url>\n"
+        for route in routes
+    )
+    (assets / "sitemap.xml").write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"{locations}</urlset>\n",
+        encoding="utf-8",
+    )
 
 
 def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> None:
@@ -297,8 +388,9 @@ def publish_pages(out: Path, env: dict, catalog_previews: Path | None = None) ->
             print(f"  {source.stem}")
 
 
-def publish_live_shells(out: Path) -> Path:
+def publish_live_shells(out: Path, catalog_previews: Path | None = None) -> Path:
     """Materialize the public bytes of every private page directory."""
+    images = social_images(catalog_previews)
     digest = hashlib.sha256()
     for path in sorted(
         candidate for candidate in out.rglob("*") if candidate.is_file()
@@ -341,28 +433,33 @@ def publish_live_shells(out: Path) -> Path:
             raise ValueError(f"{page_dir} has no active revision")
         state_path = states[str(current)]
         state = initial_state(page_dir, page_root, kind, release)
-        manifest["pages"][page_root or "/"] = {
+        title, description = document_metadata(page_dir)
+        entry = {
             "directory": page_dir.relative_to(out).as_posix(),
             "assets": asset_root,
             "kind": kind,
             "layer": state["layer"]["generation"],
             "state": state_path,
             "states": states,
+            "title": title,
+            "description": description,
+            "image": images.get(page_root, images[""]),
         }
-        if page_root.startswith("/examples/"):
-            documents = [
-                destination / "index.html",
-                *sorted((destination / "versions").glob("*.html")),
-                *sorted((destination / "revisions").glob("*.html")),
-            ]
-            for document in documents:
-                document.write_bytes(
-                    with_sitenote(
-                        document.read_bytes(), page_root, asset_root=asset_root
-                    )
+        manifest["pages"][page_root or "/"] = entry
+        for document in (
+            destination / "index.html",
+            *sorted((destination / "versions").glob("*.html")),
+            *sorted((destination / "revisions").glob("*.html")),
+        ):
+            document.write_bytes(
+                with_site_head(
+                    document.read_bytes(), page_root, entry, asset_root=asset_root
                 )
+            )
+        if kind == "example":
             shutil.copy2(out / "sitenote.js", destination / "sitenote.js")
     shutil.copy2(out / "sitenote.js", assets / "sitenote.js")
+    write_crawler_directives(assets, sorted(manifest["pages"]))
     manifest_text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     private_manifest = out / SITE_MANIFEST
     private_manifest.parent.mkdir(parents=True, exist_ok=True)
@@ -410,7 +507,7 @@ def build(
     with tempfile.TemporaryDirectory() as config_home:
         env["XDG_CONFIG_HOME"] = config_home
         publish_pages(out, env, catalog_previews)
-    publish_live_shells(out)
+    publish_live_shells(out, catalog_previews)
 
     if verify_links:
         check_links(out)

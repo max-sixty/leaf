@@ -1,6 +1,6 @@
 {
   "lf-playground": {
-    "description": "A reusable interactive playground that turns declarative controls into one local value set, reflects it into a live preview and authored instruction, and sends the final configuration as one `choose` action. Put it inside lf-ask when the configuration is a question for the reader. Direct children are controls, presets, one preview, and one output. Control edits and presets stay in this browser tab; Use these settings records the complete typed value map. CSS previews read `--playground-NAME` and `data-playground-NAME` on this element. A companion widget can read the public `values` property and listen for `lf-playground-change` when computation is required.",
+    "description": "A reusable interactive playground that turns declarative controls into one local value set, reflects it into an operable preview and authored instruction, and sends the final configuration as one `choose` action. Put it inside lf-ask when the configuration is a question for the reader. Direct children are controls, presets, one preview, and one output. Control edits and presets stay in this browser tab; Use these settings records the complete typed value map. CSS previews read `--playground-NAME` and `data-playground-NAME` on this element. A companion widget can read the public `values` property and listen for `lf-playground-change` when behavior or computation requires JavaScript.",
     "type": "object",
     "properties": {
       "id": {
@@ -19,7 +19,7 @@
     "additionalProperties": false,
     "x-content": "items",
     "x-guidance": {
-      "author": "Use controls for values the reader should vary together. Keep the preview as real page markup and bind simple changes with `--playground-NAME` or `data-playground-NAME`; use a companion package only when the preview needs computation. Write the instruction as prose in `lf-playground-output`, with `lf-playground-value` where a current value belongs."
+      "author": "Use controls for candidates and parameters the reader should vary together. The reader performs the interaction being judged in the preview. Keep that preview as real page markup, bind simple changes with `--playground-NAME` or `data-playground-NAME`, and use a companion package when behavior or computation requires JavaScript. Write the instruction as prose in `lf-playground-output`, with `lf-playground-value` where a current value belongs."
     },
     "x-upgrade": true,
     "x-awaits": {
@@ -166,7 +166,7 @@
     "x-upgrade": false
   },
   "lf-playground-preview": {
-    "description": "The real markup a playground previews. Page CSS may bind it to reflected values on the enclosing lf-playground; a companion widget inside may instead consume the playground's public values and change event.",
+    "description": "The real, operable markup a playground previews. Page CSS may bind it to reflected values on the enclosing lf-playground; a companion widget inside may consume the playground's public values and change event and own behavior that requires JavaScript.",
     "type": "object",
     "properties": {
       "id": {

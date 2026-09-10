@@ -540,9 +540,8 @@ outside average, before, after
         <a href="https://github.com/max-sixty/worktrunk/pull/3865"
           >Worktrunk PR #3865</a
         >
-        shipped a unified-diff preview for the switch picker. Review the merged revision
-        as if it were still awaiting a final decision; the exact 46-file patch remains
-        available below.
+        adds a unified-diff preview for the switch picker. The captured revision is
+        awaiting a merge decision; its exact 46-file patch remains available below.
       </p>
 
       <details id="pr-request-context">
@@ -557,7 +556,9 @@ outside average, before, after
         <h2>Review finding</h2>
         <div class="pr-agent-brief" id="pr-agent-summary">
           <p>
-            <strong>The final revision is safe to approve with two follow-ups.</strong>
+            <strong
+              >The current revision is safe to approve with two follow-ups.</strong
+            >
             <code>PreparedDiff</code> owns each complete Git diff invocation;
             <code>TempIndex</code> includes untracked files without changing the real
             index; and the picker loads off-screen worktrees only when selected.
@@ -565,9 +566,9 @@ outside average, before, after
           <p>
             Review found sparse-checkout divergence, a shared temporary directory, a
             symlink race while copying the index, and stale prewarming claims. The
-            merged revision corrects all four. Two follow-ups remain: selected-row
-            demand latency has no benchmark, and
-            <code>wt step commit --dry-run</code> can still stage its own
+            current revision corrects all four. Two follow-ups remain: selected-row
+            demand latency has no benchmark, and a pre-existing
+            <code>wt step commit --dry-run</code> gap can still stage its own
             temporary-index artifact when <code>TMPDIR</code> sits inside the worktree.
           </p>
         </div>
@@ -817,7 +818,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
       </section>
 
       <details id="pr-history-disclosure">
-        <summary>Review history · four fixes before merge</summary>
+        <summary>Review history · four fixes in review</summary>
         <section id="pr-history">
           <h2>Review history</h2>
           <lf-timeline id="pr-review-timeline">
@@ -841,13 +842,9 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
               worktrees moved out of eager prewarm.
             </lf-event>
             <lf-event id="pr-event-final-review" at="04:57 UTC" kind="info">
-              <strong>Final review approved with follow-ups</strong> The shared
-              <code>TempIndex</code> path and orchestration prose converged;
+              <strong>Agent review recommends approval with follow-ups</strong> The
+              shared <code>TempIndex</code> path and orchestration prose converged;
               selected-row latency and dry-run temp artifacts remained visible notes.
-            </lf-event>
-            <lf-event id="pr-event-merged" at="05:18 UTC" kind="info">
-              <strong>Merged</strong> Six commits landed after all reported checks
-              passed.
             </lf-event>
           </lf-timeline>
         </section>
@@ -861,9 +858,10 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
         </p>
         <aside class="pr-review-gesture" id="pr-comment-help">
           <p>
-            <strong>Review in place.</strong> Alt-click a source line to comment on the
-            whole line, or drag across an exact expression to quote it. Comments retain
-            the file, side, line, and quote even when the file disclosure is closed.
+            <strong>Review in place.</strong> Alt-click a file header or source line to
+            comment on that whole target, or drag across an exact expression to quote
+            it. Comments retain their file coordinate—and, for line comments, side,
+            line, and quote—even when the file disclosure is closed.
           </p>
         </aside>
         <lf-diff id="pr-exact-patch" source="pr-review-patch" snapshot="1" collapsed>
@@ -959,13 +957,16 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                   <span class="pr-status-gap">gap</span>
                 </td>
                 <td>
-                  A reviewer reproduced the extra index and lock entries with plain Git.
+                  The captured hunk moves the existing staging path onto
+                  <code>TempIndex</code> without changing its <code>git add</code>
+                  semantics; a reviewer reproduced the extra index and lock entries with
+                  plain Git.
                 </td>
               </tr>
             </tbody>
           </table>
           <details id="pr-prepared-diff-evidence">
-            <summary>Exact PreparedDiff source at the merged revision</summary>
+            <summary>Exact PreparedDiff source at the current revision</summary>
             <p id="pr-prepared-diff-note">
               This 169-line repository slice contains the source-owning abstraction and
               all three preparation entry points.
@@ -982,24 +983,23 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
 
       <section id="pr-outcome">
         <lf-ask id="pr-outcome-decision">
-          <h2>How would you have reviewed the final revision?</h2>
+          <h2>Should this revision merge?</h2>
           <p id="pr-outcome-context">
-            The pull request is already merged. Choose the review judgment best
-            supported by the captured revision and evidence.
+            Choose the review judgment best supported by the captured revision and
+            evidence.
           </p>
           <lf-options id="pr-outcome-choice" choose>
             <lf-option id="pr-outcome-follow-up">
-              <strong>Approve with two follow-ups.</strong> This revision was ready; add
-              a selected-row latency benchmark and a dry-run artifact regression in
-              subsequent work.
-              <em>My take: this best matches the final evidence and review trail.</em>
+              <strong>Merge with two follow-ups.</strong> Add a selected-row latency
+              benchmark and a dry-run artifact regression in subsequent work.
+              <em>My take: this best matches the evidence and review trail.</em>
             </lf-option>
             <lf-option id="pr-outcome-approve">
-              <strong>Approve without follow-ups.</strong> This revision was ready;
-              close the two remaining gaps as non-actionable.
+              <strong>Merge without follow-ups.</strong> Close the two remaining gaps as
+              non-actionable.
             </lf-option>
             <lf-option id="pr-outcome-request-changes">
-              <strong>Would have requested two changes.</strong> Add a selected-row
+              <strong>Hold the merge for two changes.</strong> Add a selected-row
               latency budget, and prevent <code>wt step commit --dry-run</code> from
               staging temporary-index artifacts when <code>TMPDIR</code> is inside the
               worktree.
@@ -2974,11 +2974,15 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             ><span class="bg-feature-detail">: line comments in review context</span>
           </h3>
           <p id="bg-inline-diff-guide">
-            The seeded Thread follows its added line. Reply or resolve in place. Close
-            the file to move the Thread to the page margin, then reopen it to return the
-            conversation to the diff.
+            The seeded Thread follows its added line. Reply or resolve in place, or
+            Alt-click the file header to start a file-level Thread. Close the file to
+            move the line Thread to the page margin, then reopen it to return the
+            conversation to the diff. Mark the file reviewed to exercise persistent file
+            progress.
           </p>
-          <lf-diff id="bg-review-diff" source="gallery-patch"><pre></pre></lf-diff>
+          <lf-diff id="bg-review-diff" source="gallery-patch" review>
+            <pre></pre>
+          </lf-diff>
         </section>
 
         <section id="bg-source-captures">

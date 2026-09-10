@@ -16,7 +16,8 @@ Runtime assets live behind release-addressed URLs with immutable cache headers, 
 the browser sends the document's release and layer identities to every API request. A
 mixed response reloads instead of letting one release interpret another release's
 state. The build-generated manifest is the routing authority shared by the Worker and
-the Python adapter. Published media, revisions, and version documents stay on the edge;
+the Python adapter, and carries each page's title, description, and card image, which
+both halves compose into the head a crawler and a link preview read. Published media, revisions, and version documents stay on the edge;
 when one of those paths is absent from the release, the Worker asks the reader's
 active container so a newly created private revision can become the live document.
 
@@ -86,12 +87,15 @@ Every request record carries the page's public session reference and canonical e
 id; the container continues with that event id through App Server availability, task
 and turn start, first notification, first model activity, and completion. Leaf's
 record omits message text, prompts, source IP keys, cookies, and private session ids.
-Cloudflare wraps it in invocation metadata. `scripts/query-site-agent-logs.py` queries
-the last 24 hours for one exact event id and emits only Leaf's declared diagnostic
-fields, which makes it the concise path for a phase profile:
+Cloudflare wraps it in invocation metadata. `scripts/query-site-agent-logs.py` accepts
+one exact event id or the public session reference shown in the page. It searches the
+production and dev Analytics Engine indexes for each accepted event, then queries its
+narrow Observability window and emits only Leaf's declared diagnostic fields. The
+narrow query keeps Cloudflare's Adaptive Bit Rate at `1`; a sampled result fails
+instead of presenting a partial phase profile:
 
 ```sh
-CLOUDFLARE_API_TOKEN=... uv run scripts/query-site-agent-logs.py EVENT_ID
+CLOUDFLARE_API_TOKEN=... uv run scripts/query-site-agent-logs.py EVENT_ID_OR_REFERENCE
 ```
 
 Historical Worker and Container logs are available in Workers Observability because
@@ -103,6 +107,17 @@ setup, the `Cloudflare Leaf diagnostics` item in the `Max` 1Password vault carri
 account id and current token. Agents may also inspect the complete Cloudflare envelope,
 including request metadata, through the Observability API or `wrangler tail`; the
 structured query is an output filter, not an access boundary.
+
+Workers Observability is the operational log store. Each structured record carries
+`component`, `event`, and the canonical `eventId`; Worker-side records also carry the
+public `reference` and `route`. The public reference finds every request from one
+reader session, and the event id follows one request across the Worker, Workflow, and
+Container datasets. Analytics Engine holds aggregate product events rather than a
+second debugging log. Live incidents use `wrangler tail`; historical incidents use the
+script above or Cloudflare's Observability query builder. An external OpenTelemetry
+destination is needed only if Cloudflare's retention ceases to cover the debugging
+window.
+
 The local end-to-end verifier prints the same container records and leaves them at
 `.tmp/website-agent-local.log` for a later agent to inspect. It gives the child App
 Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and
@@ -146,6 +161,29 @@ Run the complete local site with Docker available:
 cd worker
 npm ci
 npm run dev
+```
+
+The one standing remote development environment runs the same Worker, Workflow,
+Container image, credential proxy, and browser benchmark at
+`https://leaf-website-dev.maxsixty.workers.dev`. It is an ordinary Wrangler `dev`
+environment with its own Worker, container application, Durable Objects, Workflow,
+and Analytics Engine dataset. The shared rate-limit namespace is the only bound
+resource it reuses from production.
+
+Wrangler secrets do not carry across named environments. The first deployment reads
+both credentials from the process and creates the dev Worker with its OpenAI secret:
+
+```sh
+CLOUDFLARE_API_TOKEN=... OPENAI_API_KEY=... npm run deploy:dev --prefix worker
+```
+
+Later deployments need only `CLOUDFLARE_API_TOKEN`, which the agent host loads from its
+credential store. The command builds the current checkout, deploys only that named
+environment, gives its commit plus working-tree state a release identity, waits for
+that exact release, and runs the complete agent benchmark:
+
+```sh
+npm run deploy:dev --prefix worker
 ```
 
 The deploy requires a Cloudflare Workers Paid account with Containers enabled, a

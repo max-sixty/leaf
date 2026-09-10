@@ -14,7 +14,7 @@ Every page is reached over HTTP through its page-scoped vendored layer and the c
 server.
 """
 
-import hashlib
+import html as html_module
 import importlib.util
 import json
 import re
@@ -179,10 +179,7 @@ def product_url(hosted, name):
     return hosted + site_build.PRODUCT_ROUTES[name]
 
 
-def media_url(source: Path) -> str:
-    """The content address `leaf page media` gives an authored image."""
-    digest = hashlib.sha256(source.read_bytes()).hexdigest()[:16]
-    return f"/media/{digest}{source.suffix.lower()}"
+media_url = site_build.media_url
 
 
 def opened(page, errors, url):
@@ -314,6 +311,57 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
         state = json.loads((assets / state_path.lstrip("/")).read_text())
         assert revision in state["browser"]["views"]
         assert state["release"] == release
+
+
+def test_a_crawler_is_given_one_page_per_route(site):
+    """The site publishes each page three times over, and says so once.
+
+    A page stands at its clean route, at every stamped version, and at every
+    revision. Only the first is a page a reader should be sent to, so every
+    document a page publishes names that route as its canonical.
+    """
+    assets = site_build.asset_site(site)
+    manifest = json.loads((assets / site_build.SITE_MANIFEST).read_text())
+    sitemap = (assets / "sitemap.xml").read_text(encoding="utf-8")
+    robots = (assets / "robots.txt").read_text(encoding="utf-8")
+
+    assert f"Sitemap: {site_build.SITE_ORIGIN}/sitemap.xml" in robots
+    # Silence is not neutral here: a zone that states no signal is given
+    # `ai-train=no` by Cloudflare's managed robots.txt. This site permits all three.
+    assert "Content-Signal: search=yes, ai-input=yes, ai-train=yes" in robots
+    assert "Disallow" not in robots
+    listed = set(re.findall(r"<loc>(.*?)</loc>", sitemap))
+    routes = {
+        f"{site_build.SITE_ORIGIN}{'' if route == '/' else route}/"
+        for route in manifest["pages"]
+    }
+    assert listed == routes
+
+    for route, page in manifest["pages"].items():
+        page_root = "" if route == "/" else route
+        destination = assets / page_root.lstrip("/")
+        documents = [
+            destination / "index.html",
+            *sorted((destination / "versions").glob("*.html")),
+            *sorted((destination / "revisions").glob("*.html")),
+        ]
+        assert len(documents) > 1, route
+        canonical = (
+            f'<link rel="canonical" href="{site_build.SITE_ORIGIN}{page_root}/">'
+        )
+        for document in documents:
+            html = document.read_text(encoding="utf-8")
+            head = html[: html.index("</head>")]
+            assert canonical in head, document
+            assert f'content="{site_build.SITE_ORIGIN}{page["image"]}"' in head, (
+                document
+            )
+            # A card falls back to the page's own words, so a stale title here is
+            # what a shared link would show.
+            assert (
+                f'property="og:title" content="{html_module.escape(page["title"])}"'
+                in head
+            ), document
 
 
 def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
@@ -641,6 +689,26 @@ def test_a_directory_link_with_no_index_stops_the_build(site, tmp_path):
     with pytest.raises(SystemExit) as stopped:
         site_build.check_links(staged)
     assert "triage-board" in str(stopped.value)
+
+
+def test_a_card_image_that_reaches_nothing_stops_the_build(site, tmp_path):
+    """The one broken image a reader of the site would never run into.
+
+    A card is fetched by whoever unfurls the link, not by the browser showing the
+    page, so a preview whose bytes moved out from under its content address fails
+    silently everywhere except in a shared link.
+    """
+    staged = tmp_path / "staged"
+    shutil.copytree(site, staged)
+    manifest_path = staged / site_build.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    manifest["pages"]["/examples/triage-board"]["image"] = "/examples/media/gone.jpg"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(SystemExit) as stopped:
+        site_build.check_links(staged)
+    assert "og:image" in str(stopped.value)
+    assert "gone.jpg" in str(stopped.value)
 
 
 def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
@@ -1251,7 +1319,9 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         gallery = page.locator("#bg-interactions")
         status = gallery.locator("[data-interaction-status]")
         expect(status).to_have_text("Send a comment · Ready", timeout=15_000)
-        gallery.locator("[data-interaction-toggle]").evaluate("toggle => toggle.click()")
+        gallery.locator("[data-interaction-toggle]").evaluate(
+            "toggle => toggle.click()"
+        )
         expect(gallery.locator("[data-interaction-status]")).to_have_text(
             "Send a comment · Complete", timeout=15_000
         )

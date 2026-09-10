@@ -7,9 +7,9 @@ import json
 import os
 import re
 import sys
-import time
 import urllib.error
 import urllib.request
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -17,6 +17,12 @@ QUERY_URL = (
     "https://api.cloudflare.com/client/v4/accounts/"
     "{account}/workers/observability/telemetry/query"
 )
+ANALYTICS_URL = (
+    "https://api.cloudflare.com/client/v4/accounts/{account}/analytics_engine/sql"
+)
+ANALYTICS_DATASET = "leaf_website_events"
+LOG_WINDOW_BEFORE_MS = 60 * 1000
+LOG_WINDOW_AFTER_MS = 19 * 60 * 1000
 EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 SESSION_REFERENCE = re.compile(r"^[0-9]{12}$")
 ACCOUNT_ID = re.compile(r'^account_id\s*=\s*"([0-9a-f]+)"$', re.MULTILINE)
@@ -42,52 +48,75 @@ def account_id() -> str:
     return match.group(1)
 
 
-def query_body(key: str, value: str, now_ms: int) -> dict:
-    """Build one bounded Workers Observability query."""
-    filters = [
-        {
-            "key": "component",
-            "operation": "eq",
-            "type": "string",
-            "value": "leaf-agent",
-        }
-    ]
-    lookup = {}
-    if key == "eventId":
-        lookup["needle"] = {"value": value, "isRegex": False, "matchCase": True}
-    else:
-        filters.append(
-            {"key": key, "operation": "eq", "type": "string", "value": value}
-        )
+def query_body(event_id: str, from_ms: int, to_ms: int) -> dict:
+    """Build one unsampled, event-focused Workers Observability query."""
     return {
         "queryId": "leaf-agent-diagnostic",
-        "timeframe": {"from": now_ms - 24 * 60 * 60 * 1000, "to": now_ms},
+        "timeframe": {"from": from_ms, "to": to_ms},
         "view": "events",
         "limit": 100,
         "parameters": {
             "datasets": [],
             "filterCombination": "and",
-            "filters": filters,
-            **lookup,
+            "filters": [
+                {
+                    "key": "component",
+                    "operation": "eq",
+                    "type": "string",
+                    "value": "leaf-agent",
+                }
+            ],
+            # Full-text lookup also finds a batched turn's `eventIds` array. The
+            # Analytics Engine index below keeps this query narrow enough that
+            # Cloudflare does not adaptively sample those matching records.
+            "needle": {
+                "value": event_id,
+                "isRegex": False,
+                "matchCase": True,
+            },
         },
     }
 
 
-def event_ids(response: dict) -> set[str]:
-    """Read every canonical event id carried by matching telemetry."""
-    found = set()
-    for item in response.get("result", {}).get("events", {}).get("events", []):
-        source = item.get("source") or {}
-        if source.get("component") != "leaf-agent":
+def analytics_statement(lookup: str) -> str:
+    """Select accepted event ids and timestamps for one public lookup key."""
+    key = "blob6" if SESSION_REFERENCE.fullmatch(lookup) else "index1"
+    return (
+        f"SELECT timestamp,index1 FROM {ANALYTICS_DATASET} "
+        f"WHERE {key}='{lookup}' AND timestamp > NOW() - INTERVAL '1' DAY "
+        "ORDER BY timestamp LIMIT 100"
+    )
+
+
+def indexed_events(lookup: str, token: str) -> dict[str, int]:
+    """Read each matching event's first accepted timestamp from Analytics Engine."""
+    request = urllib.request.Request(
+        ANALYTICS_URL.format(account=account_id()),
+        data=analytics_statement(lookup).encode(),
+        headers={"Authorization": f"Bearer {token}"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read())
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(
+            f"Cloudflare event index query failed with HTTP {error.code}"
+        ) from error
+    events = {}
+    for row in payload.get("data", []):
+        event_id = row.get("index1")
+        timestamp = row.get("timestamp")
+        if not isinstance(event_id, str) or not isinstance(timestamp, str):
             continue
-        if isinstance(source.get("eventId"), str):
-            found.add(source["eventId"])
-        found.update(
-            event_id
-            for event_id in source.get("eventIds", [])
-            if isinstance(event_id, str)
+        accepted_ms = round(
+            datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+            .replace(tzinfo=UTC)
+            .timestamp()
+            * 1000
         )
-    return found
+        events.setdefault(event_id, accepted_ms)
+    return events
 
 
 def safe_records(responses: list[dict], wanted_event_ids: set[str]) -> list[dict]:
@@ -130,11 +159,18 @@ def safe_records(responses: list[dict], wanted_event_ids: set[str]) -> list[dict
     return records
 
 
-def query(key: str, value: str, token: str, now_ms: int) -> dict:
-    """Fetch recent telemetry matching one indexed field from Cloudflare."""
+def query(event_id: str, accepted_ms: int, token: str) -> dict:
+    """Fetch the unsampled telemetry window around one accepted event."""
     request = urllib.request.Request(
         QUERY_URL.format(account=account_id()),
-        data=json.dumps(query_body(key, value, now_ms), separators=(",", ":")).encode(),
+        data=json.dumps(
+            query_body(
+                event_id,
+                accepted_ms - LOG_WINDOW_BEFORE_MS,
+                accepted_ms + LOG_WINDOW_AFTER_MS,
+            ),
+            separators=(",", ":"),
+        ).encode(),
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
@@ -150,6 +186,9 @@ def query(key: str, value: str, token: str, now_ms: int) -> dict:
         ) from error
     if not payload.get("success"):
         raise RuntimeError("Cloudflare log query failed")
+    abr_level = payload.get("result", {}).get("statistics", {}).get("abr_level", 1)
+    if abr_level not in (None, 1):
+        raise RuntimeError(f"Cloudflare log query was sampled at ABR level {abr_level}")
     return payload
 
 
@@ -166,15 +205,11 @@ def main(arguments: list[str]) -> int:
         print("CLOUDFLARE_API_TOKEN is required", file=sys.stderr)
         return 2
     lookup = arguments[0]
-    now_ms = round(time.time() * 1000)
-    if SESSION_REFERENCE.fullmatch(lookup):
-        response = query("reference", lookup, token, now_ms)
-        wanted_event_ids = event_ids(response)
-    else:
-        wanted_event_ids = {lookup}
+    events = indexed_events(lookup, token)
+    wanted_event_ids = set(events)
     responses = [
-        query("eventId", event_id, token, now_ms)
-        for event_id in sorted(wanted_event_ids)
+        query(event_id, accepted_ms, token)
+        for event_id, accepted_ms in sorted(events.items())
     ]
     records = safe_records(responses, wanted_event_ids)
     if not records:

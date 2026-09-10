@@ -86,10 +86,12 @@ Every request record carries the page's public session reference and canonical e
 id; the container continues with that event id through App Server availability, task
 and turn start, first notification, first model activity, and completion. Leaf's
 record omits message text, prompts, source IP keys, cookies, and private session ids.
-Cloudflare wraps it in invocation metadata. `scripts/query-site-agent-logs.py` queries
-the last 24 hours for one exact event id or the public session reference shown in the
-page and emits only Leaf's declared diagnostic fields, which makes it the concise path
-for a phase profile:
+Cloudflare wraps it in invocation metadata. `scripts/query-site-agent-logs.py` accepts
+one exact event id or the public session reference shown in the page. It uses
+`leaf_website_events` to locate each accepted event, then queries its narrow
+Observability window and emits only Leaf's declared diagnostic fields. The narrow
+query keeps Cloudflare's Adaptive Bit Rate at `1`; a sampled result fails instead of
+presenting a partial phase profile:
 
 ```sh
 CLOUDFLARE_API_TOKEN=... uv run scripts/query-site-agent-logs.py EVENT_ID_OR_REFERENCE
@@ -158,6 +160,28 @@ Run the complete local site with Docker available:
 cd worker
 npm ci
 npm run dev
+```
+
+The one standing remote development environment runs the same Worker, Workflow,
+Container image, credential proxy, and browser benchmark at
+`https://leaf-website-dev.maxsixty.workers.dev`. It is an ordinary Wrangler `dev`
+environment with its own Worker, container application, Durable Objects, Workflow,
+and Analytics Engine dataset. The shared rate-limit namespace is the only bound
+resource it reuses from production.
+
+Wrangler secrets do not carry across named environments. The first deployment reads
+both credentials from the process and creates the dev Worker with its OpenAI secret:
+
+```sh
+CLOUDFLARE_API_TOKEN=... OPENAI_API_KEY=... npm run deploy:dev --prefix worker
+```
+
+Later deployments need only `CLOUDFLARE_API_TOKEN`, which the agent host loads from its
+credential store. The command builds the current checkout, deploys only that named
+environment, waits for the exact release, and runs the complete agent benchmark:
+
+```sh
+npm run deploy:dev --prefix worker
 ```
 
 The deploy requires a Cloudflare Workers Paid account with Containers enabled, a

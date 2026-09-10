@@ -3326,6 +3326,31 @@ def test_ack_checks_its_target_and_advances_monotonically(page_dir):
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 4}
 
 
+def test_a_cursor_past_the_log_holds_nothing_in_the_log_that_replaced_it(page_dir):
+    """A cursor names a position in this log. Re-vendoring a page whose log is
+    gone leaves the file naming a seq the new log has not reached, and reading it
+    as acknowledgement would swallow every event that log will ever hold."""
+    serving(page_dir, 1)
+    files_model.write_json(page_dir / "cursor.json", {"seq": 47})
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    )
+
+    assert page_state(page_dir)["cursor"] == 0
+    assert page_state(page_dir)["pending"] == 1
+    delivered = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
+    assert delivered.exit_code == 0, delivered.output
+    [event] = [json.loads(line) for line in delivered.output.strip().splitlines()[1:]]
+    assert (event["id"], event["seq"]) == ("c1", 1)
+
+    # Acknowledging the delivered batch replaces the stale position, so the next
+    # read is an ordinary one.
+    session_model.cmd_ack(page_dir, event["seq"])
+    assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
+    assert page_state(page_dir)["cursor"] == 1
+    assert page_state(page_dir)["pending"] == 0
+
+
 def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, spawn):
     serving(page_dir, 1)
     service_model.claim_page(page_dir)

@@ -138,8 +138,9 @@ queued turn opening, and observes that turn to its terminal state. A repeated wo
 sees the event's durable pickup and does not start the work twice. Task startup failure
 after its retries appends a short failure reply through the same event log.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
-Only explicit `leaf reply`, `leaf version stamp`, and `leaf receipt` commands settle
-accepted input; the turn's final assistant message remains in the Codex transcript.
+Only explicit `leaf reply`, a page revision closed with `leaf resolve`, and `leaf
+receipt` settle accepted input; the turn's final assistant message remains in the
+Codex transcript.
 A failed or interrupted turn still gets a deterministic failure reply from the host.
 
 The container pins the Codex version its App Server protocol was tested against and

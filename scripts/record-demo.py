@@ -277,7 +277,8 @@ class DemoWaiter:
         batches = payload.get("batches", []) if payload is not None else []
         if len(batches) != 1:
             raise RuntimeError(
-                f"the demo waiter received {len(batches)} page batches instead of one"
+                f"the demo waiter exited {self.process.returncode} with "
+                f"{len(batches)} page batches instead of one\n{stderr}".rstrip()
             )
         [batch] = batches
         events = batch["events"]

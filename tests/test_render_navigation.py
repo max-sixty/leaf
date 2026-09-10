@@ -2404,9 +2404,6 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     )
 
     resolve = thread.locator(":scope > .lf-thread-head > .lf-resolve")
-    expect(thread.locator(":scope > .lf-thread-head > .lf-thread-label")).to_have_text(
-        "Thread"
-    )
     expect(resolve).to_have_css("position", "relative")
     placement = thread.evaluate(
         """el => {

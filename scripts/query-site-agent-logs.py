@@ -36,6 +36,7 @@ SAFE_FIELDS = (
     "reference",
     "route",
     "durationMs",
+    "attempts",
     "status",
     "buffered",
     "turnId",

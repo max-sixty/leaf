@@ -6182,6 +6182,13 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
               {id: 'test.empty-decision', keys: [], control: document.body,
                decision: '  ', does: 'Empty decision action name'},
             ]),
+            invisibleCommand: declare('invisible-command', [
+              {id: 'test.invisible-command', keys: [], does: 'Invisible command'},
+            ]),
+            emptyLabelCommand: declare('empty-label-command', [
+              {id: 'test.empty-label-command', keys: [], label: '  ',
+               does: 'Empty-label command'},
+            ]),
             invalidReturnFrame: declare('invalid-return-frame', [
               {id: 'test.invalid-return-frame', keys: ['F8'], does: 'Enter badly',
                line: 'enter', returnFrame: {}, run: () => {}},
@@ -6243,6 +6250,12 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     assert expected_decision_error in answers["invalidDecision"], answers
     assert expected_decision_error in answers["invalidDecisionRoute"], answers
     assert "invalid Decision action name" in answers["emptyDecision"], answers
+    assert (
+        "has no binding, label, or Decision action name" in answers["invisibleCommand"]
+    ), answers
+    assert (
+        "has no binding, label, or Decision action name" in answers["emptyLabelCommand"]
+    ), answers
     assert "returnFrame that is not a function" in answers["invalidReturnFrame"], (
         answers
     )

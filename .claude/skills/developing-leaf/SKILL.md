@@ -16,8 +16,16 @@ When a new interface leaves a material visual or interaction choice unsettled,
 first follow `Author or revise a page` below. Initialize the page with the
 `playground` package and follow
 `<root>/skills/leaf/packages/playground/guidance/author.md`. Put several coherent
-options in named presets and present them in one shared preview. Use the reader's
-submitted configuration or feedback to resolve the choice before implementing it.
+options in named presets. Build each option far enough that the reader can operate it
+in the shared preview. Controls select the option and its parameters; the reader
+performs the interaction being judged inside the preview. Use the reader's submitted
+configuration or feedback to choose the one implementation the finished change keeps.
+
+When the subject already exists, implement each proposed behavior in the code that
+owns that surface and preview its real output and styling. A Leaf interface therefore
+implements candidates in its owning runtime and theme and presents them through a
+shipped example or fixture. Page-local HTML and CSS may frame it; a page-local
+recreation is a sketch.
 
 ## Prove and hand off a visible change
 
@@ -37,15 +45,11 @@ show the behavior.
 Before presenting a served page or visible runtime change as finished, inspect
 the exact candidate URL. Exercise the same journey in the baseline and candidate,
 matching the URL fragment, viewport, theme, and interaction state, and check both
-browser consoles. When the subject is Leaf's own interface, the demonstrated
-surface must come from its owning runtime and theme through a shipped example or
-fixture; page-local HTML and CSS may frame it, but must not imitate it. Call an
-unimplemented imitation a sketch, not a preview. Confirm the expected content and
-review the changed surface at a representative viewport. When handing off a live
-preview, use the exact URL including the semantic block's fragment and keep the
-process alive. A titled section uses the section's stable id, so its eyebrow and
-heading arrive together. Add an id to the tight semantic container when it has
-none.
+browser consoles. Confirm the expected content and review the changed surface at a
+representative viewport. When handing off a live preview, use the exact URL including
+the semantic block's fragment and keep the process alive. A titled section uses the
+section's stable id, so its eyebrow and heading arrive together. Add an id to the
+tight semantic container when it has none.
 
 ## Preview a shipped example
 

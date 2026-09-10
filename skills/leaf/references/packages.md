@@ -349,8 +349,11 @@ consume those same live rows. Set a row or route's `decision` to its concise, no
 action-name string—or a function returning one—and give it `control` for the visible
 element that performs the action. A Decision action begins an answer, answers, advances,
 or revises the Ask containing `source`. The action name is separate from `label`, which
-remains the command register's own-scope keycap override. In the command reference, a
-keyless Decision command falls back to its action name rather than showing a blank keycap.
+remains the command register's own-scope keycap override. A row with no bindings when
+`commands()` registers it must provide a non-empty string `label`, a `label` function, or
+a Decision action name. This also applies when computed `keys` is initially empty and
+gains bindings later. The command reference uses a keyless Decision command's action name
+rather than a blank keycap.
 The Ask projection always spells the binding it resolved beside the `decision` action
 name, so its inline hint says what the reader actually presses. A row may have zero or one
 live binding in the Decision role: zero receives the Ask's next free contextual `1`

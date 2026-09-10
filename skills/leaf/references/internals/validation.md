@@ -9,7 +9,9 @@ exactly one external script
 (<script type="module" src="/leaf.js">) and one stylesheet link
 (/theme.css), both directly in `<head>` so the presentation boundary exists before
 body paint; its exact CSP keeps fetches local and refuses document-base changes and
-form submissions; every lf-* element validates against the vendored registry
+form submissions; the head declares no `<link rel="canonical">`, because the served
+document names the page root itself and a second address in the head leaves a crawler
+choosing between them; every lf-* element validates against the vendored registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real

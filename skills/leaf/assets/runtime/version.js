@@ -200,12 +200,12 @@ servedStampMarker?.remove();
 // presentation, layout, and mode facts the surviving runtime owns.
 const authoredAttributes = (root) =>
   new Map([...root.attributes].map(({ name, value }) => [name, value]));
+// The authored share of the head, which a revision brings with it. Delivery marks
+// what it inserts — the identity markers, the page's canonical address, a
+// publication's card — and that share belongs to the document the reader was
+// served rather than to the revision arriving inside it.
 const versionedHeadNode = (node) =>
-  !(
-    node.localName === "meta" &&
-    ["lf-revision", "lf-version"].includes(node.getAttribute("name")) &&
-    node.hasAttribute("data-lf-runtime")
-  ) &&
+  !node.hasAttribute("data-lf-runtime") &&
   (node.localName === "title" ||
     node.localName === "style" ||
     node.localName === "base" ||

@@ -1579,6 +1579,25 @@ def test_check_owns_the_lf_meta_vocabulary(page_dir):
     assert "lf-review" in result.output  # the error names the known vocabulary
 
 
+def test_check_leaves_the_pages_own_address_to_delivery(page_dir):
+    """An authored canonical is not an extra hint; it is a competing answer.
+
+    The served document names the page root at every address the page answers, so a
+    second one in the head leaves a crawler choosing, and the usual outcome is that it
+    honours neither. The words a page owes a search result are its title and
+    description, which it writes; the address is the server's.
+    """
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
+        PAGE.replace(
+            "<title>t</title>",
+            '<title>t</title>\n<link rel="canonical" href="https://example.com/p">',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "the served document names the page root itself" in result.output
+
+
 def test_check_rejects_duplicate_ids(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output

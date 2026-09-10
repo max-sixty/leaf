@@ -8,6 +8,7 @@ from leaf.structure import (
     HEADING_TAGS,
     SECTIONING_TAGS,
     StructParser,
+    links_with_rel,
 )
 from leaf.styles import inline_presentation_override_errors
 
@@ -219,7 +220,7 @@ def fragment_style_errors(parser: StructParser) -> list:
             "is put into; a widget's look belongs in the layer's theme, beside its "
             "element declaration"
         )
-    if parser.stylesheets:
+    if links_with_rel(parser.links, "stylesheet"):
         errors.append(
             "<link rel=stylesheet> in message markup dresses the whole document it is "
             "put into; the page serves the one vendored theme it was reviewed with"

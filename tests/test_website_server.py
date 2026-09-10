@@ -126,7 +126,11 @@ PAGE_SOURCE = """<!doctype html>
     ),
 )
 def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
-    """A crawler reads absolute URLs, and reads them from inside the head."""
+    """An unfurler reads absolute URLs, and reads them from inside the head.
+
+    The canonical link is not here: every Leaf document names its own page root,
+    published or not, so a publication only adds what needs the site's origin.
+    """
     page = {
         "kind": kind,
         "title": 'Choose the "next" fix',
@@ -137,15 +141,20 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         PAGE_SOURCE.encode(), page_root, page
     ).decode()
     head = served[: served.index("</head>")]
-    assert f'<link rel="canonical" href="{url}">' in head
-    assert f'<meta property="og:url" content="{url}">' in head
+    assert 'rel="canonical"' not in head
+    assert f'<meta property="og:url" content="{url}" data-lf-runtime>' in head
     assert (
-        '<meta property="og:image" content="https://leaf.page/media/card.png">' in head
+        '<meta property="og:image" content="https://leaf.page/media/card.png"'
+        " data-lf-runtime>" in head
     )
     assert (
-        '<meta property="og:title" content="Choose the &quot;next&quot; fix">' in head
+        '<meta property="og:title" content="Choose the &quot;next&quot; fix"'
+        " data-lf-runtime>" in head
     )
-    assert '<meta name="twitter:card" content="summary_large_image">' in head
+    assert (
+        '<meta name="twitter:card" content="summary_large_image" data-lf-runtime>'
+        in head
+    )
     # The sitenote is website chrome for the examples, and rides the runtime
     # boundary rather than the head the metadata went into.
     assert ("sitenote.js" in served) is (kind == "example")

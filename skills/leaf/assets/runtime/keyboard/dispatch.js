@@ -59,8 +59,8 @@
 
    A covering workspace uses the same modal command floor without entering the browser's
    top layer. Its owner makes the background DOM inert, and this dispatcher keeps only
-   scopes rooted in the workspace plus the return frame that can close it. A popover
-   inside the workspace remains above that floor.
+   scopes rooted in the workspace plus the return frame that can close it. A native layer
+   opened above the workspace keeps its own scopes above that floor.
 
    A popover hands focus back to whatever had it when the popover showed — not to its
    invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
@@ -170,14 +170,7 @@ export function stack(binding = null) {
     return scope;
   });
   const workspace = coveringWorkspaceSurface();
-  const rememberedLayer = currentNativeLayer(active);
-  const layer =
-    workspace &&
-    rememberedLayer &&
-    !workspace.contains(rememberedLayer) &&
-    !rememberedLayer.matches("dialog:modal")
-      ? null
-      : rememberedLayer;
+  const layer = currentNativeLayer(active);
   const ordered = (scopes) => {
     const activeScopes = scopes.filter(standing);
     return binding === "Escape" ? escapeOrder(activeScopes, active) : activeScopes;
@@ -201,7 +194,12 @@ export function stack(binding = null) {
       : workspace
         ? (scope) => {
             const root = scopeRoot(scope);
-            return scope === RETURN || root === workspace || workspace.contains(root);
+            return (
+              scope === RETURN ||
+              inLayer(scope) ||
+              root === workspace ||
+              workspace.contains(root)
+            );
           }
         : () => true;
     const available = expanded.filter(aboveBoundary);

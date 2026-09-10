@@ -72,18 +72,9 @@ import {
 } from "../native-layers.js";
 import { coveringWorkspaceSurface, openWorkspaceSurfaceFor } from "./register.js";
 
-const currentLayer = () => {
-  const workspace = coveringWorkspaceSurface();
-  const native = currentNativeLayer(focused());
-  if (
-    workspace &&
-    native &&
-    !workspace.contains(native) &&
-    !native.matches("dialog:modal")
-  )
-    return workspace;
-  return native ?? workspace;
-};
+// A native layer opened above a covering workspace owns entries made inside it. The
+// workspace remains the fallback floor when no browser top layer stands.
+const currentLayer = () => currentNativeLayer(focused()) ?? coveringWorkspaceSurface();
 
 export function restoreReturnPlace({ control, reading }) {
   if (control) {

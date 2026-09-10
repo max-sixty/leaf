@@ -5323,19 +5323,26 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
 
 
 def test_named_workspace_chords_toggle_their_panels(browser, serve, live_leaf):
-    """Repeating a covering panel's complete address closes the panel it opened."""
+    """Desktop panels toggle beside the page; Leaves toggles in its covering posture."""
     live_leaf("second", "A second leaf")
     page, errors = open_page(browser, serve(ASKS_PAGE, comments=1))
-    resized(page, 500, 800)
 
-    for key, command, name, surface, control in (
-        ("Shift+t", "threads", "Threads", ".lf-panel", ".lf-threads-toggle"),
-        ("Shift+a", "asks", "Asks", ".lf-asks-panel", ".lf-asks"),
-        ("Shift+l", "leaves", "All leaves", ".lf-others-panel", ".lf-others"),
+    for key, command, name, surface, control, covering in (
+        ("Shift+t", "threads", "Threads", ".lf-panel", ".lf-threads-toggle", False),
+        ("Shift+a", "asks", "Asks", ".lf-asks-panel", ".lf-asks", False),
+        (
+            "Shift+l",
+            "leaves",
+            "All leaves",
+            ".lf-others-panel",
+            ".lf-others",
+            True,
+        ),
     ):
         page.keyboard.press("g")
         page.keyboard.press(key)
         expect(page.locator(surface)).to_be_visible()
+        assert page.locator("main").evaluate("main => main.inert") is covering
 
         page.keyboard.press("g")
         expect(page.locator("body")).to_have_attribute("data-lf-goto", "")
@@ -5357,7 +5364,9 @@ def test_global_destinations_switch_from_a_covering_workspace(
 ):
     """A modal workspace keeps the global addresses that can replace or cover it."""
     live_leaf("second", "A second leaf")
-    page, errors = open_page(browser, serve(ASKS_PAGE, comments=1))
+    url = serve(ASKS_PAGE, comments=1)
+    _publish(serve.page_dir, 2, ASKS_PAGE, "two")
+    page, errors = open_page(browser, url)
     resized(page, 500, 800)
 
     page.keyboard.press("g")
@@ -5376,24 +5385,55 @@ def test_global_destinations_switch_from_a_covering_workspace(
         expect(page.locator(closed)).to_be_hidden()
         assert page.locator("main").evaluate("main => main.inert")
 
-    for key, surface, destination in (
-        ("Shift+m", ".lf-page-map-sheet", ".lf-page-map-search"),
-        ("Shift+v", ".lf-version-menu", ".lf-version-row"),
-    ):
-        page.keyboard.press("g")
-        page.keyboard.press(key)
-        expect(page.locator(surface)).to_be_visible()
-        expect(page.locator(surface).locator(destination).first).to_be_focused()
-        assert page.locator("main").evaluate("main => main.inert")
-        assert not page.locator(surface).evaluate("surface => surface.inert"), (
-            f"{surface} opened above the workspace but remained inert"
-        )
-        page.keyboard.press("Escape")
-        expect(page.locator(surface)).to_be_hidden()
-        expect(page.locator(".lf-panel")).to_be_visible()
-        assert page.locator(".lf-panel").evaluate(
-            "panel => panel.contains(document.activeElement)"
-        ), f"closing {surface} did not return to the covering workspace"
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    page_map = page.locator(".lf-page-map-sheet")
+    expect(page_map).to_be_visible()
+    expect(page_map.locator(".lf-page-map-search")).to_be_focused()
+    assert page.locator("main").evaluate("main => main.inert")
+    assert not page_map.evaluate("surface => surface.inert")
+    page.keyboard.press("Escape")
+    expect(page_map).to_be_hidden()
+
+    origin = page.locator(".lf-thread").first
+    origin.focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
+    versions = page.locator(".lf-version-menu")
+    expect(versions).to_be_visible()
+    expect(versions.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+    assert page.locator("main").evaluate("main => main.inert")
+    assert not versions.evaluate("surface => surface.inert")
+    page.evaluate(RENDERED)
+    version_hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
+    assert {"version.later version.earlier", "version.open-v1 version.open-v2"} <= (
+        version_hints
+    ), f"the covering workspace displaced the versions scope: {version_hints}"
+
+    page.keyboard.press("ArrowUp")
+    expect(versions.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
+    page.keyboard.press("1")
+    expect(versions).to_be_hidden()
+    expect(origin).to_be_focused()
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
+    expect(versions).to_be_visible()
+    versions.locator("button:visible").last.focus()
+    page.keyboard.press("Tab")
+    expect(versions).to_be_hidden()
+    assert page.locator(".lf-panel").evaluate(
+        "panel => panel.contains(document.activeElement)"
+    ), "Tab left the version popover but escaped its modal workspace"
+
+    origin.focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
+    expect(versions).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(versions).to_be_hidden()
+    expect(origin).to_be_focused()
+    expect(page.locator(".lf-panel")).to_be_visible()
 
     assert errors == []
     page.close()

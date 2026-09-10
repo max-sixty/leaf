@@ -133,6 +133,7 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
             before_close(
                 "socket",
                 {"thread": {"id": "hosted-thread", "status": {"type": status}}},
+                [],
             )
         return {"thread": {"id": "hosted-thread", "status": {"type": status}}}
 
@@ -163,7 +164,7 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
             },
         )
     ]
-    assert started == [("socket", page_dir, "hosted-thread", process)]
+    assert started == [("socket", page_dir, "hosted-thread", process, [])]
     assert closed == ([("hosted-thread",)] if closes_turn else [])
 
 
@@ -178,13 +179,13 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
         requests.append((method, params))
         result = {"thread": {"id": "hosted-thread"}}
         if before_close is not None:
-            before_close("socket", result)
+            before_close("socket", result, [])
         return result
 
     monkeypatch.setattr(host, "_request", request)
 
-    def send(socket, method, params):
-        sent.append((socket, method, params))
+    def send(socket, method, params, pending=None):
+        sent.append((socket, method, params, pending))
         return {"turn": {"id": "initial-turn"}}
 
     monkeypatch.setattr(host, "_send", send)
@@ -234,6 +235,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
                 "threadId": "hosted-thread",
                 "input": [{"type": "text", "text": "<leaf-delivery />"}],
             },
+            [],
         )
     ]
     assert accepted == [("hosted-thread",)]
@@ -273,6 +275,87 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     ]
     assert "$LEAF" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF_SKILL_DIR/SKILL.md" in website_server.CODEX_INSTRUCTIONS
+
+
+def test_a_timed_out_app_server_is_stopped_before_startup_retries(
+    tmp_path, monkeypatch
+):
+    host = website_server.WebsiteCodexHost(
+        "codex",
+        tmp_path / "app-server.sock",
+        tmp_path / "app-server.log",
+    )
+    clock = [0.0]
+    processes = []
+
+    class Process:
+        stopped = False
+
+        def poll(self):
+            return 0 if self.stopped else None
+
+        def terminate(self):
+            self.stopped = True
+
+        def wait(self, timeout=None):
+            return 0
+
+    def popen(*args, **kwargs):
+        process = Process()
+        processes.append(process)
+        if len(processes) == 2:
+            host.socket_path.touch()
+        return process
+
+    monkeypatch.setattr(website_server.subprocess, "Popen", popen)
+    monkeypatch.setattr(website_server.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        website_server.time,
+        "sleep",
+        lambda seconds: clock.__setitem__(0, clock[0] + 21),
+    )
+
+    with pytest.raises(RuntimeError, match="did not become ready"):
+        host._ensure_server()
+
+    assert processes[0].stopped
+    assert host.process is None
+    assert host._ensure_server() is processes[1]
+
+
+def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypatch):
+    host = website_server.WebsiteCodexHost("codex")
+    prewarm_started = threading.Event()
+    fail_prewarm = threading.Event()
+    calls = []
+    process = type("Process", (), {"pid": 41})()
+
+    def ensure_server():
+        calls.append(None)
+        if len(calls) == 1:
+            prewarm_started.set()
+            fail_prewarm.wait(timeout=2)
+            raise RuntimeError("startup failed")
+        return process
+
+    monkeypatch.setattr(host, "_ensure_server", ensure_server)
+    monkeypatch.setattr(website_server, "page_claim", lambda page: None)
+    monkeypatch.setattr(host, "_start_thread", lambda *args: "hosted-thread")
+
+    prewarm = host.prewarm()
+    assert prewarm_started.wait(timeout=2)
+    attached = []
+    request = threading.Thread(
+        target=lambda: attached.append(host.attach(page_dir, "reader-event"))
+    )
+    request.start()
+    assert calls == [None]
+    fail_prewarm.set()
+    prewarm.join(timeout=2)
+    request.join(timeout=2)
+
+    assert attached == ["hosted-thread"]
+    assert calls == [None, None]
 
 
 def test_the_website_host_prewarms_app_server_in_the_background(monkeypatch):
@@ -378,6 +461,106 @@ def test_the_website_task_preserves_a_delivery_the_app_server_rejects(
         host._start_turn(
             "socket", page_dir, "hosted-thread", type("Process", (), {"pid": 41})()
         )
+
+
+def test_notifications_before_start_response_reach_the_turn_follower(
+    page_dir, monkeypatch
+):
+    messages = iter(
+        [
+            json.dumps({"id": 0, "result": {}}),
+            json.dumps({"id": 1, "result": {"thread": {"id": "hosted-thread"}}}),
+            json.dumps(
+                {
+                    "method": "item/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turnId": "initial-turn",
+                        "item": {
+                            "id": "message-1",
+                            "type": "agentMessage",
+                            "text": "Deployment verified.",
+                        },
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "method": "turn/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turn": {"id": "initial-turn", "status": "completed"},
+                    },
+                }
+            ),
+            json.dumps({"id": 2, "result": {"turn": {"id": "initial-turn"}}}),
+        ]
+    )
+
+    class Socket:
+        closed = False
+
+        def send(self, message):
+            pass
+
+        def recv(self, timeout):
+            return next(messages)
+
+        def close(self):
+            self.closed = True
+
+    socket = Socket()
+    monkeypatch.setattr(website_server, "_app_server_connect", lambda endpoint: socket)
+    monkeypatch.setattr(website_server, "_set_stream_activity", lambda *args: None)
+    monkeypatch.setattr(website_server, "_clear_stream_activity", lambda *args: None)
+    host = website_server.WebsiteCodexHost("codex")
+    monkeypatch.setattr(host, "_hold_waiter", lambda *args: None)
+    monkeypatch.setattr(
+        website_server,
+        "prepare_codex_delivery",
+        lambda *args: "<leaf-delivery />",
+    )
+    monkeypatch.setattr(
+        website_server,
+        "accept_codex_delivery",
+        lambda *args: [
+            {
+                "page": page_dir,
+                "events": ("reader-event",),
+                "turn": "leaf-turn",
+            }
+        ],
+    )
+    finished = []
+    completed = threading.Event()
+
+    def finish(*args):
+        finished.append(args)
+        completed.set()
+
+    monkeypatch.setattr(host, "_finish_turn", finish)
+
+    assert (
+        host._start_thread(
+            page_dir,
+            type("Process", (), {"pid": 41})(),
+            "reader-event",
+        )
+        == "hosted-thread"
+    )
+
+    assert completed.wait(timeout=2)
+    assert finished == [
+        (
+            page_dir,
+            "hosted-thread",
+            "leaf-turn",
+            ("reader-event",),
+            {"id": "initial-turn", "status": "completed"},
+            "Deployment verified.",
+        )
+    ]
+    assert socket.closed
 
 
 def test_the_website_host_keeps_its_claim_listening_through_the_agent_turn(

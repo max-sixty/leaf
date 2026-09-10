@@ -225,20 +225,27 @@ class WebsiteCodexHost:
             process = self.process
             self.process = None
         if process is not None:
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
-            self.socket_path.unlink(missing_ok=True)
+            self._stop_server(process)
+
+    def _stop_server(self, process: subprocess.Popen) -> None:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+        self.socket_path.unlink(missing_ok=True)
 
     def _ensure_server(self) -> subprocess.Popen:
         if self.codex_path is None:
             raise RuntimeError("cannot find the `codex` executable on PATH")
-        if self.process is not None and self.process.poll() is None:
-            return self.process
+        if self.process is not None:
+            if self.process.poll() is None and self.socket_path.exists():
+                return self.process
+            stale = self.process
+            self.process = None
+            self._stop_server(stale)
         started = time.monotonic()
         log_agent("app_server_spawn_started")
         self.socket_path.unlink(missing_ok=True)
@@ -266,13 +273,19 @@ class WebsiteCodexHost:
                 return self.process
             if self.process.poll() is not None:
                 detail = self.log_path.read_text(encoding="utf-8", errors="replace")
+                self.process = None
+                self.socket_path.unlink(missing_ok=True)
                 raise RuntimeError(detail.strip() or "Codex App Server exited")
             time.sleep(0.05)
+        process = self.process
+        self.process = None
+        self._stop_server(process)
         raise RuntimeError("Codex App Server did not become ready")
 
     def _request(self, method: str, params: dict, before_close=None) -> dict:
         socket = _app_server_connect(self.endpoint)
         followed = False
+        pending = []
         try:
             self._send(
                 socket,
@@ -284,15 +297,16 @@ class WebsiteCodexHost:
                         "version": "0",
                     }
                 },
+                pending,
             )
             socket.send(json.dumps({"method": "initialized", "params": {}}))
-            result = self._send(socket, method, params)
+            result = self._send(socket, method, params, pending)
             if before_close is not None:
-                follow = before_close(socket, result)
+                follow = before_close(socket, result, pending)
                 if follow is not None:
                     threading.Thread(
                         target=self._follow_turn,
-                        args=(socket, *follow),
+                        args=(socket, *follow, tuple(pending)),
                         daemon=True,
                     ).start()
                     followed = True
@@ -378,6 +392,7 @@ class WebsiteCodexHost:
         turn_id: str,
         leaf_turn: str,
         event_ids: tuple[str, ...],
+        initial_messages: tuple[dict, ...] = (),
     ) -> None:
         """Project notifications and account for the turn's terminal outcome."""
         events = AppServerEvents(thread_id)
@@ -388,20 +403,27 @@ class WebsiteCodexHost:
         started = time.monotonic()
         first_notification = True
         event_id = event_ids[0] if len(event_ids) == 1 else None
+        pending = list(initial_messages)
         _set_stream_activity(thread_id, turn_id, "Starting")
         log_agent("turn_following_started", eventId=event_id, turnId=turn_id)
         try:
             while True:
-                try:
-                    message = json.loads(socket.recv(timeout=1))
-                except TimeoutError:
-                    continue
+                if pending:
+                    message = pending.pop(0)
+                    buffered = True
+                else:
+                    try:
+                        message = json.loads(socket.recv(timeout=1))
+                    except TimeoutError:
+                        continue
+                    buffered = False
                 if first_notification:
                     log_agent(
                         "turn_first_notification",
                         eventId=event_id,
                         turnId=turn_id,
                         durationMs=round((time.monotonic() - started) * 1000),
+                        buffered=buffered,
                     )
                     first_notification = False
                 update = events.read(message)
@@ -448,13 +470,21 @@ class WebsiteCodexHost:
                 final_message,
             )
 
-    def _send(self, socket, method: str, params: dict) -> dict:
+    def _send(
+        self,
+        socket,
+        method: str,
+        params: dict,
+        pending: list[dict] | None = None,
+    ) -> dict:
         request_id = self.next_request_id
         self.next_request_id += 1
         socket.send(json.dumps({"method": method, "id": request_id, "params": params}))
         while True:
             message = json.loads(socket.recv(timeout=20))
             if message.get("id") != request_id or "method" in message:
+                if pending is not None:
+                    pending.append(message)
                 continue
             if error := message.get("error"):
                 raise RuntimeError(error.get("message") or str(error))
@@ -466,6 +496,7 @@ class WebsiteCodexHost:
         page_dir: Path,
         thread_id: str,
         process: subprocess.Popen,
+        pending: list[dict] | None = None,
     ) -> tuple[Path, str, str, str, tuple[str, ...]]:
         started = time.monotonic()
         with PageTransaction(page_dir) as page:
@@ -481,6 +512,7 @@ class WebsiteCodexHost:
                 "threadId": thread_id,
                 "input": [{"type": "text", "text": prompt}],
             },
+            pending,
         )["turn"]
         accepted = accept_codex_delivery(thread_id)
         if len(accepted) != 1 or accepted[0]["page"] != page_dir:
@@ -508,9 +540,11 @@ class WebsiteCodexHost:
     ) -> str:
         started = time.monotonic()
 
-        def attach(socket, result: dict) -> tuple[Path, str, str, str, tuple[str, ...]]:
+        def attach(
+            socket, result: dict, pending: list[dict]
+        ) -> tuple[Path, str, str, str, tuple[str, ...]]:
             thread_id = result["thread"]["id"]
-            return self._start_turn(socket, page_dir, thread_id, process)
+            return self._start_turn(socket, page_dir, thread_id, process, pending)
 
         result = self._request(
             "thread/start",
@@ -543,13 +577,15 @@ class WebsiteCodexHost:
         started = time.monotonic()
         resumed = False
 
-        def attach(socket, result: dict) -> tuple[Path, str, str, str, tuple[str, ...]]:
+        def attach(
+            socket, result: dict, pending: list[dict]
+        ) -> tuple[Path, str, str, str, tuple[str, ...]]:
             nonlocal resumed
             resumed = True
             status = result["thread"]["status"]["type"]
             if status != "active":
                 close_session_turn(thread_id)
-            return self._start_turn(socket, page_dir, thread_id, process)
+            return self._start_turn(socket, page_dir, thread_id, process, pending)
 
         try:
             self._request(

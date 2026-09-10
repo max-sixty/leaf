@@ -95,8 +95,9 @@ npx wrangler tail leaf-website --format=json --search leaf-agent
 
 Historical Worker and Container logs are available in Workers Observability because
 `wrangler.toml` enables it. An agent that needs those logs requires a separate
-Cloudflare token with `Workers Observability Write`; the Analytics-only token above
-can map a session reference to an event id but cannot query or tail runtime logs.
+Cloudflare token with `Workers Observability Write`; live `wrangler tail` access also
+requires `Workers Tail Read`. The Analytics-only token above can map a session
+reference to an event id but cannot query or tail runtime logs.
 The local end-to-end verifier prints the same container records and leaves them at
 `.tmp/website-agent-local.log` for a later agent to inspect.
 

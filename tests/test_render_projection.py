@@ -886,6 +886,14 @@ def test_a_diff_without_review_tracking_keeps_the_browsing_tools(browser, serve)
         "diff evidence",
         """
 <h1>Changed files</h1>
+<lf-diff id="single"><pre>
+diff --git a/src/only.py b/src/only.py
+--- a/src/only.py
++++ b/src/only.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+</pre></lf-diff>
 <lf-diff id="patch"><pre>
 diff --git a/src/first.py b/src/first.py
 --- a/src/first.py
@@ -905,6 +913,7 @@ diff --git a/tests/second.py b/tests/second.py
     page, errors = open_page(browser, serve(authored))
     diff = page.locator("#patch")
 
+    expect(page.locator("#single .lf-diff-progress")).to_have_text("1 file")
     expect(diff.locator(".lf-diff-review, .lf-diff-next")).to_have_count(0)
     expect(diff.locator(".lf-diff-progress")).to_have_text("2 files")
     expect(diff.locator(".lf-diff-wrap")).to_be_visible()

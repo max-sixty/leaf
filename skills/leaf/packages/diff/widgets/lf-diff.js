@@ -1129,11 +1129,11 @@ customElements.define(
       if (!this.diffTools || !this.fileEntries) return;
       const shown = this.fileEntries.filter((entry) => !entry.filtered);
       const reviewed = this.fileEntries.filter((entry) => entry.reviewed).length;
-      const suffix =
-        shown.length === this.fileEntries.length ? "" : ` · ${shown.length} matching`;
+      const total = this.fileEntries.length;
+      const suffix = shown.length === total ? "" : ` · ${shown.length} matching`;
       this.diffTools.progress.textContent = this.reviewing()
-        ? `${reviewed} of ${this.fileEntries.length} reviewed${suffix}`
-        : `${this.fileEntries.length} files${suffix}`;
+        ? `${reviewed} of ${total} reviewed${suffix}`
+        : `${total} file${total === 1 ? "" : "s"}${suffix}`;
       if (this.diffTools.next)
         this.diffTools.next.disabled = this.nextReviewEntry() === null;
       paintKeys();

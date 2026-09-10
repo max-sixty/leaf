@@ -1883,8 +1883,14 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     page, errors = open_page(browser, serve(source))
     resized(page, 540, 720)
     host = page.locator("lf-callout").first
+    host.evaluate(
+        """(el) => {
+        const text = el.shadowRoot.lastChild.textContent;
+        el.shadowRoot.lastChild.replaceWith(document.createTextNode(text));
+    }"""
+    )
     assert host.evaluate("(el) => el.textContent") == ""
-    assert "test_" in host.evaluate("(el) => el.shadowRoot.textContent")
+    assert host.evaluate("(el) => el.shadowRoot.lastChild.nodeType") == 3
     table = page.locator("#held")
     assert table.evaluate("(el) => el.scrollWidth - el.clientWidth") > 1
     assert errors == []

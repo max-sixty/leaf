@@ -175,9 +175,9 @@ export const spokenBinding = (binding) => {
 export const word = (cell) => (typeof cell === "function" ? cell() : cell);
 export const declaredBindings = (row) => word(row.keys) ?? [];
 export const commandRoutes = (row) => word(row.routes) ?? [];
-// TODO(2026-09-07): Let people and host agents configure character key shortcuts through a
-// reader-configuration surface. Apply that setting here so dispatch and every projection
-// continue to consume one binding vocabulary.
+// TODO(2026-09-07): Implement the command and binding split specified in
+// notes/keyboard-command-ownership.md, including reader and page control of character
+// shortcuts, while keeping one binding vocabulary for dispatch and every projection.
 export const bindings = declaredBindings;
 // The command identities under one row. Equivalent bindings keep the row's identity
 // and share its implementation; distinct results are routes and expose only those exact

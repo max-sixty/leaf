@@ -30,7 +30,6 @@ import {
 
 import { threadsBox } from "../conversation/panel-elements.js";
 import { landTyping, mayLandTyping } from "./capture.js";
-import { panelIsOpen } from "../conversation/panel-elements.js";
 import { focused, paintKeys } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
 
@@ -121,6 +120,7 @@ export let pendingDrawing = null;
 export let composerOpen = false;
 
 export function createSelectionComposer({
+  panelIsOpen,
   setReact,
   designIsOn,
   marginOpenInlineThread,

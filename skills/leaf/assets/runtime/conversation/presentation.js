@@ -8,7 +8,11 @@ import { clocked } from "../presence.js";
 import { setChildren } from "../dom-children.js";
 import { el } from "../widget-elements.js";
 import { elementById, inChrome } from "../passages.js";
-import { unreadMessages } from "../pending/model.js";
+import {
+  pendingReactions,
+  pendingSettlements,
+  unreadMessages,
+} from "../pending/model.js";
 import { foldThreads } from "./model.js";
 import { allThreads, setThreads, threadList } from "./state.js";
 import { renderConversations } from "./inline.js";
@@ -68,7 +72,7 @@ export function createConversationPresentation({
       draft: readDraft(),
       actionAnchor: activeActionAnchor(),
     });
-    anchorControls.render(painted);
+    if (painted) anchorControls.render(painted);
     drawingPaint.paint([]);
     renderSurfaces([], anchorPaint.placedAt, surfaceView);
     renderConversations([], inlineView);
@@ -87,7 +91,7 @@ export function createConversationPresentation({
       draft: readDraft(),
       actionAnchor: activeActionAnchor(),
     });
-    anchorControls.render(painted);
+    if (painted) anchorControls.render(painted);
     drawingPaint.paint(threads);
     renderSurfaces(conversations, anchorPaint.placedAt, surfaceView);
     const prepared = renderThreads(threads, listView);
@@ -115,7 +119,12 @@ export function createConversationPresentation({
       return undefined;
     }
     return renderKnown(
-      foldThreads(serverThreads, unreadMessages(pendingEntries, receipts)),
+      foldThreads(
+        serverThreads,
+        unreadMessages(pendingEntries, receipts),
+        pendingReactions(pendingEntries, receipts),
+        pendingSettlements(pendingEntries, receipts),
+      ),
     );
   }
 

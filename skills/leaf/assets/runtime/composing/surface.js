@@ -64,7 +64,6 @@ import { composerOpen, fab, fabBar, fabInput } from "./selection.js";
 import { closeReference, referenceOpen } from "../keyboard/reference.js";
 
 import { paintReactionStanding } from "../reaction-standing.js";
-import { panelCovers } from "../conversation/panel-elements.js";
 import { panel, threadsBox } from "../conversation/panel-elements.js";
 
 import { inChrome, pageRange, pageText, pageWords } from "../passages.js";
@@ -88,6 +87,7 @@ import { readingRegionFor, shownRegionBounds } from "../reading-regions.js";
 export const BANNER_CLEAR = 48;
 
 export function createResponseSurface({
+  panelCovers,
   markAt,
   scrollToElement,
   visualActionAnchor,
@@ -431,7 +431,7 @@ export function createResponseSurface({
       // takes it back (reactHere): the bar is the strip's shape on the page.
       paintReactionStanding(fabBar, reactionsAt(allThreads(), fabAnchor));
       // A docked margin control can name an item whose rendered box is currently off
-      // screen. `r` still needs the durable anchor so it can extend that existing item;
+      // screen. `e` still needs the durable anchor so it can extend that existing item;
       // in that route the floating bar is never painted and placement is deliberately
       // skipped. Every route that actually shows the bar keeps the geometry gate.
       if (place && !placeFab(target ?? anchorBox(fabAnchor))) {
@@ -610,7 +610,7 @@ export function createResponseSurface({
       // A fast keyboard action can capture this completed native selection before the
       // pointer gesture's queued update arrives. That later update is the same target,
       // not a request to reopen its Comment composer: reopening calls closeReactions
-      // and used to collapse choices immediately after `r` exposed them.
+      // and used to collapse choices immediately after `e` exposed them.
       if (sameAnchor(anchor, fabAnchor)) {
         placeFab();
         return;

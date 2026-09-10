@@ -175,12 +175,15 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     });
   }
 
-  function stageOptimistic(entry, { optimistic = false } = {}) {
+  // Every action reaches the send door after its widget has painted the semantic
+  // outcome. Give recorded and recordless actions the same local coordinate so later
+  // gestures and all projection consumers read that outcome before delivery settles.
+  function stageOptimistic(entry) {
     const e = entry.event;
     if (e.kind !== "action") return false;
     const widget = elementById(e.widget);
     const spec = widget && registry[widget.localName]?.["x-state"]?.[e.action];
-    if (!spec || (!spec.record && !optimistic)) return false;
+    if (!spec) return false;
     const unit = unitOf(e, spec);
     if (typeof unit !== "string") return false;
     const coordinate = stateCoordinate(e.widget, unit, spec);
@@ -251,7 +254,7 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     });
   }
 
-  function present(input) {
+  function presentCurrent(input) {
     const projection = normalize(input);
     // Before the first state or the offline fallback, authored capture has completed
     // but the application still cannot know whether an action is available. Surface
@@ -336,6 +339,17 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
           .map((animation) => animation.finished),
       ).then(onDomIntroduced);
     return projection;
+  }
+
+  function present(input) {
+    const prior = runtime.restoringState;
+    if (input.pendingEntries.some((entry) => entry.rejected && entry.projection))
+      runtime.restoringState = true;
+    try {
+      return presentCurrent(input);
+    } finally {
+      runtime.restoringState = prior;
+    }
   }
 
   return {

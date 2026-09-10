@@ -71,7 +71,7 @@ import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
 import { readingRegionFor, shownRegionBounds } from "./reading-regions.js";
-import { panelIsOpen, panelWouldCover } from "./conversation/panel-elements.js";
+import { panelWouldCover } from "./conversation/panel-elements.js";
 import { COVERING } from "./chrome-layout.js";
 
 import { focused, keys, paintKeys } from "./keyboard/scopes.js";
@@ -87,7 +87,6 @@ import { paintTrace } from "./target-paint.js";
 import { updateSequence, workClaimState } from "./updates.js";
 import { threadList } from "./conversation/state.js";
 import { threadKey } from "./conversation/model.js";
-import { openAsks } from "./asks/model.js";
 
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
@@ -100,6 +99,8 @@ import { anchorLabel } from "./conversation/messages.js";
 import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
 
 export function createLivingMargin({
+  panelIsOpen,
+  openAsks,
   designIsOn,
   comparisonBase,
   comparisonChanges,

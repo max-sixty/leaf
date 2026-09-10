@@ -598,7 +598,8 @@ function arrangeBannerControls() {
 
 // The banner's row, mounted once the version chooser and the trays exist: the invariant
 // middle first, then the edge families around it (arrangeBannerControls).
-export function mountBanner({ approveVersion, syncLayout }) {
+export function mountBanner({ approveVersion, paintApproval }) {
+  document.addEventListener("lf-actions", paintApproval);
   for (const control of [asksBtn, othersBtn]) showNews(control, false);
   // Seed the invariant middle once; arrangeBannerControls puts the two edge families
   // around it and later preserves any registry-declared controls added among these three.
@@ -624,7 +625,7 @@ export function mountBanner({ approveVersion, syncLayout }) {
 // Sign-off belongs to the authored version, while the control belongs to the live
 // chrome that survives one. A soft activation can therefore add or remove the same
 // control; rebuilding the banner would throw away focus and every reserved neighbour.
-export function stateSignoff(next, syncLayout) {
+export function stateSignoff(next, syncLayout, paintApproval) {
   signoffDeclared = next;
   const shown = signoffDeclared && runtime.currentStamp !== null;
   if (shown === signoff) return;
@@ -717,8 +718,11 @@ function currentBannerReservations() {
 
 let approving = false;
 
-export function paintApproval() {
-  const approved = (runtime.browser?.conversation?.done ?? []).some(
+export function paintApproval(pendingApprovals) {
+  const approved = [
+    ...(runtime.browser?.conversation?.done ?? []),
+    ...pendingApprovals,
+  ].some(
     (e) =>
       e.kind === "done" &&
       e.revision === runtime.currentRevision &&

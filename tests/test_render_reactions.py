@@ -21,6 +21,7 @@ from render_support import (
     SUGGESTION_PAGE,
     TARGETS_PAGE,
     button_radius,
+    holding,
     open_page,
     panel_comment,
     panel_settled,
@@ -214,8 +215,17 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     ]
     expect(surface.get_by_role("button", name="Suggest", exact=True)).to_be_focused()
 
-    with sending(page, "the token the press marks with"):
-        surface.locator('.lf-react[data-token="shorten"]').click()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    surface.locator('.lf-react[data-token="shorten"]').click()
+    holding(page, held, 1, "the token the press marks with")
+    expect(bar).to_be_hidden()
+    shown = painted(page, [["how-store", "shorten"]])
+    assert "holdseveryedit" in shown["washed"], shown
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (
         sent["kind"] == "comment" and sent["token"] == "shorten" and "text" not in sent
@@ -223,9 +233,6 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     assert sent["anchor"]["section"] == "how-store"
     assert "holds every edit" in sent["anchor"]["quote"]
     expect(bar).to_be_hidden()  # the mark is the receipt
-
-    shown = painted(page, [["how-store", "shorten"]])
-    assert "holdseveryedit" in shown["washed"], shown
     assert shown["outlined"] == []
     # The receipt contributes to the target's one complete RHS item, which stands level
     # with the block's first line in the margin.
@@ -260,7 +267,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     select_paragraph(page, "#how-store")
     expect(bar).to_be_visible()
     page.evaluate("() => document.body.focus()")
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     surface = bar
     expect(receipt_item).to_have_count(1)
     expect(receipt_item.locator(":scope > .lf-reacts")).to_have_count(1)
@@ -287,7 +294,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     page.close()
 
 
-def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, serve):
+def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, serve):
     """The shortcut unfolds the comment's reactions before digits become live."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     settled = page.locator(
@@ -303,7 +310,7 @@ def test_r_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     told(page)
     select_paragraph(page, "#bg-react-ok")
     page.evaluate("() => document.body.focus()")
-    page.keyboard.press("r")
+    page.keyboard.press("e")
 
     surface = page.locator(".lf-fab-bar")
     expect(surface).to_have_class(re.compile(r"\blf-response-open\b"))
@@ -375,7 +382,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     # again. `round_trip` ends on what the page has heard back, and the margin renders that
     # state after it; a render taken over an open options row says so on
     # `lf-margin-element-options-closed`, which is what takes the row away. A reopen placed in that
-    # gap presses `r` at a cluster the arriving state is about to rebuild, so the row either
+    # gap presses `e` at a cluster the arriving state is about to rebuild, so the row either
     # never opens or is closed under the press. The wait on the wire comes first because a
     # post the browser has not reported yet is not pending, and a trip that ends before the
     # press is in the wire leaves nothing for `told` to wait on either.
@@ -419,7 +426,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
 
     def open_margin_reactions():
         item.get_by_role("button", name="Edit draft", exact=True).focus()
-        page.keyboard.press("r")
+        page.keyboard.press("e")
         expect(item.locator(".lf-margin-reactions")).to_be_visible()
 
     open_margin_reactions()
@@ -435,7 +442,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
 
     Each declared emoji is its own margin element, with its token in the accessible name.
     Digits remain optional accelerators in declaration order. Once the surface has been
-    dismissed, `r` is no longer a live page command; page-wide reactions remain explicit
+    dismissed, `e` is no longer a live page command; page-wide reactions remain explicit
     in Threads.
     """
     page, errors = open_page(browser, serve(PANEL_PAGE))
@@ -503,7 +510,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     expect(
         page.locator('.lf-shortcut-bar [data-lf-commands~="reaction.open"]')
     ).to_have_count(0)
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     expect(page.locator(".lf-notice")).not_to_have_text("Select something to react to")
     expect(page.locator(".lf-panel")).to_be_hidden()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
@@ -552,7 +559,7 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
     resized(page, width, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
     item.locator(".lf-sug-accept").focus()
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     choices = item.locator(".lf-margin-reactions .lf-react:visible")
     expect(choices).to_have_count(6)
     expect(item.locator(".lf-margin-spill:visible")).to_have_count(0)
@@ -591,7 +598,7 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(
     page, errors = open_page(browser, serve(PROPOSED_PAGE))
     item = page.locator(f'[data-lf-margin-for="{target}"]')
     item.locator(".lf-sug-accept").focus()
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     expect(item.locator(".lf-margin-reactions")).to_be_visible()
     # The full inventory remains available to Page map while the focused rail view
     # shows reactions alone. Invoke its standing control directly here: this test is
@@ -660,7 +667,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     # cluster the reader unfolded for themselves borrows it, and `openMarginElementOptions` is
     # a no-op there, so putting them down leaves the fold where the press found it.
     item.locator(".lf-sug-accept").focus()
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     expect(page.locator(".lf-margin-reactions")).to_be_visible()
     expect(item).to_have_attribute("data-lf-options-open", "")
     page.keyboard.press("Escape")
@@ -676,7 +683,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     focus_item(page, "#sug-refill")
     # Explicit reaction mode borrows the target's margin cluster and remains
     # responsible for folding that cluster back.
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     surface = page.locator(".lf-margin-reactions")
     expect(surface).to_have_class(re.compile("lf-react-open"))
     page.keyboard.press("Escape")
@@ -697,7 +704,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
 
     def raise_choices_on_refill():
         focus_item(page, "#sug-refill")
-        page.keyboard.press("r")
+        page.keyboard.press("e")
         expect(page.locator(".lf-margin-reactions")).to_be_visible()
         expect(refill).to_have_attribute("data-lf-options-open", "")
 
@@ -1818,7 +1825,7 @@ def test_a_copy_drops_visual_action_controls_without_rewriting_the_provider(
 def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     """A thread at rest gives reactions no row of their own: only marks already left
     stand below a reply. Hover or keyboard focus reveals an overlaid add control on that
-    message, while r opens the latest agent reply. Taking back the last mark closes the
+    message, while e opens the latest agent reply. Taking back the last mark closes the
     list and returns focus to the overlaid control."""
     url = serve(PANEL_PAGE)
     root, first = _thread(serve.page_dir)
@@ -1906,10 +1913,10 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         == "0"
     )
 
-    # The keyboard's route in is the focus the walk puts on the card; r opens the latest
+    # The keyboard's route in is the focus the walk puts on the card; e opens the latest
     # agent reply in that thread without disturbing the standing mark on an older reply.
     card(first).focus()
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     expect(strip(latest)).to_have_class(re.compile("lf-react-open"))
     expect(strip(latest).locator(".lf-react:visible")).to_have_count(6)
     assert strip(latest).evaluate(

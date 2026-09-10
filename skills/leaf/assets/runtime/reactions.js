@@ -1,12 +1,12 @@
 /* The response bar's reaction row and the standing tokens a strip or circle wears.
 
    An open anchored composer owns its general response disclosure: reactions only
-   contribute declared actions to it, and `r` opens that local group focused on its
-   first reaction. With no composer open, `r` contributes the reaction margin elements to the
+   contribute declared actions to it, and `e` opens that local group focused on its
+   first reaction. With no composer open, `e` contributes the reaction margin elements to the
    selected item's existing margin cluster. While that explicit mode stands, its
    contribution owns all six margin elements; standing readings and unrelated actions remain
    in Page map and return when the mode closes. Those temporary margin elements dock with the
-   cluster when necessary and claim no permanent rail width. A thread-local `r` opens
+   cluster when necessary and claim no permanent rail width. A thread-local `e` opens
    the conversation-owned row on the latest agent message. `REACT` claims the keyboard
    only for those margin and message lists; the composer's response scope owns its
    local list. Arrow keys wrap through the visible margin elements in the active list.
@@ -209,21 +209,16 @@ export function createReactionController({
       anchor: structuredClone(anchor),
     };
     if (designIsOn()) event.about = "layer";
-    const sent = await sendReaction(
-      event,
-      chip,
-      anchorWord(anchor),
-      commands.postReaction,
-    );
-    if (!sent) return;
+    const sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
     hideComposer();
     showFab(null);
     setReact(false);
     restoreTargetFocus();
     getSelection()?.removeAllRanges();
+    await sent;
   }
 
-  // The react press opens one surface's list. `r` uses the latest agent reply in the
+  // The react press opens one surface's list. `e` uses the latest agent reply in the
   // thread the reader is standing in, an already raised bar, a completed native
   // selection, or the item holding focus. This same reading decides whether the page
   // command exists, so dispatch cannot advertise a reaction before its target.
@@ -231,7 +226,7 @@ export function createReactionController({
   let reactRaised = false;
   // Whether this raise is what unfolded the target's cluster, and so whether putting the
   // choices away has a fold of its own to put back. A reader who pressed `…` themselves
-  // and then `r` opened that layer before the raise found it, and it is theirs to keep.
+  // and then `e` opened that layer before the raise found it, and it is theirs to keep.
   let marginUnfolded = false;
   let reactFrom = null;
   let reactSurface = null;
@@ -253,13 +248,13 @@ export function createReactionController({
     const anchor = fabAnchorAt();
     const target = anchor && fabTargetAt();
     if (!marginSurface || !target) return false;
-    // `r` is an explicit reaction mode. Comment remains on `c`, so this temporary
+    // `e` is an explicit reaction mode. Comment remains on `c`, so this temporary
     // contribution contains reactions alone.
     fabBar.dataset.lfMarginRaised = "1";
     const standing = unfoldedMarginElements()?.lfTarget === target;
     // Register the response surface in the state it is about to show. Registering its
     // collapsed face first makes the projection treat the six choices as hidden owner
-    // content; a fast `r` can then arm their digit shortcuts while only the old floating
+    // content; a fast `e` can then arm their digit shortcuts while only the old floating
     // ellipsis remains on screen.
     marginSurface.classList.add("lf-react-open");
     paintReactionStanding(
@@ -274,7 +269,7 @@ export function createReactionController({
       controls: marginSurface,
       side: "after",
       // The choices borrow whatever RHS is available and dock as one item when it is
-      // not. Reserving their temporary width would move the page the first time `r`
+      // not. Reserving their temporary width would move the page the first time `e`
       // opened and leave that larger rail behind after the choices closed.
       claim: false,
     });

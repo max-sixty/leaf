@@ -18,7 +18,7 @@ import {
   panel,
   threadsBox,
 } from "../conversation/panel-elements.js";
-import { inPanel, panelIsOpen } from "../conversation/panel-elements.js";
+import { inPanel as panelFocusIsInside } from "../conversation/panel-elements.js";
 import { composerOpen, fabInput, fabOptions } from "../composing/selection.js";
 import {
   backFromConversation,
@@ -26,7 +26,6 @@ import {
   heldConversation,
   standingConversation,
 } from "../conversation/landing.js";
-import { stepReading } from "../navigation.js";
 import { pageSelection } from "../composing/capture.js";
 import { current, RETURN } from "./return-stack.js";
 import {
@@ -51,13 +50,15 @@ import { shortcutBarExpanded } from "./shortcut-bar.js";
 import { pagePresented } from "../presentation.js";
 import { runtime } from "../context.js";
 import { DISCLOSE } from "./disclosure.js";
-import { openAsks } from "../asks/model.js";
 import { latestChip } from "../version.js";
 import { narrowed, needsYou, threadSearchActive } from "../conversation/narrowing.js";
 import { awaitsReader } from "../conversation/model.js";
 import { keeps } from "../widget-elements.js";
 
 export function createPageKeys({
+  panelIsOpen,
+  stepReading,
+  openAsks,
   GO,
   GOTO,
   undoable,
@@ -107,6 +108,7 @@ export function createPageKeys({
   standingItem,
   actionRow,
 }) {
+  const inPanel = () => panelFocusIsInside(panelIsOpen);
   /* The page's own keys: the scopes core declares — the reference, the shortcut bar's shelf, the
    page map, the composer, a text box, the thread panel, a focused thread, a link, a
    disclosure, design mode, and the page itself — and what a press from each of them
@@ -394,7 +396,6 @@ export function createPageKeys({
   const resolutionControl = (thread) =>
     thread?.querySelector(
       ":scope > .lf-thread-head > .lf-resolve, " +
-        ":scope > .lf-resolve, " +
         ":scope > .lf-thread-actions > .lf-reopen, " +
         ":scope > .lf-conversation-resolved .lf-reopen",
     ) ?? null;
@@ -735,6 +736,25 @@ export function createPageKeys({
           else landInThreadReply(thread);
         },
       },
+      {
+        id: "thread.resolution.toggle",
+        keys: ["r"],
+        does: () =>
+          resolutionControl(focusedThread())?.matches(".lf-reopen")
+            ? "Reopen it"
+            : "Resolve it",
+        line: () =>
+          resolutionControl(focusedThread())?.matches(".lf-reopen")
+            ? "reopen"
+            : "resolve",
+        // Search keeps its next/previous hints; resolution remains in the reference.
+        lineWhen: () => !threadSearchActive(),
+        when: () =>
+          resolutionControl(focusedThread())?.matches(
+            ':not(:disabled, [aria-disabled="true"])',
+          ),
+        run: () => resolutionControl(focusedThread()).click(),
+      },
     ],
   };
 
@@ -1007,11 +1027,11 @@ export function createPageKeys({
           run: (...args) => startSelecting(...args),
         },
         {
-          // `r` opens the list on the target the reader has already named: the current
+          // `e` opens the list on the target the reader has already named: the current
           // selection, item, or agent reply. Digits are optional accelerators in the
           // registry's declared order.
           id: "reaction.open",
-          keys: ["r"],
+          keys: ["e"],
           does: () =>
             `Open reactions — ${reactionTokens()
               .slice(0, 9)
@@ -1026,7 +1046,7 @@ export function createPageKeys({
             (anchoringIsReady() || !pageSelection()),
           run: () => {
             // Selection capture normally follows the pointer gesture in its queued turn.
-            // A fast `r` may arrive before that turn even though the native Selection is
+            // A fast `e` may arrive before that turn even though the native Selection is
             // already complete. Capture it now so the command cannot advertise reaction
             // digits while opening no corresponding choices.
             if (pageSelection() && !fabAnchorAt()) updateFab();

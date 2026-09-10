@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 // The browser's names the layer uses, for `no-undef`: a moved function that lost an
 // import must fail the hook rather than bind to `window.*` on the first page that
@@ -180,6 +180,11 @@ const ownerBoundary = {
   "no-restricted-syntax": [
     "error",
     {
+      selector: 'ImportExpression:not([source.type="Literal"])',
+      message:
+        "Runtime dependencies must be literal imports; computed paths belong to content loaders.",
+    },
+    {
       selector:
         "ImportExpression[source.value=/^\\/(?:leaf|runtime\\/widget-api)\\.js$/]",
       message: "Private runtime owners never import the entry or public facade.",
@@ -197,6 +202,18 @@ const runtimeRoot = fileURLToPath(
 );
 const runtimeName = (file) =>
   path.relative(runtimeRoot, file).split(path.sep).join("/");
+const assetRoot = path.dirname(runtimeRoot) + path.sep;
+const runtimeDependency = (file, source) => {
+  if (!source.startsWith(".") && !source.startsWith("/")) return null;
+  const target = fileURLToPath(
+    new URL(
+      source.startsWith("/") ? `.${source}` : source,
+      pathToFileURL(source.startsWith("/") ? assetRoot : file),
+    ),
+  );
+  const name = runtimeName(target);
+  return !name.startsWith("../") || name === "../leaf.js" ? name : null;
+};
 
 const exactClosures = new Map(
   Object.entries({
@@ -305,9 +322,18 @@ function graphFrom(parser) {
             node.type === "ExportNamedDeclaration" ||
             node.type === "ExportAllDeclaration") &&
           typeof node.source?.value === "string"
-        )
-          imports.push(node.source.value);
-        else if (
+        ) {
+          const resourceType = node.attributes?.find(
+            (attribute) => (attribute.key.name ?? attribute.key.value) === "type",
+          )?.value.value;
+          if (resourceType && resourceType !== "javascript") {
+            const resource = runtimeDependency(file, node.source.value);
+            if (resource && !fs.existsSync(path.join(runtimeRoot, resource)))
+              throw new Error(
+                `${runtimeName(file)} imports a missing resource: ${resource}`,
+              );
+          } else imports.push(node.source.value);
+        } else if (
           node.type === "ImportExpression" &&
           typeof node.source?.value === "string"
         )
@@ -321,17 +347,26 @@ function graphFrom(parser) {
       graph.set(
         runtimeName(file),
         imports
-          .filter((source) => source.startsWith(".") || source.startsWith("/runtime/"))
-          .map((source) =>
-            source.startsWith("/runtime/")
-              ? source.slice("/runtime/".length)
-              : runtimeName(path.resolve(path.dirname(file), source)),
-          )
-          .filter((target) => !target.startsWith("../")),
+          .map((source) => runtimeDependency(file, source))
+          .filter((target) => target !== null),
       );
     }
   };
   visitTree(runtimeRoot);
+  const namedModules = new Set([
+    ...exactClosures.keys(),
+    ...forbiddenClosures.keys(),
+    ...[...exactClosures.values(), ...forbiddenClosures.values()].flatMap((names) => [
+      ...names,
+    ]),
+  ]);
+  for (const module of namedModules)
+    if (!graph.has(module))
+      throw new Error(`architecture/runtime-graph names a missing module: ${module}`);
+  for (const [module, dependencies] of graph)
+    for (const dependency of dependencies)
+      if (dependency !== "../leaf.js" && !graph.has(dependency))
+        throw new Error(`${module} imports a missing runtime module: ${dependency}`);
   runtimeGraph = graph;
   return graph;
 }
@@ -394,6 +429,11 @@ const architecturePlugin = {
             const file = runtimeName(context.filename ?? context.getFilename());
             const graph = graphFrom(context.languageOptions.parser);
             const direct = graph.get(file) ?? [];
+            if (direct.includes("../leaf.js"))
+              context.report({
+                node,
+                message: "Private runtime owners never import the boot entry.",
+              });
             if (file !== "widget-api.js" && direct.includes("application.js"))
               context.report({
                 node,
@@ -549,6 +589,24 @@ export default [
     rules: {
       ...ownerBoundary,
       "architecture/runtime-graph": "error",
+    },
+  },
+  {
+    // These are the two boundaries that load authored/package modules, whose paths
+    // are data rather than runtime dependencies. Literal imports still enter the graph.
+    files: [
+      "skills/leaf/assets/runtime/interaction-gallery.js",
+      "skills/leaf/assets/runtime/widget-loader.js",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...ownerBoundary["no-restricted-syntax"]
+          .slice(1)
+          .filter(
+            (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
+          ),
+      ],
     },
   },
   {

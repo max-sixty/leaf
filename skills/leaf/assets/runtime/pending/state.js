@@ -2,7 +2,11 @@
 
    This module owns records only. Delivery and presentation receive the ledger from the
    application composition root; readers receive snapshots and narrow queries. */
-import { messageForAttempt, isMessageEvent } from "./model.js";
+import {
+  conversationForAttempt,
+  isConversationEvent,
+  isMessageEvent,
+} from "./model.js";
 import { PENDING } from "../conversation/identity.js";
 
 export function createPendingLedger({ newAttempt, now }) {
@@ -37,6 +41,9 @@ export function createPendingLedger({ newAttempt, now }) {
       const read = new Promise((done) => {
         resolveRead = done;
       });
+      const conversation = isConversationEvent(attempted)
+        ? conversationForAttempt(attempted, now())
+        : null;
       const entry = {
         event: attempted,
         answer,
@@ -49,7 +56,8 @@ export function createPendingLedger({ newAttempt, now }) {
         order: ++order,
         localId: Symbol("uncommitted local action"),
         projection: null,
-        message: isMessageEvent(attempted) ? messageForAttempt(attempted, now()) : null,
+        conversation,
+        message: isMessageEvent(attempted) ? conversation : null,
       };
       entries.push(entry);
       return entry;

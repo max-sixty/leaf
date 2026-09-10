@@ -356,7 +356,13 @@ def test_an_approval_can_be_taken_back_like_any_other_reader_gesture(browser, se
     expect(button).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
     )
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
     button.click()
+    holding(page, held, 1, "the approval")
+    expect(button).to_have_text("✓ Version approved")
+    held[0].continue_()
+    page.unroute("**/api/event")
     round_trip(page)
     expect(button).to_have_text("✓ Version approved")
     expect(button).to_have_attribute(

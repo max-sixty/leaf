@@ -1,5 +1,5 @@
-/* Stable DOM scaffold and passive visibility readings shared by panel views and layout.
- * The open class is the panel's one visibility authority; panel-workspace is its writer. */
+/* Stable DOM scaffold and passive geometry readings shared by panel views and layout.
+ * Panel visibility belongs to panel-workspace; the class here only renders that state. */
 import { iconElement } from "../icons.js";
 import { focused } from "../keyboard/scopes.js";
 import { containsAcross } from "../passages.js";
@@ -94,11 +94,10 @@ export const panelFoot = el("div", "lf-panel-foot");
 panelFoot.append(generalRow);
 panel.append(panelHead, findRow, filterControls, threadsFrame, panelFoot);
 
-export const panelIsOpen = () => panel.classList.contains("open");
-export const inPanel = () => panelIsOpen() && containsAcross(panel, focused());
+export const inPanel = (panelIsOpen) =>
+  panelIsOpen() && containsAcross(panel, focused());
 const covering = matchMedia(COVERING);
 export const panelWouldCover = () => covering.matches;
-export const panelCovers = () => panelIsOpen() && panelWouldCover();
 
 let readingArrangement = null;
 export function mountPanelReadingRegion() {

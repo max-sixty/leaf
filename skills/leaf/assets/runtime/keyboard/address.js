@@ -79,7 +79,7 @@ import {
   elementFromPointAcross,
   pageQueryAll,
 } from "../passages.js";
-import { inPanel, panelCovers, panelIsOpen } from "../conversation/panel-elements.js";
+import { inPanel as panelFocusIsInside } from "../conversation/panel-elements.js";
 import { threadsBox } from "../conversation/panel-elements.js";
 import {
   currentTray,
@@ -104,6 +104,8 @@ addressLayer.setAttribute("aria-hidden", "true");
 // Construct the command vocabulary once; boot mounts the viewport listeners after
 // the chrome is attached. All travel and workspace effects are explicit capabilities.
 export function createAddress({
+  panelIsOpen,
+  panelCovers,
   elements: { banner, toggleBtn, shortcutBarEl },
   standingStatusBoxes,
   directDestinations,
@@ -127,6 +129,7 @@ export function createAddress({
   leavePageMap,
   pageMapIsActive,
 }) {
+  const inPanel = () => panelFocusIsInside(panelIsOpen);
   // How a destination in this sequence is written where the sequence itself is not on screen —
   // a notice naming the way back to a draft that has just gone down, say. Spelled off the
   // row's own binding, so a rebinding cannot leave a sentence promising the old press.

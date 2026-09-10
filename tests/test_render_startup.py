@@ -26,11 +26,15 @@ from playwright.sync_api import expect
 from render_support import (
     _CARD,
     BOTH_STAMPS,
+    CHART_PAGE,
     DRAFT_EDITED,
     DRAFT_TEXT,
     EXAMPLES,
     FEATURE_GALLERY,
     FIRST_PRESENTATION,
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
     JOURNEY_V1,
     JOURNEY_V2,
     LONG_PAGE,
@@ -74,6 +78,26 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+VISUAL_ACTION_TIMING = """
+  window.__lfVisualActionInsertions = [];
+  new MutationObserver(records => {
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (!(node instanceof Element)) continue;
+        const holders = [
+          ...(node.matches('.lf-visual-actions') ? [node] : []),
+          ...node.querySelectorAll('.lf-visual-actions'),
+        ];
+        for (const _holder of holders)
+          window.__lfVisualActionInsertions.push(
+            document.body?.hasAttribute('data-lf-presented') ?? false
+          );
+      }
+    }
+  }).observe(document, {childList: true, subtree: true});
+"""
 
 
 def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
@@ -1570,6 +1594,66 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
             page.evaluate("() => getComputedStyle(document.body, '::after').content")
             == "none"
         )
+    finally:
+        page.close()
+
+
+def test_visual_actions_arrive_only_after_authoritative_presentation(browser, serve):
+    """Visual response controls are a presented reading, never startup scaffolding."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    held = []
+    page.add_init_script(VISUAL_ACTION_TIMING)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(serve(CHART_PAGE), wait_until="load")
+        page.wait_for_function(
+            "() => document.querySelectorAll('lf-chart.lf-rendered').length === 5"
+        )
+        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+        expect(page.locator(".lf-visual-actions")).to_have_count(0)
+        assert page.evaluate("() => window.__lfVisualActionInsertions") == []
+
+        assert held, (
+            "the first state read completed before the startup boundary was read"
+        )
+        held.pop(0).continue_()
+        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+        expect(page.locator(".lf-visual-actions")).to_have_count(5)
+        assert all(page.evaluate("() => window.__lfVisualActionInsertions"))
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_failed_anchor_presentation_keeps_visual_actions_withheld(browser, serve):
+    """A malformed visual reading cannot leave durable controls on a partial page."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held = []
+    page.add_init_script(VISUAL_ACTION_TIMING)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(
+            serve(
+                GENERIC_VISUAL_PAGE,
+                layer_registry=GENERIC_VISUAL_LAYER,
+                layer_widgets=GENERIC_VISUAL_WIDGETS,
+            ),
+            wait_until="load",
+        )
+        page.wait_for_function(
+            "() => document.querySelector('lf-test-visual')?.parts?.length === 3"
+        )
+        page.locator("lf-test-visual").evaluate(
+            "visual => { visual.parts[1] = {...visual.parts[0]}; }"
+        )
+        assert held, "the first state read completed before the visual was malformed"
+        held.pop(0).continue_()
+
+        expect(page.locator(".lf-status-text")).to_contain_text("reload", timeout=5000)
+        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+        expect(page.locator(".lf-visual-actions")).to_have_count(0)
+        assert page.evaluate("() => window.__lfVisualActionInsertions") == []
     finally:
         page.close()
 

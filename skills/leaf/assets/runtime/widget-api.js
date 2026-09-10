@@ -11,7 +11,8 @@ export { itemWord } from "./anchor-resolution.js";
 export { navigateToDatum } from "./application.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { inUi, uiInside } from "./shadow.js";
-export { answeredContext, askSource, openAsks, watchAsks } from "./asks/model.js";
+export { answeredContext, askSource } from "./asks/model.js";
+export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export { conversationBox, registerThreadSurface } from "./application.js";
 export { conversationInput } from "./conversation/landing.js";
@@ -52,7 +53,7 @@ export {
   sendAction,
   sendRequest,
 } from "./application.js";
-export { watchRequestLifecycle } from "./requests.js";
+export { watchRequestLifecycle } from "./application.js";
 export { alignText, alignedNodes } from "./text-alignment.js";
 export {
   inChrome,

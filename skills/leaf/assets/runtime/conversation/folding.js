@@ -11,11 +11,11 @@ import { pendingForParent } from "../pending/model.js";
 
 /* Resolve and Reopen, in the panel and inline.
 
-   Panel and inline settlement controls read supplied pending ledger records. Their busy
-   labels reserve their width, keep focus, and prevent another submission while the
-   request is pending. The accepted projection decides when the thread resolves or
-   reopens. Resolving the last thread in an inline card closes it and returns focus to
-   page navigation; a conversation seated in the page keeps a Reopen control. */
+   Panel and inline settlement controls read supplied pending ledger records. The local
+   projection resolves or reopens in the press that submits the request and disables
+   the opposite control until the server accepts it; refusal restores the authoritative
+   state. Resolving the last thread in an inline card closes it and returns focus to page
+   navigation; a conversation seated in the page keeps a Reopen control. */
 const news = "lf-thread-settlement";
 // By either name the gesture's thread answers to: the send door rewrites a parent this
 // page named itself into the log's name (`nameParent`) a beat before the card wearing
@@ -97,17 +97,19 @@ export function settlementControl(
 }
 
 /* Resolution-fold state and motion for comment-panel threads. */
-// A thread the log has resolved and the open list is still holding. Its place is not
-// given up in the frame the log settles it: the node stays where it stood, says what
+// A thread the conversation projection has resolved and the open list is still holding.
+// Its place is not given up in the frame the projection settles it: the node stays where
+// it stood, says what
 // was done to it on the control that was pressed, and folds, so the threads under it
 // rise where the eye can follow instead of arriving somewhere else. The retained list
 // gets its resolved card when the fold is over, which keeps one node per thread through
 // every settled state.
 //
-// Driven from the reconcile rather than from the press, because the log is what
-// resolves a thread and a resolve with no gesture behind it — a second tab's, or the
-// agent's — takes the same room out of the same list. That is the case that needs the
-// motion more: nothing in this tab moved, so the fold is the only thing saying so.
+// Driven from the reconcile rather than directly from the press, because local pending
+// work and the accepted log share one projection. A resolve with no gesture behind it —
+// a second tab's, or the agent's — therefore takes the same room out of the same list.
+// That is the case that needs the motion more: nothing in this tab moved, so the fold is
+// the only thing saying so.
 //
 // Everything that walks the list asks for .lf-thread, so the one rename takes the
 // node out of t/T, out of the g addresses, out of scoped presses and out of what the
@@ -156,9 +158,7 @@ export function foldOut(t, repaintConversation) {
   // The pressed control states the outcome in the thread corner it already occupied.
   // Its checkmark changes from a quiet action to the green outcome without changing
   // the control's box, so the fold starts from the layout the reader was looking at.
-  const resolve = node.querySelector(
-    ":scope > .lf-thread-head > .lf-resolve, :scope > .lf-resolve",
-  );
+  const resolve = node.querySelector(":scope > .lf-thread-head > .lf-resolve");
   resolve.setAttribute("aria-label", "Resolved");
   resolve.title = "Resolved";
   resolve.setAttribute("aria-busy", "false");

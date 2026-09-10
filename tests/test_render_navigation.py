@@ -2399,13 +2399,21 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         f"the gap between inline threads lost its separator: {separator}"
     )
 
-    resolve = thread.locator(":scope > .lf-resolve")
-    expect(resolve).to_have_css("position", "absolute")
+    resolve = thread.locator(":scope > .lf-thread-head > .lf-resolve")
+    expect(thread.locator(":scope > .lf-thread-head > .lf-thread-label")).to_have_text(
+        "Thread"
+    )
+    expect(resolve).to_have_css("position", "relative")
     placement = thread.evaluate(
         """el => {
           const own = el.getBoundingClientRect();
           const inset = parseFloat(getComputedStyle(el).paddingTop);
-          const control = el.querySelector(':scope > .lf-resolve').getBoundingClientRect();
+          const actions = el.querySelector(
+            ':scope > .lf-thread-head'
+          ).getBoundingClientRect();
+          const control = el.querySelector(
+            ':scope > .lf-thread-head > .lf-resolve'
+          ).getBoundingClientRect();
           const headNode = el.querySelector(
             ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
           );
@@ -2415,19 +2423,21 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
             ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-body'
           );
           const body = bodyNode.getBoundingClientRect();
-          return {controlTop: control.top, expectedTop: own.top + inset,
+          return {actionsTop: actions.top, actionsBottom: actions.bottom,
+                  controlTop: control.top, expectedTop: own.top + inset,
                   controlBottom: control.bottom, headTop: head.top,
-                  headBottom: head.bottom, authorBottom: author.bottom,
+                  authorBottom: author.bottom,
                   bodyTop: body.top,
                   bodyMargin: parseFloat(getComputedStyle(bodyNode).marginTop)};
         }"""
     )
     assert placement["controlTop"] == pytest.approx(placement["expectedTop"], abs=1)
-    assert placement["controlBottom"] <= placement["headBottom"], (
-        f"Resolve hung below the first inline message's row: {placement}"
+    assert placement["actionsTop"] == pytest.approx(placement["controlTop"], abs=1)
+    assert placement["actionsBottom"] == pytest.approx(
+        placement["controlBottom"], abs=1
     )
-    assert placement["headTop"] < placement["controlBottom"], (
-        f"Resolve took a row above the first inline message: {placement}"
+    assert placement["controlBottom"] <= placement["headTop"], (
+        f"Resolve did not keep its own row above the first inline message: {placement}"
     )
     assert placement["bodyTop"] - placement["authorBottom"] == pytest.approx(
         placement["bodyMargin"], abs=1
@@ -4669,10 +4679,10 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
 
     search.fill("resolve it")
     result = help_el.locator(
-        '.lf-shortcut-reference-command[data-lf-command="thread.resolve"]'
+        '.lf-shortcut-reference-command[data-lf-command="thread.resolution.toggle"]'
     )
     expect(result).to_have_count(1)
-    expect(result).to_have_attribute("data-lf-command", "thread.resolve")
+    expect(result).to_have_attribute("data-lf-command", "thread.resolution.toggle")
     expect(search).to_have_attribute("aria-haspopup", "grid")
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
@@ -4689,7 +4699,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("Enter")
     expect(help_el).to_be_visible()
     expect(help_el.locator(".lf-shortcut-reference-meta")).to_have_text(
-        "Available on a thread's Resolve button"
+        "Available on a focused thread"
     )
     search.fill("close response choices")
     cancel_reaction = help_el.locator(
@@ -4716,7 +4726,6 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("Enter")
     thread = page.locator(".lf-thread").last
     expect(thread).to_be_focused()
-    thread.get_by_role("button", name="Resolve thread", exact=True).focus()
     page.keyboard.press("?")
     page.keyboard.press("?")
     search.fill("resolve it")
@@ -7894,11 +7903,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     page.close()
 
 
-def test_resolution_uses_its_control_while_x_remains_a_close_symbol(browser, serve):
-    """A focused thread does not overload the close symbol as a resolution key.
+def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
+    """A focused thread resolves on r while x remains unbound.
 
-    Resolve and Reopen remain keyboard actions through their controls. Enter on a
-    focused open thread still reaches its reply box."""
+    The visible Resolve and Reopen controls retain their native keyboard routes. Enter
+    on a focused open thread still reaches its reply box."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
 
@@ -7913,15 +7922,8 @@ def test_resolution_uses_its_control_while_x_remains_a_close_symbol(browser, ser
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     line = page.locator(".lf-shortcut-bar")
 
-    def tab_to(target, limit=40):
-        for _ in range(limit):
-            page.keyboard.press("Tab")
-            if target.evaluate("node => node === document.activeElement"):
-                return
-        raise AssertionError("Tab did not reach the expected control")
-
-    # The thread scope does not advertise Resolve before or after focus. Its visible
-    # control owns the keyboard route.
+    # The thread route is contextual: the complete reference teaches it before focus,
+    # while the short line offers it only after the reader stands in a thread.
     expect(line).not_to_contain_text("resolve")
     page.keyboard.press("?")
     page.keyboard.press("?")
@@ -7931,40 +7933,31 @@ def test_resolution_uses_its_control_while_x_remains_a_close_symbol(browser, ser
     focused_section = page.locator(".lf-shortcut-reference-section").filter(
         has=page.get_by_role("heading", name="On a focused thread", exact=True)
     )
-    expect(focused_section.get_by_text("Resolve it", exact=True)).to_have_count(0)
+    expect(focused_section.get_by_text("Resolve it", exact=True)).to_have_count(1)
     page.keyboard.press("Escape")
 
-    # x leaves the focused thread open. Tab and Enter on the visible control resolve it,
-    # with the button's existing landing taking focus to the next thread.
+    # x has no command. r resolves the thread, with the button's existing
+    # landing taking focus to the next thread.
     page.keyboard.press("t")
     first = page.locator(f'.lf-thread[data-id="{c1}"]')
     expect(first).to_be_focused()
-    expect(line).not_to_contain_text("resolve")
+    expect(line).to_contain_text("resolve")
     page.keyboard.press("x")
     expect(first).to_be_visible()
     assert not any(
         event["kind"] == "resolve" for event in events_model.read_events(serve.page_dir)
     )
-    resolve_control = first.get_by_role("button", name="Resolve thread", exact=True)
-    tab_to(resolve_control)
-    expect(resolve_control).to_be_focused()
-    expect(line).to_contain_text("resolve")
-    page.keyboard.press("x")
-    expect(first).to_be_visible()
-    page.keyboard.press("Enter")
+    page.keyboard.press("r")
     round_trip(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
 
-    # The Resolved state and Reopen control put a settled thread in the ordinary Tab
-    # journey. Enter performs the control's named action.
+    # The same key reopens a focused resolved thread.
     page.locator('[data-filter-value="resolved"]').click()
     resolved = page.locator(f'.lf-thread[data-id="{c1}"]:not([hidden])')
-    reopen_control = resolved.get_by_role("button", name="Reopen")
-    tab_to(reopen_control)
-    expect(reopen_control).to_be_focused()
+    resolved.focus()
     expect(line).to_contain_text("reopen")
-    page.keyboard.press("Enter")
+    page.keyboard.press("r")
     round_trip(page)
     reopened = page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"]')
     expect(reopened.locator(":scope > .lf-compose textarea")).to_be_focused()

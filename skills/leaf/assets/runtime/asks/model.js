@@ -133,13 +133,18 @@ export const projectedParent = (el, reading) =>
   authoredParentOf(el) ??
   el.parentElement;
 
-function asks(kind) {
+function asks(kind, pendingRequestEvents) {
   if (!pagePresented()) return [];
+  const requested = new Set(
+    kind === "all" ? [] : pendingRequestEvents.map((event) => event.widget),
+  );
   const documentAsks = runtime.view?.document?.asks?.[kind] ?? [];
   const conversationAsks = runtime.browser?.conversation?.asks?.[kind] ?? [];
   const elements = [...documentAsks, ...conversationAsks]
     .map((ask) => elementById(ask.id))
-    .filter(Boolean);
+    .filter(
+      (element) => element && (kind === "all" || !requested.has(askSource(element).id)),
+    );
   return [...new Set(elements)].sort((left, right) => {
     if (left === right) return 0;
     return left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING
@@ -149,16 +154,19 @@ function asks(kind) {
 }
 
 export const allAsks = () => asks("all");
-export const openAsks = () => asks("reader");
-export const unansweredAsks = () => asks("unanswered");
+export const openAsks = (pendingRequestEvents) => asks("reader", pendingRequestEvents);
+export const unansweredAsks = (pendingRequestEvents) =>
+  asks("unanswered", pendingRequestEvents);
 
 // A package subscribes to the semantic projection, never to the transport's broad
 // invalidation event. The first reading is synchronous, which lets a connected
 // widget paint one complete state without a separate setup path. The owner exists
 // only to bind lifetime; the reading stays page-wide because a command hub observes
 // asks elsewhere in the document.
-export function watchAsks(owner, callback) {
+export function watchAsks(owner, pendingRequests, callback) {
+  if (typeof pendingRequests !== "function")
+    throw new TypeError("An Ask watcher needs a pending-request reading");
   if (typeof callback !== "function")
     throw new TypeError("An Ask watcher needs a callback");
-  return watchProjection(owner, () => callback(openAsks()));
+  return watchProjection(owner, () => callback(openAsks(pendingRequests())));
 }

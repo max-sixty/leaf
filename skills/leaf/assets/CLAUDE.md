@@ -38,6 +38,10 @@ helper must not restore a forbidden dependency. The public widget facade is the 
 for authored behavior modules, not an internal shortcut between runtime owners.
 The keyboard register stores declarations without evaluating their dynamic readings;
 the first repaint after mounting evaluates them.
+The lint gate rejects cycles, forbidden transitive dependencies, and missing module
+names in its boundary declarations. Runtime imports use literal paths so the gate can
+read their edges. Only the authored interaction loader and registry widget loader use
+computed imports; those load content modules rather than runtime owners.
 `runtime/chrome.js` owns only the shared chrome root; `leaf.js` assembles its parts,
 mounts them, and wires behavior that needs them in the document;
 `runtime/repaint.js` owns the shared frame, whose fixed phases are wired at boot:
@@ -250,7 +254,7 @@ state, and their reply, resolve, and reopen controls;
 receipts in conversation seats; and
 `runtime/conversation/presentation.js` composes retained conversation rendering;
 `runtime/conversation/panel.js` owns the panel composer, and `panel-elements.js` owns the
-passive panel elements and their visibility reading;
+passive panel elements and geometry readings;
 `runtime/projection/authored.js` owns typed authored initial values and anchor
 parentage; `runtime/projection/data.js` owns keyed runtime-data DOM reconciliation;
 `runtime/projection/model.js` folds authored, canonical, and pending records without DOM;
@@ -287,7 +291,7 @@ Each mutable fact has one writer:
 | canonical agent activity | the server fold of status, claim and turn identity, watcher lease, pickup events, and unsettled interactions | the banner, receipts, margin, and leaves tray paint `activity`; the browser only asks for a fresh server reading at `next_transition_at` |
 | composer visibility | `composerOpen` and `fabAnchor` | `showComposer` and `showFab` |
 | the draft a hidden composer can be brought back to | the stored composer records, narrowed to those whose passage this document still holds | `keptDraft`, read by the `g D` destination and by the notice `showComposer` writes when a box holding words goes down |
-| panel visibility | the panel's open class | panel workspace's `setPanel`; `panelIsOpen` reads it |
+| panel visibility | panel workspace's constructed visibility reading | `setPanel` writes the reading and projects it to the panel class and body attribute |
 | the narrowing on the thread list | the reader's find words and lifecycle, scope, subject, and detached-placement facets | `renarrow`, `revealThread`, and `widen` |
 | how much of the thread list's top a pinned heading covers | the tallest `.lf-pinned` box as rendered, while the panel is open | `paintHeadRoom` writes `--lf-head-room`, called by `renderThreads` and by a `ResizeObserver` on the list |
 | the thread list's viewport position through reflow | the live reference card in the open panel | `renderThreads` and the held `paintAcknowledgments` call preserve it through reconciliation, provisional work, and resolution folds |

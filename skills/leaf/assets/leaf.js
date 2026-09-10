@@ -79,7 +79,7 @@ import {
   panelFoot,
   threadsBox,
   mountPanelReadingRegion,
-  panelIsOpen,
+  panelWouldCover,
 } from "./runtime/conversation/panel-elements.js";
 import { createLivingMargin } from "./runtime/living-margin.js";
 import { createPageMap } from "./runtime/page-map.js";
@@ -87,7 +87,11 @@ import { createAskView } from "./runtime/asks/view.js";
 import { askActionLayer, ASK_CONTROL } from "./runtime/asks/view-elements.js";
 import { createDesignController, inspectEl, legendRoot } from "./runtime/design.js";
 import { createChromeLayout } from "./runtime/chrome-layout.js";
-import { createPanelWorkspace, PANEL_KEY } from "./runtime/panel-workspace.js";
+import {
+  createPanelVisibility,
+  createPanelWorkspace,
+  PANEL_KEY,
+} from "./runtime/panel-workspace.js";
 import {
   createTrays,
   asksPanel,
@@ -144,11 +148,10 @@ import { createStanding } from "./runtime/standing.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
 import { layoutMarginRows } from "./runtime/margin-layout.js";
 import {
+  createNavigation,
   placeThreadEdge,
-  seenScroller,
   glideTo,
   stopGlide,
-  stepThread,
 } from "./runtime/navigation.js";
 import { focusDestination, letGo } from "./runtime/focus.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
@@ -157,6 +160,7 @@ import { offer } from "./runtime/widget-elements.js";
 import { FOCUSABLE } from "./runtime/reach.js";
 
 let app;
+const paintVersionApproval = () => paintApproval(app.pendingApprovals());
 let panelWorkspace;
 let trays;
 let layout;
@@ -173,6 +177,10 @@ let reactions;
 let pageGeometry;
 let address;
 let pageKeys;
+
+const panelVisibility = createPanelVisibility();
+const { panelIsOpen } = panelVisibility;
+const navigation = createNavigation({ panelIsOpen });
 
 const targetPaintCaps = {
   clearAim: targetPaint.clearAim,
@@ -263,7 +271,7 @@ const version = createVersionController({
   midComposition: () => app.midComposition(),
   readAndApply: (...args) => app.readAndApply(...args),
   banner,
-  stateSignoff: (next) => stateSignoff(next, layout.syncLayout),
+  stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
   landedAt: (...args) => asks.landedAt(...args),
   setLanded: (...args) => asks.setLanded(...args),
   resetAuthoredPage: (...args) => app.resetAuthoredPage(...args),
@@ -302,8 +310,8 @@ app = mountApplication({
   panelIsOpen,
   panelCovers: () => layout.panelCovers(),
   onConversationChanged: repaint,
-  retainPanelLanding,
-  retainConversationFocus,
+  retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
+  retainConversationFocus: () => retainConversationFocus(panelIsOpen),
   revealReplyEditor: (input, behavior) =>
     revealConversation(
       input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation"),
@@ -339,10 +347,10 @@ app = mountApplication({
     notifyDataSubscribers,
     replaceClaimState,
     isSignoffDeclared,
-    paintApproval,
+    paintApproval: paintVersionApproval,
     renderStatus,
     renderVersions: version.renderVersions,
-    stateSignoff: (next) => stateSignoff(next, layout.syncLayout),
+    stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
     renderOthers,
   },
   feed: {
@@ -361,6 +369,8 @@ pageMap = createPageMap({
 
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
 asks = createAskView({
+  panelIsOpen,
+  pendingRequests: app.pendingRequests,
   readingBlock: version.readingBlock,
   focusForNavigation: app.margin.focusForNavigation,
   presentedControl: app.margin.presentedControl,
@@ -391,6 +401,7 @@ panelComposer = createPanelComposer({
   paintDrawings: () => drawingPaint.paint(allThreads()),
 });
 selectionComposer = createSelectionComposer({
+  panelIsOpen,
   setReact: (...args) => reactions.setReact(...args),
   designIsOn: design.isOn,
   marginOpenInlineThread: app.margin.openInlineThread,
@@ -410,6 +421,7 @@ selectionComposer = createSelectionComposer({
   wireInput: inputs.wireInput,
 });
 responseSurface = createResponseSurface({
+  panelCovers: navigation.panelCovers,
   markAt: anchorPaint.markAt,
   scrollToElement: anchorTravel.scrollToElement,
   visualActionAnchor: anchorControls.visualActionAnchor,
@@ -512,6 +524,7 @@ layout = createChromeLayout({
   repaintPage,
 });
 panelWorkspace = createPanelWorkspace({
+  visibility: panelVisibility,
   layout,
   elements: { panel, toggleBtn },
   hideTray: ({ remember }) => {
@@ -540,11 +553,14 @@ trays = createTrays({
   renderMargin: app.margin.renderMargin,
 });
 const workspace = createWorkspaceNavigation({
+  panelIsOpen,
   setPanel: panelWorkspace.setPanel,
   showTray: trays.showTray,
   openInlineThread: app.margin.openInlineThread,
 });
 address = createAddress({
+  panelIsOpen,
+  panelCovers: navigation.panelCovers,
   elements: { banner, toggleBtn, shortcutBarEl },
   standingStatusBoxes,
   directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
@@ -562,13 +578,16 @@ address = createAddress({
   visibleMarginElements: app.margin.visibleMarginElements,
   glideTo,
   placeThreadEdge,
-  seenScroller,
+  seenScroller: navigation.seenScroller,
   stopGlide,
   enterPageMap: pageMap.enterPageMap,
   leavePageMap: pageMap.leavePageMap,
   pageMapIsActive: pageMap.pageMapIsActive,
 });
 pageKeys = createPageKeys({
+  panelIsOpen,
+  stepReading: navigation.stepReading,
+  openAsks: app.openAsks,
   GO: address.GO,
   GOTO: address.GOTO,
   undoable: app.undoable,
@@ -582,7 +601,7 @@ pageKeys = createPageKeys({
   landIn: landing.landIn,
   stepAsk: asks.stepAsk,
   stepThread: (dir) =>
-    stepThread(dir, {
+    navigation.stepThread(dir, {
       openPageThread: app.margin.openPageThread,
       scrollToThread: anchorTravel.scrollToThread,
       activeInlineThread: app.margin.activeInlineThread,
@@ -679,7 +698,7 @@ mountBanner({
       version: runtime.currentStamp,
       text: "Looks good",
     }),
-  syncLayout: () => layout.syncLayout(),
+  paintApproval: paintVersionApproval,
 });
 reserveBannerControls();
 registerPageScopes(pageKeys.scopes, REFERENCE, pageKeys.typing);
@@ -798,7 +817,7 @@ function presentPage() {
   showNews(othersBtn, leavesOffered());
   paintKeys();
   document.dispatchEvent(new Event("lf-actions"));
-  paintApproval();
+  paintVersionApproval();
   repaint();
   layoutMarginRows();
   landArrival();

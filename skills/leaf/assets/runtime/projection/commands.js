@@ -62,12 +62,7 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
     !quoted(widget) &&
     actionMatches(widget, action);
 
-  async function sendAction(
-    widget,
-    action,
-    detail,
-    { attempt, optimistic = false } = {},
-  ) {
+  async function sendAction(widget, action, detail, { attempt } = {}) {
     if (quoted(widget)) {
       console.error(
         `leaf: <${widget.localName}> is exhibited (x-exhibit); action ${action} refused`,
@@ -75,17 +70,14 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
       return null;
     }
     if (!actionAvailable(widget, action)) return null;
-    return post(
-      {
-        kind: "action",
-        revision: runtime.currentRevision,
-        widget: widget.id,
-        action,
-        detail,
-        ...(attempt && { attempt }),
-      },
-      { optimistic },
-    );
+    return post({
+      kind: "action",
+      revision: runtime.currentRevision,
+      widget: widget.id,
+      action,
+      detail,
+      ...(attempt && { attempt }),
+    });
   }
 
   function actionStands(event) {

@@ -98,6 +98,7 @@ export function beginRead() {
 export function createStateFeed({
   projectionDeferred,
   retryProjection,
+  stateApplying,
   releasePending,
   renderConversation,
   panelIsOpen,
@@ -111,12 +112,16 @@ export function createStateFeed({
   // The clock has no state to replay. Only an explicitly deferred projection needs
   // another attempt; time-dependent paints remember their own displayed readings.
   async function tick() {
-    if (projectionDeferred() && retryProjection()) {
+    const retried = projectionDeferred() && retryProjection();
+    if (stateApplying()) return;
+    if (retried) {
       if (releasePending()) paintKeys();
       document.dispatchEvent(new Event("lf-actions"));
       await notifyDataSubscribers();
     }
+    if (stateApplying()) return;
     await tickClock(reportPageError);
+    if (stateApplying()) return;
     document.dispatchEvent(new Event("lf-tick"));
   }
 
@@ -147,6 +152,7 @@ export function createStateFeed({
   }
 
   async function heartbeat() {
+    if (stateApplying()) return;
     try {
       if (
         runtime.statePhase === "ready" &&

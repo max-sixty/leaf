@@ -138,8 +138,9 @@ function conversationThreadNode(host, t, collapsible, commands) {
   const heldFocus = thread.contains(standing);
   let tail;
   let resolve;
+  let actions;
   if (t.resolved) {
-    thread.querySelector(":scope > .lf-resolve")?.remove();
+    thread.querySelector(":scope > .lf-thread-head")?.remove();
     tail = thread.querySelector(":scope > .lf-conversation-resolved");
     const settledBy =
       t.resolved.author === "claude"
@@ -153,8 +154,14 @@ function conversationThreadNode(host, t, collapsible, commands) {
       tail.firstChild.textContent = settledBy;
   } else {
     resolve =
-      thread.querySelector(":scope > .lf-resolve") ??
+      thread.querySelector(":scope > .lf-thread-head > .lf-resolve") ??
       settlementControl(t, { liveId, ...commands.settlement });
+    actions = thread.querySelector(":scope > .lf-thread-head");
+    if (!actions) {
+      actions = offer("header", "lf-thread-head");
+      actions.append(offer("span", "lf-thread-label", "Thread"));
+    }
+    actions.append(resolve);
     if (t.root.response?.kind !== "version") {
       tail = thread.querySelector(":scope > .lf-say");
       if (!tail) {
@@ -179,7 +186,7 @@ function conversationThreadNode(host, t, collapsible, commands) {
     thread,
     [
       ...(summary ? [summary] : []),
-      ...(resolve ? [resolve] : []),
+      ...(actions ? [actions] : []),
       ...messages,
       ...receipts,
       ...(tail ? [tail] : []),

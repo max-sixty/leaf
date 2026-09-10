@@ -28,7 +28,7 @@ import { shownBand, shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
 import { closestAcross } from "../passages.js";
-import { panelIsOpen, threadsBox } from "./panel-elements.js";
+import { threadsBox } from "./panel-elements.js";
 import { reachedForWords } from "../widget-elements.js";
 import { finishFold } from "./folding.js";
 import { SAYS_IN, SAY_BOX } from "./selectors.js";
@@ -160,13 +160,13 @@ const retainLanding = (source, available, fallback = null) => {
   };
 };
 
-export const retainPanelLanding = (source) =>
+export const retainPanelLanding = (source, panelIsOpen) =>
   retainLanding(source, panelIsOpen, threadsBox);
 
 // A candidate can remove the reader's direct conversation box before a later renderer
 // refuses that state. Restore the same logical conversation and caret after its prior
 // view is reconciled, unless a newer reader gesture has taken over.
-export function retainConversationFocus() {
+export function retainConversationFocus(panelIsOpen) {
   const input = focused();
   const held = input && closestAcross(input, SAYS_IN);
   if (!held || held.querySelector(SAY_BOX) !== input) return () => {};
@@ -183,7 +183,7 @@ export function retainConversationFocus() {
       threadsBox
         .querySelector(`.lf-thread[data-id="${CSS.escape(id)}"]`)
         ?.querySelector(SAY_BOX);
-    mayLand = retainPanelLanding(held);
+    mayLand = retainPanelLanding(held, panelIsOpen);
   } else if (held.matches(".lf-conversation-thread")) {
     const host = held.parentElement;
     const id = held.dataset.thread;

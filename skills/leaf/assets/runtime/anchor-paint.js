@@ -191,12 +191,10 @@ export function createAnchorPaint({
   }
 
   function paint({ threads, draft, actionAnchor }) {
-    if (!anchoringIsReady())
-      return {
-        notes: new Map(),
-        reactionSeats: new Map(),
-        draft: { open: false, anchor: null, about: "", marked: false },
-      };
+    // A refused pass is distinct from a ready pass that resolved nothing. The caller must
+    // not build durable controls from an empty-looking result before presentation has made
+    // the page's anchor reading authoritative.
+    if (!anchoringIsReady()) return null;
 
     for (const where of allMarks())
       if (where instanceof Element) where.classList.remove("lf-mark-el");

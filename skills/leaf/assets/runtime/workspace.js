@@ -1,11 +1,16 @@
 /* Capture and restore the reader’s auxiliary workspace and its stable control route. */
 import { currentTray, asksPanel, othersPanel } from "./trays.js";
 import { focused } from "./keyboard/scopes.js";
-import { panel, panelIsOpen } from "./conversation/panel-elements.js";
+import { panel } from "./conversation/panel-elements.js";
 
 // Returning to a workspace can reopen an inline thread. Those effects are supplied
 // by application composition; capturing a place only reads the current DOM and state.
-export function createWorkspaceNavigation({ setPanel, showTray, openInlineThread }) {
+export function createWorkspaceNavigation({
+  panelIsOpen,
+  setPanel,
+  showTray,
+  openInlineThread,
+}) {
   function workspaceControlRoute(control) {
     if (!control || control === document.body) return () => null;
     const inline = control.closest?.(

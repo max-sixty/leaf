@@ -5,7 +5,20 @@
  * application so this owner never imports a presenter. */
 export const PANEL_KEY = "lf-panel-open";
 
+// Visibility is application state, while the dialog, class, and body attribute are its
+// rendering. Construct this reading before layout so every consumer can receive the same
+// query without recovering state from those rendered effects. Only setPanel receives the
+// writer.
+export function createPanelVisibility() {
+  let open = false;
+  return {
+    panelIsOpen: () => open,
+    setPanelOpen: (next) => (open = next),
+  };
+}
+
 export function createPanelWorkspace({
+  visibility: { panelIsOpen, setPanelOpen },
   layout: { moveShell, syncLayout },
   elements: { panel, toggleBtn },
   hideTray,
@@ -61,6 +74,7 @@ export function createPanelWorkspace({
     // a page could coin and take the strip with, which is the leak
     // test_a_coined_class_cannot_reach_the_chromes_rules pins, so the posture is stated on
     // body, where page CSS can see it without naming private chrome.
+    setPanelOpen(open);
     panel.classList.toggle("open", open);
     const played = moveShell(() =>
       document.body.toggleAttribute("data-lf-panel", open),
@@ -101,7 +115,7 @@ export function createPanelWorkspace({
       setTimeout(() => (pressedInlineThread = null));
     });
     toggleBtn.onclick = () => {
-      if (panel.classList.contains("open")) {
+      if (panelIsOpen()) {
         setPanel(false);
         return;
       }

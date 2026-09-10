@@ -117,7 +117,13 @@ import { scrollerFor } from "../reading-regions.js";
 import { el, reserve, reveal } from "../widget-elements.js";
 import { asksBtn, asksList, asksOffered, asksPanel, openTray } from "../trays.js";
 import { registry, tagsDeclaring } from "../registry.js";
-import { allAsks, askEntry, askSource, openAsks, unansweredAsks } from "./model.js";
+import {
+  allAsks as readAllAsks,
+  askEntry,
+  askSource,
+  openAsks as readOpenAsks,
+  unansweredAsks as readUnansweredAsks,
+} from "./model.js";
 import { showNews } from "../banner-shelf.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "../walk-position.js";
 import {
@@ -130,7 +136,6 @@ import {
 } from "../keyboard/scopes.js";
 import { itemSays, itemWord } from "../anchor-resolution.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
-import { panelIsOpen } from "../conversation/panel-elements.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
 
@@ -138,6 +143,8 @@ import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
 // but not the g sequence's lifecycle: the ask view paints them whenever its semantic
 // focus and the dispatch stack leave the contributed action row reachable.
 export function createAskView({
+  panelIsOpen,
+  pendingRequests,
   setPanel,
   showTray,
   trayCovers,
@@ -152,6 +159,9 @@ export function createAskView({
   announce,
   repaint,
 }) {
+  const allAsks = readAllAsks;
+  const openAsks = () => readOpenAsks(pendingRequests());
+  const unansweredAsks = () => readUnansweredAsks(pendingRequests());
   const presentedActionControl = (control) => presentedControl(control) ?? control;
 
   // One blanket answer per verb a widget declares one for (x-awaits.all), each deciding

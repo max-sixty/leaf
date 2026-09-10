@@ -267,9 +267,10 @@ def test_an_ephemeral_website_task_is_not_persisted(page_dir, monkeypatch):
 
     monkeypatch.setattr(host, "_request", request)
 
-    assert host._start_thread(
-        page_dir, type("Process", (), {"pid": 41})(), "reader-event"
-    ) == "ephemeral-thread"
+    assert (
+        host._start_thread(page_dir, type("Process", (), {"pid": 41})(), "reader-event")
+        == "ephemeral-thread"
+    )
     assert requests[0][1]["ephemeral"] is True
 
 

@@ -18,7 +18,15 @@ interface DeploymentConfig {
   durable_objects: {
     bindings: Array<{ name: string; class_name: string }>;
   };
-  workflows: Array<{ name: string; binding: string; class_name: string }>;
+  queues: {
+    producers: Array<{ binding: string; queue: string }>;
+    consumers: Array<{
+      queue: string;
+      max_batch_size: number;
+      max_batch_timeout: number;
+      max_retries: number;
+    }>;
+  };
   migrations: Array<{
     tag: string;
     new_sqlite_classes?: string[];
@@ -72,29 +80,51 @@ describe("deployment configuration", () => {
     expect(dev.routes).toEqual([]);
     expect(devContainer.name).toBe("leaf-website-dev-leafexamplesession");
     expect(devContainer.max_instances).toBe(10);
-    expect({ ...devContainer, name: container.name, max_instances: 6_000 }).toEqual(
-      container,
-    );
+    expect({
+      ...devContainer,
+      name: container.name,
+      max_instances: container.max_instances,
+    }).toEqual(container);
     expect(dev.assets).toEqual(config.assets);
     expect(dev.secrets).toEqual(config.secrets);
     expect(dev.durable_objects).toEqual(config.durable_objects);
     expect(dev.migrations).toEqual(config.migrations);
     expect(dev.observability).toEqual(config.observability);
     expect(dev.ratelimits).toEqual(config.ratelimits);
-    expect(dev.workflows).toEqual([
-      { ...config.workflows[0], name: "leaf-website-agent-dev" },
-    ]);
+    expect(dev.queues).toEqual({
+      producers: [{ binding: "AGENT_QUEUE", queue: "leaf-website-agent-dev" }],
+      consumers: [
+        {
+          ...config.queues.consumers[0],
+          queue: "leaf-website-agent-dev",
+        },
+      ],
+    });
     expect(dev.analytics_engine_datasets).toEqual([
       { binding: "WEBSITE_EVENTS", dataset: "leaf_website_events_dev" },
     ]);
   });
 
-  it("admits the full current account capacity of basic sessions", () => {
-    expect(container.max_instances).toBe(6_000);
+  it("reserves ten basic container slots for development", () => {
+    const [devContainer] = config.env.dev.containers;
+
+    expect(container.max_instances + devContainer.max_instances).toBe(6_000);
     expect(container.instance_type).toBe("basic");
+    expect(devContainer.instance_type).toBe("basic");
   });
 
   it("bounds reader starts and per-container model calls", () => {
+    expect(config.queues).toEqual({
+      producers: [{ binding: "AGENT_QUEUE", queue: "leaf-website-agent" }],
+      consumers: [
+        {
+          queue: "leaf-website-agent",
+          max_batch_size: 1,
+          max_batch_timeout: 0,
+          max_retries: 6,
+        },
+      ],
+    });
     expect(config.ratelimits).toEqual([
       {
         name: "SOURCE_AGENT_RATE_LIMITER",

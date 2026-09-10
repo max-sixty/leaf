@@ -355,9 +355,9 @@ live binding in the Decision role: zero receives the Ask's next free contextual 
 through `9`, while one keeps its canonical binding, such as `ArrowLeft`. Each action keeps
 one command id. Dispatch, the reference, the shortcut bar, its address, and
 `aria-keyshortcuts` all use that id. `address` may name an empty face a widget already
-positions; core writes the resolved binding there, so the package does not keep a second
-key map. Do not maintain a second Ask-control list.
-Otherwise core paints the binding at the visible control. Routes let one parameterized
+positions. Each supplied face belongs to one action; core writes the resolved binding there
+while the whole face is visible and uncovered. Otherwise core paints the binding at the
+visible control. The package does not keep a second key map or Ask-control list. Routes let one parameterized
 row contribute distinct controls and bindings. The Ask projection invokes the row's
 declared `run`; a run-less native command falls back to its control's `click()`.
 

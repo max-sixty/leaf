@@ -603,7 +603,7 @@ def deployment_answer(replies: list[dict]) -> dict | None:
 
 
 def start_direct_agent(context, url: str, comment: dict) -> None:
-    """Run the local adapter's side of the production Workflow handoff."""
+    """Run the local adapter's side of the production Queue handoff."""
     endpoint = urljoin(url, "_leaf/agent/")
     event = {"event": comment["id"]}
     started = context.request.post(

@@ -24,9 +24,9 @@
     "base": "main",
     "head": "codex/switch-unified-diff",
     "revision": "9ca8f78b",
-    "status": "merged",
+    "status": "open",
     "description": "`wt switch` now opens local rows on a unified diff that combines committed, staged, unstaged, and untracked changes. Working-tree and committed changes remain available as subsidiary tabs, and Tab/Shift-Tab skip tabs without content while Alt-1 through Alt-8 keep direct access.\n\nThe diff execution path is shared with `wt step diff` through `PreparedDiff`. Untracked files use operation-scoped temporary index copies under the system temp directory, leaving the real index unchanged. Sparse checkouts and temp directories inside the worktree are covered. The implementation requires Git 2.34 for `git add --sparse`, documented in the existing FAQ installation section.\n\nThe landing row and cacheable branch-only rows are prewarmed. Off-screen worktrees are loaded by the selected-row demand worker, avoiding a skeleton-time `git add -N` walk for every worktree.\n\nTested with `cargo run -- hook pre-merge --yes` (4,670 tests passed; formatting, clippy, docs, doctests, lockfile, and snapshots passed).\n\n> _This was written by Codex on behalf of max-sixty_",
-    "observedAt": "2026-08-30T22:23:41-07:00",
+    "observedAt": "2026-08-30T21:57:00-07:00",
     "diff": {
       "files": 46,
       "additions": 1567,

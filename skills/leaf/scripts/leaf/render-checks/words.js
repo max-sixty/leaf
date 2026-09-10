@@ -233,7 +233,9 @@ export function paperVoids() {
 // asked of what the browser painted, so where it painted is too, and a root a widget
 // attached without declaring one still holds code the reader has to read.
 export function unreadSyntax() {
-  const cx = document.createElement("canvas").getContext("2d");
+  const cx = document
+    .createElement("canvas")
+    .getContext("2d", { willReadFrequently: true });
   const paint = (...layers) => {
     cx.clearRect(0, 0, 1, 1);
     for (const c of ["white", ...layers]) {

@@ -59,6 +59,15 @@ def recurring_resize_observer_error(unit: str) -> str:
     return f"{RESIZE_OBSERVER_ERROR} notice recurred on the confirming {unit}"
 
 
+def console_problem(message) -> str | None:
+    """A console entry that says the page did not load cleanly."""
+    if message.type == "error":
+        return message.text
+    if message.type == "warning":
+        return f"warning: {message.text}"
+    return None
+
+
 def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
     """Read and report the browser gate for one color scheme."""
     from playwright.sync_api import Error as PlaywrightError
@@ -74,11 +83,10 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
         return served(page, url, path, timeout_ms=served_timeout_ms)
 
     def console_message(message):
-        if message.type != "error":
+        problem = console_problem(message)
+        if problem is None:
             return
-        (resize_notices if resize_observer_error(message.text) else errors).append(
-            message.text
-        )
+        (resize_notices if resize_observer_error(problem) else errors).append(problem)
 
     def probe_failure(error):
         page.close()
@@ -115,7 +123,7 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
         return (
             [
                 f"[{scheme}] the runtime never injected its banner — "
-                + ("; ".join(explanations) or "and no console error explains why")
+                + ("; ".join(explanations) or "and no console message explains why")
             ],
             [],
             False,
@@ -133,7 +141,7 @@ def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
         return (
             [
                 f"[{scheme}] the widget layer never finished upgrading — "
-                + ("; ".join(explanations) or "and no console error explains why")
+                + ("; ".join(explanations) or "and no console message explains why")
             ],
             [],
             False,

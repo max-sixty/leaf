@@ -36,10 +36,11 @@
  * not a conversation: if the agent needs clarification after carrying the option into
  * the page, it can open a separate thread anchored to that option.
  *
- * The keyboard walk stops at options. Tab remains the platform's path through every
- * control and into the add field. There it follows Leaf's shared text-box contract:
- * Enter writes a newline and Mod+Enter adds the option. A generated option joins the
- * walk on replay just like an authored one.
+ * The keyboard walk stops at options. Ask digits choose each authored option, then enter
+ * the add field when a digit remains among the Ask's nine addresses. Tab remains the
+ * platform's path through every control and into that field. There it follows Leaf's
+ * shared text-box contract: Enter writes a newline and Mod+Enter adds the option. A
+ * generated option joins the walk on replay just like an authored one.
  *
  * In a thread the existing reply box already owns those words, so Enter from a mark
  * continues into that box and a `multiple` group grows a Done press instead: every
@@ -420,6 +421,17 @@ customElements.define(
           },
         ]);
       }
+      if (this.#addition.input)
+        answerRows.push({
+          id: "option.write",
+          keys: [],
+          control: this.#addition.input,
+          decision: "Another option",
+          address: this.#addition.address,
+          does: "Write another option",
+          line: "write another option",
+          run: () => this.#addition.input.focus(),
+        });
       if (this.#done)
         answerRows.push({
           id: "option.done",

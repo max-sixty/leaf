@@ -375,7 +375,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     """The Ask owns its numbered actions wherever focus stands inside it.
 
     Tab traverses the real controls without replacing that action map. Another option is
-    a shared text box rather than an action hidden behind Enter on an option mark.
+    the next numbered route into its shared text box rather than an Enter alias on a mark.
     """
     url = serve(ASK_WITH_CONTEXT_PAGE)
     page, errors = open_page(browser, url)
@@ -389,12 +389,23 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(option_hints.first).to_be_visible()
     write_hint = page.locator("#storage-options > .lf-another > .lf-address")
     box = page.locator("#storage-options > .lf-another textarea")
-    expect(write_hint).to_have_count(0)
+    expect(write_hint).to_have_text("3")
+    expect(write_hint).to_be_visible()
 
     # Enter has no invented meaning on the Ask or an option mark. Tab enters the real
     # controls, while the same Ask-owned numbers and addresses remain standing there.
     page.keyboard.press("Enter")
     expect(page.locator("#storage-decision")).to_be_focused()
+    page.keyboard.press("3")
+    expect(box).to_be_focused()
+    expect(write_hint).to_be_hidden()
+    assert errors == []
+    page.close()
+
+    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page.keyboard.press("a")
+    mark = page.locator("#storage-evict .lf-pick")
+    box = page.locator("#storage-options > .lf-another textarea")
     page.keyboard.press("Tab")
     expect(mark).to_be_focused()
     expect(mark).to_have_attribute("role", "checkbox")

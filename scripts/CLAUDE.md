@@ -47,6 +47,9 @@ rules a new or changed example has to meet.
   reply, and browser-reload path against the host's Codex login. It bypasses the
   Cloudflare Worker, Workflow, container resources, and outbound credential proxy, so
   it checks agent behavior without measuring production infrastructure.
+  `query-site-agent-logs.py` reads one canonical event id from production Workers
+  Observability and emits only Leaf's declared timing fields, excluding Cloudflare's
+  surrounding request metadata.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws the Leaf
   screenshots that demo uses. Keep the latter while the product can make those frames
   stale.

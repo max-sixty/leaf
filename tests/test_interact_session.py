@@ -141,7 +141,8 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     )
     [accepted] = codex_model.accept_codex_delivery("hosted-thread")
 
-    assert prompt.startswith("```xml\n<leaf-delivery ")
+    assert prompt.prompt.startswith("```xml\n<leaf-delivery ")
+    assert prompt.payload["batches"][0]["events"][0]["id"] == comment["id"]
     claim = service_model.page_claim(page_dir)
     assert {key: claim[key] for key in ("id", "host", "pid", "agent")} == {
         "id": "hosted-thread",

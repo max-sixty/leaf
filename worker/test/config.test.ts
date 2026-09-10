@@ -73,14 +73,14 @@ describe("deployment configuration", () => {
     ]);
   });
 
-  it("ships the pinned Codex host and the complete Leaf plugin", () => {
+  it("ships the pinned Codex host and the ready Leaf CLI without the authoring plugin", () => {
     expect(packageManifest.dependencies["@openai/codex"]).toBe("0.153.4");
     expect(dockerfile).toContain("/app/.venv/bin/leaf --version");
-    expect(dockerfile).toContain("codex plugin add leaf@leaf");
+    expect(dockerfile).not.toContain("codex plugin add leaf@leaf");
     expect(dockerfile).toContain("codex-resources /codex-bin/codex-resources");
     expect(dockerfile).toContain("test -x /codex-bin/codex-resources/bwrap");
-    expect(dockerfile).toContain("COPY hooks /opt/leaf-plugin/hooks");
-    expect(dockerfile).toContain("COPY skills/leaf /opt/leaf-plugin/skills/leaf");
+    expect(dockerfile).not.toContain("/opt/leaf-plugin");
+    expect(codexConfig).not.toHaveProperty("plugins");
   });
 
   it("keeps the model's shell from inheriting the OpenAI credential", () => {

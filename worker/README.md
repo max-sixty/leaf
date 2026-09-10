@@ -106,7 +106,9 @@ the `Cloudflare Leaf diagnostics` item in the `Max` 1Password vault carries the 
 id and token. Raw live tailing additionally requires `Workers Tail Read` and remains an
 operator-only diagnostic because its Cloudflare envelope includes request metadata.
 The local end-to-end verifier prints the same container records and leaves them at
-`.tmp/website-agent-local.log` for a later agent to inspect.
+`.tmp/website-agent-local.log` for a later agent to inspect. It gives the child App
+Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and
+website config, matching production without changing personal state.
 
 When Leaf accepts a reader message that its canonical activity projection says needs
 a response, the Worker starts one Cloudflare Workflow named with the public session
@@ -114,14 +116,15 @@ reference and event id. The reference also appears in Analytics Engine, so an op
 can start with the number the reader sees without exposing the private session cookie.
 Its retryable steps reserve source capacity, then ask that reader's container to create or resume one Codex
 App Server task rooted at the actual page directory and deliver the event through
-Leaf's immutable delivery record, passed inline as structured `leaf_feedback`. Codex
-loads the shipped Leaf plugin and uses its native filesystem tools, so the hosted task
-can revise `index.html`, validate it, append thread replies, and leave the page waiting
-exactly as a local Leaf task does. The initiating App Server connection projects the
-turn's native activity notifications back through Leaf. A repeated workflow sees the
-event's durable pickup and does not start the work twice. Task startup failure after
-its retries and a failure while following a started turn each append a short failure
-reply through the same event log.
+Leaf's immutable delivery record, passed inline as structured `leaf_feedback`. The
+website-specific App Server starts without the authoring plugin: its compact developer
+instructions and the ready `$LEAF` CLI are the complete interface, so skill discovery
+cannot turn a small reader response into a full authoring workflow. The hosted task can
+revise `index.html`, validate it, append thread replies, and leave the page waiting. The
+initiating App Server connection projects the turn's native activity notifications back
+through Leaf. A repeated workflow sees the event's durable pickup and does not start
+the work twice. Task startup failure after its retries and a failure while following a
+started turn each append a short failure reply through the same event log.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn and
 gives each accepted input the turn left unanswered its final assistant message. A failed
 or interrupted turn gets a failure reply instead, and a completed turn with no message

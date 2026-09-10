@@ -1633,11 +1633,11 @@ def test_a_held_comment_send_leaves_a_later_keyboard_comment_open(held_events, s
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
     target_code = page.evaluate(
         """() => {
           const top = document.querySelector('#p2').getBoundingClientRect().top;
-          return [...document.querySelectorAll('.lf-target-hint')]
+          return [...document.querySelectorAll('.lf-target-chooser-hint')]
             .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
                           - Math.abs(b.getBoundingClientRect().top - top))[0]
             .dataset.lfTarget;
@@ -3472,7 +3472,7 @@ def test_the_reading_page_keys_follow_the_reader_into_the_panel(browser, serve):
     list are the same at both presses; only where the focus stands changes. So the first
     press is the control that says the layout is beside — the reader stands on the page,
     outside the panel, and the document is theirs to step — and the second is the subject.
-    The address sequence then supplies the neighboring
+    The Go-to sequence then supplies the neighboring
     contrast: focus changes which region d/u page through, but `g g` still names the
     document's edge while both regions have somewhere observable to move."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=12))
@@ -3578,7 +3578,7 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
     see that they had. So the door is the menu, where every base says which one it is.
 
     Pressed rather than read off the table, on both sides: a key bound to nothing looks
-    exactly like one that works in the shortcut reference dialog, which is how the removal would go
+    exactly like one that works in the command reference dialog, which is how the removal would go
     unnoticed here and the marks would go unnoticed on the page."""
     url = serve(LONG_PAGE)
     _publish(

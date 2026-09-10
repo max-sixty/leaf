@@ -77,7 +77,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     row.focus()
     page.keyboard.press("?")
     page.keyboard.press("?")
-    settled_help = page.locator(".lf-shortcut-reference-section").filter(
+    settled_help = page.locator(".lf-command-reference-section").filter(
         has=page.get_by_role("heading", name="In a settled ask", exact=True)
     )
     expect(

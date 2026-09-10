@@ -1511,7 +1511,7 @@ DEEP_FOCUS = """() => {
 # The here ring where a box casts it as a shadow rather than drawing it as an outline,
 # and how far past its edge that band reaches. Two rules in the layer draw it that way —
 # the anchored response bar, which writes `outline: none` so its states keep one
-# silhouette, and the item hint the keyboard is browsing, a chip in a layer nothing can
+# silhouette, and the target hint the keyboard is browsing, a chip in a layer nothing can
 # focus — and to a reader they are the same band as every other ring (--here-shadow,
 # theme.css).
 #
@@ -1656,7 +1656,7 @@ RING_NAMES = """() => {
 #
 # Both carriers of the band are read. Most of the layer's rules draw it as an outline;
 # two cast it as a shadow instead, and a reading that knew only the outline reported the
-# response bar and the browsed item hint as boxes with no ring on them at all.
+# response bar and the browsed target hint as boxes with no ring on them at all.
 RINGS_DRAWN = f"""async () => {{
   // shownBand, rather than a fourth reading of what a box clips to. Its own comment
   // carries why: version check --render imports it so the band a handover is refused
@@ -1690,7 +1690,7 @@ RINGS_DRAWN = f"""async () => {{
   // a visible ring cut in half is a fault whoever drew it.
   //
   // Or the same band cast as a shadow, which is the same ring to the reader and so the
-  // same ring here: the anchored response bar and the browsed item hint draw it that
+  // same ring here: the anchored response bar and the browsed target hint draw it that
   // way. Left out, the bar's own controls came back wearing `pressable` — the name of
   // the floor rule whose outline this one takes away — and the hint's band went
   // unmeasured wherever it stood.

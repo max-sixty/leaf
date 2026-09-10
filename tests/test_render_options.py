@@ -384,10 +384,10 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     mark = page.locator("#storage-evict .lf-pick")
     line = shortcut_bar_text(page)
     assert "Drop the oldest documents / Pause offline editing" in line, line
-    option_hints = page.locator("#storage-options > lf-option > .lf-address")
+    option_hints = page.locator("#storage-options > lf-option > .lf-key-badge")
     expect(option_hints).to_have_text(["1", "2"])
     expect(option_hints.first).to_be_visible()
-    write_hint = page.locator("#storage-options > .lf-another > .lf-address")
+    write_hint = page.locator("#storage-options > .lf-another > .lf-key-badge")
     box = page.locator("#storage-options > .lf-another textarea")
     expect(write_hint).to_have_count(0)
 
@@ -400,7 +400,9 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(mark).to_have_attribute("role", "checkbox")
     expect(mark).to_have_attribute("aria-checked", "false")
     expect(
-        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator(
+            "#storage-options > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
+        )
     ).to_have_text(["1", "2"])
     assert shortcut_bar_text(page) == line
     page.keyboard.press("Enter")
@@ -487,7 +489,7 @@ def test_ask_addresses_are_screen_only_apparatus(browser, serve):
     """An Ask's key hints stay out of selected page words and off paper."""
     page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     page.keyboard.press("a")
-    addresses = page.locator("#storage-options > lf-option > .lf-address")
+    addresses = page.locator("#storage-options > lf-option > .lf-key-badge")
     expect(addresses).to_have_text(["1", "2"])
     expect(addresses.first).to_be_visible()
 
@@ -597,7 +599,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
         f"mark {mark_ring}"
     )
     assert washed, "nothing says which cell the keyboard is on"
-    address = option.locator(":scope > .lf-address")
+    address = option.locator(":scope > .lf-key-badge")
     expect(address).to_be_visible()
     assert mark.evaluate("el => getComputedStyle(el).opacity") == "0"
     assert (
@@ -1249,7 +1251,7 @@ def test_only_addressed_cards_yield_their_header_state_to_the_ask(browser, serve
 
     page.keyboard.press("a")
     expect(
-        page.locator("#routes > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator("#routes > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
     ).to_have_count(9)
     opacity = "el => getComputedStyle(el).opacity"
     for index in range(1, 10):
@@ -1302,10 +1304,10 @@ def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve
     page.keyboard.press("a")
 
     expect(page.locator("#outer-decision")).to_be_focused()
-    outer_hints = page.locator("#outer > lf-option > .lf-address")
+    outer_hints = page.locator("#outer > lf-option > .lf-key-badge")
     expect(outer_hints).to_have_text(["1", "2"])
     expect(outer_hints.first).to_be_visible()
-    expect(page.locator("#inner > lf-option > .lf-address").first).to_be_hidden()
+    expect(page.locator("#inner > lf-option > .lf-key-badge").first).to_be_hidden()
 
     page.keyboard.press("2")
     expect(page.locator("#out-keys")).to_have_attribute("chosen", "")
@@ -2533,7 +2535,7 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
     round_trip(page)
     done = question.locator(".lf-done")
     done.focus()
-    chip = done.locator(":scope > .lf-address")
+    chip = done.locator(":scope > .lf-key-badge")
     expect(chip).to_be_visible()
     frame = question.bounding_box()
     box = chip.bounding_box()
@@ -2541,7 +2543,9 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
         frame["x"] <= box["x"]
         and box["x"] + box["width"] <= frame["x"] + frame["width"]
     ), f"Done's address chip {box} stands outside the group {frame}"
-    expect(page.locator(".lf-ask-addresses .lf-ask-address")).to_have_count(0)
+    expect(page.locator(".lf-ask-binding-badgees .lf-ask-binding-badge")).to_have_count(
+        0
+    )
     done.click()
     round_trip(page)
     receipts = question.locator(".lf-receipt")

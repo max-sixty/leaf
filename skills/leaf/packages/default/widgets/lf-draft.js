@@ -187,7 +187,7 @@ customElements.define(
       this.append(this.#body);
 
       // A quoted draft is an exhibit: the same dedented text, none of the doors —
-      // no pencil, no press on the box, no edit keys in the shortcut reference dialog. Quoting
+      // no pencil, no press on the box, no edit keys in the command reference dialog. Quoting
       // gates the action channel, not presentation.
       if (quoted(this)) return;
 

@@ -124,7 +124,7 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // live from module evaluation, and a pointer move in the upgrade window would
 // otherwise seed the cache from the empty pre-fetch registry and disable the
 // retired-slot skip for the life of the page. It used to be rebuilt per
-// candidate ancestor per pointer move (itemAt's aim walk).
+// candidate ancestor per pointer move (addressableAt's aim walk).
 let retiredSlotsMemo;
 function retiredSlots() {
   if (retiredSlotsMemo != null) return retiredSlotsMemo;

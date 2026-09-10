@@ -2890,29 +2890,29 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     )
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
+    expect(page.locator(".lf-command-reference")).to_be_visible()
     expect(
-        page.locator(".lf-shortcut-reference h3", has_text="On a draft")
+        page.locator(".lf-command-reference h3", has_text="On a draft")
     ).to_have_count(1)
     expect(
         page.locator(
-            ".lf-shortcut-reference", has_text="a project widget using the same heading"
+            ".lf-command-reference", has_text="a project widget using the same heading"
         )
     ).to_be_visible()
     expect(
-        page.locator(".lf-shortcut-reference", has_text="Edit the text in place")
+        page.locator(".lf-command-reference", has_text="Edit the text in place")
     ).to_be_visible()
     # Help is a scope: the table stands down behind it, so c must not work the
     # panel under the sheet.
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
+    expect(page.locator(".lf-command-reference")).to_be_visible()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
+    expect(page.locator(".lf-command-reference")).to_be_hidden()
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
+    expect(page.locator(".lf-command-reference")).to_be_visible()
     page.mouse.click(300, 600)
-    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
+    expect(page.locator(".lf-command-reference")).to_be_hidden()
     assert errors == []
     page.close()
 

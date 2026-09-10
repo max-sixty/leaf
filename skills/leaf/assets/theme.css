@@ -282,7 +282,7 @@
      stylesheet entirely. Written as a number there, the column stayed at the size the
      chip was when it was measured, and a package redeclaring the ladder grows the chip
      into whatever the column was holding beside it. */
-  --lf-key-box: calc(round(var(--t-6) * 1.478 + 2px, 1px));
+  --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
   --ok-tint: #dfeddf;     --ok-ink: #2f6b40;
   --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
   --danger-tint: #f7e0da; --danger-ink: #9c3526;
@@ -2078,8 +2078,8 @@ html.lf-versioning::view-transition-new(root) {
 .lf-btn.on { border-color: var(--accent); color: var(--accent); background: var(--chip); }
 /* Draw mode takes page-widget presses before their controls can act. This rule is in
    the shared slice because document selectors do not cross a declared shadow root. */
-:host-context(body.lf-drawing):host-context(main) * { cursor: crosshair !important; }
-:host-context(body.lf-drawing):host-context(main) .lf-conversation,
-:host-context(body.lf-drawing):host-context(main) .lf-conversation * {
+:host-context(body[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
+:host-context(body[data-lf-draw-mode]):host-context(main) .lf-conversation,
+:host-context(body[data-lf-draw-mode]):host-context(main) .lf-conversation * {
   cursor: auto !important; }
 /* lf-shadow:end */

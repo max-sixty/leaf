@@ -1205,7 +1205,7 @@ def _painted_line(page):
     """
     page.evaluate(RENDERED)
     return page.eval_on_selector_all(
-        ".lf-shortcut-bar .lf-key",
+        ".lf-shortcut-bar .lf-shortcut",
         "els => els.map(e => [...e.children].map(c => c.textContent).join(' '))",
     )
 

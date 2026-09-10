@@ -1,7 +1,7 @@
 /* Shared visibility for addressable targets and placement for predictable numeric Ask
-   addresses. The banner clips every target's usable box. An Ask face may move back inside
+   binding badges. The banner clips every target's usable box. An Ask face may move back inside
    the viewport, but it yields wherever that move would cover fixed chrome or another
-   address: its ordered choices make a missing digit inferable. Opaque generated target
+   badge: its ordered choices make a missing digit inferable. Opaque generated target
    hints instead use the no-drop placement in hints.js. */
 import { banner } from "../banner.js";
 import { fixedChromeBoxes } from "./shortcut-bar.js";
@@ -9,7 +9,7 @@ import { startsAt } from "../geometry.js";
 const overlaps = (a, b) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
-export function addressPlacement() {
+export function keyBadgePlacement() {
   const clips = new Map();
   const covered = banner.getBoundingClientRect().bottom;
   const kept = fixedChromeBoxes();
@@ -17,15 +17,15 @@ export function addressPlacement() {
   // Read every member through one clip cache. The banner covers page content without
   // clipping its boxes; clamp the usable box to the banner so admission, exposure, and
   // paint all read the same visible target.
-  function visibleBox(item) {
-    const box = startsAt(item, clips);
+  function visibleBox(target) {
+    const box = startsAt(target, clips);
     return box && box.bottom > covered
       ? { ...box, top: Math.max(box.top, covered) }
       : null;
   }
 
-  // A page-local address cannot be moved by the chrome pass, but it reserves its own
-  // visible box so later chrome addresses cannot claim the same pixels.
+  // A page-local target hint cannot be moved by the chrome pass, but it reserves its own
+  // visible box so later chrome badges cannot claim the same pixels.
   function reserve(box) {
     if (
       !box ||

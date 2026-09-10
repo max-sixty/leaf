@@ -1753,7 +1753,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         expect(link).to_have_css("opacity", "1")
         expect(link).to_have_css("pointer-events", "auto")
     link_hints = page.locator(
-        '.lf-goto-targets > .lf-sequence-address[data-lf-address-kind="Link"]'
+        '.lf-go-to-hints > .lf-go-to-hint[data-lf-go-to-kind="Link"]'
     )
     expect(link_hints).to_have_count(nav.locator("a").count())
     assert (
@@ -3590,21 +3590,23 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     pass_reference = page.locator(
-        '.lf-shortcut-reference tr[data-lf-command="swipe.pass"]'
+        '.lf-command-reference tr[data-lf-command="swipe.pass"]'
     )
     expect(pass_reference.locator("kbd")).to_have_text("←")
-    expect(pass_reference.locator(".lf-key-sequence")).to_have_attribute(
+    expect(pass_reference.locator(".lf-binding-sequence")).to_have_attribute(
         "aria-label", "ArrowLeft"
     )
     expect(
-        page.locator('.lf-shortcut-reference tr[data-lf-command="swipe.undo-last"]')
+        page.locator('.lf-command-reference tr[data-lf-command="swipe.undo-last"]')
     ).to_have_count(0)
     page.keyboard.press("Escape")
 
     page.keyboard.press("a")
     expect(decision).to_be_focused()
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(["←", "→"])
+    expect(
+        page.locator(".lf-ask-binding-badgees > .lf-ask-binding-badge")
+    ).to_have_text(["←", "→"])
     assert "← / →\nPass / Keep" in shortcut_bar_text(page)
 
     page.keyboard.press("Tab")
@@ -3617,14 +3619,14 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(
-        page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.pass"]')
+        page.locator('.lf-command-reference-command[data-lf-command="swipe.pass"]')
     ).to_have_text("Activate the “Pass” action")
     expect(
-        page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.keep"]')
+        page.locator('.lf-command-reference-command[data-lf-command="swipe.keep"]')
     ).to_have_text("Activate the “Keep” action")
     expect(
         page.locator(
-            '.lf-shortcut-reference-command[data-lf-command="ask.activate-nth"]'
+            '.lf-command-reference-command[data-lf-command="ask.activate-nth"]'
         )
     ).to_have_count(0)
     page.keyboard.press("Escape")
@@ -3633,7 +3635,9 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
         page.keyboard.press(binding)
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
+    expect(
+        page.locator(".lf-ask-binding-badgees > .lf-ask-binding-badge")
+    ).to_have_count(0)
     assert "Undo last swipe" not in shortcut_bar_text(page)
     assert [event["action"] for event in actions(serve.page_dir)] == [
         "swipe",
@@ -4521,7 +4525,7 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     """A changed span may cross a nested widget without painting its generated UI."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     page.locator('[data-lf-margin-for="bg-route-ask"] [role="button"]').click()
-    addresses = page.locator("#bg-route > lf-option > .lf-address")
+    addresses = page.locator("#bg-route > lf-option > .lf-key-badge")
     expect(addresses).to_have_text(["1", "2"])
 
     assert page.locator("#bg-nested-change > lf-new > p").evaluate(
@@ -5360,7 +5364,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     # The overlay and the shortcut bar offer it because there is something to reach.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("waiting on you for")
+    expect(page.locator(".lf-command-reference")).to_contain_text("waiting on you for")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("asks")
 
@@ -5471,7 +5475,9 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     page.keyboard.press("Tab")
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
     expect(
-        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator(
+            "#storage-options > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
+        )
     ).to_have_text(["1", "2"])
 
     # And nothing of the borrowed stop is left behind: PAGE_PAINT_ATTRIBUTES is the whole
@@ -5498,7 +5504,9 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert "1–2\nKeep the store / Signed tokens" in shortcut_bar_text(page)
     expect(
-        page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator(
+            "#live-question > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
+        )
     ).to_have_text(["1", "2"])
 
     page.keyboard.press("2")
@@ -5554,10 +5562,10 @@ def test_ask_contextual_addresses_skip_explicit_numeric_bindings(browser, serve)
     page.keyboard.press("?")
     page.keyboard.press("?")
     inspect_reference = page.locator(
-        '.lf-shortcut-reference tr[data-lf-command="test.inspect"]'
+        '.lf-command-reference tr[data-lf-command="test.inspect"]'
     )
     expect(inspect_reference.locator("kbd")).to_have_text("I")
-    expect(inspect_reference.locator(".lf-key-sequence")).to_have_attribute(
+    expect(inspect_reference.locator(".lf-binding-sequence")).to_have_attribute(
         "aria-label", "I"
     )
     page.keyboard.press("Escape")
@@ -5684,7 +5692,9 @@ def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
     resized(page, 900, 900)
 
     page.keyboard.press("a")
-    ask = page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    ask = page.locator(
+        "#live-question > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
+    )
     expect(ask).to_have_text(["1", "2"])
     ask_centers = ask.evaluate_all(
         """nodes => nodes.map(node => {
@@ -5695,7 +5705,7 @@ def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
 
     page.keyboard.press("Tab")
     focused = page.locator(
-        "#live-question > lf-option > .lf-address[data-lf-ask-address]"
+        "#live-question > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
     )
     expect(focused).to_have_text(["1", "2"])
     focused_centers = focused.evaluate_all(
@@ -5725,7 +5735,7 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
     page.keyboard.press("a")
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     expect(
-        page.locator("#rows > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator("#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
     ).to_have_text(["1", "2"])
     # Put the second row's address one pixel into the shortcut bar's band. The first stays a
     # row above it, so a placement pass that reserves the legend keeps one and removes
@@ -5734,7 +5744,7 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
     page.evaluate(
         """() => {
           const addresses = document.querySelectorAll(
-            '#rows > lf-option > .lf-address[data-lf-ask-address]'
+            '#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]'
           );
           const last = addresses[addresses.length - 1].getBoundingClientRect();
           const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
@@ -5743,7 +5753,7 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
     )
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     expect(
-        page.locator("#rows > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator("#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
     ).to_have_count(1)
     geometry = page.evaluate(
         """() => {
@@ -5754,7 +5764,7 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
           return {
             line: read(document.querySelector('.lf-shortcut-bar')),
             chips: [...document.querySelectorAll(
-              '.lf-ask-addresses > .lf-ask-address, [data-lf-ask-address]'
+              '.lf-ask-binding-badgees > .lf-ask-binding-badge, [data-lf-ask-binding-badge]'
             )].map(read),
           };
         }"""

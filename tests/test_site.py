@@ -1072,7 +1072,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         )
 
         page.keyboard.press("w")
-        expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
+        expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
         assert not errors, errors[:3]
     finally:
         page.close()

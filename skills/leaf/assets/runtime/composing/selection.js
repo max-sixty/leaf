@@ -122,7 +122,7 @@ export let composerOpen = false;
 export function createSelectionComposer({
   panelIsOpen,
   setReact,
-  designIsOn,
+  designModeActive,
   marginOpenInlineThread,
   threadTransitionOrigin,
   anchorStands,
@@ -133,7 +133,7 @@ export function createSelectionComposer({
   beginFabFocus,
   refreshFab,
   showFab,
-  goAddress,
+  formatGoToAddress,
   createComment,
   focusSurface,
   showThread,
@@ -336,7 +336,7 @@ export function createSelectionComposer({
   function syncResponseOptions(anchor = fabAnchorAt()) {
     fabSuggest.hidden = !(
       anchor?.quote &&
-      !designIsOn() &&
+      !designModeActive() &&
       (!composerOpen || (!pendingAbout && !pendingDrawing))
     );
     fabMore.hidden = !anchor || !responseOptionsAvailable();
@@ -365,7 +365,7 @@ export function createSelectionComposer({
     if (composerOpen && !open && composerHolds())
       notice(
         anchorStands(pendingAnchor)
-          ? `Draft kept — ${goAddress(KEPT_DRAFT)} returns to it`
+          ? `Draft kept — ${formatGoToAddress(KEPT_DRAFT)} returns to it`
           : "Draft kept — it returns when its passage does",
       );
     composerOpen = open;
@@ -391,7 +391,7 @@ export function createSelectionComposer({
     text,
     {
       suggest = false,
-      about = designIsOn() ? "layer" : null,
+      about = designModeActive() ? "layer" : null,
       drawing = undefined,
       carry = false,
       focus = true,

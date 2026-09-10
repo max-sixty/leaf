@@ -1,6 +1,6 @@
 /* One-stroke drawing gesture controller.
  *
- * Drawing mode claims one primary-pointer drag anywhere on the page. A semantic target
+ * Draw mode claims one primary-pointer drag anywhere on the page. A semantic target
  * under or horizontally alongside its first point remains the conversation coordinate;
  * otherwise the stroke becomes a page comment. The controller owns pointer capture,
  * stroke sampling, and mode state. SVG replay, anchor placement, composers, reactions,
@@ -31,8 +31,8 @@ export function createDrawingController({
   composerDraft,
   openAnchoredDrawing,
   openPageDrawing,
-  setDesign,
-  stopSelecting,
+  setDesignMode,
+  closeTargetChooser,
   closeReactionMode,
   banner,
   announce,
@@ -40,14 +40,14 @@ export function createDrawingController({
   shiftDrawingPaint,
   repaint,
 }) {
-  let drawingOn = false;
+  let drawModeOn = false;
   let stroke = null;
   let claimThroughClick = false;
   let claimedPointer = null;
   let releaseTimer = null;
   let mounted = false;
 
-  const isDrawing = () => drawingOn;
+  const drawModeActive = () => drawModeOn;
 
   function releaseCompatibilityClickSoon() {
     if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
@@ -57,22 +57,22 @@ export function createDrawingController({
     });
   }
 
-  function setDrawing(on, { spoken = true, keepPress = false } = {}) {
+  function setDrawMode(on, { spoken = true, keepPress = false } = {}) {
     on = Boolean(on);
     if (on) {
-      setDesign(false, { spoken: false });
-      stopSelecting();
+      setDesignMode(false, { spoken: false });
+      closeTargetChooser();
       closeReactionMode();
     }
-    drawingOn = on;
+    drawModeOn = on;
     if (!on && !keepPress) {
       stroke = null;
       // Escape can leave while the pointer remains down. Keep claiming that physical
       // press through its compatibility click; only the drawing itself stops.
       if (claimedPointer === null) claimThroughClick = false;
     }
-    document.body.classList.toggle("lf-drawing", on);
-    banner.classList.toggle("lf-drawing", on);
+    document.body.toggleAttribute("data-lf-draw-mode", on);
+    banner.toggleAttribute("data-lf-draw-mode", on);
     refreshAim();
     if (spoken)
       announce(
@@ -173,7 +173,7 @@ export function createDrawingController({
   }
 
   function begin(event) {
-    if (!drawingOn || !event.isPrimary || event.button !== 0) return;
+    if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
     const origin = event.composedPath()[0];
     // Inline conversations remain comment controls even when a shadow host seats them
     // in the page, so ownership follows the composed origin.
@@ -236,7 +236,7 @@ export function createDrawingController({
       return;
     }
     const drawing = drawingFrom(completed.points, completed.box);
-    setDrawing(false, { spoken: false, keepPress: true });
+    setDrawMode(false, { spoken: false, keepPress: true });
     if (completed.anchor) openAnchoredDrawing(completed.anchor, drawing);
     else openPageDrawing(drawing);
     announce("Drawing captured. Send it or add words to the comment.");
@@ -309,19 +309,19 @@ export function createDrawingController({
     mounted = false;
     if (releaseTimer !== null) globalThis.clearTimeout(releaseTimer);
     releaseTimer = null;
-    drawingOn = false;
+    drawModeOn = false;
     stroke = null;
     claimThroughClick = false;
     claimedPointer = null;
-    document.body.classList.remove("lf-drawing");
-    banner.classList.remove("lf-drawing");
+    document.body.removeAttribute("data-lf-draw-mode");
+    banner.removeAttribute("data-lf-draw-mode");
   }
 
   return {
     mount,
     destroy,
-    isDrawing,
-    setDrawing,
+    drawModeActive,
+    setDrawMode,
     activeDrawing,
     draftDrawings,
   };

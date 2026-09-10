@@ -1057,8 +1057,8 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     reader by the same door."""
     version_url = serve(LIVE_KEYS_V1)
     page, errors = open_page(browser, live_url(version_url))
-    chips = page.locator(".lf-sequence-address")
-    link_chips = page.locator('.lf-sequence-address[data-lf-address-kind="Link"]')
+    chips = page.locator(".lf-go-to-hint")
+    link_chips = page.locator('.lf-go-to-hint[data-lf-go-to-kind="Link"]')
 
     page.keyboard.press("g")
     expect(link_chips).to_have_count(3)
@@ -1569,11 +1569,11 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     # the page at all, so the two surfaces named one press two ways.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text(
+    expect(page.locator(".lf-command-reference")).to_contain_text(
         "Let go of what you are standing on"
     )
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
-    expect(page.locator(".lf-shortcut-reference")).not_to_have_class(re.compile("open"))
+    expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
 
     page.keyboard.press("Escape")

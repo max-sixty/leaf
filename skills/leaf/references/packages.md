@@ -352,7 +352,7 @@ the `decision` action name, so its inline hint says what the reader actually pre
 row may have zero or one live binding in the Decision role: zero receives the Ask's next
 free contextual `1` through `9`, while one keeps its canonical binding, such as
 `ArrowLeft`. Each action keeps one command id. Dispatch, the reference, the shortcut bar,
-its address, and `aria-keyshortcuts` all use that id. `address` may name an empty face a widget already positions; core
+its binding badge, and `aria-keyshortcuts` all use that id. `bindingBadge` may name an empty face a widget already positions; core
 writes the resolved binding there, so the package does not keep a second key map. Do
 not maintain a second Ask-control list.
 Otherwise core paints the binding at the visible control. Routes let one parameterized
@@ -772,7 +772,7 @@ The reader's design mode (`l` in the browser) posts a comment about the layer ra
 than the page: `"about": "layer"`, anchored on the element they clicked or the words they
 selected. The anchor's `section` is a widget's id, or the id of a runtime part —
 `lf-banner`, `lf-threads-toggle` (the panel), `lf-leaves` (the leaves panel), `lf-versions`,
-`lf-composer`, `lf-comment-button` (the margin's Comment control), `lf-shortcut-bar`, `lf-shortcut-reference` — and
+`lf-composer`, `lf-comment-button` (the margin's Comment control), `lf-shortcut-bar`, `lf-command-reference` — and
 `part` names the control the click landed on, where it landed on one (`Accept`,
 `Threads (2)`).
 

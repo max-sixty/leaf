@@ -3,23 +3,24 @@
 import { bindings } from "./bindings.js";
 export const ELEMENTS = Symbol("the scopes of the focused element");
 let scopes;
-let reference;
+let commandReferenceEntry;
 let typing;
 let auxiliaryModality;
 export function registerPageScopes(
   declarations,
-  universalReference,
+  commandReference,
   textEntry,
   auxiliaryLayer,
 ) {
   scopes = declarations;
-  reference = universalReference;
+  commandReferenceEntry = commandReference;
   typing = textEntry;
   auxiliaryModality = auxiliaryLayer;
 }
 export const pageScopes = () => scopes;
-export const universalReference = () => reference;
-export const allButTheReference = (binding) => !bindings(reference).includes(binding);
+export const universalCommandReference = () => commandReferenceEntry;
+export const allButCommandReference = (binding) =>
+  !bindings(commandReferenceEntry).includes(binding);
 export const textEntryScope = () => typing;
 export const coveringAuxiliarySurface = () => auxiliaryModality.coveringSurface();
 export const coveringAuxiliaryFocus = () => auxiliaryModality.coveringFocus();

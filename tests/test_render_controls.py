@@ -1543,16 +1543,16 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
 def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
     browser, serve
 ):
-    """A dialog-shaped shortcut reference behaves like a dialog for the native Tab walk."""
+    """A dialog-shaped command reference behaves like a dialog for the native Tab walk."""
     page, errors = open_page(browser, serve(LONG_PAGE))
     door = page.locator(".lf-threads-toggle")
     door.focus()
     page.keyboard.press("?")
     page.keyboard.press("?")
-    reference = page.locator(".lf-shortcut-reference")
+    reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     assert reference.evaluate("el => el.matches(':modal')"), (
-        "the keyboard reference looked modal but left the page interactive behind it"
+        "the command reference looked modal but left the page interactive behind it"
     )
     stops = reference.locator("input, button, [tabindex]:not([tabindex='-1'])")
     assert stops.count() >= 2, "the reference had no meaningful native Tab loop"
@@ -1561,7 +1561,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
         assert reference.evaluate(
             "el => el.contains(document.activeElement)"
             "   || document.activeElement === document.body"
-        ), "Tab escaped the keyboard reference onto the suspended page"
+        ), "Tab escaped the command reference onto the suspended page"
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(door).to_be_focused()
@@ -2978,7 +2978,7 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reade
     assert page.evaluate("() => document.activeElement === document.body")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    help_el = page.locator(".lf-shortcut-reference")
+    help_el = page.locator(".lf-command-reference")
     expect(help_el).to_contain_text("In the leaves tray")
     expect(help_el).to_contain_text("Previous leaf")
     expect(help_el).to_contain_text("Next leaf")
@@ -3855,7 +3855,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 ):
     """The corpus sweep above reads every example, and reads all of them with the chrome
     shut: it never presses a key, so the thread panel, its box, the trays, the versions
-    menu, the keyboard reference and the sequence's chips are surfaces forty readings pass
+    menu, the command reference and the sequence's chips are surfaces forty readings pass
     straight over. A `role="list"` whose children are run headings and threads shipped
     through it, green every time.
 
@@ -3913,21 +3913,19 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("Escape")
     expect(page.locator(".lf-version-menu")).not_to_be_visible()
 
-    # The keyboard reference, which is a dialog and owes the most of any of them.
+    # The command reference, which is a dialog and owes the most of any of them.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
-    sweep("in the keyboard reference")
+    expect(page.locator(".lf-command-reference")).to_be_visible()
+    sweep("in the command reference")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
+    expect(page.locator(".lf-command-reference")).to_be_hidden()
     page_at_rest(page)
 
     # And the sequence's generated target hints, painted over the visible page rather than
     # inserted into it.
     page.keyboard.press("g")
-    expect(
-        page.locator(".lf-goto-targets > .lf-sequence-address").first
-    ).to_be_visible()
+    expect(page.locator(".lf-go-to-hints > .lf-go-to-hint").first).to_be_visible()
     sweep("with the visible-target sequence armed")
     page.keyboard.press("Escape")
     assert errors == []
@@ -4121,7 +4119,7 @@ def test_a_sheet_lifts_the_shortcut_bar_text_only_when_its_foot_reaches_the_same
         f"the disjoint line overrode the panel list's own inset: {separate}"
     )
 
-    # The global address sequence belongs to the modal workspace here. It must not restore
+    # The global Go-to sequence belongs to the modal workspace here. It must not restore
     # the inert page's wider line, so the line and list remain in the same disjoint posture.
     page.keyboard.press("g")
     page.evaluate(RENDERED)
@@ -4679,7 +4677,7 @@ def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, ser
 
     Most of the layer's rules draw the ring as an outline. Two cast it as a shadow: the
     anchored response bar, whose focused states write `outline: none` so the field and
-    its choices keep one silhouette, and the item hint the keyboard is browsing, a chip
+    its choices keep one silhouette, and the target hint the keyboard is browsing, a chip
     in a layer nothing can focus. To a reader those are the same band, and a sweep asking
     only the outline answered `no ring here` for both — the bar's own controls came back
     credited to `pressable`, the name of the floor rule whose outline the bar takes away,
@@ -5162,13 +5160,13 @@ RING_WALKS = (
     # screen, which is where the layer has the least room to draw a band around a chip and
     # the least room to hang a bar under one.
     #
-    # The Tab in front of both sequences is a stop, not a gesture in the mode: item hints
+    # The Tab in front of both sequences is a stop, not a gesture in the mode: target hints
     # claim Tab for browsing themselves, so the walk below moves nothing once the mode is
     # open, and with the document under it the walk would stand on nothing and read no
     # page at all. Standing on a control first leaves the hint the keyboard is browsing on
     # screen for the sweep, which is where its band is read — the chips are a layer nothing
     # can focus, so the reader's place in that mode is not a stop.
-    ("item hints", ("Tab", "s", "Shift+Tab", "Tab"), ("corpus", "ship-review")),
+    ("target hints", ("Tab", "s", "Shift+Tab", "Tab"), ("corpus", "ship-review")),
     # Enter opens Comment on the item the keyboard is browsing and focuses its field.
     (
         "the response bar",
@@ -5242,18 +5240,18 @@ RING_SCOPE_SURFACE = {
     "the thread list": (".lf-thread-panel.open", None),
     "a thread card": (".lf-margin-preview:popover-open", None),
     "the Page Map dialog": (".lf-page-map-dialog[open]", None),
-    "passage search": (".lf-target-search:not([hidden])", None),
+    "passage search": (".lf-page-search:not([hidden])", None),
     # The hint the keyboard is browsing, and the field the chosen item's bar opens with.
     # Each is the mode's own state rather than a box that merely exists: the chips are
     # rebuilt from nothing on every open, and the bar is in the document from the first
     # frame and shows only for an anchor.
-    "item hints": (".lf-target-hint.lf-current", None),
+    "target hints": (".lf-target-chooser-hint.lf-current", None),
     "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
     "the Asks tray": (".lf-asks-panel.open", ".lf-asks"),
     "the leaves tray": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
-    "the reference": (".lf-shortcut-reference.open", None),
-    "design mode": ("body.lf-design", None),
+    "the command reference": (".lf-command-reference.open", None),
+    "design mode": ("body[data-lf-design-mode]", None),
     "a reaction palette": (".lf-react-strip.lf-react-open", None),
 }
 RING_SCOPE_CONTROL = {
@@ -6036,7 +6034,7 @@ AIM_SURFACES = (
     ".lf-preview",
     ".lf-chip",
     ".lf-version-diff",
-    ".lf-shortcut-reference-command",
+    ".lf-command-reference-command",
     ".lf-quote",
     ".lf-tab-btn",
     ".lf-grip",
@@ -6071,7 +6069,7 @@ def _each_aim_surface(page, page_dir):
     # Twice: the first press unfolds the shelf, the second opens the reference.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference-command").first).to_be_visible()
+    expect(page.locator(".lf-command-reference-command").first).to_be_visible()
     yield
 
 

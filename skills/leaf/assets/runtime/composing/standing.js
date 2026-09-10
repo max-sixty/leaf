@@ -1,7 +1,7 @@
 /* The semantic item a comment or reaction at the current focus addresses. */
 import { documentFocused } from "../keyboard/scopes.js";
 import { inChrome } from "../passages.js";
-import { itemAt } from "../anchor-resolution.js";
+import { addressableAt } from "../anchor-resolution.js";
 
 // The item the reader is standing in, which is what a press means when they have pointed
 // at nothing. The ⌥ aim reaches an item through the pointer and focus used to reach none
@@ -40,6 +40,6 @@ export function createStandingItem({ isAskControl, askPlace, standingIn }) {
     const held = documentFocused();
     if (!held || held === document.body || inChrome(held)) return null;
     const working = isAskControl(held) ? standingIn() : null;
-    return working ?? itemAt(askPlace(held));
+    return working ?? addressableAt(askPlace(held));
   };
 }

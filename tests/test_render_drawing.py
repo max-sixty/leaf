@@ -39,7 +39,7 @@ def draw_over(
     ]
     page.mouse.move(*start)
     page.keyboard.press("w")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     assert locator.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
     expect(page.locator(".lf-aim")).to_be_hidden()
     page.mouse.down()
@@ -98,7 +98,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
         points=((0.22, 0.62), (0.75, -1), (1.7, 1.8)),
     )
 
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     expect(target).not_to_have_class(re.compile(r"\blf-mark-el\b|\blf-pending\b"))
     assert target.get_attribute("chosen") is None
@@ -487,7 +487,7 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     assert page.evaluate("getComputedStyle(document.body).touchAction") == "none"
     page.mouse.click(*point)
 
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     expect(page.locator(".lf-fab-input")).to_be_hidden()
     assert target.get_attribute("data-activated") is None
@@ -496,7 +496,7 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     page.mouse.down()
     page.keyboard.press("Escape")
     page.mouse.up()
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
     assert target.get_attribute("data-activated") is None
     assert errors == []
@@ -512,7 +512,7 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     assert errors == []
@@ -524,10 +524,10 @@ def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
     page, errors = open_page(browser, serve(TARGETS_PAGE))
 
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
     page.keyboard.press("l")
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
     assert errors == []
     page.close()
@@ -552,12 +552,12 @@ def test_draw_mode_leaves_inline_conversation_controls_usable(browser, serve):
     reply.scroll_into_view_if_needed()
 
     page.keyboard.press("w")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     assert reply.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     reply.click()
 
     expect(reply).to_be_focused()
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     assert errors == []
     page.close()
@@ -578,7 +578,7 @@ def test_draw_mode_cursor_matches_the_widget_controls_it_captures(browser, serve
     assert control.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
     page.mouse.click(*point)
 
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     assert option.get_attribute("chosen") is None
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 

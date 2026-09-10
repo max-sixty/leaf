@@ -31,7 +31,11 @@ import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
 import { elementById, pageQueryAll } from "../passages.js";
 import { designName } from "../design-readings.js";
-import { itemSays, itemWord, visualPartLabel } from "../anchor-resolution.js";
+import {
+  addressableSays,
+  addressableWord,
+  visualPartLabel,
+} from "../anchor-resolution.js";
 import { rememberPassageParts } from "../widget-loader.js";
 
 // Lazily, like the tokenizer: a page is usually handed over before anyone has said
@@ -280,11 +284,11 @@ export function anchorLabel(anchor, about, omitted = null) {
   if (omitted && omitted === item) return "";
   if (anchor.visual) {
     const part = visualPartLabel(item, anchor.visual) ?? anchor.visual;
-    return `§ ${item ? `${itemWord(item)} · ${part}` : `${anchor.section} · ${part}`}`;
+    return `§ ${item ? `${addressableWord(item)} · ${part}` : `${anchor.section} · ${part}`}`;
   }
-  const says = itemSays(item, omitted);
+  const says = addressableSays(item, omitted);
   if (omitted && says) return `“${says}”`;
-  return `§ ${says ? `${itemWord(item)} · ${says}` : anchor.section}`;
+  return `§ ${says ? `${addressableWord(item)} · ${says}` : anchor.section}`;
 }
 
 export const renderMessageMarkdown = (text) => renderMarkdown(text);

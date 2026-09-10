@@ -28,7 +28,7 @@
    A bounded mode may instead own its complete entry, nesting, cancellation, and origin
    machine inside the one scope that claims the keyboard while it stands. The shortcut
    reference, the `g`
-   address window, item selection, page search, and reactions use that form. Such a mode
+   address window, target chooser, page search, and reactions use that form. Such a mode
    does not also push a command frame. What is forbidden is the middle state: opening with
    an ordinary `run`, then asking a shared scene inspection or unrelated outer scope to
    guess what Escape should restore.
@@ -36,11 +36,11 @@
    Landing focus in what a press opened is arrival, not a second layer: a tray on its
    first row, the versions menu on a version, the panel on its list, or the comment box
    `c` named. A later command into a different mode is another layer. The reference's
-   search box is part of its one complete mode because `SHORTCUT_REFERENCE` owns the whole keyboard
+   search box is part of its one complete mode because `COMMAND_REFERENCE_SCOPE` owns the whole keyboard
    while it stands; its letters were never the page's to take back.
 
    The rule holds for a sequence as much as for a surface, where the stack it is about is
-   the reader's rather than the dispatcher's. The address sequence arms on `g`. A panel
+   the reader's rather than the dispatcher's. The Go-to sequence arms on `g`. A panel
    mnemonic exchanges that window for its destination, so `g T` leaves the Threads panel
    as one Escape rung. A multi-letter generated hint narrows the visible target map
    instead; Escape removes one typed letter before another Escape closes the sequence.
@@ -191,7 +191,7 @@ export const RETURN = {
       // that advances work inside the entered surface.
       lineWhen: () => word(current()?.lineWhen) !== false,
       promoteEscape: () => word(current()?.promoteEscape) !== false,
-      runFromReference: false,
+      runFromCommandReference: false,
       run: back,
     },
   ],

@@ -2630,7 +2630,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
             c => !global_.has(c) && documentGlobal.has(c)));
         const probe = document.createElement("div"), plain = document.createElement("div");
         // Minus the shared vocabulary: a word document level dresses on purpose
-        // (lf-address, worn by the sequence's own layer and by an option's corner alike)
+        // (lf-key-badge, worn by the sequence's own layer and by an option's corner alike)
         // is named by the scoped rule that says when to paint it, and it would answer
         // this question with the reach it was given rather than with a leak.
         probe.className = [...scoped]
@@ -2681,7 +2681,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "primary",
     }, "the authored-theme class surface changed: widen the exception on purpose"
     # Every one of these is worn by something the runtime puts inside the page rather than
-    # inside its own container — or, for lf-address, on both sides of that line at once,
+    # inside its own container — or, for lf-key-badge, on both sides of that line at once,
     # which is the same reason: a scoped rule cannot reach the copy in the page. Except the
     # first two, which document level names only to hold a rule off them and which are here
     # for the other half of the sentence. lf-copy is the medium `version export` marks on
@@ -2707,7 +2707,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-focus-visible",
         "lf-btn",
         "lf-chip",
-        "lf-address",
+        "lf-key-badge",
         "lf-over-mark",
         "lf-mark-el",
         "lf-projected-mark",  # an element mark projects above authored paint
@@ -2718,7 +2718,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-mark-note",
         "lf-skip",  # the keyboard entry point stands before the chrome container
         "lf-aiming",
-        "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
         "lf-over-item",
         "lf-quiet",
         # Shared textual thread boxes render both in page-owned widget seats and in the
@@ -3877,7 +3876,7 @@ def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
         page.keyboard.press("g")
         expect(
             page.locator(
-                ".lf-shortcut-bar .lf-key:not([hidden])",
+                ".lf-shortcut-bar .lf-shortcut:not([hidden])",
                 has_text="thread top / bottom",
             )
         ).to_have_count(1)
@@ -4429,7 +4428,7 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     `TYPING` claims the letters, and outside the panel this scope is not standing. So an
     unrelated row in front of them here spends the slot the landing exists to fill.
 
-    Read off `:not([hidden])`, because `renderLine` leaves every live row in the DOM and
+    Read off `:not([hidden])`, because `renderShortcutBar` leaves every live row in the DOM and
     hides the ones it has no room to paint. `to_contain_text` on the line therefore
     answers about the register rather than about the reader, and passes just as well
     when the chip is one nobody can see — which is why the rest of the panel's tests
@@ -4458,7 +4457,7 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
 
-    shown = page.locator(".lf-shortcut-bar .lf-key:not([hidden])")
+    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
     expect(shown).to_have_count(2)
     # The entry's exact inverse leads, then the list's first local key.
     expect(shown.nth(0)).to_contain_text("back")

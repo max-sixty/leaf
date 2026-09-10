@@ -1030,7 +1030,9 @@ def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
     expect(page.locator("#bg-choice-ask")).to_be_focused()
     page.keyboard.press("a")
     expect(page.locator("#bg-replace")).to_be_focused()
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(["1", "2"])
+    expect(
+        page.locator(".lf-ask-binding-badgees > .lf-ask-binding-badge")
+    ).to_have_text(["1", "2"])
     geometry = page.evaluate(
         """() => {
           const item = document.querySelector('[data-lf-margin-for="bg-replace"]');
@@ -1053,7 +1055,7 @@ def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
               node => node.getBoundingClientRect().top
             )),
             chips: boxes([...document.querySelectorAll(
-              '.lf-ask-addresses > .lf-ask-address'
+              '.lf-ask-binding-badgees > .lf-ask-binding-badge'
             )]),
           };
         }"""
@@ -1696,7 +1698,7 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     page.keyboard.press("g")
     expect(page.locator(".lf-page-map-dialog")).to_be_hidden()
     locations = page.locator(
-        f'{CHIPS}[data-lf-address-kind="Margin control or status indicator"]'
+        f'{CHIPS}[data-lf-go-to-kind="Margin control or status indicator"]'
     )
     expect(locations).to_have_count(1)
 
@@ -1907,8 +1909,8 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     disclosure = page.get_by_role("button", name="Edit address-disclosure", exact=True)
     page.keyboard.press("g")
     suggestion_hints = page.locator(
-        f'{CHIPS}[data-lf-address-kind="Margin control or status indicator"]'
-        '[data-lf-address-for="address-action"]'
+        f'{CHIPS}[data-lf-go-to-kind="Margin control or status indicator"]'
+        '[data-lf-go-to-target="address-action"]'
     )
     expect(suggestion_hints).to_have_count(2)
     with sending(page, "the addressed suggestion's acceptance"):
@@ -1946,8 +1948,8 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     page.keyboard.press("g")
     expect(
         page.locator(
-            f'{CHIPS}[data-lf-address-kind="Margin control or status indicator"]'
-            '[data-lf-address-for="address-disclosure"]'
+            f'{CHIPS}[data-lf-go-to-kind="Margin control or status indicator"]'
+            '[data-lf-go-to-target="address-disclosure"]'
         )
     ).to_have_count(0)
     page.keyboard.press("Escape")
@@ -2373,10 +2375,10 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("close options")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    reference = page.locator(".lf-shortcut-reference")
+    reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     back = reference.locator(
-        '.lf-shortcut-reference-command[data-lf-command="margin.back"]'
+        '.lf-command-reference-command[data-lf-command="margin.back"]'
     )
     expect(back).to_have_text("Fold the secondary page actions")
     back.click()

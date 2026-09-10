@@ -51,7 +51,7 @@ export function mountApplication(dependencies) {
   const engagement = dependencies.createEngagement({
     hasPending,
     fabAnchorAt: dependencies.activeActionAnchor,
-    isSelecting: dependencies.isSelecting,
+    targetChooserOpen: dependencies.targetChooserOpen,
     pageComposerDrawing: dependencies.pageComposerDrawing,
   });
   let conversation;
@@ -262,7 +262,7 @@ export function mountApplication(dependencies) {
   const margin = dependencies.createMarginProjection({
     panelIsOpen: dependencies.panelIsOpen,
     bottomChromeBoxes: dependencies.margin.bottomChromeBoxes,
-    designIsOn: dependencies.margin.designIsOn,
+    designModeActive: dependencies.margin.designModeActive,
     comparisonBase: dependencies.margin.comparisonBase,
     comparisonChanges: dependencies.margin.comparisonChanges,
     inlineComparison: dependencies.margin.inlineComparison,

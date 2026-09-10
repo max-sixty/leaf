@@ -41,7 +41,7 @@ export function keySequence(steps, states = neutralStates(steps), spokenSteps = 
     throw new Error("leaf: a key sequence needs one state and spoken label per step");
 
   const sequence = document.createElement("span");
-  sequence.className = "lf-key-sequence";
+  sequence.className = "lf-binding-sequence";
   sequence.setAttribute("role", "group");
   sequence.setAttribute(
     "aria-label",
@@ -51,7 +51,7 @@ export function keySequence(steps, states = neutralStates(steps), spokenSteps = 
     const state = states[i];
     if (!STATES.has(state)) throw new Error(`leaf: unknown key state ${String(state)}`);
     const key = document.createElement("kbd");
-    key.dataset.lfKeyState = state;
+    key.dataset.lfSequenceStepState = state;
     key.setAttribute("aria-hidden", "true");
     key.textContent = step;
     sequence.append(key);

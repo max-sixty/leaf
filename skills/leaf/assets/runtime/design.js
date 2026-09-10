@@ -2,10 +2,10 @@
 import { documentPoint, shownRect } from "./geometry.js";
 import { el, WORKS } from "./widget-elements.js";
 import { tabStore } from "./storage.js";
-import { isItem, ITEM, itemAt } from "./anchor-resolution.js";
+import { isAddressable, ADDRESSABLE, addressableAt } from "./anchor-resolution.js";
 import { closestAcross, containsAcross, cut, inChrome } from "./passages.js";
 import { tagsDeclaring } from "./registry.js";
-import { CONTROL_WORD_CAP, designName, DESIGN_KEY } from "./design-readings.js";
+import { CONTROL_WORD_CAP, designName, DESIGN_MODE_KEY } from "./design-readings.js";
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
@@ -25,14 +25,14 @@ legendRoot.setAttribute("aria-hidden", "true");
  * comments on what it lands on and does nothing else, so a card can be pointed at
  * without moving it and a pick mark without picking. Prose keeps the browser's
  * selection — words are still the way to point at words — and a plain click on prose
- * comments on the block it is in. `designOn` is the state; the body class, the banner's
+ * comments on the block it is in. `designModeOn` is the state; the body marker, the banner's
  * wash, the toggle's pressed face and the name under the pointer are its renderings,
  * written by the one setter, and every comment opened while it stands carries
  * `about: "layer"`, which is how the agent tells a remark about the layer from one about
- * the page's words. The controller owns that state and supplies `isOn` to every
+ * the page's words. The mode owns that state and supplies `active` to every
  * renderer or command that needs the reading. */
 
-export function createDesignController({
+export function createDesignMode({
   pageGeometry,
   syncGeneral,
   composer,
@@ -43,18 +43,18 @@ export function createDesignController({
   repaint,
 }) {
   // Live activation belongs to this controller. Historical travel restores it through
-  // DESIGN_KEY; commands and renderers receive isOn rather than sharing mutable state.
-  let designOn = false;
+  // DESIGN_MODE_KEY; commands and renderers receive `active` rather than sharing mutable state.
+  let designModeOn = false;
 
-  function setDesign(on, { spoken = true } = {}) {
+  function setDesignMode(on, { spoken = true } = {}) {
     // A popover is in the browser's top layer, above every ordinary z-index. Design mode
     // targets ordinary page and chrome paint, so retire that transient preview rather
     // than promise an aim and composer that the platform must paint underneath it.
     if (on) closePreview();
-    designOn = on;
-    document.body.classList.toggle("lf-design", on);
-    banner.classList.toggle("lf-designing", on);
-    tabStore.set(DESIGN_KEY, on ? "1" : null);
+    designModeOn = on;
+    document.body.toggleAttribute("data-lf-design-mode", on);
+    banner.toggleAttribute("data-lf-design-mode", on);
+    tabStore.set(DESIGN_MODE_KEY, on ? "1" : null);
     // The renderings above are the eye's copy; the mode change is spoken, or it is silent
     // to exactly the reader who can't see them. Restoring after a reload changes nothing
     // the reader did, so it says nothing.
@@ -104,14 +104,14 @@ export function createDesignController({
   // the tag sits inside.
   let legendTagH = 0;
   function queueLegend() {
-    if (!designOn || legendFrame) return;
+    if (!designModeOn || legendFrame) return;
     legendFrame = requestAnimationFrame(() => {
       legendFrame = 0;
       paintLegend();
     });
   }
   function paintLegend() {
-    if (!designOn) {
+    if (!designModeOn) {
       legendRoot.replaceChildren();
       legendBoxes.clear();
       legendSizes.disconnect();
@@ -124,7 +124,7 @@ export function createDesignController({
       attributes: true,
       characterData: true,
     });
-    const items = [...document.querySelectorAll(ITEM)].filter(isItem);
+    const items = [...document.querySelectorAll(ADDRESSABLE)].filter(isAddressable);
     // The set: a box for every item, in document order so a part's box paints over its
     // widget's, and no box for an item the page no longer holds.
     const present = new Set(items);
@@ -226,14 +226,14 @@ export function createDesignController({
     // In the layer, the nearest id — but the author's before the runtime's. The runtime's
     // own parts wear its namespace and are the target themselves; a widget an agent sent
     // wears an authored id and its module's generated parts wear the runtime's, so passing
-    // over those lands on the widget, which is where `itemAt` lands out on the page. Taking
+    // over those lands on the widget, which is where `addressableAt` lands out on the page. Taking
     // the nearest of any kind anchored a design comment on `lf-diagram-3` — a number that
     // changes with draw order — and `layerPart` then read it back as a part of the layer.
     const el =
       marginTarget ??
       (inChrome(at)
         ? (closestAcross(at, '[id]:not([id^="lf-"])') ?? closestAcross(at, "[id]"))
-        : itemAt(at));
+        : addressableAt(at));
     if (!el) return null;
     const control = closestAcross(at, controls());
     const part =
@@ -267,7 +267,7 @@ export function createDesignController({
   function designPress(target) {
     const at = target?.nodeType === 1 ? target : target?.parentElement;
     return Boolean(
-      designOn &&
+      designModeOn &&
       at &&
       !closestAcross(at, DESIGN_OWN) &&
       (inChrome(at) || closestAcross(at, PRESSED())),
@@ -288,15 +288,15 @@ export function createDesignController({
     legendMoves.disconnect();
     legendBoxes.clear();
     legendRoot.replaceChildren();
-    document.body.classList.remove("lf-design");
-    banner.classList.remove("lf-designing");
-    designOn = false;
+    document.body.removeAttribute("data-lf-design-mode");
+    banner.removeAttribute("data-lf-design-mode");
+    designModeOn = false;
   }
 
   return {
     destroy,
-    isOn: () => designOn,
-    set: setDesign,
+    active: () => designModeOn,
+    setActive: setDesignMode,
     queueLegend,
     paintLegend,
     target: designTarget,

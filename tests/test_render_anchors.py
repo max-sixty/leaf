@@ -743,17 +743,17 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     # single frame that cannot hold both.
     page.keyboard.press("c")
     page.locator("#tq-one .lf-pick").first.focus()
-    picked = page.locator("#tq-one .lf-address").first
+    picked = page.locator("#tq-one .lf-key-badge").first
     expect(picked).to_be_visible()
-    option = faces(page, "#tq-one .lf-address")[0]
+    option = faces(page, "#tq-one .lf-key-badge")[0]
     page.keyboard.press("g")
     addressed = page.locator(CHIPS).first.locator("kbd").last
     expect(addressed).to_be_visible()
-    assert addressed.get_attribute("data-lf-key-state") == "neutral"
+    assert addressed.get_attribute("data-lf-sequence-step-state") == "neutral"
     sequence, legend = faces(
         page,
         f"{CHIPS} kbd:last-child",
-        '.lf-shortcut-bar .lf-key[data-lf-commands~="navigation.target"] kbd:last-child',
+        '.lf-shortcut-bar .lf-shortcut[data-lf-command-ids~="navigation.target"] kbd:last-child',
     )
 
     # The option's address and the sequence's letter keep one physical key face. Both are
@@ -769,14 +769,14 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     assert "mono" in option["key"]["font-family"]
     assert option["emphasis"] == sequence["emphasis"] == legend["emphasis"]
 
-    # Item selection uses letters rather than digits, but it names the same physical
-    # keys. Closing the address sequence and opening selection must not reveal a fourth face.
+    # Target chooser uses letters rather than digits, but it names the same physical
+    # keys. Closing the Go-to sequence and opening selection must not reveal a fourth face.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-goto-targets .lf-target-hint")).to_have_count(0)
+    expect(page.locator(".lf-go-to-hints .lf-go-to-hint")).to_have_count(0)
     page.keyboard.press("s")
     # With the go-to surface gone, compare an available selection key with the option
     # and sequence's neutral state.
-    selection_key = '.lf-targets .lf-target-hint kbd[data-lf-key-state="neutral"]'
+    selection_key = '.lf-target-chooser-hints .lf-target-chooser-hint kbd[data-lf-sequence-step-state="neutral"]'
     hint = page.locator(selection_key).first
     expect(hint).to_be_visible()
     # The standing paint can replace the hint layer between browser round trips. Read
@@ -1416,7 +1416,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
         '# c\ncd x && ls -la | grep "a b" > /dev/null\n',
         '{"a": [1, 2, {"b": null}], "c": "<>&"}\n',
         "@@ -1 +1 @@\n-a <b>\n+c &d\n",
-        "SELECT * FROM t WHERE a = 'x''y'; -- note\n",
+        "TARGET_CHOOSER_SCOPE * FROM t WHERE a = 'x''y'; -- note\n",
         '<!doctype html>\n<a href="x?a=1&b=2">t &amp; u</a>\n',
     ]
     bad = page.evaluate(
@@ -2235,7 +2235,7 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     press is real, the reader can make it, and no surface says so.
 
     A widget may still declare the meaning of a native press when that meaning is worth
-    naming in Leaf's keyboard reference. The row describes the platform fact without
+    naming in Leaf's command reference. The row describes the platform fact without
     reimplementing it.
 
     The two differ in what they answer, and saying so is the point: a <summary> is
@@ -3567,14 +3567,14 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # a second version is the first that has a list to walk.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text(
+    expect(page.locator(".lf-command-reference")).to_contain_text(
         "In the versions menu"
     )
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Later version")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Earlier version")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Open v1")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Later version")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Earlier version")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Open v1")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-reference")).not_to_have_class(re.compile("open"))
+    expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_visible()
 
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
@@ -3746,12 +3746,12 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     expect(line).to_contain_text("more")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text(
+    expect(page.locator(".lf-command-reference")).to_be_visible()
+    expect(page.locator(".lf-command-reference")).to_contain_text(
         "In the versions menu"
     )
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-reference")).not_to_have_class(re.compile("open"))
+    expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_visible()
     expect(row).to_be_focused()
     expect(line).to_contain_text("walk — marking changes")
@@ -3872,10 +3872,10 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(compared.locator(".lf-shortcut-bar")).not_to_contain_text("leave backward")
     compared.keyboard.press("?")
     compared.keyboard.press("?")
-    expect(compared.locator(".lf-shortcut-reference")).to_contain_text(
+    expect(compared.locator(".lf-command-reference")).to_contain_text(
         "Leave the versions menu forward"
     )
-    expect(compared.locator(".lf-shortcut-reference")).not_to_contain_text(
+    expect(compared.locator(".lf-command-reference")).not_to_contain_text(
         "Leave the versions menu backward"
     )
     compared.keyboard.press("Escape")
@@ -3917,8 +3917,8 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("⏎ / space")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("⏎ / space")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Open that version")
+    expect(page.locator(".lf-command-reference")).to_contain_text("⏎ / space")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Open that version")
     page.keyboard.press("Escape")
 
     # And the key the row had been leaving unnamed does what the row now says it does.
@@ -4055,7 +4055,7 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     _publish(serve.page_dir, 3, INLINE_PAGE, "three")
     page, errors = open_page(browser, url, pin=True)
     menu = page.locator(".lf-version-menu")
-    help_el = page.locator(".lf-shortcut-reference")
+    help_el = page.locator(".lf-command-reference")
     expect(page.locator(".lf-latest-chip")).to_be_visible()
 
     # The menu's keys are one declaration, so the reference names this one beside the
@@ -4451,11 +4451,11 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
 
     page.evaluate("() => document.activeElement?.blur()")
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
     datum_hint = added.evaluate(
         """line => {
           const box = line.getBoundingClientRect();
-          return [...document.querySelectorAll('.lf-target-hint')]
+          return [...document.querySelectorAll('.lf-target-chooser-hint')]
             .sort((left, right) => {
               const a = left.getBoundingClientRect(), b = right.getBoundingClientRect();
               return Math.hypot(a.left - box.left, a.top - box.top)

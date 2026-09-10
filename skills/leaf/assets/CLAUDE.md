@@ -84,7 +84,7 @@ by the public semantic projection watchers;
 `runtime/composing/capture.js` owns selection capture and snapping;
 `runtime/composing/surface.js` owns floating comment geometry, item comment entry,
 and page-click routing;
-`runtime/composing/targets.js` owns keyboard item hints and whole-page text search;
+`runtime/composing/target-chooser.js` owns keyboard target hints and whole-page text search;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
 `runtime/composing/drawing.js` owns one-stroke pointer capture and drawing commands;
 `composing/drawing-record.js` owns drawing payload shape and validation; `composing/drawing-paint.js` owns their
@@ -125,8 +125,8 @@ origin its caller captured before executing the command;
 `shortcut-bar.js` the short help at the foot of the page, its More control, the useful
 status opposite it or stacked above it when room is tight, and the shared reading of
 their rendered boxes;
-`reference.js` the complete listing behind `?`; `address.js` the go-to sequence;
-`address-placement.js` shared address visibility and the numeric Ask placement pass;
+`command-reference.js` the complete command listing behind `?`; `go-to-sequence.js` the Go-to sequence;
+`key-badge-placement.js` shared target visibility and the numeric Ask key-badge placement pass;
 `hints.js` prefix-free transient labels and their no-drop placement pass;
 `presentation.js` how a sequence row's presses are shown;
 `runtime/keyboard/disclosure.js` owns the shared disclosure bindings and the
@@ -695,7 +695,7 @@ the reading page. Both follow the active region, share a quick glide, and jump u
 reduced motion. Native Space stays with the platform and focused controls. Other letters come
 from words the surface says: `w` narrows to threads waiting on the reader while focus is
 in that panel, and enters Draw mode from the page. The Go-to sequence
-(`keyboard/address.js`) uses uppercase letters for named destinations and lowercase
+(`keyboard/go-to-sequence.js`) uses uppercase letters for named destinations and lowercase
 letters for target-kind filters and generated hints. `g t` and `g a` filter to visible
 Thread and Ask controls; their uppercase counterparts open the complete panels. `g m`
 contains every visible margin control and status indicator. A key spelling something

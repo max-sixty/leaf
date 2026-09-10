@@ -82,7 +82,7 @@ import {
   ELEMENTS,
   pageScopes,
   textEntryScope,
-  universalReference,
+  universalCommandReference,
 } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
 import { takesLetters } from "../focus.js";
@@ -113,7 +113,7 @@ export const readerIn = (scope) => !scope.at || scope.at();
 const standing = (scope) => readerIn(scope) && pageHas(scope);
 const nativeBoundary = (claims) => ({
   get rows() {
-    return [universalReference()];
+    return [universalCommandReference()];
   },
   claims,
   escapeBoundary: true,

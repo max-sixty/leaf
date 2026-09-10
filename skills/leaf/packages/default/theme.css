@@ -595,10 +595,10 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > lf-option[chosen] > .lf-pick::before {
                      width: auto; height: auto; border: 0; background: transparent;
                      color: inherit; }
-   & > lf-option > .lf-address {
+   & > lf-option > .lf-key-badge {
                      inset-inline-start: auto; inset-inline-end: var(--sp-2);
                      top: var(--sp-2); }
-   & > lf-option:has(> .lf-address[data-lf-ask-address]) > .lf-pick {
+   & > lf-option:has(> .lf-key-badge[data-lf-ask-binding-badge]) > .lf-pick {
                      opacity: 0; }
  }
 }
@@ -688,8 +688,8 @@ lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--here-r
 /* The Ask's action keys, worn on the option cells it addresses. The gutter reads status,
  * address, then prose, so each chip starts after the status rule and ends before the
  * cell's words. A card aligns its digit with the top of its content; rows centre theirs. */
-lf-option > .lf-address { position: absolute; inset-inline-start: var(--lf-address-start); }
-lf-options:has(> lf-option > strong) > lf-option > .lf-address { top: 8px; }
+lf-option > .lf-key-badge { position: absolute; inset-inline-start: var(--lf-key-badge-start); }
+lf-options:has(> lf-option > strong) > lf-option > .lf-key-badge { top: 8px; }
 /* The thread multi-question's submit (the module adds it there alone): one press
  * stating the set is whole, since every toggle already reached the agent as it
  * landed. Answered is paint, never a wider word — the pressed control's own line
@@ -707,8 +707,8 @@ lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
 /* Its Ask address stands where the rows' do: on the address column, centred on the
  * press, inside the cell rather than hung off its corner. */
 lf-options > .lf-done { position: relative; }
-lf-options > .lf-done > .lf-address { position: absolute;
-                     inset-inline-start: var(--lf-address-start);
+lf-options > .lf-done > .lf-key-badge { position: absolute;
+                     inset-inline-start: var(--lf-key-badge-start);
                      top: 0; bottom: 0; margin: auto 0; }
 /* A group under `choose` is one control, not a set of options standing near each other.
  * Deleting the offer word left the question of what says a decision is waiting, and the
@@ -768,7 +768,7 @@ lf-options > .lf-done > .lf-address { position: absolute;
 @media screen {
  :where(html:not(.lf-copy)) {
   :where(lf-options[choose]:not(:where([data-lf-exhibit]) *)) > * {
-                     padding-inline-start: var(--lf-address-col); }
+                     padding-inline-start: var(--lf-key-badge-col); }
   :where(lf-options[choose]:not([settled]):not(:where([data-lf-exhibit]) *)) > * {
                      padding-block: var(--sp-2); padding-inline-end: var(--sp-3); }
  }
@@ -901,10 +901,10 @@ lf-options > .lf-done > .lf-address { position: absolute;
    * Live pages only: copies and paper receive no keyboard address. The column is named
    * because options and generated cells all begin on it. */
   lf-options[choose]:not(:where([data-lf-exhibit]) *) {
-                     --lf-address-start: var(--sp-2);
-                     --lf-address-col: calc(var(--lf-address-start) + var(--lf-key-box) + 6px); }
+                     --lf-key-badge-start: var(--sp-2);
+                     --lf-key-badge-col: calc(var(--lf-key-badge-start) + var(--lf-key-box) + 6px); }
   lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
-                     padding-inline-start: var(--lf-address-col); }
+                     padding-inline-start: var(--lf-key-badge-col); }
  }
 }
 html.lf-copy lf-options > .lf-another { display: none; }
@@ -962,7 +962,7 @@ lf-options:not(:has(> lf-option > strong)) > lf-option {
  *
  * Stated twice because the two cases carry different weight, and the group's own column
  * is set at a weight the form has to clear: a live choose group states
- * --lf-address-col on every child, so the form's addition has to outrank that rather
+ * --lf-key-badge-col on every child, so the form's addition has to outrank that rather
  * than be reset by it. Without `choose` there is no address column and the mark's is
  * the whole of it. */
 lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
@@ -970,7 +970,7 @@ lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
                      padding-inline-start: var(--lf-pick-col); }
 lf-options[choose]:not(:where([data-lf-exhibit]) *):not(:has(> lf-option > strong))
                      > :is(lf-option, .lf-another) {
-                     padding-inline-start: calc(var(--lf-address-col) + var(--lf-pick-col)); }
+                     padding-inline-start: calc(var(--lf-key-badge-col) + var(--lf-pick-col)); }
 /* A row's table spacing holds its prose off the mark column. The form has no anonymous
  * table cell to supply that space, so its textarea takes the same named gap. Matching the
  * option's vertical inset makes the draft and the option it becomes one stable row. */
@@ -1042,14 +1042,14 @@ lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-ref {
  * offsets and no height stretches to fill them. */
 lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-pick {
                      position: absolute;
-                     inset-inline-start: var(--lf-address-col, 0px);
+                     inset-inline-start: var(--lf-key-badge-col, 0px);
                      top: 0; bottom: 0; margin: auto 0; height: 11px; }
 /* And the digit at the other end of the row takes the same answer, for the same reason: a
  * row is the words in it, so a mark that belongs to the row is centred on the box they
  * fill, and that stays true whatever size they are set at. It is the row and not the first
  * line — a label long enough to wrap carries its digit down with its mark, the two staying
  * level with each other. */
-lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-address {
+lf-options:not(:has(> lf-option > strong)) > lf-option > .lf-key-badge {
                      top: 0; bottom: 0; margin: auto 0; }
 /* The block a row is about (`for`). It points; it never supplies the row's words, so it
  * reads as what it is — an id, written the way the thread panel writes an element
@@ -1605,7 +1605,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc a:focus-visible { outline: var(--here-ring); --lf-here-ring: toc-link;
                                outline-offset: calc(-1 * var(--here-ring-w)); }
       lf-toc .lf-toc-nav:is(:hover, :focus-within),
-      body[data-lf-goto] lf-toc .lf-toc-nav {
+      body[data-lf-go-to-active] lf-toc .lf-toc-nav {
         --lf-toc-label-opacity: 1;
       }
       lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
@@ -1643,7 +1643,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       }
       /* A pointer waits for the labels it revealed to finish appearing. The go-to sequence
        * already made an explicit keyboard gesture, so every route participates immediately. */
-      body[data-lf-goto] lf-toc .lf-toc-nav a { pointer-events: auto; }
+      body[data-lf-go-to-active] lf-toc .lf-toc-nav a { pointer-events: auto; }
     }
   }
 }
@@ -1652,7 +1652,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
   @container lf-content-frame style(--lf-sidebar-posture: margin) {
     @container style(--lf-sidebar-slot: margin) {
       lf-toc .lf-toc-nav:is(:hover, :focus-within) a,
-      body[data-lf-goto] lf-toc .lf-toc-nav a {
+      body[data-lf-go-to-active] lf-toc .lf-toc-nav a {
         animation: none; pointer-events: auto;
       }
     }

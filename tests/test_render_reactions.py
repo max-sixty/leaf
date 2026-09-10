@@ -69,7 +69,7 @@ def select_paragraph(page, selector):
 
 NEAREST_HINT = """(selector) => {
   const target = document.querySelector(selector).getBoundingClientRect();
-  return [...document.querySelectorAll('.lf-target-hint')]
+  return [...document.querySelectorAll('.lf-target-chooser-hint')]
     .sort((a, b) => {
       const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
       return Math.hypot(ar.left - target.left, ar.top - target.top)
@@ -87,7 +87,7 @@ def hint_code(page, selector, hints):
     no hint to be nearest to.
     """
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-hint")).to_have_count(hints)
+    expect(page.locator(".lf-target-chooser-hint")).to_have_count(hints)
     return page.evaluate(NEAREST_HINT, selector)
 
 
@@ -507,7 +507,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
         )
         == 1
     )
-    expect(surface.locator(".lf-address")).to_have_count(0)
+    expect(surface.locator(".lf-key-badge")).to_have_count(0)
     with sending(page, "the shorten reaction"):
         page.keyboard.press("4")
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -522,11 +522,11 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     # token and the passage it stands on, where it promised a generic take-back before.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
-    rows = page.locator(".lf-shortcut-reference").inner_text()
+    expect(page.locator(".lf-command-reference")).to_be_visible()
+    rows = page.locator(".lf-command-reference").inner_text()
     assert "Take back: shorten on “The store is capped" in rows, rows
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
+    expect(page.locator(".lf-command-reference")).to_be_hidden()
 
     # Nothing selected: React is not a command, so the key opens no surface or notice.
     page.keyboard.press("Escape")
@@ -534,7 +534,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     page.mouse.move(0, 0)
     page.evaluate("() => document.body.focus()")
     expect(
-        page.locator('.lf-shortcut-bar [data-lf-commands~="reaction.open"]')
+        page.locator('.lf-shortcut-bar [data-lf-command-ids~="reaction.open"]')
     ).to_have_count(0)
     page.keyboard.press("e")
     expect(page.locator(".lf-notice")).not_to_have_text("Select something to react to")
@@ -550,7 +550,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
 
 
 def test_an_item_hint_opens_comment_and_a_token_outlines_the_item(browser, serve):
-    """Keyboard item selection opens Comment. Choosing a token puts an
+    """Keyboard target choosing opens Comment. Choosing a token puts an
     element anchor in the log, which paints as a solid hairline on the item's boxes
     and a glyph seated at its first line."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))

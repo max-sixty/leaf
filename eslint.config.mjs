@@ -246,7 +246,7 @@ const exactClosures = new Map(
 const applicationOwners = new Set([
   "application.js",
   "delivery.js",
-  "keyboard/address.js",
+  "keyboard/go-to-sequence.js",
   "keyboard/controller.js",
   "keyboard/page.js",
   "thread-panel.js",

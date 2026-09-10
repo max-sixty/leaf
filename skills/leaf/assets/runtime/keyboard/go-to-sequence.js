@@ -36,7 +36,7 @@
    activation elements collapse to one candidate, while distinct overlapping actions remain
    distinct.
 
-   Arming paints `data-lf-goto` on the body and puts the same overlay hint shape on named
+   Arming paints `data-lf-go-to-active` on the body and puts the same overlay hint shape on named
    banner destinations and visible page targets. Named destinations show the complete
    sequence. Generated targets show only their suffix; the shortcut bar and reference retain
    that shared prefix.
@@ -48,7 +48,7 @@
    its ordinary meaning.
 
    A press may deliberately leave layers standing while moving focus outside them. That is
-   not an Escape rung, because it gives no layer back. The address sequence states what
+   not an Escape rung, because it gives no layer back. The Go-to address states what
    remains open: beside the document, `g p` returns from the thread panel to the document
    and keeps both the panel and its narrowing. A panel covering the document cannot make
    that promise, so its ordinary Escape rung remains the route back.
@@ -61,21 +61,21 @@
    therefore restore the standing their owner displaced rather than merely focusing the
    destination's banner control after closing it.
 
-   The address mode has no timeout. The reader is not charged a time limit for reading
+   The Go-to sequence has no timeout. The reader is not charged a time limit for reading
    the hints just painted. */
 import { bindings, labelOf, live, spell, word } from "./bindings.js";
-import { addressPlacement } from "./address-placement.js";
+import { keyBadgePlacement } from "./key-badge-placement.js";
 import { HINT_KEYS, hintCodes, spreadHints } from "./hints.js";
 import { keySequence, progressStates } from "./presentation.js";
 import { isExternalPageLink, PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { targetElement } from "../resolved-target.js";
 import { focusDestination } from "../focus.js";
 import { el, PRESSABLE } from "../widget-elements.js";
-import { allButTheReference } from "./register.js";
+import { allButCommandReference } from "./register.js";
 import { focusedThread } from "../conversation/focus.js";
 import { letGo } from "../focus.js";
 import { pageParts } from "../passages.js";
-import { fragmentId, itemSays, resolveAnchor } from "../anchor-resolution.js";
+import { fragmentId, addressableSays, resolveAnchor } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
 import {
   closestAcross,
@@ -102,12 +102,12 @@ import { beginWalk, listWalkPosition } from "../walk-position.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
-export const addressLayer = el("div", "lf-ui lf-targets lf-goto-targets");
-addressLayer.setAttribute("aria-hidden", "true");
+export const goToHintLayer = el("div", "lf-ui lf-go-to-hints");
+goToHintLayer.setAttribute("aria-hidden", "true");
 
 // Construct the command vocabulary once; boot mounts the viewport listeners after
 // the chrome is attached. All travel and auxiliary-surface effects are explicit capabilities.
-export function createAddress({
+export function createGoToSequence({
   panelIsOpen,
   panelCovers,
   elements: { banner, toggleBtn, shortcutBarEl },
@@ -138,7 +138,7 @@ export function createAddress({
   // How a destination in this sequence is written where the sequence itself is not on screen —
   // a notice naming the way back to a draft that has just gone down, say. Spelled off the
   // row's own binding, so a rebinding cannot leave a sentence promising the old press.
-  const goAddress = (row) =>
+  const formatGoToAddress = (row) =>
     [...sequencePrefix(), labelOf(row)].filter(Boolean).join(" ");
 
   // ---------- the g sequence: visible page targets ----------
@@ -150,13 +150,13 @@ export function createAddress({
   // injected control inside the document does not silently become a tab or fold route.
   const pageLinks = () =>
     pageQueryAll("a[href]").filter((link) => closestAcross(link, "main"));
-  // The tabs rather than their panels: the visible choice is what wears the address and
+  // The tabs rather than their panels: the visible choice is what wears the hint and
   // what the reader stands on afterwards. `role=tab` is the platform vocabulary, so an
   // authored tab pattern and lf-tabs take the same route without naming a widget family.
   const pageTabs = () => pageParts('[role="tab"]');
   // The summaries rather than the boxes they head: a summary is what the reader stands on,
   // what a chip sits beside, and the only part of a disclosure the platform gives a key to —
-  // so a <details> whose author wrote no summary has nothing here to address. Every
+  // so a <details> whose author wrote no summary has no visible target here. Every
   // disclosure and not the shut ones, for the reason above: a list counting what is shut
   // means a different section the moment one of them opens.
   const pageDisclosures = () => pageParts("details > summary");
@@ -218,7 +218,8 @@ export function createAddress({
     );
     if (destination) return focusDestination(destination);
     if (isExternalPageLink(link) && link.target === "_blank") {
-      const name = link.getAttribute("aria-label")?.trim() || itemSays(link) || "Link";
+      const name =
+        link.getAttribute("aria-label")?.trim() || addressableSays(link) || "Link";
       announce(`Opened ${name} in a new tab`);
     }
   }
@@ -386,7 +387,7 @@ export function createAddress({
       ...FILTER_KEYS,
     ].filter((key) => /^[a-z]$/.test(key)),
   );
-  const ADDRESS_KEYS = HINT_KEYS.filter((key) => !STRUCTURAL_KEYS.has(key));
+  const GO_TO_HINT_KEYS = HINT_KEYS.filter((key) => !STRUCTURAL_KEYS.has(key));
 
   const pointIn = (box) => ({
     x: Math.max(0, Math.min(innerWidth - 1, (box.left + box.right) / 2)),
@@ -404,7 +405,7 @@ export function createAddress({
     [...(member.labels ?? [])].map(visibleWords).filter(Boolean).join(" ");
 
   function visibleCandidates(filter = null) {
-    const placement = addressPlacement();
+    const placement = keyBadgePlacement();
     const seen = new Set();
     const found = [];
     for (const [order, entry] of TARGET_KINDS.entries())
@@ -425,7 +426,7 @@ export function createAddress({
         const says =
           member.getAttribute("aria-label")?.trim() ||
           nativeLabelWords(member) ||
-          itemSays(member) ||
+          addressableSays(member) ||
           visibleWords(member) ||
           entry.kind;
         found.push({ ...entry, order, member, rect, says });
@@ -436,7 +437,7 @@ export function createAddress({
         left.rect.left - right.rect.left ||
         left.order - right.order,
     );
-    const codes = hintCodes(found.length, ADDRESS_KEYS);
+    const codes = hintCodes(found.length, GO_TO_HINT_KEYS);
     const coded = found.map((candidate, index) => ({
       ...candidate,
       code: codes[index],
@@ -446,23 +447,23 @@ export function createAddress({
 
   // Every complete route starts with the same stable prefix. A partial generated hint is
   // added to the live sequence so the shortcut bar and chips can paint how far it has advanced.
-  const sequencePrefix = () => [labelOf(GOTO)].filter(Boolean);
+  const sequencePrefix = () => [labelOf(OPEN_GO_TO)].filter(Boolean);
   const sequenceKeys = () =>
     [...sequencePrefix(), targetFilter?.key, ...prefix].filter(Boolean);
-  const addressChip = (candidate) => {
+  const goToHint = (candidate) => {
     const steps = [...candidate.code];
-    const chip = el("span", "lf-address lf-target-hint lf-sequence-address");
-    chip.dataset.lfAddress = candidate.code;
-    chip.dataset.lfAddressKind = candidate.kind;
+    const chip = el("span", "lf-key-badge lf-key-hint lf-go-to-hint");
+    chip.dataset.lfHintCode = candidate.code;
+    chip.dataset.lfGoToKind = candidate.kind;
     const source = candidate.member.lfForwardedControl ?? candidate.member;
     const marginEntryKey = source.dataset?.lfMarginEntryKey;
-    if (marginEntryKey) chip.dataset.lfAddressMarginEntry = marginEntryKey;
+    if (marginEntryKey) chip.dataset.lfGoToMarginEntry = marginEntryKey;
     const targetId =
       closestAcross(candidate.member, "[data-lf-margin-for]")?.dataset.lfMarginFor ||
       candidate.member.id ||
       candidate.member.dataset.lfMarginFor ||
       candidate.member.getAttribute("aria-controls");
-    if (targetId) chip.dataset.lfAddressFor = targetId;
+    if (targetId) chip.dataset.lfGoToTarget = targetId;
     chip.append(keySequence(steps, progressStates(steps, [...prefix])));
     return chip;
   };
@@ -472,7 +473,7 @@ export function createAddress({
   // it clear of its control if the viewport forces it elsewhere. Controls folded into the
   // closed overflow menu have no visible place to label; their routes remain in the key
   // line and complete reference.
-  const controlAddress = (row) => {
+  const directDestinationHint = (row) => {
     const control = word(row.control);
     if (
       !control ||
@@ -485,24 +486,25 @@ export function createAddress({
     const box = control.getBoundingClientRect();
     if (!box.width || !box.height) return null;
     const steps = [...sequencePrefix(), labelOf(row)].filter(Boolean);
-    const chip = el("span", "lf-address lf-target-hint lf-sequence-address");
-    chip.dataset.lfAddressCommand = row.id;
-    chip.dataset.lfAddressSequence = steps.join(" ");
+    const chip = el("span", "lf-key-badge lf-key-hint lf-go-to-hint");
+    chip.dataset.lfGoToCommand = row.id;
+    chip.dataset.lfGoToAddress = steps.join(" ");
     chip.append(keySequence(steps, progressStates(steps, sequenceKeys())));
     chip.style.left = `${box.left}px`;
     chip.style.top = `${box.top}px`;
     return { chip, target: box, belowTarget: true };
   };
-  const controlAddresses = () => GO.rows.map(controlAddress).filter(Boolean);
-  const paintAddressChips = (controlPlaced, chips = []) => {
-    addressLayer.replaceChildren(...controlPlaced.map(({ chip }) => chip), ...chips);
+  const directDestinationHints = () =>
+    GO_TO_SCOPE.rows.map(directDestinationHint).filter(Boolean);
+  const placeGoToHints = (controlPlaced, chips = []) => {
+    goToHintLayer.replaceChildren(...controlPlaced.map(({ chip }) => chip), ...chips);
     return spreadHints(controlPlaced);
   };
 
   // The armed window owns every key wherever focus sits. Generated candidates stay stable
   // through ordinary repaints, refresh after viewport motion settles, and freeze after the
   // first hint letter.
-  let sequenceActive = false;
+  let goToActive = false;
   let targetFilter = null;
   let prefix = "";
   let candidates = [];
@@ -511,12 +513,12 @@ export function createAddress({
   let scrollTimer = 0;
   let refreshCandidates = false;
 
-  function setSequence(on) {
+  function setGoToSequence(on) {
     // Armed over a control that has claimed Escape, one press would have two owners — the
     // control's rung and the sequence's cancel — so the sequence refuses to arm there at all.
-    if (on && !sequenceActive && claimsEsc(focused())) return;
+    if (on && !goToActive && claimsEsc(focused())) return;
     if (on) stopGlide(seenScroller());
-    sequenceActive = on;
+    goToActive = on;
     // The mode itself reveals page navigation such as a roomy contents map. Publish that
     // state before taking the visible-scene reading so those routes enter the same map as
     // links that were already standing in the document.
@@ -532,14 +534,14 @@ export function createAddress({
     // to exactly the reader who cannot see them.
     if (on)
       announce(
-        `Go to — ${candidates.length ? `${candidates.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO.rows)}`,
+        `Go to — ${candidates.length ? `${candidates.length} visible targets; type a hint or press Tab to hear them. ` : "No visible targets. "}${saying(GO_TO_SCOPE.rows)}`,
       );
     repaint();
   }
 
   const hinted = () => candidates.filter(({ code }) => code.startsWith(prefix));
   const targetCapability = () => TARGET_KINDS.some((entry) => entry.list().length > 0);
-  const atTargetMenu = () => !targetFilter && !prefix;
+  const atGoToTargets = () => !targetFilter && !prefix;
 
   function candidateIsCurrent(candidate) {
     return visibleCandidates(targetFilter).some(
@@ -562,10 +564,10 @@ export function createAddress({
   }
 
   // An empty active filter is useful state, not a four-second event. The candidate map is
-  // the reading paintAddresses already owns; using it here keeps the shortcut repaint out
+  // the reading paintGoToHints already owns; using it here keeps the shortcut repaint out
   // of the expensive visibility and hit-test pass.
-  function addressStatus() {
-    if (!sequenceActive || !targetFilter || candidates.length) return null;
+  function goToStatus() {
+    if (!goToActive || !targetFilter || candidates.length) return null;
     return `No visible ${targetFilter.word}.`;
   }
 
@@ -577,7 +579,7 @@ export function createAddress({
       announce("That target is no longer visible. The hints are reset.");
       return repaint();
     }
-    setSequence(false);
+    setGoToSequence(false);
     candidate.go(candidate.member);
   }
 
@@ -600,7 +602,7 @@ export function createAddress({
     if (!targets.length) return;
     hintActive = (hintActive + direction + targets.length) % targets.length;
     const target = targets[hintActive];
-    beginWalk("address-target", "Target", () =>
+    beginWalk("go-to-target", "Target", () =>
       listWalkPosition(hinted(), hinted()[hintActive], {
         identity: (candidate) => candidate.member,
       }),
@@ -617,17 +619,17 @@ export function createAddress({
   // The layer is chrome rather than authored markup: a generated label over an inline link
   // must not become a span the passage walk then has to understand. Candidates are measured
   // together, attached once, and then spread without dropping any opaque route.
-  function paintAddresses() {
-    if (!sequenceActive) {
-      addressLayer.replaceChildren();
+  function paintGoToHints() {
+    if (!goToActive) {
+      goToHintLayer.replaceChildren();
       return;
     }
-    const controlPlaced = controlAddresses();
+    const controlPlaced = directDestinationHints();
     // A moving page target cannot carry a readable opaque route. Suppress that part of the
     // map until the scene settles, then regenerate it once. Fixed banner destinations stay
     // put, so their overlays remain visible throughout the scroll.
     if (scrolling) {
-      paintAddressChips(controlPlaced);
+      placeGoToHints(controlPlaced);
       return;
     }
     const wasActive = hintActive >= 0;
@@ -652,7 +654,7 @@ export function createAddress({
     const filterStatusChanged =
       Boolean(targetFilter) && emptyBeforeRefresh !== (candidates.length === 0);
     const activeCandidate = hinted()[hintActive];
-    const placement = addressPlacement();
+    const placement = keyBadgePlacement();
     const chips = [];
     const placed = [];
     const drawn = new Set();
@@ -664,7 +666,7 @@ export function createAddress({
         !exposed(candidate.member, r, candidate.exposure)
       )
         continue;
-      const chip = addressChip(candidate);
+      const chip = goToHint(candidate);
       if (activeCandidate === candidate) chip.classList.add("lf-current");
       chip.style.left = `${r.left}px`;
       chip.style.top = `${r.top}px`;
@@ -673,7 +675,7 @@ export function createAddress({
       drawn.add(candidate);
     }
     if (wasActive && activeCandidate && !drawn.has(activeCandidate)) hintActive = -1;
-    const controlBoxes = paintAddressChips(controlPlaced, chips);
+    const controlBoxes = placeGoToHints(controlPlaced, chips);
     spreadHints(placed, {
       barriers: [...controlBoxes, ...standingStatusBoxes()],
       lineBox: shortcutBarEl.getBoundingClientRect(),
@@ -692,16 +694,16 @@ export function createAddress({
   // that repaints on every scroll of every page would be repainting for nobody. Armed, the
   // paint is the whole shared repaint — the ring and line are cheap beside the chips, and
   // one door is what stops the chips having a repaint set of their own to keep in step.
-  function mountAddress() {
+  function mountGoToSequence() {
     addEventListener(
       "scroll",
       () => {
-        if (!sequenceActive) return;
+        if (!goToActive) return;
         scrolling = true;
         refreshCandidates = true;
         clearTimeout(scrollTimer);
         scrollTimer = setTimeout(() => {
-          if (!sequenceActive || !scrolling) return;
+          if (!goToActive || !scrolling) return;
           scrolling = false;
           repaint();
         }, 80);
@@ -712,7 +714,7 @@ export function createAddress({
     addEventListener(
       "scrollend",
       () => {
-        if (!sequenceActive || !scrolling) return;
+        if (!goToActive || !scrolling) return;
         clearTimeout(scrollTimer);
         scrolling = false;
         repaint();
@@ -720,7 +722,7 @@ export function createAddress({
       { capture: true, passive: true },
     );
     addEventListener("resize", () => {
-      if (!sequenceActive) return;
+      if (!goToActive) return;
       clearTimeout(scrollTimer);
       scrolling = false;
       refreshCandidates = true;
@@ -733,16 +735,16 @@ export function createAddress({
   // prefix; once a generated route has begun, only valid continuations, audible browsing,
   // activation, and backing remain.
   let goRows = null;
-  const GO = {
+  const GO_TO_SCOPE = {
     title: "Go to",
     escape: "inner",
     root: () => coveringAuxiliarySurface() ?? document,
     reach: "with g armed",
     sequence: sequenceKeys,
     sequencePrefix,
-    liveInReference: true,
-    at: () => sequenceActive,
-    claims: allButTheReference,
+    liveInCommandReference: true,
+    at: () => goToActive,
+    claims: allButCommandReference,
     // Built on first use, after composition supplied the other owners' destination rows.
     get rows() {
       return (goRows ??= [
@@ -753,7 +755,7 @@ export function createAddress({
           // to the page edges below: k/j place the card inside its panel rather than moving
           // the document to the passage the card is about. It leads while live because it
           // is the one offer specific to where the reader stands; list members wear their
-          // address chips directly when the sequence arms.
+          // Go-to hints directly when the sequence starts.
           keys: THREAD_EDGE_KEYS,
           routes: [
             {
@@ -769,36 +771,36 @@ export function createAddress({
           ],
           does: "Put the focused thread at the top / bottom of its list",
           line: "thread top / bottom",
-          when: () => atTargetMenu() && Boolean(focusedThread()),
+          when: () => atGoToTargets() && Boolean(focusedThread()),
           run: (binding) => {
             const thread = focusedThread();
-            setSequence(false);
+            setGoToSequence(false);
             placeThreadEdge(thread, binding === "k" ? "start" : "end");
           },
         },
         {
           id: "navigation.page.return",
           // This is travel from the panel to the page, not an Escape rung: every layer
-          // remains standing, so the address says what stays open. A covering panel locks
+          // remains standing, so the Go-to address says what stays open. A covering panel locks
           // the document scroller and has no page to hand back; ordinary Escape remains
           // the truthful route there. It follows the focused thread's own placements so
           // they keep the short line a reader standing on that card arrived to use.
           keys: PAGE_RETURN_KEYS,
           does: "Return to the page, keeping the thread panel open",
           line: "page — threads kept",
-          when: () => atTargetMenu() && inPanel() && !panelCovers(),
+          when: () => atGoToTargets() && inPanel() && !panelCovers(),
           run: () => {
-            setSequence(false);
+            setGoToSequence(false);
             letGo();
           },
         },
         {
           id: "navigation.target",
-          runFromReference: false,
+          runFromCommandReference: false,
           // Every alphabet key is claimed while the map stands. If a scene refresh retired
           // a remembered route, that old letter must report the miss rather than falling
           // through to an unrelated page shortcut such as `d`.
-          keys: () => (prefix ? HINT_KEYS : ADDRESS_KEYS),
+          keys: () => (prefix ? HINT_KEYS : GO_TO_HINT_KEYS),
           label: "letters",
           sequenceSteps: () => [
             ...(targetFilter ? [targetFilter.key] : []),
@@ -813,7 +815,7 @@ export function createAddress({
           // Once armed, keep the alphabet claimed even when a filter has no members. A key
           // then reports the miss inside this mode rather than falling through to a page
           // command whose letter happened to match it.
-          when: () => (sequenceActive ? true : targetCapability()),
+          when: () => (goToActive ? true : targetCapability()),
           run: typeHint,
         },
         {
@@ -828,7 +830,7 @@ export function createAddress({
           sequenceSteps: ["kind"],
           does: "Filter visible targets by kind",
           line: "filter by kind",
-          when: () => atTargetMenu() && targetCapability(),
+          when: () => atGoToTargets() && targetCapability(),
           run: filterTargets,
         },
         {
@@ -849,7 +851,7 @@ export function createAddress({
           does: "Hear the next / previous visible target",
           line: "browse hints",
           repeat: true,
-          when: () => (sequenceActive ? candidates.length > 0 : targetCapability()),
+          when: () => (goToActive ? candidates.length > 0 : targetCapability()),
           run: (binding) => moveHint(binding === "Tab" ? 1 : -1),
         },
         {
@@ -867,7 +869,7 @@ export function createAddress({
           does: destination.does,
           line: destination.line,
           control: destination.control,
-          when: () => atTargetMenu() && destination.when(),
+          when: () => atGoToTargets() && destination.when(),
           returnFrame: () => {
             const previousAuxiliaryChrome = captureAuxiliaryChromeState();
             return {
@@ -882,20 +884,20 @@ export function createAddress({
           },
           run: () => {
             const closing = destination.toggle && destination.active();
-            setSequence(false);
+            setGoToSequence(false);
             if (closing) destination.close();
             else destination.go();
           },
         })),
         // A destination whose control belongs to another runtime owner joins this one
-        // vocabulary as its complete row. The address layer contributes only the sequence's
+        // vocabulary as its complete row. The Go-to hint layer contributes only the sequence's
         // progress and cancellation; liveness, words, landing, and return remain with the
         // owner that can keep them true.
         ...directDestinations().map((destination) => ({
           ...destination,
-          when: () => atTargetMenu() && live(destination),
+          when: () => atGoToTargets() && live(destination),
           run: (binding) => {
-            setSequence(false);
+            setGoToSequence(false);
             destination.run(binding);
           },
         })),
@@ -916,15 +918,15 @@ export function createAddress({
           ],
           does: "Go to the top / bottom of the page",
           line: "top / bottom",
-          when: atTargetMenu,
+          when: atGoToTargets,
           run: (binding) => {
-            setSequence(false); // before the travel, so the arrival's own scrolling paints nothing
+            setGoToSequence(false); // before the travel, so the arrival's own scrolling paints nothing
             const box = seenScroller();
             glideTo(box, binding === "g" ? 0 : box.scrollHeight);
           },
         },
         {
-          id: "navigation.address.back",
+          id: "navigation.go-to.back",
           keys: ["Escape"],
           sequenceControl: true,
           does: () =>
@@ -949,7 +951,7 @@ export function createAddress({
               announce("All go-to targets.");
               return repaint();
             }
-            setSequence(false);
+            setGoToSequence(false);
             announce("Go to cancelled");
           },
         },
@@ -957,29 +959,29 @@ export function createAddress({
     },
   };
 
-  // The way in to the sequence. Its row supplies the same leader every painted address uses,
+  // The way in to the sequence. Its row supplies the same leader every painted Go-to hint uses,
   // so the letter the reader presses and the letter the page prints cannot diverge.
   //
   // The page-level row promises the mode rather than any particular ephemeral hint.
-  const GOTO = {
-    id: "navigation.address.open",
+  const OPEN_GO_TO = {
+    id: "navigation.go-to.open",
     keys: ["g"],
     does: "Go to a visible target, panel, page, or edge",
     line: "go to",
     // No `when`: the window this press stands up always holds at least the page's edges.
-    run: () => setSequence(true),
+    run: () => setGoToSequence(true),
   };
 
-  const isSequenceActive = () => sequenceActive;
+  const goToSequenceActive = () => goToActive;
 
   return {
-    GO,
-    GOTO,
-    addressStatus,
-    goAddress,
-    setSequence,
-    paintAddresses,
-    isSequenceActive,
-    mountAddress,
+    GO_TO_SCOPE,
+    OPEN_GO_TO,
+    goToStatus,
+    formatGoToAddress,
+    setGoToSequence,
+    paintGoToHints,
+    goToSequenceActive,
+    mountGoToSequence,
   };
 }

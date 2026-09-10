@@ -14,7 +14,7 @@
  * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
  * `comparisonChanges`, and the pair the margin's Change reading discloses with,
  * `inlineComparison` and `toggleInlineComparison`); `readingBlock`, the block the decision
- * walk and the keyboard reference start from; and `captureReturnPlace`, the control or
+ * walk and the command reference start from; and `captureReturnPlace`, the control or
  * reading landmark a keyboard entry returns to.
  *
  * A comparison has two depths and both are this owner's. The marks say which blocks
@@ -154,7 +154,7 @@ import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { focusDestination } from "./focus.js";
 import { settle, settling } from "./widget-upgrade.js";
 import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
-import { allButTheReference } from "./keyboard/register.js";
+import { allButCommandReference } from "./keyboard/register.js";
 
 import { reportPageError, sameDelivery } from "./layer-client.js";
 import { projectionFromView } from "./projection/presentation.js";
@@ -241,7 +241,7 @@ export const latestChip = el(
 latestChip.dataset.lfUrgent = "1";
 
 export function createVersionController({
-  designIsOn,
+  designModeActive,
   paintLegend,
   midComposition,
   readAndApply,
@@ -478,7 +478,7 @@ export function createVersionController({
     at: versionMenuIsOpen,
     // Opening the modal reference dismisses this popover. Retain the menu-boundary
     // reading so the reference filters member-dependent rows by their actual liveness.
-    liveInReference: true,
+    liveInCommandReference: true,
     // A mode over the page suspends the page, which the two modes above this one always did
     // and this one did not — so a reader in the middle of choosing a version could press `l`
     // and take focus out of the menu into the leaves tray, `d` and scroll a page they were
@@ -489,7 +489,7 @@ export function createVersionController({
     // the claim is what would have held it either way. The claim is also what narrows
     // the line to the menu's own keys, so what the mode takes and what it offers are one
     // statement rather than a suspension the surfaces have to be told about separately.
-    claims: allButTheReference,
+    claims: allButCommandReference,
     rows: [
       VERSION_WALK,
       OPEN_NUMBER,
@@ -1366,7 +1366,7 @@ export function createVersionController({
     captureAuthoredFacets(fresh);
     await settlePageInterface();
     syncLayout();
-    if (designIsOn()) paintLegend();
+    if (designModeActive()) paintLegend();
     return () => {
       restoreView(view);
       restoreStanding(standing);

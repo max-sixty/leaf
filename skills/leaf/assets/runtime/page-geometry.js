@@ -13,7 +13,7 @@ export function createPageGeometry({
   refreshAnchorHover,
   aim,
   pointer,
-  design,
+  designMode,
   targetPaint,
   shiftDrawings,
   queueLegend,
@@ -31,8 +31,8 @@ export function createPageGeometry({
         : null;
     }
     const at = pointer();
-    if (design.isOn() && at.x >= 0)
-      return design.target(document.elementFromPoint(at.x, at.y));
+    if (designMode.active() && at.x >= 0)
+      return designMode.target(document.elementFromPoint(at.x, at.y));
     return null;
   }
 
@@ -48,13 +48,16 @@ export function createPageGeometry({
       paintInspect(null);
       return;
     }
-    paintInspect(design.isOn() ? target : null, { left: rect.left, top: rect.top });
+    paintInspect(designMode.active() ? target : null, {
+      left: rect.left,
+      top: rect.top,
+    });
   }
 
   // The design name shares the aim box's top-left corner and document plane. It sits
   // above the box where room permits and inside it beneath the banner otherwise.
   function paintInspect(target, corner) {
-    const inspect = design.inspectElement;
+    const inspect = designMode.inspectElement;
     inspect.classList.toggle("lf-shown", Boolean(target));
     if (!target) {
       delete inspect.dataset.lfPaintPlane;
@@ -62,8 +65,8 @@ export function createPageGeometry({
     }
     inspect.dataset.lfPaintPlane = inChrome(target.element) ? "chrome" : "page";
     const name = target.part
-      ? `${target.part} · ${design.name(target.element)}`
-      : design.name(target.element);
+      ? `${target.part} · ${designMode.name(target.element)}`
+      : designMode.name(target.element);
     if (inspect.textContent !== name) inspect.textContent = name;
     const above = corner.top - inspect.offsetHeight - 2;
     const at = documentPoint(

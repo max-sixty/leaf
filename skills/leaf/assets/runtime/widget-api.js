@@ -7,7 +7,7 @@ export {
   fitRootReadingElement,
   registerReadingElement,
 } from "./reading-layout.js";
-export { itemWord } from "./anchor-resolution.js";
+export { addressableWord } from "./anchor-resolution.js";
 export { navigateToDatum } from "./application.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { inUi, uiInside } from "./shadow.js";

@@ -40,12 +40,12 @@ import { fabBar, fabOptions } from "./composing/selection.js";
 import { el, offer, responseAction } from "./widget-elements.js";
 
 import { cut, elementById } from "./passages.js";
-import { itemWord, visualPartLabel } from "./anchor-resolution.js";
+import { addressableWord, visualPartLabel } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
 import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 
-import { allButTheReference } from "./keyboard/register.js";
+import { allButCommandReference } from "./keyboard/register.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./conversation/messages.js";
@@ -102,7 +102,7 @@ export function createReactionController({
   foldMarginEntryOptions,
   openMarginEntryOptions,
   unfoldedMarginEntries,
-  designIsOn,
+  designModeActive,
   hideComposer,
   syncResponseOptions,
   fabAnchorAt,
@@ -183,7 +183,7 @@ export function createReactionController({
     if (anchor.quote) return "the selection";
     const item = elementById(anchor.section);
     if (anchor.visual) return visualPartLabel(item, anchor.visual) ?? anchor.visual;
-    return itemWord(item) || "the item";
+    return addressableWord(item) || "the item";
   };
 
   async function reactHere(name, chip, commands) {
@@ -208,7 +208,7 @@ export function createReactionController({
       token: name,
       anchor: structuredClone(anchor),
     };
-    if (designIsOn()) event.about = "layer";
+    if (designModeActive()) event.about = "layer";
     const sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
     hideComposer();
     showFab(null);
@@ -462,13 +462,13 @@ export function createReactionController({
     escape: "inner",
     // Opening the modal reference dismisses this transient mode. Its section still reads
     // the liveness captured at that boundary rather than listing every conditional choice.
-    liveInReference: true,
+    liveInCommandReference: true,
     at: () => reactArmed,
-    claims: allButTheReference,
+    claims: allButCommandReference,
     rows: [
       {
         id: "reaction.choose",
-        runFromReference: false,
+        runFromCommandReference: false,
         keys: () =>
           reactionTokens()
             .slice(0, 9)
@@ -491,7 +491,7 @@ export function createReactionController({
       },
       {
         id: "reaction.move",
-        runFromReference: false,
+        runFromCommandReference: false,
         keys: ["Tab", "Shift+Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
         does: "Move through reactions",
         line: "move",
@@ -500,7 +500,7 @@ export function createReactionController({
       },
       {
         id: "response.activate",
-        runFromReference: false,
+        runFromCommandReference: false,
         keys: PRESS,
         does: "Use the focused response",
         line: "choose",

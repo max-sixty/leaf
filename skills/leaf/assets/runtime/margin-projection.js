@@ -82,7 +82,7 @@ import { foldShelf } from "./banner-shelf.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { panel } from "./conversation/panel-elements.js";
 import { blockAt, closestAcross, elementById, inChrome, says } from "./passages.js";
-import { itemSays, itemWord, visualAt } from "./anchor-resolution.js";
+import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
 import { updateSequence, workClaimState } from "./updates.js";
 import { threadList } from "./conversation/state.js";
@@ -101,7 +101,7 @@ import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
 export function createMarginProjection({
   panelIsOpen,
   openAsks,
-  designIsOn,
+  designModeActive,
   comparisonBase,
   comparisonChanges,
   inlineComparison,
@@ -932,7 +932,7 @@ export function createMarginProjection({
     let group = groups.get(target);
     if (!group) {
       const key = targetPath(target);
-      const word = itemWord(target);
+      const word = addressableWord(target);
       group = {
         key,
         target,
@@ -1021,7 +1021,7 @@ export function createMarginProjection({
       add(groups, ask, {
         kind: "ask",
         id: `ask:${id}`,
-        text: trimmed(`${itemWord(ask)} · ${itemSays(ask) || id}`),
+        text: trimmed(`${addressableWord(ask)} · ${addressableSays(ask) || id}`),
         activate: () => {
           const standing = openAsks();
           const next = standing.find((candidate) => candidate.id === id);
@@ -1042,10 +1042,16 @@ export function createMarginProjection({
         // it remains explicit without changing the page's action density or geometry.
         marker: false,
         text: trimmed(
-          [face.label, itemWord(target), itemSays(target)].filter(Boolean).join(" · "),
+          [face.label, addressableWord(target), addressableSays(target)]
+            .filter(Boolean)
+            .join(" · "),
         ),
         activate: () =>
-          revealTarget(target, `${face.label}: ${itemSays(target)}`, scrollToElement),
+          revealTarget(
+            target,
+            `${face.label}: ${addressableSays(target)}`,
+            scrollToElement,
+          ),
       });
     }
     const claimActivity = new Map(
@@ -1060,7 +1066,11 @@ export function createMarginProjection({
       if (!target) continue;
       const receipt = receiptByCoordinate.get(coordinate);
       if (!receipt) continue;
-      const account = [itemWord(target), humanized(entry.e.action), itemSays(target)]
+      const account = [
+        addressableWord(target),
+        humanized(entry.e.action),
+        addressableSays(target),
+      ]
         .filter(Boolean)
         .join(" · ");
       const face = acknowledgmentFace(receipt);
@@ -1079,13 +1089,13 @@ export function createMarginProjection({
 
     const base = comparisonBase();
     comparisonChanges().forEach((target, index) => {
-      const account = `${itemWord(target)} changed${base == null ? "" : ` since v${base}`}`;
+      const account = `${addressableWord(target)} changed${base == null ? "" : ` since v${base}`}`;
       const inline = inlineComparison(target);
-      const mapAccount = inline ? `${itemWord(target)} changed` : account;
+      const mapAccount = inline ? `${addressableWord(target)} changed` : account;
       add(groups, target, {
         kind: "change",
         id: `change:${targetPath(target)}:${index}`,
-        text: trimmed(`${mapAccount} · ${itemSays(target)}`),
+        text: trimmed(`${mapAccount} · ${addressableSays(target)}`),
         // A disclosure has to say what it holds, or its one word reports a fact and
         // promises nothing. The margin entry's quieter line carries it, and a block the
         // comparison holds nothing for has none, so no margin entry offers a press it has
@@ -1191,7 +1201,7 @@ export function createMarginProjection({
             [
               group.subject ? null : subject.context,
               group.word,
-              group.subject ?? itemSays(group.target),
+              group.subject ?? addressableSays(group.target),
             ]
               .filter(Boolean)
               .join(" · "),
@@ -2010,7 +2020,7 @@ export function createMarginProjection({
       }
       keeps(host, "data-lf-margin-for", target.id || targetPath(target));
       host.lfTarget = target;
-      keeps(host, "aria-label", `Actions for ${itemWord(target)}`);
+      keeps(host, "aria-label", `Actions for ${addressableWord(target)}`);
       const controls = (side) =>
         offers
           .filter((offered) => offered.side === side)
@@ -2427,7 +2437,7 @@ export function createMarginProjection({
   }
 
   function showPreview(entry, button, retry = true) {
-    if (!entry || designIsOn()) return;
+    if (!entry || designModeActive()) return;
     if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
     if (previewEntry && previewEntry.key !== entry.key) clearThreadTransition();
     previewEntry = entry;
@@ -2566,7 +2576,7 @@ export function createMarginProjection({
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
     );
-    if (!entry || designIsOn() || panelIsOpen()) return null;
+    if (!entry || designModeActive() || panelIsOpen()) return null;
     const choice = threadReading(entry);
     if (!choice) return null;
     const previousForcedOptionsKey = forcedInlineOptionsKey;

@@ -23,7 +23,7 @@
      inline hint always says what the reader actually presses.
    - `control` is the visible element that activates the capability. `decision` is a
      non-empty action-name string or a function returning one; it includes that command in
-     its containing Ask. The row may carry an existing `address` and has zero or one live
+     its containing Ask. The row may carry an existing `bindingBadge` and has zero or one live
      binding. A keyless decision command receives its contextual number from the Ask
      projection. Routes may carry the same fields when one row describes a parameterized
      family of controls.
@@ -192,7 +192,7 @@ export const commandEntries = (row, active = bindings(row)) => {
 // from the reference keep their own identity. The reference and shortcut bar both consume this
 // projection so route additions cannot reach one surface without the other.
 export const commandPresentations = (row, active = bindings(row)) => {
-  if (row.runFromReference === false) return [{ id: row.id, route: null }];
+  if (row.runFromCommandReference === false) return [{ id: row.id, route: null }];
   return commandEntries(row, active);
 };
 // A row's rendering is made of its own bindings, so it cannot advertise a key it does not
@@ -299,13 +299,13 @@ export function decisionControls(commands, where = "an Ask") {
       const contribution = route ?? row;
       const control = word(contribution.control ?? row.control);
       const label = decisionName(contribution, where);
-      const address = word(contribution.address ?? row.address) ?? null;
+      const bindingBadge = word(contribution.bindingBadge ?? row.bindingBadge) ?? null;
       const active = route ? [route.binding] : bindings(row);
       if (!(control instanceof Element))
         throw new TypeError(`leaf: ${contribution.id} in ${where} has no control`);
-      if (address !== null && !(address instanceof Element))
+      if (bindingBadge !== null && !(bindingBadge instanceof Element))
         throw new TypeError(
-          `leaf: ${contribution.id} in ${where} has no Element address`,
+          `leaf: ${contribution.id} in ${where} has no Element binding badge`,
         );
       if (active.length > 1)
         throw new TypeError(
@@ -318,7 +318,7 @@ export function decisionControls(commands, where = "an Ask") {
         control,
         label,
         binding: active[0] ?? null,
-        address,
+        bindingBadge,
       };
       const prior = controls.get(control);
       if (prior) {
@@ -326,7 +326,7 @@ export function decisionControls(commands, where = "an Ask") {
           prior.id !== record.id ||
           prior.label !== record.label ||
           prior.binding !== record.binding ||
-          prior.address !== record.address
+          prior.bindingBadge !== record.bindingBadge
         )
           throw new TypeError(
             `leaf: one control has two Decision commands in ${where}: ` +

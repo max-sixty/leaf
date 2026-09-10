@@ -261,23 +261,23 @@ session.</p></details>
 )
 # Generated go-to hints, painted in their own transient layer. The code is metadata on the
 # chip because its visible text also carries the ellipsis marking a sequence in progress.
-CHIPS = ".lf-goto-targets > .lf-sequence-address[data-lf-address]"
+CHIPS = ".lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]"
 
 
 def address_codes(page):
     page.evaluate(RENDERED)
     return page.locator(CHIPS).evaluate_all(
-        "chips => chips.map(chip => chip.dataset.lfAddress)"
+        "chips => chips.map(chip => chip.dataset.lfHintCode)"
     )
 
 
 def address_code(page, kind, target, margin_entry=None):
-    selector = f'{CHIPS}[data-lf-address-kind="{kind}"][data-lf-address-for="{target}"]'
+    selector = f'{CHIPS}[data-lf-go-to-kind="{kind}"][data-lf-go-to-target="{target}"]'
     if margin_entry:
-        selector += f'[data-lf-address-margin-entry="{margin_entry}"]'
+        selector += f'[data-lf-go-to-margin-entry="{margin_entry}"]'
     chip = page.locator(selector)
     expect(chip).to_have_count(1)
-    code = chip.get_attribute("data-lf-address")
+    code = chip.get_attribute("data-lf-hint-code")
     assert code
     return code
 

@@ -936,7 +936,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
 # before the browser has reported the request is a wait on a page that has not started
 # moving.
 #
-# The line answers about room as well as about liveness: renderLine drops chips from the
+# The line answers about room as well as about liveness: renderShortcutBar drops chips from the
 # end when the window is too narrow to hold them, and the end is the outside of the
 # stack, where a page-level key like this one sits. So the wait needs the suite's
 # default 1200×900 or something near it; under a viewport set narrow on purpose it would

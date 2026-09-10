@@ -90,11 +90,11 @@ def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve)
 
     summary.scroll_into_view_if_needed()
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
     code = summary.evaluate(
         """element => {
           const box = element.getBoundingClientRect();
-          const hints = [...document.querySelectorAll('.lf-target-hint')].map(node => {
+          const hints = [...document.querySelectorAll('.lf-target-chooser-hint')].map(node => {
             const at = node.getBoundingClientRect();
             return {
               code: node.dataset.lfTarget,

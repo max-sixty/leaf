@@ -58,7 +58,10 @@ import {
 } from "../resolved-target.js";
 import { composerOpen, fab, fabBar, fabInput } from "./selection.js";
 
-import { closeReference, referenceOpen } from "../keyboard/reference.js";
+import {
+  closeCommandReference,
+  commandReferenceOpen,
+} from "../keyboard/command-reference.js";
 
 import { paintReactionStanding } from "../reaction-standing.js";
 import { panel, threadsBox } from "../conversation/panel-elements.js";
@@ -96,7 +99,7 @@ export function createResponseSurface({
   responseOptionsAvailable,
   setResponseOptions,
   syncResponseOptions,
-  designIsOn,
+  designModeActive,
   designTarget,
   openOnDesign,
   isReactArmed,
@@ -105,16 +108,16 @@ export function createResponseSurface({
   setReact,
   banner,
   bottomChromeBoxes,
-  less,
+  closeShortcutShelf,
   closeVersionMenu,
   versionMenuIsOpen,
   openPageThread,
-  isDrawing,
+  drawModeActive,
   refreshConversation,
 }) {
-  const hideReference = () => closeReference(false);
+  const hideReference = () => closeCommandReference(false);
   const hasOtherResponses = (anchor) =>
-    reactionTokens().length > 0 || Boolean(anchor?.quote && !designIsOn());
+    reactionTokens().length > 0 || Boolean(anchor?.quote && !designModeActive());
 
   // ---------- selection → comment ----------
   // Floating UI stays inside the document page shell. Body already ends at a standing
@@ -841,7 +844,7 @@ export function createResponseSurface({
   };
 
   const finishPointerSelection = (ev) => {
-    if (isDrawing()) return;
+    if (drawModeActive()) return;
     // A mouse pointer is followed by the compatibility mouseup below, which performs the
     // sentence snap before opening the field. Opening from pointerup first would focus the
     // textarea and collapse the still-unsnapped Selection before mouseup can finish it.
@@ -876,7 +879,7 @@ export function createResponseSurface({
 
   // Floating chrome getting out of the way of a press somewhere else, which is a fact about
   // the press rather than about who receives it: the aim takes a press away from the page
-  // (see claimPress) and must not take this with it, or the keyboard reference stays up over
+  // (see claimPress) and must not take this with it, or the command reference stays up over
   // the composer that press just opened. Hence one function, called from both.
   // The two side panels are absent from it on purpose. A float answers the press in front
   // of it and stands down behind it; the thread panel and the leaves tray are
@@ -900,8 +903,10 @@ export function createResponseSurface({
       // The armed react press goes with the bar it was armed on.
       setReact(false);
     }
-    if (referenceOpen() && !target.closest?.(".lf-shortcut-reference")) hideReference();
-    if (!target.closest?.(".lf-shortcut-reference, .lf-shortcut-bar")) less();
+    if (commandReferenceOpen() && !target.closest?.(".lf-command-reference"))
+      hideReference();
+    if (!target.closest?.(".lf-command-reference, .lf-shortcut-bar"))
+      closeShortcutShelf();
     // The press on the button itself is its own toggle, so it is not an outside click;
     // without that the open and this close would both run and the menu could never open.
     if (versionMenuIsOpen() && !target.closest?.(".lf-version-menu, .lf-version"))
@@ -930,7 +935,7 @@ export function createResponseSurface({
     document.addEventListener(
       "pointerdown",
       (ev) => {
-        if (isDrawing()) return;
+        if (drawModeActive()) return;
         primaryPointerPressed = ev.isPrimary && ev.button === 0;
         if (primaryPointerPressed) pressesBegun++;
         pointerSelecting = primaryPointerPressed && pageWords(ev.target);
@@ -951,7 +956,7 @@ export function createResponseSurface({
       true,
     );
     document.addEventListener("pointermove", (ev) => {
-      if (isDrawing()) return;
+      if (drawModeActive()) return;
       if (!pointerSelecting || !selectionPressPoint) return;
       if (ev.defaultPrevented) {
         selectionGestureClaimed = true;
@@ -985,7 +990,7 @@ export function createResponseSurface({
       scheduleSelectionUpdate();
     });
     document.addEventListener("mouseup", (ev) => {
-      if (isDrawing()) return;
+      if (drawModeActive()) return;
       primaryPointerPressed = false;
       pointerSelecting = false;
       const gestureClaimed = selectionGestureClaimed;
@@ -1041,15 +1046,15 @@ export function createResponseSurface({
       scheduleSelectionUpdate();
     });
     document.addEventListener("mousedown", (ev) => {
-      if (!isDrawing()) standDown(ev.composedPath()[0]);
+      if (!drawModeActive()) standDown(ev.composedPath()[0]);
     });
     document.addEventListener("click", (ev) => {
-      if (isDrawing()) return;
+      if (drawModeActive()) return;
       if (!pageWords(ev.target)) return;
       // A press design mode did not take at the press is a press on prose: a drag that
       // selected words has the 💬 (updateFab, on the mouseup) and is not a click on the
       // block; a plain click comments on the block it landed in.
-      if (designIsOn()) {
+      if (designModeActive()) {
         if (pageSelection()) return;
         const target = designTarget(ev.target);
         if (target) openOnDesign(target);

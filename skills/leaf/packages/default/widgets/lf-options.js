@@ -189,7 +189,7 @@ customElements.define(
         // module put there: the mark is the pick's own control, and the digit stands in
         // the column beside it, so a press on either is aimed at this option after all.
         const inner = worksInside(e.target, option);
-        if (inner && !inner.matches(".lf-pick, .lf-address")) return;
+        if (inner && !inner.matches(".lf-pick, .lf-key-badge")) return;
         if (!actionAvailable(this, "choose")) return;
         const was = this.#picked();
         // Toggling is one gesture both ways, so a reader who picked by mistake needn't
@@ -245,11 +245,11 @@ customElements.define(
     // the pressed control's own line holds still.
     #doneRow() {
       this.#done = offer("button", "lf-btn lf-done", "Done");
-      // The Ask address's own slot, as each option row has one. Without it the projection
+      // The Ask binding badge's own slot, as each option row has one. Without it the projection
       // hung the chip at the button's corner, half outside the group's frame.
-      const address = offer("span", "lf-address");
-      address.setAttribute("aria-hidden", "true");
-      this.#done.prepend(address);
+      const bindingBadge = offer("span", "lf-key-badge");
+      bindingBadge.setAttribute("aria-hidden", "true");
+      this.#done.prepend(bindingBadge);
       this.#done.setAttribute("aria-label", "Done: my picks here are complete");
       this.#done.setAttribute("aria-pressed", "false");
       this.#done.onclick = () => this.#answer();
@@ -315,27 +315,29 @@ customElements.define(
     // The group contributes its ordered answer controls once, and core assigns their
     // contextual Ask bindings without the package maintaining a second digit map.
     #keys() {
-      for (const address of this.querySelectorAll(":scope > lf-option > .lf-address"))
-        address.remove();
+      for (const bindingBadge of this.querySelectorAll(
+        ":scope > lf-option > .lf-key-badge",
+      ))
+        bindingBadge.remove();
       const marks = this.#marks();
       const answerRows = [];
       for (const [index, mark] of marks.entries()) {
         const option = mark.parentElement;
-        let address = null;
+        let bindingBadge = null;
         if (index < 9) {
           // The widget owns the card-local placement anchor; the Ask projection writes
           // whichever binding this action receives and removes it when the action is not
           // reachable. Keeping the face empty here keeps one keyboard map.
-          address = offer("span", "lf-address");
-          address.setAttribute("aria-hidden", "true");
-          option.prepend(address);
+          bindingBadge = offer("span", "lf-key-badge");
+          bindingBadge.setAttribute("aria-hidden", "true");
+          option.prepend(bindingBadge);
         }
         answerRows.push({
           id: `option.choose-${index + 1}`,
           keys: [],
           control: mark,
           decision: label(option) || option.id,
-          address,
+          bindingBadge,
           does: `Toggle option ${index + 1}`,
           line: label(option) || option.id,
           run: () => mark.click(),
@@ -426,7 +428,7 @@ customElements.define(
           keys: [],
           control: this.#done,
           decision: "Done",
-          address: this.#done.querySelector(":scope > .lf-address"),
+          bindingBadge: this.#done.querySelector(":scope > .lf-key-badge"),
           does: "Finish choosing options",
           line: "done",
           run: () => this.#done.click(),

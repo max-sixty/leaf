@@ -601,7 +601,7 @@ class WebsiteCodexHost:
                 # kernel does not permit Codex's nested bubblewrap namespaces.
                 "sandbox": "danger-full-access",
                 "developerInstructions": CODEX_INSTRUCTIONS,
-                "config": {"model_reasoning_effort": "low"},
+                "config": {"model_reasoning_effort": "none"},
                 "ephemeral": self.ephemeral,
             },
             attach,

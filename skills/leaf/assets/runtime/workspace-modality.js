@@ -25,6 +25,10 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
   let active = null;
   let placingFocus = false;
   let mounted = false;
+  const layerAllowedBy = (controller, node, establishedOver = null) =>
+    !controller ||
+    controller.surface === establishedOver ||
+    under(node, controller.surface);
 
   const deepestFocus = () => {
     let node = document.activeElement;
@@ -92,7 +96,7 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
     if (active === controller) return;
 
     for (const popover of openNativePopovers())
-      if (!under(popover, controller.surface)) popover.hidePopover();
+      if (!layerAllowedBy(controller, popover)) popover.hidePopover();
     active = controller;
     syncBackground(controller);
     controller.role = controller.surface.getAttribute("role");
@@ -197,6 +201,9 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
 
   const coveringSurface = () => active?.surface ?? null;
   const coveringScroller = () => active?.scroller() ?? null;
+  const coveringFocus = () => (active ? (active.focus() ?? active.surface) : null);
+  const allowsNativeLayer = (node, establishedOver = null) =>
+    layerAllowedBy(active, node, establishedOver);
   const openSurfaceFor = (node) => {
     for (const controller of controllers)
       if (controller.open && controller.surface.contains(node))
@@ -211,6 +218,8 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
     mount,
     coveringSurface,
     coveringScroller,
+    coveringFocus,
+    allowsNativeLayer,
     openSurfaceFor,
   };
 }

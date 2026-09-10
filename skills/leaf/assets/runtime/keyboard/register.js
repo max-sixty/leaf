@@ -22,4 +22,7 @@ export const universalReference = () => reference;
 export const allButTheReference = (binding) => !bindings(reference).includes(binding);
 export const textEntryScope = () => typing;
 export const coveringWorkspaceSurface = () => workspace.coveringSurface();
+export const coveringWorkspaceFocus = () => workspace.coveringFocus();
+export const workspaceAllowsNativeLayer = (node, establishedOver) =>
+  workspace.allowsNativeLayer(node, establishedOver);
 export const openWorkspaceSurfaceFor = (node) => workspace.openSurfaceFor(node);

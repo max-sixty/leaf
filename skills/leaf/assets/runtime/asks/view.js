@@ -115,7 +115,7 @@ import {
 } from "../passages.js";
 import { scrollerFor } from "../reading-regions.js";
 import { el, reserve, reveal } from "../widget-elements.js";
-import { asksBtn, asksList, asksOffered, asksPanel, openTray } from "../trays.js";
+import { asksBtn, asksList, asksOffered, asksPanel, trayIsOpen } from "../trays.js";
 import { registry, tagsDeclaring } from "../registry.js";
 import {
   allAsks as readAllAsks,
@@ -146,7 +146,7 @@ export function createAskView({
   panelIsOpen,
   pendingRequests,
   setPanel,
-  showTray,
+  setOpenTray,
   trayCovers,
   readableDestination,
   scrollToElement,
@@ -262,14 +262,14 @@ export function createAskView({
     // Only while the tray is up: the count above is what a closed tray says, and these
     // rows are what an open one says. A closed tray reconciling a list on every poll is
     // work for a reader who cannot see it, and rows in a document nothing can press.
-    if (openTray("asks")) renderAsks(all, unanswered);
+    if (trayIsOpen("asks")) renderAsks(all, unanswered);
     for (const { btn, label, n } of blanketAnswers(asks)) {
       const said = `${label} all (${n})`;
       if (btn.textContent !== said) btn.textContent = said;
       showNews(btn, Boolean(n));
     }
     // The a/A row stands on this list, so the surfaces reading it are repainted
-    // where it changes — the rule showFab and showTray already keep for the words
+    // where it changes — the rule showFab and setOpenTray already keep for the words
     // they write. A capability change also moves the tray edge's machine-readable keys.
     const offered = asksOffered();
     const walkOffered = asks.length > 0;
@@ -338,7 +338,7 @@ export function createAskView({
   }
   function renderAsks(asks = allAsks(), unanswered = new Set(unansweredAsks())) {
     let anchor = null;
-    if (!openTray("asks")) {
+    if (!trayIsOpen("asks")) {
       for (const [, row] of askRowsById) row.remove();
       askRowsById.clear();
       emptyNote.remove();
@@ -639,7 +639,7 @@ export function createAskView({
   // The chips are an eye's projection of the same row, and aria-keyshortcuts is its
   // listener-facing projection on each exact action control. A widget that already owns
   // an address face lends that face and its exact placement; other actions get chrome at
-  // the visible margin element's corner. Off-screen actions keep their working address and name
+  // the visible margin entry's corner. Off-screen actions keep their working address and name
   // on the shortcut bar but wear no chip. A nearer keyboard layer suppresses the row and both
   // projections through the exact available commands, so a digit never stays
   // promised after a sequence, text box, or modal has taken it.
@@ -670,7 +670,7 @@ export function createAskView({
     }
     // A covering tray does not invalidate the commands or their accessible shortcuts,
     // but it does hide the page controls that inline address faces claim to label.
-    const addressesVisible = !(openTray("asks") && trayCovers());
+    const addressesVisible = !(trayIsOpen("asks") && trayCovers());
     const placement = addressPlacement();
 
     // Reuse a widget's page-local address where it has one. Besides preserving the
@@ -764,7 +764,7 @@ export function createAskView({
     // A walk that runs past the foot of an open tray leaves its mark off screen, which is
     // the tray saying nothing exactly while the reader is using it. `nearest` so a row
     // already in view moves nothing.
-    if (row && openTray("asks")) row.scrollIntoView({ block: "nearest" });
+    if (row && trayIsOpen("asks")) row.scrollIntoView({ block: "nearest" });
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
     // A control-less request can borrow its own tab stop while the broader x-ask-surface
@@ -1021,7 +1021,7 @@ export function createAskView({
     // become the whole visible surface, so selecting a page destination closes it
     // before the reveal and focus land; otherwise the correct navigation happens
     // invisibly behind the very sheet that offered it.
-    if (!inChrome(next) && openTray("asks") && trayCovers()) showTray(null);
+    if (!inChrome(next) && trayIsOpen("asks") && trayCovers()) setOpenTray(null);
     reveal(next); // a settled group or an inactive tab has no geometry until it opens
     const source = askSource(next);
     if (source !== next) reveal(source); // let the answering widget settle its own chrome

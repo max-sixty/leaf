@@ -170,10 +170,10 @@ CONTROL_ARCHETYPES = (
         "target": ".lf-signoff",
     },
     {
-        # Accept and Reject share the resting row. A thread adds the third margin element that
+        # Accept and Reject share the resting row. A thread adds the third margin entry that
         # puts the secondary choices behind `…`; opening it must leave Accept still.
-        "name": "margin-element",
-        "coverage": ".lf-margin-element",
+        "name": "margin-entry",
+        "coverage": ".lf-margin-entry",
         "target": '[data-lf-margin-for="stable-suggestion"] > .lf-margin-more',
     },
     {
@@ -420,7 +420,7 @@ def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
         expect(button).to_be_disabled()
 
         page.locator(".lf-threads-toggle").click()
-        expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+        expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
 
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
@@ -487,7 +487,7 @@ def test_a_workspace_lands_one_responsive_layout_and_carries_the_column_to_it(
     )
 
     page.locator(".lf-threads-toggle").click()
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
     assert page.evaluate("() => window.__lfHeld.length") == 1, (
         "opening the workspace did not produce one controllable column motion"
     )
@@ -681,7 +681,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     # the covering sheet has already stopped.
     resized(page, 320, 844)
     page.locator(".lf-threads-toggle").click()
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     locked = actions.evaluate(
         """actions => {
           document.scrollingElement.scrollTop = 400;
@@ -702,7 +702,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         "scrolled": 0,
     }, f"the action row bypassed the covering panel's page lock: {locked}"
     page.get_by_role("button", name="Close threads").click()
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -1291,7 +1291,7 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
           });
           const r = para.getBoundingClientRect();
           return {start: [r.left + 40, r.top + 8],
-                  edge: document.querySelector('.lf-panel').getBoundingClientRect().left,
+                  edge: document.querySelector('.lf-thread-panel').getBoundingClientRect().left,
                   words: para.textContent,
                   whole: document.body.textContent.length};
         }"""
@@ -1648,8 +1648,8 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         # reference.
         expect(page.locator(".lf-shortcut-bar")).to_be_hidden()
         compact = page.locator(
-            ".lf-panel .lf-react:visible, .lf-panel-head .lf-btn:visible, "
-            ".lf-panel-foot .lf-btn:visible"
+            ".lf-thread-panel .lf-react:visible, .lf-thread-panel-head .lf-btn:visible, "
+            ".lf-thread-panel-foot .lf-btn:visible"
         )
         assert compact.count() >= 2, (
             "the covering panel exposed no compact touch controls"
@@ -1823,12 +1823,12 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         # its surviving close control before it disappears; the narrower tray still moves.
         page.locator(".lf-threads-toggle").click()
         panel_settled(page)
-        comments_edge = page.locator(".lf-panel > .lf-edge")
+        comments_edge = page.locator(".lf-thread-panel > .lf-edge")
         comments_edge.focus()
         expect(comments_edge).to_be_focused()
         resized(page, 320, 800)
         assert comments_edge.evaluate("edge => edge.hidden")
-        expect(page.locator(".lf-panel-head .lf-btn")).to_be_focused()
+        expect(page.locator(".lf-thread-panel-head .lf-btn")).to_be_focused()
         assert comments_edge.get_attribute(
             "aria-valuemin"
         ) == comments_edge.get_attribute("aria-valuemax")
@@ -1840,7 +1840,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         )
         width_before = page.evaluate(
             "() => getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--lf-panel-w')"
+            ".getPropertyValue('--lf-thread-panel-width')"
         )
         threads_box = threads.bounding_box()
         swipe(
@@ -1853,7 +1853,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         assert (
             page.evaluate(
                 "() => getComputedStyle(document.documentElement)"
-                ".getPropertyValue('--lf-panel-w')"
+                ".getPropertyValue('--lf-thread-panel-width')"
             )
             == width_before
         )
@@ -1892,8 +1892,8 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
                 "comments",
                 390,
                 ".lf-threads-toggle",
-                ".lf-panel",
-                ".lf-panel > .lf-edge",
+                ".lf-thread-panel",
+                ".lf-thread-panel > .lf-edge",
                 ".lf-threads",
                 48,
             ),
@@ -2012,7 +2012,7 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
 def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
     """Each row mechanism holds its other controls still across its causal transition."""
     # The synthetic page composes every mechanism a page can author, and carries the
-    # standing comment the margin element's row is made of. An archetype naming an example
+    # standing comment the margin entry's row is made of. An archetype naming an example
     # is one no page can compose, so its proof runs where the mechanism lives.
     example = archetype.get("example")
     page, errors = open_page(
@@ -2946,7 +2946,7 @@ def test_the_leaves_tray_takes_the_keyboard(browser, serve, live_leaf, one_reade
     shortcut_bar = page.locator(".lf-shortcut-bar")
     # The go-to menu carries the panel only while there is another leaf to show.
     page.keyboard.press("g")
-    expect(shortcut_bar).to_contain_text("All leaves panel")
+    expect(shortcut_bar).to_contain_text("Leaves tray")
     page.keyboard.press("Shift+l")
     rows = page.locator("a.lf-others-row")
     # Titles order the tray, so the walk has a stated first row to start from.
@@ -3043,7 +3043,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     merely blurring to nowhere."""
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
     toggle = page.locator(".lf-threads-toggle")
-    panel = page.locator(".lf-panel")
+    panel = page.locator(".lf-thread-panel")
     ringed = (
         "() => document.querySelector('.lf-threads-toggle').matches(':focus-visible')"
     )
@@ -3093,21 +3093,21 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
 
 
 @pytest.mark.parametrize("width", [500, 1200])
-def test_workspaces_replace_each_other_and_name_the_open_one(
+def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
     browser, serve, other_leaf, width
 ):
-    """Threads and trays are alternate workspaces at every width.
+    """Threads and trays are alternate auxiliary surfaces at every width.
 
-    The open workspace keeps its semantic expanded state and also wears the banner's
+    The open auxiliary surface keeps its semantic expanded state and also wears the banner's
     active face. Its peers return to rest as it takes their place, so the tint names
-    exactly the workspace the reader can see rather than merely the last one pressed.
-    A workspace beside the page can be replaced directly; a covering one is modal and
+    exactly the auxiliary surface the reader can see rather than merely the last one pressed.
+    A surface beside the page can be replaced directly; a covering surface is modal and
     must close before its banner peers become available again.
     """
     page, errors = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, width, 700)
     asks = page.locator(".lf-asks-panel")
-    comments = page.locator(".lf-panel")
+    comments = page.locator(".lf-thread-panel")
     controls = {
         "leaves": page.locator(".lf-others"),
         "asks": page.locator(".lf-asks"),
@@ -3128,9 +3128,11 @@ def test_workspaces_replace_each_other_and_name_the_open_one(
     ]
     resting = {name: face(control) for name, control in controls.items()}
     for control in controls.values():
-        expect(control).to_have_class(re.compile(r"\blf-workspace\b"))
+        expect(control).to_have_class(re.compile(r"\blf-auxiliary-toggle\b"))
     expect(
-        page.locator(".lf-version.lf-workspace, .lf-banner-more.lf-workspace")
+        page.locator(
+            ".lf-version.lf-auxiliary-toggle, .lf-banner-more.lf-auxiliary-toggle"
+        )
     ).to_have_count(0)
 
     def expect_open(name):
@@ -3189,7 +3191,7 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page)
-    expect(page.locator(".lf-panel")).not_to_have_attribute("aria-modal", "true")
+    expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
 
     draft = "Keep this draft through both workspace postures."
     page.locator(".lf-general textarea").fill(draft)
@@ -3204,26 +3206,26 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     resized(page, 500, 640)
     panel_settled(page)
     assert page.locator("main").evaluate("el => el.inert")
-    expect(page.locator(".lf-panel")).to_have_attribute("aria-modal", "true")
+    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
     expect(page.locator(f'.lf-thread[data-id="{identity}"]')).to_be_focused()
     expect(page.locator(".lf-general textarea")).to_have_value(draft)
     assert threads.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
 
     # A complete pass through more stops than this panel holds has to wrap within it.
     focus_stops = page.locator(
-        ".lf-panel button:visible, .lf-panel input:visible, "
-        ".lf-panel textarea:visible, .lf-panel [tabindex='0']:visible"
+        ".lf-thread-panel button:visible, .lf-thread-panel input:visible, "
+        ".lf-thread-panel textarea:visible, .lf-thread-panel [tabindex='0']:visible"
     )
     assert focus_stops.count() > 8, (
         "the panel has too few stops to expose a focus escape"
     )
     focus_stops.last.focus()
     page.keyboard.press("Tab")
-    expect(page.locator(".lf-panel > .lf-edge")).to_be_focused()
+    expect(page.locator(".lf-thread-panel > .lf-edge")).to_be_focused()
     for _ in range(focus_stops.count() + 3):
         page.keyboard.press("Tab")
         assert page.evaluate(
-            "() => document.querySelector('.lf-panel').contains(document.activeElement)"
+            "() => document.querySelector('.lf-thread-panel').contains(document.activeElement)"
         ), "Tab reached a control behind the covering Threads workspace"
 
     open_filter = page.locator('[data-filter-value="open"]')
@@ -3231,11 +3233,11 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     resized(page, 1000, 640)
     panel_settled(page)
     expect(open_filter).to_be_focused()
-    expect(page.locator(".lf-panel")).not_to_have_attribute("aria-modal", "true")
+    expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
     resized(page, 500, 640)
     panel_settled(page)
     expect(open_filter).to_be_focused()
-    expect(page.locator(".lf-panel")).to_have_attribute("aria-modal", "true")
+    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
     threads.evaluate("el => el.scrollTop = 0")
     page.locator(".lf-threads").focus()
@@ -3277,16 +3279,16 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     panel_settled(page)
     assert not page.locator("main").evaluate("el => el.inert")
     expect(thread).to_be_focused()
-    expect(page.locator(".lf-panel")).not_to_have_attribute("aria-modal", "true")
+    expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
     expect(page.locator(".lf-general textarea")).to_have_value(draft)
     assert threads.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
     resized(page, 500, 640)
     panel_settled(page)
     expect(thread).to_be_focused()
-    expect(page.locator(".lf-panel")).to_have_attribute("aria-modal", "true")
+    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
 
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     assert not page.locator("main").evaluate("el => el.inert")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
@@ -3294,8 +3296,10 @@ def test_covering_threads_keeps_the_reader_and_their_work_inside(browser, serve)
     page.close()
 
 
-def test_a_covering_workspace_keeps_a_replacement_document_inert(browser, serve):
-    """A live version can replace main without reopening the covering workspace.
+def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
+    browser, serve
+):
+    """A live version can replace main without reopening the covering auxiliary surface.
 
     The modal boundary follows that replacement, so the new document cannot become a
     pointer or keyboard target while the sheet still claims modal semantics. Closing
@@ -3322,8 +3326,8 @@ def test_a_covering_workspace_keeps_a_replacement_document_inert(browser, serve)
           oldConnected: window.__lfReplacedMain.isConnected,
           sameMain: window.__lfReplacedMain === document.querySelector('main'),
           inert: document.querySelector('main').inert,
-          modal: document.querySelector('.lf-panel').getAttribute('aria-modal'),
-          focusInside: document.querySelector('.lf-panel').contains(document.activeElement),
+          modal: document.querySelector('.lf-thread-panel').getAttribute('aria-modal'),
+          focusInside: document.querySelector('.lf-thread-panel').contains(document.activeElement),
         })"""
     )
     assert state == {
@@ -3342,8 +3346,8 @@ def test_a_covering_workspace_keeps_a_replacement_document_inert(browser, serve)
     page.close()
 
 
-def test_a_covering_tray_uses_the_same_modal_workspace_boundary(browser, serve):
-    """The Asks tray gets the covering workspace contract rather than a tray-specific
+def test_a_covering_tray_uses_the_same_auxiliary_modality_boundary(browser, serve):
+    """The Asks tray gets the covering auxiliary surface contract rather than a tray-specific
     focus trap. Its exact Ask and reading place survive both responsive crossings, its
     reading keys move its own list, and closing returns to its door without moving the
     document behind it."""
@@ -3455,13 +3459,13 @@ def test_covering_trays_have_a_pointer_route_back_to_their_banner_controls(
     page.close()
 
 
-def test_the_shared_workspace_scrim_marks_and_dismisses_a_covering_surface(
+def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
     browser, serve, other_leaf
 ):
-    """A covering workspace stands above a scrim covering every inert surface."""
+    """A covering auxiliary surface stands above a scrim covering every inert surface."""
     page, errors = open_page(browser, serve(LONG_PAGE))
     resized(page, 1200, 700)
-    scrim = page.locator(".lf-workspace-scrim")
+    scrim = page.locator(".lf-auxiliary-scrim")
     expect(scrim).to_be_hidden()
 
     leaves_door = banner_address(page, ".lf-others")
@@ -3472,7 +3476,7 @@ def test_the_shared_workspace_scrim_marks_and_dismisses_a_covering_surface(
     assert page.locator("main").evaluate("el => el.inert")
     scrim_reading = page.evaluate(
         """() => {
-          const scrim = document.querySelector('.lf-workspace-scrim');
+          const scrim = document.querySelector('.lf-auxiliary-scrim');
           const banner = document.querySelector('.lf-banner');
           const bannerBox = banner.getBoundingClientRect();
           const scrimBox = scrim.getBoundingClientRect();
@@ -3521,9 +3525,9 @@ def test_the_shared_workspace_scrim_marks_and_dismisses_a_covering_surface(
     panel_settled(page)
     expect(scrim).to_be_visible()
     assert page.locator("main").evaluate("el => el.inert")
-    assert page.locator(".lf-panel").evaluate(
+    assert page.locator(".lf-thread-panel").evaluate(
         "panel => Number(getComputedStyle(panel).zIndex) > "
-        "Number(getComputedStyle(document.querySelector('.lf-workspace-scrim')).zIndex)"
+        "Number(getComputedStyle(document.querySelector('.lf-auxiliary-scrim')).zIndex)"
     )
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
@@ -3536,11 +3540,11 @@ def test_the_shared_workspace_scrim_marks_and_dismisses_a_covering_surface(
 @pytest.mark.parametrize(
     ("key", "surface", "close_name"),
     [
-        ("Shift+t", ".lf-panel", "Close threads"),
+        ("Shift+t", ".lf-thread-panel", "Close threads"),
         ("Shift+a", ".lf-asks-panel", "Close asks"),
     ],
 )
-def test_a_keyboard_workspace_entry_survives_covering_to_beside(
+def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(
     browser, serve, key, surface, close_name
 ):
     """Posture does not retire a live return, while closing its workspace does."""
@@ -3551,20 +3555,20 @@ def test_a_keyboard_workspace_entry_survives_covering_to_beside(
 
     page.keyboard.press("g")
     page.keyboard.press(key)
-    if surface == ".lf-panel":
+    if surface == ".lf-thread-panel":
         panel_settled(page)
     else:
         expect(page.locator(surface)).to_have_class(re.compile(r"\bopen\b"))
     assert page.locator("main").evaluate("el => el.inert")
 
     resized(page, 1000, 640)
-    if surface == ".lf-panel":
+    if surface == ".lf-thread-panel":
         panel_settled(page)
     assert not page.locator("main").evaluate("el => el.inert")
     expect(page.locator(surface)).to_have_class(re.compile(r"\bopen\b"))
 
     page.keyboard.press("Escape")
-    if surface == ".lf-panel":
+    if surface == ".lf-thread-panel":
         panel_settled(page, open=False)
     else:
         expect(page.locator(surface)).not_to_have_class(re.compile(r"\bopen\b"))
@@ -3572,10 +3576,10 @@ def test_a_keyboard_workspace_entry_survives_covering_to_beside(
 
     page.keyboard.press("g")
     page.keyboard.press(key)
-    if surface == ".lf-panel":
+    if surface == ".lf-thread-panel":
         panel_settled(page)
     page.get_by_role("button", name=close_name).click()
-    if surface == ".lf-panel":
+    if surface == ".lf-thread-panel":
         panel_settled(page, open=False)
     else:
         expect(page.locator(surface)).not_to_have_class(re.compile(r"\bopen\b"))
@@ -3890,7 +3894,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     sweep("standing in the general box")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
     # A tray on the far edge, which the sweep above never opens either. Waited out rather
     # than pressed past: the close is animated, so the next surface would otherwise be read
@@ -3933,7 +3937,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
 def test_page_and_panel_scroll_in_separate_regions(browser, serve):
     """The browser root scrolls the document and the panel keeps its own scrollport.
 
-    Body is the yielding layout shell rather than a third scroll region: beside a wide
+    Body is the yielding page shell rather than a third scroll region: beside a wide
     panel its right edge ends where the panel begins, while native document scrolling
     remains rooted in html."""
     page, _ = open_page(browser, serve(LONG_PAGE, comments=12))
@@ -3993,7 +3997,7 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
         "the page scrolled behind the covering sheet"
     )
 
-    # Navigation closes the covering workspace before it positions the page. Doing the
+    # Navigation closes the covering auxiliary surface before it positions the page. Doing the
     # same scroll behind the lock produces the right numbers and the wrong product: the
     # promised passage remains invisible.
     #
@@ -4073,7 +4077,7 @@ def test_a_sheet_lifts_the_shortcut_bar_text_only_when_its_foot_reaches_the_same
             };
             const list = document.querySelector(".lf-threads");
             const style = getComputedStyle(list);
-            return {shortcut_bar: rect(".lf-shortcut-bar"), foot: rect(".lf-panel-foot"),
+            return {shortcut_bar: rect(".lf-shortcut-bar"), foot: rect(".lf-thread-panel-foot"),
                     list: rect(".lf-threads"),
                     viewportHeight: innerHeight,
                     listInlinePad: list.style.paddingBottom,
@@ -4169,7 +4173,7 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
             const r = document.querySelector(selector).getBoundingClientRect();
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
-              return {shortcut_bar: rect('.lf-shortcut-bar'), footer: rect('.lf-panel-foot'),
+              return {shortcut_bar: rect('.lf-shortcut-bar'), footer: rect('.lf-thread-panel-foot'),
                       width: innerWidth, height: innerHeight};
         }"""
     )
@@ -4849,7 +4853,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     page, errors = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    edge = page.locator(".lf-panel > .lf-edge")
+    edge = page.locator(".lf-thread-panel > .lf-edge")
     edge.focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
@@ -4865,12 +4869,12 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     # names the z-index that lifts it past.
     plant = """({z, wrap}) => {
       document.querySelector('.lf-under-plant')?.remove();
-      const grip = document.querySelector('.lf-panel > .lf-edge');
+      const grip = document.querySelector('.lf-thread-panel > .lf-edge');
       const cs = getComputedStyle(grip);
       const grow = parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);
       const b = grip.getBoundingClientRect();
       const mid = (Math.max(b.top - grow, 0) + Math.min(b.bottom + grow, innerHeight)) / 2;
-      const holder = document.querySelector('.lf-panel')
+      const holder = document.querySelector('.lf-thread-panel')
         .appendChild(document.createElement('div'));
       holder.className = 'lf-under-plant';
       Object.assign(holder.style, {position: 'absolute', inset: '0'});
@@ -4975,7 +4979,7 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
             left: ${b.left - 8}px; top: ${b.top - 5}px;
             width: ${b.width + 16}px; height: 4px;`;
           holder.append(band);
-          document.activeElement.closest('.lf-panel').append(holder);
+          document.activeElement.closest('.lf-thread-panel').append(holder);
         }"""
     )
     covers = standing_ring(page)["covers"]
@@ -5195,12 +5199,12 @@ RING_WALKS = (
     ("the reference", ("?", "?"), ("corpus",)),
     ("design mode", ("l",), ("corpus",)),
     # A Thread card and the compact Page-map sheet are the two layers a Tab walk of the
-    # page cannot open for itself. The card is a press on a thread margin element; the sheet is a
+    # page cannot open for itself. The card is a press on a thread margin entry; the sheet is a
     # press on a Map control the wide posture does not draw at all, so its walk asks for
     # the narrow window the control lives in.
     ("a thread card", (), ("ship-review",)),
     ("message media", (), ("feature-gallery",)),
-    ("the page map sheet", (), ("corpus",)),
+    ("the Page Map dialog", (), ("corpus",)),
 )
 # The corpus is the open-ended page and design-mode anchor. The authored pages now
 # give each interaction family a focused page, so the page walk names those owners:
@@ -5235,9 +5239,9 @@ def offered(page, selector):
 # surface of their own; `g T` lands on the Threads list, which the walk's own first stop
 # reads, while page `c` enters its comment box and is exercised separately.
 RING_SCOPE_SURFACE = {
-    "the thread list": (".lf-panel.open", None),
+    "the thread list": (".lf-thread-panel.open", None),
     "a thread card": (".lf-margin-preview:popover-open", None),
-    "the page map sheet": (".lf-page-map-sheet[open]", None),
+    "the Page Map dialog": (".lf-page-map-dialog[open]", None),
     "passage search": (".lf-target-search:not([hidden])", None),
     # The hint the keyboard is browsing, and the field the chosen item's bar opens with.
     # Each is the mode's own state rather than a box that merely exists: the chips are
@@ -5259,7 +5263,7 @@ RING_SCOPE_CONTROL = {
         ".lf-margin-preview",
     ),
     "message media": (None, ".lf-message-media"),
-    "the page map sheet": (".lf-page-map-toggle", ".lf-page-map-action"),
+    "the Page Map dialog": (".lf-page-map-toggle", ".lf-page-map-action"),
     # The trigger presses itself away, so the arrival is read from the open strip
     # rather than from the palette a shut one still holds.
     "a reaction palette": (
@@ -5290,12 +5294,12 @@ RING_SCOPES_STARTING_WITHOUT_PANEL = {
     "the thread list",
     "a contents link",
     "a thread card",
-    "the page map sheet",
+    "the Page Map dialog",
 }
 RING_SCOPE_WIDTH = {
     "a contents link": 1600,
     "a thread card": 1600,
-    "the page map sheet": 760,
+    "the Page Map dialog": 760,
 }
 # Message media exists only in the developer gallery's seeded conversation. Its direct
 # control setup is the causal ring specimen; walking all 250+ unrelated gallery stops
@@ -5644,15 +5648,15 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                         source.locator(":scope > summary").click()
             page.evaluate(RING_WALK_START)
             # Threads and a target's own Thread card are one surface offered two ways:
-            # with the panel standing, a thread margin element sends the reader there instead of
+            # with the panel standing, a thread margin entry sends the reader there instead of
             # building the card. The scopes listed above need the panel shut either to expose
             # their own page surface or to exercise the panel's entry route itself.
             if scope in RING_SCOPES_STARTING_WITHOUT_PANEL:
-                if page.locator(".lf-panel.open").count():
+                if page.locator(".lf-thread-panel.open").count():
                     page.get_by_role("button", name="Close threads").click()
                     panel_settled(page, open=False)
                     page.evaluate(RING_WALK_START)
-            elif not page.locator(".lf-panel.open").count():
+            elif not page.locator(".lf-thread-panel.open").count():
                 page.locator(".lf-threads-toggle").click()
                 panel_settled(page)
             if scope == "the page":
@@ -5672,7 +5676,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 page_at_rest(page)
             if control := RING_SCOPE_CONTROL.get(scope):
                 opener, arrival = control
-                # The first, because a page map has one thread margin element per commented
+                # The first, because a Page Map has one thread margin entry per commented
                 # target and the walk wants a card rather than a particular one.
                 if opener:
                     page.locator(opener).first.click()
@@ -5728,16 +5732,16 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             for _ in range(400):
                 if walked or empty:
                     # On the settled page, not merely on a rendered frame. Standing on a
-                    # control scrolls the page to it, and the living margin answers that
+                    # control scrolls the page to it, and the margin projection answers that
                     # scroll by re-placing its clusters — which moves the page's own
-                    # margin elements, since a widget's margin element is contributed to a cluster rather
+                    # margin entries, since a widget's margin entry is contributed to a cluster rather
                     # than left where the widget built it. A Tab pressed while that is in
                     # flight is answered in the order the previous frame had, so the
                     # walk's next stop is read off one arrangement and its next press
                     # made against another: measured under the suite's own load, the
                     # order stepped over the whole of lf-shot — its transparent flip and
                     # the keyboard proxy beside it — and the walk stood on the shot's
-                    # margin element instead, leaving the `shot` ring painted nowhere the corpus
+                    # margin entry instead, leaving the `shot` ring painted nowhere the corpus
                     # could be walked to while every control involved was focusable
                     # before the press and after it.
                     page_at_rest(page)

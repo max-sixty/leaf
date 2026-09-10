@@ -80,7 +80,7 @@ READING_REGIONS_PAGE = leaf_page(
     """
 <lf-workspace id="reading-workspace">
   <header><h1>Reading workspace</h1></header>
-  <lf-split id="reading-split" direction="columns">
+  <lf-partition id="reading-split" direction="columns">
     <lf-pane id="left-reading" label="Left reading">
       <header><button id="left-head">Left header</button></header>
       <p id="left-start">Left start with enough words to preserve this landmark.</p>
@@ -98,7 +98,7 @@ READING_REGIONS_PAGE = leaf_page(
       <div style="height: 740px"></div>
       <p id="right-end"><button id="right-subject">Right subject</button></p>
     </lf-pane>
-  </lf-split>
+  </lf-partition>
 </lf-workspace>
 """,
 )
@@ -154,13 +154,13 @@ def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
     left.evaluate("el => el.scrollTop = 180")
     right.evaluate("el => el.scrollTop = 380")
     page.locator("#right-subject").focus()
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
     resized(page, 520, 900)
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     expect(page.locator("#right-subject")).to_be_focused()
     resized(page, 1200, 900)
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     readings = [
         left.evaluate("el => el.scrollTop"),
         right.evaluate("el => el.scrollTop"),
@@ -182,7 +182,7 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
     left = page.locator("#left-reading > .lf-pane-content > .lf-pane-body")
     right = page.locator("#right-reading > .lf-pane-content > .lf-pane-body")
     target = page.locator("#left-end")
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
     left.evaluate("body => body.scrollTop = body.scrollHeight")
     right.evaluate("body => body.scrollTop = 320")
@@ -215,13 +215,13 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
     ), "the complete multiline draft was not reachable in its field"
 
     resized(page, 520, 900)
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     expect(field).to_be_focused()
     expect(field).to_have_value(draft)
     expect(page.get_by_role("button", name="Comment", exact=True)).to_be_visible()
 
     resized(page, 1200, 900)
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     expect(field).to_be_focused()
     expect(field).to_have_value(draft)
     assert right.evaluate("body => body.scrollTop") == pytest.approx(
@@ -245,7 +245,7 @@ def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser,
     page, errors = open_page(browser, serve(READING_REGIONS_PAGE))
     workspace = page.locator("#reading-workspace")
     resized(page, 520, 900)
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     right_landmark = page.locator("#right-landmark")
     right_landmark.scroll_into_view_if_needed()
     page.evaluate("() => document.activeElement?.blur()")
@@ -257,7 +257,7 @@ def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser,
     relative = right_landmark.evaluate("el => el.getBoundingClientRect().top")
 
     resized(page, 1200, 900)
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     readings = page.evaluate(
         """() => ({
           left: document.querySelector('#left-reading .lf-pane-body').scrollTop,
@@ -349,7 +349,7 @@ def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
     url = serve(READING_REGIONS_PAGE)
     page, errors = open_page(browser, live_url(url))
     expect(page.locator("#reading-workspace")).to_have_attribute(
-        "data-lf-posture", "bounded"
+        "data-lf-reading-posture", "bounded"
     )
     left = page.locator("#left-reading > .lf-pane-content > .lf-pane-body")
     right = page.locator("#right-reading > .lf-pane-content > .lf-pane-body")
@@ -547,7 +547,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
     proposed = page.locator("#comparison-proposed")
 
     resized(page, 1200, 900)
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     expect(current).to_be_visible()
     expect(proposed).to_be_visible()
     boxes = [
@@ -559,7 +559,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
     assert page.locator("lf-options[choose]").count() == 1
 
     resized(page, 420, 900)
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     boxes = [
         current.evaluate("el => el.getBoundingClientRect().toJSON()"),
         proposed.evaluate("el => el.getBoundingClientRect().toJSON()"),
@@ -751,7 +751,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator('[data-filter-value="resolved"]')).not_to_have_text("Resolved")
     page.locator('[data-filter-value="resolved"]').click()
     expect(
@@ -779,9 +779,9 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.keyboard.press("Escape")
     expect(viewer).to_be_hidden()
     expect(media_open).to_be_focused()
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator(".lf-asks")).to_be_focused()
 
     page.locator(".lf-version").click()
@@ -842,7 +842,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     ).to_be_in_viewport()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(sheet).to_be_visible()
     header = sheet.locator(".lf-page-map-head")
     close = header.get_by_role("button", name="Close", exact=True)
@@ -2121,7 +2121,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     panel_status = page.evaluate(
         """() => ({
           statusRight: document.querySelector('.lf-bottom-status').getBoundingClientRect().right,
-          panelLeft: document.querySelector('.lf-panel').getBoundingClientRect().left,
+          panelLeft: document.querySelector('.lf-thread-panel').getBoundingClientRect().left,
         })"""
     )
     assert panel_status["statusRight"] < panel_status["panelLeft"], panel_status
@@ -2146,7 +2146,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
         f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[0]}"]'
     )
     expect(first).to_be_focused()
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(position).to_have_text("Thread 1 of 2")
     expect(position).to_be_visible()
     expect(page.locator(".lf-notice")).not_to_be_visible()
@@ -2167,7 +2167,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
         f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[1]}"]'
     )
     expect(second).to_be_focused()
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(position).to_have_text("Thread 2 of 2")
     expect(second.locator(".lf-conversation-msg").first).to_be_visible()
     preview_room = page.evaluate(
@@ -2203,7 +2203,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(first).to_be_focused()
     page.keyboard.press("Enter")
     expect(first.locator("textarea")).to_be_focused()
@@ -2507,7 +2507,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
 
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
 
     expect(reply).to_be_focused()
     expect(reply).to_be_visible()
@@ -2995,7 +2995,9 @@ def test_closing_the_panel_puts_down_the_card_it_was_lighting(browser, serve):
     wait_hovered(page, "bold text")
 
     page.keyboard.press("Escape")
-    page.wait_for_function("() => !document.body.hasAttribute('data-lf-panel')")
+    page.wait_for_function(
+        "() => !document.body.hasAttribute('data-lf-auxiliary-surface')"
+    )
     wait_hovered(page, "")
     assert errors == []
     page.close()
@@ -3050,9 +3052,9 @@ def test_a_commented_block_says_so_to_a_screen_reader(browser, serve):
     expect(note).to_have_role("button")
     note.click()
     expect(inline1).to_be_focused()
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     note.focus()
     expect(note).to_be_focused()
     assert note.evaluate("el => el.getBoundingClientRect().width > 1"), (
@@ -3256,7 +3258,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         }))"""
     ) == [
         {
-            "command": "navigation.target.filter.margin-elements",
+            "command": "navigation.target.filter.margin-entries",
             "keys": ["g", "m"],
             "action": "Show only visible margin targets",
         },
@@ -3306,7 +3308,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     expect(mixed).to_have_count(2)
     mixed_codes = mixed.evaluate_all(
         "els => Object.fromEntries(els.map(el => "
-        "[el.dataset.lfAddressMarginElement, el.dataset.lfAddress]))"
+        "[el.dataset.lfAddressMarginEntry, el.dataset.lfAddress]))"
     )
     thread_code = mixed_codes["reading:threadList"]
     ask_key = next(key for key in mixed_codes if key != "reading:threadList")
@@ -3566,7 +3568,7 @@ def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
 def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     """Mnemonics reach global surfaces; generated hints reach the visible scene.
 
-    Threads, Asks, Page map, and page edges keep stable named routes. margin controls and status indicators,
+    Threads, Asks, Page Map, and page edges keep stable named routes. margin controls and status indicators,
     tabs, links, folds, and the presses a widget built instead share one viewport-local
     letter namespace."""
     url = serve(ADDRESSED_PAGE)
@@ -3598,7 +3600,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # Wide enough that the panel will stand beside the page rather than over it, which is
     # where a box in the fixed chrome and the page's flow part company: body is narrowed
-    # as the layout shell, the panel is fixed and is not inside it, and a chip placed by
+    # as the page shell, the panel is fixed and is not inside it, and a chip placed by
     # walking the page's clips came back with the whole reply box clipped away.
     resized(page, 1280, 800)
 
@@ -3654,13 +3656,13 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
             "navigation.panel.asks",
             ["g", "A"],
             ["pressed", "neutral"],
-            "Asks panel",
+            "Asks tray",
         ),
         (
             "navigation.page-map",
             ["g", "M"],
             ["pressed", "neutral"],
-            "Page map",
+            "Page Map",
         ),
         (
             "navigation.target",
@@ -3790,16 +3792,16 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # A panel mnemonic completes the sequence and leaves the reader inside that panel, where
     # its own scoped keys are immediately available.
-    expect(page.locator(".lf-panel")).not_to_be_visible()
+    expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
     expect(page.locator(f'.lf-thread[data-id="{c1}"] textarea')).to_have_attribute(
         "placeholder", "Reply"
     )
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).not_to_be_visible()
+    expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     assert page.evaluate("() => document.activeElement === document.body")
 
     # The Asks sequence follows the same contract: show the panel and land on its first row.
@@ -3817,31 +3819,31 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     ask = page.locator(".lf-asks-row").first
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-asks-panel")).not_to_be_visible()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).not_to_be_visible()
+    expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     expect(ask).to_be_focused()
 
-    # Page map has its own close step, but that does not waive the same workspace
+    # Page Map has its own close step, but that does not waive the same workspace
     # contract: leaving it restores the Asks row it stood over. Its door is the one that
     # can forget, because a dialog delivers `close` in a task of its own — a frame after
     # the dispatcher has already put the reader back — so the door's own return route has
     # to stand down for the press that is unwinding it.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(sheet).to_be_visible()
     expect(
         sheet.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page map"
+            "searchbox", name="Find an action, status, or location in Page Map"
         )
     ).to_be_focused()
     page.evaluate(
         """() => {
           window.__lfPageMapClosed = false;
-          document.querySelector('dialog.lf-page-map-sheet').addEventListener(
+          document.querySelector('dialog.lf-page-map-dialog').addEventListener(
             'close',
             () => { window.__lfPageMapClosed = true; },
             {once: true},
@@ -3866,15 +3868,15 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-asks-panel")).not_to_be_visible()
 
-    # Uppercase M opens the complete Page map rather than the numbered prefix.
+    # Uppercase M opens the complete Page Map rather than the numbered prefix.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(sheet).to_be_visible()
     expect(sheet.locator(".lf-page-map-group")).to_have_count(3)
     expect(
         sheet.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page map"
+            "searchbox", name="Find an action, status, or location in Page Map"
         )
     ).to_be_focused()
     page.keyboard.press("Escape")
@@ -4046,7 +4048,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     page, errors = open_page(browser, serve(ADDRESSED_PAGE))
 
     page.keyboard.press("g")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("All leaves panel")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Leaves tray")
     leaves_hint = page.locator(
         '.lf-goto-targets > [data-lf-address-command="navigation.panel.leaves"]'
     )
@@ -4148,7 +4150,7 @@ def test_a_completed_asks_tray_stays_reachable_through_its_toggle_address(
     expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
 
     page.keyboard.press("g")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close Asks panel")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close Asks tray")
     page.keyboard.press("Shift+a")
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
 
@@ -4291,21 +4293,21 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
         browser,
         serve(
             leaf_page(
-                "Empty page map", "<h1>Empty page map</h1><p>No activity yet.</p>"
+                "Empty Page Map", "<h1>Empty Page Map</h1><p>No activity yet.</p>"
             )
         ),
     )
 
     expect(page.locator(".lf-page-map-action")).to_have_count(0)
     page.keyboard.press("g")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Page map")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Page Map")
     page.keyboard.press("Shift+m")
 
-    sheet = page.locator(".lf-page-map-sheet")
+    sheet = page.locator(".lf-page-map-dialog")
     expect(sheet).to_be_visible()
     expect(
         sheet.get_by_role(
-            "searchbox", name="Find an action, status, or location in Page map"
+            "searchbox", name="Find an action, status, or location in Page Map"
         )
     ).to_be_focused()
     expect(sheet).to_contain_text(
@@ -4813,7 +4815,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     edit.click()
     expect(page.locator("#note textarea")).to_be_focused()
 
-    save = page.locator(".lf-draft-controls [data-lf-margin-element-key='save']")
+    save = page.locator(".lf-draft-controls [data-lf-margin-entry-key='save']")
     save.focus()
     expect(save).to_be_focused()
     page.keyboard.press("?")
@@ -5325,7 +5327,14 @@ def test_named_workspace_chords_toggle_their_panels(browser, serve, live_leaf):
     page, errors = open_page(browser, serve(ASKS_PAGE, comments=1))
 
     for key, command, name, surface, control, covering in (
-        ("Shift+t", "threads", "Threads", ".lf-panel", ".lf-threads-toggle", False),
+        (
+            "Shift+t",
+            "threads",
+            "Threads",
+            ".lf-thread-panel",
+            ".lf-threads-toggle",
+            False,
+        ),
         ("Shift+a", "asks", "Asks", ".lf-asks-panel", ".lf-asks", False),
         (
             "Shift+l",
@@ -5372,7 +5381,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
 
     for key, opened, closed in (
         ("Shift+a", ".lf-asks-panel", ".lf-others-panel"),
-        ("Shift+t", ".lf-panel", ".lf-asks-panel"),
+        ("Shift+t", ".lf-thread-panel", ".lf-asks-panel"),
     ):
         page.keyboard.press("g")
         expect(page.locator("body")).to_have_attribute("data-lf-goto", "")
@@ -5384,7 +5393,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    page_map = page.locator(".lf-page-map-sheet")
+    page_map = page.locator(".lf-page-map-dialog")
     expect(page_map).to_be_visible()
     expect(page_map.locator(".lf-page-map-search")).to_be_focused()
     assert page.locator("main").evaluate("main => main.inert")
@@ -5405,7 +5414,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
     version_hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
     assert {"version.later version.earlier", "version.open-v1 version.open-v2"} <= (
         version_hints
-    ), f"the covering workspace displaced the versions scope: {version_hints}"
+    ), f"the covering auxiliary surface displaced the versions scope: {version_hints}"
 
     page.keyboard.press("ArrowUp")
     expect(versions.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
@@ -5419,7 +5428,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
     versions.locator("button:visible").last.focus()
     page.keyboard.press("Tab")
     expect(versions).to_be_hidden()
-    assert page.locator(".lf-panel").evaluate(
+    assert page.locator(".lf-thread-panel").evaluate(
         "panel => panel.contains(document.activeElement)"
     ), "Tab left the version popover but escaped its modal workspace"
 
@@ -5430,7 +5439,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
     page.keyboard.press("Escape")
     expect(versions).to_be_hidden()
     expect(origin).to_be_focused()
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
 
     assert errors == []
     page.close()
@@ -5480,7 +5489,7 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     expect(origin).to_be_focused()
     assert not page.locator("main").evaluate("main => main.inert")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     assert errors == []
     page.close()
@@ -5585,7 +5594,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-notice")).to_contain_text("Nothing to send")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(line).not_to_contain_text("close threads")
     assert page.evaluate("() => document.activeElement === document.body")
 
@@ -5606,14 +5615,16 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
         "Return from Threads panel"
     )
     expect(
-        help_el.get_by_role("heading", name="In the covering workspace", exact=True)
+        help_el.get_by_role(
+            "heading", name="In the covering auxiliary surface", exact=True
+        )
     ).to_have_count(0)
     expect(help_el.locator('[data-lf-command="navigation.back"]')).to_have_count(0)
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
 
     # The fast rung: t opens the inline thread, and Esc from it is one press out.
@@ -5623,7 +5634,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     expect(line).to_contain_text("close thread")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -5746,7 +5757,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     resolved_quote.focus()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("return to the passage")
     page.keyboard.press("Enter")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     placed_after = page.evaluate(
         """() => {
           const passage = document.querySelector('#p1').getBoundingClientRect();
@@ -5772,7 +5783,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     expect(resolved_quote).to_have_class(re.compile(r"\bdetached\b"))
     expect(resolved_quote).to_have_attribute("aria-disabled", "true")
     assert resolved_quote.get_attribute("aria-keyshortcuts") is None
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     stranded_before = page.evaluate("() => document.scrollingElement.scrollTop")
     quote_box = resolved_quote.bounding_box()
     assert quote_box is not None
@@ -5780,7 +5791,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
         quote_box["x"] + quote_box["width"] / 2,
         quote_box["y"] + quote_box["height"] / 2,
     )
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     assert page.evaluate("() => document.scrollingElement.scrollTop") == stranded_before
     resolved_quote.focus()
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text(
@@ -7450,14 +7461,14 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     # press has to be made the same way on both to be comparing anything.
     for control in ("#zoom", "#pick"):
         page.get_by_role("button", name=re.compile("^Threads")).click()
-        expect(page.locator(".lf-panel")).to_be_visible()
+        expect(page.locator(".lf-thread-panel")).to_be_visible()
         page.locator(control).focus()
         expect(page.locator(".lf-shortcut-bar")).to_contain_text("let go")
         page.keyboard.press("Escape")
         assert page.evaluate("() => document.activeElement === document.body")
         expect(page.locator(".lf-shortcut-bar")).to_contain_text("close threads")
         page.keyboard.press("Escape")
-        expect(page.locator(".lf-panel")).to_be_hidden()
+        expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -8058,7 +8069,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     # there is no thread to walk.
     page.keyboard.press("t")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     line = page.locator(".lf-shortcut-bar")
     expect(line).not_to_contain_text("t / T")
 
@@ -8232,7 +8243,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     page, errors = open_page(browser, url)
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
     page.keyboard.press("c")  # panel open, so the old second action would show
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
 
     page.locator(".lf-draft-controls .lf-draft-pencil").click()
     ta = page.locator("lf-draft textarea")
@@ -8240,7 +8251,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     ta.fill("Ship it — but louder.")
     page.keyboard.press("Escape")
     expect(ta).to_have_count(0)  # the editor closed…
-    expect(page.locator(".lf-panel")).to_be_visible()  # …and only the editor
+    expect(page.locator(".lf-thread-panel")).to_be_visible()  # …and only the editor
     # The edit was set aside, not discarded: reopening resumes it.
     page.locator(".lf-draft-controls .lf-draft-pencil").click()
     expect(page.locator("lf-draft textarea")).to_have_value("Ship it — but louder.")
@@ -8268,7 +8279,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     expect(page.locator(".lf-lift")).to_have_count(0)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("grab the card")
     expect(page.locator("#col-todo #card-heater")).to_have_count(1)
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     assert errors == []
     page.close()
 
@@ -8758,7 +8769,7 @@ def test_c_comments_and_g_t_navigates_to_threads(browser, serve):
     page.keyboard.press("c")  # page: straight into its comment box
     expect(page.locator(".lf-general textarea")).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -8769,11 +8780,11 @@ def test_c_comments_and_g_t_navigates_to_threads(browser, serve):
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("c")
     expect(page.locator(".lf-general textarea")).to_be_focused()
-    expect(page.locator(".lf-panel")).to_have_class(re.compile("open"))
+    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile("open"))
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads")).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
     assert errors == []
     page.close()

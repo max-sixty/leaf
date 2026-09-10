@@ -1026,21 +1026,23 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
 
-    panel = int(constant(r"^export const PANEL_W = (\d+);", layout))
-    tray = int(constant(r"^const TRAY_W = (\d+);", trays))
-    strip = constant(r"^export const STRIP_TRAYS = \[(.*?)\];", trays)
+    panel = int(constant(r"^export const THREAD_PANEL_W = (\d+);", layout))
+    tray = int(constant(r"^const TRAY_SLOT_W = (\d+);", trays))
+    strip = constant(r"^export const BESIDE_TRAYS = \[(.*?)\];", trays)
     strip_names = re.findall(r'"([a-z-]+)"', strip)
     for spelling in (
         f"(width <= {panel * 2}px)",
         f"(width > {panel * 2}px)",
         f"(width <= {tray * 2}px)",
-        "var(" + constant(r'^export const PANEL_PROP = "([^"]+)";', layout) + ")",
-        "var(" + constant(r'^export const TRAY_PROP = "([^"]+)";', trays) + ")",
+        "var("
+        + constant(r'^export const THREAD_PANEL_PROP = "([^"]+)";', layout)
+        + ")",
+        "var(" + constant(r'^export const TRAY_SLOT_PROP = "([^"]+)";', trays) + ")",
         "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for tray_name in strip_names:
-        assert f'[data-lf-tray="{tray_name}"]' in sheet
+        assert f'[data-lf-auxiliary-surface="{tray_name}"]' in sheet
         assert f'[data-lf-restore-tray="{tray_name}"]' in sheet
 
 
@@ -1060,21 +1062,21 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE).group(1)
 
-    workspace = (assets / "runtime" / "panel-workspace.js").read_text()
+    workspace = (assets / "runtime" / "thread-panel.js").read_text()
     for pattern, source in (
-        (r'^export const PANEL_KEY = "([^"]+)";', workspace),
-        (r'^export const TRAY_KEY = "([^"]+)";', trays),
-        (r'key: "(lf-panel-width)"', layout),
-        (r'key: "(lf-tray-width)"', trays),
+        (r'^export const THREAD_PANEL_KEY = "([^"]+)";', workspace),
+        (r'^export const TRAY_SLOT_KEY = "([^"]+)";', trays),
+        (r'key: "(lf-thread-panel-width)"', layout),
+        (r'key: "(lf-tray-slot-width)"', trays),
     ):
         key = constant(pattern, source)
         assert f'localStorage.getItem("{key}")' in bootstrap
 
     for literal in (
-        constant(r"^export const PANEL_W = (\d+);", layout),
-        constant(r"^const PANEL_MIN = (\d+);", layout),
-        constant(r"^const TRAY_W = (\d+);", trays),
-        constant(r"^const TRAY_MIN = (\d+);", trays),
+        constant(r"^export const THREAD_PANEL_W = (\d+);", layout),
+        constant(r"^const THREAD_PANEL_MIN = (\d+);", layout),
+        constant(r"^const TRAY_SLOT_W = (\d+);", trays),
+        constant(r"^const TRAY_SLOT_MIN = (\d+);", trays),
         "data-lf-restore-panel",
         "data-lf-restore-tray",
     ):
@@ -3428,7 +3430,7 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "registry.json").write_text(
         json.dumps({"lf-solo": element_declaration("lf-solo", True)})
     )
-    (widget_package / "theme.css").write_text("lf-solo { --lf-frame: 1; }\n")
+    (widget_package / "theme.css").write_text("lf-solo { --lf-block-frame: 1; }\n")
     (widget_package / "widgets" / "lf-solo.js").write_text(
         'import { ready } from "./ready.js";\n'
         'customElements.define("lf-solo", class extends HTMLElement {\n'
@@ -3480,7 +3482,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert (page / "widgets" / "ready.js").is_file()
     assert (page / "vendor" / "solo.json").is_file()
     theme = (page / "theme.css").read_text()
-    assert theme.index("lf-solo { --lf-frame: 1; }") < theme.index("--solo-night: 1")
+    assert theme.index("lf-solo { --lf-block-frame: 1; }") < theme.index(
+        "--solo-night: 1"
+    )
     guidance = (page / "guidance" / "author.md").read_text()
     assert guidance.index("# Solo widget") < guidance.index("# Night theme")
     assert "Report the result." in (page / "guidance" / "worker.md").read_text()

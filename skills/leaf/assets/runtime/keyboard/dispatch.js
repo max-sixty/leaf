@@ -57,7 +57,7 @@
    closing the layer exposes the same frame again. The universal reference is the
    boundary's one route through to another layer.
 
-   A covering workspace uses the same modal command floor without entering the browser's
+   A covering auxiliary surface uses the same modal command floor without entering the browser's
    top layer. Its owner makes the background DOM inert, and this dispatcher keeps only
    scopes rooted in the workspace plus the return frame that can close it. A native layer
    opened above the workspace keeps its own scopes above that floor.
@@ -78,7 +78,7 @@
    such as refusing the mouseup that ends a text-selection drag. */
 import { answers, bindings, commandEntries, live, spell, word } from "./bindings.js";
 import {
-  coveringWorkspaceSurface,
+  coveringAuxiliarySurface,
   ELEMENTS,
   pageScopes,
   textEntryScope,
@@ -169,17 +169,19 @@ export function stack(binding = null) {
     if (scope === TYPING && typing) return [];
     return scope;
   });
-  const workspace = coveringWorkspaceSurface();
+  const auxiliarySurface = coveringAuxiliarySurface();
   const layer = currentNativeLayer(active);
   const ordered = (scopes) => {
     const activeScopes = scopes.filter(standing);
     return binding === "Escape" ? escapeOrder(activeScopes, active) : activeScopes;
   };
   if (!layer) {
-    if (!workspace) return ordered(expanded);
+    if (!auxiliarySurface) return ordered(expanded);
     const owned = expanded.filter((scope) => {
       const root = scopeRoot(scope);
-      return scope === RETURN || root === workspace || workspace.contains(root);
+      return (
+        scope === RETURN || root === auxiliarySurface || auxiliarySurface.contains(root)
+      );
     });
     return ordered([...owned, MODAL_BOUNDARY]);
   }
@@ -191,14 +193,14 @@ export function stack(binding = null) {
     // boundary does not claim, but its Escape cannot fall through into the covered page.
     const aboveBoundary = modal
       ? (scope) => nativeLayersFor(scopeRoot(scope)).includes(modal)
-      : workspace
+      : auxiliarySurface
         ? (scope) => {
             const root = scopeRoot(scope);
             return (
               scope === RETURN ||
               inLayer(scope) ||
-              root === workspace ||
-              workspace.contains(root)
+              root === auxiliarySurface ||
+              auxiliarySurface.contains(root)
             );
           }
         : () => true;
@@ -213,7 +215,7 @@ export function stack(binding = null) {
       POPOVER_BOUNDARY,
       ...available.filter((scope) => !foreground(scope)),
     ];
-    if (modal || workspace) popoverStack.push(MODAL_BOUNDARY);
+    if (modal || auxiliarySurface) popoverStack.push(MODAL_BOUNDARY);
     return ordered(popoverStack);
   }
   const owned = expanded.filter((scope) =>

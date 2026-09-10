@@ -3,7 +3,7 @@
 // container, `main` composes its left and right claims, and queries grant or withdraw
 // margin postures. JavaScript may hear the shell's content-box size without deriving a
 // posture or mirroring cramped state. `layoutSizes` schedules `syncLayout` and page
-// repaint after a width change. `moveShell` lands the final responsive shell in one pass,
+// repaint after a width change. `moveContentFrame` lands the final responsive shell in one pass,
 // then animates only the reading column's presentation offset and repaints page-attached
 // chrome along that route. A height-only change sends `pageShifted` directly so a content
 // reflow re-places document-attached paint without re-running chrome reservation.
@@ -11,7 +11,7 @@
 // `syncLayout` measures only chrome whose placement or reservation depends on rendered
 // chrome, and writes only chrome boxes. `layoutSizes` watches `document.body`'s
 // content-box size without deriving a posture from it. A width change schedules
-// `syncLayout` and page repaint in the following frame after a workspace lands its final
+// `syncLayout` and page repaint in the following frame after an auxiliary surface lands its final
 // shell; a height-only content reflow calls `pageShifted` during observer delivery so
 // page paint follows targets that moved. That direct path may write only unobserved paint
 // hosts and state or queue work for a frame. A `ResizeObserver` callback must not resize
@@ -22,11 +22,11 @@
 // and browser UI all use that same root. Root scroll events are reported on `document`,
 // while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
 // may be one an agent sent, since a widget in a message is scrolled by the panel's own
-// list and by nothing else. Threads and trays are alternate auxiliary workspaces, so only
+// list and by nothing else. Threads and trays are alternate auxiliary surfaces, so only
 // one stands at a time. The strip-taking workspaces—Threads and Asks—take room when the
 // viewport can hold them and cover the page under their respective media query otherwise;
 // Leaves always covers because its rows leave this page. Workspace modality is a shared
-// inert boundary outside this geometry owner; the reference and page map keep native
+// inert boundary outside this geometry owner; the reference and Page Map keep native
 // `showModal()`. The shell's
 // inline size already reflects the margins a beside panel or tray takes. `--strip-l`, `--strip-r`,
 // `--lf-room`, and `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is
@@ -49,16 +49,16 @@ import { motion } from "./motion.js";
 // it knows which this is. So the edge is a thing they take hold of (`drawnEdge`), and
 // this is where it stands until they do.
 //
-// Opening or closing a workspace calls its state setter and schedules the shared layout
+// Opening or closing an auxiliary surface calls its state setter and schedules the shared layout
 // and key paint. Reader gestures remember their intent; an ephemeral developer replay
 // uses the same transition without replacing it.
-export const PANEL_W = 420;
+export const THREAD_PANEL_W = 420;
 // How narrow they may draw it in. 320 is the narrowest window the panel is held to
 // standing up in (test_a_thread_gives_its_reply_the_full_row_and_its_actions_the_next),
 // so it is the narrowest width anything has laid a thread's reply box and its two
 // actions out at; below it nothing says they still fit. Wanting the panel gone is what
 // closing it is for, and narrowing it to nothing is not the same wish.
-const PANEL_MIN = 320;
+const THREAD_PANEL_MIN = 320;
 // The window under which yielding the strip is worse than being covered by it, as a
 // query rather than a number, because three things ask it: the rule that takes the strip,
 // the rule that hands scrolling to the sheet instead, and the runtime, for what follows
@@ -73,11 +73,11 @@ const PANEL_MIN = 320;
 // answer to is the edge's own `cap`, which holds it to the same bargain this line
 // strikes — the page keeps at least what the panel takes — without putting the posture
 // itself in play.
-export const COVERING = `(width <= ${PANEL_W * 2}px)`;
+export const COVERING = `(width <= ${THREAD_PANEL_W * 2}px)`;
 // Where each standing width is written, and where the cascade reads it. chrome.css
 // spells the same name and the same covering width, and the layer test holds the two
 // spellings equal, since a stylesheet cannot read a constant.
-export const PANEL_PROP = "--lf-panel-w";
+export const THREAD_PANEL_PROP = "--lf-thread-panel-width";
 
 export function createChromeLayout({
   panelIsOpen,
@@ -95,7 +95,7 @@ export function createChromeLayout({
   bottomChromeBoxes,
   reserveListClearance,
   restateTrayEdge,
-  syncWorkspaces,
+  syncAuxiliarySurfaces,
   syncReactLayout,
   refreshFab,
   dockSeats,
@@ -190,7 +190,7 @@ export function createChromeLayout({
     // watched by nobody, so what it takes is room the document has and no measurement's
     // business.
     const boundedWorkspace = document.querySelector(
-      "body > main > .lf-workspace-arranged[data-lf-root-workspace][data-lf-posture='bounded']",
+      "body > main > .lf-workspace-reading[data-lf-workspace-context='root'][data-lf-reading-posture='bounded']",
     );
     chromeRoot.style.paddingBottom = boundedWorkspace ? "0px" : clear;
     // Flow room lets the document reach past the line; scroll padding tells native focus
@@ -243,16 +243,16 @@ export function createChromeLayout({
     if (syncReactLayout()) return;
     refreshFab();
   }
-  // A workspace state is a responsive-layout boundary, not a sequence of temporary
+  // A auxiliary chrome state is a responsive-layout boundary, not a sequence of temporary
   // viewport sizes. Apply the state first, so every container query reads the final
   // shell in one pass, then carry the reading column from the box it occupied before
   // the change. Animating body's margin crosses sidebar and sidenote breakpoints during
   // motion and can reverse the column's direction. The offset moves only paint already
   // laid out against the final shell.
-  function moveShell(change) {
+  function moveContentFrame(change) {
     const main = document.querySelector("body > main");
     const before = main?.getBoundingClientRect();
-    // A second workspace can replace the first before its motion finishes. Preserve the
+    // A second auxiliary surface can replace the first before its motion finishes. Preserve the
     // currently drawn position, then release the old effect before reading the next
     // layout; otherwise two animations would both own the same offset.
     if (shellMotion) {
@@ -297,9 +297,9 @@ export function createChromeLayout({
     if (shellChanged) repaintPage();
     else if (chromeChanged) repaint();
   };
-  // Body's own box is the first of them, because a workspace lands its final shell width
+  // Body's own box is the first of them, because an auxiliary surface lands its final shell width
   // before the column finishes moving there. Width observation handles taking or
-  // returning room; moveShell's frames keep page-attached paint with the carried column.
+  // returning room; moveContentFrame's frames keep page-attached paint with the carried column.
   //
   // A height-only body resize is repaint-only. An image or font can move a later target
   // without resizing that target or mutating the DOM, while sending that ordinary page
@@ -340,7 +340,7 @@ export function createChromeLayout({
     addEventListener("resize", () => {
       commentsEdge.state();
       restateTrayEdge();
-      syncWorkspaces();
+      syncAuxiliarySurfaces();
       pageShifted();
       syncLayout();
     });
@@ -383,15 +383,15 @@ export function createChromeLayout({
       syncLayout();
     };
     if (document.body.hasAttribute("data-lf-sizing")) apply();
-    else moveShell(apply);
+    else moveContentFrame(apply);
   }
   const commentsEdge = drawnEdge({
     side: "right",
     noun: "thread panel",
-    wide: PANEL_W,
-    min: PANEL_MIN,
-    prop: PANEL_PROP,
-    key: "lf-panel-width",
+    wide: THREAD_PANEL_W,
+    min: THREAD_PANEL_MIN,
+    prop: THREAD_PANEL_PROP,
+    key: "lf-thread-panel-width",
     covering: COVERING,
     land: landEdge,
   });
@@ -399,7 +399,7 @@ export function createChromeLayout({
   return {
     syncLayout,
     mountLayoutObservers,
-    moveShell,
+    moveContentFrame,
     landEdge,
     commentsEdge,
     panelCovers,

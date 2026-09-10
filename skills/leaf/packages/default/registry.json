@@ -604,7 +604,7 @@
     "x-example": "<lf-chart id=\"review-latency\" kind=\"line\" y=\"hours to first review\"><pre>\nweek, backend, frontend\n2026-05-04, 31, 18\n2026-05-11, 26, 21\n2026-05-18, 19, 14\n2026-05-25, 12, 11\n</pre></lf-chart>"
   },
   "lf-shot": {
-    "description": "A before/after pair of screenshots in one fixed frame. Choose Before or After from the rail above the image, or click the target’s round margin element or the image to flip between states; a short accent rule marks the visible state. The margin element’s split circle fills the left half for before and the right half for after, and its hover label names the next view. Image clicks and Space keep working in standalone exports. `before` and `after` are served image paths — `leaf page media <page> <file>…` copies author-chosen files into the page directory and prints the path to write; a screenshot is far too many bytes to inline. `alt` says what the pair shows, for a reader who can't see it. The element takes no content: what the page has to say about the change is ordinary prose written around it, where the user can quote it. Where the change is what a decision turns on, the pair goes inside the lf-option proposing it, so the reader flips it and presses in one place. Reach for it when the change reads at page scale — layout, spacing, a component swapped out. Below that scale the column's width is against you: crop the pair to the part that moved, or show the element itself before and after at real size.",
+    "description": "A before/after pair of screenshots in one fixed frame. Choose Before or After from the rail above the image, or click the target’s round margin entry or the image to flip between states; a short accent rule marks the visible state. The margin entry’s split circle fills the left half for before and the right half for after, and its hover label names the next view. Image clicks and Space keep working in standalone exports. `before` and `after` are served image paths — `leaf page media <page> <file>…` copies author-chosen files into the page directory and prints the path to write; a screenshot is far too many bytes to inline. `alt` says what the pair shows, for a reader who can't see it. The element takes no content: what the page has to say about the change is ordinary prose written around it, where the user can quote it. Where the change is what a decision turns on, the pair goes inside the lf-option proposing it, so the reader flips it and presses in one place. Reach for it when the change reads at page scale — layout, spacing, a component swapped out. Below that scale the column's width is against you: crop the pair to the part that moved, or show the element itself before and after at real size.",
     "type": "object",
     "properties": {
       "id": {
@@ -865,7 +865,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-layout": "workspace",
+    "x-reading-role": "workspace",
     "x-upgrade": true,
     "x-verbatim": true,
     "x-example": "<lf-workspace id=\"review-workspace\"><header><h1>Review</h1></header><lf-pane id=\"review-body\" label=\"Proposal\"><p>Read the proposal.</p></lf-pane></lf-workspace>"
@@ -880,13 +880,13 @@
     "required": ["id", "label"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-layout": "pane",
+    "x-reading-role": "pane",
     "x-upgrade": true,
     "x-verbatim": true,
     "x-example": "<lf-pane id=\"detail\" label=\"Selected item\"><p>Read the selected item.</p></lf-pane>"
   },
-  "lf-split": {
-    "description": "Two structural regions divided in columns or rows. Each direct child declares the pane or split role through x-layout; tag names do not define membership.",
+  "lf-partition": {
+    "description": "A binary structural partition in columns or rows. Each direct child declares the pane or partition role through x-reading-role; tag names do not define membership.",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
@@ -895,10 +895,10 @@
     "required": ["id", "direction"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-layout": "split",
+    "x-reading-role": "partition",
     "x-upgrade": true,
     "x-verbatim": true,
-    "x-example": "<lf-split id=\"review-regions\" direction=\"columns\"><lf-pane id=\"queue\" label=\"Items\"><p>Queue</p></lf-pane><lf-pane id=\"detail\" label=\"Selected item\"><p>Detail</p></lf-pane></lf-split>"
+    "x-example": "<lf-partition id=\"review-regions\" direction=\"columns\"><lf-pane id=\"queue\" label=\"Items\"><p>Queue</p></lf-pane><lf-pane id=\"detail\" label=\"Selected item\"><p>Detail</p></lf-pane></lf-partition>"
   },
   "$reactions": {
     "tokens": {

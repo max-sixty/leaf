@@ -249,13 +249,13 @@ const applicationOwners = new Set([
   "keyboard/address.js",
   "keyboard/controller.js",
   "keyboard/page.js",
-  "panel-workspace.js",
+  "thread-panel.js",
   "pending/state.js",
   "projection/commands.js",
   "requests.js",
   "state-application.js",
   "state-feed.js",
-  "workspace.js",
+  "auxiliary-chrome.js",
 ]);
 
 const forbiddenClosures = new Map([

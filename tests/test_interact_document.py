@@ -943,7 +943,7 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-deck"] = {
-        "description": "A project package's differently named split.",
+        "description": "A project package's differently named partition.",
         "type": "object",
         "properties": {
             "id": {"type": "string"},
@@ -952,7 +952,7 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
         "required": ["id", "direction"],
         "additionalProperties": False,
         "x-content": "markup",
-        "x-layout": "split",
+        "x-reading-role": "partition",
         "x-upgrade": False,
     }
     registry["lf-zone"] = {
@@ -965,7 +965,7 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
         "required": ["id", "label"],
         "additionalProperties": False,
         "x-content": "markup",
-        "x-layout": "pane",
+        "x-reading-role": "pane",
         "x-upgrade": False,
     }
     registry_path.write_text(json.dumps(registry))
@@ -992,11 +992,11 @@ def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
             "<h2>Plan</h2>",
             """<lf-workspace id="review-space">
   <p>Before the misplaced header.</p><header><h2>Plan</h2></header>
-  <lf-split id="regions" direction="columns">
+  <lf-partition id="regions" direction="columns">
     <lf-pane id="queue" label="Queue"><p>First</p></lf-pane>
     <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
     <p>Loose</p>
-  </lf-split>
+  </lf-partition>
 </lf-workspace>""",
         )
     )
@@ -1004,7 +1004,8 @@ def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
     assert result.exit_code == 1
     assert "direct <header> must be first" in result.output
     assert (
-        "exactly two direct pane or split widgets and no loose content" in result.output
+        "exactly two direct pane or partition widgets and no loose content"
+        in result.output
     )
 
 
@@ -1025,8 +1026,9 @@ def test_workspace_requires_one_element_body(page_dir):
         )
         result = check(page_dir)
         assert result.exit_code == 1, f"{name} passed workspace validation"
-        assert "x-layout workspace must contain exactly one direct body element" in (
-            result.output
+        assert (
+            "x-reading-role workspace must contain exactly one direct body element"
+            in (result.output)
         )
 
 

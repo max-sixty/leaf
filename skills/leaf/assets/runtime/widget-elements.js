@@ -507,7 +507,7 @@ export function reserve(control, labels) {
 
 // The anchored response bar has one control grammar of its own. Its buttons share the
 // field's type, border, height, and floating elevation without claiming to be target-
-// margin elements. The repeated anatomy lets Comment, Suggest, and package reactions
+// margin entries. The repeated anatomy lets Comment, Suggest, and package reactions
 // change vocabulary without each inventing a button shape.
 export function responseAction(
   control,

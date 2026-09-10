@@ -96,7 +96,7 @@ WORKSPACE_PAGE = leaf_page(
     """
 <lf-workspace id="review-workspace">
   <header><h1>Review queue</h1></header>
-  <lf-split id="review-regions" direction="columns">
+  <lf-partition id="review-regions" direction="columns">
     <lf-pane id="queue" label="Items">
       <p>Queue start</p>
       <div style="height: 1100px"></div>
@@ -108,7 +108,7 @@ WORKSPACE_PAGE = leaf_page(
       <div style="height: 1100px"></div>
       <p>Detail end</p>
     </lf-pane>
-  </lf-split>
+  </lf-partition>
   <footer>2 items</footer>
 </lf-workspace>
 """,
@@ -123,7 +123,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     queue = page.locator("#queue > .lf-pane-content > .lf-pane-body")
     detail = page.locator("#detail > .lf-pane-content > .lf-pane-body")
 
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     page.wait_for_function(
         "() => document.documentElement.scrollHeight === document.documentElement.clientHeight"
     )
@@ -163,7 +163,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     expect(detail.locator("article > header")).to_have_count(1)
 
     page.set_viewport_size({"width": 520, "height": 900})
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     page.wait_for_function(
         """() => getComputedStyle(document.querySelector(
           '#queue > .lf-pane-content > .lf-pane-body')).overflowY === 'visible'"""
@@ -187,7 +187,7 @@ def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_con
 ):
     page, errors = open_page(browser, serve(WORKSPACE_PAGE))
     workspace = page.locator("#review-workspace")
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
     page.evaluate(
         """async () => {
@@ -205,7 +205,7 @@ def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_con
           leaf.layoutChanged(owner);
         }"""
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
 
     page.evaluate(
         """async () => {
@@ -214,44 +214,44 @@ def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_con
           const owner = document.querySelector('#package-surface');
           leaf.arrangeReadingElement({
             owner,
-            kind: 'workspace',
+            role: 'workspace',
             header: owner.firstElementChild,
           });
         }"""
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     surface = page.locator("#package-surface")
-    expect(surface.locator(":scope > .lf-arranged-before")).to_have_text(
+    expect(surface.locator(":scope > .lf-reading-before")).to_have_text(
         "Package-owned furniture"
     )
     expect(
-        surface.locator(":scope > .lf-arranged-content > #review-regions")
+        surface.locator(":scope > .lf-reading-content > #review-regions")
     ).to_have_count(1)
 
-    surface.locator(":scope > .lf-arranged-content").evaluate(
+    surface.locator(":scope > .lf-reading-content").evaluate(
         "content => content.append('Unsupported loose prose')"
     )
     surface.evaluate(
         "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
-    surface.locator(":scope > .lf-arranged-content").evaluate(
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    surface.locator(":scope > .lf-reading-content").evaluate(
         "content => content.lastChild.remove()"
     )
     surface.evaluate(
         "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
     page.set_viewport_size({"width": 1100, "height": 420})
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
-    surface.locator(":scope > .lf-arranged-before").evaluate(
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    surface.locator(":scope > .lf-reading-before").evaluate(
         "heading => heading.style.display = 'none'"
     )
     surface.evaluate(
         "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     assert errors == []
     page.close()
 
@@ -265,7 +265,7 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     ask = page.locator("#session-triage-decision")
     assert ask.evaluate("node => getComputedStyle(node).display") == "block"
     assert (
-        ask.locator(":scope > .lf-arranged-before").evaluate(
+        ask.locator(":scope > .lf-reading-before").evaluate(
             "heading => getComputedStyle(heading).marginTop"
         )
         != "0px"
@@ -297,10 +297,10 @@ def test_a_direct_embedded_workspace_keeps_the_root_in_document_flow(browser, se
     )
     page, errors = open_page(browser, serve(source))
     expect(page.locator("#embedded-workspace")).to_have_attribute(
-        "data-lf-posture", "flow"
+        "data-lf-reading-posture", "flow"
     )
     expect(page.locator("#outer-workspace")).to_have_attribute(
-        "data-lf-posture", "flow"
+        "data-lf-reading-posture", "flow"
     )
     assert page.evaluate(
         "document.documentElement.scrollHeight > document.documentElement.clientHeight"
@@ -319,7 +319,7 @@ CUSTOM_WORKSPACE_LAYER = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "markup",
-        "x-layout": "workspace",
+        "x-reading-role": "workspace",
         "x-upgrade": True,
         "x-verbatim": True,
         "x-example": '<lf-studio id="studio"><lf-pane id="canvas" label="Canvas"><p>Draw.</p></lf-pane></lf-studio>',
@@ -331,23 +331,23 @@ import {
   arrangeReadingElement,
   fitRootReadingElement,
   once,
-  registerArrangedElement,
+  registerReadingElement,
   settle,
 } from '/runtime/widget-api.js';
 
 customElements.define('lf-studio', class extends HTMLElement {
   connectedCallback() {
     if (once(this)) {
-      const arranged = arrangeReadingElement({owner: this, kind: 'workspace'});
-      this.arrangement = arranged.arrangement;
+      const arranged = arrangeReadingElement({owner: this, role: 'workspace'});
+      this.readingArrangement = arranged.readingArrangement;
       this.content = arranged.content;
     } else {
       this.content = this.querySelector(':scope > .lf-workspace-content');
-      this.arrangement = registerArrangedElement({owner: this, content: this.content});
+      this.readingArrangement = registerReadingElement({owner: this, content: this.content});
     }
     this.fitting = fitRootReadingElement({
       owner: this,
-      arrangement: this.arrangement,
+      readingArrangement: this.readingArrangement,
       minimumSize: () => ({width: 200, height: 200}),
     });
     settle(this.fitting.update());
@@ -356,8 +356,8 @@ customElements.define('lf-studio', class extends HTMLElement {
   disconnectedCallback() {
     this.fitting?.cleanup();
     this.fitting = null;
-    this.arrangement?.cleanup();
-    this.arrangement = null;
+    this.readingArrangement?.cleanup();
+    this.readingArrangement = null;
   }
 });
 """
@@ -386,8 +386,8 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
         ),
     )
     studio = page.locator("#studio")
-    expect(studio).to_have_attribute("data-lf-root-workspace", "")
-    expect(studio).to_have_attribute("data-lf-posture", "bounded")
+    expect(studio).to_have_attribute("data-lf-workspace-context", "root")
+    expect(studio).to_have_attribute("data-lf-reading-posture", "bounded")
     geometry = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -401,7 +401,7 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
     studio.evaluate(
         "owner => { const main = owner.parentElement; owner.remove(); main.append(owner); }"
     )
-    expect(studio).to_have_attribute("data-lf-posture", "bounded")
+    expect(studio).to_have_attribute("data-lf-reading-posture", "bounded")
     assert studio.evaluate(
         """async owner => {
           const leaf = await import('/runtime/widget-api.js');
@@ -415,11 +415,11 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
           wrapper.append(owner);
         }"""
     )
-    expect(studio).not_to_have_attribute("data-lf-root-workspace", "")
-    expect(studio).to_have_attribute("data-lf-posture", "flow")
+    expect(studio).to_have_attribute("data-lf-workspace-context", "embedded")
+    expect(studio).to_have_attribute("data-lf-reading-posture", "flow")
     studio.evaluate("owner => document.querySelector('main').replaceChildren(owner)")
-    expect(studio).to_have_attribute("data-lf-root-workspace", "")
-    expect(studio).to_have_attribute("data-lf-posture", "bounded")
+    expect(studio).to_have_attribute("data-lf-workspace-context", "root")
+    expect(studio).to_have_attribute("data-lf-reading-posture", "bounded")
     assert errors == []
     page.close()
 
@@ -443,19 +443,19 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
         ),
     )
     embedded = page.locator("#embedded-studio")
-    expect(embedded).not_to_have_attribute("data-lf-root-workspace", "")
-    expect(embedded).to_have_attribute("data-lf-posture", "flow")
+    expect(embedded).to_have_attribute("data-lf-workspace-context", "embedded")
+    expect(embedded).to_have_attribute("data-lf-reading-posture", "flow")
     embedded.evaluate(
         """owner => {
-          owner.setAttribute('data-lf-root-workspace', '');
-          owner.dataset.lfPosture = 'bounded';
+          owner.dataset.lfWorkspaceContext = 'root';
+          owner.dataset.lfReadingPosture = 'bounded';
         }"""
     )
     assert embedded.evaluate(
-        "owner => owner.classList.contains('lf-workspace-arranged')"
+        "owner => owner.classList.contains('lf-workspace-reading')"
     )
     embedded.evaluate(
-        "owner => owner.classList.replace('lf-workspace-arranged', 'lf-pane-arranged')"
+        "owner => owner.classList.replace('lf-workspace-reading', 'lf-pane-reading')"
     )
     assert page.evaluate(
         "getComputedStyle(document.documentElement).overflowY !== 'hidden'"
@@ -480,7 +480,7 @@ def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
     page, errors = open_page(browser, live_url(serve(example)), context=context)
     monitor = page.locator("#lp-monitor")
 
-    expect(monitor).to_have_attribute("data-lf-posture", "bounded")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
     desk = page.evaluate(
         """() => Object.fromEntries(['lp-overview', 'lp-evidence', 'lp-exception']
           .map(id => [id, document.querySelector(`#${id}`).getBoundingClientRect()]))"""
@@ -508,22 +508,22 @@ def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
     expect(first_overflowing).not_to_have_attribute("data-lf-more-below", "")
 
     resized(page, 1100, 500)
-    expect(monitor).to_have_attribute("data-lf-posture", "flow")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
     resized(page, 820, 780)
-    expect(monitor).to_have_attribute("data-lf-posture", "flow")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
     flow = page.locator("lf-monitor-region").evaluate_all(
         "regions => regions.map(region => region.getBoundingClientRect().top)"
     )
     assert flow == sorted(flow) and len(set(flow)) == 3, flow
 
     resized(page, 1100, 780)
-    expect(monitor).to_have_attribute("data-lf-posture", "bounded")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(monitor).to_have_attribute("data-lf-posture", "flow")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
-    expect(monitor).to_have_attribute("data-lf-posture", "bounded")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
 
     monitor.evaluate(
         """owner => {
@@ -532,9 +532,9 @@ def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
           wrapper.append(owner);
         }"""
     )
-    expect(monitor).to_have_attribute("data-lf-posture", "flow")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
     monitor.evaluate("owner => document.querySelector('main').replaceChildren(owner)")
-    expect(monitor).to_have_attribute("data-lf-posture", "bounded")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
     assert page.evaluate(
         """async () => {
           const {readingRegions} = await import('/runtime/widget-api.js');
@@ -782,7 +782,7 @@ PLAYGROUND_PAGE = leaf_page(
 <h1>Card playground</h1>
 <style>
   #playground-card {
-    --lf-frame: 1;
+    --lf-block-frame: 1;
     border: 2px solid var(--playground-accent);
     border-radius: var(--playground-radius);
     padding: 24px;
@@ -2936,7 +2936,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     actions = playground.locator(":scope > .lf-playground-actions")
 
     resized(page, 1100, 520)
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     expect(actions).to_be_visible()
     bounded = page.evaluate(
         """async () => {
@@ -3031,21 +3031,21 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
           footer.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true, composed: true}));
         }"""
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     actions.evaluate(
         """footer => {
           footer.style.removeProperty('height');
           footer.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true, composed: true}));
         }"""
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
     # Beside Threads, the notification wraps beyond the preview's minimum height.
     # The preview must grow around its content before the instruction begins.
     resized(page, 1280, 720)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     notification_box = page.locator("#notification-card").bounding_box()
     preview_box = page.locator("#notification-preview").bounding_box()
     instruction_box = page.locator("#notification-instruction").bounding_box()
@@ -3056,9 +3056,9 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     page.locator(".lf-threads-toggle").click()
 
     resized(page, 1100, 300)
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     resized(page, 500, 900)
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     flow = page.evaluate(
         """async () => {
           const leaf = await import('/runtime/widget-api.js');
@@ -4658,8 +4658,8 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     # move is one control against the other.
     box = "el => [el.offsetLeft, el.offsetTop, el.offsetWidth, el.offsetHeight]"
     before = accept.evaluate(box)
-    # The verb is discovery chrome; at rest the margin element is the canonical circle.
-    expect(accept.locator(".lf-margin-element-icon")).to_have_attribute(
+    # The verb is discovery chrome; at rest the margin entry is the canonical circle.
+    expect(accept.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "check"
     )
 
@@ -4674,7 +4674,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(accept).to_have_count(0)
     undo_button = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(undo_button.locator(".lf-margin-element-icon")).to_have_attribute(
+    expect(undo_button.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     expect(row.locator(".lf-margin-receipt")).to_have_count(0)
@@ -4719,7 +4719,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
 
 
 def test_a_pointer_decision_announces_without_needing_button_focus(browser, serve):
-    """The live result is independent of browsers focusing a clicked margin element."""
+    """The live result is independent of browsers focusing a clicked margin entry."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     assert page.evaluate("document.activeElement === document.body")
 
@@ -4747,7 +4747,7 @@ def test_a_settled_deletion_keeps_undo_on_the_containing_passage(browser, serve)
     expect(undo).to_be_visible()
     expect(
         undo.locator("xpath=ancestor::*[contains(@class, 'lf-margin-cluster')]")
-    ).not_to_have_class(re.compile(r"\blf-waiting\b"))
+    ).not_to_have_class(re.compile(r"\blf-withheld\b"))
     expect(page.locator(".lf-margin-receipt")).to_have_count(0)
     assert errors == []
     page.close()
@@ -4762,7 +4762,7 @@ def test_rejecting_a_suggestion_promotes_the_surviving_button(browser, serve):
 
     expect(reject).to_have_count(0)
     undo_button = row.get_by_role("button", name=re.compile(r"^Undo rejecting"))
-    expect(undo_button).to_have_attribute("data-lf-margin-element-primary", "")
+    expect(undo_button).to_have_attribute("data-lf-margin-entry-primary", "")
     expect(row.locator(".lf-sug-accept")).to_be_hidden()
     expect(row.locator(".lf-margin-receipt")).to_have_count(0)
     expect(row).not_to_contain_text("Rejected")
@@ -4829,7 +4829,7 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
 
 
 # `folded` is the layer's own division of the pair rather than a convenience: accept
-# rests in the rail as the target's primary margin element, and reject is one press behind `…`.
+# rests in the rail as the target's primary margin entry, and reject is one press behind `…`.
 @pytest.mark.parametrize(
     "outcome,verb,folded",
     [("accept", "Accepted", False), ("reject", "Rejected", True)],
@@ -5228,7 +5228,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # action without adding a second status beside the settled content.
     row = second.locator("[data-lf-for='sug-refill']")
     accepted = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(accepted.locator(".lf-margin-element-icon")).to_have_attribute(
+    expect(accepted.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     expect(row.locator(".lf-margin-receipt")).to_have_count(0)
@@ -5486,7 +5486,7 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
     """a lands semantic focus on the Ask; digits work its exact action list there.
 
     The list is contributed by the decision widget rather than inferred from generated
-    descendants: options own controls inside the Ask, while a suggestion's margin elements are
+    descendants: options own controls inside the Ask, while a suggestion's margin entries are
     hoisted into the shared margin. Core gives either list the same stable numeric
     projection, and pressing a digit activates the native control without first moving
     focus into the widget.
@@ -6131,7 +6131,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
     cached for the life of the tab, so the zero is permanent.
 
     The reply is in the log before the page loads and the panel is shut, which is the
-    only arrangement that reproduces it: a reply arriving into an open panel upgrades
+    only reading arrangement that reproduces it: a reply arriving into an open panel upgrades
     into boxes and was always right. Rooms are compared rather than named, because the
     number is the face's and this is about whether it was ever read.
 
@@ -6724,9 +6724,7 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     expect(row.locator(".lf-asks-answer")).to_have_text("Accepted")
     row.click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    undo = page.locator(
-        '[data-lf-for="sug-delete"] [data-lf-margin-element-key="undo"]'
-    )
+    undo = page.locator('[data-lf-for="sug-delete"] [data-lf-margin-entry-key="undo"]')
     expect(undo).to_be_focused()
     assert "1\nUndo" in shortcut_bar_text(page)
 
@@ -7115,7 +7113,7 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
 # built from: the body is the one thing that cannot be wrong, and everything between it
 # and the picture is the module.
 DREW = {
-    # kind: (series, marks each, the element each series is drawn as)
+    # role: (series, marks each, the element each series is drawn as)
     "c-bars": (2, 3, "rect"),
     "c-rows": (1, 2, "rect"),
     "c-stack": (2, 2, "rect"),
@@ -7515,7 +7513,7 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
     right, so the reader would open the panel onto an empty box for the life of the tab.
 
     The reply is in the log before the page loads and the panel is shut, which is the
-    only arrangement that reproduces it: a reply arriving into an open panel has boxes
+    only reading arrangement that reproduces it: a reply arriving into an open panel has boxes
     already."""
     url = serve(CHART_IN_A_MESSAGE_PAGE)
     d = serve.page_dir

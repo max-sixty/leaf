@@ -13,7 +13,7 @@
     ],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-layout": "workspace",
+    "x-reading-role": "workspace",
     "x-upgrade": true,
     "x-verbatim": true,
     "x-example": "<lf-monitor id=\"release-monitor\"><header><h1>Release monitor</h1></header><lf-monitor-grid id=\"release-regions\"><lf-monitor-region id=\"release-overview\" label=\"Overview\" zone=\"overview\"><p>Four checks remain.</p></lf-monitor-region><lf-monitor-region id=\"release-evidence\" label=\"Evidence\" zone=\"evidence\"><pre>14:32 rollback healthy</pre></lf-monitor-region><lf-monitor-region id=\"release-exception\" label=\"Exception\" zone=\"exception\"><p>One export needs review.</p></lf-monitor-region></lf-monitor-grid></lf-monitor>"
@@ -74,7 +74,7 @@
       "lf-monitor-grid"
     ],
     "x-content": "markup",
-    "x-layout": "pane",
+    "x-reading-role": "pane",
     "x-upgrade": true,
     "x-verbatim": true,
     "x-example": "<lf-monitor id=\"release-monitor\"><lf-monitor-grid id=\"release-regions\"><lf-monitor-region id=\"release-overview\" label=\"Overview\" zone=\"overview\"><p>Four checks remain.</p></lf-monitor-region><lf-monitor-region id=\"release-evidence\" label=\"Evidence\" zone=\"evidence\"><pre>14:32 rollback healthy</pre></lf-monitor-region><lf-monitor-region id=\"release-exception\" label=\"Exception\" zone=\"exception\"><p>One export needs review.</p></lf-monitor-region></lf-monitor-grid></lf-monitor>"

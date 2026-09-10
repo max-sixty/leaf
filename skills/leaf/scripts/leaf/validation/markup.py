@@ -138,7 +138,7 @@ def missing_outline(parser: StructParser, registry: dict) -> list:
         if (
             len(roots) == 1
             and isinstance(roots[0], dict)
-            and registry.get(roots[0]["tag"], {}).get("x-layout") == "workspace"
+            and registry.get(roots[0]["tag"], {}).get("x-reading-role") == "workspace"
         ):
             return []
     outline = sorted(

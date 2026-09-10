@@ -18,7 +18,7 @@ actions, or effective standing reports survive from the previous revision. A
 declared retirement protects its holder and slots until its outcome licenses
 their removal. Other dropped ids are reported as advice. No fixed-pixel-width
 element is wider than the readable column (the rule that draws that column claims
-it with `--lf-column: 1`, so the width and the claim come from one block). Near-free
+it with `--lf-reading-column: 1`, so the width and the claim come from one block). Near-free
 and deterministic is what makes running it on every save affordable, so keep a new
 check that way; anything needing a browser belongs in `--render`.
 

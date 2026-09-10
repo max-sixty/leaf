@@ -468,7 +468,7 @@ SHORT_SUGGESTION = leaf_page(
 )
 # Every animation the page starts, held at time zero so a test can read it rather than
 # race it. What it catches is everything through `motion()`, which is the layer's only
-# caller of `animate` — folds, the board's FLIP, and final-layout shell motion, each
+# caller of `animate` — folds, the board's FLIP, and final-page shell motion, each
 # started synchronously inside the gesture that causes it. CSS animations run outside it
 # and are never seen, `grow` among them. Installed before anything runs, so the first
 # frame is already held.
@@ -1367,7 +1367,7 @@ def trial_family(tmp_path):
     theme = tmp_path / ".leaf" / "theme.css"
     theme.write_text(
         theme.read_text() + "\nlf-current, lf-proposed "
-        "{ display: block; margin: 0; padding: 0; border: none; --lf-frame: initial; }\n"
+        "{ display: block; margin: 0; padding: 0; border: none; --lf-block-frame: initial; }\n"
     )
 
 

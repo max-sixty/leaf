@@ -166,8 +166,8 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
         relation, abs=0.02
     )
     expect(target).not_to_have_class(re.compile(r"\blf-mark-el\b"))
-    expect(page.locator(".lf-panel .lf-drawing-preview")).to_have_count(0)
-    expect(page.locator(".lf-panel .lf-drawing-reference")).to_have_text(
+    expect(page.locator(".lf-thread-panel .lf-drawing-preview")).to_have_count(0)
+    expect(page.locator(".lf-thread-panel .lf-drawing-reference")).to_have_text(
         "Drawing comment"
     )
 
@@ -513,7 +513,7 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     panel_settled(page)
 
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     assert errors == []
     page.close()
@@ -586,7 +586,7 @@ def test_draw_mode_cursor_matches_the_widget_controls_it_captures(browser, serve
     shadow_line.scroll_into_view_if_needed()
     assert shadow_line.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
     page.evaluate(
-        """() => document.querySelector('.lf-panel').append(
+        """() => document.querySelector('.lf-thread-panel').append(
           document.querySelector('#bg-review-diff')
         )"""
     )

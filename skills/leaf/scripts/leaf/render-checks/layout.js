@@ -149,7 +149,7 @@ export function misplacedBoxes() {
   // rather than of a list of tags, because the fault is visual and so is the property
   // — a widget that stands outside a frame, a tint or a fill reads as a broken page,
   // and one that grows through a transparent wrapper (a section, a tab's panel) reads
-  // as the exhibit it is. A box that draws one says so where it draws it (--lf-frame,
+  // as the exhibit it is. A box that draws one says so where it draws it (--lf-block-frame,
   // theme.css) and the theme reads that declaration to withhold the room; this is what
   // says so when a box that draws hasn't made it. (Nothing to do with x-paints, which is
   // about words rather than boxes: an attribute rendered as paint instead of text, and
@@ -207,7 +207,7 @@ export function misplacedBoxes() {
           ? `${at(el)} is set ${past}px past the column, out in the margin`
           : frame
             ? `${at(el)} stands ${past}px outside the ${at(frame)} that frames it — ` +
-              `declare --lf-frame: 1 in the rule that draws the frame, so the box ` +
+              `declare --lf-block-frame: 1 in the rule that draws the frame, so the box ` +
               `holds the room in as well as the margins`
             : `${at(el)} stands ${past}px past the room the page has for a wide widget`,
     );
@@ -316,7 +316,7 @@ export function misplacedBoxes() {
     if (!a) continue;
     const s = getComputedStyle(a);
     // text-overflow is the mark, declared in the rule that does the cutting, the
-    // way --lf-frame is declared where the frame is drawn. The box itself still
+    // way --lf-block-frame is declared where the frame is drawn. The box itself still
     // answers here on its own turn.
     if (s.textOverflow !== "clip") continue;
     const overL = band.left - b.left,

@@ -34,7 +34,7 @@
  * door is what a reader finds without being told — the ✎ sits in the margin, 45px from
  * the words it edits, and the gesture that used to open the box in place was a
  * double-click nothing advertised. The draft
- * contributes that disclosure to its target's shared margin element cluster. Save and Cancel
+ * contributes that disclosure to its target's shared margin entry cluster. Save and Cancel
  * replace it for the length of an edit, with their width reserved before presentation,
  * so opening the editor changes what the one RHS item offers without moving the
  * document. Unsent
@@ -96,8 +96,8 @@ import {
   saveDraft,
   loadDraft,
   measure,
-  marginElement,
-  marginElementState,
+  marginEntry,
+  setMarginEntryState,
   clearDraft,
   watchDraft,
   alignText,
@@ -213,7 +213,7 @@ customElements.define(
         { answer: () => this.#body?.textContent?.trim() || "Empty" },
       );
 
-      this.#pencil = this.#marginElement(
+      this.#pencil = this.#marginEntry(
         "edit",
         "edit",
         "Edit",
@@ -228,7 +228,7 @@ customElements.define(
       this.#pencil.setAttribute("aria-label", `Edit ${this.id}`);
       this.#row = offer("div", "lf-draft-controls");
       this.#row.dataset.lfFor = this.id;
-      this.#cancel = this.#marginElement(
+      this.#cancel = this.#marginEntry(
         "cancel",
         "cross",
         "Cancel",
@@ -238,7 +238,7 @@ customElements.define(
         "escape",
         "engaged",
       );
-      this.#save = this.#marginElement(
+      this.#save = this.#marginEntry(
         "save",
         "check",
         "Save",
@@ -261,9 +261,9 @@ customElements.define(
       // a projection none of them changed.
       this.#paintButtons();
       measure(this.#row, () => {
-        // The engaged cluster is Save + Cancel; reserve that complete margin element while
+        // The engaged cluster is Save + Cancel; reserve that complete margin entry while
         // the detached measurement row contains its direct controls, before resting
-        // Edit replaces them. Both margin elements share one margin element, plus one gap.
+        // Edit replaces them. Both margin entries share one margin entry, plus one gap.
         const saveWidth = Math.ceil(this.#save.getBoundingClientRect().width);
         this.#buttonReserve = saveWidth * 2 + 4;
         this.#row.style.minWidth = `${saveWidth}px`;
@@ -371,7 +371,7 @@ customElements.define(
       return b;
     }
 
-    #marginElement(
+    #marginEntry(
       key,
       icon,
       label,
@@ -381,7 +381,7 @@ customElements.define(
       role = "primary",
       state = "idle",
     ) {
-      const button = marginElement(offer("button", ""), {
+      const button = marginEntry(offer("button", ""), {
         key,
         icon,
         label,
@@ -395,17 +395,17 @@ customElements.define(
     }
 
     #paintButtons({ notify = true } = {}) {
-      marginElement(this.#save, {
+      marginEntry(this.#save, {
         key: this.#failed ? "retry" : "save",
         icon: this.#failed ? "retry" : "check",
         label: this.#failed ? "Retry" : "Save",
         tone: "positive",
-        role: "complete",
+        rank: "complete",
         state: this.#failed ? "failed" : "engaged",
       });
       keeps(this.#save, "aria-label", this.#failed ? "Retry" : "Save");
-      marginElementState(this.#cancel, this.#failed ? "failed" : "engaged");
-      marginElementState(this.#pencil, this.#sending ? "busy" : "idle");
+      setMarginEntryState(this.#cancel, this.#failed ? "failed" : "engaged");
+      setMarginEntryState(this.#pencil, this.#sending ? "busy" : "idle");
       const available = actionAvailable(this, "edit");
       // The action sequence this paint follows arrives on every heartbeat, so each of
       // these states is written on a page nobody has touched. State only what changed.

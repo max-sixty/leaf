@@ -271,10 +271,10 @@ def address_codes(page):
     )
 
 
-def address_code(page, kind, target, margin_element=None):
+def address_code(page, kind, target, margin_entry=None):
     selector = f'{CHIPS}[data-lf-address-kind="{kind}"][data-lf-address-for="{target}"]'
-    if margin_element:
-        selector += f'[data-lf-address-margin-element="{margin_element}"]'
+    if margin_entry:
+        selector += f'[data-lf-address-margin-entry="{margin_entry}"]'
     chip = page.locator(selector)
     expect(chip).to_have_count(1)
     code = chip.get_attribute("data-lf-address")
@@ -282,9 +282,9 @@ def address_code(page, kind, target, margin_element=None):
     return code
 
 
-def go_to_address(page, kind, target, margin_element=None):
+def go_to_address(page, kind, target, margin_entry=None):
     page.keyboard.press("g")
-    code = address_code(page, kind, target, margin_element)
+    code = address_code(page, kind, target, margin_entry)
     page.keyboard.type(code)
     return code
 

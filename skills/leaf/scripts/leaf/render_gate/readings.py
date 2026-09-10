@@ -369,7 +369,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             f"(id={t['id']!r}): its {t['edge'] == 'above' and 'first' or 'last'} "
             f"block is a <{t['child']}> reserving {t['margin']:g}px against a "
             f"neighbour it hasn't got, and the box is where that margin stops. "
-            f"Declare --lf-frame: 1 in the rule that draws the frame, so the trim "
+            f"Declare --lf-block-frame: 1 in the rule that draws the frame, so the trim "
             f"in theme.css reaches it"
         )
 

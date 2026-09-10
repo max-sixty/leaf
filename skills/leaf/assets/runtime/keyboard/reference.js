@@ -8,7 +8,7 @@
    opened it. A modal dialog clears the top layer's auto popovers on its way in, so the
    reference notes the ones it was opened over and stands them back up before that restore
    — the dialog that says what a menu's keys are cannot be what takes the menu away. If a
-   covering workspace began while the reference stood, its owner declines a pre-boundary
+   covering auxiliary surface began while the reference stood, its owner declines a pre-boundary
    layer outside that workspace and supplies the new return place instead. Otherwise the
    reference stands each layer back up from its own invoker — `lfInvoker`, the link a layer
    declares because the platform's own runs one way only — so the layer's way out survives
@@ -50,11 +50,11 @@ import { completeRowSteps, keySequence, neutralStates } from "./presentation.js"
 import { restoreReturnPlace } from "./return-stack.js";
 import { el } from "../widget-elements.js";
 import {
-  coveringWorkspaceFocus,
-  coveringWorkspaceSurface,
+  coveringAuxiliaryFocus,
+  coveringAuxiliarySurface,
   ELEMENTS,
   pageScopes,
-  workspaceAllowsNativeLayer,
+  auxiliaryAllowsNativeLayer,
 } from "./register.js";
 import {
   byCommand,
@@ -240,7 +240,7 @@ function showShortcutReference(open, restoreFocus, invokeCommand, captureOrigin)
   if (open && !shortcutReferenceOpen) {
     shortcutReferenceOrigin = captureOrigin();
     shortcutReferenceLayers = [...document.querySelectorAll(":popover-open")];
-    shortcutReferenceBoundary = coveringWorkspaceSurface();
+    shortcutReferenceBoundary = coveringAuxiliarySurface();
     commandsAtOpen = availableCommands();
   }
   shortcutReferenceOpen = open;
@@ -607,7 +607,7 @@ function showShortcutReference(open, restoreFocus, invokeCommand, captureOrigin)
       // dialog stood above both surfaces. A popover captured before that boundary may
       // return only when it belongs inside it. A layer captured over this same boundary
       // was deliberately opened above it and keeps the ordinary reference round trip.
-      if (!workspaceAllowsNativeLayer(layer, shortcutReferenceBoundary)) continue;
+      if (!auxiliaryAllowsNativeLayer(layer, shortcutReferenceBoundary)) continue;
       // A popover hands focus back to whatever had it when it was shown, and what the
       // closing dialog leaves focused is the body — so a layer stood back up from here
       // would have no way out, and the reader's exit from the menu would be the one thing
@@ -621,9 +621,9 @@ function showShortcutReference(open, restoreFocus, invokeCommand, captureOrigin)
     const originNode = origin?.control ?? origin?.reading;
     if (
       originNode &&
-      !workspaceAllowsNativeLayer(originNode, shortcutReferenceBoundary)
+      !auxiliaryAllowsNativeLayer(originNode, shortcutReferenceBoundary)
     ) {
-      const focus = coveringWorkspaceFocus();
+      const focus = coveringAuxiliaryFocus();
       origin = focus ? { control: focus, reading: null } : null;
     }
     shortcutReferenceLayers = [];

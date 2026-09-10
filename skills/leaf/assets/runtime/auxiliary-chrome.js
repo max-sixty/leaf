@@ -1,17 +1,17 @@
-/* Capture and restore the reader’s auxiliary workspace and its stable control route. */
+/* Capture and restore the reader’s auxiliary surface and its stable control route. */
 import { currentTray, asksPanel, othersPanel } from "./trays.js";
 import { focused } from "./keyboard/scopes.js";
 import { panel } from "./conversation/panel-elements.js";
 
-// Returning to a workspace can reopen an inline thread. Those effects are supplied
+// Returning to an auxiliary surface can reopen an inline thread. Those effects are supplied
 // by application composition; capturing a place only reads the current DOM and state.
-export function createWorkspaceNavigation({
+export function createAuxiliaryChromeNavigation({
   panelIsOpen,
   setPanel,
-  showTray,
+  setOpenTray,
   openInlineThread,
 }) {
-  function workspaceControlRoute(control) {
+  function auxiliaryFocusRoute(control) {
     if (!control || control === document.body) return () => null;
     const inline = control.closest?.(
       ".lf-margin-preview .lf-conversation-thread[data-thread]",
@@ -47,29 +47,28 @@ export function createWorkspaceNavigation({
     return () => (control?.isConnected ? control : null);
   }
 
-  function workspaceState() {
+  function captureAuxiliaryChromeState() {
     return {
-      panel: panelIsOpen(),
-      tray: currentTray(),
+      surface: currentTray() ?? (panelIsOpen() ? "threads" : null),
       // A widget-local Thread lives inside a shadow root, so the document reading is only
       // its host. Capture the actual control to reopen that exact inline conversation when
-      // an auxiliary workspace closes.
-      control: workspaceControlRoute(focused()),
+      // an auxiliary surface closes.
+      control: auxiliaryFocusRoute(focused()),
     };
   }
 
-  function restoreWorkspace(state) {
-    const { panel: hadPanel, tray } = state;
-    if (tray) showTray(tray);
-    else if (hadPanel) {
-      showTray(null, { returnFocus: false });
+  function restoreAuxiliaryChromeState(state) {
+    if (state.surface === "asks" || state.surface === "leaves")
+      setOpenTray(state.surface);
+    else if (state.surface === "threads") {
+      setOpenTray(null, { returnFocus: false });
       setPanel(true);
     } else {
-      showTray(null, { returnFocus: false });
+      setOpenTray(null, { returnFocus: false });
       setPanel(false);
     }
     return state.control();
   }
 
-  return { workspaceState, restoreWorkspace };
+  return { captureAuxiliaryChromeState, restoreAuxiliaryChromeState };
 }

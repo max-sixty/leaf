@@ -2,22 +2,22 @@
 
    An open anchored composer owns its general response disclosure: reactions only
    contribute declared actions to it, and `e` opens that local group focused on its
-   first reaction. With no composer open, `e` contributes the reaction margin elements to the
+   first reaction. With no composer open, `e` contributes the reaction margin entries to the
    selected item's existing margin cluster. While that explicit mode stands, its
-   contribution owns all six margin elements; standing readings and unrelated actions remain
-   in Page map and return when the mode closes. Those temporary margin elements dock with the
+   contribution owns all six margin entries; standing readings and unrelated actions remain
+   in Page Map and return when the mode closes. Those temporary margin entries dock with the
    cluster when necessary and claim no permanent rail width. A thread-local `e` opens
    the conversation-owned row on the latest agent message. `REACT` claims the keyboard
    only for those margin and message lists; the composer's response scope owns its
-   local list. Arrow keys wrap through the visible margin elements in the active list.
+   local list. Arrow keys wrap through the visible margin entries in the active list.
    Tab and Shift-Tab follow that same order. The Page-map dialog remains part of the
    response's target context but owns its native keyboard walk and Escape while open.
-   Closing it restores its exact opener; selecting overflow presses the original margin element
+   Closing it restores its exact opener; selecting overflow presses the original margin entry
    before its temporary target is released. Enter or Space presses the focused choice,
    digits remain optional reaction accelerators in declaration order, and a stray key
    closes the list before keeping its ordinary meaning.
 
-   The margin form shows the declared reaction margin elements together within the six-item
+   The margin form shows the declared reaction margin entries together within the six-item
    budget. Comment retains its separate `c` route. The digit register and visible
    choices therefore name the same complete set. The choices do not widen the rail or
    open a separate palette below the target. The compact response bar's More controller
@@ -32,7 +32,7 @@
    capabilities; conversation views receive its surface builder as a semantic
    callback. mount installs the mode teardown listeners after composition. */
 
-import { marginElement, registerMarginContribution } from "./margin-elements.js";
+import { marginEntry, registerMarginContribution } from "./margin-entries.js";
 import { runtime } from "./context.js";
 import { CONTROL_WORD_CAP } from "./design-readings.js";
 import { registry } from "./registry.js";
@@ -79,11 +79,11 @@ function reactionChip(
   chip.dataset.token = name;
   if (margin) {
     chip.setAttribute("aria-label", meaning);
-    marginElement(chip, {
+    marginEntry(chip, {
       key: `reaction:${String(ordinal).padStart(4, "0")}:${name}`,
       glyph: entry.glyph,
       label: meaning,
-      role: "secondary",
+      rank: "secondary",
     });
   } else {
     chip.title = meaning;
@@ -97,11 +97,11 @@ function reactionChip(
 }
 
 export function createReactionController({
-  marginElementChoices,
-  marginElementContextContains,
-  foldMarginElementOptions,
-  openMarginElementOptions,
-  unfoldedMarginElements,
+  marginEntryChoices,
+  marginEntryContextContains,
+  foldMarginEntryOptions,
+  openMarginEntryOptions,
+  unfoldedMarginEntries,
   designIsOn,
   hideComposer,
   syncResponseOptions,
@@ -251,7 +251,7 @@ export function createReactionController({
     // `e` is an explicit reaction mode. Comment remains on `c`, so this temporary
     // contribution contains reactions alone.
     fabBar.dataset.lfMarginRaised = "1";
-    const standing = unfoldedMarginElements()?.lfTarget === target;
+    const standing = unfoldedMarginEntries()?.lfTarget === target;
     // Register the response surface in the state it is about to show. Registering its
     // collapsed face first makes the projection treat the six choices as hidden owner
     // content; a fast `e` can then arm their digit shortcuts while only the old floating
@@ -274,7 +274,7 @@ export function createReactionController({
       claim: false,
     });
     marginTarget = target;
-    if (openMarginElementOptions(target, { owner: "responses" })) {
+    if (openMarginEntryOptions(target, { owner: "responses" })) {
       marginUnfolded = !standing;
       return true;
     }
@@ -290,13 +290,13 @@ export function createReactionController({
     marginOffer = null;
     marginTarget = null;
     delete fabBar.dataset.lfMarginRaised;
-    // A raise that unfolded the target's margin elements to stand these choices in puts that fold
+    // A raise that unfolded the target's margin entries to stand these choices in puts that fold
     // back, so cancelling leaves the cluster as the press found it rather than an empty
     // fold the reader has to close themselves. Only that raise: this runs on every
     // disarm, including one whose surface was a reply strip and which never raised the
     // margin at all, and including one over a fold the reader had already opened for
     // themselves — folding either takes away a layer the gesture never put on.
-    if (marginUnfolded) foldMarginElementOptions();
+    if (marginUnfolded) foldMarginEntryOptions();
     marginUnfolded = false;
   }
 
@@ -305,7 +305,7 @@ export function createReactionController({
     pickerFor(surface)?.trigger.setAttribute("aria-expanded", "false");
   }
 
-  // A page picker lives in the target's shared margin element options and therefore owns its
+  // A page picker lives in the target's shared margin entry options and therefore owns its
   // geometry. Returning true keeps the floating Comment bar from trying to re-place the
   // same gesture while the margin has it; message-local reaction strips need no claim.
   function syncReactLayout() {
@@ -428,7 +428,7 @@ export function createReactionController({
 
   function responseChoices(surface) {
     if (!surface) return [];
-    if (surface === marginSurface) return marginElementChoices(fabTargetAt());
+    if (surface === marginSurface) return marginEntryChoices(fabTargetAt());
     return [...surface.querySelectorAll(".lf-react-palette > .lf-react")].filter(
       (choice) => choice.checkVisibility(),
     );
@@ -521,10 +521,10 @@ export function createReactionController({
   const reactionContextContains = (node) =>
     reactArmed &&
     reactSurface === marginSurface &&
-    marginElementContextContains(fabTargetAt(), node);
+    marginEntryContextContains(fabTargetAt(), node);
 
   function mount() {
-    document.addEventListener("lf-margin-element-options-closed", () => {
+    document.addEventListener("lf-margin-entry-options-closed", () => {
       if (reactArmed && reactSurface === marginSurface) setReact(false);
     });
     document.addEventListener("lf-actions", () => {

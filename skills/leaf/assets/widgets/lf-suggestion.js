@@ -9,7 +9,7 @@
  * without restating it on screen, and refusal restores actionable failure controls.
  *
  * The suggestion owns only those controls and their semantics. It contributes the row
- * through `registerMarginContribution`; the living margin joins it to comment threads,
+ * through `registerMarginContribution`; the margin projection joins it to comment threads,
  * decisions, delivery status, activity, and temporary reaction controls for this same
  * target.
  * That owner hoists and places the one resulting item, measures the rail, docks it when
@@ -23,8 +23,8 @@ import {
   announce,
   commands,
   FOLD_MS,
-  marginElement,
-  marginElementState,
+  marginEntry,
+  setMarginEntryState,
   motion,
   offer,
   once,
@@ -45,8 +45,8 @@ import {
 
 const WORDS = { accept: "Accept", reject: "Reject" };
 const FACE = {
-  accept: { icon: "check", tone: "positive", role: "primary" },
-  reject: { icon: "cross", tone: "negative", role: "secondary" },
+  accept: { icon: "check", tone: "positive", rank: "primary" },
+  reject: { icon: "cross", tone: "negative", rank: "secondary" },
 };
 const verb = (btn) => (btn.matches(".lf-sug-accept") ? "accept" : "reject");
 
@@ -140,7 +140,7 @@ customElements.define(
 
     connectedCallback() {
       // Re-connection — a card dragged to another column, a replay moving one — must
-      // restore this target's contribution to the shared margin element cluster.
+      // restore this target's contribution to the shared margin entry cluster.
       if (!once(this)) {
         this.#offer();
         this.#watchActions();
@@ -233,9 +233,9 @@ customElements.define(
                     this.#row
                       .querySelector(
                         this.#failed
-                          ? '[data-lf-margin-element-key="retry"]'
+                          ? '[data-lf-margin-entry-key="retry"]'
                           : this.dataset.lfState
-                            ? '[data-lf-margin-element-key="undo"]'
+                            ? '[data-lf-margin-entry-key="undo"]'
                             : "[data-lf-offer='button']",
                       )
                       ?.focus({ preventScroll: true }),
@@ -244,7 +244,7 @@ customElements.define(
       });
     }
 
-    // Through `offer` like every other injected control, then through marginElement so
+    // Through `offer` like every other injected control, then through marginEntry so
     // this widget supplies only the verb and tone. The shared RHS contract supplies
     // its shape, focus treatment, and responsive label behavior.
     #button(outcome) {
@@ -262,7 +262,7 @@ customElements.define(
     #name(btn, state, change) {
       const kind = verb(btn);
       btn.removeAttribute("data-lf-said");
-      marginElement(btn, {
+      marginEntry(btn, {
         key: kind,
         ...FACE[kind],
         label: WORDS[kind],
@@ -287,7 +287,7 @@ customElements.define(
     };
 
     #utilityButton({ key, icon, label, tone = "neutral", role, press }) {
-      const button = marginElement(offer("button", ""), {
+      const button = marginEntry(offer("button", ""), {
         key,
         icon,
         label,
@@ -310,11 +310,11 @@ customElements.define(
           key: "undo",
           icon: "undo",
           label: "Undo",
-          role: "primary",
+          rank: "primary",
           press: () => this.#undoOutcome(),
         });
         const undoing = Boolean(pending || this.#undoing);
-        marginElementState(this.#undo, undoing ? "busy" : "idle");
+        setMarginEntryState(this.#undo, undoing ? "busy" : "idle");
         this.#undo.setAttribute("aria-disabled", String(undoing));
         this.#undo.setAttribute(
           "aria-label",
@@ -341,18 +341,18 @@ customElements.define(
           key: "retry",
           icon: "retry",
           label: "Retry",
-          role: "complete",
+          rank: "complete",
           press: () => this.#retryDecision(),
         });
         this.#cancelFailure ??= this.#utilityButton({
           key: "cancel-failure",
           icon: "cross",
           label: "Cancel",
-          role: "escape",
+          rank: "escape",
           press: () => this.#cancelFailedDecision(),
         });
         for (const control of [this.#retry, this.#cancelFailure])
-          marginElementState(control, "failed");
+          setMarginEntryState(control, "failed");
         this.#row.dataset.lfMarginReceipt = "failed";
         this.#replaceControls(this.#retry, this.#cancelFailure, this.#failureReceipt);
         return;
@@ -380,20 +380,20 @@ customElements.define(
       if (held && !wanted.includes(source)) {
         this.#margin?.update({ immediate: true });
         wanted
-          .find((node) => node.matches(".lf-margin-element") && node.checkVisibility())
+          .find((node) => node.matches(".lf-margin-entry") && node.checkVisibility())
           ?.focus({ preventScroll: true });
       }
       commands(
         this,
         "On a suggested change",
         wanted
-          .filter((control) => control.matches?.(".lf-margin-element"))
+          .filter((control) => control.matches?.(".lf-margin-entry"))
           .map((control) => {
             const label = control.querySelector(
-              ":scope > .lf-margin-element-label",
+              ":scope > .lf-margin-entry-label",
             ).textContent;
             return {
-              id: `suggestion.${control.dataset.lfMarginElementKey}`,
+              id: `suggestion.${control.dataset.lfMarginEntryKey}`,
               keys: [],
               control,
               decision: label,
@@ -460,7 +460,7 @@ customElements.define(
       // pointer, Enter, Space, or an address route; otherwise later reconciliation can
       // reconstruct the relocated range and raise its Comment field again.
       getSelection()?.removeAllRanges();
-      // Keep the replacement Undo in the pressed margin element's seat while delivery is open.
+      // Keep the replacement Undo in the pressed margin entry's seat while delivery is open.
       // It is present for focus continuity but unavailable until the log gives the
       // gesture the durable id Undo must name.
       this.#staging = true;
@@ -503,11 +503,11 @@ customElements.define(
 
     // The field refuses a second press while the first is unresolved. A pending result
     // that has not painted also marks the widget busy; an optimistic result instead puts
-    // that state on its disabled Undo margin element so the settled prose stays legible.
+    // that state on its disabled Undo margin entry so the settled prose stays legible.
     #inFlight(decision, label = this.#label()) {
       this.#deciding = decision;
       // Optimistic content already says what the press did. Busy belongs to its disabled
-      // Undo margin element, not as a dimming veil over the settled prose.
+      // Undo margin entry, not as a dimming veil over the settled prose.
       if (decision && !this.dataset.lfState) this.setAttribute("aria-busy", "true");
       else this.removeAttribute("aria-busy");
       this.#renderControls(label);

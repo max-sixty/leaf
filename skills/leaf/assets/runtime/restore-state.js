@@ -1,4 +1,4 @@
-/* `ARRANGEMENTS` declares each stored runtime arrangement the render suite must visit,
+/* `READER_VIEW_RESTORE_CASES` declares each stored runtime arrangement the render suite must visit,
    and supplies one for each persisted tray. Add a new remembered surface here when the
    surface is introduced.
 
@@ -12,25 +12,25 @@
    the restore that broke, and the geometry the combinations would add is measured on
    the first visit already. */
 import { readerStore, tabStore } from "./storage.js";
-import { PANEL_KEY } from "./panel-workspace.js";
-import { TRAY_KEY } from "./trays.js";
+import { THREAD_PANEL_KEY } from "./thread-panel.js";
+import { TRAY_SLOT_KEY } from "./trays.js";
 import { DESIGN_KEY } from "./design-readings.js";
 
-export const ARRANGEMENTS = [
-  { name: "the thread panel open", ...readerStore.where(PANEL_KEY), value: "1" },
+export const READER_VIEW_RESTORE_CASES = [
+  { name: "the thread panel open", ...readerStore.where(THREAD_PANEL_KEY), value: "1" },
   {
     name: "the thread panel at the width the reader drew it to",
-    ...readerStore.where("lf-panel-width"),
+    ...readerStore.where("lf-thread-panel-width"),
     value: "560",
   },
   {
     name: "the tray panel at the width the reader drew it to",
-    ...readerStore.where("lf-tray-width"),
+    ...readerStore.where("lf-tray-slot-width"),
     value: "260",
   },
   ...["leaves", "asks"].map((tray) => ({
     name: `the ${tray} tray standing`,
-    ...readerStore.where(TRAY_KEY),
+    ...readerStore.where(TRAY_SLOT_KEY),
     value: tray,
   })),
   { name: "design mode on", ...tabStore.where(DESIGN_KEY), value: "1" },
@@ -39,7 +39,7 @@ export const ARRANGEMENTS = [
 // The chrome put back the way this reader left it, before the page is presented: the
 // widths first, so a panel or tray put back open is open at the width they left it at
 // rather than sliding to it afterwards.
-export function restoreArrangements({
+export function restoreReaderView({
   commentsEdge,
   traysEdge,
   setPanel,
@@ -50,12 +50,12 @@ export function restoreArrangements({
   // left it at rather than sliding to it afterwards.
   commentsEdge.restore();
   traysEdge.restore();
-  if (readerStore.get(PANEL_KEY) === "1") setPanel(true);
+  if (readerStore.get(THREAD_PANEL_KEY) === "1") setPanel(true);
   restoreTrays();
   if (tabStore.get(DESIGN_KEY) === "1") setDesign(true, { spoken: false });
   const root = document.documentElement;
   root.removeAttribute("data-lf-restore-panel");
   root.removeAttribute("data-lf-restore-tray");
-  root.style.removeProperty("--lf-panel-choice");
-  root.style.removeProperty("--lf-tray-choice");
+  root.style.removeProperty("--lf-thread-panel-choice");
+  root.style.removeProperty("--lf-tray-slot-choice");
 }

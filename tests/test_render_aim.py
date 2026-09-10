@@ -410,7 +410,7 @@ def test_a_growing_comment_keeps_its_words_and_its_paragraph_clear(
     if panel_open:
         assert (
             expanded["x"] + expanded["width"]
-            < page.locator(".lf-panel").bounding_box()["x"]
+            < page.locator(".lf-thread-panel").bounding_box()["x"]
         )
     page.mouse.move(8, 450)
     page.mouse.wheel(0, 300)
@@ -927,7 +927,7 @@ def test_an_aim_tracks_an_equal_width_workspace_swap_every_frame(browser, serve)
 def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
     browser, serve
 ):
-    """A covering workspace owns its pixels and remains a chrome target itself.
+    """A covering auxiliary surface owns its pixels and remains a chrome target itself.
 
     Covered page content is inert, so aim and comment cannot reach it through the visible
     remainder. The sheet remains part of Leaf's chrome: its aim, inspect name, and response
@@ -1031,7 +1031,7 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Waiting for pickup,"))
     marker.hover()
-    label = marker.locator(":scope > .lf-margin-element-label")
+    label = marker.locator(":scope > .lf-margin-entry-label")
     trace = page.locator('.lf-target-trace[data-for="jobs"]')
     expect(label).to_be_visible()
     expect(trace).to_be_visible()
@@ -1515,7 +1515,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # The retained thread names the target the same way the composer named the box. The
     # top-layer margin card stays retired while design mode stands, so the send lands
     # typing in the ordinary Threads workspace instead of a hidden inline reply.
-    panel = page.locator(".lf-panel")
+    panel = page.locator(".lf-thread-panel")
     expect(panel).to_be_visible()
     expect(panel.locator(".lf-thread .lf-quote")).to_have_text(
         "layer · lf-option · opt-shim"
@@ -1613,21 +1613,21 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
         re.compile(r"^layer · Accept .* · lf-suggestion · sug-refill$")
     )
     assert page.locator("#sug-refill").get_attribute("aria-busy") is None, (
-        "the margin element action started while Design mode was opening its comment"
+        "the margin entry action started while Design mode was opening its comment"
     )
     round_trip(page)
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action" and event["widget"] == "sug-refill"
-    ], "the margin element action reached the durable log despite Design mode"
+    ], "the margin entry action reached the durable log despite Design mode"
     assert errors == []
     page.close()
 
     # The same hoist exists inside frozen markup in a conversation. Its target belongs
     # to that conversation document, so the margin owner hands Design mode the exact
     # element rather than making it reconstruct ownership from a diagnostic id or path.
-    url = serve(leaf_page("inline margin element action", '<h1 id="h">Review</h1>'))
+    url = serve(leaf_page("inline margin entry action", '<h1 id="h">Review</h1>'))
     events_model.append_event(
         serve.page_dir,
         {
@@ -1671,7 +1671,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
         event
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action" and event["widget"] == "reply-suggestion"
-    ], "the inline margin element action reached the durable log despite Design mode"
+    ], "the inline margin entry action reached the durable log despite Design mode"
     assert errors == []
     page.close()
 
@@ -1692,7 +1692,7 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     threads.click()
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text(f"layer · {said} · banner")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.locator(".lf-composer textarea").fill("reads dim against the wash")
     with sending(page, "the comment on the chrome"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -1711,25 +1711,25 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
 
     # And the thread panel, which is the case where the aim's own geometry had nothing to
-    # say. A fixed box is not clipped by the root scrollport, while body is the layout shell
+    # say. A fixed box is not clipped by the root scrollport, while body is the page shell
     # narrowed to the column standing beside the panel — so the panel measured through the
     # page flow's ancestors came back wholly clipped away, and a mode whose row promises a
     # click on the chrome drew nothing over the chrome. Wide enough for the panel to stand
     # beside the page, which is where the shell and the panel part company.
     resized(page, 1280, 800)
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.wait_for_function(
-        "() => document.querySelector('.lf-panel').getBoundingClientRect().left"
+        "() => document.querySelector('.lf-thread-panel').getBoundingClientRect().left"
         " >= document.body.clientWidth"
     )
     page.keyboard.press("l")
-    box = page.locator(".lf-panel").bounding_box()
+    box = page.locator(".lf-thread-panel").bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 30)
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lf-threads")
     assert page.evaluate(
         """() => {
              const aim = document.querySelector('.lf-aim').getBoundingClientRect();
-             const panel = document.querySelector('.lf-panel').getBoundingClientRect();
+             const panel = document.querySelector('.lf-thread-panel').getBoundingClientRect();
              return Math.abs(aim.width - panel.width) < 3
                  && Math.abs(aim.left - panel.left) < 3;
            }"""
@@ -1763,7 +1763,7 @@ def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
     response_bar = page.locator(".lf-fab-bar")
     expect(response_bar).to_have_attribute("data-lf-paint-plane", "chrome")
     assert int(response_bar.evaluate("el => getComputedStyle(el).zIndex")) > int(
-        page.locator(".lf-panel").evaluate("el => getComputedStyle(el).zIndex")
+        page.locator(".lf-thread-panel").evaluate("el => getComputedStyle(el).zIndex")
     ), "the field opened on chrome underneath the workspace it describes"
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "layer · Thread panel width · threads"
@@ -1865,7 +1865,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     # with them, off the resize each item reports. Opened by key: in the mode a press
     # on the Threads button is a comment about the button.
     page.keyboard.press("c")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.wait_for_function(
         "() => document.querySelector('body > main').getAnimations()"
         ".every(a => a.playState !== 'running')"
@@ -2152,7 +2152,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
             '.lf-margin-preview .lf-conversation-thread[data-thread="outer-comment"]'
         )
     ).to_be_visible()
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     point = midpoint(decoration)
@@ -2741,7 +2741,7 @@ def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
     comments.click()
     page.keyboard.up("Alt")
     panel_settled(page)
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert errors == []
     page.close()

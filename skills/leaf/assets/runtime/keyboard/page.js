@@ -57,7 +57,7 @@ import { keeps } from "../widget-elements.js";
 
 export function createPageKeys({
   panelIsOpen,
-  coveringWorkspaceSurface,
+  coveringAuxiliarySurface,
   stepReading,
   openAsks,
   GO,
@@ -66,9 +66,9 @@ export function createPageKeys({
   undoLast,
   unaccountedGesture,
   setPanel,
-  showTray,
-  workspaceState,
-  restoreWorkspace,
+  setOpenTray,
+  captureAuxiliaryChromeState,
+  restoreAuxiliaryChromeState,
   widen,
   landIn,
   stepAsk,
@@ -111,7 +111,7 @@ export function createPageKeys({
 }) {
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   /* The page's own keys: the scopes core declares — the reference, the shortcut bar's shelf, the
-   page map, the composer, a text box, the thread panel, a focused thread, a link, a
+   Page Map, the composer, a text box, the thread panel, a focused thread, a link, a
    disclosure, design mode, and the page itself — and what a press from each of them
    does. A row's fields are stated once, in bindings.js; a scope's `at`/`when` pair in
    scopes.js. Widgets never see this list: they declare their own scopes through the
@@ -223,10 +223,10 @@ export function createPageKeys({
         generalInput.focus({ preventScroll: true });
       },
       returnFrame: () => {
-        const workspace = workspaceState();
+        const previousAuxiliaryChrome = captureAuxiliaryChromeState();
         return {
           active: () => panelIsOpen() && generalRow.contains(documentFocused()),
-          close: () => restoreWorkspace(workspace),
+          close: () => restoreAuxiliaryChromeState(previousAuxiliaryChrome),
           does: "Return to where you were",
           line: "back",
         };
@@ -296,7 +296,7 @@ export function createPageKeys({
   // ring stayed on it, the one place in the runtime a key put the reader somewhere with no
   // key to take them out again.
   //
-  // Inside the chrome it is the open workspace first. Trays and Threads replace one
+  // Inside the chrome it is the open auxiliary surface first. Trays and Threads replace one
   // another, so a standing tray is the one auxiliary layer Escape can unwind.
   //
   // Then the last rung leaves the chrome, because closing the panel does not put the reader
@@ -323,7 +323,7 @@ export function createPageKeys({
       return {
         says: `close ${tray}`,
         does: `Close the ${tray} tray`,
-        out: () => showTray(null),
+        out: () => setOpenTray(null),
       };
     }
     // A narrowing is a layer of the panel the way a tray is a layer of the page: the
@@ -521,7 +521,7 @@ export function createPageKeys({
     rows: [LESS_SHORTCUTS],
   };
 
-  // A thread card and the unfolded margin element cluster that owns it are one page-map stack,
+  // A thread card and the unfolded margin entry cluster that owns it are one page-map stack,
   // though the card itself is hoisted into the chrome. This is a scene-derived fallback:
   // a later keyboard entry returns through its captured frame before this rung. Without
   // one, the registered rung precedes the reaction and navigation fallbacks just as the
@@ -532,7 +532,7 @@ export function createPageKeys({
   }
 
   const PAGE_MAP = {
-    title: "In the page map",
+    title: "In the Page Map",
     root: () => pageMapRung()?.root ?? document,
     when: () => Boolean(pageMapRung(false)),
     at: () => Boolean(pageMapRung()),
@@ -1143,7 +1143,7 @@ export function createPageKeys({
           repeat: true,
           run: (binding) => stepAsk(binding === "a" ? 1 : -1),
         },
-        // Scrolling is available in the page and in a covering workspace. The latter
+        // Scrolling is available in the page and in a covering auxiliary surface. The latter
         // reuses these rows while the modal floor suspends the rest of page scope.
         PAGE_MOVE,
         SCROLL_MOVE,
@@ -1209,10 +1209,10 @@ export function createPageKeys({
       ],
     };
     const COVERING_WORKSPACE = {
-      title: "In the covering workspace",
-      root: coveringWorkspaceSurface,
-      when: () => Boolean(coveringWorkspaceSurface()),
-      at: () => Boolean(coveringWorkspaceSurface()),
+      title: "In the covering auxiliary surface",
+      root: coveringAuxiliarySurface,
+      when: () => Boolean(coveringAuxiliarySurface()),
+      at: () => Boolean(coveringAuxiliarySurface()),
       // The global address vocabulary is still a route out of this workspace. Reuse its
       // one entry row here; GO moves its own root to the same modal surface while armed.
       rows: [
@@ -1266,7 +1266,7 @@ export function createPageKeys({
   // every two seconds on a page nobody has touched, so every name it writes goes through
   // `keeps` and says nothing where the control already says it. Restated title or shortcut
   // metadata is news to whatever is reading the page — the mutation stream a screen reader
-  // rebuilds its buffer from — and these controls stand on the banner the living margin
+  // rebuilds its buffer from — and these controls stand on the banner the margin projection
   // watches.
   function paintCoreControls() {
     const returningToMore = Boolean(shortcutBarExpanded());

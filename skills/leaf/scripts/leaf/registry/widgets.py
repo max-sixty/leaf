@@ -191,29 +191,31 @@ def _validate_widget_structure(
             f"{path}: <{tag}> x-owners names unknown element declarations {unknown}"
         )
     properties = entry.get("properties", {})
-    layout = entry.get("x-layout")
+    layout = entry.get("x-reading-role")
     if layout:
         if entry.get("x-content") != "markup":
-            raise RegistryError(f"{path}: <{tag}> x-layout requires x-content: markup")
+            raise RegistryError(
+                f"{path}: <{tag}> x-reading-role requires x-content: markup"
+            )
         required = set(entry.get("required", []))
         if "id" not in required or properties.get("id", {}).get("type") != "string":
             raise RegistryError(
-                f"{path}: <{tag}> x-layout {layout} instances require a string id"
+                f"{path}: <{tag}> x-reading-role {layout} instances require a string id"
             )
         if layout == "pane" and (
             "label" not in required
             or properties.get("label", {}).get("type") != "string"
         ):
             raise RegistryError(
-                f"{path}: <{tag}> x-layout pane instances require a string label"
+                f"{path}: <{tag}> x-reading-role pane instances require a string label"
             )
-        if layout == "split" and (
+        if layout == "partition" and (
             "direction" not in required
             or set(properties.get("direction", {}).get("enum", []))
             != {"columns", "rows"}
         ):
             raise RegistryError(
-                f"{path}: <{tag}> x-layout split instances require direction with "
+                f"{path}: <{tag}> x-reading-role partition instances require direction with "
                 "enum containing columns and rows"
             )
     required_members = entry.get("x-required-members", {})

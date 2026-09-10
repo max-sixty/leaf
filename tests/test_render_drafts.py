@@ -625,7 +625,7 @@ def test_a_draft_wait_only_paints_after_the_shared_busy_delay(browser, serve):
     draft.locator("textarea").fill("A send held long enough to need progress paint.")
 
     # Sample on the CSS animation's own clock rather than racing wall time across a
-    # Playwright round trip. The host is the surface without a margin element that owns aria-busy.
+    # Playwright round trip. The host is the surface without a margin entry that owns aria-busy.
     frames = page.evaluate(
         """async () => {
           const el = document.getElementById('draft-ops');
@@ -1369,7 +1369,7 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_
     holding(page, held, 1, "the reply send")
 
     toggle.click()
-    expect(page.locator(".lf-panel")).not_to_be_visible()
+    expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     expect(toggle).to_be_focused()
     inline = page.locator(
         f'#jobs .lf-conversation-thread[data-thread="{root["id"]}"] textarea'
@@ -1386,7 +1386,7 @@ def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_
     expect(thread.locator(".lf-msg").last).to_contain_text(
         "Send this while I return to reading."
     )
-    expect(page.locator(".lf-panel")).not_to_be_visible()
+    expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     if continue_inline:
         expect(inline).to_be_focused()
         expect(inline).to_have_value(newer)
@@ -1509,7 +1509,7 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
         for event in reversed(events_model.read_events(serve.page_dir))
         if event.get("text") == "This comment starts outside the filter."
     )
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-find-box")).to_have_value("")
     thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')

@@ -428,7 +428,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     sent = _traffic(page).sends
     page.keyboard.press("z")
     assert _traffic(page).sends == sent
-    # The local margin element shares the keyboard's guard; it cannot post around an
+    # The local margin entry shares the keyboard's guard; it cannot post around an
     # accepted event whose authoritative state is still incomplete.
     first_item = page.locator('[data-lf-margin-for="sug-refill"]')
     first_item.get_by_role("button", name=re.compile(r"^Undo accepting")).click()
@@ -2115,7 +2115,7 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
 def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     browser, serve
 ):
-    """Opening the thread workspace stands the compact field down, so its old absolute
+    """Opening the thread panel stands the compact field down, so its old absolute
     position cannot create sideways overflow after the page narrows. The words remain
     the passage's draft and return when the reader selects that passage again."""
     page, errors = open_page(browser, serve(LONG_PAGE))
@@ -2550,7 +2550,7 @@ def test_undo_waits_for_the_candidate_view_to_commit_or_roll_back(browser, serve
         preparations[0].fulfill(status=204)
     expect(page.locator("body")).to_have_attribute("data-lf-reading", before)
     expect(
-        page.locator("[data-lf-for='sug-refill'] [data-lf-margin-element-key='undo']")
+        page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
     ).to_be_visible()
     expect(page.locator("#sug-thistle")).not_to_have_attribute(
         "data-lf-state", "accept"
@@ -2604,9 +2604,7 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     round_trip(page)
 
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
-    undo = page.locator(
-        "[data-lf-for='sug-refill'] [data-lf-margin-element-key='undo']"
-    )
+    undo = page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
     expect(undo).to_have_attribute("aria-disabled", "false")
     assert [event["action"] for event in actions(serve.page_dir)] == ["accept"]
     expected = [

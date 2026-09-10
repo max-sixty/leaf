@@ -27,7 +27,7 @@ bannerStatus.append(dot, statusText);
 
 export const toggleBtn = el(
   "button",
-  "lf-btn lf-workspace lf-threads-toggle",
+  "lf-btn lf-auxiliary-toggle lf-threads-toggle",
   "Threads",
 );
 toggleBtn.title = "Show or hide the thread panel";
@@ -166,7 +166,7 @@ const showStatus = (kind, tone, ...parts) => {
 // copy the whole diagnostic. It is the banner's least-used address, so it stays behind
 // the address door at every width instead of adding a permanent chip to the reading row.
 // The shelf still owns and measures it with every other address.
-let previewMarginElement = null;
+let previewMarginEntry = null;
 // A checkout goes dirty and clean again while a developer works, so the chip holds the
 // wider of its two spellings for the page's life rather than growing a character under
 // the reader's pointer. Renewed with the row's other reservations at a breakpoint.
@@ -197,12 +197,12 @@ function renderPreview(state) {
     `event sequence: ${state.events.at(-1)?.seq ?? 0}`,
     `url: ${safeUrl}`,
   ].join("\n");
-  if (!previewMarginElement) {
-    previewMarginElement = el("button", "lf-btn lf-preview", label);
-    previewMarginElement.type = "button";
-    previewMarginElement.dataset.lfAlwaysFold = "1";
-    previewMarginElement.setAttribute("aria-label", "Copy preview diagnostics");
-    previewMarginElement.addEventListener("click", async () => {
+  if (!previewMarginEntry) {
+    previewMarginEntry = el("button", "lf-btn lf-preview", label);
+    previewMarginEntry.type = "button";
+    previewMarginEntry.dataset.lfAlwaysFold = "1";
+    previewMarginEntry.setAttribute("aria-label", "Copy preview diagnostics");
+    previewMarginEntry.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(previewDiagnostics);
         notice("Copied preview diagnostics");
@@ -220,11 +220,11 @@ function renderPreview(state) {
     // same call for the same reason.
     arrangeBannerControls();
     unfoldShelf();
-    reserve(previewMarginElement, previewLabels);
+    reserve(previewMarginEntry, previewLabels);
     foldShelf();
   }
-  previewMarginElement.textContent = label;
-  previewMarginElement.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
+  previewMarginEntry.textContent = label;
+  previewMarginEntry.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
 }
 // The two lines the page cannot reach through its own state, said here because the
 // reservation below has to know them as well as the reading does.
@@ -568,7 +568,7 @@ function arrangeBannerControls() {
     approveBtn,
     othersBtn,
     sessionReferenceElement,
-    previewMarginElement,
+    previewMarginEntry,
   ]);
   // Registry-declared blanket answers can join the middle of this row after boot, and a
   // folded address is still on it. Preserve every such control in its standing relative
@@ -578,7 +578,7 @@ function arrangeBannerControls() {
   );
   const controls = [
     ...(sessionReferenceElement ? [sessionReferenceElement] : []),
-    ...(previewMarginElement ? [previewMarginElement] : []),
+    ...(previewMarginEntry ? [previewMarginEntry] : []),
     othersBtn,
     ...middle,
     ...(signoff ? [approveBtn] : []),
@@ -671,7 +671,7 @@ export function reserveBannerControls() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
   if (sessionReferenceElement)
     reserve(sessionReferenceElement, [sessionReferenceLabel]);
-  if (previewMarginElement) reserve(previewMarginElement, previewLabels);
+  if (previewMarginEntry) reserve(previewMarginEntry, previewLabels);
   // News keeps one readable address while it changes words. The row folds rather than
   // clips, so no control has to collapse into an illegible pressure release.
   reserve(latestChip, [

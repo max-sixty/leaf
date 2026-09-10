@@ -3214,7 +3214,7 @@ def test_activation_rechecks_changed_css_while_the_document_stays_identical(page
         theme.write_text(original + css)
         return revisioning_model.activate_source(page_dir, [])
 
-    css = ":root { --pin: 700px; --col: 720px } main { --lf-column: 1; max-width: var(--col) }"
+    css = ":root { --pin: 700px; --col: 720px } main { --lf-reading-column: 1; max-width: var(--col) }"
     initial = activate(css)
     assert initial.error is None
     assert activate(css).check.errors == []
@@ -3244,7 +3244,7 @@ def test_check_reads_a_column_the_theme_states_as_a_token():
     Only the root, and only what is stated outright. A token declared inside a query is
     that condition's, the same reason the column will not read a media query's width, and
     a token nothing declares leaves the `var()`'s own fallback — the browser's answer."""
-    column = "--lf-column: 1;"
+    column = "--lf-reading-column: 1;"
     stated = ":root { --col: 640px }\nmain { " + column + " max-width: var(--col) }"
     assert styles_model._column_width("", stated) == 640
 
@@ -3267,7 +3267,7 @@ def test_check_reads_a_column_the_theme_states_as_a_token():
 
 def test_the_column_is_the_rule_that_claims_it_and_not_a_rule_that_looks_like_one():
     """Which rule is the readable column is the stylesheet's to say, and it says it in
-    the block that sets the width — `--lf-column: 1` beside the max-width, so the cascade
+    the block that sets the width — `--lf-reading-column: 1` beside the max-width, so the cascade
     wins the claim and the width together.
 
     Seven container names stood in for that answer before, and a name list is wrong in
@@ -3291,17 +3291,23 @@ def test_the_column_is_the_rule_that_claims_it_and_not_a_rule_that_looks_like_on
     ), "a rule that merely looks like a container still doubled the page's baseline"
 
     assert (
-        styles_model._column_width("", ".prose { --lf-column: 1; max-width: 560px }")
+        styles_model._column_width(
+            "", ".prose { --lf-reading-column: 1; max-width: 560px }"
+        )
         == 560
     ), "a column named anything at all is still not readable, so the claim is ignored"
 
     assert (
-        styles_model._column_width("main { --lf-column: 1; max-width: 500px }", "")
+        styles_model._column_width(
+            "main { --lf-reading-column: 1; max-width: 500px }", ""
+        )
         == 500
     ), "a page's own <style> no longer states the column it is measured against"
 
     theme = (schema_model.ASSETS / "theme.css").read_text()
-    assert styles_model._column_width("main { --lf-column: 1 }", theme) == 720, (
+    assert (
+        styles_model._column_width("main { --lf-reading-column: 1 }", theme) == 720
+    ), (
         "a claim with no width of its own stopped the reading where it stood, so a "
         "page could take the measure off itself by claiming and then saying nothing"
     )
@@ -3514,8 +3520,8 @@ def test_check_takes_its_column_from_what_a_page_states_outright(page_dir):
     condition holds."""
     (page_dir / ".fixture-versions" / "v1.html").write_text(
         styled(
-            "main { --lf-column: 1; max-width: 760px }"
-            " @media print { main { --lf-column: 1; max-width: 2000px } }",
+            "main { --lf-reading-column: 1; max-width: 760px }"
+            " @media print { main { --lf-reading-column: 1; max-width: 2000px } }",
             '<svg width="900" height="10"></svg>',
         )
     )
@@ -3526,7 +3532,7 @@ def test_check_takes_its_column_from_what_a_page_states_outright(page_dir):
     # And nesting is not a condition: a column stated on a rule that also wraps one stands.
     (page_dir / ".fixture-versions" / "v1.html").write_text(
         styled(
-            "main { --lf-column: 1; max-width: 1000px; & p { color: red } }",
+            "main { --lf-reading-column: 1; max-width: 1000px; & p { color: red } }",
             '<svg width="900" height="10"></svg>',
         )
     )
@@ -3558,7 +3564,7 @@ def test_check_measures_against_the_column_the_page_sets_for_itself(page_dir):
     the rule is spelled."""
     (page_dir / ".fixture-versions" / "v1.html").write_text(
         styled(
-            "main { --lf-column: 1; max-width: 1000px }",
+            "main { --lf-reading-column: 1; max-width: 1000px }",
             '<svg width="900" height="10"></svg>',
         )
     )

@@ -901,7 +901,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
             "  border: 1px solid var(--rule);\n"
             "  border-radius: var(--r);\n"
             "  background: var(--card);\n"
-            "  --lf-frame: 1;\n"
+            "  --lf-block-frame: 1;\n"
             "}\n"
         )
     if upgrade:
@@ -1492,7 +1492,7 @@ def panel_settled(page, open=True):
     test has stopped. Finishing polls because the carry starts in the gesture's own
     task: one that has not been made yet is finished on the next turn."""
     page.wait_for_function(
-        "(open) => document.querySelector('.lf-panel').classList.contains('open') === open",
+        "(open) => document.querySelector('.lf-thread-panel').classList.contains('open') === open",
         arg=open,
     )
     page.wait_for_function(

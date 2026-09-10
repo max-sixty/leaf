@@ -294,7 +294,7 @@ export function createSelectionComposer({
 
   // More has the same contract as a target's margin disclosure: replace the ellipsis
   // with the remaining local actions and keep the group's primary control in place.
-  // The composer supplies a field instead of a primary margin element, so it owns this layout
+  // The composer supplies a field instead of a primary margin entry, so it owns this layout
   // adapter rather than borrowing the margin's target aggregation and spill machinery.
   const focusResponseOption = (focus) => {
     void fabPositioned().then((positioned) => {

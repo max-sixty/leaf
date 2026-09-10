@@ -391,10 +391,10 @@ def test_quotes_cross_preserving_containers_and_remain_attached(
     </lf-ask>"""
     content = (
         f"""<lf-workspace id="workspace">
-          <lf-split id="split" direction="rows">
+          <lf-partition id="split" direction="rows">
             <lf-pane id="decision-pane" label="Decision">{ask}</lf-pane>
             <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
-          </lf-split>
+          </lf-partition>
         </lf-workspace>"""
         if workspace
         else ask
@@ -548,7 +548,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
 
 
 def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serve):
-    """A drag around a target offers Comment without deadening its margin elements.
+    """A drag around a target offers Comment without deadening its margin entries.
 
     The browser's native selection remains available while an exposed pointer action
     and a direct keyboard action both work."""
@@ -965,7 +965,7 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     resized(page, 1400, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    card = page.locator(".lf-panel .lf-quote").first
+    card = page.locator(".lf-thread-panel .lf-quote").first
     expect(card).to_be_visible()
     into = card.bounding_box()
     # A paragraph level with the thread's quoted words, so the overshoot is sideways:
@@ -1051,7 +1051,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
     page.wait_for_function(
         f"() => document.querySelectorAll('.lf-thread').length === {len(forms)}"
     )
-    stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
+    stranded = page.locator(".lf-thread-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"quotes naming a passage that is right there: {stranded}"
 
     # The elasticity runs one way only. A quote is free to have gaps the page lacks; a
@@ -1070,7 +1070,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
     page.wait_for_function(
         f"() => document.querySelectorAll('.lf-thread').length === {len(forms) + 1}"
     )
-    assert page.locator(".lf-panel .lf-quote.detached").count() == 1, (
+    assert page.locator(".lf-thread-panel .lf-quote.detached").count() == 1, (
         "a quote gluing two of the page's words together still found a passage"
     )
 
@@ -1179,7 +1179,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#p").scroll_into_view_if_needed()
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
 
     # And the composer's own mark belongs to no thread, so it opens nothing. Its first
     # range runs up to the posted one, so this lands on the draft and nothing else.
@@ -1190,7 +1190,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
         "() => document.querySelector('.lf-composer').style.display === 'contents'"
     )
     page.mouse.click(*mark_point(page, "lf-pending"))
-    assert not page.locator(".lf-panel").evaluate(
+    assert not page.locator(".lf-thread-panel").evaluate(
         "el => el.classList.contains('open')"
     ), (
         "clicking the composer's own highlight opened the panel, but it belongs to no thread"
@@ -1223,7 +1223,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
         },
     )
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    if page.locator(".lf-panel.open").count():
+    if page.locator(".lf-thread-panel.open").count():
         page.get_by_role("button", name="Close threads").click()
         panel_settled(page, open=False)
 
@@ -1232,7 +1232,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.click(spot["x"], spot["y"])
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(
         page.locator(".lf-fab-input"),
         "the click opened the thread and then offered to comment on it as well",
@@ -1388,7 +1388,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     # when its next poll asks.
     told(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
-    expect(page.locator(".lf-panel .lf-quote.detached")).to_have_count(0)
+    expect(page.locator(".lf-thread-panel .lf-quote.detached")).to_have_count(0)
     # The mark is a painted range, so what it covers is read back off CSS.highlights
     # rather than off the DOM.
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -2332,7 +2332,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
         )
     page.locator(".lf-threads-toggle").click()
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
-    stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
+    stranded = page.locator(".lf-thread-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
     # The projected contour stays above the figure's own paint without putting any
     # paint over its contents.
@@ -3005,12 +3005,12 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
         "ret-steps-carve",
         "ret-title",
     ], marked
-    # A Change margin element's press says what it reached, in the notice slot: its target is
+    # A Change margin entry's press says what it reached, in the notice slot: its target is
     # usually on screen already, so the scroll moves nothing and a press that only spoke
     # to the live region was, to a sighted reader, a press that did nothing. What the
     # press also discloses is the next test's; this one holds it to naming its target.
     page.locator(
-        '.lf-margin-element:has(svg[data-lf-icon="change"]):visible'
+        '.lf-margin-entry:has(svg[data-lf-icon="change"]):visible'
     ).first.click()
     expect(page.locator(".lf-notice")).to_have_text(
         re.compile(r"^[a-z ]+ changed since v1\b")
@@ -3050,7 +3050,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
 def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, serve):
     """The other half of a comparison is one inline reading of what changed.
 
-    The Change margin element is a disclosure per block. Its press inserts dropped
+    The Change margin entry is a disclosure per block. Its press inserts dropped
     text at its aligned boundary and highlights added words in the current prose, so the
     reader need not compare the paragraph with a second copy underneath. Rewritten
     sentences stay whole; a local edit is refined to its words. Generated historical
@@ -3073,14 +3073,14 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     )
     expect(rewritten).to_have_attribute("aria-expanded", "false")
     # A disclosure says what it holds. "Change" alone reports a fact and promises no
-    # press, which is what the margin element said before it had one to make.
-    expect(rewritten.locator(".lf-margin-element-context")).to_have_text("v1 → v2")
+    # press, which is what the margin entry said before it had one to make.
+    expect(rewritten.locator(".lf-margin-entry-context")).to_have_text("v1 → v2")
 
-    # Page map carries the same provenance on each changed-passage row. The account
+    # Page Map carries the same provenance on each changed-passage row. The account
     # stays distinct from the versions, and both remain searchable away from the passage.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     mapped = sheet.locator('[data-lf-map-item^="change:"]').filter(has_text="v1 → v2")
     expect(mapped).to_have_count(5)
     paragraph = mapped.filter(has_text="paragraph changed · Two years")
@@ -3335,7 +3335,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     )
     _publish(serve.page_dir, 2, second, "New route and map")
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
-    assert page.locator("main .lf-margin-element-icon").count() >= 2
+    assert page.locator("main .lf-margin-entry-icon").count() >= 2
     expect(page.locator("#decoration-icon[data-lf-gen]")).to_have_count(1)
 
     compare_with(page, 1)
@@ -3716,7 +3716,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     )
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
     menu = page.locator(".lf-version-menu")
-    panel = page.locator(".lf-panel")
+    panel = page.locator(".lf-thread-panel")
     line = page.locator(".lf-shortcut-bar")
     # Hold a desktop page size so opening the menu changes only the active keyboard scope.
     resized(page, 1200, 900)
@@ -4717,12 +4717,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
 
     page.keyboard.press("t")
     expect(thread).to_be_focused()
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(panel_thread).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(thread).to_be_focused()
 
     note = page.locator("lf-diff .lf-mark-note")
@@ -4737,7 +4737,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     assert note.evaluate("el => getComputedStyle(el).opacity") == "1"
     note.press("Enter")
     expect(thread).to_be_focused()
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
     # The same draft has two views, across the shadow boundary. Empty Sends keep the
     # paper's neutral ground; typing enables the same primary face in either view.

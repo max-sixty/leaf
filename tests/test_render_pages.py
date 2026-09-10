@@ -234,7 +234,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 expect(
                     item.locator(
                         '.lf-margin-marker[data-lf-kinds~="comment"], '
-                        '[data-lf-margin-element-key="reading:threads"]'
+                        '[data-lf-margin-entry-key="reading:threads"]'
                     )
                 ).to_have_count(0)
         for reaction in reacted:
@@ -246,11 +246,11 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 "data-lf-for", reaction["anchor"]["section"]
             )
             # A crowded target may expose this exact reaction through overflow. Follow
-            # its visible route rather than requiring every margin element to stand at rest.
+            # its visible route rather than requiring every margin entry to stand at rest.
             item = glyph.locator("xpath=ancestor::*[@data-lf-margin-for][1]")
             visible = item.locator(
-                f'[data-lf-margin-element-key="reaction:{reaction["id"]}:open"]:visible, '
-                f'[data-lf-margin-element-key="reaction:{reaction["id"]}:open:proxy"]:visible'
+                f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]:visible, '
+                f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open:proxy"]:visible'
             )
             more = item.locator(":scope > .lf-margin-more")
             if not visible.count() and more.is_visible():
@@ -260,11 +260,11 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 expect(visible).to_be_visible()
             else:
                 item.locator(".lf-margin-spill").click()
-                sheet = page.get_by_role("dialog", name="Page map", exact=True)
+                sheet = page.get_by_role("dialog", name="Page Map", exact=True)
                 expect(
                     sheet.locator(
-                        f'[data-lf-map-margin-element$=":reaction:{reaction["id"]}:open"], '
-                        f'[data-lf-map-margin-element$=":reaction:{reaction["id"]}:open:proxy"]'
+                        f'[data-lf-map-margin-entry$=":reaction:{reaction["id"]}:open"], '
+                        f'[data-lf-map-margin-entry$=":reaction:{reaction["id"]}:open:proxy"]'
                     )
                 ).to_be_visible()
                 page.keyboard.press("Escape")
@@ -2008,7 +2008,7 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     at_stamp = page.evaluate("() => window.__handover")
     initial_rail = float(at_stamp["rail"].removesuffix("px"))
     assert 0 < initial_rail < 160, (
-        "the page must start with only its reserved margin element rail, not the widget's "
+        "the page must start with only its reserved margin entry rail, not the widget's "
         f"later claim, or the post-handover case is never reached: {at_stamp['rail']}"
     )
     # Container queries answer the new shell width in the same layout pass. Wait on the
@@ -2459,7 +2459,7 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     board inside one takes the room exactly as it would standing alone — which is what
     says this is about the box and not about being nested.
 
-    Which boxes those are is read off `--lf-frame`, the word a box already says where it
+    Which boxes those are is read off `--lf-block-frame`, the word a box already says where it
     draws its frame, so the metric here is held by declaring one and the page's own div by
     declaring the same one. A list of tags stood in for that reading and shadowed it: the
     metric declared the frame and was not in the list, and no list a layer writes can

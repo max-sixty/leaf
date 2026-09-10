@@ -525,7 +525,9 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     ] == [root]
     expect(page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')).to_have_count(0)
     if view == "inline":
-        expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+        expect(page.locator(".lf-thread-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
+        )
     else:
         expect(page.locator(".lf-general textarea")).to_be_focused()
     assert errors == []
@@ -1360,7 +1362,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     page.locator("#how-store").click()
     page.keyboard.press("/")
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
-    expect(page.locator(".lf-panel")).not_to_be_visible()
+    expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
     page.keyboard.press("g")
@@ -1373,7 +1375,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     page.keyboard.type("megabytes")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{cap}"]')).to_have_count(1)
-    expect(page.locator(".lf-panel-title")).to_have_text("Showing 1 of 3")
+    expect(page.locator(".lf-thread-panel-title")).to_have_text("Showing 1 of 3")
     # The page's own count is the log's and says so throughout.
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (3)")
 
@@ -1414,7 +1416,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     page.locator("#lede").click()
     expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_have_count(1)
     expect(page.locator(".lf-find-box")).to_have_value("")
-    expect(page.locator(".lf-panel-title")).to_have_text("Threads")
+    expect(page.locator(".lf-thread-panel-title")).to_have_text("Threads")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(3)
 
     # Escape spends one rung on the narrowing and the next on the box, rather than
@@ -1457,7 +1459,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     page.locator("#how-store").click()
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on you")
     page.keyboard.press("w")
-    expect(page.locator(".lf-panel")).not_to_be_visible()
+    expect(page.locator(".lf-thread-panel")).not_to_be_visible()
 
     # `g T` stands the reader on the list, where the key is live and the line says so.
     # The control names it, off the row, so the two cannot come to spell it differently.
@@ -1492,7 +1494,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(
         page.locator(f'.lf-threads > .lf-thread[hidden][data-id="{mine}"]')
     ).to_have_count(1)
-    expect(page.locator(".lf-panel-title")).to_have_text("Showing 1 of 2")
+    expect(page.locator(".lf-thread-panel-title")).to_have_text("Showing 1 of 2")
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
 
     # Closing the owning surface retires both its narrowing frame and the g T frame below
@@ -1503,7 +1505,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("show all")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page)
@@ -1531,7 +1533,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
     expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
-    expect(page.locator(".lf-panel-title")).to_have_text("Threads")
+    expect(page.locator(".lf-thread-panel-title")).to_have_text("Threads")
     expect(page.locator(".lf-needs")).to_be_disabled()
     expect(page.locator(".lf-needs")).to_have_attribute(
         "title", "Nothing is waiting on you"
@@ -1627,7 +1629,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     page.locator(".lf-threads").focus()
     page.keyboard.press("Escape")
     expect(visible).to_have_count(4)
-    expect(page.locator(".lf-panel-title")).to_have_text("Threads")
+    expect(page.locator(".lf-thread-panel-title")).to_have_text("Threads")
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
     )
@@ -2660,7 +2662,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # state, and the widths that fold it away — is the authored theme's. The
         # runtime sheet names it only to say which plane it stands on, so the movement
         # the theme's rule causes is that deliberate face rather than a leaked one.
-        "lf-living-margin",
+        "lf-margin-projection",
         "lf-msg-head",
         "lf-react-open",
         "lf-react-palette",
@@ -2745,15 +2747,15 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-margin-cluster",
         "lf-margin-contribution",
         "lf-margin-options",
-        "lf-margin-element",
-        "lf-margin-element-glyph",
-        "lf-margin-element-icon",
-        "lf-margin-element-space",
-        "lf-margin-element-label",
+        "lf-margin-entry",
+        "lf-margin-entry-glyph",
+        "lf-margin-entry-icon",
+        "lf-margin-entry-space",
+        "lf-margin-entry-label",
         # The label's two lines: the role's own word, and the context under it that says
         # which item the role is on. Both are inside the label the seam already names.
-        "lf-margin-element-label-word",
-        "lf-margin-element-context",
+        "lf-margin-entry-label-word",
+        "lf-margin-entry-context",
         "lf-margin-receipt",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.
@@ -3477,7 +3479,7 @@ def test_the_thread_list_ring_paints_above_its_scrolling_contents(
             "el => [getComputedStyle(el).backgroundColor, "
             "getComputedStyle(el).backgroundImage]"
         )
-        page.locator('.lf-panel [aria-label="Close threads"]').click()
+        page.locator('.lf-thread-panel [aria-label="Close threads"]').click()
         page.evaluate("() => document.activeElement?.blur()")
         page.keyboard.press("g")
         page.keyboard.press("Shift+t")
@@ -3810,7 +3812,7 @@ def test_go_page_returns_without_unwinding_the_panel(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body"), (
         "g p left the reader in the panel"
     )
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(find).to_have_value("capacity")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     assert errors == []
@@ -3836,9 +3838,9 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
         page.keyboard.press("g")
         page.keyboard.press("p")
         expect(thread).to_be_focused()
-        expect(page.locator(".lf-panel")).to_be_visible()
+        expect(page.locator(".lf-thread-panel")).to_be_visible()
         page.keyboard.press("Escape")
-        expect(page.locator(".lf-panel")).to_be_hidden()
+        expect(page.locator(".lf-thread-panel")).to_be_hidden()
         assert errors == []
         page.close()
     finally:
@@ -4491,14 +4493,14 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    question = page.locator(".lf-panel lf-options[choose]").first
+    question = page.locator(".lf-thread-panel lf-options[choose]").first
     question.locator("lf-option:not([chosen]) > .lf-pick").first.click()
     round_trip(page)
     question.locator(".lf-done").click()
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
     page.locator(".lf-needs").click()
-    expect(page.locator(".lf-panel-title")).to_have_text("Showing 1 of 2")
+    expect(page.locator(".lf-thread-panel-title")).to_have_text("Showing 1 of 2")
     expect(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
     ).to_have_count(1)
@@ -4593,7 +4595,7 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    question = page.locator(".lf-panel lf-options[choose]").first
+    question = page.locator(".lf-thread-panel lf-options[choose]").first
     card = question.locator("xpath=ancestor::*[contains(@class, 'lf-thread')][1]")
     page.fill(".lf-find-box", "stay blocked")
     expect(card).to_have_attribute("hidden", "")

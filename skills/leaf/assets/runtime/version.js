@@ -1062,7 +1062,7 @@ export function createVersionController({
   // What a text-changing marked block holds for the margin's disclosure reading. A pure
   // state change remains marked but offers no empty prose comparison. The one controlled
   // id is a quiet label at the start of the block. It names the versions for assistive
-  // reading while the margin and Page map carry that provenance visually, outside the
+  // reading while the margin and Page Map carry that provenance visually, outside the
   // passage whose words are being compared.
   const inlineComparison = (target) =>
     diffOn &&
@@ -1077,7 +1077,7 @@ export function createVersionController({
 
   // The press, and the sentence to say about it — composed here, where the versions are
   // named. The event is the comparison's, because what changed is its standing
-  // rendering: the same pass that reads the marks reads the margin element's relation back.
+  // rendering: the same pass that reads the marks reads the margin entry's relation back.
   function toggleInlineComparison(target) {
     if (!inlineComparison(target)) return null;
     const said = inlineOpen.has(target)
@@ -1432,7 +1432,7 @@ export function createVersionController({
   // than a pixel offset, since content moves between versions: re-find it by its text
   // within its section, then the section alone, and only fall back to the raw offset when
   // neither survived the revision. The panel's own open state is restored separately
-  // (PANEL_KEY); because that runs first, the column is already reflowed by the time we
+  // (THREAD_PANEL_KEY); because that runs first, the column is already reflowed by the time we
   // scroll.
 
   // The page's own text blocks the reader can see, in document order, with the rect of each

@@ -117,7 +117,7 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
     """Validate the direct grammar of registry-declared structural widgets."""
     errors = []
     for rec in lf_elements:
-        role = registry.get(rec["tag"], {}).get("x-layout")
+        role = registry.get(rec["tag"], {}).get("x-reading-role")
         if role is None:
             continue
         where = at(rec)
@@ -127,18 +127,22 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
             footers = [i for i, child in enumerate(direct) if child == "footer"]
             if len(headers) > 1 or len(footers) > 1:
                 errors.append(
-                    f"{where}: x-layout {role} admits at most one direct <header> "
+                    f"{where}: x-reading-role {role} admits at most one direct <header> "
                     "and one direct <footer>"
                 )
             if headers and headers[0] != 0:
-                errors.append(f"{where}: x-layout {role} direct <header> must be first")
+                errors.append(
+                    f"{where}: x-reading-role {role} direct <header> must be first"
+                )
             if footers and footers[0] != len(direct) - 1:
-                errors.append(f"{where}: x-layout {role} direct <footer> must be last")
+                errors.append(
+                    f"{where}: x-reading-role {role} direct <footer> must be last"
+                )
             if role == "workspace":
                 body = [child for child in direct if child not in {"header", "footer"}]
                 if len(body) != 1 or body[0] == "#text":
                     errors.append(
-                        f"{where}: x-layout workspace must contain exactly one direct "
+                        f"{where}: x-reading-role workspace must contain exactly one direct "
                         f"body element, found {body or 'nothing'}"
                     )
             continue
@@ -149,21 +153,22 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
             if child.get("holder") is rec and child.get("parent") == rec["tag"]
         ]
         roles = [
-            registry.get(child["tag"], {}).get("x-layout") for child in direct_widgets
+            registry.get(child["tag"], {}).get("x-reading-role")
+            for child in direct_widgets
         ]
         if (
             len(direct) != 2
             or len(direct_widgets) != 2
-            or any(child_role not in {"pane", "split"} for child_role in roles)
+            or any(child_role not in {"pane", "partition"} for child_role in roles)
         ):
             found = [
                 f"<{child['tag']}> "
-                f"({registry.get(child['tag'], {}).get('x-layout') or 'not structural'})"
+                f"({registry.get(child['tag'], {}).get('x-reading-role') or 'not structural'})"
                 for child in direct_widgets
             ]
             errors.append(
-                f"{where}: x-layout split must contain exactly two direct pane or "
-                f"split widgets and no loose content, found {found or direct or 'nothing'}"
+                f"{where}: x-reading-role partition must contain exactly two direct pane or "
+                f"partition widgets and no loose content, found {found or direct or 'nothing'}"
             )
     return errors
 

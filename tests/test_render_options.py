@@ -1699,9 +1699,9 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
 ):
     """A widget needs no x-work declaration to acknowledge the reader's move.
 
-    The owner's existing page-edge margin element keeps its DOM identity while durable transport
+    The owner's existing page-edge margin entry keeps its DOM identity while durable transport
     acceptance advances Sent to Picked up and a real claim makes it Active. Once authored
-    markup records the choice and completes the claim, the margin element disappears; the widget
+    markup records the choice and completes the claim, the margin entry disappears; the widget
     carries the chosen state itself.
     """
     url = serve(ASK_PAGE)
@@ -1720,7 +1720,7 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     )
     receipt = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
     expect(receipt).to_have_attribute("data-lf-kinds", "sent")
-    expect(receipt.locator(".lf-margin-element-icon")).to_have_attribute(
+    expect(receipt.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "sent"
     )
     expect(receipt).to_have_attribute("aria-label", re.compile(r"^Sent, "))
@@ -1742,21 +1742,21 @@ def test_a_widget_move_reuses_one_target_button_until_the_page_honors_it(
     assert active.exit_code == 0, active.output
     told(page)
     expect(receipt).to_have_attribute("data-lf-kinds", "activity")
-    expect(receipt.locator(".lf-margin-element-icon")).to_have_attribute(
+    expect(receipt.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
     expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
     expect(receipt).to_have_attribute("data-identity-probe", "kept")
 
     # The receipt admitted this claim without an x-work declaration. Its page-edge
-    # target margin element is still a local seat, so an unrelated revision cannot wedge the
+    # target margin entry is still a local seat, so an unrelated revision cannot wedge the
     # authoring loop merely because the widget has no content or conversation seat.
     unrelated = ASK_PAGE.replace(
         '<h1 id="h">Three jobs</h1>', '<h1 id="h">Three jobs, checked</h1>'
     )
     stamp_page(d, unrelated, "Checked the surrounding plan")
     wait_for_revision(page, 2)
-    expect(receipt.locator(".lf-margin-element-icon")).to_have_attribute(
+    expect(receipt.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
     expect(receipt).to_have_attribute("aria-label", re.compile("checking the mounts"))
@@ -1891,7 +1891,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
 def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     """A page widget is a first-class work subject even before anybody comments.
 
-    A board card declares a local work seat and receives its page-edge margin element without
+    A board card declares a local work seat and receives its page-edge margin entry without
     inventing a comment thread. An options group deliberately has no such seat: adding
     an option changes decision state, and any discussion starts as a separate thread
     once that option exists. Unrelated versions leave the board claim standing, while
@@ -1930,7 +1930,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         '[data-lf-margin-for="card-migration"] > .lf-margin-marker'
     )
     expect(card_button).to_have_attribute("data-lf-kinds", "activity")
-    expect(card_button.locator(".lf-margin-element-icon")).to_have_attribute(
+    expect(card_button.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
     expect(card_button).to_have_attribute(
@@ -1939,9 +1939,9 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     card_button.click()
     expect(page.locator(".lf-live")).to_contain_text("checking the shard")
     expect(page.locator(".lf-thread")).to_have_count(0)
-    expect(page.locator(".lf-panel .lf-receipt")).to_have_count(0)
+    expect(page.locator(".lf-thread-panel .lf-receipt")).to_have_count(0)
     expect(page.locator("#card-migration > .lf-receipt")).to_have_count(0)
-    expect(card_button).to_have_class(re.compile(r"\blf-margin-element\b"))
+    expect(card_button).to_have_class(re.compile(r"\blf-margin-entry\b"))
 
     # An unrelated version leaves the card coordinate standing.
     stamp_page(d, work_page, "Elsewhere")
@@ -1974,7 +1974,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
 
 def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_path):
     """A customization may deliberately give a container member a content seat.
-    The runtime's generated margin element is still apparatus rather than that member's own
+    The runtime's generated margin entry is still apparatus rather than that member's own
     gesture: clicking status about an option must not choose the option."""
     option = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-option"
@@ -2526,9 +2526,9 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
     )
     page.locator(".lf-threads-toggle").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-panel').classList.contains('open')"
+        "() => document.querySelector('.lf-thread-panel').classList.contains('open')"
     )
-    question = page.locator(".lf-panel lf-options[choose]").first
+    question = page.locator(".lf-thread-panel lf-options[choose]").first
     question.locator("lf-option:not([chosen]) > .lf-pick").first.click()
     round_trip(page)
     done = question.locator(".lf-done")

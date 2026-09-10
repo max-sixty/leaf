@@ -512,12 +512,12 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     expect(page.locator(".lf-target-hint")).to_have_count(0)
 
     page.get_by_role("button", name=re.compile(r"^Threads")).click()
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     assert page.locator("main").evaluate("el => el.inert")
-    expect(page.locator(".lf-panel")).to_have_attribute("aria-modal", "true")
+    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
     page.keyboard.press("s")
     assert page.locator(".lf-target-hint").count() == 0, (
-        "page target selection crossed the covering workspace boundary"
+        "page target selection crossed the covering auxiliary surface boundary"
     )
     assert errors == []
     page.close()

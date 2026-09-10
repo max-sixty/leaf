@@ -68,7 +68,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
                   const padding = parseFloat(getComputedStyle(
                     thread.querySelector('textarea')).paddingInlineEnd);
                   const radius = (selector, pseudo = null) => getComputedStyle(
-                    selector.startsWith('.lf-panel')
+                    selector.startsWith('.lf-thread-panel')
                       ? document.querySelector(selector)
                       : thread.querySelector(selector), pseudo).borderRadius;
                   return {thread: {x: own.x, y: own.y, width: own.width,
@@ -78,7 +78,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
                           quote: rect('.lf-quote'),
                           send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
                           closeBorder: getComputedStyle(document.querySelector(
-                            '.lf-panel-head [aria-label="Close threads"]')).borderTopWidth,
+                            '.lf-thread-panel-head [aria-label="Close threads"]')).borderTopWidth,
                           resolveBorder: getComputedStyle(thread.querySelector(
                             '.lf-resolve'), '::before').borderTopWidth,
                           sendBorder: getComputedStyle(thread.querySelector(
@@ -88,7 +88,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
                             sendFill: radius('.lf-thread-send', '::before'),
                             resolve: radius('.lf-resolve'),
                             resolveFill: radius('.lf-resolve', '::before'),
-                            close: radius('.lf-panel-head [aria-label="Close threads"]'),
+                            close: radius('.lf-thread-panel-head [aria-label="Close threads"]'),
                           },
                           padding,
                           overflow: thread.scrollWidth - thread.clientWidth};
@@ -204,7 +204,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     What a narrow window may change is how many addresses stand on the row at once; the
     rest fold into the row's own menu, in this same order.
 
-    Two things legitimately differ with width and neither is an order: the page map is a
+    Two things legitimately differ with width and neither is an order: the Page Map is a
     narrow window's stand-in for the margin's own markers, and a reserved news slot is not
     an address until it has news. So each width is held to being this one order with the
     addresses that width does not have taken out of it, rather than to a fixed list — a
@@ -237,7 +237,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
 
     # One order, put as the thing it is: no two addresses ever swap. Held pair by pair
     # rather than against a list taken at one width, because the widths do not all show
-    # the same addresses and a fixed list would then be failing about the page map rather
+    # the same addresses and a fixed list would then be failing about the Page Map rather
     # than about the order. A reversal breaks this on its first pair.
     first = {}
     for width, order in orders.items():

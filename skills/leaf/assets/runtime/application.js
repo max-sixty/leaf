@@ -259,7 +259,7 @@ export function mountApplication(dependencies) {
   };
   const surfaceView = inlineView;
 
-  const margin = dependencies.createLivingMargin({
+  const margin = dependencies.createMarginProjection({
     panelIsOpen: dependencies.panelIsOpen,
     bottomChromeBoxes: dependencies.margin.bottomChromeBoxes,
     designIsOn: dependencies.margin.designIsOn,
@@ -269,8 +269,8 @@ export function mountApplication(dependencies) {
     toggleInlineComparison: dependencies.margin.toggleInlineComparison,
     leavePageMap: dependencies.margin.leavePageMap,
     openPageMap: dependencies.margin.openPageMap,
-    pageMapContextContains: dependencies.margin.pageMapContextContains,
-    renderPageMap: dependencies.margin.renderPageMap,
+    pageMapDialogContains: dependencies.margin.pageMapDialogContains,
+    renderPageMapDialog: dependencies.margin.renderPageMapDialog,
     openAsks,
     standsWith: dependencies.margin.standsWith,
     revealConversation: dependencies.margin.revealConversation,

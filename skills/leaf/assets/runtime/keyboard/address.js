@@ -21,7 +21,7 @@
    an edge of the list; from a beside-panel, `g p` returns focus to the page while keeping
    the panel open. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
-   Page map, `g V` Versions, and `g D` the unsent draft the composer put away. A named
+   Page Map, `g V` Versions, and `g D` the unsent draft the composer put away. A named
    panel address toggles that panel, matching its visible control. Completing one that
    opens a surface exchanges the transient sequence for a return frame which restores the
    standing and workspace captured before `g` armed; completing it again closes the
@@ -55,7 +55,7 @@
 
    Keyboard destinations also capture the workspace they replace. `g T`, `g A`, and
    `g L` may exchange a standing panel or tray for another; their return frame restores
-   that prior workspace and re-resolves its semantic row when reconciliation rebuilt it.
+   that prior auxiliary surface and re-resolves its semantic row when reconciliation rebuilt it.
    `g M` uses the same frame for the complete Page-map sheet. `g V` contributes the
    version menu's own return frame to that destination vocabulary. Direct destinations
    therefore restore the standing their owner displaced rather than merely focusing the
@@ -94,7 +94,7 @@ import {
   othersBtn,
   othersPanel,
 } from "../trays.js";
-import { mapButton } from "../page-map.js";
+import { mapButton } from "../page-map-dialog.js";
 
 import { claimsEsc, focused, saying } from "./scopes.js";
 import { repaint } from "../repaint.js";
@@ -106,30 +106,30 @@ export const addressLayer = el("div", "lf-ui lf-targets lf-goto-targets");
 addressLayer.setAttribute("aria-hidden", "true");
 
 // Construct the command vocabulary once; boot mounts the viewport listeners after
-// the chrome is attached. All travel and workspace effects are explicit capabilities.
+// the chrome is attached. All travel and auxiliary-surface effects are explicit capabilities.
 export function createAddress({
   panelIsOpen,
   panelCovers,
   elements: { banner, toggleBtn, shortcutBarEl },
   standingStatusBoxes,
   directDestinations,
-  workspaceState,
-  restoreWorkspace,
+  captureAuxiliaryChromeState,
+  restoreAuxiliaryChromeState,
   setPanel,
-  showTray,
+  setOpenTray,
   scrollToElement,
   showThread,
   leavesOffered,
   othersLinks,
-  activateMarginElement,
+  activateMarginEntry,
   activeInlineThread,
-  marginElementKind,
-  visibleMarginElements,
+  marginEntryKind,
+  visibleMarginEntries,
   glideTo,
   placeThreadEdge,
   seenScroller,
   stopGlide,
-  coveringWorkspaceSurface,
+  coveringAuxiliarySurface,
   enterPageMap,
   leavePageMap,
   pageMapIsActive,
@@ -249,45 +249,42 @@ export function createAddress({
       toggle: true,
     },
     {
-      id: "navigation.panel.asks",
+      id: "navigation.tray.asks",
       key: "Shift+a",
       does: () =>
-        currentTray() === "asks" ? "Close the Asks panel" : "Go to the Asks panel",
-      line: () => (currentTray() === "asks" ? "close Asks panel" : "Asks panel"),
+        currentTray() === "asks" ? "Close the Asks tray" : "Go to the Asks tray",
+      line: () => (currentTray() === "asks" ? "close Asks tray" : "Asks tray"),
       control: () => asksBtn,
       when: (...args) => asksOffered(...args),
       go: () => {
-        showTray("asks");
+        setOpenTray("asks");
         (askRows()[0] ?? asksPanel).focus({ preventScroll: true });
       },
       active: () => currentTray() === "asks",
-      close: () => showTray(null),
+      close: () => setOpenTray(null),
       toggle: true,
     },
     {
-      id: "navigation.panel.leaves",
+      id: "navigation.tray.leaves",
       key: "Shift+l",
       does: () =>
-        currentTray() === "leaves"
-          ? "Close the All leaves panel"
-          : "Go to the All leaves panel",
-      line: () =>
-        currentTray() === "leaves" ? "close All leaves panel" : "All leaves panel",
+        currentTray() === "leaves" ? "Close the Leaves tray" : "Go to the Leaves tray",
+      line: () => (currentTray() === "leaves" ? "close Leaves tray" : "Leaves tray"),
       control: () => othersBtn,
       when: (...args) => leavesOffered(...args),
       go: () => {
-        showTray("leaves");
+        setOpenTray("leaves");
         (othersLinks()[0] ?? othersPanel).focus({ preventScroll: true });
       },
       active: () => currentTray() === "leaves",
-      close: () => showTray(null),
+      close: () => setOpenTray(null),
       toggle: true,
     },
     {
       id: "navigation.page-map",
       key: "Shift+m",
-      does: "Go to the Page map",
-      line: "Page map",
+      does: "Go to the Page Map",
+      line: "Page Map",
       control: () => mapButton,
       when: () => true,
       go: (...args) => enterPageMap(...args),
@@ -308,8 +305,8 @@ export function createAddress({
   const TARGET_KINDS = [
     {
       kind: MARGIN_TARGET_KIND,
-      list: visibleMarginElements,
-      go: (...args) => activateMarginElement(...args),
+      list: visibleMarginEntries,
+      go: (...args) => activateMarginEntry(...args),
       exposure: "self",
     },
     {
@@ -345,7 +342,7 @@ export function createAddress({
   ];
   const TARGET_FILTERS = [
     {
-      id: "margin-elements",
+      id: "margin-entries",
       key: "m",
       word: "margin targets",
       matches: ({ kind }) => kind === MARGIN_TARGET_KIND,
@@ -355,14 +352,14 @@ export function createAddress({
       key: "t",
       word: "Thread controls",
       matches: ({ kind, member }) =>
-        kind === MARGIN_TARGET_KIND && marginElementKind(member) === "comment",
+        kind === MARGIN_TARGET_KIND && marginEntryKind(member) === "comment",
     },
     {
       id: "asks",
       key: "a",
       word: "Ask controls",
       matches: ({ kind, member }) =>
-        kind === MARGIN_TARGET_KIND && marginElementKind(member) === "ask",
+        kind === MARGIN_TARGET_KIND && marginEntryKind(member) === "ask",
     },
     {
       id: "hyperlinks",
@@ -458,8 +455,8 @@ export function createAddress({
     chip.dataset.lfAddress = candidate.code;
     chip.dataset.lfAddressKind = candidate.kind;
     const source = candidate.member.lfForwardedControl ?? candidate.member;
-    const marginElementKey = source.dataset?.lfMarginElementKey;
-    if (marginElementKey) chip.dataset.lfAddressMarginElement = marginElementKey;
+    const marginEntryKey = source.dataset?.lfMarginEntryKey;
+    if (marginEntryKey) chip.dataset.lfAddressMarginEntry = marginEntryKey;
     const targetId =
       closestAcross(candidate.member, "[data-lf-margin-for]")?.dataset.lfMarginFor ||
       candidate.member.id ||
@@ -739,7 +736,7 @@ export function createAddress({
   const GO = {
     title: "Go to",
     escape: "inner",
-    root: () => coveringWorkspaceSurface() ?? document,
+    root: () => coveringAuxiliarySurface() ?? document,
     reach: "with g armed",
     sequence: sequenceKeys,
     sequencePrefix,
@@ -872,12 +869,12 @@ export function createAddress({
           control: destination.control,
           when: () => atTargetMenu() && destination.when(),
           returnFrame: () => {
-            const workspace = workspaceState();
+            const previousAuxiliaryChrome = captureAuxiliaryChromeState();
             return {
               active: destination.active,
               close: () => {
                 destination.close?.();
-                return restoreWorkspace(workspace);
+                return restoreAuxiliaryChromeState(previousAuxiliaryChrome);
               },
               does: `Return from ${word(destination.line)}`,
               line: "back",

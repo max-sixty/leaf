@@ -253,7 +253,7 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
         "The reviewer found one changed request path."
     )
     assert (
-        card.evaluate("el => getComputedStyle(el).getPropertyValue('--lf-frame')")
+        card.evaluate("el => getComputedStyle(el).getPropertyValue('--lf-block-frame')")
         == "1"
     )
 
@@ -894,7 +894,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert "/versions/" not in page.url, (
         f"the update changed the live address to {page.url}"
     )
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
     after = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
@@ -1032,7 +1032,7 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
         == ""
     ), "the retired version's authored inline property survived"
     assert page.locator("html").evaluate(
-        "el => el.style.getPropertyValue('--lf-panel-w').trim()"
+        "el => el.style.getPropertyValue('--lf-thread-panel-width').trim()"
     ), "activation erased a runtime-owned root property"
     assert page.locator('meta[name="description"]').get_attribute("content") == "third"
     assert errors == []
@@ -1160,7 +1160,7 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
         expect(general).to_be_focused()
         (serve.page_dir / "index.html").write_text(LIVE_V3)
 
-        # The premise of the whole arrangement, stated rather than inferred: a read the
+        # The premise of the whole reading arrangement, stated rather than inferred: a read the
         # page took while it still stood on the first revision. Held after the press it
         # would name the second, and the answer would carry the view the page wants.
         assert held[0].request.headers.get("leaf-view-revision") == "1", (
@@ -1450,8 +1450,8 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     ], f"the row the reader is on is not ringed in the page's own band: {row_ring}"
 
     # A suggestion hangs its ✓ Accept out in the page margin, so a reader working one has
-    # two marks for one fact — the ring on the change, the focus band on the margin element deciding
-    # it — and they had better be one band. The margin element's comes from the runtime's own
+    # two marks for one fact — the ring on the change, the focus band on the margin entry deciding
+    # it — and they had better be one band. The margin entry's comes from the runtime's own
     # shared rule, which every press in that margin wears: the suggestion family spelled
     # its own once, which is a family stating a fact about a shape the runtime owns.
     #
@@ -1611,7 +1611,7 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     )
 
     # A generated Page-map hint arrives the way the walk does and then presses the exact
-    # Accept margin element it names. What unfolds there is that press's own result rather than
+    # Accept margin entry it names. What unfolds there is that press's own result rather than
     # the arrival's, and the ladder still owes one Escape to let go of where the press
     # left the reader.
     with sending(page, "the addressed suggestion's acceptance"):
@@ -1727,7 +1727,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 ):
     """The agent channel, end to end in the browser: a `leaf report` reaches
     the open page on the next poll and paints as provisional news — the status
-    attribute moves, the parent's done-fraction recounts, and Page map identifies a
+    attribute moves, the parent's done-fraction recounts, and Page Map identifies a
     Reported update rather than the reader's change. Task status remains work
     state and never creates a reader request. Then the version that answers the report
     by id takes the page back: replay skips a report the note named, so the overruling
@@ -4315,7 +4315,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     # advances around the conversation.
     stamp_page(d, REPLY_HOST_PAGE, "v2")
     wait_for_revision(page, 2)
-    if not page.locator(".lf-panel").is_visible():
+    if not page.locator(".lf-thread-panel").is_visible():
         page.locator(".lf-threads-toggle").click()
     expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
 
@@ -4347,7 +4347,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(decisions).to_have_text("Asks 0/2")
 
     page.keyboard.press("a")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     # The arrival stands on the question's own region; its picks are the next Tab stops.
     expect(page.locator("#tq-one-decision")).to_be_focused()
     page.keyboard.press("Tab")
@@ -4519,7 +4519,7 @@ def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page, errors = open_page(browser, url)
     page.keyboard.press("a")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     held = []
     page.route("**/api/event", lambda route: held.append(route))
 
@@ -4653,7 +4653,7 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
     page.keyboard.press("a")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     done = page.locator("#tq-set .lf-done")
     held = []
     page.route("**/api/event", lambda route: held.append(route))

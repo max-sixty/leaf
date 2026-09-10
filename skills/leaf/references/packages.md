@@ -162,7 +162,7 @@ under `$idioms` in the package's
 Presentation unique to one page stays in that version's `<style>`.
 
 A rule that draws a box's inset — padding, border, or tinted field — declares
-`--lf-frame: 1` in the same rule. The shared layout uses that declaration to trim child
+`--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
 margins and bound wide content, and the render gate reports a frame that omits it. The
 runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-wide]`, and
 `[data-lf-exhibit]`; shared selectors read those attributes instead of naming widget
@@ -201,28 +201,30 @@ required string enum, and the child admits the container through `x-owners`. `ve
 check` then refuses a missing or repeated enum value. This keeps fixed role sets in the
 package contract without adding their tags or vocabulary to Leaf.
 
-A structural widget declares `x-layout` as `workspace`, `pane`, or `split` and keeps
+A structural widget declares `x-reading-role` as `workspace`, `pane`, or `partition` and keeps
 `x-content: markup`. Every role requires `id`; a pane also requires a string `label`, and
-a split requires `direction` with the complete `columns`/`rows` enum. A workspace has
+a partition requires `direction` with the complete `columns`/`rows` enum. A workspace has
 exactly one direct body element between its optional native `header` and `footer`. A
 pane may have one direct native `header` first and one direct native `footer` last. Its
 `label` names the accessible region; a visible heading belongs in the authored header.
-A split contains exactly two direct structural elements whose declarations name pane or split. The
+A partition contains exactly two direct widgets whose own entries declare pane or partition. The
 validator reads roles rather than tag names, so a package may supply a differently named
 member without changing Leaf or joining an `x-owners` list.
 
 Behavior modules compose these reading areas with
-`arrangeReadingElement({owner, kind, header, footer, regions})` from the public widget
-API. It returns `{body, content, arrangement}`; `kind` selects workspace, pane, or split.
+`arrangeReadingElement({owner, role, header, footer, regions})` from the public widget
+API. It returns `{body, content, readingArrangement}`; `role` selects workspace, pane,
+or partition.
 The optional header and footer are elements the caller identifies, including generated
 elements; shared slot classes carry their geometry. The helper groups the remaining
 children into the content body and registers any declared reading regions. On reconnect,
-`registerArrangedElement({owner, content, body, regions})` rebinds that existing DOM.
-Both helpers mark a workspace-kind owner `data-lf-root-workspace` when it is the only
-non-metadata element directly inside `body > main`; packages read that marker to choose
-bounded posture. The shared theme gives only a marked `.lf-workspace-arranged` owner the
+`registerReadingElement({owner, content, body, regions})` rebinds that existing DOM.
+Both helpers mark a workspace owner `data-lf-workspace-context="root"` when it is the only
+non-metadata element directly inside `body > main`; other workspaces receive `embedded`.
+Packages read that context to choose
+bounded posture. The shared theme gives only a marked `.lf-workspace-reading` owner the
 available page below the banner. Other workspaces keep document flow. For bounded
-allocation, the workspace body is itself an arranged structural or compound owner. A
+allocation, the workspace body is itself a registered structural or compound owner. A
 plain wrapper keeps its descendants in document flow.
 
 `defineReadingPaneElement(tagName)` supplies the complete lifecycle for an ordinary
@@ -230,18 +232,18 @@ named pane, including furniture, region registration, accessibility, and reconne
 it when a package-specific pane differs only through its registry contract and CSS;
 write a behavior module when the element owns another interaction.
 
-`fitRootReadingElement({owner, arrangement, minimumSize})` owns the root's observation
+`fitRootReadingElement({owner, readingArrangement, minimumSize})` owns the root's observation
 of available page width and height, window resize, and descendant layout changes. The
 caller supplies the complete minimum as `{width, height}` and keeps the composition's
-policy: the default workspace derives one recursively from equal splits, while an
+policy: the default workspace derives one recursively from equal partitions, while an
 asymmetric package root may read its own grid tracks. The returned `update()` promise
 joins initial settlement; `cleanup()` retires its observers and listeners.
 
 `registerReadingRegion({id, host, body})` binds identity separately from the current
-scroller, while `registerArrangement({owner, content, regions})` returns
-`setPosture("bounded"|"flow")` and `cleanup()`. Nested arrangements inherit the nearest
+scroller, while `registerReadingArrangement({owner, content, regions})` returns
+`setReadingPosture("bounded"|"flow")` and `cleanup()`. Nested reading arrangements inherit the nearest
 containing posture and read their assigned content box with `readingAllocation(node)`;
-CSS owns how that allocation is divided. Arrangement registration admits its complete
+CSS owns how that allocation is divided. Reading-arrangement registration admits its complete
 ownership and region collection atomically, so a rejected owner, content, or region
 collision leaves the DOM and every proposed id unchanged. One owner and content box
 belong to one live arrangement until its cleanup.
@@ -364,7 +366,7 @@ owned by the Ask, even when several descendant scopes contribute controls. Answe
 stays readable after a scope's availability condition closes, while the command rows remain gated.
 
 Register the command once, not every nearby button. Evidence nested inside an
-option is not an answer, and a shared-margin element may sit outside the Ask source. When
+option is not an answer, and a shared-margin entry may sit outside the Ask source. When
 controls or availability change, keep the row fields computed and call `paintKeys()`;
 every command projection then updates together. A package that needs the page-wide open
 Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)`
@@ -732,13 +734,13 @@ Core calls `begin`, asks `outletFor` about each exact datum thread owned by that
 then calls `end`. The adapter returns an element inside the widget or `null`. It owns
 only outlet creation, removal, and layout. Core renders the retained messages, replies,
 reactions, settlement controls, and receipts into each outlet. A claimed thread does not
-also appear in the living margin; the Threads panel remains the complete index. With
-Threads closed, `t`/`T` lands on this local surface before trying the living-margin
+also appear in the margin projection; the Threads panel remains the complete index. With
+Threads closed, `t`/`T` lands on this local surface before trying the margin-projection
 fallback. Opening Threads from the focused surface carries the same thread into the
 panel.
 
 The adapter returns `null` for data that is filtered, collapsed, or not yet hydrated.
-That keeps lazy widgets lazy and restores the living-margin fallback. Deliberate thread
+That keeps lazy widgets lazy and restores the margin-projection fallback. Deliberate thread
 travel may reveal the datum through `lfRevealDatum`; the ordinary reconciliation pass
 then asks the adapter again. The registration handle's `update()` invalidates layout-only
 visibility changes, and `unregister()` removes the surface when the widget disconnects.

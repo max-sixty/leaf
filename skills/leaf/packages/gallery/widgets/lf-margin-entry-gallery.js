@@ -1,12 +1,12 @@
-/* A fixed developer exhibit of the complete margin element schema. It deliberately uses the
- * public marginElement factory rather than reproducing any margin element anatomy or state paint;
+/* A fixed developer exhibit of the complete margin entry schema. It deliberately uses the
+ * public marginEntry factory rather than reproducing any margin entry anatomy or state paint;
  * the only local rendering is the comparison grid and the words that name each cell. */
-import { marginElement, once, offer, relabel } from "/runtime/widget-api.js";
+import { marginEntry, once, offer, relabel } from "/runtime/widget-api.js";
 
 const GROUPS = [
   {
-    heading: "Roles and behavior",
-    summary: "Every role · action, disclosure, status · every tone",
+    heading: "Rank and behavior",
+    summary: "Every rank · action, disclosure, status · every tone",
     specimens: [
       {
         name: "Save",
@@ -14,7 +14,7 @@ const GROUPS = [
         icon: "check",
         behavior: "action",
         tone: "positive",
-        role: "complete",
+        rank: "complete",
       },
       {
         name: "Cancel",
@@ -22,7 +22,7 @@ const GROUPS = [
         icon: "cross",
         behavior: "action",
         tone: "negative",
-        role: "escape",
+        rank: "escape",
       },
       {
         name: "Accept",
@@ -30,7 +30,7 @@ const GROUPS = [
         icon: "check",
         behavior: "action",
         tone: "positive",
-        role: "primary",
+        rank: "primary",
       },
       {
         name: "Reject",
@@ -38,7 +38,7 @@ const GROUPS = [
         icon: "cross",
         behavior: "action",
         tone: "negative",
-        role: "secondary",
+        rank: "secondary",
       },
       {
         name: "Thread",
@@ -46,7 +46,7 @@ const GROUPS = [
         icon: "comment",
         behavior: "disclosure",
         tone: "neutral",
-        role: "reading",
+        rank: "reading",
       },
       {
         name: "More",
@@ -54,7 +54,7 @@ const GROUPS = [
         icon: "more",
         behavior: "disclosure",
         tone: "neutral",
-        role: "overflow",
+        rank: "overflow",
       },
       {
         name: "Sent",
@@ -62,7 +62,7 @@ const GROUPS = [
         icon: "sent",
         behavior: "status",
         tone: "neutral",
-        role: "reading",
+        rank: "reading",
       },
     ],
   },
@@ -106,41 +106,41 @@ function generated(tag, className, words = null) {
 }
 
 function specimenNode(specimen, groupIndex, specimenIndex) {
-  const item = generated("div", "margin-element-gallery-item");
-  item.dataset.marginElementSpecimen = specimen.name.toLowerCase();
+  const item = generated("div", "margin-entry-gallery-item");
+  item.dataset.marginEntrySpecimen = specimen.name.toLowerCase();
   const behavior = specimen.behavior ?? "action";
-  const control = marginElement(
-    offer(behavior === "status" ? "span" : "button", "margin-element-gallery-face"),
+  const control = marginEntry(
+    offer(behavior === "status" ? "span" : "button", "margin-entry-gallery-face"),
     {
       key: `gallery-${groupIndex}-${specimenIndex}`,
       label: specimen.name,
       icon: specimen.icon,
       behavior,
       tone: specimen.tone ?? "neutral",
-      role: specimen.role ?? "primary",
+      rank: specimen.rank ?? "primary",
       state: specimen.state ?? "idle",
     },
   );
   if (control instanceof HTMLButtonElement) control.disabled = true;
   if (behavior !== "status") control.setAttribute("aria-disabled", "true");
 
-  const copy = generated("span", "margin-element-gallery-copy");
+  const copy = generated("span", "margin-entry-gallery-copy");
   copy.append(
-    generated("span", "margin-element-gallery-name", specimen.name),
-    generated("span", "margin-element-gallery-detail", specimen.detail),
+    generated("span", "margin-entry-gallery-name", specimen.name),
+    generated("span", "margin-entry-gallery-detail", specimen.detail),
   );
   item.append(control, copy);
   return item;
 }
 
 function groupNode(group, groupIndex) {
-  const row = generated("div", "margin-element-gallery-group");
-  const introduction = generated("div", "margin-element-gallery-introduction");
+  const row = generated("div", "margin-entry-gallery-group");
+  const introduction = generated("div", "margin-entry-gallery-introduction");
   introduction.append(
-    generated("strong", "margin-element-gallery-heading", group.heading),
-    generated("span", "margin-element-gallery-summary", group.summary),
+    generated("strong", "margin-entry-gallery-heading", group.heading),
+    generated("span", "margin-entry-gallery-summary", group.summary),
   );
-  const items = generated("div", "margin-element-gallery-items");
+  const items = generated("div", "margin-entry-gallery-items");
   items.append(
     ...group.specimens.map((specimen, specimenIndex) =>
       specimenNode(specimen, groupIndex, specimenIndex),
@@ -151,7 +151,7 @@ function groupNode(group, groupIndex) {
 }
 
 customElements.define(
-  "lf-margin-element-gallery",
+  "lf-margin-entry-gallery",
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;

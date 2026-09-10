@@ -898,7 +898,7 @@ graph LR
 </pre></lf-diagram>
   </lf-note>
 </lf-code>
-<div id="own-box" style="border: 1px solid #999; padding: 10px; --lf-frame: 1">
+<div id="own-box" style="border: 1px solid #999; padding: 10px; --lf-block-frame: 1">
   <lf-diagram id="in-own-box"><pre>
 graph LR
   A[request] --> B[queue]

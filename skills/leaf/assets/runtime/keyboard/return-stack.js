@@ -70,11 +70,11 @@ import {
   nativeLayerFor,
   nativeLayerOrder,
 } from "../native-layers.js";
-import { coveringWorkspaceSurface, openWorkspaceSurfaceFor } from "./register.js";
+import { coveringAuxiliarySurface, openAuxiliarySurfaceFor } from "./register.js";
 
-// A native layer opened above a covering workspace owns entries made inside it. The
+// A native layer opened above a covering auxiliary surface owns entries made inside it. The
 // workspace remains the fallback floor when no browser top layer stands.
-const currentLayer = () => currentNativeLayer(focused()) ?? coveringWorkspaceSurface();
+const currentLayer = () => currentNativeLayer(focused()) ?? coveringAuxiliarySurface();
 
 export function restoreReturnPlace({ control, reading }) {
   if (control) {
@@ -118,7 +118,7 @@ function descriptorFor(row, binding) {
 }
 
 // The caller captures the origin before the command runs. Evaluate the frame before the
-// run too, because its descriptor may preserve pre-entry workspace state; publish it only
+// run too, because its descriptor may preserve pre-entry auxiliary chrome state; publish it only
 // after the command has really entered the layer. A liveness guard that changed during
 // the command therefore cannot leave a phantom frame behind.
 export function invoke(row, binding, run, suppliedOrigin = null) {
@@ -140,7 +140,7 @@ function prune() {
     if (layer && frame.root !== layer && nativeLayerOrder(layer) > frame.order) return;
     if (
       frame.root !== document &&
-      !openWorkspaceSurfaceFor(frame.root) &&
+      !openAuxiliarySurfaceFor(frame.root) &&
       nativeLayerFor(frame.root) !== frame.root
     ) {
       frames.pop();

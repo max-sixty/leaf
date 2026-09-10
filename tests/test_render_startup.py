@@ -403,14 +403,14 @@ def test_authored_html_paints_while_runtime_startup_is_held(
     ("saved", "root_attribute", "body_attribute"),
     [
         (
-            {"lf-panel-open": "1", "lf-panel-width": "500"},
+            {"lf-thread-panel-open": "1", "lf-thread-panel-width": "500"},
             "data-lf-restore-panel",
-            "data-lf-panel",
+            "data-lf-auxiliary-surface",
         ),
         (
-            {"lf-tray-up": "asks", "lf-tray-width": "280"},
+            {"lf-tray-slot-open": "asks", "lf-tray-slot-width": "280"},
             "data-lf-restore-tray",
-            "data-lf-tray",
+            "data-lf-auxiliary-surface",
         ),
     ],
 )
@@ -695,7 +695,7 @@ def test_reading_regions_share_posture_allocation_and_transition_boundaries(
           const leaf = await import('/runtime/widget-api.js');
           const main = document.querySelector('main');
           const outer = document.createElement('section');
-          outer.id = 'outer-arrangement';
+          outer.id = 'outer-reading-arrangement';
           outer.innerHTML = `
             <header><button id="pane-heading">Pane heading</button></header>
             <div id="outer-body"><div id="compound-owner">
@@ -711,16 +711,16 @@ def test_reading_regions_share_posture_allocation_and_transition_boundaries(
           const previewBody = outer.querySelector('#preview-body');
           const style = document.createElement('style');
           style.textContent = `
-            #outer-arrangement { width: 640px; }
+            #outer-reading-arrangement { width: 640px; }
             #outer-body { width: 600px; }
             #compound-content { width: 50%; }
-            #outer-arrangement[data-lf-posture="bounded"] #outer-body {
+            #outer-reading-arrangement[data-lf-reading-posture="bounded"] #outer-body {
               height: 280px; overflow: auto;
             }
-            #outer-arrangement[data-lf-posture="bounded"] #preview-body {
+            #outer-reading-arrangement[data-lf-reading-posture="bounded"] #preview-body {
               height: 120px; overflow: auto;
             }
-            #compound-owner[data-lf-posture="flow"] #preview-body {
+            #compound-owner[data-lf-reading-posture="flow"] #preview-body {
               height: auto; overflow: visible;
             }`;
           document.head.append(style);
@@ -741,18 +741,18 @@ def test_reading_regions_share_posture_allocation_and_transition_boundaries(
                 : null,
             });
           });
-          const outerLayout = leaf.registerArrangement({
+          const outerLayout = leaf.registerReadingArrangement({
             owner: outer,
             content: outerBody,
             regions: [{id: 'outer-pane', host: outer, body: outerBody}],
           });
           previewId = leaf.compoundReadingRegionId(compound, 'preview');
-          const compoundLayout = leaf.registerArrangement({
+          const compoundLayout = leaf.registerReadingArrangement({
             owner: compound,
             content: compoundContent,
             regions: [{id: previewId, host: previewHost, body: previewBody}],
           });
-          await outerLayout.setPosture('bounded');
+          await outerLayout.setReadingPosture('bounded');
           const assigned = compoundContent.getBoundingClientRect();
           const bounded = {
             outerScroller: leaf.effectiveScroller('outer-pane').id,
@@ -764,18 +764,18 @@ def test_reading_regions_share_posture_allocation_and_transition_boundaries(
           };
           outerBody.style.width = '400px';
           const resizedAllocation = leaf.readingAllocation(previewId);
-          await compoundLayout.setPosture('flow');
+          await compoundLayout.setReadingPosture('flow');
           const childFlow = {
             scroller: leaf.effectiveScroller(previewId).id,
             posture: leaf.readingPosture(previewId),
           };
-          const first = outerLayout.setPosture('flow');
-          const second = outerLayout.setPosture('bounded');
+          const first = outerLayout.setReadingPosture('flow');
+          const second = outerLayout.setReadingPosture('bounded');
           await Promise.all([first, second]);
           previewHost.hidden = true;
           const hiddenBounds = leaf.shownRegionBounds(previewId);
           previewHost.hidden = false;
-          await outerLayout.setPosture('flow');
+          await outerLayout.setReadingPosture('flow');
           const flow = {
             outerIsDocument: leaf.effectiveScroller('outer-pane') === document.scrollingElement,
             previewIsDocument: leaf.effectiveScroller(previewId) === document.scrollingElement,
@@ -881,7 +881,7 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
           try {
             leaf.arrangeReadingElement({
               owner,
-              kind: 'pane',
+              role: 'pane',
               header,
               regions: [
                 {id: 'reclaimable-region'},
@@ -903,24 +903,24 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
           occupied();
 
           const detached = document.createElement('section');
-          detached.setAttribute('data-lf-root-workspace', '');
+          detached.dataset.lfWorkspaceContext = 'root';
           const detachedArrangement = leaf.arrangeReadingElement({
             owner: detached,
-            kind: 'workspace',
-          }).arrangement;
+            role: 'workspace',
+          }).readingArrangement;
           const detachedMarkerCleared =
-            !detached.hasAttribute('data-lf-root-workspace');
+            detached.dataset.lfWorkspaceContext === 'embedded';
           detachedArrangement.cleanup();
 
-          const {content, arrangement} = leaf.arrangeReadingElement({
+          const {content, readingArrangement} = leaf.arrangeReadingElement({
             owner,
-            kind: 'pane',
+            role: 'pane',
             header,
           });
-          await arrangement.setPosture('bounded');
+          await readingArrangement.setReadingPosture('bounded');
           let ownerMessage;
           try {
-            leaf.registerArrangement({owner, content});
+            leaf.registerReadingArrangement({owner, content});
           } catch (error) {
             ownerMessage = error.message;
           }
@@ -928,14 +928,14 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
           main.append(otherOwner);
           let contentMessage;
           try {
-            leaf.registerArrangement({owner: otherOwner, content});
+            leaf.registerReadingArrangement({owner: otherOwner, content});
           } catch (error) {
             contentMessage = error.message;
           }
-          const pending = arrangement.setPosture('flow');
-          arrangement.cleanup();
-          const replacement = leaf.registerArrangedElement({owner, content});
-          await replacement.setPosture('bounded');
+          const pending = readingArrangement.setReadingPosture('flow');
+          readingArrangement.cleanup();
+          const replacement = leaf.registerReadingElement({owner, content});
+          await replacement.setReadingPosture('bounded');
           await pending;
           const postureAfterReplacement = leaf.readingPosture(owner);
           replacement.cleanup();
@@ -948,8 +948,8 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
     )
     assert result == {
         "message": "leaf: reading region occupied-region is already live",
-        "ownerMessage": "leaf: arrangement owner is already live",
-        "contentMessage": "leaf: arrangement content is already live",
+        "ownerMessage": "leaf: reading arrangement owner is already live",
+        "contentMessage": "leaf: reading arrangement content is already live",
         "postureAfterReplacement": "bounded",
         "reclaimed": True,
         "unchanged": True,
@@ -977,10 +977,10 @@ def test_registry_state_index_refreshes_with_the_loaded_generation(browser, serv
           const generation = registry.$layer.generation;
           Object.assign(registry, {
             'lf-index-action': {
-              'x-state': { set: { record: { kind: 'value' } } },
+              'x-state': { set: { record: { role: 'value' } } },
             },
             'lf-index-report': {
-              'x-report': { measure: { record: { kind: 'body' } } },
+              'x-report': { measure: { record: { role: 'body' } } },
             },
             'lf-index-recordless': {
               'x-state': { settle: {} },
@@ -1459,7 +1459,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.wait_for_function(BOTH_STAMPS)
-    priming.evaluate("localStorage.setItem('lf-tray-up', 'asks')")
+    priming.evaluate("localStorage.setItem('lf-tray-slot-open', 'asks')")
     priming.close()
 
     held = []
@@ -1471,7 +1471,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         assert held, "the positive control did not hold the first state response"
         body = page.locator("body")
-        expect(body).to_have_attribute("data-lf-tray", "asks")
+        expect(body).to_have_attribute("data-lf-auxiliary-surface", "asks")
         expect(page.locator(".lf-asks")).to_be_hidden()
         expect(page.locator(".lf-asks-panel")).to_be_hidden()
         expect(page.locator(".lf-answer-all")).to_be_hidden()
@@ -1479,7 +1479,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
         comments = page.get_by_role("button", name=re.compile("^Threads"))
         expect(comments).to_be_enabled()
         comments.click()
-        expect(body).not_to_have_attribute("data-lf-tray", "asks")
+        expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "asks")
         expect(page.locator(".lf-general textarea")).to_be_editable()
 
         held.pop(0).continue_()
@@ -1491,7 +1491,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
         expect(decisions).to_have_attribute("data-lf-complete", "")
         expect(decisions).to_have_attribute("aria-expanded", "false")
         expect(page.locator(".lf-asks-panel")).to_be_hidden()
-        expect(page.locator(".lf-panel")).to_be_visible()
+        expect(page.locator(".lf-thread-panel")).to_be_visible()
         expect(page.locator("button.lf-asks-row")).to_have_count(0)
         expect(page.locator(".lf-answer-all")).to_be_hidden()
         assert errors == []
@@ -1800,7 +1800,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     expect(body).to_have_text(corrected)
     # And the user is told, rather than left to notice: their edit is gone, which
     # without a reading looks exactly like a draft they never touched. The draft's
-    # existing controls keep their compact form; Page map states the provenance,
+    # existing controls keep their compact form; Page Map states the provenance,
     # and the target keeps the local quiet word.
     expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
     page.keyboard.press("g")
@@ -2169,7 +2169,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     )
 
     page.get_by_role("button", name=re.compile("^Threads")).click()
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
     expect(page.locator(".lf-thread")).to_have_count(0)
     page.locator(".lf-general textarea").fill("General comment during startup")
@@ -2439,7 +2439,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
 
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
-    options = page.locator(".lf-panel lf-options#store-pick")
+    options = page.locator(".lf-thread-panel lf-options#store-pick")
     expect(options).to_be_visible()
     # Its module's own work, not the markup's: the pick control each option is chosen by.
     expect(options.locator("lf-option [data-lf-offer='checkbox']")).to_have_count(2)
@@ -2905,7 +2905,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     # Help is a scope: the table stands down behind it, so c must not work the
     # panel under the sheet.
     page.keyboard.press("c")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator(".lf-shortcut-reference")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
@@ -3101,7 +3101,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     declare("working", "running the migration", session_pid=dead_pid)
     expect(text).to_have_text(UNHELD)
     # Grey, not the amber a session falling behind wears: nobody is on the line, which
-    # is a page's arrangement rather than something for the user to chase.
+    # is a page's reading arrangement rather than something for the user to chase.
     expect(dot).to_have_class(re.compile(r"^lf-dot\s*$"))
 
     # Nothing ever claimed the page — a server started outside an agent host. There is
@@ -3187,7 +3187,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     comments = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     held, other = comments[0]["id"], comments[1]["id"]
     page.keyboard.press("c")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     receipts = page.locator(".lf-receipt")
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
     other_thread = page.locator(f'.lf-thread[data-id="{other}"]')
@@ -3501,7 +3501,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     d = serve.page_dir
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     page.keyboard.press("c")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     work_line = page.locator(".lf-receipt")
     work_button = page.locator('.lf-margin-reading-option[data-lf-kinds~="activity"]')
     notice = page.locator(".lf-bottom-status .lf-notice")
@@ -3958,7 +3958,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     page.keyboard.press("Escape")
     # A retired thread lands on the surface the reader's own gesture reaches. With the
     # widget still on the page its passages keep a page-local address, so the margin's
-    # thread margin element and each passage's comment count open the fallback card and Threads
+    # thread margin entry and each passage's comment count open the fallback card and Threads
     # stays shut; a disconnected widget leaves no such address and the panel answers.
     if failure == "disconnect":
         expect(markers).to_have_count(0)
@@ -3968,7 +3968,9 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         expect(markers).to_have_count(1)
         markers.first.click()
         expect(page.locator(".lf-margin-preview")).to_be_visible()
-        expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+        expect(page.locator(".lf-thread-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
+        )
         page.keyboard.press("Escape")
         broken.locator(".lf-mark-note").first.click()
         fallback = page.locator(

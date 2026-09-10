@@ -47,7 +47,7 @@ PAINTED = """() => ({
     .map(el => el.id || el.dataset.id),
 })"""
 
-# The marker a margin element paints for its lifecycle state. Since #371 `busy` is the only
+# The marker a margin entry paints for its lifecycle state. Since #371 `busy` is the only
 # state that paints one, anything else should report its absence.
 PAINTS_LIFECYCLE_MARK = """el => {
   const mark = getComputedStyle(el, '::after');
@@ -329,8 +329,8 @@ def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
         settled.click()
         page.locator('[aria-label="Remove keep reaction"]:visible').click()
     # The withdrawal applied, and not merely delivered, before the raise below stands its
-    # choices inside the target's margin elements. A state that lands after that fold is open
-    # re-renders the cluster, and the margin says so on `lf-margin-element-options-closed`, which
+    # choices inside the target's margin entries. A state that lands after that fold is open
+    # re-renders the cluster, and the margin says so on `lf-margin-entry-options-closed`, which
     # is exactly what disarms the response mode the digit below is pressed into: the
     # press then reaches nothing, and the read finds the withdrawal still last in the log.
     told(page)
@@ -407,7 +407,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     # The press applied, and not merely delivered, before the reopen below asks for the row
     # again. `round_trip` ends on what the page has heard back, and the margin renders that
     # state after it; a render taken over an open options row says so on
-    # `lf-margin-element-options-closed`, which is what takes the row away. A reopen placed in that
+    # `lf-margin-entry-options-closed`, which is what takes the row away. A reopen placed in that
     # gap presses `e` at a cluster the arriving state is about to rebuild, so the row either
     # never opens or is closed under the press. The wait on the wire comes first because a
     # post the browser has not reported yet is not pending, and a trip that ends before the
@@ -466,7 +466,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
 def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     """Tab adds reactions after the compact field without moving or replacing it.
 
-    Each declared emoji is its own margin element, with its token in the accessible name.
+    Each declared emoji is its own margin entry, with its token in the accessible name.
     Digits remain optional accelerators in declaration order. Once the surface has been
     dismissed, `e` is no longer a live page command; page-wide reactions remain explicit
     in Threads.
@@ -538,13 +538,13 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     ).to_have_count(0)
     page.keyboard.press("e")
     expect(page.locator(".lf-notice")).not_to_have_text("Select something to react to")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
     # Opening Threads does not add an unanchored reaction target.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-panel-foot .lf-react-strip")).to_have_count(0)
+    expect(page.locator(".lf-thread-panel-foot .lf-react-strip")).to_have_count(0)
     assert errors == []
     page.close()
 
@@ -575,7 +575,7 @@ def test_an_item_hint_opens_comment_and_a_token_outlines_the_item(browser, serve
 def test_reactions_keep_all_six_buttons_on_an_occupied_target(
     browser, serve, width, opener
 ):
-    """Explicit reaction mode spends every margin element on feedback, at either posture.
+    """Explicit reaction mode spends every margin entry on feedback, at either posture.
 
     Existing suggestion actions stay in the complete Page-map inventory instead of
     displacing tokens or adding an overflow detour. Pointer and keyboard activation
@@ -626,13 +626,13 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(
     item.locator(".lf-sug-accept").focus()
     page.keyboard.press("e")
     expect(item.locator(".lf-margin-reactions")).to_be_visible()
-    # The full inventory remains available to Page map while the focused rail view
+    # The full inventory remains available to Page Map while the focused rail view
     # shows reactions alone. Invoke its standing control directly here: this test is
     # about reconciliation when another owner settles the target, not banner overflow.
     page.locator(".lf-page-map-toggle").evaluate("button => button.click()")
-    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     decision = sheet.locator(
-        f'[data-lf-map-margin-element="id:{target}:suggestion:{target}:{action}"]'
+        f'[data-lf-map-margin-entry="id:{target}:suggestion:{target}:{action}"]'
     )
     decision.focus()
     expect(decision).to_be_focused()
@@ -690,7 +690,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(item).to_have_attribute("data-lf-options-open", "")
 
     # Nor does the raise that finds the fold already open: standing the choices in a
-    # cluster the reader unfolded for themselves borrows it, and `openMarginElementOptions` is
+    # cluster the reader unfolded for themselves borrows it, and `openMarginEntryOptions` is
     # a no-op there, so putting them down leaves the fold where the press found it.
     item.locator(".lf-sug-accept").focus()
     page.keyboard.press("e")
@@ -701,7 +701,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(item).to_have_attribute("data-lf-options-open", "")
 
     # The raise that does unfold a cluster to stand its choices in still folds it back.
-    option = item.locator(".lf-margin-options .lf-margin-element:visible").first
+    option = item.locator(".lf-margin-options .lf-margin-entry:visible").first
     option.focus()
     expect(option).to_be_focused()
     page.keyboard.press("Escape")
@@ -1057,7 +1057,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     draft = "Keep this unsent review attached to the capped store."
     field.fill(draft)
     bounds = bar.bounding_box()
-    panel = page.locator(".lf-panel").bounding_box()
+    panel = page.locator(".lf-thread-panel").bounding_box()
     assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
 
     # Retiring a background draft must not interrupt an unrelated typing surface.
@@ -1086,11 +1086,11 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     expect(field).to_have_value(draft)
     page.keyboard.press("Escape")
     expect(bar).to_be_hidden()
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     enter_passage()
     expect(field).to_have_value(draft)
     bounds = bar.bounding_box()
-    panel = page.locator(".lf-panel").bounding_box()
+    panel = page.locator(".lf-thread-panel").bounding_box()
     assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
     # End alone is the end of a visual line, while ControlOrMeta+End is not a document-
     # end gesture on macOS. Select the whole draft and collapse the selection after it:

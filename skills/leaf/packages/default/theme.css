@@ -167,10 +167,10 @@ html.lf-copy body > main:has(> .lf-workspace-arranged[data-lf-root-workspace]) {
 }
 
 /* lf-gloss: the prose stays prose, and its underline is the whole visible
- * affordance. The underline is deliberately quieter than a link — this phrase goes
- * nowhere — while the top-layer card uses the page's ordinary paper, ink, and rule
- * rather than inventing a tooltip palette. Static copies and paper put the explanation
- * after the phrase, where they can honour its words. */
+ * affordance. The words keep the page's ink while the underline uses the accent —
+ * this phrase goes nowhere — and the top-layer card uses the page's ordinary paper,
+ * ink, and rule rather than inventing a tooltip palette. Static copies and paper put
+ * the explanation after the phrase, where they can honour its words. */
 lf-gloss { display: inline; }
 /* The no-script rendering of x-says. Once the runtime writes the selectable span, that
  * span takes over; a static exported copy keeps the span and gives it the same inline

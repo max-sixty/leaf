@@ -87,11 +87,12 @@ id; the container continues with that event id through App Server availability, 
 and turn start, first notification, first model activity, and completion. Leaf's
 record omits message text, prompts, source IP keys, cookies, and private session ids.
 Cloudflare wraps it in invocation metadata. `scripts/query-site-agent-logs.py` queries
-the last 24 hours for one exact event id and emits only Leaf's declared diagnostic
-fields, which makes it the concise path for a phase profile:
+the last 24 hours for one exact event id or the public session reference shown in the
+page and emits only Leaf's declared diagnostic fields, which makes it the concise path
+for a phase profile:
 
 ```sh
-CLOUDFLARE_API_TOKEN=... uv run scripts/query-site-agent-logs.py EVENT_ID
+CLOUDFLARE_API_TOKEN=... uv run scripts/query-site-agent-logs.py EVENT_ID_OR_REFERENCE
 ```
 
 Historical Worker and Container logs are available in Workers Observability because
@@ -103,6 +104,17 @@ setup, the `Cloudflare Leaf diagnostics` item in the `Max` 1Password vault carri
 account id and current token. Agents may also inspect the complete Cloudflare envelope,
 including request metadata, through the Observability API or `wrangler tail`; the
 structured query is an output filter, not an access boundary.
+
+Workers Observability is the operational log store. Each structured record carries
+`component`, `event`, and the canonical `eventId`; Worker-side records also carry the
+public `reference` and `route`. The public reference finds every request from one
+reader session, and the event id follows one request across the Worker, Workflow, and
+Container datasets. Analytics Engine holds aggregate product events rather than a
+second debugging log. Live incidents use `wrangler tail`; historical incidents use the
+script above or Cloudflare's Observability query builder. An external OpenTelemetry
+destination is needed only if Cloudflare's retention ceases to cover the debugging
+window.
+
 The local end-to-end verifier prints the same container records and leaves them at
 `.tmp/website-agent-local.log` for a later agent to inspect. It gives the child App
 Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and

@@ -628,7 +628,11 @@ export function createSelectionComposer({
         // Continue in the surface already in use. Closing an open panel here reflows the
         // passage just as the reader's comment moves across it to a new floating card.
         const inlineThread =
-          shouldLand && !panelIsOpen() ? openInlineThread(sent.id, transition) : null;
+          shouldLand && !panelIsOpen()
+            ? openInlineThread(sent.id, transition, (thread) =>
+                landTyping(thread.querySelector("textarea"), composerInput),
+              )
+            : null;
         const inlineReply = inlineThread?.querySelector("textarea") ?? null;
         reply = inlineReply ?? reply;
         if (!inlineReply && (shouldLand || panelIsOpen())) {
@@ -639,7 +643,7 @@ export function createSelectionComposer({
         }
         // The composer this was sent from is gone with the send; the thread it became
         // carries the same conversation, so its reply box is where typing continues.
-        if (shouldLand) {
+        if (shouldLand && !inlineReply) {
           landTyping(reply, composerInput);
         }
       },

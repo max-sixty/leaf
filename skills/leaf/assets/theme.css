@@ -1508,8 +1508,9 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
  * The visible content fades at each edge that has more beyond it. The fade follows the
  * scroll position: inline end at the start, both edges in the middle, and inline start
  * at the end. Masking the box makes the content itself recede instead of casting an
- * unexplained shadow behind it. Focus removes the mask so the scroller's complete ring
- * remains visible; the reader standing on it already has the platform's scroll affordance.
+ * unexplained shadow behind it. Focus within removes the mask so the scroller's complete
+ * ring and controls painted outside its box remain visible; the reader standing there
+ * already has the platform's scroll affordance.
  *
  * Neither the mask nor its attributes affect layout, so observing the scroller cannot
  * feed the measurement back into itself. Screen only, because a mark whose
@@ -1517,13 +1518,13 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
  * A copy keeps the mark it was exported with, the way it keeps the hold beside it and
  * the stop the same sweep granted. */
 @media screen {
-  [data-lf-more-after]:dir(ltr):not([data-lf-more-before]),
-  [data-lf-more-before]:dir(rtl):not([data-lf-more-after]) {
+  [data-lf-more-after]:where(:dir(ltr):not([data-lf-more-before])),
+  [data-lf-more-before]:where(:dir(rtl):not([data-lf-more-after])) {
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
     mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
   }
-  [data-lf-more-before]:dir(ltr):not([data-lf-more-after]),
-  [data-lf-more-after]:dir(rtl):not([data-lf-more-before]) {
+  [data-lf-more-before]:where(:dir(ltr):not([data-lf-more-after])),
+  [data-lf-more-after]:where(:dir(rtl):not([data-lf-more-before])) {
     -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
     mask-image: linear-gradient(to right, transparent, #000 24px);
   }
@@ -1545,7 +1546,8 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
   }
   :is([data-lf-more-before], [data-lf-more-after]):is(
       :focus-visible,
-      .lf-focus-visible
+      .lf-focus-visible,
+      :has(:is(:focus-visible, .lf-focus-visible))
     ) {
     -webkit-mask-image: none;
     mask-image: none;

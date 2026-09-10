@@ -1943,6 +1943,23 @@ def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
     assert measured["scrolled"]["offset"] == measured["rest"]["offset"], (
         f"the word stood still while its row scrolled: {measured}"
     )
+    note.focus()
+    note.evaluate("n => n.classList.add('lf-focus-visible')")
+    focused = note.evaluate(
+        """(n) => {
+        const box = document.querySelector('#loose');
+        const r = n.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+            r.left + r.width / 2,
+            r.top + r.height / 2,
+        );
+        return {
+            mask: getComputedStyle(box).maskImage,
+            painted: n.contains(hit),
+        };
+    }"""
+    )
+    assert focused == {"mask": "none", "painted": True}, focused
     assert errors == []
     page.close()
 

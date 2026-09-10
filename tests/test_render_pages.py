@@ -2250,12 +2250,19 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
     assert not marks["fits"]["paints"], marks
 
     flow = page.locator("#flow")
+    flow.focus()
+    flow.evaluate("el => el.classList.add('lf-focus-visible')")
+    assert flow.evaluate("el => getComputedStyle(el).maskImage") == "none"
     flow.evaluate("el => { el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2; }")
     expect(flow).to_have_attribute("data-lf-more-before", "")
     expect(flow).to_have_attribute("data-lf-more-after", "")
+    assert flow.evaluate("el => getComputedStyle(el).maskImage") == "none"
     flow.evaluate("el => { el.scrollLeft = el.scrollWidth; }")
     expect(flow).to_have_attribute("data-lf-more-before", "")
     expect(flow).not_to_have_attribute("data-lf-more-after", "")
+    assert flow.evaluate("el => getComputedStyle(el).maskImage") == "none"
+    flow.evaluate("el => { el.classList.remove('lf-focus-visible'); el.blur(); }")
+    assert flow.evaluate("el => getComputedStyle(el).maskImage") != "none"
 
     page.evaluate("""() => {
         document.documentElement.dir = 'rtl';

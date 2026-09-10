@@ -401,7 +401,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 <h1 id="title">Request call change</h1>
 <pre id="code-surface">reference code surface</pre>
 <lf-call-diff id="request-calls" source="request-call-diff" diff="patch"></lf-call-diff>
-<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>
+<lf-diff id="patch" source="review-patch" collapsed review><pre></pre></lf-diff>
 """,
     )
     # pr-review's lf-call-diff points at an lf-diff, which travels in `diff`.
@@ -452,13 +452,21 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     # data-lf-gen is what keeps them out of the version diff, which parses the base.
     expect(widget.locator(".lf-call-summary")).to_have_attribute("data-lf-gen", "1")
     expect(widget.locator(".lf-call-group-count")).to_have_attribute("data-lf-gen", "1")
-    group = widget.locator(":scope > .lf-call-group")
-    expect(group).to_have_count(1)
+    groups = widget.locator(":scope > .lf-call-group")
+    expect(groups).to_have_count(1)
+    group = groups.first
     assert group.evaluate("el => getComputedStyle(el).backgroundColor") == page.locator(
         "#code-surface"
     ).evaluate("el => getComputedStyle(el).backgroundColor")
     expect(group.locator(":scope > summary")).to_have_count(1)
-    expect(group).not_to_have_attribute("open", "")
+    expect(group).to_have_attribute("open", "")
+    expect(widget.locator(".lf-call-toggle")).to_have_text("Collapse all")
+    expect(lines.nth(0)).to_have_attribute("data-meta", "")
+    expect(lines.nth(0).locator(".lf-call-body")).to_have_text(
+        "calldiff diff main → feature"
+    )
+    resized(page, 900, 900)
+    assert lines.nth(0).evaluate("line => line.scrollWidth <= line.clientWidth")
     # Ordinary buttons keep the same ink on tinted document and shadow surfaces.
     colors = []
     for control in (".lf-call-toggle", ".lf-diff-next", ".lf-diff-review"):
@@ -475,11 +483,17 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         )
     assert len({color for pair in colors for color in pair}) == 1, colors
     widget.locator(".lf-call-toggle").click()
+    expect(group).not_to_have_attribute("open", "")
+    expect(widget.locator(".lf-call-toggle")).to_have_text("Expand all")
+    widget.locator(".lf-call-toggle").click()
     expect(group).to_have_attribute("open", "")
     expect(widget.locator(".lf-call-toggle")).to_have_text("Collapse all")
-    expect(lines.nth(0)).to_have_attribute("data-meta", "")
-    expect(lines.nth(0).locator(".lf-call-body")).to_have_text(
-        "calldiff diff main → feature"
+    file_row = page.locator("#patch .lf-diff-file").first
+    expect(file_row).to_have_attribute(
+        "data-lf-datum", '["gateway/limits.py","file"]'
+    )
+    expect(file_row).to_have_attribute(
+        "data-lf-datum-label", "gateway/limits.py · file"
     )
     expect(lines.nth(1)).to_have_attribute("data-root", "")
     expect(lines.nth(1)).to_have_attribute("data-lf-projection", "request-calls")
@@ -520,10 +534,16 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 
     updated = call_diff.replace(
         "calldiff diff main → feature", "calldiff diff main → feature-2"
-    )
+    ) + """
+  Limiter.secondary(self)  gateway/limits.py:50
++ └─ return True  gateway/limits.py:51
+"""
     data_model.cmd_data_set(serve.page_dir, "request-call-diff", updated)
     told(page)
     expect(group).to_have_attribute("open", "")
+    expect(groups).to_have_count(2)
+    expect(groups.nth(1)).not_to_have_attribute("open", "")
+    expect(widget.locator(".lf-call-toggle")).to_have_text("Expand all")
     expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
         "gateway/limits.py:40"
     )
@@ -712,7 +732,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     authored = leaf_page(
         "large diff review",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
-        "collapsed><pre></pre></lf-diff>",
+        "collapsed review><pre></pre></lf-diff>",
     )
     url = serve(authored)
     manifest = {
@@ -786,7 +806,10 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
         "nodes => nodes.map(node => JSON.parse(node.dataset.lfOrigin))"
     )
     assert {tuple(origin["path"]) for origin in origins} == {
+        ("files", 0, "path"),
+        ("files", 1, "path"),
         ("files", 1, "patch"),
+        ("files", 2, "path"),
         ("files", 2, "patch"),
     }
     assert all(
@@ -794,7 +817,7 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
         and origin["input"] == "document"
         and origin["revision"] == 2
         for origin in origins
-    ), "lazy lines must retain the input revision that built their manifest"
+    ), "file and lazy-line datums must retain the revision that built their manifest"
 
     summaries.nth(0).focus()
     page.keyboard.press("/")
@@ -852,6 +875,43 @@ def test_a_large_diff_filters_navigates_and_replays_explicit_file_reviews(
     expect(reviews.nth(0)).to_be_visible()
     expect(reviews.nth(2)).to_be_hidden()
     page.emulate_media(media="screen")
+
+    assert errors == []
+    page.close()
+
+
+def test_a_diff_without_review_tracking_keeps_the_browsing_tools(browser, serve):
+    authored = leaf_page(
+        "diff evidence",
+        """
+<h1>Changed files</h1>
+<lf-diff id="patch"><pre>
+diff --git a/src/first.py b/src/first.py
+--- a/src/first.py
++++ b/src/first.py
+@@ -1 +1 @@
+-return "old"
++return "new"
+diff --git a/tests/second.py b/tests/second.py
+--- a/tests/second.py
++++ b/tests/second.py
+@@ -1 +1 @@
+-assert old
++assert new
+</pre></lf-diff>
+""",
+    )
+    page, errors = open_page(browser, serve(authored))
+    diff = page.locator("#patch")
+
+    expect(diff.locator(".lf-diff-review, .lf-diff-next")).to_have_count(0)
+    expect(diff.locator(".lf-diff-progress")).to_have_text("2 files")
+    expect(diff.locator(".lf-diff-wrap")).to_be_visible()
+    search = diff.locator(".lf-diff-search")
+    search.fill("second")
+    expect(diff.locator(".lf-diff-progress")).to_have_text("2 files · 1 matching")
+    expect(diff.locator("summary").nth(0)).to_be_hidden()
+    expect(diff.locator("summary").nth(1)).to_be_visible()
 
     assert errors == []
     page.close()
@@ -6182,7 +6242,7 @@ def test_datum_travel_resolves_the_destination_after_reveal(
         "@@ -1 +1,2 @@\n changed()\n+added()\n",
     )
     page, errors = open_page(browser, url)
-    page.locator("#calls .lf-call-toggle").click()
+    expect(page.locator("#calls .lf-call-group")).to_have_attribute("open", "")
     # A container may synchronously rebuild its projection while revealing it.
     # Repeat that lifecycle on every reveal so a second reveal after resolution
     # cannot hide a stale-node scroll behind the first successful re-query.

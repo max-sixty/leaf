@@ -29,12 +29,6 @@ _record_demo_spec = importlib.util.spec_from_file_location(
 record_demo = importlib.util.module_from_spec(_record_demo_spec)
 _record_demo_spec.loader.exec_module(record_demo)
 
-_record_demo_spec = importlib.util.spec_from_file_location(
-    "record_demo", ROOT / "scripts" / "record-demo.py"
-)
-record_demo = importlib.util.module_from_spec(_record_demo_spec)
-_record_demo_spec.loader.exec_module(record_demo)
-
 
 def test_kernel_event_contracts_declare_closed_records():
     events = json.loads((ASSETS / "registry.json").read_text())["$events"]["kinds"]

@@ -30,6 +30,13 @@ from .thread_context import (
 )
 
 DELIVERY_FORMAT = "leaf-delivery-v1"
+_BATCH_FIELDS = (
+    "page",
+    "through_seq",
+    "conversations",
+    "handling",
+    "events",
+)
 
 
 def delivery_path(delivery_id: str) -> Path:
@@ -186,7 +193,9 @@ def freeze_delivery(
         "format": DELIVERY_FORMAT,
         "id": delivery_id,
         "created_at": created_at if created_at is not None else time.time(),
-        "batches": batches,
+        "batches": [
+            {field: batch[field] for field in _BATCH_FIELDS} for batch in batches
+        ],
     }
     path = delivery_path(delivery_id)
     existing = read_json(path)

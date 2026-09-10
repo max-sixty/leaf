@@ -7458,6 +7458,23 @@ def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser,
     page.close()
 
 
+def test_a_select_keeps_its_native_typeahead_letters(browser, serve):
+    html = NOTED_PAGE.replace(
+        "</main>",
+        '<select id="pick"><option>dog</option><option>cat</option></select></main>',
+    )
+    page, errors = open_page(browser, serve(html))
+
+    pick = page.locator("#pick")
+    pick.focus()
+    page.keyboard.press("c")
+
+    expect(pick).to_have_value("cat")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
 def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
     """A scope takes the keys it uses, so a control that has no Escape of its own
     leaves the rung standing behind it. The banner's version chooser swallowed it,

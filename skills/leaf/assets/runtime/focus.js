@@ -46,7 +46,7 @@ export function takesLetters(node) {
   return (
     Boolean(node) &&
     (node.tagName === "TEXTAREA" ||
-      node.tagName === "TARGET_CHOOSER_SCOPE" ||
+      node.tagName === "SELECT" ||
       node.isContentEditable ||
       (node.tagName === "INPUT" && TYPED_TYPES.has(node.type)))
   );

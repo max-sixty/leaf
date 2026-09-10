@@ -1016,7 +1016,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         )
         expect(threads_frame.locator(".lf-thread-panel")).to_be_visible()
         expect(page.locator("body")).not_to_have_attribute(
-            "data-lf-auxiliary-surface", ""
+            "data-lf-auxiliary-surface", "threads"
         )
         toggle.click()
         expect(status).to_have_text("Open and close Threads · Paused")
@@ -1027,7 +1027,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         toggle.click()
         expect(status).to_have_text("Open and close Threads · Complete", timeout=15_000)
         expect(threads_frame.locator("body")).not_to_have_attribute(
-            "data-lf-auxiliary-surface", ""
+            "data-lf-auxiliary-surface", "threads"
         )
         expect(threads_frame.locator(".lf-thread-panel")).to_be_hidden()
         assert read_events(page_dir) == before
@@ -1040,7 +1040,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
             "bg-motion-swipe-keep"
         )
         expect(page.locator("body")).not_to_have_attribute(
-            "data-lf-auxiliary-surface", ""
+            "data-lf-auxiliary-surface", "threads"
         )
         assert read_events(page_dir) == before
 
@@ -1240,7 +1240,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         )
         expect(status).to_have_text("Open and close Threads · Complete", timeout=15_000)
         expect(threads_frame.locator("body")).not_to_have_attribute(
-            "data-lf-auxiliary-surface", ""
+            "data-lf-auxiliary-surface", "threads"
         )
         expect(page.locator("body")).to_have_attribute(
             "data-lf-auxiliary-surface", "threads"

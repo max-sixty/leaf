@@ -167,9 +167,9 @@ margins and bound wide content, and the render gate reports a frame that omits i
 runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-wide]`, and
 `[data-lf-exhibit]`; shared selectors read those attributes instead of naming widget
 tags. A box a package scrolls sideways needs no declaration of its own: the runtime
-measures every scroller on each layout and marks the ones showing less than they
-hold across, and Leaf paints the cut edge from that mark, so a widget that has to
-scroll says so without the package writing anything. In particular, an interactive
+measures every scroller on each layout and marks each edge with content beyond it.
+Leaf fades the content at those edges, so a widget that has to scroll says so without
+the package writing anything. In particular, an interactive
 affordance stands down inside `[data-lf-exhibit]`, where the widget is quoted rather
 than offered. The stylesheet is
 inlined into an export, so use fonts available on the reader's machine rather than a

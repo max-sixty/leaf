@@ -1497,46 +1497,65 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
  * sweep enters every declared tree, and a diff's lines scroll in one. No offsets:
  * relative moves nothing. */
 [data-lf-holds] { position: relative; }
-/* The layer's mark for a box that shows less than it holds across (reachScrollers, for
- * why the sweep and not a rule beside each overflow decides who wears it). Scrolling is
- * the honest answer when the room ran short, and on a platform drawing overlay
+/* The layer's marks for a box that shows less than it holds across (reachScrollers, for
+ * why the sweep and not a rule beside each overflow decides who wears them). Scrolling
+ * is the honest answer when the room ran short, and on a platform drawing overlay
  * scrollbars it is an answer the reader is never given: a flowchart cut 356px of 1026
  * inside a tab panel read as a finished graph at every width from 1200 to 1920. A cut
  * line of code announces itself by being a line; a drawing announces nothing, so the box
  * says it.
  *
- * A soft inset shade on the side the rest is on, which is the shape a page falling off
- * an edge has. On that side alone, and off the measurement rather than off scroll
- * position: an edge that tracked the travel would be a write on every frame of a drag,
- * and the reader arrives at the start of it, which is where a trailing edge is exactly
- * right and where the whole cut lies. A reader already at the end knows the box scrolls,
- * having scrolled it. Mirrored for a page read the other way, since the side is the
- * inline end and box-shadow can only be told in physical terms.
+ * The visible content fades at each edge that has more beyond it. The fade follows the
+ * scroll position: inline end at the start, both edges in the middle, and inline start
+ * at the end. Masking the box makes the content itself recede instead of casting an
+ * unexplained shadow behind it. Focus removes the mask so the scroller's complete ring
+ * remains visible; the reader standing on it already has the platform's scroll affordance.
  *
- * Paint and no metric: a shadow lays nothing out, so writing the attribute inside the
- * sweep's own resize observation cannot feed itself. Screen only, because a mark whose
+ * Neither the mask nor its attributes affect layout, so observing the scroller cannot
+ * feed the measurement back into itself. Screen only, because a mark whose
  * whole meaning is "scroll to see the rest" says nothing on a sheet nobody can scroll.
  * A copy keeps the mark it was exported with, the way it keeps the hold beside it and
  * the stop the same sweep granted. */
 @media screen {
-  [data-lf-cut] { box-shadow: inset -22px 0 18px -22px var(--shade); }
-  [data-lf-cut]:dir(rtl) { box-shadow: inset 22px 0 18px -22px var(--shade); }
+  [data-lf-more-after]:dir(ltr):not([data-lf-more-before]),
+  [data-lf-more-before]:dir(rtl):not([data-lf-more-after]) {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+  [data-lf-more-before]:dir(ltr):not([data-lf-more-after]),
+  [data-lf-more-after]:dir(rtl):not([data-lf-more-before]) {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
+    mask-image: linear-gradient(to right, transparent, #000 24px);
+  }
+  [data-lf-more-before][data-lf-more-after] {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent
+    );
+  }
+  :is([data-lf-more-before], [data-lf-more-after]):is(
+      :focus-visible,
+      .lf-focus-visible
+    ) {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
   /* A registered reading region with more below it gets the same edge vocabulary on
    * its block end. This shadow is paint behind descendants rather than an overlay over
    * their words or controls. The runtime removes it at the end and in flow posture,
    * and the `@media screen` above already keeps it off a printed sheet. */
   [data-lf-more-below] {
     box-shadow: inset 0 -8px 8px -8px var(--shade);
-  }
-  [data-lf-cut][data-lf-more-below] {
-    box-shadow:
-      inset -22px 0 18px -22px var(--shade),
-      inset 0 -8px 8px -8px var(--shade);
-  }
-  [data-lf-cut][data-lf-more-below]:dir(rtl) {
-    box-shadow:
-      inset 22px 0 18px -22px var(--shade),
-      inset 0 -8px 8px -8px var(--shade);
   }
 }
 /* lf-shadow:end */

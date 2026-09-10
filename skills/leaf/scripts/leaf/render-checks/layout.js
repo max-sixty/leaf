@@ -415,12 +415,12 @@ export function withheldRoom() {
 // could not fit is a page the layer is content with, and a reader who cannot tell it
 // was cut is not.
 //
-// So the mark is what is asked for, not the scrollbar: the layer paints one on every
-// box its own sweep finds cut (reachScrollers, and [data-lf-cut] in theme.css), which is
-// the platform-independent half of the answer and the half a copy keeps. A finding here
-// is a scroller the sweep never reached — a tree handed to no caller, a box that started
-// scrolling after the last layout the sweep saw — and the box is named rather than the
-// rule, because the rule is the layer's and there is only one.
+// So the marks are what is asked for, not the scrollbar: the layer paints them on every
+// box its own sweep finds cut (reachScrollers and the data-lf-more-* masks in theme.css).
+// Those marks are the platform-independent half of the answer and the half a copy keeps.
+// A finding here is a scroller the sweep never reached — a tree handed to no caller, a
+// box that started scrolling after the last layout the sweep saw — and the box is named
+// rather than the rule, because the rule is the layer's and there is only one.
 //
 // Across and not down, the axis every reading of a cut here takes, and out of `main` and
 // its declared trees: the panel is shut while the gate reads and a shut box has no
@@ -437,16 +437,18 @@ export function silentCuts() {
       const short = el.scrollWidth - el.clientWidth;
       if (short <= 1) continue;
       // The mark is a promise about what the reader can see, so this asks the promise
-      // and not the attribute. `[data-lf-cut]` is one attribute selector, so a single
-      // class setting `box-shadow` on the same element outranks it and takes the shade
-      // away with the mark still written — which reads as a clean gate and a page that
-      // cuts a drawing at its edge saying nothing, the state this reading exists for.
-      if (el.hasAttribute("data-lf-cut")) {
-        if (style.boxShadow !== "none") continue;
+      // and not the attribute. A class can outrank the mask while leaving the mark
+      // written, which reads as a clean gate and a page that cuts a drawing at its edge
+      // saying nothing, the state this reading exists for.
+      if (
+        el.hasAttribute("data-lf-more-before") ||
+        el.hasAttribute("data-lf-more-after")
+      ) {
+        if (style.maskImage !== "none" || style.webkitMaskImage !== "none") continue;
         found.push(
-          `${at(el)} wears the cut mark for the ${short}px it is hiding across but ` +
-            `draws nothing for it: something outranks the mark's own rule, so the ` +
-            `mark is written and the reader still has no sign`,
+          `${at(el)} wears a continuation mark for the ${short}px it is hiding ` +
+            `across but draws nothing for it: something outranks the mark's own ` +
+            `rule, so the mark is written and the reader still has no sign`,
         );
         continue;
       }

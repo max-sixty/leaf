@@ -1022,9 +1022,7 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
         '<lf-option id="thread-a">A</lf-option>'
         "</lf-options></lf-ask>"
     )
-    conversation_model.cmd_reply(
-        page_dir, "c1", "Pick one:", markup, for_event="c1"
-    )
+    conversation_model.cmd_reply(page_dir, "c1", "Pick one:", markup, for_event="c1")
 
     registry = json.loads((page_dir / "registry.json").read_text())
     option = registry["lf-option"]

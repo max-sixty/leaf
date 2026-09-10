@@ -936,10 +936,9 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
         )
         queued_state = queued_turn.state
         terminal_deadline = time.monotonic() + TURN_PATIENCE
-        while (
-            (queued_state.get("activity") or {}).get("kind") in ANSWERING
-            and time.monotonic() < terminal_deadline
-        ):
+        while (queued_state.get("activity") or {}).get(
+            "kind"
+        ) in ANSWERING and time.monotonic() < terminal_deadline:
             response = context.request.get(
                 state_url,
                 headers={"Leaf-Layer": layer, "Leaf-Release": release},

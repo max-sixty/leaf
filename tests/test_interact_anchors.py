@@ -1073,7 +1073,8 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     assert out.exit_code == 0, out.output
     state = json.loads(out.stdout)
     assert [
-        (s["widget"], s["action"], s["detail"], s["conversation"]) for s in state["state"]
+        (s["widget"], s["action"], s["detail"], s["conversation"])
+        for s in state["state"]
     ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
 
 

@@ -18,9 +18,7 @@ from leaf.thread_context import (
 )
 
 
-def cmd_events(
-    page_dir: Path, after: int, conversation: str | None = None
-) -> None:
+def cmd_events(page_dir: Path, after: int, conversation: str | None = None) -> None:
     events = read_events(page_dir)
     if conversation is not None:
         within = active_enclosing(page_dir)
@@ -35,11 +33,7 @@ def cmd_events(
             thread_widgets(structure, roots),
             within,
         )
-        events = [
-            event
-            for event in events
-            if conversation in memberships[event["id"]]
-        ]
+        events = [event for event in events if conversation in memberships[event["id"]]]
     for event in events:
         if event["seq"] > after:
             print(jsonl_line(event))

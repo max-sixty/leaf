@@ -6,9 +6,9 @@ from pathlib import Path
 
 from leaf.anchor_capture import capture_anchor
 from leaf.asks import local_ask_entry, page_awaiting_values
+from leaf.delivery import current_responses
 from leaf.event_contracts import report_contract_error
 from leaf.event_log import read_events
-from leaf.delivery import current_responses
 from leaf.files import (
     latest_published,
     require_revision,

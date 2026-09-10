@@ -20,7 +20,6 @@ from xml.etree import ElementTree
 
 from websockets.sync.client import connect, unix_connect
 
-from .delivery import DELIVERY_FORMAT as DELIVERY_FORMAT
 from .delivery import batch_data, delivery_path, freeze_delivery
 from .event_log import flocked, read_cursor
 from .files import read_json, write_json
@@ -509,9 +508,7 @@ class AppServerClient:
             turn_id = turn.get("id")
             if not turn_id:
                 raise RuntimeError("Codex App Server returned no turn id")
-            if any(
-                item.get("type") == "userMessage" for item in turn.get("items", [])
-            ):
+            if any(item.get("type") == "userMessage" for item in turn.get("items", [])):
                 answer.put((None, None))
                 return
             answer.put(({"turn": turn_id}, None))
@@ -834,7 +831,7 @@ def _recover_delivery(
             path, queue = unoffered
             queued = path, queue, _offer_delivery(path, queue)
     if queued is not None:
-        path, offered, prepared = queued
+        path, _offered, prepared = queued
         direct = None
         if app_client is not None:
             direct = app_client.start_delivery(prepared.payload)

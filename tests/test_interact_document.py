@@ -2838,7 +2838,9 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     }
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`.
-    assert state["asks"] == [{"id": "g1-decision", "tag": "lf-ask", "conversation": None}]
+    assert state["asks"] == [
+        {"id": "g1-decision", "tag": "lf-ask", "conversation": None}
+    ]
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
     assert state["state"] == []
 
@@ -3739,7 +3741,9 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
     publish(page_dir)
 
     state = state_json(page_dir)
-    assert state["asks"] == [{"id": "plan-decision", "tag": "lf-ask", "conversation": None}]
+    assert state["asks"] == [
+        {"id": "plan-decision", "tag": "lf-ask", "conversation": None}
+    ]
 
     append_command(
         page_dir,

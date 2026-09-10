@@ -433,17 +433,12 @@ def _write_page_state(
             for reading in state["state"]
             if reading["conversation"] == conversation_id
         ]
-        asks = [
-            ask
-            for ask in state["asks"]
-            if ask["conversation"] == conversation_id
-        ]
+        asks = [ask for ask in state["asks"] if ask["conversation"] == conversation_id]
         updates = [
             update
             for update in state["updates"]
             if (
-                update["target"]
-                == {"kind": "conversation", "id": conversation_id}
+                update["target"] == {"kind": "conversation", "id": conversation_id}
                 or (
                     update["target"]["kind"] == "widget"
                     and thread_reading.thread_by_widget.get(update["target"]["id"])
@@ -469,9 +464,7 @@ def _write_page_state(
             "vocabulary": str(page_dir / "registry.json"),
         }
         matching = [
-            event
-            for event in threads[conversation_id]["msgs"]
-            if event["seq"] > after
+            event for event in threads[conversation_id]["msgs"] if event["seq"] > after
         ]
         shown = matching[:limit]
         history = {

@@ -612,9 +612,7 @@ class WebsiteCodexHost:
             status = result["thread"]["status"]["type"]
             if status != "active":
                 close_session_turn(thread_id)
-                return self._start_turn(
-                    socket, page_dir, thread_id, process, pending
-                )
+                return self._start_turn(socket, page_dir, thread_id, process, pending)
 
             with PageTransaction(page_dir) as page:
                 if page.status["state"] == "idle":

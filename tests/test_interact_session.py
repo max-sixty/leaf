@@ -49,6 +49,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import conversation as conversation_model
+from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -81,7 +82,7 @@ def last_deliverable_seq(page_dir: Path) -> int:
 def delivered(output: str) -> tuple[dict, dict, list[dict]]:
     """Read the one host-neutral delivery emitted by a direct wait."""
     payload = json.loads(output)
-    assert payload["format"] == codex_model.DELIVERY_FORMAT
+    assert payload["format"] == delivery_model.DELIVERY_FORMAT
     [batch] = payload["batches"]
     return payload, batch, batch["events"]
 
@@ -317,14 +318,15 @@ def test_embedded_codex_delivery_keeps_settled_input_in_the_complete_page_batch(
         {"pid": os.getpid()},
     )
 
-    [(path, queue)] = codex_model._queues("hosted-thread")
+    [(path, _queue)] = codex_model._queues("hosted-thread")
     payload = files_model.read_json(codex_model.delivery_path(path.stem))
     delivered_events = payload["batches"][0]["events"]
     assert [event["text"] for event in delivered_events] == ["first", "second"]
     assert "obligation" not in delivered_events[0]
-    assert delivered_events[1]["obligation"]["response"]["for"] == delivered_events[1][
-        "id"
-    ]
+    assert (
+        delivered_events[1]["obligation"]["response"]["for"]
+        == delivered_events[1]["id"]
+    )
 
 
 def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
@@ -355,7 +357,7 @@ def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
         {"pid": os.getpid()},
     )
 
-    [(path, queue)] = codex_model._queues("hosted-thread")
+    [(path, _queue)] = codex_model._queues("hosted-thread")
     payload = files_model.read_json(codex_model.delivery_path(path.stem))
     assert [event["id"] for event in payload["batches"][0]["events"]] == [
         action["id"],
@@ -781,11 +783,11 @@ def test_direct_delivery_is_the_canonical_activity_until_the_reply(claimed, caps
     events_model.append_event(
         claimed,
         {
-                "kind": "reply",
-                "author": "claude",
-                "parent": comment["id"],
-                "responds": comment["id"],
-                "text": "answered",
+            "kind": "reply",
+            "author": "claude",
+            "parent": comment["id"],
+            "responds": comment["id"],
+            "text": "answered",
         },
     )
     settled = page_state(claimed)["activity"]
@@ -1203,7 +1205,6 @@ def test_app_server_observer_connects_over_a_private_unix_socket(monkeypatch, re
     assert "Sec-WebSocket-Extensions" not in request_headers[0]
 
 
-
 def test_app_server_malformed_start_response_finishes_the_delivery(request):
     """A broken connection must answer the delivery already removed from its queue."""
     received = threading.Event()
@@ -1246,7 +1247,7 @@ def test_app_server_malformed_start_response_finishes_the_delivery(request):
     def start_delivery():
         try:
             observer.start_delivery(
-                {"format": codex_model.DELIVERY_FORMAT, "id": "delivery-1"},
+                {"format": delivery_model.DELIVERY_FORMAT, "id": "delivery-1"},
             )
         except RuntimeError as error:
             outcome.put(error)
@@ -1320,7 +1321,6 @@ def test_app_server_unexpected_notification_error_clears_availability(request):
     assert observer.start_delivery({}) is None
     observer.stop()
     release.set()
-
 
 
 def test_an_active_app_server_turn_leaves_the_delivery_for_the_queue():
@@ -1891,8 +1891,7 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir):
     assert grown.exit_code == 0, grown.output
     _, grown_header, grown_events = delivered(grown.output)
     assert {
-        key: grown_header[key]
-        for key in ("page", "conversations", "handling")
+        key: grown_header[key] for key in ("page", "conversations", "handling")
     } == {key: header[key] for key in ("page", "conversations", "handling")}
     assert grown_header["through_seq"] == 3
     assert [event["seq"] for event in grown_events] == [1, 3]
@@ -4006,12 +4005,12 @@ def test_multi_conversation_delivery_uses_the_same_app_server_envelope(
         Observer(),
     )
     [payload] = started
+    assert [event["id"] for event in payload["batches"][0]["events"]] == [
+        "first",
+        "second",
+    ]
     assert [
-        event["id"] for event in payload["batches"][0]["events"]
-    ] == ["first", "second"]
-    assert [
-        conversation["id"]
-        for conversation in payload["batches"][0]["conversations"]
+        conversation["id"] for conversation in payload["batches"][0]["conversations"]
     ] == []
 
 
@@ -4291,16 +4290,14 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             payload_path = codex_model.delivery_path(delivery.attrib["id"])
             assert payload_path.exists()
             payload = files_model.read_json(payload_path)
-            assert payload["format"] == codex_model.DELIVERY_FORMAT
+            assert payload["format"] == delivery_model.DELIVERY_FORMAT
             assert all("receipted" not in batch for batch in payload["batches"])
             assert all(
                 batch["url"] == server_model.running_server(page)["url"]
                 for batch in payload["batches"]
             )
             queue_history = (
-                codex_model.delivery_dir("codex-thread")
-                / "history"
-                / payload_path.name
+                codex_model.delivery_dir("codex-thread") / "history" / payload_path.name
             )
             # The page cursor is durable before the adapter records that receipt and
             # archives its queue. Wait for that second boundary instead of treating the

@@ -41,7 +41,9 @@ def project_activity(
         None,
         events=events,
     )
-    return canonical_activity(present, evidence, now, (live_stream or {}).get("activity"))
+    return canonical_activity(
+        present, evidence, now, (live_stream or {}).get("activity")
+    )
 
 
 def full_state(

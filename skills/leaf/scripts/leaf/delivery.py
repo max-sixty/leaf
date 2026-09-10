@@ -114,8 +114,8 @@ def _response_context(
 
 def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     """Map every event that still requires work to its exact response address."""
-    obligations, threads, widget_conversations, receipted_requests = (
-        _response_context(page_dir, events)
+    obligations, threads, widget_conversations, receipted_requests = _response_context(
+        page_dir, events
     )
     return {
         event["id"]: response
@@ -192,7 +192,9 @@ def freeze_delivery(
     existing = read_json(path)
     if existing is not None:
         if existing != payload:
-            raise RuntimeError(f"delivery {delivery_id!r} already exists with other data")
+            raise RuntimeError(
+                f"delivery {delivery_id!r} already exists with other data"
+            )
         return existing
     path.parent.mkdir(parents=True, exist_ok=True)
     write_json(path, payload)

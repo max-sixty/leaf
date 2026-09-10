@@ -432,14 +432,14 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         )
     ]
     assert started == (
-        [] if status == "active" else [("socket", page_dir, "hosted-thread", process, [])]
+        []
+        if status == "active"
+        else [("socket", page_dir, "hosted-thread", process, [])]
     )
     assert closed == ([("hosted-thread",)] if closes_turn else [])
     if status == "active":
-        assert queued == [
-            ("codex", "hosted-thread", "delivery-pointer", host.endpoint)
-        ]
-        assert accepted == [(('hosted-thread',), {"phase": "queued"})]
+        assert queued == [("codex", "hosted-thread", "delivery-pointer", host.endpoint)]
+        assert accepted == [(("hosted-thread",), {"phase": "queued"})]
     else:
         assert queued == []
 
@@ -457,9 +457,7 @@ def test_a_second_website_comment_is_observed_from_queue_to_terminal_turn(page_d
         {"kind": "comment", "author": "user", "text": "second while active"},
     )
     website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
-    [queued] = website_server.accept_codex_delivery(
-        "hosted-thread", phase="queued"
-    )
+    [queued] = website_server.accept_codex_delivery("hosted-thread", phase="queued")
 
     class Socket:
         def __init__(self):
@@ -1367,7 +1365,7 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
     state = website_server.full_state(page_dir, read_events(page_dir))
     assert [item["event"] for item in state["activity"]["obligations"]] == [
         first["id"],
-        second["id"]
+        second["id"],
     ]
 
 
@@ -1463,10 +1461,10 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "kind": "reply",
             "author": "claude",
             "agent": "Leaf guide",
-                "session": "leaf-website-agent",
-                "parent": comment["id"],
-                "responds": comment["id"],
-                "text": "This is the agent's answer.",
+            "session": "leaf-website-agent",
+            "parent": comment["id"],
+            "responds": comment["id"],
+            "text": "This is the agent's answer.",
             "attempt": f"website-agent-{comment['id']}",
             "id": reply["id"],
             "ts": reply["ts"],

@@ -51,9 +51,7 @@ def unattended_pages(session_id: str, *, prompt_open: bool = False) -> list:
         # there. The later UserPromptSubmit still opens it below; from that
         # point its ordinary unanswered debt is enforced again.
         stale = [
-            obligation
-            for obligation in acknowledged
-            if obligation["phase"] != "queued"
+            obligation for obligation in acknowledged if obligation["phase"] != "queued"
         ]
         if stale:
             ids = ", ".join(

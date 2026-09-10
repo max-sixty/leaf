@@ -1140,6 +1140,12 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     expect(sheet).to_be_visible()
     remove = sheet.get_by_role("button", name="Remove prioritize reaction", exact=True)
     expect(remove).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(remove).to_be_hidden()
+    expect(reaction_actions).to_be_focused()
+    expect(sheet).to_be_visible()
+    reaction_actions.click()
+    expect(remove).to_be_focused()
     with sending(page, "the withdrawal of the spilled reaction"):
         remove.click()
     expect(sheet).to_be_hidden()

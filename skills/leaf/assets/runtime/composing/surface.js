@@ -319,8 +319,17 @@ export function createResponseSurface({
     const owner = fabTargetAt();
     const block = fabAnchor.quote && owner;
     const readingRegion = owner && readingRegionFor(owner);
-    const regionBounds = readingRegion && shownRegionBounds(readingRegion);
-    const boundary = floatBoundary(regionBounds);
+    let regionBounds = readingRegion && shownRegionBounds(readingRegion);
+    let boundary = floatBoundary(regionBounds);
+    // Keep the response within its pane while that pane can hold the compact control.
+    // During a responsive posture change a pane can briefly become narrower than the
+    // editor even though the window is not. In that case the response is already a
+    // viewport-plane overlay, so let the viewport carry it instead of withdrawing the
+    // reader's draft as if its semantic anchor had disappeared.
+    if (regionBounds && !fabFits(regionBounds)) {
+      regionBounds = null;
+      boundary = floatBoundary();
+    }
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     const clips = new Map();
     const parts = block ? shownParts(block) : [];

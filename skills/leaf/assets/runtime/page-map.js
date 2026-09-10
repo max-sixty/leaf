@@ -351,6 +351,16 @@ export function createPageMap({
 
   const enterPageMap = () => openPageMap();
 
+  // A projected action remains the source control's semantic press, while focus belongs
+  // to the visible copy in this native layer. Owners closing a source-local disclosure
+  // use this inverse reading to return to the control the reader can still see.
+  const presentedControl = (control) =>
+    sheet.open
+      ? ([...sheetList.querySelectorAll(".lf-page-map-action")].find(
+          (button) => button.lfMapControl === control && button.checkVisibility(),
+        ) ?? null)
+      : null;
+
   function leavePageMap() {
     if (!sheet.open) return;
     closeOwnsFocus = true;
@@ -383,6 +393,7 @@ export function createPageMap({
     openPageMap,
     enterPageMap,
     leavePageMap,
+    presentedControl,
     mount,
   };
 }

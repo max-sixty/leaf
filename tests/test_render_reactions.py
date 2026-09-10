@@ -295,6 +295,9 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     mark.click()
     expect(mark).to_have_attribute("aria-expanded", "true")
     expect(remove).to_be_visible()
+    expect(receipt_item.locator(":scope > .lf-reacts")).to_have_attribute(
+        "aria-keyshortcuts", "Escape"
+    )
     assert mark.evaluate(face) == resting_face
     assert events_model.read_events(serve.page_dir)[-1] == before_reveal
     page.locator("h1").click()
@@ -306,6 +309,9 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     remove.press("Escape")
     expect(mark).to_be_focused()
     expect(remove).to_be_hidden()
+    expect(receipt_item.locator(":scope > .lf-reacts")).not_to_have_attribute(
+        "aria-keyshortcuts", re.compile(r".+")
+    )
     mark.click()
     # The dedicated remove press is in the wire before the log is read: behind a bare
     # trip the read answers with the comment this press is taking back, which is the
@@ -1036,7 +1042,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     """
     page, errors = open_page(browser, serve(PANEL_PAGE))
     initial_events = events_model.read_events(serve.page_dir)
-    resized(page, 700, 900)
+    resized(page, 1000, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     field = page.locator(".lf-fab-input")
@@ -1066,7 +1072,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     resized(page, covered_width, 900)
     expect(bar).to_be_hidden()
     expect(search).to_be_focused()
-    resized(page, 700, 900)
+    resized(page, 1000, 900)
     enter_passage()
     expect(field).to_have_value(draft)
 
@@ -1079,7 +1085,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
 
     # A fresh reading proves the text survived in the draft store, rather than merely
     # remaining in the hidden textarea. The same passage regains it when room returns.
-    resized(page, 700, 900)
+    resized(page, 1000, 900)
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
     expect(field).to_be_visible()

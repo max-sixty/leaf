@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print content-free production agent timings for one canonical Leaf event id."""
+"""Print production agent timings for one Leaf event or public session reference."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ QUERY_URL = (
     "{account}/workers/observability/telemetry/query"
 )
 EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+SESSION_REFERENCE = re.compile(r"^[0-9]{12}$")
 ACCOUNT_ID = re.compile(r'^account_id\s*=\s*"([0-9a-f]+)"$', re.MULTILINE)
 SAFE_FIELDS = (
     "eventId",
@@ -41,38 +42,78 @@ def account_id() -> str:
     return match.group(1)
 
 
-def query_body(event_id: str, now_ms: int | None = None) -> dict:
-    """Build the bounded historical query sent to Workers Observability."""
-    end = round(time.time() * 1000) if now_ms is None else now_ms
+def query_body(key: str, value: str, now_ms: int) -> dict:
+    """Build one bounded Workers Observability query."""
+    filters = [
+        {
+            "key": "component",
+            "operation": "eq",
+            "type": "string",
+            "value": "leaf-agent",
+        }
+    ]
+    lookup = {}
+    if key == "eventId":
+        lookup["needle"] = {"value": value, "isRegex": False, "matchCase": True}
+    else:
+        filters.append(
+            {"key": key, "operation": "eq", "type": "string", "value": value}
+        )
     return {
         "queryId": "leaf-agent-diagnostic",
-        "timeframe": {"from": end - 24 * 60 * 60 * 1000, "to": end},
+        "timeframe": {"from": now_ms - 24 * 60 * 60 * 1000, "to": now_ms},
         "view": "events",
         "limit": 100,
         "parameters": {
             "datasets": [],
             "filterCombination": "and",
-            "filters": [],
-            "needle": {
-                "value": event_id,
-                "isRegex": False,
-                "matchCase": True,
-            },
+            "filters": filters,
+            **lookup,
         },
     }
 
 
-def safe_records(response: dict, event_id: str) -> list[dict]:
-    """Keep only Leaf's declared timing fields from matching telemetry events."""
-    events = response.get("result", {}).get("events", {}).get("events", [])
-    records = []
-    for item in events:
+def event_ids(response: dict) -> set[str]:
+    """Read every canonical event id carried by matching telemetry."""
+    found = set()
+    for item in response.get("result", {}).get("events", {}).get("events", []):
         source = item.get("source") or {}
         if source.get("component") != "leaf-agent":
             continue
-        if source.get("eventId") != event_id and event_id not in source.get(
-            "eventIds", []
-        ):
+        if isinstance(source.get("eventId"), str):
+            found.add(source["eventId"])
+        found.update(
+            event_id
+            for event_id in source.get("eventIds", [])
+            if isinstance(event_id, str)
+        )
+    return found
+
+
+def safe_records(responses: list[dict], wanted_event_ids: set[str]) -> list[dict]:
+    """Deduplicate telemetry and keep Leaf's declared timing fields."""
+    records = []
+    seen = set()
+    for item in (
+        item
+        for response in responses
+        for item in response.get("result", {}).get("events", {}).get("events", [])
+    ):
+        fingerprint = json.dumps(item, sort_keys=True, separators=(",", ":"))
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        source = item.get("source") or {}
+        if source.get("component") != "leaf-agent":
+            continue
+        carried_event_ids = {
+            event_id
+            for event_id in source.get("eventIds", [])
+            if isinstance(event_id, str)
+        }
+        if isinstance(source.get("eventId"), str):
+            carried_event_ids.add(source["eventId"])
+        if carried_event_ids.isdisjoint(wanted_event_ids):
             continue
         record = {
             "timestamp": item.get("timestamp"),
@@ -89,11 +130,11 @@ def safe_records(response: dict, event_id: str) -> list[dict]:
     return records
 
 
-def query(event_id: str, token: str) -> dict:
-    """Fetch one event's recent telemetry from Cloudflare."""
+def query(key: str, value: str, token: str, now_ms: int) -> dict:
+    """Fetch recent telemetry matching one indexed field from Cloudflare."""
     request = urllib.request.Request(
         QUERY_URL.format(account=account_id()),
-        data=json.dumps(query_body(event_id), separators=(",", ":")).encode(),
+        data=json.dumps(query_body(key, value, now_ms), separators=(",", ":")).encode(),
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
@@ -115,16 +156,29 @@ def query(event_id: str, token: str) -> dict:
 def main(arguments: list[str]) -> int:
     """Query and print safe JSONL records."""
     if len(arguments) != 1 or EVENT_ID.fullmatch(arguments[0]) is None:
-        print("usage: query-site-agent-logs.py EVENT_ID", file=sys.stderr)
+        print(
+            "usage: query-site-agent-logs.py EVENT_ID|SESSION_REFERENCE",
+            file=sys.stderr,
+        )
         return 2
     token = os.environ.get("CLOUDFLARE_API_TOKEN")
     if not token:
         print("CLOUDFLARE_API_TOKEN is required", file=sys.stderr)
         return 2
-    event_id = arguments[0]
-    records = safe_records(query(event_id, token), event_id)
+    lookup = arguments[0]
+    now_ms = round(time.time() * 1000)
+    if SESSION_REFERENCE.fullmatch(lookup):
+        response = query("reference", lookup, token, now_ms)
+        wanted_event_ids = event_ids(response)
+    else:
+        wanted_event_ids = {lookup}
+    responses = [
+        query("eventId", event_id, token, now_ms)
+        for event_id in sorted(wanted_event_ids)
+    ]
+    records = safe_records(responses, wanted_event_ids)
     if not records:
-        print(f"no recent leaf-agent logs found for {event_id}", file=sys.stderr)
+        print(f"no recent leaf-agent logs found for {lookup}", file=sys.stderr)
         return 1
     for record in records:
         print(json.dumps(record, separators=(",", ":")))

@@ -73,38 +73,48 @@ WHERE blob6 = '239383829012'
 ORDER BY timestamp
 ```
 
-For a dispatched agent, use a Cloudflare custom API token scoped to this account with
-only `Account | Account Analytics | Read`; do not give it Workers, DNS, or zone
-permissions. The token can call the
-[Analytics Engine SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/)
-but cannot change the site's domains or deployment. Store that token and the account
-id in the dispatch environment rather than in this repository. That permission can
-read the account's other analytics datasets too; if that is broader than the agent
-should see, put a fixed session-reference lookup endpoint in front of it instead of
-handing the token to the agent.
+Trusted agents use one Cloudflare token for the account that hosts Leaf. Its account
+permissions cover the Leaf runtime: `Account Analytics: Read`, `Workers Scripts:
+Edit`, `Workers Containers: Edit`, `Workers Tail: Read`, and `Workers Observability:
+Write`. Cloudflare scopes Workers permissions to an account rather than one script. If
+the agent also manages the custom domain, its zone permissions cover only `leaf.page`
+and include `Workers Routes: Edit`; the token has no DNS permission. Store the token
+in the agent host's credential store rather than in this repository.
 
 Hosted turns also emit structured timing records under `component=leaf-agent`.
 Every request record carries the page's public session reference and canonical event
 id; the container continues with that event id through App Server availability, task
 and turn start, first notification, first model activity, and completion. Leaf's
 record omits message text, prompts, source IP keys, cookies, and private session ids.
-Cloudflare wraps it in invocation metadata, so the raw Observability result or
-`wrangler tail` stream is not a content-free agent interface.
-`scripts/query-site-agent-logs.py` queries the last 24 hours for one exact event id and
-emits only Leaf's declared diagnostic fields:
+Cloudflare wraps it in invocation metadata. `scripts/query-site-agent-logs.py` queries
+the last 24 hours for one exact event id or the public session reference shown in the
+page and emits only Leaf's declared diagnostic fields, which makes it the concise path
+for a phase profile:
 
 ```sh
-CLOUDFLARE_API_TOKEN=... uv run scripts/query-site-agent-logs.py EVENT_ID
+CLOUDFLARE_API_TOKEN=... uv run scripts/query-site-agent-logs.py EVENT_ID_OR_REFERENCE
 ```
 
 Historical Worker and Container logs are available in Workers Observability because
 `wrangler.toml` enables it. The query requires `Workers Observability Write`; the
-Analytics-only token above can map a session reference to an event id but cannot read
-runtime logs. A trusted agent host loads the diagnostic token into the query process
-from its credential store rather than printing or persisting it. In Max's agent setup,
-the `Cloudflare Leaf diagnostics` item in the `Max` 1Password vault carries the account
-id and token. Raw live tailing additionally requires `Workers Tail Read` and remains an
-operator-only diagnostic because its Cloudflare envelope includes request metadata.
+[Analytics Engine SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/)
+requires `Account Analytics: Read`. A trusted agent host loads the token into the query
+process from its credential store rather than printing or persisting it. In Max's agent
+setup, the `Cloudflare Leaf diagnostics` item in the `Max` 1Password vault carries the
+account id and current token. Agents may also inspect the complete Cloudflare envelope,
+including request metadata, through the Observability API or `wrangler tail`; the
+structured query is an output filter, not an access boundary.
+
+Workers Observability is the operational log store. Each structured record carries
+`component`, `event`, and the canonical `eventId`; Worker-side records also carry the
+public `reference` and `route`. The public reference finds every request from one
+reader session, and the event id follows one request across the Worker, Workflow, and
+Container datasets. Analytics Engine holds aggregate product events rather than a
+second debugging log. Live incidents use `wrangler tail`; historical incidents use the
+script above or Cloudflare's Observability query builder. An external OpenTelemetry
+destination is needed only if Cloudflare's retention ceases to cover the debugging
+window.
+
 The local end-to-end verifier prints the same container records and leaves them at
 `.tmp/website-agent-local.log` for a later agent to inspect. It gives the child App
 Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and
@@ -112,7 +122,7 @@ website config, matching production without changing personal state.
 
 When Leaf accepts a reader message that its canonical activity projection says needs
 a response, the Worker starts one Cloudflare Workflow named with the public session
-reference and event id. The reference also appears in Analytics Engine, so an operator
+reference and event id. The reference also appears in Analytics Engine, so an agent
 can start with the number the reader sees without exposing the private session cookie.
 Its retryable steps reserve source capacity, then ask that reader's container to create or resume one Codex
 App Server task rooted at the actual page directory and deliver the event through

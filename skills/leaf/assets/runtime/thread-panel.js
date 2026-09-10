@@ -1,9 +1,9 @@
-/* Open, close, and toggle the thread workspace. The panel must be shown before
+/* Open, close, and toggle the thread panel. The panel must be shown before
  * synchronous conversation reconciliation: hidden-dialog geometry is zero. Opening
  * preserves the invoker's focus; closing hands focus to the surviving toggle.
- * Layout receives no workspace commands, and refreshConversation is supplied by the
+ * Layout receives no surface commands, and refreshConversation is supplied by the
  * application so this owner never imports a presenter. */
-export const PANEL_KEY = "lf-panel-open";
+export const THREAD_PANEL_KEY = "lf-thread-panel-open";
 
 // Visibility is application state, while the dialog, class, and body attribute are its
 // rendering. Construct this reading before layout so every consumer can receive the same
@@ -17,9 +17,9 @@ export function createPanelVisibility() {
   };
 }
 
-export function createPanelWorkspace({
+export function createThreadPanelController({
   visibility: { panelIsOpen, setPanelOpen },
-  layout: { moveShell, syncLayout },
+  layout: { moveContentFrame, syncLayout },
   elements: { panel, toggleBtn },
   hideTray,
   activeInlineThread,
@@ -59,15 +59,16 @@ export function createPanelWorkspace({
       toggleBtn.focus({ preventScroll: true });
     // Twice, the two readers being on opposite sides of the chrome's own scope: the class
     // shows the panel, from a rule inside it, and the attribute is what the page yields its
-    // strip to, from a rule outside. A document-level rule naming .lf-panel would be a name
+    // strip to, from a rule outside. A document-level rule naming .lf-thread-panel would be a name
     // a page could coin and take the strip with, which is the leak
     // test_a_coined_class_cannot_reach_the_chromes_rules pins, so the posture is stated on
     // body, where page CSS can see it without naming private chrome.
     setPanelOpen(open);
     panel.classList.toggle("open", open);
-    const played = moveShell(() =>
-      document.body.toggleAttribute("data-lf-panel", open),
-    );
+    const played = moveContentFrame(() => {
+      if (open) document.body.dataset.lfAuxiliarySurface = "threads";
+      else delete document.body.dataset.lfAuxiliarySurface;
+    });
     toggleBtn.setAttribute("aria-expanded", String(open));
     if (open) {
       // The layer before what goes in it. The panel is a dialog, and a dialog nobody has
@@ -93,7 +94,7 @@ export function createPanelWorkspace({
     refreshHover();
     return played;
   }
-  function mountPanelWorkspace() {
+  function mountThreadPanel() {
     let pressedInlineThread = null;
     toggleBtn.addEventListener("pointerdown", () => {
       pressedInlineThread = activeInlineThread()?.dataset.thread ?? null;
@@ -116,5 +117,5 @@ export function createPanelWorkspace({
     };
     addEventListener("resize", closeReactionMode);
   }
-  return { setPanel, mountPanelWorkspace };
+  return { setPanel, mountThreadPanel };
 }

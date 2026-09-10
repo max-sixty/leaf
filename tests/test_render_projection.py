@@ -113,8 +113,8 @@ def test_inspection_and_browser_share_retirement_and_bound_input_origins(
         '<h1 id="title">Review</h1>'
         '<lf-suggestion id="change"><lf-old>Retry twice.</lf-old>'
         "<lf-new>Retry three times.</lf-new></lf-suggestion>"
-        '<lf-source id="current" source="instructions"></lf-source>'
-        '<lf-source id="captured" source="instructions"></lf-source>',
+        '<lf-text-document id="current" source="instructions"></lf-text-document>'
+        '<lf-text-document id="captured" source="instructions"></lf-text-document>',
     )
     url = live_url(serve(authored))
     data_model.cmd_data_set(
@@ -254,7 +254,7 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
         "The reviewer found one changed request path."
     )
     assert (
-        card.evaluate("el => getComputedStyle(el).getPropertyValue('--lf-frame')")
+        card.evaluate("el => getComputedStyle(el).getPropertyValue('--lf-block-frame')")
         == "1"
     )
 
@@ -848,7 +848,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
         leaf_page(
             "source comment draft",
             '<h1 id="title">Review</h1>'
-            '<lf-source id="source" source="document"></lf-source>',
+            '<lf-text-document id="source" source="document"></lf-text-document>',
         )
     )
     data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")
@@ -885,7 +885,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     expect(draft).to_be_focused()
     expect(draft).to_have_value("Keep this comment about the original source.")
     expect(quote).to_contain_text(
-        "“Original source words.”" if quote_anchor else "§ source"
+        "“Original source words.”" if quote_anchor else "§ text-document"
     )
     assert page.evaluate("() => CSS.highlights.get('lf-pending').size") == 0
     expect(page.locator("#source.lf-pending, #source .lf-pending")).to_have_count(0)
@@ -1148,7 +1148,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert "/versions/" not in page.url, (
         f"the update changed the live address to {page.url}"
     )
-    expect(page.locator(".lf-panel")).to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
     after = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
@@ -1286,7 +1286,7 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
         == ""
     ), "the retired version's authored inline property survived"
     assert page.locator("html").evaluate(
-        "el => el.style.getPropertyValue('--lf-panel-w').trim()"
+        "el => el.style.getPropertyValue('--lf-thread-panel-width').trim()"
     ), "activation erased a runtime-owned root property"
     assert page.locator('meta[name="description"]').get_attribute("content") == "third"
     assert errors == []
@@ -1312,8 +1312,8 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     reader by the same door."""
     version_url = serve(LIVE_KEYS_V1)
     page, errors = open_page(browser, live_url(version_url))
-    chips = page.locator(".lf-sequence-address")
-    link_chips = page.locator('.lf-sequence-address[data-lf-address-kind="Link"]')
+    chips = page.locator(".lf-go-to-hint")
+    link_chips = page.locator('.lf-go-to-hint[data-lf-go-to-kind="Link"]')
 
     page.keyboard.press("g")
     expect(link_chips).to_have_count(3)
@@ -1415,7 +1415,7 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
         expect(general).to_be_focused()
         (serve.page_dir / "index.html").write_text(LIVE_V3)
 
-        # The premise of the whole arrangement, stated rather than inferred: a read the
+        # The premise of the whole reading arrangement, stated rather than inferred: a read the
         # page took while it still stood on the first revision. Held after the press it
         # would name the second, and the answer would carry the view the page wants.
         assert held[0].request.headers.get("leaf-view-revision") == "1", (
@@ -1705,8 +1705,8 @@ def test_the_ring_says_where_the_reader_is_standing(browser, serve):
     ], f"the row the reader is on is not ringed in the page's own band: {row_ring}"
 
     # A suggestion hangs its ✓ Accept out in the page margin, so a reader working one has
-    # two marks for one fact — the ring on the change, the focus band on the margin element deciding
-    # it — and they had better be one band. The margin element's comes from the runtime's own
+    # two marks for one fact — the ring on the change, the focus band on the margin entry deciding
+    # it — and they had better be one band. The margin entry's comes from the runtime's own
     # shared rule, which every press in that margin wears: the suggestion family spelled
     # its own once, which is a family stating a fact about a shape the runtime owns.
     #
@@ -1824,11 +1824,11 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
     # the page at all, so the two surfaces named one press two ways.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text(
+    expect(page.locator(".lf-command-reference")).to_contain_text(
         "Let go of what you are standing on"
     )
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
-    expect(page.locator(".lf-shortcut-reference")).not_to_have_class(re.compile("open"))
+    expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
 
     page.keyboard.press("Escape")
@@ -1865,14 +1865,12 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
         "letting go left the reader holding the control on a page that fits the window"
     )
 
-    # A generated Page-map hint arrives the way the walk does and then presses the exact
-    # Accept margin element it names. What unfolds there is that press's own result rather than
+    # A generated Page Map hint arrives the way the walk does and then presses the exact
+    # Accept margin entry it names. What unfolds there is that press's own result rather than
     # the arrival's, and the ladder still owes one Escape to let go of where the press
     # left the reader.
     with sending(page, "the addressed suggestion's acceptance"):
-        go_to_address(
-            page, "Margin control or status indicator", "sug-refill", "accept"
-        )
+        go_to_address(page, "Margin entry", "sug-refill", "accept")
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     assert page.evaluate(
@@ -1982,7 +1980,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 ):
     """The agent channel, end to end in the browser: a `leaf report` reaches
     the open page on the next poll and paints as provisional news — the status
-    attribute moves, the parent's done-fraction recounts, and Page map identifies a
+    attribute moves, the parent's done-fraction recounts, and Page Map identifies a
     Reported update rather than the reader's change. Task status remains work
     state and never creates a reader request. Then the version that answers the report
     by id takes the page back: replay skips a report the note named, so the overruling
@@ -2703,14 +2701,14 @@ def test_render_separates_old_and_new_facets_on_one_element(
     monkeypatch.chdir(tmp_path)
     package = author_test_widget(tmp_path, "lf-pair", upgrade=True)
     registry_path = package / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entry = entries["lf-pair"]
-    entry["properties"].update(
+    declarations = json.loads(registry_path.read_text())
+    declaration = declarations["lf-pair"]
+    declaration["properties"].update(
         first={"type": "string"},
         second={"type": "string"},
         restated={"type": "boolean"},
     )
-    entry["x-state"] = {
+    declaration["x-state"] = {
         facet: {
             "detail": {
                 "type": "object",
@@ -2724,7 +2722,7 @@ def test_render_separates_old_and_new_facets_on_one_element(
         }
         for facet in ("first", "second")
     }
-    registry_path.write_text(json.dumps(entries))
+    registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-pair.js").write_text(
         """import { once } from "/runtime/widget-api.js";
 customElements.define("lf-pair", class extends HTMLElement {
@@ -2854,16 +2852,16 @@ def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-tally"]["properties"]["count"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-tally"]["properties"]["count"] = {
         "type": "string",
         "pattern": "^[0-9]+$",
     }
-    entries["lf-tally"]["x-example"] = (
+    declarations["lf-tally"]["x-example"] = (
         '<lf-tally id="tally-example" count="0"><pre>Nothing yet.</pre></lf-tally>'
     )
-    entries["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
-    entries["lf-tally"]["properties"]["overruled"] = {"type": "boolean"}
+    declarations["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
+    declarations["lf-tally"]["properties"]["overruled"] = {"type": "boolean"}
     record = {"kind": "value", "attr": "count", "value": "count"}
     count_detail = {
         "type": "object",
@@ -2871,7 +2869,7 @@ def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
         "required": ["count"],
         "additionalProperties": False,
     }
-    entries["lf-tally"]["x-state"] = {
+    declarations["lf-tally"]["x-state"] = {
         "set": {
             "detail": count_detail,
             "facet": "count",
@@ -2879,7 +2877,7 @@ def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
             "record": record,
         }
     }
-    entries["lf-tally"]["x-report"] = {
+    declarations["lf-tally"]["x-report"] = {
         "measure": {
             "detail": count_detail,
             "facet": "count",
@@ -2887,7 +2885,7 @@ def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
             "record": record,
         }
     }
-    registry_path.write_text(json.dumps(entries, indent=2))
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
         """\
 import { once } from "/runtime/widget-api.js";
@@ -2944,7 +2942,7 @@ customElements.define("lf-tally", class extends HTMLElement {
 def test_state_origin_readings_compose_on_one_target(browser, serve):
     """Each provenance channel gets one standing reading on a target.
 
-    Independent reader facets collapse to one Page-map reading, while reader, report,
+    Independent reader facets collapse to one Page Map reading, while reader, report,
     and restatement origins remain separate. An outline property could only show the
     last of these; the projection handed to the margin must preserve all three.
     """
@@ -2998,9 +2996,9 @@ def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
         author_test_widget(tmp_path, tag, upgrade=upgrade)
 
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    owner = entries["lf-owner"]
-    owner["x-content"] = "items"
+    declarations = json.loads(registry_path.read_text())
+    owner = declarations["lf-owner"]
+    owner["x-content"] = "members"
     owner["x-state"] = {
         "move": {
             "detail": {
@@ -3028,12 +3026,12 @@ def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
         '<lf-piece id="sample-piece" pinned="no">Piece</lf-piece>'
         "</lf-zone></lf-owner>"
     )
-    zone = entries["lf-zone"]
-    zone["x-parent"] = ["lf-owner"]
-    zone["x-content"] = "items"
+    zone = declarations["lf-zone"]
+    zone["x-owners"] = ["lf-owner"]
+    zone["x-content"] = "members"
     zone.pop("x-example", None)
-    piece = entries["lf-piece"]
-    piece["x-parent"] = ["lf-zone"]
+    piece = declarations["lf-piece"]
+    piece["x-owners"] = ["lf-zone"]
     piece["properties"] |= {
         "pinned": {"type": "string"},
         "restated": {"type": "boolean"},
@@ -3053,7 +3051,7 @@ def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
         }
     }
     piece.pop("x-example", None)
-    registry_path.write_text(json.dumps(entries, indent=2))
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(
         """\
 import { once } from "/runtime/widget-api.js";
@@ -3150,13 +3148,13 @@ def test_complete_positions_compose_across_independent_widget_owners(
     author_test_widget(tmp_path, "lf-lane")
     author_test_widget(tmp_path, "lf-token", upgrade=True)
     path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(path.read_text())
-    entries["lf-lane"]["x-content"] = "items"
-    entries["lf-lane"].pop("x-example")
-    token = entries["lf-token"]
+    declarations = json.loads(path.read_text())
+    declarations["lf-lane"]["x-content"] = "members"
+    declarations["lf-lane"].pop("x-example")
+    token = declarations["lf-token"]
     token.pop("x-example")
     token["properties"]["restated"] = {"type": "boolean"}
-    token["x-parent"] = ["lf-lane"]
+    token["x-owners"] = ["lf-lane"]
     token["x-state"] = {
         "move": {
             "detail": {
@@ -3178,7 +3176,7 @@ def test_complete_positions_compose_across_independent_widget_owners(
             },
         }
     }
-    path.write_text(json.dumps(entries))
+    path.write_text(json.dumps(declarations))
     (
         path.parent / "widgets" / "lf-token.js"
     ).write_text("""import { once } from "/runtime/widget-api.js";
@@ -3255,20 +3253,20 @@ def test_the_render_gate_catches_a_relative_state_renderer(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-tally"]["properties"]["count"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-tally"]["properties"]["count"] = {
         "type": "string",
         "pattern": "^[0-9]+$",
     }
-    entries["lf-tally"].setdefault("required", []).append("count")
-    entries["lf-tally"]["x-content"] = "data"
-    entries["lf-tally"]["x-example"] = (
+    declarations["lf-tally"].setdefault("required", []).append("count")
+    declarations["lf-tally"]["x-content"] = "data"
+    declarations["lf-tally"]["x-example"] = (
         '<lf-tally id="tally-example" count="0"><pre>Nothing yet.</pre></lf-tally>'
     )
     # The registry holds a widget-unit verb to the attribute a version retracts a
     # decision with, so a state channel arrives with its way out of one.
-    entries["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
-    entries["lf-tally"]["x-state"] = {
+    declarations["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
+    declarations["lf-tally"]["x-state"] = {
         "step": {
             "detail": {
                 "type": "object",
@@ -3292,7 +3290,7 @@ def test_the_render_gate_catches_a_relative_state_renderer(
             "record": {"kind": "body", "value": "text"},
         },
     }
-    registry_path.write_text(json.dumps(entries, indent=2))
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(RELATIVE_WIDGET_MODULE)
     url = serve(RELATIVE_WIDGET_PAGE)
     for widget, action, detail in [
@@ -3585,7 +3583,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     identified as overriding authored placement in the tab that moved it and in a fresh
     replay alike, because the runtime compares the page's state against the version's
     own snapshot rather than remembering who wrote what. The runtime's quiet word and
-    Page-map entry carry that origin while the grip names the move and its destination.
+    Page Map entry carry that origin while the grip names the move and its destination.
     The card the move displaced stays unmarked — the log named one card, not its
     neighbours. The honoring version says the state itself, so on it the
     disagreement and both renderings are gone."""
@@ -3612,7 +3610,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
         )
     ).to_be_visible()
 
-    # A fresh tab reads the same fact from replay alone, and paints both its Page-map
+    # A fresh tab reads the same fact from replay alone, and paints both its Page Map
     # reading and its durable spoken state.
     second, second_errors = open_page(browser, url)
     expect(second.locator("#card-importer")).to_have_attribute(
@@ -3762,9 +3760,9 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
 def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
     browser, serve, tmp_path, monkeypatch
 ):
-    """`x-parent` is a list, and the retired-slot selector is built from it. Written
-    `${entry["x-parent"]}` the list interpolates comma-joined, so a slot naming two
-    holders wrote a selector *list* whose first member was the bare holder tag: every
+    """`x-owners` is a list, and the retired-slot selector is built from it. Written
+    `${entry["x-owners"]}` the list interpolates comma-joined, so a slot naming two
+    owners wrote a selector *list* whose first member was the bare owner tag: every
     instance of it read as a retired slot however the log stood, its words silenced
     from the anchor pass, while the pair that was meant matched nothing at all.
 
@@ -3870,8 +3868,8 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    holder = entries["lf-trial"]
+    declarations = json.loads(registry_path.read_text())
+    holder = declarations["lf-trial"]
     holder["properties"]["decision"] = {"enum": ["open", "shelved"]}
     holder.setdefault("required", []).append("decision")
     holder["x-example"] = holder["x-example"].replace(
@@ -3887,7 +3885,7 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     for spec in holder["x-state"].values():
         spec["detail"] = detail
         spec["record"] = record
-    registry_path.write_text(json.dumps(entries))
+    registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
         """import { once } from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
@@ -4570,7 +4568,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     # advances around the conversation.
     stamp_page(d, REPLY_HOST_PAGE, "v2")
     wait_for_revision(page, 2)
-    if not page.locator(".lf-panel").is_visible():
+    if not page.locator(".lf-thread-panel").is_visible():
         page.locator(".lf-threads-toggle").click()
     expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
 
@@ -4602,7 +4600,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     expect(decisions).to_have_text("Asks 0/2")
 
     page.keyboard.press("a")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     # The arrival stands on the question's own region; its picks are the next Tab stops.
     expect(page.locator("#tq-one-decision")).to_be_focused()
     page.keyboard.press("Tab")
@@ -4774,7 +4772,7 @@ def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page, errors = open_page(browser, url)
     page.keyboard.press("a")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     held = []
     page.route("**/api/event", lambda route: held.append(route))
 
@@ -4908,7 +4906,7 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
         events_model.append_event(serve.page_dir, event)
     page, errors = open_page(browser, url)
     page.keyboard.press("a")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     done = page.locator("#tq-set .lf-done")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -6269,8 +6267,8 @@ def test_project_widget_can_join_the_orchestration_projection(
             },
             "required": ["id", "phase"],
             "additionalProperties": False,
-            "x-parent": ["lf-command", "lf-area"],
-            "x-content": "prose",
+            "x-owners": ["lf-command", "lf-area"],
+            "x-content": "markup",
             "x-awaits": {"rollup": True},
             "x-upgrade": False,
         },

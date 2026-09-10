@@ -1,6 +1,6 @@
 /* Server-projected interaction receipts and explicit work claims.
 
-   `.lf-receipt` is transient runtime chrome for a subject with no page-edge margin element.
+   `.lf-receipt` is transient runtime chrome for a subject with no page-edge margin entry.
    `paintAcknowledgmentsNow` is its one writer. An unsettled reader message carries the
    receipt in its existing metadata row; an event-backed widget frozen into conversation
    chrome keeps the full-width fallback beneath its owner. A claim with no preceding
@@ -133,7 +133,7 @@ export function paintAcknowledgmentsNow() {
     const owner = elementById(id);
     // Frozen widgets sent in a message have no page edge of their own, so their
     // event-backed receipt remains local to the conversation. A page widget uses
-    // its existing target margin element instead of growing another row inside authored
+    // its existing target margin entry instead of growing another row inside authored
     // content; standalone claims in chrome remain unsupported claim subjects.
     if (owner && receipt.event && inChrome(owner))
       paintReceipt(owner, receipt, null, wanted);

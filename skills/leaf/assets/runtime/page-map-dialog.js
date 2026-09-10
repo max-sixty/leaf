@@ -1,12 +1,12 @@
 /* The complete searchable Page Map dialog.
 
-   The living margin supplies its current target entries and activates core reading
+   The margin projection supplies its current target entries and activates core reading
    items. This owner retains the dialog's groups and action proxies, filters them,
    forwards contributed controls, and returns focus through the route that opened it.
    Retained nodes keep a state refresh from cancelling a held pointer or moving focus.
-   Compact clusters use this same complete sheet for overflow.
+   Compact clusters use this same complete dialog for overflow.
 
-   A native dialog delivers `close` after it has hidden the sheet. A close overtaken by a
+   A native dialog delivers `close` after it has hidden the dialog. A close overtaken by a
    reopen therefore leaves the new opening's target and focus route intact. The Page Map's
    own Close button returns focus to its invoker. Keyboard departure and forwarded actions
    place focus synchronously, set `closeOwnsFocus`, and prevent the later close event from
@@ -21,46 +21,46 @@ import { iconElement } from "./icons.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { el, keeps, keepsHidden } from "./widget-elements.js";
 import {
-  compareMarginControlRecords,
-  marginElementRecord,
-  marginElements,
-  syncForwardedMarginElementState,
-  visibleMarginElementLabel,
-} from "./margin-elements.js";
+  compareMarginEntryRecords,
+  marginEntryRecord,
+  marginEntries,
+  syncForwardedMarginEntryState,
+  visibleMarginEntryLabel,
+} from "./margin-entries.js";
 
 export const mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
 mapButton.type = "button";
 mapButton.hidden = true;
-mapButton.title = "Open the page map";
+mapButton.title = "Open Page Map";
 
-const sheet = document.createElement("dialog");
-sheet.className = "lf-ui lf-page-map-sheet";
-sheet.setAttribute("aria-label", "Page map");
-sheet.setAttribute("aria-modal", "true");
-const sheetHead = el("div", "lf-page-map-head");
-sheetHead.append(el("strong", "", "Page map"));
-const sheetClose = el("button", "lf-btn", "Close");
-sheetClose.type = "button";
-sheetHead.append(sheetClose);
-const sheetSearch = el("input", "lf-page-map-search");
-sheetSearch.type = "search";
-sheetSearch.name = "page-map-search";
-sheetSearch.placeholder = "Find an action, status, or location";
-sheetSearch.setAttribute(
+const dialog = document.createElement("dialog");
+dialog.className = "lf-ui lf-page-map-dialog";
+dialog.setAttribute("aria-label", "Page Map");
+dialog.setAttribute("aria-modal", "true");
+const dialogHead = el("div", "lf-page-map-head");
+dialogHead.append(el("strong", "", "Page Map"));
+const dialogClose = el("button", "lf-btn", "Close");
+dialogClose.type = "button";
+dialogHead.append(dialogClose);
+const dialogSearch = el("input", "lf-page-map-search");
+dialogSearch.type = "search";
+dialogSearch.name = "page-map-search";
+dialogSearch.placeholder = "Find an action, status, or location";
+dialogSearch.setAttribute(
   "aria-label",
-  "Find an action, status, or location in Page map",
+  "Find an action, status, or location in Page Map",
 );
-const sheetList = el("div", "lf-page-map-list");
-const sheetEmpty = el(
+const dialogList = el("div", "lf-page-map-list");
+const dialogEmpty = el(
   "p",
   "lf-page-map-empty",
   "No matching actions, statuses, or locations",
 );
-sheetEmpty.hidden = true;
-sheetEmpty.setAttribute("role", "status");
-sheet.append(sheetHead, sheetSearch, sheetList, sheetEmpty);
+dialogEmpty.hidden = true;
+dialogEmpty.setAttribute("role", "status");
+dialog.append(dialogHead, dialogSearch, dialogList, dialogEmpty);
 
-export function createPageMap({
+export function createPageMapDialog({
   activeInMargin,
   activateItem,
   faceFor,
@@ -71,33 +71,33 @@ export function createPageMap({
   let from = null;
   let target = null;
 
-  const pageMapIsActive = () => sheet.open || activeInMargin();
+  const pageMapIsActive = () => dialog.open || activeInMargin();
 
-  function pageMapContextContains(candidate, node) {
-    return sheet.open && target === candidate && sheet.contains(node);
+  function pageMapDialogContains(candidate, node) {
+    return dialog.open && target === candidate && dialog.contains(node);
   }
 
-  const controlsOf = (offered) => marginElements(offered.controls);
+  const controlsOf = (offered) => marginEntries(offered.controls);
 
-  function sheetControls(entry) {
+  function dialogControls(entry) {
     const records = entry.offers
       .flatMap((offered) =>
         controlsOf(offered)
           .filter((control) => entry.shownControls.has(control))
           .map((control) => ({ control, offered })),
       )
-      .sort(compareMarginControlRecords);
+      .sort(compareMarginEntryRecords);
     return [...new Set(records.map(({ control }) => control))];
   }
 
-  const sheetItemKey = (entry, item) => `${entry.key}:item:${item.id}`;
+  const dialogItemKey = (entry, item) => `${entry.key}:item:${item.id}`;
 
-  function sheetControlKey(entry, control) {
-    const record = marginElementRecord(control);
+  function dialogControlKey(entry, control) {
+    const record = marginEntryRecord(control);
     return `${entry.key}:${record.owner}:${record.key}`;
   }
 
-  function syncSheetFace(
+  function syncDialogFace(
     button,
     { icon, glyph, label, visibleLabel = label, context = null },
   ) {
@@ -147,9 +147,9 @@ export function createPageMap({
     delete button.lfMapControl;
     delete button.lfForwardedControl;
     button.dataset.lfMapItem = item.id;
-    delete button.dataset.lfMapMarginElement;
+    delete button.dataset.lfMapMarginEntry;
     const label = item.text || entry.title;
-    syncSheetFace(button, {
+    syncDialogFace(button, {
       icon: faceFor(item).icon,
       label: `Open ${faceFor(item).label.toLowerCase()}: ${label}`,
       visibleLabel: label,
@@ -166,18 +166,18 @@ export function createPageMap({
     button.lfForwardedControl = control;
     delete button.lfMapItem;
     delete button.dataset.lfMapItem;
-    button.dataset.lfMapMarginElement = sheetControlKey(entry, control);
-    const record = marginElementRecord(control);
+    button.dataset.lfMapMarginEntry = dialogControlKey(entry, control);
+    const record = marginEntryRecord(control);
     button.dataset.lfBehavior = record.behavior;
     button.dataset.lfTone = record.tone;
-    button.dataset.lfRole = record.role;
+    button.dataset.lfRank = record.rank;
     button.dataset.lfState = record.state;
-    syncSheetFace(button, {
+    syncDialogFace(button, {
       ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
       label: record.label,
-      visibleLabel: visibleMarginElementLabel(record),
+      visibleLabel: visibleMarginEntryLabel(record),
     });
-    syncForwardedMarginElementState(button, control);
+    syncForwardedMarginEntryState(button, control);
   }
 
   function makeSheetAction(key) {
@@ -191,7 +191,7 @@ export function createPageMap({
       }
       const control = button.lfMapControl;
       if (!control) return;
-      const controls = marginElements(control.parentElement);
+      const controls = marginEntries(control.parentElement);
       const relation = control.getAttribute("aria-controls");
       const controlled = relation
         ? controls.find((candidate) => candidate.id === relation)
@@ -203,8 +203,8 @@ export function createPageMap({
         const entry = button.lfMapEntry;
         control.click();
         requestAnimationFrame(() => {
-          const controlledKey = `control:${sheetControlKey(entry, controlled)}`;
-          const revealed = sheetList.querySelector(
+          const controlledKey = `control:${dialogControlKey(entry, controlled)}`;
+          const revealed = dialogList.querySelector(
             `[data-lf-map-key="${CSS.escape(controlledKey)}"]`,
           );
           (revealed ?? button).focus({ preventScroll: true });
@@ -213,7 +213,7 @@ export function createPageMap({
       }
       const returnTo = from;
       closeOwnsFocus = true;
-      sheet.close();
+      dialog.close();
       if (returnTo?.isConnected && returnTo.checkVisibility())
         returnTo.focus({ preventScroll: true });
       control.click();
@@ -222,26 +222,26 @@ export function createPageMap({
   }
 
   function filterSheet() {
-    const query = sheetSearch.value.trim().toLocaleLowerCase();
+    const query = dialogSearch.value.trim().toLocaleLowerCase();
     let shown = 0;
-    for (const group of sheetList.children) {
+    for (const group of dialogList.children) {
       const matches = !query || group.lfMapSearch.includes(query);
       group.hidden = !matches;
       if (matches) shown += 1;
     }
-    sheetEmpty.textContent = query
+    dialogEmpty.textContent = query
       ? "No matching actions, statuses, or locations"
       : "No margin controls, status indicators, or locations yet";
-    sheetEmpty.hidden = shown !== 0;
+    dialogEmpty.hidden = shown !== 0;
   }
 
   function renderSheet() {
-    const active = sheet.contains(document.activeElement)
+    const active = dialog.contains(document.activeElement)
       ? document.activeElement
       : null;
-    const heldScroll = sheetList.scrollTop;
+    const heldScroll = dialogList.scrollTop;
     const groups = new Map(
-      [...sheetList.children].map((group) => [group.dataset.lfMapGroup, group]),
+      [...dialogList.children].map((group) => [group.dataset.lfMapGroup, group]),
     );
     const wantedGroups = [];
     for (const entry of entries) {
@@ -257,22 +257,22 @@ export function createPageMap({
       const existing = new Map(
         [...actions.children].map((button) => [button.dataset.lfMapKey, button]),
       );
-      const controls = sheetControls(entry);
+      const controls = dialogControls(entry);
       const controlOwners = new Set(
-        controls.map((control) => marginElementRecord(control).owner),
+        controls.map((control) => marginEntryRecord(control).owner),
       );
       const items = entry.items.filter(
         (item) => !item.owner || !controlOwners.has(item.owner),
       );
       const wantedActions = [];
       for (const item of items) {
-        const key = sheetItemKey(entry, item);
+        const key = dialogItemKey(entry, item);
         const button = existing.get(key) ?? makeSheetAction(key);
         syncSheetItem(button, entry, item);
         wantedActions.push(button);
       }
       for (const control of controls) {
-        const key = `control:${sheetControlKey(entry, control)}`;
+        const key = `control:${dialogControlKey(entry, control)}`;
         const button = existing.get(key) ?? makeSheetAction(key);
         syncSheetControl(button, entry, control);
         wantedActions.push(button);
@@ -290,16 +290,16 @@ export function createPageMap({
         .toLocaleLowerCase();
       wantedGroups.push(group);
     }
-    for (const child of [...sheetList.children])
+    for (const child of [...dialogList.children])
       if (!wantedGroups.includes(child)) child.remove();
     wantedGroups.forEach((group, index) => {
-      if (sheetList.children[index] !== group)
-        sheetList.insertBefore(group, sheetList.children[index] ?? null);
+      if (dialogList.children[index] !== group)
+        dialogList.insertBefore(group, dialogList.children[index] ?? null);
     });
     filterSheet();
-    sheetList.scrollTop = heldScroll;
+    dialogList.scrollTop = heldScroll;
     if (active && (!active.isConnected || !active.checkVisibility()))
-      sheetSearch.focus({ preventScroll: true });
+      dialogSearch.focus({ preventScroll: true });
   }
 
   function pageMapInvoker() {
@@ -308,33 +308,34 @@ export function createPageMap({
     return mapButton;
   }
 
-  function renderPageMap(nextEntries) {
+  function renderPageMapDialog(nextEntries) {
     entries = nextEntries;
     const label = `Map (${entries.length})`;
     keepsHidden(mapButton, entries.length === 0);
     if (mapButton.textContent !== label) mapButton.textContent = label;
-    if (sheet.open) renderSheet();
+    if (dialog.open) renderSheet();
   }
 
   function openPageMap(entry = null, { invoker = null, focusSpill = false } = {}) {
     const openedFrom = invoker ?? pageMapInvoker();
     target = entry?.target ?? null;
-    if (!sheet.open) {
+    if (!dialog.open) {
       from = openedFrom;
-      sheetSearch.value = "";
+      dialogSearch.value = "";
     }
     renderSheet();
-    if (!sheet.open) sheet.showModal();
+    if (!dialog.open) dialog.showModal();
     const index = entry
       ? entries.findIndex((candidate) => candidate.key === entry.key)
       : -1;
-    const group = index < 0 ? null : sheetList.children[index];
+    const group = index < 0 ? null : dialogList.children[index];
     if (group) {
-      const listBox = sheetList.getBoundingClientRect();
+      const listBox = dialogList.getBoundingClientRect();
       const groupBox = group.getBoundingClientRect();
-      if (groupBox.top < listBox.top) sheetList.scrollTop -= listBox.top - groupBox.top;
+      if (groupBox.top < listBox.top)
+        dialogList.scrollTop -= listBox.top - groupBox.top;
       else if (groupBox.bottom > listBox.bottom)
-        sheetList.scrollTop += groupBox.bottom - listBox.bottom;
+        dialogList.scrollTop += groupBox.bottom - listBox.bottom;
     }
     const spilled = focusSpill ? openedFrom.lfFirstSpilledOption : null;
     const forwarded = spilled?.lfForwardedControl ?? spilled;
@@ -345,26 +346,26 @@ export function createPageMap({
             spilled?.lfChoice?.items.some((item) => button.lfMapItem?.id === item.id),
         )
       : group?.querySelector(".lf-page-map-action");
-    (destination ?? sheetSearch).focus({ preventScroll: true });
+    (destination ?? dialogSearch).focus({ preventScroll: true });
     paintKeys();
   }
 
   const enterPageMap = () => openPageMap();
 
   function leavePageMap() {
-    if (!sheet.open) return;
+    if (!dialog.open) return;
     closeOwnsFocus = true;
-    sheet.close();
+    dialog.close();
   }
 
   function mount(root) {
-    sheetSearch.addEventListener("input", filterSheet);
+    dialogSearch.addEventListener("input", filterSheet);
     mapButton.onclick = enterPageMap;
-    sheet.addEventListener("close", () => {
+    dialog.addEventListener("close", () => {
       const returnTo = from;
       const focusOwned = closeOwnsFocus;
       closeOwnsFocus = false;
-      if (sheet.open) return;
+      if (dialog.open) return;
       from = null;
       target = null;
       paintKeys();
@@ -373,13 +374,13 @@ export function createPageMap({
         returnTo.focus({ preventScroll: true });
       else focusFallback();
     });
-    sheetClose.onclick = () => sheet.close();
-    root.append(sheet);
+    dialogClose.onclick = () => dialog.close();
+    root.append(dialog);
   }
   return {
     pageMapIsActive,
-    pageMapContextContains,
-    renderPageMap,
+    pageMapDialogContains,
+    renderPageMapDialog,
     openPageMap,
     enterPageMap,
     leavePageMap,

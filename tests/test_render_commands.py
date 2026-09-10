@@ -473,11 +473,11 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
 
 
 def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
-    """Captions choose a frame; image clicks and the margin element flip it.
+    """Captions choose a frame; image clicks and the margin entry flip it.
 
     Both state labels keep their corresponding sides while the active rule moves, and
     mouse or keyboard activation chooses the named frame directly. Repeated flip presses
-    keep their target and focus. The margin element names the next frame after either
+    keep their target and focus. The margin entry names the next frame after either
     route and answers both native activation keys. Arriving by Tab rings the whole card,
     rail included. The render gate also checks selectable captions and the two-frame
     print view."""
@@ -586,7 +586,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     assert shown_frames(page) == ["before"]
     button = page.get_by_role("button", name="Show after — the navigation rail")
     expect(page.locator(".lf-margin-cluster").filter(has=button)).to_be_visible()
-    expect(button.locator(".lf-margin-element-icon")).to_have_attribute(
+    expect(button.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "compare-before"
     )
     button_bounds = button.bounding_box()
@@ -601,7 +601,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     button = page.get_by_role("button", name="Show before — the navigation rail")
     expect(button).to_be_focused()
     assert "show before" in shortcut_bar_text(page)
-    expect(button.locator(".lf-margin-element-icon")).to_have_attribute(
+    expect(button.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "compare-after"
     )
     assert button.bounding_box() == button_bounds
@@ -614,7 +614,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     page.keyboard.press("Space")
     assert shown_frames(page) == ["before"]
 
-    # Image activation updates the margin element too; Space still works at the image.
+    # Image activation updates the margin entry too; Space still works at the image.
     page.mouse.click(*at)
     expect(
         page.get_by_role("button", name="Show before — the navigation rail")
@@ -941,7 +941,7 @@ def test_render_reports_a_painted_fact_whose_word_was_drawn_nowhere(browser, ser
     ]
     assert sorted(set(found)) == [
         (
-            '<lf-event id=p-seen> paints kind="failure" and says nothing a reader '
+            '<lf-chronology-entry id=p-seen> paints kind="failure" and says nothing a reader '
             "listening can hear"
         )
     ], found

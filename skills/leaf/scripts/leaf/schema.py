@@ -119,11 +119,11 @@ AWAITING_CONDITION = {
 }
 
 # Current action eligibility reuses Leaf's standing-Ask projection. `self` is the
-# sending widget; `parent` is the holder relation its x-parent already declares.
+# sending widget; `owner` is the direct ownership relation its x-owners declares.
 ACTION_REQUIREMENT = {
     "type": "object",
     "properties": {
-        "target": {"enum": ["self", "parent"]},
+        "target": {"enum": ["self", "owner"]},
         "awaiting": {"type": "boolean"},
     },
     "required": ["target", "awaiting"],
@@ -131,8 +131,8 @@ ACTION_REQUIREMENT = {
 }
 
 # A completion verb may depend on the state its own record leaves behind. `empty`
-# identifies an item container inside the answering widget by its authored attributes;
-# after applying the candidate record, that container must hold no vocabulary items.
+# identifies a member container inside the answering widget by its authored attributes;
+# after applying the candidate record, that container must hold no vocabulary members.
 # This keeps completion authoritative without adding a second completion record beside
 # the state the gesture actually changed.
 ACTION_COMPLETION = {
@@ -413,17 +413,17 @@ EXTENSION_SCHEMA = {
             "required": ["when"],
             "additionalProperties": False,
         },
-        "x-children": CHILDREN_SCHEMA,
-        "x-content": {"enum": ["prose", "items", "data", "none"]},
+        "x-required-members": CHILDREN_SCHEMA,
+        "x-content": {"enum": ["markup", "members", "data", "empty"]},
         "x-data": DATA_INPUTS_SCHEMA,
         "x-example": {"type": "string"},
         "x-exhibit": {"type": "boolean"},
         "x-guidance": GUIDANCE_SCHEMA,
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
-        "x-layout": {"enum": ["workspace", "pane", "split"]},
+        "x-reading-role": {"enum": ["workspace", "pane", "partition"]},
         # Attributes holding 1-based line references into the nearest data body —
-        # the element's own <pre>, or its holder's (lf-note's `at` names a line of
+        # the element's own <pre>, or its enclosing data element's (lf-note's `at` names a line of
         # its lf-code). `version check` refuses one outside the body (line_ref_errors).
         "x-lines": _ATTRIBUTE_LIST,
         "x-measured": MEASURED_SCHEMA,
@@ -434,7 +434,7 @@ EXTENSION_SCHEMA = {
         # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
         # value or, where a flag carries no value, the attribute's own name.
         "x-paints": _ATTRIBUTE_LIST,
-        "x-parent": {
+        "x-owners": {
             "type": "array",
             "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
             "minItems": 1,
@@ -472,7 +472,7 @@ EXTENSION_SCHEMA = {
     },
     "required": ["x-content", "x-upgrade"],
     "dependentRequired": {
-        "x-retired-when": ["x-parent"],
+        "x-retired-when": ["x-owners"],
         "x-measured": ["x-data"],
     },
     "additionalProperties": False,

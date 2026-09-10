@@ -645,7 +645,7 @@ Publishing leaf's vocabulary as one of their catalogs fails from the other end. 
 and their JSON Schemas map onto `components` with Zod props well enough. What does not
 travel is every key that makes the vocabulary leaf's: `x-state` names a verb, its record
 form and its fold unit so replay and undo can work over a log a catalog has no counterpart
-for; `x-parent` and `x-retired-when` describe a settlement the log adjudicates; the passage
+for; `x-owners` and `x-retired-when` describe a settlement the log adjudicates; the passage
 keys bound what a file's reading may claim about a page; `x-awaits` feeds the banner's
 count and the walk through open decisions. Strip those and what ships is twenty-eight tags of
 styled HTML, which is a stylesheet. So the question settles: leaf is mostly the loop, and

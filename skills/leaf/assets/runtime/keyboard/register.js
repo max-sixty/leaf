@@ -3,26 +3,27 @@
 import { bindings } from "./bindings.js";
 export const ELEMENTS = Symbol("the scopes of the focused element");
 let scopes;
-let reference;
+let commandReferenceEntry;
 let typing;
-let workspace;
+let auxiliaryModality;
 export function registerPageScopes(
   declarations,
-  universalReference,
+  commandReference,
   textEntry,
-  workspaceLayer,
+  auxiliaryLayer,
 ) {
   scopes = declarations;
-  reference = universalReference;
+  commandReferenceEntry = commandReference;
   typing = textEntry;
-  workspace = workspaceLayer;
+  auxiliaryModality = auxiliaryLayer;
 }
 export const pageScopes = () => scopes;
-export const universalReference = () => reference;
-export const allButTheReference = (binding) => !bindings(reference).includes(binding);
+export const universalCommandReference = () => commandReferenceEntry;
+export const allButCommandReference = (binding) =>
+  !bindings(commandReferenceEntry).includes(binding);
 export const textEntryScope = () => typing;
-export const coveringWorkspaceSurface = () => workspace.coveringSurface();
-export const coveringWorkspaceFocus = () => workspace.coveringFocus();
-export const workspaceAllowsNativeLayer = (node, establishedOver) =>
-  workspace.allowsNativeLayer(node, establishedOver);
-export const openWorkspaceSurfaceFor = (node) => workspace.openSurfaceFor(node);
+export const coveringAuxiliarySurface = () => auxiliaryModality.coveringSurface();
+export const coveringAuxiliaryFocus = () => auxiliaryModality.coveringFocus();
+export const auxiliaryAllowsNativeLayer = (node, establishedOver) =>
+  auxiliaryModality.allowsNativeLayer(node, establishedOver);
+export const openAuxiliarySurfaceFor = (node) => auxiliaryModality.openSurfaceFor(node);

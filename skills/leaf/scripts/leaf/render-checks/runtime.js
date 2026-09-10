@@ -1,4 +1,4 @@
-import { ARRANGEMENTS } from "/runtime/widget-api.js";
+import { READER_VIEW_RESTORE_CASES } from "/runtime/widget-api.js";
 import { openRoots } from "./open-roots.js";
 
 export const runtimeStarted = () => document.querySelector(".lf-banner") !== null;
@@ -36,7 +36,7 @@ export function moving() {
 }
 
 export const pageSettled = () => moving().length === 0;
-export const arrangements = () => ARRANGEMENTS;
+export const readerViewRestoreCases = () => READER_VIEW_RESTORE_CASES;
 
 export function unnamedFormFields() {
   return openRoots(document).flatMap((root) =>
@@ -51,11 +51,11 @@ export function unnamedFormFields() {
   );
 }
 
-export function arrange(arrangement) {
+export function applyRestoreCase(restoreCase) {
   localStorage.clear();
   sessionStorage.clear();
-  const store = arrangement.store === "session" ? sessionStorage : localStorage;
-  store.setItem(arrangement.key, arrangement.value);
+  const store = restoreCase.store === "session" ? sessionStorage : localStorage;
+  store.setItem(restoreCase.key, restoreCase.value);
 }
 
 let requestedFrame = 0;

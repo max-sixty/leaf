@@ -303,10 +303,10 @@ PAINTED_PAGE = leaf_page(
     "painted",
     """
 <h1 id="h">What the paint says</h1>
-<lf-timeline id="tl">
-  <lf-event id="e-dark" at="09:12" kind="failure"><strong>Feed stopped</strong>
-  The north camera went dark and the alert never fired.</lf-event>
-</lf-timeline>
+<lf-chronology id="tl">
+  <lf-chronology-entry id="e-dark" at="09:12" kind="failure"><strong>Feed stopped</strong>
+  The north camera went dark and the alert never fired.</lf-chronology-entry>
+</lf-chronology>
 <lf-tasks id="plan">
   <lf-task id="t-baffles" status="blocked" owner="finch"><strong>Fit squirrel baffles</strong>
   Waiting on the brackets.</lf-task>
@@ -468,7 +468,7 @@ SHORT_SUGGESTION = leaf_page(
 )
 # Every animation the page starts, held at time zero so a test can read it rather than
 # race it. What it catches is everything through `motion()`, which is the layer's only
-# caller of `animate` — folds, the board's FLIP, and final-layout shell motion, each
+# caller of `animate` — folds, the board's FLIP, and final-page shell motion, each
 # started synchronously inside the gesture that causes it. CSS animations run outside it
 # and are never seen, `grow` among them. Installed before anything runs, so the first
 # frame is already held.
@@ -1276,27 +1276,27 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-drift", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-drift"]["properties"]["offset"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-drift"]["properties"]["offset"] = {
         "type": "string",
         "pattern": "^[0-9]+$",
     }
-    entries["lf-drift"].setdefault("required", []).append("offset")
-    entries["lf-drift"]["x-example"] = entries["lf-drift"]["x-example"].replace(
-        'id="drift-example"', 'id="drift-example" offset="120"'
-    )
-    entries["lf-drift"]["properties"]["deep"] = {"type": "boolean"}
-    entries["lf-drift"]["properties"]["bare"] = {"type": "boolean"}
+    declarations["lf-drift"].setdefault("required", []).append("offset")
+    declarations["lf-drift"]["x-example"] = declarations["lf-drift"][
+        "x-example"
+    ].replace('id="drift-example"', 'id="drift-example" offset="120"')
+    declarations["lf-drift"]["properties"]["deep"] = {"type": "boolean"}
+    declarations["lf-drift"]["properties"]["bare"] = {"type": "boolean"}
     deep = deep or bare
     if deep:
         # The body is rendered from the widget's own root, so the entry stops
         # claiming the reader gets it verbatim from the markup.
-        entries["lf-drift"]["x-shadow"] = True
-        del entries["lf-drift"]["x-verbatim"]
+        declarations["lf-drift"]["x-shadow"] = True
+        del declarations["lf-drift"]["x-verbatim"]
     # The registry holds a widget-unit verb to the attribute a version retracts a
     # decision with, so a state channel arrives with its way out of one.
-    entries["lf-drift"]["properties"]["restated"] = {"type": "boolean"}
-    entries["lf-drift"]["x-state"] = {
+    declarations["lf-drift"]["properties"]["restated"] = {"type": "boolean"}
+    declarations["lf-drift"]["x-state"] = {
         "settle": {
             "detail": {
                 "type": "object",
@@ -1309,7 +1309,7 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
             "record": {"kind": "value", "attr": "offset", "value": "offset"},
         }
     }
-    registry_path.write_text(json.dumps(entries, indent=2))
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-drift.js").write_text(DRIFT_MODULE)
     if not deep:
         return DRIFT_PAGE
@@ -1343,7 +1343,7 @@ RETIRED_WIDGET_PAGE = leaf_page(
 
 
 TWO_HOLDER_PAGE = leaf_page(
-    "two holders",
+    "two owners",
     """
 <h1 id="th-t">The cache trial</h1>
 <lf-trial id="th-cache">
@@ -1357,9 +1357,9 @@ TWO_HOLDER_PAGE = leaf_page(
 def trial_family(tmp_path):
     """A third-party settlement family in one project package.
 
-    Registry declarations relate its holders and slots. The holder modules only define
+    Registry declarations relate its owners and slots. The owner modules only define
     their elements, so anything a test sees settle is the layer's doing. Only
-    lf-proposed names two holders, for the selector case that test exercises.
+    lf-proposed names two owners, for the selector case that test exercises.
     """
     for tag, upgrade in (
         ("lf-trial", True),
@@ -1369,7 +1369,7 @@ def trial_family(tmp_path):
     ):
         author_test_widget(tmp_path, tag, upgrade=upgrade)
     source = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(source.read_text())
+    declarations = json.loads(source.read_text())
     verb = {
         "detail": {"type": "object", "additionalProperties": False},
         "facet": "settlement",
@@ -1387,18 +1387,18 @@ def trial_family(tmp_path):
         ("lf-trial", ("adopt", "shelve", "pause")),
         ("lf-pilot", ("run", "shelve")),
     ):
-        entries[tag]["x-state"] = {name: dict(verb) for name in state}
-        entries[tag]["properties"]["restated"] = {"type": "boolean"}
-        entries[tag]["x-content"] = "items"
-        entries[tag]["x-example"] = example[tag]
-    for tag, holders, outcome in (
+        declarations[tag]["x-state"] = {name: dict(verb) for name in state}
+        declarations[tag]["properties"]["restated"] = {"type": "boolean"}
+        declarations[tag]["x-content"] = "members"
+        declarations[tag]["x-example"] = example[tag]
+    for tag, owners, outcome in (
         ("lf-current", ["lf-trial"], "adopt"),
         ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
     ):
-        entries[tag] |= {"x-parent": holders, "x-retired-when": outcome}
-        entries[tag].pop("x-example", None)
-        entries[tag].pop("required", None)
-    source.write_text(json.dumps(entries))
+        declarations[tag] |= {"x-owners": owners, "x-retired-when": outcome}
+        declarations[tag].pop("x-example", None)
+        declarations[tag].pop("required", None)
+    source.write_text(json.dumps(declarations))
     # The fixture styles every tag as a card; a slot is a slot, the way the shipped
     # family's lf-old/lf-new draw no box of their own. Left as cards, the slots carry
     # margins that stand trapped under the holder's frame once a settled sibling is
@@ -1406,7 +1406,7 @@ def trial_family(tmp_path):
     theme = tmp_path / ".leaf" / "theme.css"
     theme.write_text(
         theme.read_text() + "\nlf-current, lf-proposed "
-        "{ display: block; margin: 0; padding: 0; border: none; --lf-frame: initial; }\n"
+        "{ display: block; margin: 0; padding: 0; border: none; --lf-block-frame: initial; }\n"
     )
 
 
@@ -1505,7 +1505,7 @@ SEATED_ASK_ENTRY = {
     },
     "required": ["id"],
     "additionalProperties": False,
-    "x-content": "prose",
+    "x-content": "markup",
     "x-upgrade": True,
     "x-state": {
         "settle": {

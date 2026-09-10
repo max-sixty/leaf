@@ -1,7 +1,7 @@
 /* Targeting keeps the authored preview primary. Its generated editor is compact,
  * and live outlines disappear from static copies and quoted examples. */
 lf-targeting {
-  --lf-frame: 1;
+  --lf-block-frame: 1;
   display: grid;
   gap: var(--sp-3);
   box-sizing: border-box;
@@ -15,7 +15,7 @@ lf-targeting {
 }
 
 lf-target-preview {
-  --lf-frame: 1;
+  --lf-block-frame: 1;
   display: block;
   min-width: 0;
   min-height: 12rem;
@@ -74,7 +74,7 @@ lf-targeting .lf-targeting-candidates,
 lf-targeting .lf-targeting-target,
 lf-targeting .lf-targeting-change-form,
 lf-targeting .lf-targeting-change {
-  --lf-frame: 1;
+  --lf-block-frame: 1;
   padding: var(--sp-2);
   border: 1px solid var(--border-2);
   border-radius: var(--r);

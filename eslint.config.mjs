@@ -246,16 +246,16 @@ const exactClosures = new Map(
 const applicationOwners = new Set([
   "application.js",
   "delivery.js",
-  "keyboard/address.js",
+  "keyboard/go-to-sequence.js",
   "keyboard/controller.js",
   "keyboard/page.js",
-  "panel-workspace.js",
+  "thread-panel.js",
   "pending/state.js",
   "projection/commands.js",
   "requests.js",
   "state-application.js",
   "state-feed.js",
-  "workspace.js",
+  "auxiliary-chrome.js",
 ]);
 
 const forbiddenClosures = new Map([

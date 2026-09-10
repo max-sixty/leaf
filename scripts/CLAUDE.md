@@ -55,14 +55,14 @@ rules a new or changed example has to meet.
   deployment on the first ask.
   `verify-site-agent-local.sh` runs the same delivery, App Server, edit, publication,
   reply, and browser-reload path against the host's Codex login. It bypasses the
-  Cloudflare Worker, Workflow, container resources, and outbound credential proxy, so
+  Cloudflare Worker, Queue, container resources, and outbound credential proxy, so
   it checks agent behavior without measuring production infrastructure.
   `benchmark-site.py local|ORIGIN` emits that complete journey as one JSON sample:
   browser presentation, comment acknowledgement and activity, requested publication
   and reply, then the changed page's presentation and revision follow. Both targets
   run the same HTTP and browser checks. `local` only provisions the canonical Python
   adapter and explicitly starts its turn; it does not emulate Cloudflare's Worker,
-  Workflow, or container routing.
+  Queue, or container routing.
   `deploy-site-dev.sh` publishes the current checkout to the one standing
   `leaf-website-dev` Cloudflare environment and runs that benchmark against its
   `workers.dev` origin. The command always selects the `dev` Wrangler environment;

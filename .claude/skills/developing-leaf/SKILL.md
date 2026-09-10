@@ -10,6 +10,11 @@ Resolve the repository root three directories above this `SKILL.md`, then resolv
 continue only when it prints the same repository root. Use the absolute launcher
 throughout; a bare `leaf` command may resolve to the installed plugin instead.
 
+Read `references/glossary.md` before naming or revising reader-facing elements,
+interaction contexts, navigation, chrome, view state, or an identifier governed by
+those concepts. It is Leaf's canonical implementation vocabulary. The protocol between
+the page and its agent has separate owners under `<root>/skills/leaf/references/`.
+
 ## Explore an open design
 
 When a new interface leaves a material visual or interaction choice unsettled,
@@ -96,10 +101,10 @@ publication, reply, HTML, first contentful paint, JavaScript, state, upgrade, an
 presentation timings. It stops every process and removes the disposable reader page
 when it finishes.
 
-This fast loop bypasses the Cloudflare Worker, Workflow, container allocation and
+This fast loop bypasses the Cloudflare Worker, Queue, container allocation and
 resource limits, and outbound credential proxy. When a change touches one of those
 boundaries and `OPENAI_API_KEY` is exported, build the Worker and run the same check
-through Wrangler's local Workflow and Docker container:
+through Wrangler's local Queue and Docker container:
 
 ```bash
 npm ci --prefix <root>/worker

@@ -31,7 +31,11 @@ import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
 import { elementById, pageQueryAll } from "../passages.js";
 import { designName } from "../design-readings.js";
-import { itemSays, itemWord, visualPartLabel } from "../anchor-resolution.js";
+import {
+  addressableSays,
+  addressableWord,
+  visualPartLabel,
+} from "../anchor-resolution.js";
 import { rememberPassageParts } from "../widget-loader.js";
 
 // Lazily, like the tokenizer: a page is usually handed over before anyone has said
@@ -217,7 +221,7 @@ export function syncMsgNode(div, m) {
 export function msgNode(m) {
   const div = el("div", `lf-msg ${m.author}`);
   div.tabIndex = -1;
-  div.dataset.mid = m.id; // the reconcile's key and direct-navigation address
+  div.dataset.mid = m.id; // the reconcile's key and direct-navigation identity
   // The reader's own gesture, named so the log's answer can find this node again.
   if (m.attempt) div.dataset.attempt = m.attempt;
   if (m.pending) div.setAttribute("aria-busy", "true");
@@ -242,17 +246,17 @@ export function msgNode(m) {
 // selection) and names its section instead of quoting it. One function, so the two places
 // can't come to say it differently.
 //
-// An id is the page's name for an item and not the user's. `card-migration` says
-// nothing they wrote, and pointing at an item is an ordinary gesture rather than the
+// An id is the page's name for an addressable element and not the user's. `card-migration`
+// says nothing they wrote, and pointing at an element is an ordinary gesture rather than the
 // diagram's special case, so anchors reading this way are ordinary in the panel too.
-// An element anchor is labelled with the item's own opening words, and falls
+// An element anchor is labelled with the element's own opening words, and falls
 // back to the id where this version has no such element. The kind goes before the words
 // because the two together are a name, where the words alone read as a quote the thread
 // does not hold.
 //
 // A design comment (`about: "layer"`) reads "layer ·" first, because what follows names
 // the thing whose look or behaviour is in question rather than the words on it: the
-// control the press landed on where it landed on one (`part`), then the item — a
+// control the press landed on where it landed on one (`part`), then the element — a
 // widget by its tag and id, a runtime part by its name — since a design comment's
 // subject is the element itself and its opening words would read as a quote.
 function datumLabel(anchor) {
@@ -267,8 +271,8 @@ function datumLabel(anchor) {
 
 export function anchorLabel(anchor, about, omitted = null) {
   if (about === "layer") {
-    const item = anchor?.section ? elementById(anchor.section) : null;
-    const name = item ? designName(item) : anchor?.section || "the page";
+    const addressable = anchor?.section ? elementById(anchor.section) : null;
+    const name = addressable ? designName(addressable) : anchor?.section || "the page";
     const on = anchor?.part ? `${anchor.part} · ${name}` : name;
     return anchor?.quote ? `layer · ${on} · “${anchor.quote}”` : `layer · ${on}`;
   }
@@ -276,15 +280,15 @@ export function anchorLabel(anchor, about, omitted = null) {
   if (datum) return anchor?.quote ? `${datum} · “${anchor.quote}”` : `§ ${datum}`;
   if (anchor?.quote) return `“${anchor.quote}”`;
   if (!anchor?.section) return "";
-  const item = elementById(anchor.section);
-  if (omitted && omitted === item) return "";
+  const addressable = elementById(anchor.section);
+  if (omitted && omitted === addressable) return "";
   if (anchor.visual) {
-    const part = visualPartLabel(item, anchor.visual) ?? anchor.visual;
-    return `§ ${item ? `${itemWord(item)} · ${part}` : `${anchor.section} · ${part}`}`;
+    const part = visualPartLabel(addressable, anchor.visual) ?? anchor.visual;
+    return `§ ${addressable ? `${addressableWord(addressable)} · ${part}` : `${anchor.section} · ${part}`}`;
   }
-  const says = itemSays(item, omitted);
+  const says = addressableSays(addressable, omitted);
   if (omitted && says) return `“${says}”`;
-  return `§ ${says ? `${itemWord(item)} · ${says}` : anchor.section}`;
+  return `§ ${says ? `${addressableWord(addressable)} · ${says}` : anchor.section}`;
 }
 
 export const renderMessageMarkdown = (text) => renderMarkdown(text);

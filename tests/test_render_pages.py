@@ -90,14 +90,14 @@ def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve)
 
     summary.scroll_into_view_if_needed()
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
     code = summary.evaluate(
         """element => {
           const box = element.getBoundingClientRect();
-          const hints = [...document.querySelectorAll('.lf-target-hint')].map(node => {
+          const hints = [...document.querySelectorAll('.lf-target-chooser-hint')].map(node => {
             const at = node.getBoundingClientRect();
             return {
-              code: node.dataset.lfTarget,
+              code: node.dataset.lfHintCode,
               distance: Math.hypot(
                 at.left + at.width / 2 - box.left,
                 at.top + at.height / 2 - box.top,
@@ -108,9 +108,9 @@ def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve)
           return hints[0]?.distance < 30 ? hints[0].code : null;
         }"""
     )
-    assert code, "the summary had no semantic-selection hint"
+    assert code, "the summary had no target-chooser hint"
     page.keyboard.type(code)
-    expect(page.locator(".lf-live")).to_contain_text("Selected list: Observed")
+    expect(page.locator(".lf-live")).to_contain_text("Chosen list: Observed")
     assert errors == []
     page.close()
 
@@ -234,7 +234,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 expect(
                     item.locator(
                         '.lf-margin-marker[data-lf-kinds~="comment"], '
-                        '[data-lf-margin-element-key="reading:threads"]'
+                        '[data-lf-margin-entry-key="reading:threads"]'
                     )
                 ).to_have_count(0)
         for reaction in reacted:
@@ -246,11 +246,11 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 "data-lf-for", reaction["anchor"]["section"]
             )
             # A crowded target may expose this exact reaction through overflow. Follow
-            # its visible route rather than requiring every margin element to stand at rest.
+            # its visible route rather than requiring every margin entry to stand at rest.
             item = glyph.locator("xpath=ancestor::*[@data-lf-margin-for][1]")
             visible = item.locator(
-                f'[data-lf-margin-element-key="reaction:{reaction["id"]}:open"]:visible, '
-                f'[data-lf-margin-element-key="reaction:{reaction["id"]}:open:proxy"]:visible'
+                f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]:visible, '
+                f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open:proxy"]:visible'
             )
             more = item.locator(":scope > .lf-margin-more")
             if not visible.count() and more.is_visible():
@@ -260,11 +260,11 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 expect(visible).to_be_visible()
             else:
                 item.locator(".lf-margin-spill").click()
-                sheet = page.get_by_role("dialog", name="Page map", exact=True)
+                sheet = page.get_by_role("dialog", name="Page Map", exact=True)
                 expect(
                     sheet.locator(
-                        f'[data-lf-map-margin-element$=":reaction:{reaction["id"]}:open"], '
-                        f'[data-lf-map-margin-element$=":reaction:{reaction["id"]}:open:proxy"]'
+                        f'[data-lf-map-margin-entry$=":reaction:{reaction["id"]}:open"], '
+                        f'[data-lf-map-margin-entry$=":reaction:{reaction["id"]}:open:proxy"]'
                     )
                 ).to_be_visible()
                 page.keyboard.press("Escape")
@@ -2008,7 +2008,7 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     at_stamp = page.evaluate("() => window.__handover")
     initial_rail = float(at_stamp["rail"].removesuffix("px"))
     assert 0 < initial_rail < 160, (
-        "the page must start with only its reserved margin element rail, not the widget's "
+        "the page must start with only its reserved margin entry rail, not the widget's "
         f"later claim, or the post-handover case is never reached: {at_stamp['rail']}"
     )
     # Container queries answer the new shell width in the same layout pass. Wait on the
@@ -2459,7 +2459,7 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     board inside one takes the room exactly as it would standing alone — which is what
     says this is about the box and not about being nested.
 
-    Which boxes those are is read off `--lf-frame`, the word a box already says where it
+    Which boxes those are is read off `--lf-block-frame`, the word a box already says where it
     draws its frame, so the metric here is held by declaring one and the page's own div by
     declaring the same one. A list of tags stood in for that reading and shadowed it: the
     metric declared the frame and was not in the list, and no list a layer writes can
@@ -2921,7 +2921,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     )
     assert page.evaluate(sideways) == 0
 
-    # A left workspace and the page's own left margin are consecutive strips. The fixed
+    # A left auxiliary surface and the page's own left margin are consecutive strips. The fixed
     # ToC follows the shell's left edge instead of remaining behind the Asks sheet.
     resized(page, 1700, 900)
     page.locator(".lf-asks").click()
@@ -2931,7 +2931,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           && document.querySelector('.lf-asks-panel').getAnimations().length === 0
           && document.querySelector('lf-toc').getAnimations().length === 0"""
     )
-    workspace = page.evaluate(
+    geometry = page.evaluate(
         """() => {
           const tray = document.querySelector('.lf-asks-panel').getBoundingClientRect();
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
@@ -2943,21 +2943,21 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
                   tocPosition: getComputedStyle(document.querySelector('lf-toc')).position};
         }"""
     )
-    assert workspace["sidebarPosition"] == "sticky"
-    assert workspace["tocPosition"] == "fixed"
-    assert workspace["sidebarLeft"] >= workspace["trayRight"] - 1
-    assert abs(workspace["tocLeft"] - workspace["trayRight"] - 24) <= 1
-    assert 64 <= workspace["tocTop"] <= 68
+    assert geometry["sidebarPosition"] == "sticky"
+    assert geometry["tocPosition"] == "fixed"
+    assert geometry["sidebarLeft"] >= geometry["trayRight"] - 1
+    assert abs(geometry["tocLeft"] - geometry["trayRight"] - 24) <= 1
+    assert 64 <= geometry["tocTop"] <= 68
     # The map is sized to the window rather than to the room left under the shortcut bar, so
     # its foot is the window's less the banner and the inset. The line stands over its
     # last entry and this asserts that it does: the line is a hover here, and the map is
     # not one of the regions that ends above it (`lf-toc`'s rule carries the TODO).
-    assert abs(workspace["tocBottom"] - 876) <= 1, (
-        f"the map is no longer sized to the window: {workspace}"
+    assert abs(geometry["tocBottom"] - 876) <= 1, (
+        f"the map is no longer sized to the window: {geometry}"
     )
-    assert workspace["lineTop"] < workspace["tocBottom"], (
+    assert geometry["lineTop"] < geometry["tocBottom"], (
         f"the shortcut bar no longer stands over the map's foot, so the cutoff this page "
-        f"accepts has been closed somewhere without the TODO being settled: {workspace}"
+        f"accepts has been closed somewhere without the TODO being settled: {geometry}"
     )
     page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()

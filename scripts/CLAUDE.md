@@ -55,6 +55,12 @@ rules a new or changed example has to meet.
   reply, and browser-reload path against the host's Codex login. It bypasses the
   Cloudflare Worker, Workflow, container resources, and outbound credential proxy, so
   it checks agent behavior without measuring production infrastructure.
+  `benchmark-site.py local|ORIGIN` emits that complete journey as one JSON sample:
+  browser presentation, comment acknowledgement and activity, requested publication
+  and reply, then the changed page's presentation and revision follow. Both targets
+  run the same HTTP and browser checks. `local` only provisions the canonical Python
+  adapter and explicitly starts its turn; it does not emulate Cloudflare's Worker,
+  Workflow, or container routing.
   `query-site-agent-logs.py` reads one canonical event id or visible session reference
   from production Workers Observability and emits only Leaf's declared timing fields,
   excluding Cloudflare's surrounding request metadata.

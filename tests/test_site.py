@@ -32,6 +32,7 @@ from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
 from leaf.structure import parse_structure
+from PIL import Image
 from playwright.sync_api import expect
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -360,6 +361,14 @@ def test_a_crawler_is_given_one_page_per_route(site):
                 f'property="og:title" content="{html_module.escape(page["title"])}"'
                 in head
             ), document
+        if page["kind"] == "product":
+            # Whoever draws the card draws it at 1.91:1 and centre-crops whatever it
+            # is given, so a picture of another shape arrives with a band off the top
+            # and the bottom. The product shot lost its banner that way: the version
+            # control, the approval, the thread count, every part of the picture that
+            # says the page is live.
+            with Image.open(assets / page["image"].lstrip("/")) as card:
+                assert card.size == (1200, 630), route
 
 
 def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(

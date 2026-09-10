@@ -33,10 +33,12 @@ rules a new or changed example has to meet.
   It also writes what a crawler reads: `robots.txt`, a `sitemap.xml` of the clean
   routes, and each page's card. A page's title and description are authored in its own
   source, and the build refuses one that has neither. The rest of the card — the
-  canonical link, the Open Graph and Twitter declarations, and the image — is composed
-  by `with_site_head` in `worker/server.py`, which the container server calls too, so
-  the edge shell and the served page stay one document. Each page's image is named in
-  the manifest, the product shot for a product page and the catalog preview for an
+  Open Graph and Twitter declarations and the image — is composed by `with_site_head`
+  in `worker/server.py`, which the container server calls too, so the edge shell and
+  the served page stay one document. The canonical link is not the site's: every Leaf
+  document names its own page root, so the three addresses a page answers collapse
+  onto one wherever a page directory is published. Each page's image is named in the
+  manifest, `docs/session-card.png` for a product page and the catalog preview for an
   example, and `check_links` resolves it the way it resolves an href.
   `verify-site-local.sh` checks that built output through that boundary and prints the
   document, widget-upgrade, and presentation milestones with the requests and bytes
@@ -64,9 +66,10 @@ rules a new or changed example has to meet.
   `query-site-agent-logs.py` reads one canonical event id or visible session reference
   from production Workers Observability and emits only Leaf's declared timing fields,
   excluding Cloudflare's surrounding request metadata.
-- `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws the Leaf
-  screenshots that demo uses. Keep the latter while the product can make those frames
-  stale.
+- `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws it and the three
+  photographs of the same staged scene beside it — the landing page's light and dark
+  session stills, and `session-card.png` at the 1.91:1 an unfurler draws a card at.
+  Keep the latter while the product can make those frames stale.
 
 ## Vendored bundles
 

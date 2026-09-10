@@ -15,6 +15,7 @@ from leaf import cli as cli_model
 from leaf.registry import validation as registry_validation
 from leaf.structure import parse_structure
 from leaf.validation import compatibility as validation_model
+from PIL import Image
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "skills" / "leaf" / "assets"
@@ -234,3 +235,13 @@ def test_demo_recording_drives_the_browser_journey(tmp_path):
     )
     assert recorded.stdout.strip() == f"Recorded {output}"
     assert output.read_bytes().startswith(b"GIF89a")
+    # One staged scene, photographed for each surface that shows it: the landing
+    # page's figure in both schemes, and the card, at the 1.91:1 an unfurler draws.
+    # Shot at that shape rather than cropped to it, so the banner survives the trip.
+    for name, size in (
+        ("session-light.png", (1280, 953)),
+        ("session-dark.png", (1280, 953)),
+        ("session-card.png", (1200, 630)),
+    ):
+        with Image.open(output.parent / name) as still:
+            assert still.size == size, name

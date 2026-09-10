@@ -67,9 +67,7 @@ import { pageShifted } from "./anchors.js";
    what it represents, the optimistic overlay of unresolved gestures, the reconciliation
    every complete state goes through, and undo.
 
-   A reversible action can be optimistic because its gesture has already changed the DOM.
-   Recorded actions always are; a recordless action opts in when it has painted the same
-   semantic outcome. `stageOutboxAction` gives that local value the same
+   Every action changes the DOM before it sends. `stageOutboxAction` gives that local value the same
    semantic coordinate as the server view and commits it on the exact widget and unit
    nodes that carry it. The browser projection adapter overlays all surviving optimistic
    outbox actions after authoritative winners in `outboxOrder`. Until a complete read
@@ -287,14 +285,14 @@ export function requirementMatches(widget, spec) {
 
 // An eligible action has already been painted by its widget when it enters this door.
 // Give that optimistic value the same semantic coordinate as authoritative state, and
-// commit it on the exact nodes that carry it. Recorded actions are eligible by contract;
-// a recordless caller opts in when it has painted its semantic outcome too.
-export function stageOutboxAction(entry, { optimistic = false } = {}) {
+// commit it on the exact nodes that carry it. Every action has painted its semantic
+// outcome before reaching the send door; recordless facets join the same projection.
+export function stageOutboxAction(entry) {
   const e = entry.event;
   if (e.kind !== "action") return;
   const widget = elementById(e.widget);
   const spec = widget && registry[widget.localName]?.["x-state"]?.[e.action];
-  if (!spec || (!spec.record && !optimistic)) return;
+  if (!spec) return;
   const unit = unitOf(e, spec);
   if (typeof unit !== "string") return;
   const coordinate = stateCoordinate(e.widget, unit, spec);
@@ -406,12 +404,13 @@ const undoWord = (e) => (e.token ? `Took back your ${e.token}` : UNDO_WORDS[e.ki
 // This press's own record of being in flight, read by unaccountedGesture with the
 // layer's other two.
 
-// The press posts and nothing else. What the page does about it is reconciliation's,
+// Undo posts and nothing else. What the page does about it is reconciliation's,
 // where it is done once for every tab off the log rather than here for this one off
 // the gesture — the second tab has to arrive at the same page, and a route only this
-// tab took would be a second answer to converge with. The round trip is the cost, and
-// it is the one gesture that can afford it: a drag has to follow the pointer, where a
-// keypress has nothing on screen waiting on the frame.
+// tab took would be a second answer to converge with. Unlike forward gestures, the
+// current browser reading does not carry the prior complete projection an optimistic
+// withdrawal would need, and reconstructing it from the DOM would create another state
+// authority.
 export async function undoLast() {
   const e = undoable();
   if (e) await withdraw(e);

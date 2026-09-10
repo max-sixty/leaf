@@ -15,7 +15,7 @@ import { latestChip, versionBtn, versionLabels } from "./version.js";
 import { asksBtn, othersBtn } from "./trays.js";
 import { COVERING, syncLayout } from "./chrome-layout.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
-import { post } from "./outbox.js";
+import { pendingApprovals, post } from "./outbox.js";
 import { repaint } from "./repaint.js";
 import { announce, notice } from "./notifications.js";
 
@@ -706,7 +706,10 @@ function currentBannerReservations() {
 let approving = false;
 
 export function paintApproval() {
-  const approved = (runtime.browser?.conversation?.done ?? []).some(
+  const approved = [
+    ...(runtime.browser?.conversation?.done ?? []),
+    ...pendingApprovals(),
+  ].some(
     (e) =>
       e.kind === "done" &&
       e.revision === runtime.currentRevision &&
@@ -747,3 +750,5 @@ approveBtn.onclick = async () => {
     paintApproval();
   }
 };
+
+document.addEventListener("lf-actions", paintApproval);

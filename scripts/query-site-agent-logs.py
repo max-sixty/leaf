@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print production agent timings for one Leaf event or public session reference."""
+"""Print hosted agent timings for one Leaf event or public session reference."""
 
 from __future__ import annotations
 
@@ -9,8 +9,13 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - exercised by the Python 3.10 gate
+    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
 QUERY_URL = (
@@ -20,7 +25,6 @@ QUERY_URL = (
 ANALYTICS_URL = (
     "https://api.cloudflare.com/client/v4/accounts/{account}/analytics_engine/sql"
 )
-ANALYTICS_DATASET = "leaf_website_events"
 LOG_WINDOW_BEFORE_MS = 60 * 1000
 LOG_WINDOW_AFTER_MS = 19 * 60 * 1000
 EVENT_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
@@ -46,6 +50,21 @@ def account_id() -> str:
     if match is None:
         raise RuntimeError("worker/wrangler.toml has no Cloudflare account_id")
     return match.group(1)
+
+
+def analytics_datasets() -> tuple[str, ...]:
+    """Read every hosted event index from the deployment configuration."""
+    config = tomllib.loads(
+        (ROOT / "worker" / "wrangler.toml").read_text(encoding="utf-8")
+    )
+    environments = [config, *config.get("env", {}).values()]
+    return tuple(
+        dict.fromkeys(
+            binding["dataset"]
+            for environment in environments
+            for binding in environment.get("analytics_engine_datasets", ())
+        )
+    )
 
 
 def query_body(event_id: str, from_ms: int, to_ms: int) -> dict:
@@ -78,21 +97,21 @@ def query_body(event_id: str, from_ms: int, to_ms: int) -> dict:
     }
 
 
-def analytics_statement(lookup: str) -> str:
+def analytics_statement(dataset: str, lookup: str) -> str:
     """Select accepted event ids and timestamps for one public lookup key."""
     key = "blob6" if SESSION_REFERENCE.fullmatch(lookup) else "index1"
     return (
-        f"SELECT timestamp,index1 FROM {ANALYTICS_DATASET} "
+        f"SELECT timestamp,index1 FROM {dataset} "
         f"WHERE {key}='{lookup}' AND timestamp > NOW() - INTERVAL '1' DAY "
         "ORDER BY timestamp LIMIT 100"
     )
 
 
-def indexed_events(lookup: str, token: str) -> dict[str, int]:
-    """Read each matching event's first accepted timestamp from Analytics Engine."""
+def analytics_rows(dataset: str, lookup: str, token: str) -> list[dict]:
+    """Query one configured Analytics Engine event index."""
     request = urllib.request.Request(
         ANALYTICS_URL.format(account=account_id()),
-        data=analytics_statement(lookup).encode(),
+        data=analytics_statement(dataset, lookup).encode(),
         headers={"Authorization": f"Bearer {token}"},
         method="POST",
     )
@@ -101,21 +120,27 @@ def indexed_events(lookup: str, token: str) -> dict[str, int]:
             payload = json.loads(response.read())
     except urllib.error.HTTPError as error:
         raise RuntimeError(
-            f"Cloudflare event index query failed with HTTP {error.code}"
+            f"Cloudflare event index query for {dataset} failed with HTTP {error.code}"
         ) from error
+    return payload.get("data", [])
+
+
+def indexed_events(lookup: str, token: str) -> dict[str, int]:
+    """Read each matching event's first accepted timestamp from every environment."""
     events = {}
-    for row in payload.get("data", []):
-        event_id = row.get("index1")
-        timestamp = row.get("timestamp")
-        if not isinstance(event_id, str) or not isinstance(timestamp, str):
-            continue
-        accepted_ms = round(
-            datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-            .replace(tzinfo=UTC)
-            .timestamp()
-            * 1000
-        )
-        events.setdefault(event_id, accepted_ms)
+    for dataset in analytics_datasets():
+        for row in analytics_rows(dataset, lookup, token):
+            event_id = row.get("index1")
+            timestamp = row.get("timestamp")
+            if not isinstance(event_id, str) or not isinstance(timestamp, str):
+                continue
+            accepted_ms = round(
+                datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+                .replace(tzinfo=timezone.utc)
+                .timestamp()
+                * 1000
+            )
+            events.setdefault(event_id, accepted_ms)
     return events
 
 

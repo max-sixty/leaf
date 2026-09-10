@@ -280,11 +280,42 @@ def test_the_agent_log_query_deduplicates_a_batched_turn(monkeypatch, capsys):
     ],
 )
 def test_the_agent_log_query_indexes_an_event_or_reference(lookup, field):
-    assert query_site_agent_logs.analytics_statement(lookup) == (
-        "SELECT timestamp,index1 FROM leaf_website_events "
+    assert query_site_agent_logs.analytics_statement("leaf_events", lookup) == (
+        "SELECT timestamp,index1 FROM leaf_events "
         f"WHERE {field}='{lookup}' AND timestamp > NOW() - INTERVAL '1' DAY "
         "ORDER BY timestamp LIMIT 100"
     )
+
+
+def test_the_agent_log_query_searches_every_hosted_environment(monkeypatch):
+    calls = []
+    rows = {
+        "leaf_website_events": [
+            {"timestamp": "2026-09-10 18:50:03", "index1": "production-event"}
+        ],
+        "leaf_website_events_dev": [
+            {"timestamp": "2026-09-10 18:51:03", "index1": "dev-event"}
+        ],
+    }
+
+    def analytics_rows(dataset, lookup, token):
+        calls.append((dataset, lookup, token))
+        return rows[dataset]
+
+    monkeypatch.setattr(query_site_agent_logs, "analytics_rows", analytics_rows)
+
+    assert query_site_agent_logs.analytics_datasets() == (
+        "leaf_website_events",
+        "leaf_website_events_dev",
+    )
+    assert query_site_agent_logs.indexed_events("123456789012", "token") == {
+        "production-event": 1_789_066_203_000,
+        "dev-event": 1_789_066_263_000,
+    }
+    assert calls == [
+        ("leaf_website_events", "123456789012", "token"),
+        ("leaf_website_events_dev", "123456789012", "token"),
+    ]
 
 
 def test_the_agent_log_query_uses_the_indexed_event_window():

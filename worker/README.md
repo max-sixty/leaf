@@ -87,11 +87,11 @@ id; the container continues with that event id through App Server availability, 
 and turn start, first notification, first model activity, and completion. Leaf's
 record omits message text, prompts, source IP keys, cookies, and private session ids.
 Cloudflare wraps it in invocation metadata. `scripts/query-site-agent-logs.py` accepts
-one exact event id or the public session reference shown in the page. It uses
-`leaf_website_events` to locate each accepted event, then queries its narrow
-Observability window and emits only Leaf's declared diagnostic fields. The narrow
-query keeps Cloudflare's Adaptive Bit Rate at `1`; a sampled result fails instead of
-presenting a partial phase profile:
+one exact event id or the public session reference shown in the page. It searches the
+production and dev Analytics Engine indexes for each accepted event, then queries its
+narrow Observability window and emits only Leaf's declared diagnostic fields. The
+narrow query keeps Cloudflare's Adaptive Bit Rate at `1`; a sampled result fails
+instead of presenting a partial phase profile:
 
 ```sh
 CLOUDFLARE_API_TOKEN=... uv run scripts/query-site-agent-logs.py EVENT_ID_OR_REFERENCE

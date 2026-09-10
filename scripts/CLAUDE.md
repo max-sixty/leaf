@@ -58,9 +58,9 @@ rules a new or changed example has to meet.
   `workers.dev` origin. The command always selects the `dev` Wrangler environment;
   production deployment stays in `publish-site.yaml`.
   `query-site-agent-logs.py` reads one canonical event id or visible session reference
-  from the Analytics Engine event index, then emits its unsampled timing window from
-  production Workers Observability. It excludes Cloudflare's surrounding request
-  metadata.
+  from each configured Analytics Engine event index, then emits its unsampled timing
+  window from Workers Observability. It excludes Cloudflare's surrounding request
+  metadata, and the same lookup covers production and dev.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws the Leaf
   screenshots that demo uses. Keep the latter while the product can make those frames
   stale.

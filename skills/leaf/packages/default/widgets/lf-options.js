@@ -324,15 +324,12 @@ customElements.define(
       const answerRows = [];
       for (const [index, mark] of marks.entries()) {
         const option = mark.parentElement;
-        let bindingBadge = null;
-        if (index < 9) {
-          // The widget owns the card-local placement anchor; the Ask projection writes
-          // whichever binding this action receives and removes it when the action is not
-          // reachable. Keeping the face empty here keeps one keyboard map.
-          bindingBadge = offer("span", "lf-key-badge");
-          bindingBadge.setAttribute("aria-hidden", "true");
-          option.prepend(bindingBadge);
-        }
+        // The widget owns the card-local placement anchor; the Ask projection decides
+        // whether this action receives one of its finite bindings and writes that binding
+        // into the empty face. The package keeps no copy of core's capacity.
+        const bindingBadge = offer("span", "lf-key-badge");
+        bindingBadge.setAttribute("aria-hidden", "true");
+        option.prepend(bindingBadge);
         answerRows.push({
           id: `option.choose-${index + 1}`,
           keys: [],

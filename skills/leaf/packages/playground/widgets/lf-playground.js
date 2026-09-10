@@ -59,6 +59,7 @@ customElements.define(
     #copy = null;
     #copyTimer = 0;
     #reset = null;
+    #choosing = false;
     #projected = undefined;
     #ready = false;
     #interactive = false;
@@ -610,8 +611,9 @@ customElements.define(
     }
 
     async #choose() {
-      if (this.#submit.disabled || !actionAvailable(this, "choose")) return;
-      this.#submit.disabled = true;
+      if (this.#choosing || !actionAvailable(this, "choose")) return;
+      this.#choosing = true;
+      this.#paintAvailability();
       this.#submit.setAttribute("aria-busy", "true");
       try {
         const event = await sendAction(this, "choose", {
@@ -620,6 +622,7 @@ customElements.define(
         });
         if (event) notice("Playground settings sent");
       } finally {
+        this.#choosing = false;
         this.#submit.removeAttribute("aria-busy");
         this.#paintAvailability();
       }
@@ -627,7 +630,7 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      this.#submit.disabled = !actionAvailable(this, "choose");
+      this.#submit.disabled = this.#choosing || !actionAvailable(this, "choose");
       paintKeys();
     }
 

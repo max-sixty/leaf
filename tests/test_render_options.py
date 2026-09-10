@@ -1261,6 +1261,7 @@ def test_only_bound_cards_yield_their_header_state_to_the_ask(browser, serve):
     resized(page, 900, 1200)
 
     page.keyboard.press("a")
+    expect(page.locator("#routes > lf-option > .lf-address")).to_have_count(10)
     expect(
         page.locator("#routes > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
     ).to_have_count(9)

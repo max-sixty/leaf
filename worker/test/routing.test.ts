@@ -18,6 +18,7 @@ import {
   needsPageSlash,
   newSessionId,
   pageRoute,
+  parseSiteManifest,
   sessionCookie,
   sessionFromCookie,
 } from "../src/routing";
@@ -39,6 +40,38 @@ const pages = {
 const route = (pathname: string) => pageRoute(pathname, pages);
 
 describe("website page routing", () => {
+  it("accepts only manifests whose current state and release paths agree", () => {
+    const release = "a".repeat(64);
+    const manifest = {
+      release,
+      pages: { "/": page("product") },
+    };
+    expect(parseSiteManifest(manifest)).toEqual(manifest);
+
+    expect(() =>
+      parseSiteManifest({
+        ...manifest,
+        pages: {
+          "/": {
+            ...page("product"),
+            assets: `/_leaf-release/${"b".repeat(64)}/page`,
+          },
+        },
+      }),
+    ).toThrow("invalid Leaf site manifest");
+    expect(() =>
+      parseSiteManifest({
+        ...manifest,
+        pages: {
+          "/": {
+            ...page("product"),
+            state: "/_leaf/state/missing.json",
+          },
+        },
+      }),
+    ).toThrow("invalid Leaf site manifest");
+  });
+
   it("sends product and concrete example routes to Leaf", () => {
     expect(route("/")).not.toBeNull();
     expect(route("/api/state")).not.toBeNull();

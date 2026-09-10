@@ -2265,7 +2265,7 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
     assert flow.evaluate("el => getComputedStyle(el).maskImage") != "none"
 
     page.evaluate("""() => {
-        document.documentElement.dir = 'rtl';
+        document.documentElement.style.direction = 'rtl';
         document.dispatchEvent(new Event('lf-layout'));
     }""")
     expect(flow).not_to_have_attribute("data-lf-more-before", "")

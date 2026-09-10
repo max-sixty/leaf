@@ -102,6 +102,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   holds: "data-lf-holds",
   moreBefore: "data-lf-more-before",
   moreAfter: "data-lf-more-after",
+  scrollDirection: "data-lf-scroll-direction",
   moreBelow: "data-lf-more-below",
   goto: "data-lf-goto",
   traffic: "data-lf-traffic",

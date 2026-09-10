@@ -195,8 +195,10 @@ function paintSidewaysReach(el) {
   const scrolls =
     /^(auto|scroll)$/.test(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
   const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
-  const raw = style.direction === "rtl" ? -el.scrollLeft : el.scrollLeft;
+  const raw = Math.abs(el.scrollLeft);
   const position = Math.min(maximum, Math.max(0, raw));
+  if (scrolls) el.setAttribute(PAGE_PAINT_ATTRIBUTE.scrollDirection, style.direction);
+  else el.removeAttribute(PAGE_PAINT_ATTRIBUTE.scrollDirection);
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBefore, scrolls && position > 1);
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreAfter, scrolls && position < maximum - 1);
 }

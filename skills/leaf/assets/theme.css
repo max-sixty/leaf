@@ -1513,18 +1513,48 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
  * already has the platform's scroll affordance.
  *
  * Neither the mask nor its attributes affect layout, so observing the scroller cannot
- * feed the measurement back into itself. Screen only, because a mark whose
- * whole meaning is "scroll to see the rest" says nothing on a sheet nobody can scroll.
- * A copy keeps the mark it was exported with, the way it keeps the hold beside it and
- * the stop the same sweep granted. */
+ * feed the measurement back into itself. Screen only, because a mark whose whole
+ * meaning is "scroll to see the rest" says nothing on a sheet nobody can scroll. A
+ * live page writes its reading on each scroll. A copy has no script, so bake replaces
+ * that transient reading with a CSS scroll timeline that follows the native scroller;
+ * a browser without scroll timelines keeps the honest initial inline-end fade. */
+@property --lf-copy-scroll-position {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+@property --lf-copy-left-opacity {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 1;
+}
+@property --lf-copy-right-opacity {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+@keyframes lf-copy-scroll-position {
+  from { --lf-copy-scroll-position: 0; }
+  to { --lf-copy-scroll-position: 1; }
+}
 @media screen {
-  [data-lf-more-after]:where(:dir(ltr):not([data-lf-more-before])),
-  [data-lf-more-before]:where(:dir(rtl):not([data-lf-more-after])) {
+  [data-lf-more-after]:where(
+      [data-lf-scroll-direction="ltr"]:not([data-lf-more-before])
+    ),
+  [data-lf-more-before]:where(
+      [data-lf-scroll-direction="rtl"]:not([data-lf-more-after])
+    ),
+  [data-lf-copy-scroll="ltr"] {
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
     mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
   }
-  [data-lf-more-before]:where(:dir(ltr):not([data-lf-more-after])),
-  [data-lf-more-after]:where(:dir(rtl):not([data-lf-more-before])) {
+  [data-lf-more-before]:where(
+      [data-lf-scroll-direction="ltr"]:not([data-lf-more-after])
+    ),
+  [data-lf-more-after]:where(
+      [data-lf-scroll-direction="rtl"]:not([data-lf-more-before])
+    ),
+  [data-lf-copy-scroll="rtl"] {
     -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
     mask-image: linear-gradient(to right, transparent, #000 24px);
   }
@@ -1544,7 +1574,59 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
       transparent
     );
   }
-  :is([data-lf-more-before], [data-lf-more-after]):is(
+  @supports (animation-timeline: scroll(self inline)) {
+    [data-lf-copy-scroll] {
+      animation: lf-copy-scroll-position 1s linear both;
+      animation-timeline: scroll(self inline);
+      -webkit-mask-image: linear-gradient(
+        to right,
+        rgb(0 0 0 / var(--lf-copy-left-opacity)) 0,
+        #000 24px,
+        #000 calc(100% - 24px),
+        rgb(0 0 0 / var(--lf-copy-right-opacity)) 100%
+      );
+      mask-image: linear-gradient(
+        to right,
+        rgb(0 0 0 / var(--lf-copy-left-opacity)) 0,
+        #000 24px,
+        #000 calc(100% - 24px),
+        rgb(0 0 0 / var(--lf-copy-right-opacity)) 100%
+      );
+    }
+    [data-lf-copy-scroll="ltr"] {
+      --lf-copy-left-opacity: clamp(
+        0,
+        calc(1 - var(--lf-copy-scroll-position) * 1000),
+        1
+      );
+      --lf-copy-right-opacity: clamp(
+        0,
+        /* Chromium can resolve an RTL timeline one layout pixel short of 100%. The cue
+         * reaches its terminal edge inside the final percent so that rounding cannot
+         * leave a false fade at the end. */
+        calc((var(--lf-copy-scroll-position) - .99) * 1000),
+        1
+      );
+    }
+    [data-lf-copy-scroll="rtl"] {
+      --lf-copy-left-opacity: clamp(
+        0,
+        /* Same terminal tolerance, reflected for the RTL inline end. */
+        calc((var(--lf-copy-scroll-position) - .99) * 1000),
+        1
+      );
+      --lf-copy-right-opacity: clamp(
+        0,
+        calc(1 - var(--lf-copy-scroll-position) * 1000),
+        1
+      );
+    }
+  }
+  :is(
+      [data-lf-more-before],
+      [data-lf-more-after],
+      [data-lf-copy-scroll]
+    ):is(
       :focus-visible,
       .lf-focus-visible,
       :has(:is(:focus-visible, .lf-focus-visible))

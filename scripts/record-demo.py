@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Record docs/demo.gif, and the landing page's two session stills, by driving the
-shipped runtime through one round.
+"""Record docs/demo.gif, the landing page's two session stills, and the site's card, by
+driving the shipped runtime through one round.
 
 The stills used to be shot by hand, which meant nothing regenerated them and nothing
 noticed when they stopped being true: a theme change left the landing page arguing for
 a product whose picture showed the previous one. They come off the same staged scene as
 the GIF because that scene is already the one the page's alt text describes — a comment
 anchored to a marked passage, Claude's reply in the thread, the answered round latest in
-the picker — so shooting them here costs two more browser contexts and gives them
-something to re-run."""
+the picker — so shooting them here costs a browser context each and gives them something
+to re-run. The card is here for the same reason: a picture of the product goes stale the
+way the others do, and the one a shared link shows is the first thing most readers see."""
 
 from __future__ import annotations
 
@@ -32,6 +33,20 @@ DEFAULT_OUTPUT = ROOT / "docs" / "demo.gif"
 GIF_SIZE = (1120, 700)
 # The viewport used for the landing page's representative stills.
 STILL_SIZE = (1280, 953)
+# The card a shared link unfurls into. Every unfurler that draws one draws it at
+# 1.91:1, so the scene is shot at that shape rather than shot tall and cropped to it:
+# cropping the still took a seventh off the top and another off the bottom, which is
+# where the banner and the thread's last line are. Shot at the size it is displayed,
+# so its words are rendered rather than resampled.
+CARD_SIZE = (1200, 630)
+# What one staged scene is photographed as: the landing page's light and dark stills,
+# and the card. Each is a fresh context because a viewport and a color scheme are
+# context-level settings.
+STILLS = (
+    ("session-light", STILL_SIZE, "light"),
+    ("session-dark", STILL_SIZE, "dark"),
+    ("session-card", CARD_SIZE, "light"),
+)
 
 
 # The board as the document first states it, and the words each card carries. Kept as
@@ -429,8 +444,8 @@ def shoot_stills(
     page_dir: Path,
     into: Path,
 ) -> None:
-    """The landing page's two session stills, off the scene `record` has just left,
-    written beside the GIF rather than to a path of their own.
+    """The landing page's session stills and the site's card, off the scene `record`
+    has just left, written beside the GIF rather than to a path of their own.
 
     `--output` redirects the whole recording, and the stills have to go with it: the
     suite records into a tmp directory to prove the journey still drives, and stills
@@ -450,7 +465,10 @@ def shoot_stills(
     One shot per color scheme, because the page states both and the landing page
     serves whichever the reader's OS asks for. A scheme is a context-level setting,
     not something to toggle on a live page: the vendored diagram palette is read once
-    at load, so a flipped page would carry the other scheme's diagrams.
+    at load, so a flipped page would carry the other scheme's diagrams. The card is
+    the third, in light, at the shape an unfurler draws: what it shows is the product,
+    the same claim the stills make, framed for the place it is shown rather than left
+    to be cropped there.
 
     Getting the banner to say "Claude awaits" takes answering the round and then
     stating both halves of attendance. `record` has received the board action, and
@@ -479,9 +497,9 @@ def shoot_stills(
         if line.strip()
     )
 
-    for scheme in ("light", "dark"):
+    for name, size, scheme in STILLS:
         context = browser.new_context(
-            viewport={"width": STILL_SIZE[0], "height": STILL_SIZE[1]},
+            viewport={"width": size[0], "height": size[1]},
             color_scheme=scheme,
             reduced_motion="reduce",
         )
@@ -504,9 +522,7 @@ def shoot_stills(
         page.wait_for_function(
             "() => document.querySelector('body > main').getAnimations().length === 0"
         )
-        page.screenshot(
-            path=into / f"session-{scheme}.png", animations="disabled", caret="hide"
-        )
+        page.screenshot(path=into / f"{name}.png", animations="disabled", caret="hide")
         context.close()
 
 

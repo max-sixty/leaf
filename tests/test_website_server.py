@@ -682,6 +682,10 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "structured `leaf_delivery` tool output" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF delivery read ID" in website_server.CODEX_INSTRUCTIONS
     assert "--for EVENT_ID" in website_server.CODEX_INSTRUCTIONS
+    assert (
+        "$LEAF resolve . --to RESPONSE_CONVERSATION"
+        in website_server.CODEX_INSTRUCTIONS
+    )
     assert "native final message" in website_server.CODEX_INSTRUCTIONS
 
 

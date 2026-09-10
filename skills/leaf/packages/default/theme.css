@@ -600,6 +600,12 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
                      top: var(--sp-2); }
    & > .lf-another > .lf-address {
                      inset-inline-start: auto; inset-inline-end: var(--sp-2); }
+   & > .lf-another .lf-compose-submit {
+                     inset-inline-end:
+                       calc(var(--sp-2) + var(--lf-key-box) + var(--sp-2)); }
+   & > .lf-another textarea {
+                     padding-inline-end:
+                       calc(var(--aim-floor) + var(--sp-4) + var(--lf-key-box) + var(--sp-2)); }
    & > lf-option:has(> .lf-address[data-lf-ask-address]) > .lf-pick {
                      opacity: 0; }
  }

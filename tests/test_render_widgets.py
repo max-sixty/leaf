@@ -5735,6 +5735,22 @@ def test_ask_action_addresses_stay_aligned_when_focus_enters_a_card(browser, ser
         assert ask_point["x"] == pytest.approx(focused_point["x"], abs=0.5)
         assert ask_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
 
+    addition = page.locator("#live-question > .lf-another")
+    addition.get_by_role("textbox", name="Another option").fill("A fourth option")
+    page.keyboard.press("Tab")
+    address = addition.locator("> .lf-address[data-lf-ask-address]")
+    submit = addition.get_by_role("button", name="Add option")
+    expect(address).to_be_visible()
+    expect(submit).to_be_visible()
+    address_box = address.bounding_box()
+    submit_box = submit.bounding_box()
+    assert address_box is not None
+    assert submit_box is not None
+    assert address_box["x"] + address_box["width"] / 2 == pytest.approx(
+        ask_centers[-1]["x"], abs=0.5
+    )
+    assert submit_box["x"] + submit_box["width"] < address_box["x"]
+
     assert errors == []
     page.close()
 

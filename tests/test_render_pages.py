@@ -2213,11 +2213,11 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
     page well, because the platform's own scrollbar is the whole of the sign and it draws
     none at rest.
 
-    So the sweep that already asks whether something is out of sight, once per layout,
-    spends the answer on the eye as well as on the keyboard, and the box wears a mark
-    (`reachScrollers`, `[data-lf-cut]`). The reading here is that a cut box has one. The
-    line of code that fits is the control: a mark on a box holding nothing back would be
-    a promise of more with nothing behind it, and this reading would never have noticed.
+    So the sweep that already asks whether something is out of sight spends the answer
+    on the eye as well as on the keyboard. The box fades each edge with content beyond
+    it. The line of code that fits is the control: a mark on a box holding nothing back
+    would be a promise of more with nothing behind it, and this reading would never have
+    noticed.
 
     The plant is the failure that is actually reachable — content grown inside a box
     whose own border box never changes, so the sweep's per-candidate resize observation
@@ -2230,19 +2230,47 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
         const read = (id) => {
             const el = document.getElementById(id);
             return { short: el.scrollWidth - el.clientWidth,
-                     marked: el.hasAttribute('data-lf-cut'),
-                     paints: getComputedStyle(el).boxShadow !== 'none' };
+                     before: el.hasAttribute('data-lf-more-before'),
+                     after: el.hasAttribute('data-lf-more-after'),
+                     paints: getComputedStyle(el).maskImage !== 'none' };
         };
         return { flow: read('flow'), fits: read('short') };
     }""")
     assert marks["flow"]["short"] > 1, (
         f"the graph fits its box here, so nothing is being cut: {marks}"
     )
-    assert marks["flow"]["marked"] and marks["flow"]["paints"], marks
+    assert not marks["flow"]["before"] and marks["flow"]["after"], marks
+    assert marks["flow"]["paints"], marks
     assert marks["fits"]["short"] == 0, (
         f"the control box scrolls too, so it controls nothing: {marks}"
     )
-    assert not marks["fits"]["marked"] and not marks["fits"]["paints"], marks
+    assert not marks["fits"]["before"] and not marks["fits"]["after"], marks
+    assert not marks["fits"]["paints"], marks
+
+    flow = page.locator("#flow")
+    flow.focus()
+    flow.evaluate("el => el.classList.add('lf-focus-visible')")
+    assert flow.evaluate("el => getComputedStyle(el).maskImage") == "none"
+    flow.evaluate("el => { el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2; }")
+    expect(flow).to_have_attribute("data-lf-more-before", "")
+    expect(flow).to_have_attribute("data-lf-more-after", "")
+    assert flow.evaluate("el => getComputedStyle(el).maskImage") == "none"
+    flow.evaluate("el => { el.scrollLeft = el.scrollWidth; }")
+    expect(flow).to_have_attribute("data-lf-more-before", "")
+    expect(flow).not_to_have_attribute("data-lf-more-after", "")
+    assert flow.evaluate("el => getComputedStyle(el).maskImage") == "none"
+    flow.evaluate("el => { el.classList.remove('lf-focus-visible'); el.blur(); }")
+    assert flow.evaluate("el => getComputedStyle(el).maskImage") != "none"
+
+    page.evaluate("""() => {
+        document.documentElement.style.direction = 'rtl';
+        document.dispatchEvent(new Event('lf-layout'));
+    }""")
+    expect(flow).not_to_have_attribute("data-lf-more-before", "")
+    expect(flow).to_have_attribute("data-lf-more-after", "")
+    flow.evaluate("el => { el.scrollLeft = -(el.scrollWidth - el.clientWidth); }")
+    expect(flow).to_have_attribute("data-lf-more-before", "")
+    expect(flow).not_to_have_attribute("data-lf-more-after", "")
     assert render_checks_model.evaluate_probe(page, "silentCuts") == []
 
     # One line grown past its box, on its own text node: the box keeps its width and its
@@ -2254,9 +2282,10 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
     grown = page.evaluate("""() => {
         const el = document.getElementById('short');
         return { short: el.scrollWidth - el.clientWidth,
-                 marked: el.hasAttribute('data-lf-cut') };
+                 before: el.hasAttribute('data-lf-more-before'),
+                 after: el.hasAttribute('data-lf-more-after') };
     }""")
-    assert grown["short"] > 1 and not grown["marked"], grown
+    assert grown["short"] > 1 and not grown["before"] and not grown["after"], grown
     found = render_checks_model.evaluate_probe(page, "silentCuts")
     assert [f for f in found if "<pre id=short>" in f], (
         f"a box hiding {grown['short']}px with no mark on it went unreported: "

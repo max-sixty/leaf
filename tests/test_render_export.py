@@ -26,6 +26,7 @@ from leaf import service as service_model
 from leaf.render_gate import browser as browser_model
 from playwright.sync_api import expect
 from render_support import (
+    CUT_BOXES_PAGE,
     LONG_PAGE,
     PAGE_FIXTURES,
     REPLAYED_PAGE,
@@ -1015,6 +1016,78 @@ def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):
         exporting_model.export_page(
             primed(browser, break_probe), root_url, serve.page_dir, "v1.html"
         )
+
+
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_an_exported_scroll_cue_follows_its_native_scroller(
+    direction, browser, serve, tmp_path
+):
+    """A copy drops the runtime that updates live reach marks, but scrolling remains a
+    native browser action. Its cue follows that scroll instead of freezing the edge the
+    exporter's window happened to show."""
+    source = CUT_BOXES_PAGE
+    if direction == "rtl":
+        source = source.replace(
+            "</head>", "<style>html { direction: rtl; }</style></head>"
+        )
+    url = serve(source)
+    out = tmp_path / "scroll-cue.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.emulate_media(reduced_motion="reduce")
+    page.goto(out.as_uri(), wait_until="load")
+    flow = page.locator("#flow")
+    expect(flow).to_have_attribute("data-lf-copy-scroll", direction)
+    expect(flow).not_to_have_attribute("data-lf-more-before", "")
+    expect(flow).not_to_have_attribute("data-lf-more-after", "")
+
+    def reading():
+        return flow.evaluate(
+            """el => {
+            const style = getComputedStyle(el);
+            return {
+                position: Number(style.getPropertyValue('--lf-copy-scroll-position')),
+                left: Number(style.getPropertyValue('--lf-copy-left-opacity')),
+                right: Number(style.getPropertyValue('--lf-copy-right-opacity')),
+                mask: style.maskImage,
+            };
+        }"""
+        )
+
+    start = reading()
+    flow.evaluate(
+        """(el, direction) => {
+        const distance = (el.scrollWidth - el.clientWidth) / 2;
+        el.scrollLeft = direction === 'rtl' ? -distance : distance;
+    }""",
+        direction,
+    )
+    page.wait_for_function(
+        "el => Number(getComputedStyle(el).getPropertyValue('--lf-copy-scroll-position')) > .4",
+        arg=flow.element_handle(),
+    )
+    middle = reading()
+    flow.evaluate(
+        "(el, direction) => { el.scrollLeft = direction === 'rtl' ? -el.scrollWidth : el.scrollWidth; }",
+        direction,
+    )
+    page.wait_for_function(
+        "el => Number(getComputedStyle(el).getPropertyValue('--lf-copy-scroll-position')) > .99",
+        arg=flow.element_handle(),
+    )
+    end = reading()
+
+    start_edges = (1, 0) if direction == "ltr" else (0, 1)
+    end_edges = tuple(reversed(start_edges))
+    assert start["position"] == 0, start
+    assert (start["left"], start["right"]) == start_edges, start
+    assert 0.4 < middle["position"] < 0.6, middle
+    assert middle["left"] == 0 and middle["right"] == 0, middle
+    assert end["position"] > 0.99, end
+    assert (end["left"], end["right"]) == end_edges, end
+    assert len({start["mask"], middle["mask"], end["mask"]}) == 3
+    page.close()
 
 
 def test_a_browser_too_old_to_copy_a_page_is_refused_by_its_own_version(

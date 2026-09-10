@@ -489,9 +489,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(group).to_have_attribute("open", "")
     expect(widget.locator(".lf-call-toggle")).to_have_text("Collapse all")
     file_row = page.locator("#patch .lf-diff-file").first
-    expect(file_row).to_have_attribute(
-        "data-lf-datum", '["gateway/limits.py","file"]'
-    )
+    expect(file_row).to_have_attribute("data-lf-datum", '["gateway/limits.py","file"]')
     expect(file_row).to_have_attribute(
         "data-lf-datum-label", "gateway/limits.py · file"
     )
@@ -532,12 +530,15 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     assert selected == "└─ if request.token"
     expect(page.locator("#lf-composer-quote")).to_contain_text(f"“{selected}”")
 
-    updated = call_diff.replace(
-        "calldiff diff main → feature", "calldiff diff main → feature-2"
-    ) + """
+    updated = (
+        call_diff.replace(
+            "calldiff diff main → feature", "calldiff diff main → feature-2"
+        )
+        + """
   Limiter.secondary(self)  gateway/limits.py:50
 + └─ return True  gateway/limits.py:51
 """
+    )
     data_model.cmd_data_set(serve.page_dir, "request-call-diff", updated)
     told(page)
     expect(group).to_have_attribute("open", "")

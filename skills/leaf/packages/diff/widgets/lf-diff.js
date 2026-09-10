@@ -157,8 +157,7 @@ const fileDatum = (entry, origin = null) => ({
   ...(origin ? { origin } : {}),
 });
 const datumKey = (record) => (record.file ? fileKey(record) : lineKey(record));
-const datumLabel = (record) =>
-  record.file ? fileLabel(record) : lineLabel(record);
+const datumLabel = (record) => (record.file ? fileLabel(record) : lineLabel(record));
 
 function renderedLines(file, rendered) {
   const records = sourceLines(file);

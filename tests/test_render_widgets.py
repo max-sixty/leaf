@@ -5924,7 +5924,7 @@ def test_ask_action_addresses_stay_aligned_when_focus_enters_a_card(browser, ser
 
 
 def test_ask_actions_replace_unusable_package_address_faces(browser, serve):
-    """Disconnected, shared, and covered faces fall back to core-owned addresses."""
+    """Disconnected, shared, covered, and clipped faces use core addresses."""
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     resized(page, 900, 900)
 
@@ -5966,20 +5966,34 @@ def test_ask_actions_replace_unusable_package_address_faces(browser, serve):
             ' z-index: 2; background: black;';
           source.append(cover);
           add('covered-face', 460, covered);
+          const clip = document.createElement('span');
+          clip.id = 'address-clip';
+          clip.style.cssText =
+            'position: fixed; left: 90px; top: 240px; width: 24px; height: 8px;' +
+            ' overflow: hidden;';
+          const clipped = document.createElement('span');
+          clipped.id = 'clipped-address';
+          clipped.className = 'lf-address';
+          clipped.style.cssText = 'position: absolute; left: 0; top: 0;';
+          clip.append(clipped);
+          source.append(clip);
+          add('clipped-face', 540, clipped);
         }"""
     )
 
     page.keyboard.press("a")
     controls = page.locator(
-        "#disconnected-face, #shared-face-one, #shared-face-two, #covered-face"
+        "#disconnected-face, #shared-face-one, #shared-face-two, #covered-face, "
+        "#clipped-face"
     )
-    expect(controls).to_have_count(4)
+    expect(controls).to_have_count(5)
     assert controls.evaluate_all(
         "nodes => nodes.map(node => node.getAttribute('aria-keyshortcuts'))"
-    ) == ["3", "4", "5", "6"]
+    ) == ["3", "4", "5", "6", "7"]
     expect(page.locator("#shared-address[data-lf-ask-address]")).to_have_count(0)
     expect(page.locator("#covered-address[data-lf-ask-address]")).to_have_count(0)
-    for binding in ("3", "4", "5", "6"):
+    expect(page.locator("#clipped-address[data-lf-ask-address]")).to_have_count(0)
+    for binding in ("3", "4", "5", "6", "7"):
         expect(
             page.locator(".lf-ask-addresses > .lf-ask-address", has_text=binding)
         ).to_have_count(1)

@@ -18,7 +18,8 @@
      route may override `line` and `label` for the case where a nearer scope shadows only
      its sibling binding.
    - `label` optionally overrides the compact keycap in the command's own scope. A keyless
-     Decision command falls back to its `decision` action name in the complete reference.
+     row must declare one, unless a Decision command can fall back to its `decision` action
+     name in the complete reference.
      An Ask instead shows the resolved binding beside that separate action name, so an
      inline hint always says what the reader actually presses.
    - `control` is the visible element that activates the capability. `decision` is a
@@ -448,6 +449,16 @@ export function checked(rows, where) {
     if (ids.has(row.id)) throw new Error(`leaf: ${where} declares ${row.id} twice`);
     ids.add(row.id);
     const declared = declaredBindings(row);
+    const declaredLabel = row.label;
+    if (
+      !declared.length &&
+      row.decision === undefined &&
+      !(
+        (typeof declaredLabel === "string" && declaredLabel.trim()) ||
+        typeof declaredLabel === "function"
+      )
+    )
+      throw new Error(`leaf: ${row.id} has no binding, label, or Decision action name`);
     const routes = commandRoutes(row);
     const routed = new Set();
     for (const route of routes) {

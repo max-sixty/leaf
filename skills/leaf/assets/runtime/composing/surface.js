@@ -244,7 +244,8 @@ export function createResponseSurface({
     fabPositionTarget = target;
     const reference = {
       contextElement: target,
-      getBoundingClientRect: () => anchorBox(fabAnchor) ?? target.getBoundingClientRect(),
+      getBoundingClientRect: () =>
+        anchorBox(fabAnchor) ?? target.getBoundingClientRect(),
     };
     fabPositionCleanup = autoUpdate(reference, fabBar, scheduleFabPosition);
   }
@@ -401,79 +402,72 @@ export function createResponseSurface({
     const initial = fabPlacement === null;
     const stillCurrent = () => epoch === fabPositionEpoch && fabAnchor && fabFloating;
     void floatingUi()
-      .then(
-        ({ autoUpdate, computePosition, flip, offset, shift, size }) => {
-          if (!stillCurrent()) return null;
-          watchFabPosition(owner ?? document.documentElement, autoUpdate);
-          return computePosition(reference, fabBar, {
-            placement: fabPlacement ?? "right-start",
-            strategy: "fixed",
-            middleware: [
-              offset(({ placement, rects }) => {
-                const beside = /^(left|right)/.test(placement);
-                return {
-                  mainAxis: 6,
-                  // The paragraph chooses the horizontal lane; the selected line chooses
-                  // where in that lane the response starts. Above and below, preserve the
-                  // initial inline start as the field or its choices grow.
-                  crossAxis: beside
-                    ? target.top - keepClear.top - 6
-                    : fabInlineConnection === null
-                      ? 0
-                      : fabInlineConnection + rects.floating.width,
-                };
-              }),
-              // Size precedes the one initial flip so the decision sees the width into
-              // which the compact control can actually shrink. This is Floating UI's
-              // documented initial-placement composition; putting size last makes a
-              // fractional CSS pixel look like a missing margin rail.
-              size({
+      .then(({ autoUpdate, computePosition, flip, offset, shift, size }) => {
+        if (!stillCurrent()) return null;
+        watchFabPosition(owner ?? document.documentElement, autoUpdate);
+        return computePosition(reference, fabBar, {
+          placement: fabPlacement ?? "right-start",
+          strategy: "fixed",
+          middleware: [
+            offset(({ placement, rects }) => {
+              const beside = /^(left|right)/.test(placement);
+              return {
+                mainAxis: 6,
+                // The paragraph chooses the horizontal lane; the selected line chooses
+                // where in that lane the response starts. Above and below, preserve the
+                // initial inline start as the field or its choices grow.
+                crossAxis: beside
+                  ? target.top - keepClear.top - 6
+                  : fabInlineConnection === null
+                    ? 0
+                    : fabInlineConnection + rects.floating.width,
+              };
+            }),
+            // Size precedes the one initial flip so the decision sees the width into
+            // which the compact control can actually shrink. This is Floating UI's
+            // documented initial-placement composition; putting size last makes a
+            // fractional CSS pixel look like a missing margin rail.
+            size({
+              ...overflow,
+              apply({ availableWidth, availableHeight, placement }) {
+                if (!stillCurrent()) return;
+                const side = placement.split("-", 1)[0];
+                const laneWidth =
+                  side === "right"
+                    ? boundary.right - keepClear.right - 6
+                    : side === "left"
+                      ? keepClear.left - boundary.left - 6
+                      : fabInlineConnection === null
+                        ? availableWidth
+                        : boundary.right - (keepClear.right + fabInlineConnection);
+                // A side placement consumes its current rail. Above or below, the
+                // relative connection preserves the field's inline start as its content
+                // grows while allowing target reflow to carry that start with it.
+                setWidth(Math.max(0, Math.min(availableWidth, laneWidth)));
+                const laneHeight =
+                  side === "top"
+                    ? keepClear.top - boundary.top - 6
+                    : side === "bottom"
+                      ? boundary.bottom - keepClear.bottom - 6
+                      : boundary.height;
+                setHeight(
+                  /^(left|right)$/.test(side)
+                    ? boundary.height
+                    : Math.max(0, Math.min(availableHeight, laneHeight)),
+                );
+              },
+            }),
+            initial &&
+              flip({
                 ...overflow,
-                apply({ availableWidth, availableHeight, placement }) {
-                  if (!stillCurrent()) return;
-                  const side = placement.split("-", 1)[0];
-                  const laneWidth =
-                    side === "right"
-                      ? boundary.right - keepClear.right - 6
-                      : side === "left"
-                        ? keepClear.left - boundary.left - 6
-                        : fabInlineConnection === null
-                          ? availableWidth
-                          : boundary.right - (keepClear.right + fabInlineConnection);
-                  // A side placement consumes its current rail. Above or below, the
-                  // relative connection preserves the field's inline start as its content
-                  // grows while allowing target reflow to carry that start with it.
-                  setWidth(Math.max(0, Math.min(availableWidth, laneWidth)));
-                  const laneHeight =
-                    side === "top"
-                      ? keepClear.top - boundary.top - 6
-                      : side === "bottom"
-                        ? boundary.bottom - keepClear.bottom - 6
-                        : boundary.height;
-                  setHeight(
-                    /^(left|right)$/.test(side)
-                      ? boundary.height
-                      : Math.max(0, Math.min(availableHeight, laneHeight)),
-                  );
-                },
+                crossAxis: false,
+                fallbackPlacements: ["left-start", "top-end", "bottom-end"],
+                fallbackStrategy: "bestFit",
               }),
-              initial &&
-                flip({
-                  ...overflow,
-                  crossAxis: false,
-                  fallbackPlacements: ["left-start", "top-end", "bottom-end"],
-                  fallbackStrategy: "bestFit",
-                }),
-              shift({ ...overflow, mainAxis: true, crossAxis: true }),
-            ],
-          });
-        },
-        (error) => {
-          if (!stillCurrent()) return null;
-          showFab(null, null, { returnFocus: "page" });
-          throw error;
-        },
-      )
+            shift({ ...overflow, mainAxis: true, crossAxis: true }),
+          ],
+        });
+      })
       .then((position) => {
         if (!position) return;
         const { x, y, placement } = position;
@@ -488,6 +482,11 @@ export function createResponseSurface({
         fabBar.style.removeProperty("visibility");
         answerFabPosition(true);
         return true;
+      })
+      .catch((error) => {
+        if (!stillCurrent()) return;
+        showFab(null, null, { returnFocus: "page" });
+        throw error;
       });
     return true;
   }
@@ -730,8 +729,7 @@ export function createResponseSurface({
       // and the native context menu. An explicit Comment press uses the same field and
       // focuses it through focusFabComment below.
       openComment(anchor, "", { focus: false });
-    } else if (fabAnchor?.quote && !fabHoldsCapturedPassage())
-      showFab(null);
+    } else if (fabAnchor?.quote && !fabHoldsCapturedPassage()) showFab(null);
   }
   // Where the pointer stopped is not the question; where the selection is, is. The guard
   // exists so a mouseup inside the runtime's layer — a click in the panel, the composer —

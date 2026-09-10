@@ -1144,6 +1144,35 @@ describe("website page agent", () => {
     });
   });
 
+  it("accepts an atomic fallback that the container declines after task pickup", async () => {
+    const params = {
+      sessionId: "23".repeat(16),
+      reference: "230000000000",
+      route: "/examples/design-decision",
+      eventId: "24".repeat(16),
+      sourceId: "203.0.113.5",
+    };
+    const containerFetch = vi.fn(async () => Response.json({ status: "settled" }));
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const env = environment({
+      SOURCE_AGENT_RATE_LIMITER: {
+        limit: vi.fn(async () => ({ success: false })),
+      } as RateLimit,
+    });
+    const step = {
+      do: vi.fn(async (_name, _config, callback) => callback()),
+    };
+
+    const result = await runAgentWorkflow(env, params, step as never);
+
+    expect(result).toEqual({ status: "settled" });
+    expect(step.do.mock.calls.map(([name]) => name)).toEqual([
+      "reserve model capacity",
+      "append rate limit",
+    ]);
+    expect(containerFetch).toHaveBeenCalledOnce();
+  });
+
   it("settles a turn visibly after Codex startup exhausts its retries", async () => {
     const params = {
       sessionId: "08".repeat(16),

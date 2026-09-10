@@ -191,12 +191,14 @@ def cmd_reply(
     part: str = "",
     attempt: str | None = None,
     only_if_pending: bool = False,
+    only_if_unclaimed: bool = False,
     identity: dict | None = None,
 ) -> dict | None:
     """Post one complete threaded reply, optionally moving its anchor.
 
     A durable host may supply an attempt and require the target to remain the
-    newest pending reader turn; ordinary interactive replies use neither.
+    newest pending reader turn and unclaimed by another delivery; ordinary
+    interactive replies use neither.
     """
     body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
@@ -221,6 +223,10 @@ def cmd_reply(
                 or turns[-1]["id"] != to
             ):
                 return None
+        if only_if_unclaimed and any(
+            event["kind"] == "pickup" and to in event["events"] for event in events
+        ):
+            return None
         if root and (root.get("response") or {}).get("kind") == "version":
             if only_if_pending:
                 return None

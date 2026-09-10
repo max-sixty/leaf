@@ -8,6 +8,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -65,14 +66,22 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
 class FakeCodexHost:
     def __init__(self):
         self.attached = []
-        self.abandoned = []
 
     def attach(self, page_dir: Path, event_id: str) -> str:
         self.attached.append(page_dir)
         return "codex-thread"
 
-    def abandon(self, page_dir: Path, event_id: str) -> None:
-        self.abandoned.append((page_dir, event_id))
+    def fallback_reply(self, page_dir: Path, event_id: str, text: str) -> dict | None:
+        return website_server.cmd_reply(
+            page_dir,
+            event_id,
+            text,
+            "",
+            attempt=website_server.agent_attempt(event_id),
+            only_if_pending=True,
+            only_if_unclaimed=True,
+            identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
+        )
 
 
 def test_agent_logs_are_structured_and_content_free(capsys):
@@ -87,6 +96,12 @@ def test_agent_logs_are_structured_and_content_free(capsys):
         "event": "container_start_completed",
         "eventId": "reader-event",
         "durationMs": 125,
+    }
+
+
+def test_agent_logs_keep_every_event_in_a_batched_turn_searchable():
+    assert website_server.agent_event_fields(("event-1", "event-2")) == {
+        "eventIds": ("event-1", "event-2")
     }
 
 
@@ -842,6 +857,92 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     )
 
     assert read_events(page_dir) == before
+
+
+def test_a_host_fallback_does_not_answer_input_an_agent_turn_already_claimed(
+    page_dir,
+):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    website_server.accept_codex_delivery("hosted-thread")
+
+    reply = website_server.cmd_reply(
+        page_dir,
+        comment["id"],
+        website_server.GENERATION_FAILURE_REPLY,
+        "",
+        attempt=website_server.agent_attempt(comment["id"]),
+        only_if_pending=True,
+        only_if_unclaimed=True,
+        identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
+    )
+
+    assert reply is None
+
+
+def test_a_fallback_waits_for_external_turn_acceptance_to_be_recorded(
+    page_dir, monkeypatch
+):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    host = website_server.WebsiteCodexHost("codex")
+    process = type("Process", (), {"pid": os.getpid()})()
+    turn_started = threading.Event()
+    record_acceptance = threading.Event()
+    fallback_waiting = threading.Event()
+
+    class ObservedLock:
+        def __init__(self):
+            self.lock = threading.Lock()
+
+        def __enter__(self):
+            if self.lock.locked():
+                fallback_waiting.set()
+            self.lock.acquire()
+
+        def __exit__(self, *args):
+            self.lock.release()
+
+    host.lock = ObservedLock()
+    monkeypatch.setattr(host, "_ensure_server", lambda: process)
+
+    def start_thread(page, process, event_id):
+        website_server.prepare_codex_delivery(
+            page,
+            {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+            {"pid": process.pid},
+        )
+        turn_started.set()
+        record_acceptance.wait(timeout=2)
+        website_server.accept_codex_delivery("hosted-thread")
+        return "hosted-thread"
+
+    monkeypatch.setattr(host, "_start_thread", start_thread)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attached = pool.submit(host.attach, page_dir, comment["id"])
+        assert turn_started.wait(timeout=2)
+        settled = pool.submit(
+            host.fallback_reply,
+            page_dir,
+            comment["id"],
+            website_server.GENERATION_FAILURE_REPLY,
+        )
+
+        assert fallback_waiting.wait(timeout=2)
+        record_acceptance.set()
+        assert attached.result(timeout=2) == "hosted-thread"
+        assert settled.result(timeout=2) is None
+    assert not any(
+        event["kind"] == "reply" and event.get("parent") == comment["id"]
+        for event in read_events(page_dir)
+    )
 
 
 def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):

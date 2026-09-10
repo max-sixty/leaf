@@ -98,6 +98,13 @@ def log_agent(event: str, **fields) -> None:
     )
 
 
+def agent_event_fields(event_ids: tuple[str, ...]) -> dict:
+    """Keep every accepted event searchable when one turn carries a batch."""
+    if len(event_ids) == 1:
+        return {"eventId": event_ids[0]}
+    return {"eventIds": event_ids}
+
+
 @cache
 def page_binding(page_dir: Path) -> tuple[dict, str, dict | None]:
     """Read immutable delivery metadata once per published page and process."""
@@ -402,10 +409,10 @@ class WebsiteCodexHost:
         final_message = None
         started = time.monotonic()
         first_notification = True
-        event_id = event_ids[0] if len(event_ids) == 1 else None
+        event_fields = agent_event_fields(event_ids)
         pending = list(initial_messages)
         _set_stream_activity(thread_id, turn_id, "Starting")
-        log_agent("turn_following_started", eventId=event_id, turnId=turn_id)
+        log_agent("turn_following_started", **event_fields, turnId=turn_id)
         try:
             while True:
                 if pending:
@@ -420,7 +427,7 @@ class WebsiteCodexHost:
                 if first_notification:
                     log_agent(
                         "turn_first_notification",
-                        eventId=event_id,
+                        **event_fields,
                         turnId=turn_id,
                         durationMs=round((time.monotonic() - started) * 1000),
                         buffered=buffered,
@@ -455,7 +462,7 @@ class WebsiteCodexHost:
             socket.close()
         log_agent(
             "turn_stream_completed",
-            eventId=event_id,
+            **event_fields,
             turnId=turn_id,
             durationMs=round((time.monotonic() - started) * 1000),
             status=terminal.get("status"),
@@ -523,7 +530,7 @@ class WebsiteCodexHost:
         event_ids = delivery["events"]
         log_agent(
             "turn_start_completed",
-            eventId=event_ids[0] if len(event_ids) == 1 else None,
+            **agent_event_fields(event_ids),
             turnId=turn["id"],
             durationMs=round((time.monotonic() - started) * 1000),
         )
@@ -644,12 +651,23 @@ class WebsiteCodexHost:
         )
         return thread_id
 
-    def abandon(self, page_dir: Path, event_id: str) -> None:
-        """Retire a delivery only after any concurrent startup has completed."""
+    def fallback_reply(self, page_dir: Path, event_id: str, text: str) -> dict | None:
+        """Settle unclaimed input without racing a turn that is starting."""
         with self.lock:
+            accepted = cmd_reply(
+                page_dir,
+                event_id,
+                text,
+                "",
+                attempt=agent_attempt(event_id),
+                only_if_pending=True,
+                only_if_unclaimed=True,
+                identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
+            )
             claim = page_claim(page_dir)
             if claim and claim.get("host") == "codex":
                 abandon_codex_delivery(claim["id"], event_id)
+            return accepted
 
 
 _agent_host: WebsiteCodexHost | None = None
@@ -765,19 +783,10 @@ class WebsitePageHandler(Handler):
             return
 
         try:
-            accepted = cmd_reply(
-                self.page_dir,
-                event_id,
-                text,
-                "",
-                attempt=agent_attempt(event_id),
-                only_if_pending=True,
-                identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
-            )
+            accepted = self.agent_host.fallback_reply(self.page_dir, event_id, text)
         except SystemExit as error:
             self._json({"error": str(error)}, 400)
             return
-        self.agent_host.abandon(self.page_dir, event_id)
         if accepted is None:
             self._json({"status": "settled"})
             return

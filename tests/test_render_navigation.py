@@ -3468,9 +3468,9 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
         "selector => document.querySelector(selector).getBoundingClientRect().top",
         fixed_link_selector,
     )
-
-    page.keyboard.press("h")
-    expect(page.locator(f'{CHIPS}:not([data-lf-address-kind="Link"])')).to_have_count(0)
+    page.evaluate(
+        "async () => (await import('/runtime/notifications.js')).notice('Links only.')"
+    )
     expect(page.locator(".lf-notice")).to_be_visible()
     assert (
         page.evaluate(
@@ -6093,6 +6093,7 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     banner_destinations = {
         "navigation.panel.threads": (page.locator(".lf-threads-toggle"), "T"),
         "navigation.panel.asks": (page.locator(".lf-asks"), "A"),
+        "version.open": (version, "V"),
     }
     for control, suffix in banner_destinations.values():
         expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
@@ -6100,8 +6101,6 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     expect(page.locator(".lf-goto-targets > [data-lf-address-command]")).to_have_count(
         0
     )
-    expect(version).to_be_disabled()
-    expect(version).to_have_attribute("title", "v1")
     expect(page.locator(".lf-latest-chip")).to_have_attribute(
         "title", re.compile(r"\(g V v\)$")
     )
@@ -6182,6 +6181,7 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     resized(page, 390, 800)
     for command, control in (
         ("navigation.panel.threads", page.locator(".lf-threads-toggle")),
+        ("version.open", page.locator(".lf-version")),
     ):
         hint = page.locator(
             f'.lf-goto-targets > .lf-target-hint[data-lf-address-command="{command}"]'
@@ -7793,7 +7793,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(
         help_el.locator("tr", has_text="bottom of the page").locator(".lf-key-sequence")
     ).to_have_attribute("aria-label", "g then Shift+g")
-    expect(help_el.locator('tr[data-lf-command="version.open"]')).to_have_count(0)
+    versions_route = help_el.locator(
+        'tr[data-lf-command="version.open"] .lf-key-sequence'
+    )
+    expect(versions_route.locator("kbd")).to_have_text(["g", "V"])
+    expect(versions_route).to_have_attribute("aria-label", "g then Shift+v")
     sequence_control = help_el.locator('tr[data-lf-command="navigation.address.back"]')
     expect(sequence_control).to_have_class(re.compile(r"\blf-sequence-control\b"))
     expect(sequence_control.locator("td").first).to_have_css(
@@ -7807,9 +7811,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Previous open thread")
     expect(help_el).not_to_contain_text("On a focused thread")
     expect(help_el).not_to_contain_text("waiting on you for")
-    # A first version is passive orientation, so neither a chooser nor a walk is offered.
-    expect(help_el).not_to_contain_text("The versions, and what each one changed")
-    expect(help_el).not_to_contain_text("Close the versions menu")
+    # A first version has a menu and a way out, but no neighbouring version to walk.
+    expect(help_el).to_contain_text("The versions, and what each one changed")
+    expect(help_el).to_contain_text("Close the versions menu")
     expect(help_el).not_to_contain_text("Later version")
     expect(help_el).not_to_contain_text("Earlier version")
     page.keyboard.press("Escape")
@@ -7855,8 +7859,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         help_el.locator("tr", has_text="Previous open thread").locator("kbd")
     ).to_have_text("T")
     expect(help_el).to_contain_text("On a focused thread")
-    # Still one version, so neither the chooser nor its walk is advertised.
-    expect(help_el).not_to_contain_text("Close the versions menu")
+    # Still one version, so there is no version walk to advertise.
+    expect(help_el).to_contain_text("Close the versions menu")
     expect(help_el).not_to_contain_text("Later version")
     expect(help_el).not_to_contain_text("Earlier version")
     page.keyboard.press("Escape")

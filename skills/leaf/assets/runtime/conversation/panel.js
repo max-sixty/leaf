@@ -1,11 +1,6 @@
-/* The thread panel's scaffold: the dialog, its head, its narrowing controls, the thread list,
-   and the foot the general box stands in. Built here, once, so every owner that draws
-   into the panel imports the same nodes; the reconciler renders into them and the
-   chrome-layout.js places them. */
-import { el } from "../widget-elements.js";
-import { iconElement } from "../icons.js";
-import { setPanel } from "../chrome-layout.js";
-import { designOn } from "../design.js";
+/* The thread panel's general composer and its one draft/drawing authority. */
+import { landTyping, mayLandTyping } from "../composing/capture.js";
+import { validDrawing } from "../composing/drawing-record.js";
 import {
   loadDraft,
   loadDraftPayload,
@@ -14,207 +9,82 @@ import {
   sendMessage,
   watchDraft,
 } from "../drafts.js";
-import { runtime } from "../context.js";
-import { post } from "../outbox.js";
-import { landTyping, mayLandTyping } from "../composing/capture.js";
-import { wireInput } from "../composing/input.js";
-import { showThread } from "./landing.js";
-import { paintDrawings, validDrawing } from "../composing/drawing.js";
-import { registerArrangement } from "../reading-regions.js";
+import { closeBtn, generalInput, generalSend } from "./panel-elements.js";
 
-export const panel = el("dialog", "lf-ui lf-panel");
-panel.id = "lf-threads";
-export const panelHead = el("div", "lf-panel-head");
-export const closeBtn = el("button", "lf-btn lf-icon-action lf-close-action");
-closeBtn.append(iconElement("cross", "lf-action-icon"));
-closeBtn.title = "Close threads (Esc)";
-closeBtn.setAttribute("aria-label", "Close threads");
-// The head's own line: the panel's name while it shows the whole conversation, and what
-// it is showing instead the moment a narrowing stands. One slot, because they are one
-// fact — how much of the log is in front of the reader — and a count in a second place
-// is a count free to disagree with the list under it.
-export const panelTitle = el("span", "lf-panel-title", "Threads");
-panelHead.append(panelTitle, closeBtn);
-
-// Narrowing the list, which is the panel's own view and not the page's state: none of
-// these controls is remembered across a reload, the way a browser's find bar is not. A
-// remembered narrowing is a trap: the reader returns to three of twenty-four threads with
-// nothing on screen saying why, and a comment arriving outside it never appears at all. Here
-// the head says "Showing 3 of 24" for as long as one stands, and a reload makes the whole
-// conversation available again.
-const findRow = el("div", "lf-find");
-export const findInput = document.createElement("input");
-findInput.type = "search";
-findInput.name = "thread-search";
-findInput.className = "lf-find-box";
-findInput.placeholder = "Find in threads";
-findInput.setAttribute("aria-label", "Find in threads");
-// The register appends the key that reaches it (`control`), so the control and the row
-// cannot spell the binding differently.
-findInput.title = "Find in threads";
-findRow.append(findInput);
-
-const filterButton = (kind, value, label, className = "") => {
-  const button = el(
-    "button",
-    `lf-btn lf-thread-filter${className ? ` ${className}` : ""}`,
-    label,
-  );
-  button.type = "button";
-  button.dataset.filterKind = kind;
-  button.dataset.filterValue = value;
-  button.dataset.filterLabel = label;
-  button.setAttribute("aria-pressed", "false");
-  return button;
-};
-const filterGroup = (label, buttons) => {
-  const group = el("div", "lf-thread-filter-group");
-  group.setAttribute("role", "group");
-  group.setAttribute("aria-label", label);
-  group.append(...buttons);
-  return group;
-};
-
-export const stateButtons = {
-  open: filterButton("state", "open", "Open"),
-  reader: filterButton("state", "reader", "On you", "lf-needs"),
-  agent: filterButton("state", "agent", "On agent"),
-  resolved: filterButton("state", "resolved", "Resolved"),
-};
-// The shared name of the control `w` reaches. Waiting is one value of the state facet
-// rather than an independent switch that could be combined with Resolved.
-export const needsBtn = stateButtons.reader;
-export const scopeButtons = {
-  page: filterButton("scope", "page", "Page"),
-  local: filterButton("scope", "local", "Anchored"),
-};
-export const subjectButtons = {
-  content: filterButton("subject", "content", "Content"),
-  layer: filterButton("subject", "layer", "Layer"),
-};
-export const goneBtn = filterButton("gone", "gone", "No longer here");
-goneBtn.hidden = true;
-
-export const filterControls = el("div", "lf-thread-filters");
-filterControls.setAttribute("aria-label", "Filter threads");
-const facetRow = el("div", "lf-thread-filter-facets");
-facetRow.append(
-  filterGroup("Thread scope", Object.values(scopeButtons)),
-  filterGroup("Thread subject", Object.values(subjectButtons)),
-  filterGroup("Thread placement", [goneBtn]),
-);
-filterControls.append(
-  filterGroup("Thread state", Object.values(stateButtons)),
-  facetRow,
-);
-export const threadsBox = el("div", "lf-threads");
-// A stable panel landing for g T, for c entered from the list, and for pointer/Tab
-// fallbacks that have no command frame. -1 keeps it out of the Tab order.
-threadsBox.tabIndex = -1;
-// And a name, because `g T` lands a reader here and the panel's visible heading alone does
-// not name a focusable container. A page key's arrival has to say where it arrived — the
-// other direct destinations are named by a leaf link, an Ask row, or a Page-map marker
-// — or the press is silent to exactly the reader who cannot see the cue it painted. The
-// same reason the reference dialog carries a role and a label beside its -1.
-// `group` rather than `list`: the box holds run headings as well as threads, so a list
-// role fails `aria-required-children` outright and leaves a screen reader announcing a list
-// with no items. The name is what the landing needed; the role is only there because a bare
-// div may not carry one.
-threadsBox.setAttribute("role", "group");
-threadsBox.setAttribute("aria-label", "Threads");
-// The list scrolls under pinned headings and through whichever thread happens to meet
-// its viewport edge. Its focus outline therefore belongs to the frame's overlay paint
-// layer, not to the list behind those descendants.
-export const threadsFrame = el("div", "lf-threads-frame");
-threadsFrame.append(threadsBox);
-export const generalRow = el("div", "lf-general");
-export const generalInput = document.createElement("textarea");
-generalInput.name = "comment";
-const generalSend = el("button", "lf-btn primary", "Send");
-generalRow.append(generalInput, generalSend);
-// The panel's foot: the general box below the scrolling thread list.
-export const panelFoot = el("div", "lf-panel-foot");
-panelFoot.append(generalRow);
-panel.append(panelHead, findRow, filterControls, threadsFrame, panelFoot);
-
-let readingArrangement = null;
-export function mountPanelReadingRegion() {
-  if (readingArrangement) return;
-  readingArrangement = registerArrangement({
-    owner: panel,
-    content: panel,
-    regions: [{ id: "lf-threads", host: panel, body: threadsBox }],
-  });
-  void readingArrangement.setPosture("bounded");
-}
-
-closeBtn.onclick = () => setPanel(false);
-
-// What the general box is for, said once: its own placeholder wears it, and so does the
-// panel row whose key opens it. Two strings would be two chances to rename the mode in
-// one of them.
-export const generalHint = () =>
-  designOn && !generalDrawing ? "Comment on the layer" : "Comment on the page";
-
-let sync = () => {};
 const drawingIn = (payload) =>
   validDrawing(payload?.drawing) ? payload.drawing : null;
-let generalDrawing = drawingIn(loadDraftPayload("general"));
-export const syncGeneral = () => sync();
-export function pageComposerDrawing() {
-  return generalDrawing;
-}
 
-function saveGeneralDraft(text = sync.value()) {
-  return saveDraft(
-    "general",
-    text,
-    generalDrawing ? { drawing: generalDrawing } : undefined,
-  );
-}
+export function createPanelComposer({
+  designIsOn,
+  wireInput,
+  createPageComment,
+  showThread,
+  setPanel,
+  paintDrawings,
+}) {
+  let sync = () => {};
+  let generalDrawing = drawingIn(loadDraftPayload("general"));
+  const generalHint = () =>
+    designIsOn() && !generalDrawing ? "Comment on the layer" : "Comment on the page";
+  const syncGeneral = () => sync();
+  const pageComposerDrawing = () => generalDrawing;
 
-export function openPageDrawing(drawing) {
-  generalDrawing = drawing;
-  saveGeneralDraft();
-  setPanel(true);
-  generalInput.focus({ preventScroll: true });
-  sync();
-  paintDrawings();
-}
+  function saveGeneralDraft(text = sync.value()) {
+    return saveDraft(
+      "general",
+      text,
+      generalDrawing ? { drawing: generalDrawing } : undefined,
+    );
+  }
 
-export function wireGeneralBox() {
-  generalInput.value = loadDraft("general") ?? "";
-  sync = wireInput(generalInput, {
-    // The box has no anchor to decide it at an open, so what it posts is decided at the
-    // send, by the mode standing then — and the hint says which, so the reader typing in
-    // design mode knows their remark is about the layer as a whole.
-    hint: generalHint,
-    accessibleName: generalHint,
-    sends: "send",
-    sendBtn: generalSend,
-    hasContent: (raw) => Boolean(raw || generalDrawing),
-    save: saveGeneralDraft,
-    send: async (_text, raw, owns) => {
-      const sent = await sendMessage("general", owns, (attempt, payload) => {
-        const event = { kind: "comment", revision: runtime.currentRevision, attempt };
-        if (raw) event.text = raw;
-        const drawing = drawingIn(payload);
-        if (designOn && !drawing) event.about = "layer";
-        if (drawing) event.drawing = drawing;
-        return post(event);
-      });
-      if (!sent) return;
-      const shouldLand = mayLandTyping(generalInput);
-      showThread(sent.id, { focus: false });
-      if (shouldLand) landTyping(generalInput); // both send routes end where typing was
-    },
-  });
-
-  sync();
-  mirrorDraft(generalInput, sync, "general");
-  watchDraft("general", (_value, payload) => {
-    generalDrawing = drawingIn(payload);
+  function openPageDrawing(drawing) {
+    generalDrawing = drawing;
+    saveGeneralDraft();
+    setPanel(true);
+    generalInput.focus({ preventScroll: true });
     sync();
     paintDrawings();
-  });
+  }
+
+  function mount() {
+    closeBtn.onclick = () => setPanel(false);
+    generalInput.value = loadDraft("general") ?? "";
+    sync = wireInput(generalInput, {
+      hint: generalHint,
+      accessibleName: generalHint,
+      sends: "send",
+      sendBtn: generalSend,
+      hasContent: (raw) => Boolean(raw || generalDrawing),
+      save: saveGeneralDraft,
+      send: async (_text, raw, owns) => {
+        const sent = await sendMessage("general", owns, (attempt, payload) => {
+          const event = { attempt };
+          if (raw) event.text = raw;
+          const drawing = drawingIn(payload);
+          if (designIsOn() && !drawing) event.about = "layer";
+          if (drawing) event.drawing = drawing;
+          return createPageComment(event);
+        });
+        if (!sent) return;
+        const shouldLand = mayLandTyping(generalInput);
+        showThread(sent.id, { focus: false });
+        if (shouldLand) landTyping(generalInput);
+      },
+    });
+    sync();
+    mirrorDraft(generalInput, sync, "general");
+    watchDraft("general", (_value, payload) => {
+      generalDrawing = drawingIn(payload);
+      sync();
+      paintDrawings();
+    });
+  }
+
+  return {
+    generalHint,
+    syncGeneral,
+    pageComposerDrawing,
+    openPageDrawing,
+    mount,
+  };
 }

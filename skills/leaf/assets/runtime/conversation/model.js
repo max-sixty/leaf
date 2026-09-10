@@ -58,42 +58,31 @@ export function foldThreads(threads, messages, reactions, settlements) {
     return copy;
   });
   const opened = [];
-  for (const message of messages) {
-    if (message.kind === "reply") continue;
+  // Open both kinds before attaching either kind of reply. The delivery queue lets a
+  // reader answer a locally named root before the server has named it; that root may be
+  // words or a reaction, independently of whether the answer itself carries a token.
+  for (const root of [...messages, ...reactions]) {
+    if (root.kind === "reply") continue;
+    const reaction = isReaction(root);
     const thread = {
-      root: message,
-      anchor: message.anchor ?? null,
-      msgs: [message],
+      root,
+      anchor: root.anchor ?? null,
+      msgs: [root],
       resolved: null,
-      awaits_agent: true,
+      awaits_agent: !reaction,
       awaits_reader: false,
-      bare_reaction: false,
-      seat: pendingSeat(message),
+      bare_reaction: reaction,
+      seat: pendingSeat(root),
     };
     opened.push(thread);
-    byName.set(message.id, thread);
+    byName.set(root.id, thread);
   }
-  // After the threads, so a reply into a conversation this tab has not sent yet finds
-  // the one standing for it.
-  for (const message of messages)
-    if (message.kind === "reply") byName.get(message.parent)?.msgs.push(message);
-  for (const reaction of reactions) {
-    if (reaction.kind === "reply") {
-      byName.get(reaction.parent)?.msgs.push(reaction);
-      continue;
-    }
-    const thread = {
-      root: reaction,
-      anchor: reaction.anchor ?? null,
-      msgs: [reaction],
-      resolved: null,
-      awaits_agent: false,
-      awaits_reader: false,
-      bare_reaction: true,
-      seat: pendingSeat(reaction),
-    };
-    opened.push(thread);
-    byName.set(reaction.id, thread);
+  for (const reply of [...messages, ...reactions])
+    if (reply.kind === "reply") byName.get(reply.parent)?.msgs.push(reply);
+  for (const thread of opened) {
+    const said = spoken(thread);
+    thread.bare_reaction = isReaction(thread.root) && !said.length;
+    thread.awaits_agent = Boolean(said.length);
   }
   for (const settlement of settlements) {
     const thread = byName.get(settlement.parent) ?? byName.get(settlement.localParent);

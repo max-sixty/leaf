@@ -17,8 +17,8 @@ import {
 } from "../passages.js";
 import { textUnits } from "../text-alignment.js";
 import { focused } from "../keyboard/scopes.js";
-import { takesLetters } from "../keyboard/page.js";
-import { anchoringIsReady } from "../anchors.js";
+import { takesLetters } from "../focus.js";
+import { anchoringIsReady } from "../anchor-resolution.js";
 
 // How much of a passage's surroundings an anchor writes down. Only the capture decides
 // this; the search asks for whatever a given anchor happens to hold.

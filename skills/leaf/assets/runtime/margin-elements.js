@@ -27,7 +27,7 @@
    activation remains with the contributor's original control.
 
    A failed mutation leaves Failed, Retry, and Cancel at its target. Retry follows only a
-   definitive refusal; an ambiguous transport result remains busy while the outbox retries
+   definitive refusal; an ambiguous transport result remains busy while delivery retries
    the same attempt. Reversible actions act immediately and may offer Undo. Confirmation
    is reserved for irreversible effects. */
 

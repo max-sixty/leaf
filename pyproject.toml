@@ -38,6 +38,7 @@ dependencies = [
   "mcp>=2.1.1",
   "playwright>=1.49",
   "tinycss2>=1.4",
+  "turbohtml>=1.7",
   "websockets>=15",
 ]
 

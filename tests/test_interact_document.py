@@ -110,6 +110,44 @@ def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries(
     assert non_js_whitespace == [{"text": "\u0085edge\u0085"}]
 
 
+def test_file_readings_follow_browser_tree_recovery():
+    html = (
+        '<main id="page"><table id="grid"><p id="lead">Lead'
+        '<tr><td>Cell</table><p id="tail">Tail</main>'
+    )
+
+    parsed = structure_model.parse_structure(html)
+    [main] = parsed.content
+    assert [node["tag"] for node in main["content"]] == ["p", "table", "p"]
+    assert [node["tag"] for node in main["content"][1]["content"]] == ["tr"]
+
+    passages = passages_model.page_passages(html)
+    assert passages.text == "Lead Cell Tail"
+    assert passages.enclosing["lead"] == ("page", "lead")
+    assert passages.enclosing["grid"] == ("page", "grid")
+
+
+def test_structural_errors_distinguish_recovery_from_ambiguous_source():
+    optional = structure_model.parse_structure("<main><p>First<div>Second</div></main>")
+    assert optional.errors == [] and optional.unclosed == []
+
+    unclosed = structure_model.parse_structure("<main><section>Text</main>")
+    assert unclosed.unclosed == [("section", 1)]
+
+    caption = structure_model.parse_structure(
+        "<main><table><caption>Title<tbody><tr><td>Cell</table></main>"
+    )
+    assert caption.unclosed == [("caption", 1)]
+
+    stray = structure_model.parse_structure("<main><div>Text</span></div></main>")
+    assert stray.errors == ["stray </span> at line 1 with no matching open tag"]
+
+    duplicate_body = structure_model.parse_structure(
+        "<body><main>Text</main></body><body></body>"
+    )
+    assert duplicate_body.body_lines == [1, 1]
+
+
 def construction_nodes(content):
     """Index the emitted construction without reading its source files again."""
     nodes = {}
@@ -457,9 +495,8 @@ def test_check_rejects_widget_violations(page_dir):
 def test_check_rejects_duplicate_attributes_the_browser_reads_differently(page_dir):
     """A file reading cannot silently choose another id than the live DOM.
 
-    HTML keeps the first duplicate attribute, while HTMLParser reports both and
-    ``dict(attrs)`` keeps the last. Accepting this would let the action gate map
-    a stateful widget under an id its browser can never send.
+    HTML keeps the first duplicate attribute. Accepting one without reporting it
+    would let the action gate map a stateful widget under an ambiguous source id.
     """
     registry = json.loads((page_dir / "registry.json").read_text())
     board = registry["lf-board"]["x-example"].replace(

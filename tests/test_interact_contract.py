@@ -3409,13 +3409,13 @@ def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):
 
 def test_source_reading_preserves_foreign_graphics_as_exact_markup():
     graphic = (
-        '<svg id="plot" viewBox="0 0 10 10">\n'
-        '<circle cx="5" cy="5" r="4"/>\n'
+        '<svg id="plot" viewBox="0 0 10 10">\r\n'
+        '<circle cx="5" cy="5" r="4"/>\r\n'
         '<svg><text x="0">A &amp; B</text></svg>'
-        "<foreignObject><p>HTML <strong>inside</strong></p></foreignObject>\n"
+        "<foreignObject><p>HTML <strong>inside</strong></p></foreignObject>\r\n"
         "</svg >"
     )
-    html = "<main>\n" + graphic + '<p id="after">After</p></main>'
+    html = "<main>Préface\r\n" + graphic + '<p id="after">After</p></main>'
     parser = structure_model.StructParser()
     # The HTML parser also accepts chunked input; source positions refer to the
     # whole document even when an SVG closing tag crosses a feed boundary.

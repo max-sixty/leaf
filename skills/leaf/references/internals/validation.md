@@ -107,10 +107,10 @@ and unresolved ambiguous passages are refused before append.
 
 ## Parsed source
 
-A page source is written in more than one language, and each language is read by a
-parser for that language: StructParser for what the markup declares,
-page_passages for what it says, tinycss2 for the CSS a <style> block holds. A
-new question about a page becomes a field on one of those readings rather
-than a pattern over the file's text, because a pattern answers something
-adjacent to the question asked — `leaf.styles._overwide_elements`
-carries the evidence of that cost.
+A page source is written in more than one language. TurboHTML's WHATWG tree drives
+both StructParser, for what the markup declares, and page_passages, for what it says;
+StructParser also retains exact source spans. tinycss2 reads the CSS a <style> block
+holds. A new question about a page becomes a field on one of those readings rather
+than a pattern over the file's text, because a pattern answers something adjacent to
+the question asked — `leaf.styles._overwide_elements` carries the evidence of that
+cost.

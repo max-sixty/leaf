@@ -22,10 +22,8 @@ import {
   stateButtons,
   subjectButtons,
   threadsBox,
-} from "./panel.js";
+} from "./panel-elements.js";
 import { runtime } from "../context.js";
-import { renderThreads } from "./thread-list.js";
-import { paintAcknowledgments } from "./reconcile.js";
 import { threadList } from "./state.js";
 
 let finding = "";
@@ -173,30 +171,29 @@ export function paintNarrowing(threads, shown, groups = new Map()) {
   stateButtons.reader.title = stateButtons.reader.dataset.lfKeyTitle;
 }
 
-function renarrow() {
+function renarrow(refreshNarrowing) {
   if (runtime.statePhase !== "ready") return;
-  renderThreads(threadList());
-  paintAcknowledgments();
+  refreshNarrowing();
   threadsBox.scrollTop = 0;
 }
 
-const choose = (kind, value) => {
+const choose = (kind, value, refreshNarrowing) => {
   if (kind === "state") state = state === value && value !== "open" ? "open" : value;
   else if (kind === "scope") scope = scope === value ? null : value;
   else if (kind === "subject") subject = subject === value ? null : value;
   else if (kind === "gone") onlyGone = !onlyGone;
-  renarrow();
+  renarrow(refreshNarrowing);
 };
 
-export function wireNarrowing() {
+export function wireNarrowing(refreshNarrowing) {
   findInput.addEventListener("input", () => {
     finding = findInput.value.trim().toLowerCase();
-    renarrow();
+    renarrow(refreshNarrowing);
   });
   for (const button of filterControls.querySelectorAll(".lf-thread-filter"))
     button.onclick = () => {
       if (!button.disabled)
-        choose(button.dataset.filterKind, button.dataset.filterValue);
+        choose(button.dataset.filterKind, button.dataset.filterValue, refreshNarrowing);
     };
 }
 
@@ -212,22 +209,22 @@ function clearNarrowing(nextState = "open") {
   return changed;
 }
 
-export function widen() {
+export function widen(refreshNarrowing) {
   if (!clearNarrowing()) return false;
-  renarrow();
+  renarrow(refreshNarrowing);
   return true;
 }
 
 // A direct destination overrides the current view, including the default Open state.
 // It clears unrelated refinements and selects the lifecycle value that can contain the
 // requested thread, rather than making Resolved a special disclosure outside filtering.
-export function revealThread(id) {
+export function revealThread(id, refreshNarrowing) {
   const thread = threadList().find(
     (candidate) =>
       candidate.root.id === id || candidate.msgs.some((message) => message.id === id),
   );
   if (!thread) return false;
-  if (!clearNarrowing(thread.resolved ? "resolved" : "open")) return false;
-  renarrow();
+  clearNarrowing(thread.resolved ? "resolved" : "open");
+  renarrow(refreshNarrowing);
   return true;
 }

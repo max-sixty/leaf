@@ -9,17 +9,11 @@
  * presentation fact rather than a timer: a slow state read may delay the frame, while
  * a failed startup rejects it immediately. */
 
-let toggleBtn;
-let panelIsOpen;
-let setPanel;
-let detachComposer;
-let fabInput;
-let openComposer;
-let closePreview;
-let openInlineThread;
-let threadTransitionOrigin;
-let currentTray;
-let showTray;
+let commands;
+let mountCommands;
+const mounted = new Promise((resolve) => {
+  mountCommands = resolve;
+});
 
 function presented() {
   return new Promise((resolve, reject) => {
@@ -46,53 +40,49 @@ function presented() {
 }
 
 function neutralChrome() {
-  detachComposer();
-  closePreview();
-  setPanel(false, { remember: false })?.finish();
-  if (currentTray()) showTray(null, { remember: false });
+  commands.detachComposer();
+  commands.closePreview();
+  commands.setPanel(false, { remember: false })?.finish();
+  if (commands.currentTray()) commands.showTray(null, { remember: false });
 }
 
 async function prepare() {
-  await presented();
-  const [banner, chromeLayout, selection, margin, trays] = await Promise.all([
-    import("./banner.js"),
-    import("./chrome-layout.js"),
-    import("./composing/selection.js"),
-    import("./living-margin.js"),
-    import("./trays.js"),
-  ]);
-  ({ toggleBtn } = banner);
-  ({ panelIsOpen, setPanel } = chromeLayout);
-  ({ detachComposer, fabInput, openComposer } = selection);
-  ({ closePreview, openInlineThread, threadTransitionOrigin } = margin);
-  ({ currentTray, showTray } = trays);
+  await Promise.all([presented(), mounted]);
   neutralChrome();
 }
 
 window.leafInteractionGalleryFrame = {
+  mount(capabilities) {
+    if (commands) throw new Error("the interaction gallery adapter mounted twice");
+    commands = capabilities;
+    mountCommands();
+  },
   ready: prepare(),
   resetComment(text) {
     neutralChrome();
-    openComposer({ section: "bg-thread-text" }, text, { focus: false });
+    commands.openComposer({ section: "bg-thread-text" }, text, { focus: false });
   },
   commentInput() {
-    return fabInput;
+    return commands.fabInput;
   },
   submitComment(threadId) {
-    const transition = threadTransitionOrigin(fabInput, fabInput.value);
-    detachComposer();
-    return openInlineThread(threadId, transition);
+    const transition = commands.threadTransitionOrigin(
+      commands.fabInput,
+      commands.fabInput.value,
+    );
+    commands.detachComposer();
+    return commands.openInlineThread(threadId, transition);
   },
   resetThreads() {
     neutralChrome();
   },
   threadsButton() {
-    return toggleBtn;
+    return commands.toggleBtn;
   },
   threadsOpen() {
-    return panelIsOpen();
+    return commands.panelIsOpen();
   },
   setThreads(open) {
-    return setPanel(open, { remember: false });
+    return commands.setPanel(open, { remember: false });
   },
 };

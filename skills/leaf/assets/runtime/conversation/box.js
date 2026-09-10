@@ -1,16 +1,16 @@
 /* This module owns page-seated first-message boxes: the conversation a widget declares
  * through `x-conversation`, built by `conversationBox`. */
-import { runtime } from "../context.js";
 import { loadDraft, saveDraft, sendMessage, watchDraft } from "../drafts.js";
 import { inChrome } from "../passages.js";
 import { matchesWhen, registry } from "../registry.js";
 import { offer, quoted } from "../widget-elements.js";
-import { post } from "../outbox.js";
-import { wireInput } from "../composing/input.js";
 import { notice } from "../notifications.js";
-import { renderPanel } from "./reconcile.js";
 
-export const conversationBox = (el, hint) => {
+export const conversationBox = (
+  el,
+  hint,
+  { createComment, onDraftChanged, wireInput },
+) => {
   if (inChrome(el) || quoted(el)) return null;
   const declaration = registry[el.localName]?.["x-conversation"];
   if (!declaration || !matchesWhen(el, declaration.when))
@@ -32,9 +32,7 @@ export const conversationBox = (el, hint) => {
   row.append(ta, send, ...(hold ? [hold] : []));
   const sendComment = (text, owns, holds = false) =>
     sendMessage(ctx, owns, (attempt) =>
-      post({
-        kind: "comment",
-        revision: runtime.currentRevision,
+      createComment({
         anchor: { section: el.id },
         text,
         attempt,
@@ -68,7 +66,7 @@ export const conversationBox = (el, hint) => {
   const off = watchDraft(ctx, (value) => {
     if (!box.isConnected) return off();
     sync.load(value ?? "");
-    renderPanel();
+    onDraftChanged();
   });
   box.append(row);
   return box;

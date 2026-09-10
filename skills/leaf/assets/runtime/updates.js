@@ -45,8 +45,8 @@
 
    `lf-actions` fires after a complete state has reconciled, including a read whose
    event list did not grow. The clock dispatches it only after retrying an explicitly
-   deferred projection. The outbox fires it too, for the reconciliation it performs on
-   an answer of its own — a refused action, or a read event — which withdraws or settles
+   deferred projection. Application fires it too after reconciling a delivery
+   answer — a refused action, or a read event — which withdraws or settles
    a winner without applying a state. Every pass that reconciles is therefore heard
    through this one event, which is what keeps a surface reading the projection rather
    than the DOM current with a withdrawal. Time-dependent paints are separate:
@@ -62,10 +62,14 @@
    is its public stamp when it has one, otherwise null, and `active.label` is `vN`,
    `Draft after vN`, or `Draft`. The timestamp of the latest note for that revision is
    the freshness floor for authored state when no report exists. A page that reports no
-   worker update is not timeless; its authored assertion is as old as its revision. */
+   worker update is not timeless; its authored assertion is as old as its revision.
+
+   createProjectionUpdates binds semantic subscriptions to one presentation owner's
+   commit proof. Raw update, publication, claim, and history readings do not depend on
+   that proof and remain direct exports. */
 import { watchProjection } from "./projection-watch.js";
-import { stateProjection } from "./projection/fold.js";
-import { coordinateProjectionCommitted, projectionCommitted } from "./projection.js";
+import { currentProjection } from "./projection/state.js";
+
 import { runtime } from "./context.js";
 import { closestAcross } from "./passages.js";
 
@@ -84,21 +88,6 @@ export function replaceClaimState(next) {
 export const workClaimState = () => ({
   claimsHeld: claimState.held,
 });
-
-export const actionSequence = (widget, action) => {
-  const projection = stateProjection();
-  return [...projection.classified.values()]
-    .filter(
-      (entry) =>
-        !entry.terminal &&
-        entry.e.kind === "action" &&
-        entry.e.widget === widget.id &&
-        (!action || entry.e.action === action) &&
-        projectionCommitted(projection, entry.e),
-    )
-    .sort((left, right) => left.e.seq - right.e.seq)
-    .map((entry) => structuredClone(entry.e));
-};
 
 function updateTarget(target) {
   if (target === null) return null;
@@ -124,34 +113,54 @@ export const updateSequence = (target = null) => {
     .map((update) => structuredClone(update));
 };
 
-function reportsCommitted(projection, target) {
-  const key = targetKey(updateTarget(target));
-  const coordinates = new Map();
-  for (const entry of projection.classified.values()) {
-    if (entry.terminal || entry.e.kind !== "report") continue;
-    const entryKey = targetKey({ kind: "widget", id: entry.e.widget });
-    if (key === null || key === entryKey) coordinates.set(entry.coordinate, entry);
-  }
-  return [...coordinates.values()].every((entry) =>
-    coordinateProjectionCommitted(projection, entry),
-  );
-}
-
 export const publishedAt = () => runtime.view?.published_at ?? null;
 export const saidAt = (el) =>
   closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head > time")
     ?.dateTime || publishedAt();
 
-export const watchActions = (widget, action, callback) =>
-  watchProjection(widget, () => callback(actionSequence(widget, action)));
-export const watchUpdates = (target, callback) =>
-  watchProjection(target instanceof Element ? target : document.body, () => {
-    const projection = stateProjection();
-    if (reportsCommitted(projection, target)) callback(updateSequence(target));
-  });
 // Full history is intentionally raw: it is the one public escape hatch whose contract
 // is the append-only log itself rather than a semantic reading of that log.
 export const watchHistory = (owner, callback) =>
   watchProjection(owner, () =>
     callback(runtime.events.map((event) => structuredClone(event))),
   );
+
+export function createProjectionUpdates({
+  projectionCommitted,
+  coordinateProjectionCommitted,
+}) {
+  const actionSequence = (widget, action) => {
+    const projection = currentProjection();
+    return [...projection.classified.values()]
+      .filter(
+        (entry) =>
+          !entry.terminal &&
+          entry.e.kind === "action" &&
+          entry.e.widget === widget.id &&
+          (!action || entry.e.action === action) &&
+          projectionCommitted(projection, entry.e),
+      )
+      .sort((left, right) => left.e.seq - right.e.seq)
+      .map((entry) => structuredClone(entry.e));
+  };
+  function reportsCommitted(projection, target) {
+    const key = targetKey(updateTarget(target));
+    const coordinates = new Map();
+    for (const entry of projection.classified.values()) {
+      if (entry.terminal || entry.e.kind !== "report") continue;
+      const entryKey = targetKey({ kind: "widget", id: entry.e.widget });
+      if (key === null || key === entryKey) coordinates.set(entry.coordinate, entry);
+    }
+    return [...coordinates.values()].every((entry) =>
+      coordinateProjectionCommitted(projection, entry),
+    );
+  }
+  const watchActions = (widget, action, callback) =>
+    watchProjection(widget, () => callback(actionSequence(widget, action)));
+  const watchUpdates = (target, callback) =>
+    watchProjection(target instanceof Element ? target : document.body, () => {
+      const projection = currentProjection();
+      if (reportsCommitted(projection, target)) callback(updateSequence(target));
+    });
+  return { actionSequence, watchActions, watchUpdates };
+}

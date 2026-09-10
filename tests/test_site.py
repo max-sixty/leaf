@@ -1107,12 +1107,9 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
             timeout=15_000,
         )
 
-        assert page.evaluate(
-            """async () => {
-                const {openInlineThread} = await import('/runtime/living-margin.js');
-                return Boolean(openInlineThread('2be2443f0bb6cc49fc86b52f340e6073'));
-            }"""
-        )
+        page.locator(
+            '[data-lf-margin-for="bg-thread-text"] > .lf-margin-marker'
+        ).click()
         expect(page.locator("#lf-margin-preview")).to_contain_text(GALLERY_THREAD_TEXT)
         comment_tab.click()
         toggle.click()

@@ -26,3 +26,49 @@ export function focusDestination(destination) {
     once: true,
   });
 }
+
+const TYPED_TYPES = new Set([
+  "text",
+  "search",
+  "url",
+  "tel",
+  "email",
+  "password",
+  "number",
+  "date",
+  "time",
+  "datetime-local",
+  "month",
+  "week",
+]);
+
+export function takesLetters(node) {
+  return (
+    Boolean(node) &&
+    (node.tagName === "TEXTAREA" ||
+      node.tagName === "SELECT" ||
+      node.isContentEditable ||
+      (node.tagName === "INPUT" && TYPED_TYPES.has(node.type)))
+  );
+}
+
+// Letting go of what the reader is standing on. One act at both ends of the ladder, and
+// one line of code, because standing on an Ask out on the page and standing on a banner
+// button are the same state — the reader holding something — reached from either side of
+// the chrome. What the two rungs do not share is the word, and neither word is the other's:
+// leaving the chrome names where the reader lands, since that is the whole of what the
+// rung is for, and letting go of an Ask names the act, since they were on the page all
+// along.
+//
+// Focus rather than blur, because the two differ in what Space does next: a focused
+// control owns the key, while body hands it back to the browser's root scrollport. A blur
+// names no deliberate destination even when activeElement subsequently reads as body.
+//
+// Body therefore needs to be somewhere a reader can be put even on a short page. The
+// explicit tab stop is programmatic only and gives every Escape handoff the same stable
+// page destination without adding a visible stop to the Tab order.
+document.body.tabIndex = -1;
+
+export function letGo() {
+  return document.body.focus({ preventScroll: true });
+}

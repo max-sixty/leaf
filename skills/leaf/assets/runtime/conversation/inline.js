@@ -1,6 +1,6 @@
 /* This module owns conversation seats rendered into the page, outside the retained
  * Threads list. */
-import { landInConversation, SAY_BOX, showThread } from "./landing.js";
+import { SAY_BOX } from "./selectors.js";
 import { ago } from "../presence.js";
 import { renderMessageMarkdown, syncEdited, syncStreamState } from "./messages.js";
 import { markdownReady } from "../markdown.js";
@@ -34,7 +34,7 @@ function paintConversationBody(body, message) {
 const inlineRevision = (message) =>
   `${message.edited?.id ?? ""}:${message.stream_state ? message.text : ""}:${markdownReady() ? "md" : "raw"}`;
 
-function conversationMessageNode(thread, message) {
+function conversationMessageNode(thread, message, commands) {
   // By its event, or — while the log is still answering for words the reader just sent —
   // by the attempt both the pending record and the server's event carry. Found that way,
   // the node the send drew is renamed rather than replaced, so the reader keeps the
@@ -85,13 +85,15 @@ function conversationMessageNode(thread, message) {
       "lf-btn lf-conversation-open",
       "Open interactive reply in Threads",
     );
-    open.onclick = () => showThread(message.id);
+    open.onclick = () => commands.showThread(message.id);
     node.append(open);
   }
   return node;
 }
 
-function conversationThreadNode(host, t, collapsible = false) {
+function conversationThreadNode(host, t, collapsible, commands) {
+  const removeNode = (node) =>
+    removeConversationNode(node, commands.reaction.closeReactionMode);
   let thread =
     host.querySelector(
       `:scope > .lf-conversation-thread[data-thread="${CSS.escape(t.root.id)}"]`,
@@ -103,7 +105,7 @@ function conversationThreadNode(host, t, collapsible = false) {
       : null);
   const wantedTag = collapsible ? "DETAILS" : "DIV";
   if (thread && thread.tagName !== wantedTag) {
-    removeConversationNode(thread);
+    removeNode(thread);
     thread = null;
   }
   if (!thread) {
@@ -129,7 +131,9 @@ function conversationThreadNode(host, t, collapsible = false) {
   }
   // Turns only: a reaction on a message is the panel's strip to show, and the seat is
   // the textual projection of the exchange.
-  const messages = turns(t).map((message) => conversationMessageNode(thread, message));
+  const messages = turns(t).map((message) =>
+    conversationMessageNode(thread, message, commands),
+  );
   const standing = focused();
   const heldFocus = thread.contains(standing);
   let tail;
@@ -144,14 +148,14 @@ function conversationThreadNode(host, t, collapsible = false) {
         : "✓ Resolved";
     if (!tail) {
       tail = offer("div", "lf-conversation-resolved");
-      tail.append(el("span"), settlementControl(t, { liveId }));
+      tail.append(el("span"), settlementControl(t, { liveId, ...commands.settlement }));
     }
     if (tail.firstChild.textContent !== settledBy)
       tail.firstChild.textContent = settledBy;
   } else {
     resolve =
       thread.querySelector(":scope > .lf-thread-head > .lf-resolve") ??
-      settlementControl(t, { liveId });
+      settlementControl(t, { liveId, ...commands.settlement });
     actions = thread.querySelector(":scope > .lf-thread-head");
     if (!actions) {
       actions = offer("header", "lf-thread-head");
@@ -166,7 +170,12 @@ function conversationThreadNode(host, t, collapsible = false) {
         input.name = "reply";
         const send = offer("button", "lf-btn primary", "Send");
         tail.append(input, send);
-        wireReply(t, input, send, liveId);
+        wireReply(t, input, send, {
+          liveId,
+          createReply: commands.reply.createReply,
+          revealReplyEditor: commands.reply.revealReplyEditor,
+          wireInput: commands.reply.wireInput,
+        });
       }
     }
   }
@@ -182,29 +191,33 @@ function conversationThreadNode(host, t, collapsible = false) {
       ...receipts,
       ...(tail ? [tail] : []),
     ],
-    removeConversationNode,
+    removeNode,
   );
   // Settlement replaces the focused controls in either tail shape. Transfer only
   // that removed focus; a later gesture elsewhere remains where the reader put it.
   if (heldFocus && !thread.contains(standing))
-    landInConversation(thread.querySelector(SAY_BOX) ?? thread);
-  if (collapsible) paintReactStrips(thread, t);
+    commands.landInConversation(thread.querySelector(SAY_BOX) ?? thread);
+  if (collapsible) paintReactStrips(thread, t, commands.reaction);
   return thread;
 }
 
-export function renderThreadSurface(host, threads) {
+export function renderThreadSurface(host, threads, commands) {
+  const removeNode = (node) =>
+    removeConversationNode(node, commands.reaction.closeReactionMode);
   const receipts = [...host.querySelectorAll(":scope > .lf-receipt")];
   setChildren(
     host,
     [
-      ...threads.map((thread) => conversationThreadNode(host, thread, true)),
+      ...threads.map((thread) => conversationThreadNode(host, thread, true, commands)),
       ...receipts,
     ],
-    removeConversationNode,
+    removeNode,
   );
 }
 
-export function renderConversations(threads) {
+export function renderConversations(threads, commands) {
+  const removeNode = (node) =>
+    removeConversationNode(node, commands.reaction.closeReactionMode);
   for (const host of document.querySelectorAll(
     ".lf-conversation[data-lf-conversation]",
   )) {
@@ -224,16 +237,18 @@ export function renderConversations(threads) {
       host,
       [
         ...receipts,
-        ...owned.map((thread) => conversationThreadNode(host, thread)),
+        ...owned.map((thread) => conversationThreadNode(host, thread, false, commands)),
         ...(pending ? [pending] : []),
       ],
-      removeConversationNode,
+      removeNode,
     );
   }
 }
 
-export function renderMarginThread(host, thread) {
-  const node = conversationThreadNode(host, thread);
-  setChildren(host, [node], removeConversationNode);
+export function renderMarginThread(host, thread, commands) {
+  const node = conversationThreadNode(host, thread, false, commands);
+  setChildren(host, [node], (removed) =>
+    removeConversationNode(removed, commands.reaction.closeReactionMode),
+  );
   return node;
 }

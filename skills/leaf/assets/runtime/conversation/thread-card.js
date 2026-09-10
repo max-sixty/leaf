@@ -1,24 +1,18 @@
 /* Retained comment-panel thread cards and their controls. */
-import { isMarked, placedAt, scrollToThread } from "../anchors.js";
-import { threadsBox } from "./panel.js";
+import { threadsBox } from "./panel-elements.js";
 import { turns } from "./model.js";
 import { anchorLabel, msgNode, msgNodeIn, syncMsgNode } from "./messages.js";
 import { paintReactStrips, removeConversationNode } from "./reaction-strips.js";
 import { el, reachedForWords } from "../widget-elements.js";
-import { panelCovers, setPanel } from "../chrome-layout.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply } from "./replies.js";
 import { settlementControl } from "./folding.js";
-import { retainPanelLanding, showThread } from "./landing.js";
 import { threadList } from "./state.js";
-import { openThreads } from "./thread-list.js";
-import { focusSurface } from "./surfaces.js";
 import { groupFor, pageOutline } from "./placement.js";
 
-const hasDestination = (id) => isMarked(id) || Boolean(placedAt(id));
-const threadAnchorLabel = (t, outline = pageOutline()) => {
-  const group = groupFor(t, outline);
+const threadAnchorLabel = (t, placedAt, outline = pageOutline()) => {
+  const group = groupFor(t, outline, placedAt);
   const segments = placedAt(t.root.id)?.segments ?? [];
   // The group heading already says these exact words immediately above the thread.
   // Decide that from the resolved nodes, not from a text comparison: identical words
@@ -47,7 +41,10 @@ const standingCard = (t) =>
     ? threadsBox.querySelector(`.lf-thread[data-attempt="${t.root.attempt}"]`)
     : null);
 
-export function threadNode(t, grow) {
+export function threadNode(t, grow, commands) {
+  const { reply, settlement, reaction, travel, anchors, openThreads } = commands;
+  const hasDestination = (id) => anchors.isMarked(id) || Boolean(anchors.placedAt(id));
+  const removeNode = (node) => removeConversationNode(node, reaction.closeReactionMode);
   const existing = standingCard(t);
   const existingResolved = existing && !existing.querySelector(":scope > .lf-compose");
   if (existing && existingResolved === Boolean(t.resolved)) {
@@ -73,8 +70,8 @@ export function threadNode(t, grow) {
       syncMsgNode(msg, m);
     }
     for (const message of existing.querySelectorAll(":scope > .lf-msg"))
-      if (!current.has(message.dataset.mid)) removeConversationNode(message);
-    paintReactStrips(existing, t);
+      if (!current.has(message.dataset.mid)) removeNode(message);
+    paintReactStrips(existing, t, reaction);
     return existing;
   }
 
@@ -88,7 +85,7 @@ export function threadNode(t, grow) {
   div.dataset.resolved = String(Boolean(t.resolved));
   if (t.root.attempt) div.dataset.attempt = t.root.attempt;
   if (grow) div.classList.add("grow");
-  const label = threadAnchorLabel(t);
+  const label = threadAnchorLabel(t, anchors.placedAt);
   const threadHead = el("header", "lf-thread-head");
   if (label) {
     const quote = el("blockquote", "lf-quote");
@@ -104,9 +101,9 @@ export function threadNode(t, grow) {
       // answer that: a resolved thread has no painted mark but keeps the placement it
       // can still travel to. Read the anchor pass's two destination records instead.
       if (!hasDestination(liveId())) return;
-      if (panelCovers()) setPanel(false);
-      scrollToThread(liveId(), {
-        land: () => focusSurface(liveId()),
+      if (travel.panelCovers()) travel.setPanel(false);
+      travel.scrollToThread(liveId(), {
+        land: () => travel.focusSurface(liveId()),
       });
     };
     keys(quote, "On a comment's quoted passage", [
@@ -129,11 +126,12 @@ export function threadNode(t, grow) {
     // before any message controls in the keyboard order; a message head says only who
     // wrote that message and when.
     resolve = settlementControl(t, {
+      ...settlement,
       liveId,
       prepareLanding: () => {
         // Resolving removes this card and its focus. Land on the thread that takes its
         // place, or the previous thread when this one was last in the list.
-        const mayLand = retainPanelLanding(div);
+        const mayLand = travel.retainPanelLanding(div);
         const at = openThreads().indexOf(div);
         return () => {
           if (!mayLand()) return;
@@ -146,14 +144,19 @@ export function threadNode(t, grow) {
   }
   if (threadHead.childElementCount) div.append(threadHead);
   turns(t).forEach((m) => div.append(msgNode(m)));
-  paintReactStrips(div, t);
+  paintReactStrips(div, t, reaction);
   if (!t.resolved) {
     const row = el("div", "lf-compose");
     const input = document.createElement("textarea");
     input.name = "reply";
     const send = el("button", "lf-btn primary lf-thread-send", "Send");
     row.append(input, send);
-    wireReply(t, input, send, liveId);
+    wireReply(t, input, send, {
+      liveId,
+      createReply: reply.createReply,
+      revealReplyEditor: reply.revealReplyEditor,
+      wireInput: reply.wireInput,
+    });
     div.append(row);
   } else {
     const actions = el("div", "lf-thread-actions");
@@ -168,11 +171,12 @@ export function threadNode(t, grow) {
       status.append(el("span", "lf-resolved-by", `✓ Resolved by ${by}`));
     }
     const reopen = settlementControl(t, {
+      ...settlement,
       liveId,
       prepareLanding: () => {
-        const mayLand = retainPanelLanding(div);
+        const mayLand = travel.retainPanelLanding(div);
         return () => {
-          if (mayLand()) showThread(liveId());
+          if (mayLand()) travel.showThread(liveId());
         };
       },
     });
@@ -186,7 +190,7 @@ export function threadNode(t, grow) {
 // two views can't disagree: a passage rewritten in a later version has no home to jump to,
 // and a dead-looking link is worse than one that says so. Called by the pass that writes
 // the record, and again by a narrowing that rebuilt the nodes the record was painted on.
-export function paintThreadQuotes() {
+export function paintThreadQuotes({ placedAt, isMarked }) {
   const threads = new Map(threadList().map((t) => [t.root.id, t]));
   const outline = pageOutline();
   for (const div of threadsBox.querySelectorAll(".lf-thread")) {
@@ -199,7 +203,7 @@ export function paintThreadQuotes() {
     // `§ off-slip` stood where `§ options · If their release comes and goes…` belonged,
     // for the life of the tab.
     const thread = threads.get(div.dataset.id);
-    const said = thread && threadAnchorLabel(thread, outline);
+    const said = thread && threadAnchorLabel(thread, placedAt, outline);
     const quote = div.querySelector(".lf-quote");
     // A quote selected from the run heading can be built before the final grouping
     // pass has omitted that heading. Reconcile absence as well as changed words so the
@@ -239,7 +243,7 @@ export function paintThreadQuotes() {
     // Resolved threads deliberately carry no mark, but retain the placement their
     // folded quote can return to. One reading owns visual, assistive, keyboard, and
     // pointer availability so the same quote never becomes a pointer-only action.
-    const found = hasDestination(div.dataset.id);
+    const found = isMarked(div.dataset.id) || Boolean(placedAt(div.dataset.id));
     quote.classList.toggle("detached", !found);
     quote.setAttribute("aria-disabled", String(!found));
     quote.title = found

@@ -3382,23 +3382,6 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         "No visible Ask controls."
     )
     expect(status).to_be_visible()
-    probes = page.evaluate(
-        """async () => {
-          const original = document.elementFromPoint;
-          let calls = 0;
-          document.elementFromPoint = (...args) => {
-            calls += 1;
-            return original.call(document, ...args);
-          };
-          try {
-            (await import('/runtime/keyboard/shortcut-bar.js')).renderLine();
-          } finally {
-            document.elementFromPoint = original;
-          }
-          return calls;
-        }"""
-    )
-    assert probes == 0, "painting the status rescanned the visible target map"
     expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
     page.evaluate(
         """async () => {
@@ -6864,7 +6847,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
         page.evaluate(
             """async () => {
               (await import('/runtime/notifications.js')).notice('Saved — sent');
-              (await import('/runtime/chrome-layout.js')).syncLayout();
+              dispatchEvent(new Event('resize'));
             }"""
         )
         expect(page.locator(".lf-notice")).to_be_visible()

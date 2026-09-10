@@ -3464,20 +3464,28 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
     )
     fixed_link_hint = page.locator(fixed_link_selector)
     expect(fixed_link_hint).to_be_visible()
-    fixed_link_top = page.evaluate(
+    quiet_top = page.evaluate(
         "selector => document.querySelector(selector).getBoundingClientRect().top",
         fixed_link_selector,
     )
+    page.keyboard.press("Escape")
+    expect(fixed_link_hint).to_have_count(0)
+
+    # The paint that can read a notice is the one taken while it shows, and only a
+    # notice wide enough to reach under the hint could move it.
     page.evaluate(
-        "async () => (await import('/runtime/notifications.js')).notice('Links only.')"
+        "async () => (await import('/runtime/notifications.js'))"
+        ".notice('Moved to Done — sent.')"
     )
     expect(page.locator(".lf-notice")).to_be_visible()
+    page.keyboard.press("g")
+    expect(fixed_link_hint).to_be_visible()
     assert (
         page.evaluate(
             "selector => document.querySelector(selector).getBoundingClientRect().top",
             fixed_link_selector,
         )
-        == fixed_link_top
+        == quiet_top
     )
     expect(page.locator(".lf-notice")).to_be_visible()
     assert errors == []

@@ -88,6 +88,7 @@ def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve)
         == "baseline"
     )
 
+    summary.scroll_into_view_if_needed()
     page.keyboard.press("s")
     expect(page.locator(".lf-target-hint")).not_to_have_count(0)
     code = summary.evaluate(
@@ -3222,7 +3223,6 @@ PRINTED_OFFERS = """() => [...document.querySelectorAll('[data-lf-offer]')]
 # Each disclosure and whether the sheet shows what it holds.
 DISCLOSURES = """() => [...document.querySelectorAll('details')]
   .filter(d => !d.closest('.lf-chrome'))
-  .filter(d => [...d.children].some(c => c.tagName !== 'SUMMARY'))
   .map(d => ({
     open: d.open,
     summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),

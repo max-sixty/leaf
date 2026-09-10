@@ -157,10 +157,7 @@ function conversationThreadNode(host, t, collapsible, commands) {
       thread.querySelector(":scope > .lf-thread-head > .lf-resolve") ??
       settlementControl(t, { liveId, ...commands.settlement });
     actions = thread.querySelector(":scope > .lf-thread-head");
-    if (!actions) {
-      actions = offer("header", "lf-thread-head");
-      actions.append(offer("span", "lf-thread-label", "Thread"));
-    }
+    if (!actions) actions = offer("header", "lf-thread-head");
     actions.append(resolve);
     if (t.root.response?.kind !== "version") {
       tail = thread.querySelector(":scope > .lf-say");

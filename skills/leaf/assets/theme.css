@@ -1348,8 +1348,6 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-thread > .lf-thread-head { display: grid;
           grid-template-columns: minmax(0, 1fr) auto; align-items: center;
           margin-bottom: var(--sp-2); }
-.lf-thread-label { color: var(--muted-2); font: 600 var(--t-6)/1.35 var(--sans);
-          letter-spacing: .04em; text-transform: uppercase; }
 .lf-conversation-msg.claude .lf-conversation-head b { color: var(--accent); }
 .lf-conversation-head time { color: var(--muted-2); }
 .lf-conversation-head .lf-edited { color: var(--muted-2); }

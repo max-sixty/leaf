@@ -287,16 +287,14 @@ scripts.
 returns to. Widget facets are `{action, value, detail}`: `action` is null for authored
 state; `value` is the typed record value or a recordless outcome verb (null means
 undecided); `detail` retains generated-child labels and other declared event data.
-When `renderState` returns false because a reader owns a local edit, call
-`projectionChanged()` after that edit closes so the state feed retries the deferred
-authoritative projection.
 Non-widget facets contain `units`, keyed by unit id, and position facets also contain
 `value`, a map from container id to the complete ordered ids it holds. Missing
 recordless units are undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
 `false` is the only return value state projection interprets: return it while a live
-edit prevents rendering. When the edit closes, dispatch `lf-projection` on `document`
-so Leaf retries deferred state after the gesture has finished staging its local action.
+edit prevents rendering. After the edit closes, call `projectionChanged()` so the state
+feed retries the deferred authoritative projection after the gesture has finished
+staging its local action.
 Projection ignores every other return value. A renderer may return the `Animation` for
 its production transition so an interaction-gallery scenario can join that motion to
 the gallery's playback controls; the same call must still reach its complete state when

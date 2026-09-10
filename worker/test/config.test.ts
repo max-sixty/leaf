@@ -52,9 +52,9 @@ describe("deployment configuration", () => {
     expect(binding.class_name).toBe(container.class_name);
   });
 
-  it("admits the full current account capacity of lite sessions", () => {
-    expect(container.max_instances).toBe(15_000);
-    expect(container.instance_type).toBe("lite");
+  it("admits the full current account capacity of basic sessions", () => {
+    expect(container.max_instances).toBe(6_000);
+    expect(container.instance_type).toBe("basic");
   });
 
   it("bounds reader starts and per-container model calls", () => {
@@ -75,6 +75,7 @@ describe("deployment configuration", () => {
 
   it("ships the pinned Codex host and the complete Leaf plugin", () => {
     expect(packageManifest.dependencies["@openai/codex"]).toBe("0.153.4");
+    expect(dockerfile).toContain("/app/.venv/bin/leaf --version");
     expect(dockerfile).toContain("codex plugin add leaf@leaf");
     expect(dockerfile).toContain("codex-resources /codex-bin/codex-resources");
     expect(dockerfile).toContain("test -x /codex-bin/codex-resources/bwrap");

@@ -112,6 +112,7 @@ export function createLivingMargin({
   standsWith,
   revealConversation,
   renderMarginThread,
+  bottomChromeBoxes,
   placedAt,
   showThread,
   goToAsk,
@@ -792,19 +793,16 @@ export function createLivingMargin({
       : document.querySelector("main")?.getBoundingClientRect();
     const bannerBottom =
       document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
-    const walkPosition = document
-      .querySelector(".lf-walk-position:not([hidden])")
-      ?.getBoundingClientRect();
     const gap = 8;
     const firstLeft = regionBounds?.left ?? 0;
     const lastRight = regionBounds?.right ?? document.documentElement.clientWidth;
     const firstTop = Math.max(regionBounds?.top ?? 0, bannerBottom) + gap;
     const lastBottom = (regionBounds?.bottom ?? innerHeight) - gap;
     const totalHeight = Math.max(0, lastBottom - firstTop);
-    const firstTopFor = (left, right) =>
-      walkPosition && left < walkPosition.right && walkPosition.left < right
-        ? Math.max(firstTop, walkPosition.bottom + gap)
-        : firstTop;
+    const lastBottomFor = (left, right) =>
+      bottomChromeBoxes()
+        .filter((box) => left < box.right && box.left < right)
+        .reduce((bottom, box) => Math.min(bottom, box.top - gap), lastBottom);
     const referenceVisible = target.bottom > firstTop && target.top < lastBottom;
     if (referenceVisible) {
       previewReferenceSeen = true;
@@ -853,8 +851,9 @@ export function createLivingMargin({
       : [];
     for (const side of sideCandidates) {
       if (side.width < metrics.minimumWidth) continue;
-      const sideTop = firstTopFor(side.left, side.left + side.width);
-      const sideHeight = Math.max(0, lastBottom - sideTop);
+      const sideTop = firstTop;
+      const sideBottom = lastBottomFor(side.left, side.left + side.width);
+      const sideHeight = Math.max(0, sideBottom - sideTop);
       const height = naturalHeight(side.width, sideHeight);
       const placement = threadSidePlacement(
         side.left,
@@ -862,7 +861,7 @@ export function createLivingMargin({
         height,
         target,
         sideTop,
-        lastBottom,
+        sideBottom,
       );
       if (!placement) continue;
       preview.dataset.lfThreadPlacement = side.name;
@@ -880,11 +879,12 @@ export function createLivingMargin({
     const width = metrics.preferredWidth;
     const lastLeft = lastRight - width - gap;
     const left = clamp(target.right - width, firstLeft + gap, lastLeft);
-    const overlayTop = firstTopFor(left, left + width);
-    const overlayHeight = naturalHeight(width, Math.max(0, lastBottom - overlayTop));
-    const belowTop = Math.max(overlayTop, Math.min(target.bottom + gap, lastBottom));
-    const aboveBottom = Math.max(overlayTop, Math.min(target.top - gap, lastBottom));
-    const belowRoom = Math.max(0, lastBottom - belowTop);
+    const overlayTop = firstTop;
+    const overlayBottom = lastBottomFor(left, left + width);
+    const overlayHeight = naturalHeight(width, Math.max(0, overlayBottom - overlayTop));
+    const belowTop = Math.max(overlayTop, Math.min(target.bottom + gap, overlayBottom));
+    const aboveBottom = Math.max(overlayTop, Math.min(target.top - gap, overlayBottom));
+    const belowRoom = Math.max(0, overlayBottom - belowTop);
     const aboveRoom = Math.max(0, aboveBottom - overlayTop);
     const below =
       overlayHeight <= belowRoom ||
@@ -1219,7 +1219,7 @@ export function createLivingMargin({
   function revealTarget(target, account, scrollToElement) {
     if (!target?.isConnected) return;
     scrollToElement(target, scrollBehavior(), "nearest");
-    // The account goes to the banner's notice slot rather than to the live region alone:
+    // The account goes to the bottom notice rather than to the live region alone:
     // a Change margin element's target is usually already on screen, so the scroll moves nothing
     // and a press that only announced was, to a sighted reader, a press that did nothing.
     notice(account);

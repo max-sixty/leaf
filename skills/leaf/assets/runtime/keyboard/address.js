@@ -1,11 +1,11 @@
 /* The go-to sequence: `g` opens one destination mode, and this owner holds its vocabulary.
 
    Visible, visually discovered targets share one generated-letter namespace. Links,
-   tabs, folds, the presses a widget built, and visible margin controls and status indicators are read together
+   tabs, folds, the presses a widget built, and visible margin targets are read together
    in screen order and receive short prefix-free labels. Most cost one letter; only the
    tail branches when the scene contains more targets than the available alphabet. The
    lowercase kind mnemonics are separate commands that filter that map: `g h` shows
-   hyperlinks, `g f` folds, `g m` margin controls and status indicators, `g t` Thread
+   hyperlinks, `g f` folds, `g m` margin targets, `g t` Thread
    controls, and `g a` Ask controls. A filtered map keeps each member's code from the
    complete map. The mapping is local to the
    visible scene: scrolling refreshes it once motion settles, while a partly typed label
@@ -72,7 +72,7 @@ import { focusedThread } from "../conversation/focus.js";
 import { letGo } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { fragmentId, itemSays, resolveAnchor } from "../anchor-resolution.js";
-import { announce } from "../notifications.js";
+import { announce, notice } from "../notifications.js";
 import {
   closestAcross,
   containsAcross,
@@ -104,7 +104,8 @@ addressLayer.setAttribute("aria-hidden", "true");
 // Construct the command vocabulary once; boot mounts the viewport listeners after
 // the chrome is attached. All travel and workspace effects are explicit capabilities.
 export function createAddress({
-  elements: { banner, toggleBtn, shortcutBarEl, walkPositionEl },
+  elements: { banner, toggleBtn, shortcutBarEl },
+  standingStatusBoxes,
   directDestinations,
   workspaceState,
   restoreWorkspace,
@@ -325,7 +326,7 @@ export function createAddress({
     {
       id: "margin-elements",
       key: "m",
-      word: "margin controls and status indicators",
+      word: "margin targets",
       matches: ({ kind }) => kind === MARGIN_TARGET_KIND,
     },
     {
@@ -534,12 +535,20 @@ export function createAddress({
     prefix = "";
     candidates = visibleCandidates(targetFilter);
     hintActive = -1;
-    announce(
-      candidates.length
-        ? `${candidates.length} visible ${targetFilter.word}; type a hint or press Tab to hear them.`
-        : `No visible ${targetFilter.word}.`,
-    );
+    const message = candidates.length
+      ? `${candidates.length} visible ${targetFilter.word}; type a hint or press Tab to hear them.`
+      : `No visible ${targetFilter.word}.`;
+    if (candidates.length) notice(message);
+    else announce(message);
     repaint();
+  }
+
+  // An empty active filter is useful state, not a four-second event. The candidate map is
+  // the reading paintAddresses already owns; using it here keeps the shortcut repaint out
+  // of the expensive visibility and hit-test pass.
+  function addressStatus() {
+    if (!sequenceActive || !targetFilter || candidates.length) return null;
+    return `No visible ${targetFilter.word}.`;
   }
 
   function activateCandidate(candidate) {
@@ -611,6 +620,7 @@ export function createAddress({
     const detached = candidates.some(({ member }) => !member.isConnected);
     const refreshed =
       !prefix && !scrolling && (refreshCandidates || detached || !candidates.length);
+    const emptyBeforeRefresh = candidates.length === 0;
     if (refreshed) {
       candidates = visibleCandidates(targetFilter);
       hintActive = heard
@@ -621,6 +631,8 @@ export function createAddress({
         : -1;
       refreshCandidates = false;
     }
+    const filterStatusChanged =
+      Boolean(targetFilter) && emptyBeforeRefresh !== (candidates.length === 0);
     const activeCandidate = hinted()[hintActive];
     const placement = addressPlacement();
     const chips = [];
@@ -645,11 +657,11 @@ export function createAddress({
     if (wasActive && activeCandidate && !drawn.has(activeCandidate)) hintActive = -1;
     const controlBoxes = paintAddressChips(controlPlaced, chips);
     spreadHints(placed, {
-      barriers: [...controlBoxes, walkPositionEl.getBoundingClientRect()],
+      barriers: [...controlBoxes, ...standingStatusBoxes()],
       lineBox: shortcutBarEl.getBoundingClientRect(),
       viewportTop: banner.getBoundingClientRect().bottom,
     });
-    if (wasActive && hintActive < 0) repaint();
+    if ((wasActive && hintActive < 0) || filterStatusChanged) repaint();
   }
   // A page that moves under an armed window makes opaque labels temporarily untrustworthy,
   // so the scroll pass hides them and remaps once the scene settles. Capture, because the
@@ -942,6 +954,7 @@ export function createAddress({
   return {
     GO,
     GOTO,
+    addressStatus,
     goAddress,
     setSequence,
     paintAddresses,

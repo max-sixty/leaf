@@ -230,6 +230,7 @@ export function mountApplication(dependencies) {
   const surfaceView = inlineView;
 
   const margin = dependencies.createLivingMargin({
+    bottomChromeBoxes: dependencies.margin.bottomChromeBoxes,
     designIsOn: dependencies.margin.designIsOn,
     comparisonBase: dependencies.margin.comparisonBase,
     comparisonChanges: dependencies.margin.comparisonChanges,

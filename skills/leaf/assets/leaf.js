@@ -134,8 +134,8 @@ import {
   REFERENCE,
   renderLine,
   shortcutBarEl,
-  walkPositionBoxes,
-  walkPositionEl,
+  standingStatusBoxes,
+  bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
 import { activeRowLabel, availableCommands } from "./runtime/keyboard/dispatch.js";
 import { focused, paintKeys, reflectFirstScopes } from "./runtime/keyboard/scopes.js";
@@ -319,6 +319,7 @@ app = mountApplication({
   updateFab: (...args) => responseSurface.updateFab(...args),
   createLivingMargin,
   margin: {
+    bottomChromeBoxes,
     designIsOn: design.isOn,
     comparisonBase: version.comparisonBase,
     comparisonChanges: version.comparisonChanges,
@@ -457,8 +458,7 @@ targets = createTargetSelection({
   banner,
   bottomChromeBoxes,
   shortcutBarEl,
-  walkPositionBoxes,
-  walkPositionEl,
+  standingStatusBoxes,
   commentOnTarget: responseSurface.commentOnTarget,
   updateFab: responseSurface.updateFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
@@ -495,7 +495,7 @@ layout = createChromeLayout({
     panelFoot,
     threadsBox,
     shortcutBarEl,
-    walkPositionEl,
+    bottomStatusEl,
     chromeRoot,
   },
   foldBannerRow,
@@ -545,7 +545,8 @@ const workspace = createWorkspaceNavigation({
   openInlineThread: app.margin.openInlineThread,
 });
 address = createAddress({
-  elements: { banner, toggleBtn, shortcutBarEl, walkPositionEl },
+  elements: { banner, toggleBtn, shortcutBarEl },
+  standingStatusBoxes,
   directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
   workspaceState: workspace.workspaceState,
   restoreWorkspace: workspace.restoreWorkspace,
@@ -625,7 +626,7 @@ pageKeys = createPageKeys({
 const standing = createStanding({
   markHere: asks.markHere,
   paintStanding: anchorPaint.paintStanding,
-  renderLine,
+  renderLine: () => renderLine(address.addressStatus),
   paintAddresses: address.paintAddresses,
   paintTargets: targets.paintTargets,
   paintCoreControls: pageKeys.paintCoreControls,
@@ -662,8 +663,8 @@ chromeRoot.append(
   liveEl,
   mediaViewer,
   shortcutReferenceDialog,
+  bottomStatusEl,
   shortcutBarEl,
-  walkPositionEl,
   inspectEl,
 );
 document.body.prepend(skipToChrome);
@@ -802,7 +803,7 @@ function presentPage() {
   layoutMarginRows();
   landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)
-    notice(`Updated to ${runtime.currentLabel}`);
+    notice(`Updated to ${runtime.currentLabel}`, { background: true });
   selectionComposer.openDraft(savedComposer);
   promoteDeferredModals();
   document.dispatchEvent(new Event(PRESENTATION));

@@ -18,6 +18,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
 ORIGIN = os.environ.get("LEAF_SITE_ORIGIN", "https://leaf.page").rstrip("/")
+DIRECT_AGENT = os.environ.get("LEAF_VERIFY_DIRECT_AGENT") == "1"
 PAGES = (
     ("/", "product", True),
     ("/examples/design-decision/", "example", True),
@@ -34,9 +35,16 @@ PROFILE_SCRIPT = """(() => {
          url.pathname.endsWith("/registry.json"));
     });
     const javascript = code.filter(entry => new URL(entry.name).pathname.endsWith(".js"));
+    const state = resources.filter(entry =>
+      new URL(entry.name).pathname.endsWith("/api/state"));
     const bytes = entries => entries.reduce((total, entry) => total + entry.encodedBodySize, 0);
+    const lastResponse = entries =>
+      entries.length ? Math.max(...entries.map(entry => entry.responseEnd)) : null;
     return {
       at: performance.now(),
+      code_loaded: lastResponse(code),
+      js_loaded: lastResponse(javascript),
+      state_loaded: lastResponse(state),
       requests: resources.length,
       bytes: bytes(resources),
       code_requests: code.length,
@@ -64,6 +72,17 @@ PROFILE_SCRIPT = """(() => {
   });
   record();
 })()"""
+STARTUP_READING = """() => {
+  const navigation = performance.getEntriesByType("navigation")[0];
+  return {
+    first_byte: navigation.responseStart,
+    document: navigation.responseEnd,
+    paint: Object.fromEntries(
+      performance.getEntriesByType("paint").map(entry => [entry.name, entry.startTime])
+    ),
+    ...window.__leafStartup,
+  };
+}"""
 
 
 # One hosted Codex turn runs at the model's pace, not this gate's. `TURN_PATIENCE`
@@ -99,6 +118,15 @@ ANSWERING = frozenset({"queued", "handling", "working"})
 # run a hosted turn settles the same way twice; a model-side failure does not.
 GENERATION_FAILURE_REPLY = (
     "I couldn’t generate a reply just now. Please send a new message to try again."
+)
+MISSING_REPLY = (
+    "I finished without posting a reply. Please send a new message to try again."
+)
+RATE_LIMIT_REPLY = (
+    "This public demo is busy right now. Please wait a minute, then send a new message."
+)
+HOST_FAILURE_REPLIES = frozenset(
+    {GENERATION_FAILURE_REPLY, MISSING_REPLY, RATE_LIMIT_REPLY}
 )
 TURN_ASKS = 2
 
@@ -231,12 +259,7 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
         f"{url} scoped private media into the release namespace: {media['path']}",
     )
     check(not failures, f"{url} reported browser errors: {failures}")
-    startup = page.evaluate(
-        """() => ({
-          document: performance.getEntriesByType("navigation")[0].responseEnd,
-          ...window.__leafStartup,
-        })"""
-    )
+    startup = page.evaluate(STARTUP_READING)
     if not activate:
         context.close()
         return startup
@@ -288,12 +311,22 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
     return startup
 
 
+def observed_time(value: float | None) -> str:
+    """Render an optional browser milestone without inventing a zero reading."""
+    return "not observed" if value is None else f"{value:.0f} ms"
+
+
 def startup_line(path: str, startup: dict) -> str:
     """Render observed startup costs without turning machine speed into a gate."""
     presented = startup["presented"]
+    paint = startup.get("paint", {}).get("first-contentful-paint")
     return (
-        f"  {path} — HTML {startup['document']:.0f} ms; "
+        f"  {path} — HTML first byte {startup['first_byte']:.0f} ms, "
+        f"complete {startup['document']:.0f} ms; "
+        f"first contentful paint {observed_time(paint)}; "
+        f"JS fetched {observed_time(presented['js_loaded'])}; "
         f"upgraded {startup['upgraded']['at']:.0f} ms; "
+        f"state answered {observed_time(presented['state_loaded'])}; "
         f"presented {presented['at']:.0f} ms; "
         f"by presentation {presented['js_requests']} JS / "
         f"{presented['js_bytes'] / 1024:.0f} KiB, "
@@ -355,6 +388,12 @@ def reader_session(
     await_presentation(page, url, failures)
     passive = context.request.get(state_url, timeout=120_000)
     check(passive.ok, f"{state_url} returned {passive.status}")
+    if DIRECT_AGENT:
+        reached = passive.headers.get("leaf-release")
+        if reached != release:
+            context.close()
+            return reached or "no release"
+        return AgentSession(context, page, failures, url, state_url, passive.json())
     activation = activation_url(url, passive.json())
     activated = context.request.get(activation, timeout=120_000)
     check(activated.ok, f"{activation} returned {activated.status}")
@@ -440,17 +479,101 @@ class TurnReading(NamedTuple):
     answer: dict | None
 
 
+class AgentProfile:
+    """Observed milestones for one hosted-agent request, all from its first send."""
+
+    def __init__(self) -> None:
+        self.started = time.monotonic()
+        self.milestones: dict[str, float] = {}
+        self.activities: list[tuple[float, str, str]] = []
+        self.ask_count = 0
+
+    def mark(self, name: str) -> None:
+        self.milestones.setdefault(name, time.monotonic() - self.started)
+
+    def observe(self, state: dict) -> None:
+        activity = state.get("activity") or {}
+        reading = (activity.get("kind") or "unknown", activity.get("detail") or "")
+        if self.activities and self.activities[-1][1:] == reading:
+            return
+        self.activities.append((time.monotonic() - self.started, *reading))
+
+
 class AgentAsks(NamedTuple):
     """The reading the pass ended on, with the asks and revision behind it."""
 
     turn: TurnReading
     asks: int
     revision: int
+    profile: AgentProfile | None = None
+
+
+def elapsed_time(seconds: float) -> str:
+    """Format one observed interval at a useful scale."""
+    return f"{seconds * 1000:.0f} ms" if seconds < 1 else f"{seconds:.1f} s"
+
+
+def print_agent_profile(profile: AgentProfile) -> None:
+    """Print the request and hosted-agent milestones."""
+    print("Hosted agent profile (observed from the first request):")
+    for ask in range(1, profile.ask_count + 1):
+        suffix = "" if ask == 1 else f" {ask}"
+        print(
+            f"  request{suffix} acknowledged "
+            f"{elapsed_time(profile.milestones[f'acknowledged {ask}'])}"
+        )
+    for at, kind, detail in profile.activities:
+        description = f": {detail}" if detail else ""
+        print(f"  activity {kind}{description} at {elapsed_time(at)}")
+    for name in ("published", "replied", "answered"):
+        if name in profile.milestones:
+            print(f"  {name} at {elapsed_time(profile.milestones[name])}")
 
 
 def generation_failed(replies: list[dict]) -> bool:
     """Whether the container settled this ask by reporting a turn that never ran."""
     return any(reply["text"].strip() == GENERATION_FAILURE_REPLY for reply in replies)
+
+
+def turn_failed(replies: list[dict]) -> bool:
+    """Whether the host closed the turn with one of its failure receipts."""
+    return any(reply["text"].strip() in HOST_FAILURE_REPLIES for reply in replies)
+
+
+def deployment_answer(replies: list[dict]) -> dict | None:
+    """Return a real agent reply rather than a host-generated failure receipt."""
+    return next(
+        (
+            reply
+            for reply in replies
+            if reply["text"].strip() not in HOST_FAILURE_REPLIES
+        ),
+        None,
+    )
+
+
+def start_direct_agent(context, url: str, comment: dict) -> None:
+    """Run the local adapter's side of the production Workflow handoff."""
+    endpoint = urljoin(url, "_leaf/agent/")
+    event = {"event": comment["id"]}
+    ready = context.request.post(urljoin(endpoint, "turn"), data=event, timeout=120_000)
+    check(ready.ok, f"{endpoint}turn returned {ready.status}")
+    reading = ready.json()
+    check(
+        reading.get("status") in {"ready", "connected"},
+        f"{endpoint}turn returned {reading}",
+    )
+    if reading["status"] == "connected":
+        return
+    started = context.request.post(
+        urljoin(endpoint, "start"), data=event, timeout=120_000
+    )
+    check(started.ok, f"{endpoint}start returned {started.status}")
+    reading = started.json()
+    check(
+        reading.get("status") == "started",
+        f"{endpoint}start returned {reading}",
+    )
 
 
 def ask_for_the_heading(
@@ -461,6 +584,8 @@ def ask_for_the_heading(
     revision: int,
     heading: str,
     attempt: str,
+    profile: AgentProfile,
+    ask: int,
 ) -> dict:
     """Post one deployment-check comment and return the event the page admitted."""
     posted = context.request.post(
@@ -479,10 +604,12 @@ def ask_for_the_heading(
     )
     check(posted.ok, f"{url} rejected its deployment-check comment")
     accepted = posted.json()
+    profile.mark(f"acknowledged {ask}")
     check(
         "state" in accepted,
         f"{url} answered its deployment-check comment without admitting it: {accepted}",
     )
+    profile.observe(accepted["state"])
     comment = next(
         (
             event
@@ -492,6 +619,8 @@ def ask_for_the_heading(
         None,
     )
     check(comment is not None, f"{url} did not return its deployment-check comment")
+    if DIRECT_AGENT:
+        start_direct_agent(context, url, comment)
     return comment
 
 
@@ -506,6 +635,7 @@ def await_turn(
     heading: str,
     published: dict | None,
     deadline: float,
+    profile: AgentProfile,
 ) -> TurnReading:
     """Read the page until this ask is answered or nothing is answering it."""
     started = time.monotonic()
@@ -520,19 +650,15 @@ def await_turn(
         )
         check(current_response.ok, f"{state_url} returned {current_response.status}")
         current = current_response.json()
+        profile.observe(current)
         replies = [
             event
             for event in current.get("events", [])
             if event.get("kind") == "reply" and event.get("parent") == comment["id"]
         ]
-        answer = next(
-            (
-                event
-                for event in replies
-                if "deployment verified" in event["text"].casefold()
-            ),
-            None,
-        )
+        if replies:
+            profile.mark("replied")
+        answer = deployment_answer(replies)
         active = current["active"]
         if published is None and active["revision"] > revision:
             # The published document itself, fetched the way the next reader's browser
@@ -540,14 +666,14 @@ def await_turn(
             document = context.request.get(urljoin(url, active["url"]), timeout=120_000)
             if document.ok and heading in document.text():
                 published = active
+                profile.mark("published")
         if published is not None and answer is not None:
+            profile.mark("answered")
             break
-        # The container posts its generation failure from the same place it closes the
-        # turn, so that reply is the turn's own account of having stopped. Every other
-        # reading here is one a live turn can still be passing through — an interim
-        # reply, a publication its answer precedes — which is why they wait out the
-        # bounds below instead of ending the wait early.
-        if generation_failed(replies):
+        # A host failure receipt closes the turn. Either half of a successful outcome
+        # can otherwise arrive first — the agent reply or the requested publication —
+        # so a reading with only one waits for the other under the bounds below.
+        if turn_failed(replies):
             break
         if time.monotonic() >= deadline:
             break
@@ -575,21 +701,23 @@ def ask_until_answered(
     it caught a turn that never completed and told the reader to send a new message —
     so this sends it, because a release that cannot run a hosted turn settles the same
     way twice while a model-side failure does not. Every other ending is reported on
-    the first ask: a turn that completes without a reply, or replies with something
-    else, is the deployed agent breaking its own contract.
+    the first ask: a turn that completes without an agent-authored reply is the
+    deployed agent breaking its own contract.
     """
     published = None
     asks = 0
+    profile = AgentProfile()
     deadline = time.monotonic() + TURN_LIMIT
     while True:
         asks += 1
+        profile.ask_count = asks
         # Each ask is posted against the revision the page stands on now, so a second
         # continues the page the first turn left rather than an earlier reading of it.
         # What that turn published is carried across it: an agent handed a heading it
         # has already published has no reason to publish it again.
         revision = state["active"]["revision"]
         comment = ask_for_the_heading(
-            context, url, layer, release, revision, heading, attempt
+            context, url, layer, release, revision, heading, attempt, profile, asks
         )
         state, published, replies, answer = await_turn(
             context,
@@ -602,6 +730,7 @@ def ask_until_answered(
             heading,
             published,
             deadline,
+            profile,
         )
         # A second ask is only worth posting while a healthy turn's budget is still
         # inside the pass's own limit; past that the gate reports what it has rather
@@ -612,7 +741,7 @@ def ask_until_answered(
             and deadline - time.monotonic() >= TURN_PATIENCE
         ):
             return AgentAsks(
-                TurnReading(state, published, replies, answer), asks, revision
+                TurnReading(state, published, replies, answer), asks, revision, profile
             )
         print(
             f"↻ {url} settled its ask with the container's generation failure; "
@@ -624,14 +753,12 @@ def ask_until_answered(
 def verify_agent_turn(browser, release: str) -> None:
     """Require one deployed Codex turn to revise and answer a private page.
 
-    A turn is a process, not a step: it may publish a checkpoint revision, say
-    something about the work, and only then publish what was asked for. So the wait
-    names the outcome — a published document carrying the requested heading, and a
-    reply that answers for it — rather than the first revision and the first reply to
-    appear, either of which the turn can pass through on its way there. The readings
-    that follow are containments for the same reason: the agent may quote the heading
-    it was handed, and the runtime may add its own words to any text a reader can
-    point at.
+    A turn is a process, not a step: it may publish a checkpoint revision before the
+    requested edit. So the wait names the outcome — a published document carrying the
+    requested heading, and a reply the host did not generate for the turn — rather
+    than the first revision to appear. The heading readings are containments: the
+    agent may quote the heading it was handed, and the runtime may add its own words
+    to any text a reader can point at.
 
     The wait's bound is the page rather than a stopwatch. One fixed budget has to be
     long enough for the slowest healthy turn and short enough to report a dead one
@@ -645,7 +772,7 @@ def verify_agent_turn(browser, release: str) -> None:
     # is answered with that container's generation instead of a state.
     layer = state["layer"]["generation"]
     heading = f"Deployment {release[:8]} verified"
-    turn, asks, revision = ask_until_answered(
+    asked = ask_until_answered(
         context,
         url,
         state_url,
@@ -655,7 +782,10 @@ def verify_agent_turn(browser, release: str) -> None:
         f"deployment-{release[:24]}",
         state,
     )
+    turn, asks, revision, profile = asked
     state, published, replies, answer = turn
+    if profile is not None:
+        print_agent_profile(profile)
     tried = f" to {asks} asks" if asks > 1 else ""
     reading = (state.get("activity") or {}).get("kind") or "no activity"
     said = "; it replied: " + " / ".join(event["text"] for event in replies)
@@ -679,7 +809,8 @@ def verify_agent_turn(browser, release: str) -> None:
         f"{url} did not reload after its agent turn",
     )
     await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
-    presented_at = page.evaluate("() => window.__leafStartup?.presented?.at ?? null")
+    startup = page.evaluate(STARTUP_READING)
+    presented_at = startup.get("presented", {}).get("at")
     # Presentation no longer says the reload's first read landed: the runtime presents at
     # its own fixed wait whether or not the container has answered, and following the
     # agent's revision is the activation that read triggers. So the gate spends its own
@@ -753,6 +884,7 @@ def verify_agent_turn(browser, release: str) -> None:
             else f"; the reloaded page {followed}"
         )
     )
+    print(startup_line("changed page", startup))
     context.close()
 
 
@@ -776,7 +908,8 @@ def main() -> None:
         try:
             if os.environ.get("LEAF_VERIFY_AGENT") == "1":
                 verify_agent_turn(browser, release)
-                print(f"✓ leaf.page ran one deployed agent turn on release {release}")
+                target = "the local adapter" if DIRECT_AGENT else "leaf.page"
+                print(f"✓ {target} ran one agent turn on release {release}")
                 return
             profiles = [
                 (path, verify_page(browser, path, kind, release, activate))

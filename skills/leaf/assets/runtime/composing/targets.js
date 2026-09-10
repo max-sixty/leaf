@@ -80,8 +80,7 @@ export function createTargetSelection({
   banner,
   bottomChromeBoxes,
   shortcutBarEl,
-  walkPositionBoxes,
-  walkPositionEl,
+  standingStatusBoxes,
   commentOnTarget,
   updateFab,
   fabAnchorAt,
@@ -119,8 +118,8 @@ export function createTargetSelection({
         }
       : null;
   // The largest visible rectangle left after viewport chrome is subtracted. The banner
-  // spans the window and clips one edge. The bottom line reserves its whole lane to the
-  // viewport foot; the page-head reading is one local box. Each blocker divides a target
+  // spans the window and clips one edge. Bottom chrome reserves its whole lane to the
+  // viewport foot. Each blocker divides a target
   // crossing it into the open space above, below, before, or after it.
   //
   // A coarse pointer is shown no line, and an empty one takes itself down. A zero box must
@@ -136,15 +135,12 @@ export function createTargetSelection({
       sourceTop,
     );
     if (!shown) return null;
-    const blockers = [
-      ...bottomChromeBoxes().map((box) => ({
-        left: box.left,
-        top: box.top,
-        right: box.right,
-        bottom: innerHeight,
-      })),
-      ...walkPositionBoxes(),
-    ];
+    const blockers = bottomChromeBoxes().map((box) => ({
+      left: box.left,
+      top: box.top,
+      right: box.right,
+      bottom: innerHeight,
+    }));
     const candidates = blockers.reduce(
       (open, box) => {
         return open.flatMap((candidate) =>
@@ -640,7 +636,7 @@ export function createTargetSelection({
     selectionLayer.replaceChildren(...drawn);
     if (!searching)
       spreadHints(hints, {
-        barriers: [walkPositionEl.getBoundingClientRect()],
+        barriers: standingStatusBoxes(),
         lineBox: shortcutBarEl.getBoundingClientRect(),
         viewportTop: covered(),
       });

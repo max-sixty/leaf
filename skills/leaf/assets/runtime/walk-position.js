@@ -7,6 +7,7 @@
    the walk could not move; that state briefly gives the unchanged ordinal an accent
    face. Both clamped and cyclic semantic walks use this reading. Native focus traversal
    and gestures that rearrange state are not walks through a named list. */
+import { holdStatus } from "./notifications.js";
 import { repaint } from "./repaint.js";
 
 const BOUNDARY_MS = 900;
@@ -77,6 +78,7 @@ export function beginWalk(key, noun, read) {
     target: position.target,
   };
   walking = arrived;
+  holdStatus(BOUNDARY_MS);
   boundaryTimer = boundary
     ? setTimeout(() => {
         if (walking !== arrived) return;

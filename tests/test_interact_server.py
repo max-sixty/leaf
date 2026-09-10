@@ -977,6 +977,34 @@ def test_server_round_trip(server, page_dir):
     }
 
 
+def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_dir):
+    """The live root, a stamped version and a revision are all this page.
+
+    The revision address used to fall through to the static file branch, which
+    returned the authored bytes. The module that source names still started a
+    runtime, but without the layer's policy, the bootstrap that policy hashes, or
+    the revision identity that tells the runtime which document it is showing. Each
+    address names the page root as canonical, which is how a reader sent to one of
+    them, and a crawler that finds all three, arrive at one page.
+    """
+    stamped = CliRunner().invoke(
+        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "cut"]
+    )
+    assert stamped.exit_code == 0, stamped.output
+    revision = files_model.latest_revision(page_dir)
+    marker = f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
+    for address in (
+        "/",
+        "/versions/v1.html",
+        f"/revisions/{files_model.revision_path(page_dir, revision).name}",
+    ):
+        status, body = fetch(server + address)
+        assert status == 200, address
+        assert b'<link rel="canonical" href="/" data-lf-runtime>' in body, address
+        assert marker.encode() in body, address
+        assert b'data-lf-entry="/leaf.js"' in body, address
+
+
 def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
     server, page_dir
 ):

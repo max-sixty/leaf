@@ -68,7 +68,14 @@ PRODUCT_ROUTES = {
 SITE_PACKAGE = "./docs/package"
 # The card a link to a product page unfurls into. An example names its own catalog
 # preview instead, so a shared example shows the page rather than the product shot.
-DEFAULT_SOCIAL_IMAGE = DOCS / "session-light.png"
+#
+# Its own file rather than the landing page's still, because the two are shown at
+# different shapes: an unfurler draws a card at 1.91:1, and the still is 4:3, so
+# serving the still here handed every reader a centre crop of it with the banner cut
+# off the top — the version control, the approval, the thread count, everything that
+# says a page is live. `record-demo.py` shoots this off the same scene at the card's
+# own shape, so it stays as true as the stills beside it.
+DEFAULT_SOCIAL_IMAGE = DOCS / "session-card.png"
 
 
 class Links(HTMLParser):

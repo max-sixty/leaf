@@ -26,9 +26,9 @@ class_name = "LeafWebsiteSession"
 image = "../Dockerfile.website"
 # Product routes give every browser a private Leaf session. The container runs Codex
 # App Server as well as Leaf, so the smallest interactive instance is `basic`; `lite`
-# provides only 1/16 vCPU and 256 MiB. Cloudflare's current account limits allow 6,000
-# concurrent instances of the basic type.
-max_instances = 6000
+# provides only 1/16 vCPU and 256 MiB. Cloudflare's account limit fits 6,000
+# concurrent basic instances; reserve ten slots for the standing dev application.
+max_instances = 5990
 instance_type = "basic"
 # A visible tab's news stream keeps an active session alive. During a release,
 # Cloudflare may still replace it after this bounded drain window; website state is

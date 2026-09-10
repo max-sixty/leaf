@@ -256,15 +256,14 @@ customElements.define(
       this.append(this.#done);
     }
 
-    // The press is answered at once and the answer waits for the log, which is the
-    // rule a decision follows (CLAUDE.md): nothing here has moved yet, so there is
-    // nothing to un-show, and what the reader is owed meanwhile is that the press
-    // landed. `aria-busy` says exactly that, and the promise beside it is what makes
-    // the sentence above true — one press, one `answer` action, however many times
-    // the button is hit while the first is still in the wire.
+    // The press paints the completed answer before the log replies. The outbox carries
+    // that recordless facet beside recorded actions and refusal restores the prior state.
+    // The promise still makes one press one action however many times the button is hit
+    // while the first is in the wire.
     #answer() {
       if (this.#answering) return this.#answering;
       if (!actionAvailable(this, "answer")) return Promise.resolve(false);
+      this.#answered(true);
       const sent = sendAction(this, "answer", {}).then((accepted) => {
         this.#sending(null);
         if (!accepted) return false; // unsent means unrecorded, and nothing was painted

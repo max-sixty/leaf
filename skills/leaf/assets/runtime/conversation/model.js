@@ -36,16 +36,16 @@ const pendingSeat = (message) =>
     ? null
     : (message.anchor.section ?? null);
 
-// The reader's own unread messages, folded into the server's threads. A reply joins the
-// thread it answers; a comment opens one where it was written. Both leave again the
-// moment a receipt names their attempt, so this is a reading of the same log the server
-// projects rather than a second store beside it.
+// The reader's own pending gestures, folded into the server's threads. A reply joins the
+// thread it answers; a comment opens one where it was written; settlement changes its
+// state. They leave again when the server accepts or refuses them, so this is a reading
+// of the same outbox and log the server projects rather than a second store beside it.
 //
 // The derived facts a pending thread carries are the ones the reader just made true: the
 // agent owes the next word, the reader owes none, and a thread the reader opened with
 // words is a conversation rather than a mark.
-export function foldThreads(threads, messages) {
-  if (!messages.length) return threads;
+export function foldThreads(threads, messages, reactions, settlements) {
+  if (!messages.length && !reactions.length && !settlements.length) return threads;
   // A thread the reader opened answers to two names for as long as this tab holds a
   // reply written against the first: the one this page gave it, and the one the log
   // gave back. Both reach the one conversation, so a reply written into the card a
@@ -77,6 +77,30 @@ export function foldThreads(threads, messages) {
   // the one standing for it.
   for (const message of messages)
     if (message.kind === "reply") byName.get(message.parent)?.msgs.push(message);
+  for (const reaction of reactions) {
+    if (reaction.kind === "reply") {
+      byName.get(reaction.parent)?.msgs.push(reaction);
+      continue;
+    }
+    const thread = {
+      root: reaction,
+      anchor: reaction.anchor ?? null,
+      msgs: [reaction],
+      resolved: null,
+      awaits_agent: false,
+      awaits_reader: false,
+      bare_reaction: true,
+      seat: pendingSeat(reaction),
+    };
+    opened.push(thread);
+    byName.set(reaction.id, thread);
+  }
+  for (const settlement of settlements) {
+    const thread = byName.get(settlement.parent) ?? byName.get(settlement.localParent);
+    if (!thread) continue;
+    thread.resolved =
+      settlement.kind === "resolve" ? { author: "user", pending: true } : null;
+  }
   return [...copies, ...opened];
 }
 

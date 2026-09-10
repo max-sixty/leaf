@@ -89,9 +89,8 @@ export function threadNode(t, grow) {
   if (t.root.attempt) div.dataset.attempt = t.root.attempt;
   if (grow) div.classList.add("grow");
   const label = threadAnchorLabel(t);
-  let threadHead = null;
+  const threadHead = el("header", "lf-thread-head");
   if (label) {
-    threadHead = el("div", "lf-thread-head");
     const quote = el("blockquote", "lf-quote");
     quote.append(el("span", "lf-quote-label", label));
     // An anchored label is words and a press at once: it says which passage the
@@ -121,7 +120,8 @@ export function threadNode(t, grow) {
       },
     ]);
     threadHead.append(quote);
-    div.append(threadHead);
+  } else if (!t.resolved) {
+    threadHead.append(el("span", "lf-thread-label", "Thread"));
   }
   let resolve = null;
   if (!t.resolved) {
@@ -142,8 +142,9 @@ export function threadNode(t, grow) {
         };
       },
     });
-    (threadHead ?? div).append(resolve);
+    threadHead.append(resolve);
   }
+  if (threadHead.childElementCount) div.append(threadHead);
   turns(t).forEach((m) => div.append(msgNode(m)));
   paintReactStrips(div, t);
   if (!t.resolved) {
@@ -205,10 +206,10 @@ export function paintThreadQuotes() {
     // temporary duplicate does not become a kept node for the life of the tab.
     if (thread && !said) {
       const head = quote?.closest(".lf-thread-head");
-      const resolve = head?.querySelector(":scope > .lf-resolve");
-      if (resolve) div.insertBefore(resolve, head);
-      if (head) head.remove();
-      else quote?.remove();
+      quote?.remove();
+      if (head?.querySelector(":scope > .lf-resolve"))
+        head.prepend(el("span", "lf-thread-label", "Thread"));
+      if (head && !head.childElementCount) head.remove();
       continue;
     }
     if (!quote) continue;

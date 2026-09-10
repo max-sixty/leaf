@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>Raw request logs: 400 days down to 45</title>
+    <title>Raw request logs: 45 days</title>
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
@@ -17,73 +17,52 @@
   <body>
     <main>
       <p class="eyebrow">retention · raw request logs</p>
-      <h1>Raw request logs: 400 days down to 45</h1>
+      <h1 id="ret-title">Keep 45 days of raw request logs</h1>
       <p class="lede" id="ret-lede">
-        Raw request logs are 61% of what we store and almost none of what we read. Below
-        is what I would cut, the evidence I cut it on, and the two weeks it takes to
-        land. Quote anything the evidence does not carry and I will go back to it before
-        this becomes a change request.
+        I propose cutting raw request logs from 400 days to 45. Aggregates stay at 400
+        days. The change returns 18.4 TB of hot storage, about £3,100 a month.
       </p>
-      <aside class="sidebar" id="ret-sidebar">
-        <lf-toc id="ret-contents"></lf-toc>
-      </aside>
 
       <section id="ret-what">
-        <h2>What changes</h2>
+        <h2>The aggregates and audit store do not change</h2>
         <p id="ret-what-body">
-          Raw request logs expire after 45 days instead of 400. The per-minute
-          aggregates built from them — status class, latency percentiles, route, region
-          — keep the full 400 days and are unaffected, as are audit records, which are a
-          separate store on a separate schedule.
-        </p>
-        <p id="ret-what-size">
-          That is 18.4 TB of hot storage returned and about £3,100 a month, against a
-          bill where the raw logs are the single largest line.
+          Per-minute status, latency, route, and region aggregates keep 400 days. Audit
+          records remain in their separate seven-year store.
         </p>
       </section>
 
       <section id="ret-why">
-        <h2>Where 45 comes from</h2>
+        <h2>Most raw-log reads are within six weeks</h2>
         <p id="ret-why-body">
-          45 days is the ninety-fifth percentile of the age of the oldest log line any
-          query touched, over the eighteen months of query history we keep. The
-          distribution is not a curve with a tail; it is a wall. Ninety per cent of
-          reads land inside a week, the rest inside six, and then nothing until the
-          quarterly compliance export, which reads aggregates and not raw lines.
+          Across eighteen months of query history, 90% of reads touch logs less than a
+          week old and 95% stay within 42 days. Query history cannot reveal work that
+          retention prevented, so I checked two years of incident write-ups as well.
         </p>
         <p id="ret-why-margin">
-          45 rather than 42 is a fortnight's rounding, so a query written on the last
-          day of a six-week investigation still lands.
+          The 45-day limit rounds the observed six-week boundary up by three days.
         </p>
       </section>
 
       <section id="ret-cost">
-        <h2>What it costs us</h2>
+        <h2>What older incidents needed</h2>
         <p id="ret-cost-body">
           Two years of incident write-ups name a log older than six weeks exactly twice.
-          Both times the question was answered from the aggregates instead, so the 45
-          days costs us a search we have not run.
-        </p>
-        <p id="ret-cost-legal">
-          Nothing here is a retention obligation. Legal's requirement is on the audit
-          store, which keeps seven years and is not part of this.
+          Both questions were answered from aggregates, so the 45-day limit costs us no
+          investigation we have run.
         </p>
       </section>
 
       <section id="ret-steps">
-        <h2>How it lands</h2>
+        <h2>Two-week rollout</h2>
         <ul id="ret-steps-list">
           <li id="ret-steps-shadow">
-            Week one: the expiry job runs in report-only mode and posts what it would
-            have deleted, per team, to the storage channel.
+            Week one: run expiry in report-only mode and publish deletions by team.
           </li>
           <li id="ret-steps-quiet">
-            Week one, in parallel: anyone whose dashboards read raw logs directly hears
-            from me, because those are the queries that break rather than slow down.
+            Also in week one: find dashboard queries that read raw logs directly.
           </li>
           <li id="ret-steps-cut">
-            Week two: expiry runs for real, oldest first, at a rate that returns the
-            storage over four days rather than in one drop.
+            Week two: expire the oldest data over four days and watch query failures.
           </li>
         </ul>
       </section>

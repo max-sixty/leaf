@@ -100,7 +100,11 @@ A page directory holds:
     cursor.json          seq of the last user event acknowledged after the complete
                          batch reached its next durable consumer — written by
                          `leaf ack`; a page-owned pickup event separately names
-                         the exact reader events accepted by that consumer
+                         the exact reader events accepted by that consumer.
+                         The seq is a position in this log: a fresh log starts
+                         without the cursor of the log it replaced, and a seq past
+                         the log's end reads as 0, since nothing the log holds now
+                         was acknowledged through it
     preview.json         optional safe metadata written only by the repository's live
                          example preview: example, checkout name, interaction
                          (`reader` or `automation`), start time, and optional commit/

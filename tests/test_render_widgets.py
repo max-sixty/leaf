@@ -3116,10 +3116,9 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         "Checkout needs attention"
     )
     with sending(page, "the notification configuration"):
-        playground.get_by_role("button", name="Send configuration").click()
-    # A choose is replaceable until the host stamps its result. Keep that legitimate
-    # update route, but label it as sending configuration rather than creating twice.
-    expect(playground.get_by_role("button", name="Send configuration")).to_be_enabled()
+        playground.get_by_role("button", name="Create notification").click()
+    # The reader can revise the configuration until the host stamps its result.
+    expect(playground.get_by_role("button", name="Create notification")).to_be_enabled()
     action = next(
         event
         for event in reversed(sent_events(serve.page_dir))
@@ -3134,8 +3133,8 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         "tone": "urgent",
     }
     assert action["detail"]["instruction"] == (
-        "Create deployment-notification.html, capture it as notification-artifact, "
-        "then revise this page with the generated source below Original configuration."
+        "Create this notification as deployment-notification.html. "
+        "When it is ready, show me the generated source here for review."
     )
 
     logged_action = next(
@@ -4458,16 +4457,14 @@ def test_a_terse_compare_keeps_its_side_by_side_grid(browser, serve):
     here as two variants that stacked."""
     page, errors = open_page(
         browser,
-        serve(
-            (Path(__file__).parent.parent / "examples/design-decision.html").read_text()
-        ),
+        serve(Path(__file__).parent.parent / "examples/developer/feature-gallery.html"),
     )
     top = "el => el.getBoundingClientRect().top"
-    assert page.locator("#var-session-cookie").evaluate(top) == page.locator(
-        "#var-fallback-cookie"
+    assert page.locator("#bg-variant-paper").evaluate(top) == page.locator(
+        "#bg-variant-screen"
     ).evaluate(top), "chip-led terse variants must share a row"
-    assert page.locator("#var-payments-regime").evaluate(top) != page.locator(
-        "#var-sessions-regime"
+    assert page.locator("#bg-variant-paper-detail").evaluate(top) != page.locator(
+        "#bg-variant-screen-detail"
     ).evaluate(top), "block-content variants must stack"
     assert errors == []
     page.close()

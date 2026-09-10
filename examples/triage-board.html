@@ -20,20 +20,16 @@
       <p class="eyebrow">triage · v2.4 release</p>
       <h1>Release triage</h1>
       <p class="lede" id="triage-lede">
-        Everything open against the v2.4 release. Drag cards to re-triage — or Tab to a
-        grip and press Enter, then arrows: each move reaches the agent as an action, and
-        the next version of this page ships with the board as you left it.
+        Migration 0041 reruns on every deploy. Today that is harmless. Once 0042 ships,
+        the same failure will apply account credits twice. It is the only release
+        blocker. Move a card if you would ship differently.
       </p>
 
       <lf-board id="release-board">
         <lf-column id="col-blocking" label="Blocking release">
           <lf-card id="card-migration"
             ><strong>Migration reruns on every deploy</strong> The version stamp never
-            lands, so 0041 replays; idempotent today, not once 0042 ships.</lf-card
-          >
-          <lf-card id="card-logout"
-            ><strong>Logout 500s with an expired session</strong> Double-delete on the
-            session key; needs a guard, one line.</lf-card
+            lands. The next migration applies credits and is not idempotent.</lf-card
           >
         </lf-column>
         <lf-column id="col-next" label="Fix in 2.4.1">
@@ -41,32 +37,18 @@
             ><strong>Digest email uses server timezone</strong> Cosmetic for most,
             wrong-day for UTC+13.</lf-card
           >
-          <lf-card id="card-search"
-            ><strong>Search ignores archived items toggle</strong> Filter dropped in the
-            query builder rewrite.</lf-card
-          >
           <lf-card id="card-export"
             ><strong>CSV export quotes numerics</strong> Breaks one customer's
             downstream import.</lf-card
           >
         </lf-column>
-        <lf-column id="col-wont" label="Won't fix for 2.4">
-          <lf-card id="card-ie"
-            ><strong>Layout breaks on IE mode</strong> Out of support matrix; documented
-            instead.</lf-card
+        <lf-column id="col-fixed" label="Fixed">
+          <lf-card id="card-logout"
+            ><strong>Logout fails with an expired session</strong> The double-delete
+            guard is merged and covered by the release build.</lf-card
           >
         </lf-column>
-        <lf-column id="col-fixed" label="Fixed"></lf-column>
       </lf-board>
-
-      <section id="notes">
-        <h2>The migration stamp bug blocks the release on its own</h2>
-        <p id="p-notes">
-          The migration stamp bug is the only one with data risk; it blocks the release
-          even if the fix slips a day. The logout fix is trivial but touches the auth
-          path, so it rides the same release train rather than a hotfix.
-        </p>
-      </section>
     </main>
   </body>
 </html>

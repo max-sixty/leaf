@@ -60,6 +60,7 @@ import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
 import { authoredParents } from "../projection/authored.js";
 import { stateProjection } from "../projection/fold.js";
+import { pendingRequests } from "../outbox.js";
 
 /* Server-projected ask state, resolved onto the browser's live DOM. */
 const authoredParentOf = (node) => authoredParents.get(node);
@@ -135,11 +136,14 @@ export const projectedParent = (el, reading) =>
 
 function asks(kind) {
   if (!pagePresented()) return [];
+  const requested = new Set(pendingRequests().map((event) => event.widget));
   const documentAsks = runtime.view?.document?.asks?.[kind] ?? [];
   const conversationAsks = runtime.browser?.conversation?.asks?.[kind] ?? [];
   const elements = [...documentAsks, ...conversationAsks]
     .map((ask) => elementById(ask.id))
-    .filter(Boolean);
+    .filter(
+      (element) => element && (kind === "all" || !requested.has(askSource(element).id)),
+    );
   return [...new Set(elements)].sort((left, right) => {
     if (left === right) return 0;
     return left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING

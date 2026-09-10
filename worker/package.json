@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "cd .. && uv run scripts/site.py",
+    "deploy:dev": "../scripts/deploy-site-dev.sh",
     "dev": "npm run build && wrangler dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

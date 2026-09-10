@@ -216,10 +216,6 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
         }
     }
 
-    assert query_site_agent_logs.event_ids(response) == {
-        "reader-event",
-        "another-event",
-    }
     assert query_site_agent_logs.safe_records([response], {"reader-event"}) == [
         {
             "timestamp": 1000,
@@ -254,8 +250,7 @@ def test_the_agent_log_query_deduplicates_a_batched_turn(monkeypatch, capsys):
         },
     }
     responses = {
-        ("reference", "123456789012"): {"result": {"events": {"events": [shared]}}},
-        ("eventId", "event-1"): {
+        "event-1": {
             "result": {
                 "events": {
                     "events": [
@@ -273,7 +268,7 @@ def test_the_agent_log_query_deduplicates_a_batched_turn(monkeypatch, capsys):
                 }
             }
         },
-        ("eventId", "event-2"): {
+        "event-2": {
             "result": {
                 "events": {
                     "events": [
@@ -295,8 +290,13 @@ def test_the_agent_log_query_deduplicates_a_batched_turn(monkeypatch, capsys):
     monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "token")
     monkeypatch.setattr(
         query_site_agent_logs,
+        "indexed_events",
+        lambda lookup, token: {"event-1": 1_000, "event-2": 1_050},
+    )
+    monkeypatch.setattr(
+        query_site_agent_logs,
         "query",
-        lambda key, value, token, now_ms: responses[(key, value)],
+        lambda event_id, accepted_ms, token: responses[event_id],
     )
 
     assert query_site_agent_logs.main(["123456789012"]) == 0
@@ -328,59 +328,74 @@ def test_the_agent_log_query_deduplicates_a_batched_turn(monkeypatch, capsys):
 
 
 @pytest.mark.parametrize(
-    ("key", "value", "lookup"),
+    ("lookup", "field"),
     [
-        (
-            "eventId",
-            "reader-event",
-            {
-                "needle": {
-                    "value": "reader-event",
-                    "isRegex": False,
-                    "matchCase": True,
-                }
-            },
-        ),
-        (
-            "reference",
-            "123456789012",
-            {
-                "filters": [
-                    {
-                        "key": "reference",
-                        "operation": "eq",
-                        "type": "string",
-                        "value": "123456789012",
-                    }
-                ]
-            },
-        ),
+        ("reader-event", "index1"),
+        ("123456789012", "blob6"),
     ],
 )
-def test_the_agent_log_query_finds_an_event_or_reference(key, value, lookup):
-    parameters = {
-        "datasets": [],
-        "filterCombination": "and",
-        "filters": [
-            {
-                "key": "component",
-                "operation": "eq",
-                "type": "string",
-                "value": "leaf-agent",
-            }
+def test_the_agent_log_query_indexes_an_event_or_reference(lookup, field):
+    assert query_site_agent_logs.analytics_statement("leaf_events", lookup) == (
+        "SELECT timestamp,index1 FROM leaf_events "
+        f"WHERE {field}='{lookup}' AND timestamp > NOW() - INTERVAL '1' DAY "
+        "ORDER BY timestamp LIMIT 100"
+    )
+
+
+def test_the_agent_log_query_searches_every_hosted_environment(monkeypatch):
+    calls = []
+    rows = {
+        "leaf_website_events": [
+            {"timestamp": "2026-09-10 18:50:03", "index1": "production-event"}
+        ],
+        "leaf_website_events_dev": [
+            {"timestamp": "2026-09-10 18:51:03", "index1": "dev-event"}
         ],
     }
-    if "filters" in lookup:
-        parameters["filters"].extend(lookup["filters"])
-    else:
-        parameters.update(lookup)
 
-    assert query_site_agent_logs.query_body(key, value, 86_400_000) == {
+    def analytics_rows(dataset, lookup, token):
+        calls.append((dataset, lookup, token))
+        return rows[dataset]
+
+    monkeypatch.setattr(query_site_agent_logs, "analytics_rows", analytics_rows)
+
+    assert query_site_agent_logs.analytics_datasets() == (
+        "leaf_website_events",
+        "leaf_website_events_dev",
+    )
+    assert query_site_agent_logs.indexed_events("123456789012", "token") == {
+        "production-event": 1_789_066_203_000,
+        "dev-event": 1_789_066_263_000,
+    }
+    assert calls == [
+        ("leaf_website_events", "123456789012", "token"),
+        ("leaf_website_events_dev", "123456789012", "token"),
+    ]
+
+
+def test_the_agent_log_query_uses_the_indexed_event_window():
+    assert query_site_agent_logs.query_body("reader-event", 1000, 2000) == {
         "queryId": "leaf-agent-diagnostic",
-        "timeframe": {"from": 0, "to": 86_400_000},
+        "timeframe": {"from": 1000, "to": 2000},
         "view": "events",
         "limit": 100,
-        "parameters": parameters,
+        "parameters": {
+            "datasets": [],
+            "filterCombination": "and",
+            "filters": [
+                {
+                    "key": "component",
+                    "operation": "eq",
+                    "type": "string",
+                    "value": "leaf-agent",
+                }
+            ],
+            "needle": {
+                "value": "reader-event",
+                "isRegex": False,
+                "matchCase": True,
+            },
+        },
     }
 
 

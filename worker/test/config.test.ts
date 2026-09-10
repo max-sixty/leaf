@@ -5,22 +5,33 @@ import { describe, expect, it } from "vitest";
 
 interface DeploymentConfig {
   name: string;
+  workers_dev?: boolean;
+  routes?: unknown[];
+  assets: Record<string, unknown>;
   containers: Array<{
     name: string;
     class_name: string;
     max_instances: number;
     instance_type: string;
+    rollout_active_grace_period: number;
   }>;
   durable_objects: {
-    bindings: Array<{ class_name: string }>;
+    bindings: Array<{ name: string; class_name: string }>;
   };
-  migrations: Array<{ new_sqlite_classes?: string[] }>;
+  workflows: Array<{ name: string; binding: string; class_name: string }>;
+  migrations: Array<{
+    tag: string;
+    new_sqlite_classes?: string[];
+    renamed_classes?: Array<{ from: string; to: string }>;
+  }>;
   analytics_engine_datasets: Array<{ binding: string; dataset: string }>;
   ratelimits: Array<{
     name: string;
     simple: { limit: number; period: number };
   }>;
   secrets: { required: string[] };
+  observability: { enabled: boolean };
+  env: { dev: DeploymentConfig };
 }
 
 const config = parse(
@@ -50,6 +61,32 @@ describe("deployment configuration", () => {
 
     expect(container.name).toBe(deployedName);
     expect(binding.class_name).toBe(container.class_name);
+  });
+
+  it("keeps one bounded remote development environment away from leaf.page", () => {
+    const dev = config.env.dev;
+    const [devContainer] = dev.containers;
+
+    expect(dev.name).toBe("leaf-website-dev");
+    expect(dev.workers_dev).toBe(true);
+    expect(dev.routes).toEqual([]);
+    expect(devContainer.name).toBe("leaf-website-dev-leafexamplesession");
+    expect(devContainer.max_instances).toBe(10);
+    expect({ ...devContainer, name: container.name, max_instances: 6_000 }).toEqual(
+      container,
+    );
+    expect(dev.assets).toEqual(config.assets);
+    expect(dev.secrets).toEqual(config.secrets);
+    expect(dev.durable_objects).toEqual(config.durable_objects);
+    expect(dev.migrations).toEqual(config.migrations);
+    expect(dev.observability).toEqual(config.observability);
+    expect(dev.ratelimits).toEqual(config.ratelimits);
+    expect(dev.workflows).toEqual([
+      { ...config.workflows[0], name: "leaf-website-agent-dev" },
+    ]);
+    expect(dev.analytics_engine_datasets).toEqual([
+      { binding: "WEBSITE_EVENTS", dataset: "leaf_website_events_dev" },
+    ]);
   });
 
   it("admits the full current account capacity of basic sessions", () => {

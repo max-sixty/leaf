@@ -509,6 +509,10 @@ def test_the_local_verifier_requests_ephemeral_codex_tasks(monkeypatch):
     assert "LEAF_AGENT_EPHEMERAL=1" in script
     assert 'CODEX_HOME="$clean_codex_home"' in script
     assert 'cp "$host_codex_home/auth.json"' in script
+    assert (
+        "runner=${LEAF_SITE_AGENT_RUNNER:-$repo_root/scripts/verify-site.py}" in script
+    )
+    assert 'uv run --project "$repo_root" "$runner" "$release"' in script
     monkeypatch.setenv("LEAF_AGENT_EPHEMERAL", "1")
     monkeypatch.setattr(website_server, "_agent_host", None)
     assert website_server.website_codex_host().ephemeral is True
@@ -2121,6 +2125,7 @@ class _DeployedContainer:
             {
                 "active": {"revision": 1, "url": "revisions/1.html"},
                 "layer": {"generation": "generation-1"},
+                "release": self.release,
                 "events": [],
             },
             headers=answered,
@@ -2202,7 +2207,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "time",
             SimpleNamespace(monotonic=following_clock.__next__),
         )
-        verify_site.verify_agent_turn(_DeployedSite(container), release)
+        benchmark = verify_site.verify_agent_turn(_DeployedSite(container), None)
 
     # The ordinary first load uses the edge-page presentation bound. The post-turn
     # reload gets its own bound for both presentation and the later revision follow.
@@ -2221,6 +2226,64 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     assert "activity working: Editing the page at 1.0 s" in reported
     assert "published at 12.0 s" in reported
     assert "changed page — HTML first byte 100 ms" in reported
+    assert benchmark == {
+        "origin": verify_site.ORIGIN,
+        "release": release,
+        "page": {
+            "htmlFirstByteMs": 100.0,
+            "htmlCompleteMs": 200.0,
+            "firstContentfulPaintMs": 250.0,
+            "javascriptFetchedMs": 275.0,
+            "upgradedMs": 300.0,
+            "stateAnsweredMs": 28344.0,
+            "presentedMs": 28444.0,
+            "requestsAtPresentation": 24,
+            "bytesAtPresentation": 335 * 1024,
+            "javascriptRequestsAtPresentation": 16,
+            "javascriptBytesAtPresentation": 150 * 1024,
+            "codeRequestsAtPresentation": 20,
+            "codeBytesAtPresentation": 330 * 1024,
+        },
+        "comment": {
+            "sessionReference": None,
+            "eventIds": [],
+            "asks": 1,
+            "acknowledgedMs": [250.0],
+            "activity": [
+                {"atMs": 250.0, "kind": "queued", "detail": ""},
+                {
+                    "atMs": 1000.0,
+                    "kind": "working",
+                    "detail": "Editing the page",
+                },
+                {"atMs": 12500.0, "kind": "away", "detail": ""},
+            ],
+            "publishedMs": 12000.0,
+            "repliedMs": 12500.0,
+            "answeredMs": 12500.0,
+        },
+        "change": {
+            "heading": heading,
+            "revision": 2,
+            "reply": "deployment verified",
+        },
+        "changedPage": {
+            "htmlFirstByteMs": 100.0,
+            "htmlCompleteMs": 200.0,
+            "firstContentfulPaintMs": 250.0,
+            "javascriptFetchedMs": 275.0,
+            "upgradedMs": 300.0,
+            "stateAnsweredMs": 28344.0,
+            "presentedMs": 28444.0,
+            "requestsAtPresentation": 24,
+            "bytesAtPresentation": 335 * 1024,
+            "javascriptRequestsAtPresentation": 16,
+            "javascriptBytesAtPresentation": 150 * 1024,
+            "codeRequestsAtPresentation": 20,
+            "codeBytesAtPresentation": 330 * 1024,
+            "followedRevisionMs": 2500.0,
+        },
+    }
     assert container.closed
 
     # A reload the container never answered is its own reading, taken before the wait.

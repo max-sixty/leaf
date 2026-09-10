@@ -3710,9 +3710,8 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     menu = page.locator(".lf-version-menu")
     panel = page.locator(".lf-panel")
     line = page.locator(".lf-shortcut-bar")
-    # Keep the page below the contextual-thread breakpoint so the premise remains about
-    # the page scope rather than the right-margin conversation it now opens at 1208px.
-    resized(page, 1207, 900)
+    # Hold a desktop page size so opening the menu changes only the active keyboard scope.
+    resized(page, 1200, 900)
     # Every one of them live on the page, which is what makes the suspension below the
     # mode's rather than the rows' own liveness.
     for word in ["threads", "page down / up"]:
@@ -3763,6 +3762,75 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     page.keyboard.press("t")
     expect(panel).to_be_visible()
     expect(page.locator(".lf-thread").first).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
+    browser, serve
+):
+    """Anchor travel treats the bottom toolbar's scroll padding as covered space.
+
+    A passage can be geometrically inside the viewport while its last line is under the
+    shortcut bar. The control places it just above that band first, proving travel leaves
+    a readable destination alone, then inside the band, where the same public thread walk
+    must move it back into the usable reading area.
+    """
+    source = leaf_page(
+        "Bottom clearance",
+        """
+<h1>Anchor travel</h1>
+<div style="height: 900px" aria-hidden="true"></div>
+<p id="destination">The passage remains readable above the bottom toolbar.</p>
+<div style="height: 900px" aria-hidden="true"></div>
+""",
+    )
+    page, errors = open_page(
+        browser,
+        serve(source, anchored=(("destination", "The passage remains readable"),)),
+    )
+    resized(page, 1000, 700)
+    destination = page.locator("#destination")
+
+    def place_bottom(offset):
+        return page.evaluate(
+            """offset => {
+              const scroller = document.scrollingElement;
+              const destination = document.getElementById('destination');
+              const clear = parseFloat(getComputedStyle(scroller).scrollPaddingBottom);
+              const before = destination.getBoundingClientRect();
+              scroller.scrollBy(0, before.bottom - (innerHeight - clear + offset));
+              const after = destination.getBoundingClientRect();
+              return {clear, bottom: after.bottom, viewport: innerHeight,
+                scroll: scroller.scrollTop};
+            }""",
+            offset,
+        )
+
+    clear = place_bottom(-4)
+    assert clear["clear"] > 0
+    page.keyboard.press("t")
+    expect(page.locator(".lf-conversation-thread")).to_be_focused()
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
+        clear["scroll"], abs=1
+    )
+
+    covered = place_bottom(clear["clear"] / 2)
+    assert covered["bottom"] <= covered["viewport"]
+    assert covered["bottom"] > covered["viewport"] - covered["clear"]
+    page.keyboard.press("t")
+    page.wait_for_function(
+        """() => {
+          const clear = parseFloat(getComputedStyle(document.scrollingElement)
+            .scrollPaddingBottom);
+          return document.getElementById('destination').getBoundingClientRect().bottom
+            <= innerHeight - clear + .5;
+        }"""
+    )
+    assert page.evaluate("() => document.scrollingElement.scrollTop") != pytest.approx(
+        covered["scroll"], abs=1
+    )
+    expect(destination).to_be_in_viewport()
     assert errors == []
     page.close()
 

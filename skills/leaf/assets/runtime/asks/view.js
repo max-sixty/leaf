@@ -886,22 +886,11 @@ export function createAskView({
   }
 
   // The screen the reader can use, and the distance two boxes stand apart in it. The
-  // scroller's declared scroll-padding accounts for fixed chrome at both edges.
+  // clearance is the scroller's own declared scroll-padding, where it already says how
+  // much of its top edge the banner stands over, rather than a second copy of that number
+  // kept here.
   const clearanceOf = (box) => parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
-  const clearanceBelowOf = (box) =>
-    parseFloat(getComputedStyle(box).scrollPaddingBottom) || 0;
   const HEADING = "h1,h2,h3,h4,h5,h6";
-
-  // A hoisted answer is part of the Ask's visible arrival even though it no longer sits
-  // inside the Ask's DOM box. Use the same command and presentation projections as its
-  // numeric routes: an arrival that stops with those controls under fixed chrome has
-  // shown the question but hidden the answer it asks the reader to give.
-  function arrivalBottom(ask) {
-    const bottoms = availableActions().map(
-      ({ control }) => shownBox(presentedActionControl(control)).bottom,
-    );
-    return Math.max(shownBox(ask).bottom, ...bottoms);
-  }
 
   // Where the reader arrives at a page ask: the region whose start has to be in front
   // of them for the question to make sense. A widget declaring x-ask-surface states its own —
@@ -926,7 +915,7 @@ export function createAskView({
   // rule about how far up is too far.
   function arrivalRegion(ask, box) {
     if (registry[ask.localName]?.["x-ask-surface"]) return ask;
-    const room = shownBox(box).height - clearanceOf(box) - clearanceBelowOf(box);
+    const room = shownBox(box).height - clearanceOf(box);
     // A region has to be somewhere the reader can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a
     // wrong one naming the top of the page (geometry.js says so at shownBox): a hidden
@@ -941,9 +930,7 @@ export function createAskView({
       const start = shownBox(region);
       const target = shownBox(ask);
       return (
-        start.height > 0 &&
-        start.top <= target.top &&
-        arrivalBottom(ask) - start.top <= room
+        start.height > 0 && start.top <= target.top && target.bottom - start.top <= room
       );
     };
     // The blocks before this one that are about the same part of the document: the two
@@ -1013,7 +1000,9 @@ export function createAskView({
     return (
       readableDestination(ask) &&
       shownBox(region).top >= shownBox(box).top + clearanceOf(box) &&
-      arrivalBottom(ask) <= shownBox(box).bottom - clearanceBelowOf(box)
+      availableActions().every(({ control }) =>
+        readableDestination(presentedActionControl(control)),
+      )
     );
   }
 

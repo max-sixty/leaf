@@ -1007,11 +1007,22 @@ PAGE_MAP_EVENTS = [
 def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
     browser, serve, width
 ):
-    """A secondary action's visible proxy gets its canonical Ask address."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
-    resized(page, width, 900)
-    margins_laid_out(page)
-
+    """Ask travel shows hoisted answers above fixed chrome, with their addresses."""
+    context = browser.new_context(
+        viewport={"width": width, "height": 900}, reduced_motion="reduce"
+    )
+    page, errors = open_page(
+        browser,
+        serve(
+            FEATURE_GALLERY,
+            website_publication={
+                "kind": "example",
+                "agent": "Leaf guide",
+                "install_url": "/#install",
+            },
+        ),
+        context=context,
+    )
     # Twice: the gallery's core surfaces open on a decision, which is the page's first
     # ask and carries no address of its own, and the suggestions this case is about
     # begin after it.
@@ -1034,21 +1045,30 @@ def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
           return {
             controls: controls.map((control) => {
               const box = control.getBoundingClientRect();
-              return {x: box.left, y: box.top};
+              return {x: box.left, y: box.top, bottom: box.bottom};
             }),
+            foot: Math.min(innerHeight, ...[...document.querySelectorAll(
+              '.lf-shortcut-bar, .lf-bottom-status'
+            )].filter(node => node.checkVisibility()).map(
+              node => node.getBoundingClientRect().top
+            )),
             chips: boxes([...document.querySelectorAll(
               '.lf-ask-addresses > .lf-ask-address'
             )]),
           };
         }"""
     )
-    assert len(geometry["controls"]) == len(geometry["chips"]) == 2, geometry
+    assert len(geometry["controls"]) == 2, geometry
+    for control in geometry["controls"]:
+        assert 0 < control["y"] < control["bottom"] <= geometry["foot"], geometry
+    assert len(geometry["chips"]) == 2, geometry
     for control, chip in zip(geometry["controls"], geometry["chips"], strict=True):
         assert abs(control["x"] - chip["x"]) <= 2, geometry
         assert abs(control["y"] - chip["y"]) <= 2, geometry
 
     assert errors == []
     page.close()
+    context.close()
 
 
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])

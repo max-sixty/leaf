@@ -4899,10 +4899,8 @@ RING_SCOPE_CONTROL = {
 # The window a scope's own surface stands in, where that is not the walk's own. These
 # entries are floors the layer states rather than preferences: the Map control is drawn
 # under the margin's breakpoint and nowhere else, while the contents-link and thread-card
-# walks use the wider room where their page-margin surfaces stand beside the source. Ship
-# review stands a contents map too, so that beside posture waits for 1472px of shell
-# rather than 1208px (theme.css). Every other scope is read at the width the page opened
-# at.
+# walks use a wide window where their page-margin surfaces can stand beside the source.
+# Every other scope is read at the width the page opened at.
 RING_WALK_VIEWPORT = (1200, 900)
 # Scopes whose page-margin surfaces the standing panel takes the place of.
 RING_SCOPES_WITHOUT_PANEL = {"a contents link", "a thread card"}

@@ -1431,7 +1431,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      control floats over the page's own content rather than standing in the empty rail,
      so it cannot rely on a hairline to separate it from whatever it happens to cover. */
   :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 32px; }
-  .lf-fab-bar { position: absolute; display: none; width: max-content;
+  .lf-fab-bar { position: fixed; display: none; width: max-content;
     align-items: flex-end; gap: 4px; white-space: nowrap;
     max-width: var(--lf-float-w, calc(100vw - 16px)); }
   .lf-fab-bar[data-lf-margin-raised] { display: none !important; }
@@ -1461,11 +1461,10 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* The field takes the size its words want. A short note is one line; a
      longer one widens to a readable measure before it wraps, then grows along the edge
      placement attached and scrolls past the room placement gave the field
-     (--lf-float-h). placeFab chooses that rectangle from external geometry and the
-     one-line minimum, so content cannot re-seat the bar. A bar beside or below its
-     target holds its top edge; one above holds its bottom edge. The room's width caps
-     the whole bar, and the field is the flex item that shrinks, so on a narrow screen
-     the words wrap sooner and the ellipsis keeps its room. */
+     (--lf-float-h). Floating UI supplies both limits from the reading boundary and the
+     one-line minimum, so content cannot re-seat the bar. The room's width caps the
+     whole bar, and the field is the flex item that shrinks, so on a narrow screen the
+     words wrap sooner and the ellipsis keeps its room. */
   textarea.lf-fab-input { --lf-response-min-width: 216px; width: auto;
     min-width: min(var(--lf-response-min-width), var(--lf-response-room, 100vw));
     max-width: min(80ch, var(--lf-response-room, 100vw));
@@ -1595,8 +1594,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      say how much a press takes and a ring to say where it stops, over everything the
      page can paint — an lf-shot frame flush to its own edges included. pointer-events
      stands down so the press this box promises, and every elementFromPoint behind the
-     promise, still lands on the item under it. Document-anchored like the floats above
-     (place), so a
+     promise, still lands on the item under it. Document-anchored like the page paints
+     around it (place), so a
      scroll moves it with the page between the events that re-derive it; under the
      floats themselves, which are chrome the reader works rather than paint about the
      page. */

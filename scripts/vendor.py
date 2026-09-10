@@ -59,6 +59,9 @@ PINS = {
     "@observablehq/plot": "0.6.17",
     "@pierre/diffs": "1.4.1",
     "@modelcontextprotocol/ext-apps": "1.7.5",
+    "@floating-ui/dom": "1.8.0",
+    "@floating-ui/core": "1.8.0",
+    "@floating-ui/utils": "0.2.12",
     "shiki": "4.4.3",
     "esbuild": "0.28.2",
 }
@@ -263,6 +266,54 @@ def build_beautiful_mermaid(work: Path) -> list[Path]:
         "--legal-comments=inline",
         f"--banner:js=/*! beautiful-mermaid {PINS['beautiful-mermaid']} — MIT"
         " — licenses: beautiful-mermaid.LICENSES.txt */",
+        f"--outfile={out}",
+        cwd=work,
+    )
+    refuse_if_csp_forbids(out)
+    notices.write_text(
+        package_notices(work, packages, out.name),
+        encoding="utf-8",
+    )
+    return [out, notices]
+
+
+def build_floating_ui(work: Path) -> list[Path]:
+    """Bundle the browser's anchored-positioning primitive.
+
+    Floating UI's DOM package publishes browser ESM, but leaves its core and utility
+    packages as bare imports. Leaf pages run under a self-only CSP and have no package
+    resolver, so the three exact packages become one browser-native module. Only the
+    positioning and lifecycle middleware used by the response surface are exported;
+    esbuild drops the rest.
+    """
+    out = ASSETS / "vendor/floating-ui.esm.js"
+    notices = ASSETS / "vendor/floating-ui.LICENSES.txt"
+    packages = ("@floating-ui/dom", "@floating-ui/core", "@floating-ui/utils")
+    run(
+        "npm",
+        "install",
+        "--no-save",
+        "--no-package-lock",
+        "--silent",
+        *(spec(package) for package in packages),
+        spec("esbuild"),
+        cwd=work,
+    )
+    (work / "entry.mjs").write_text(
+        "export { autoUpdate, computePosition, flip, offset, shift, size } "
+        'from "@floating-ui/dom";\n',
+        encoding="utf-8",
+    )
+    esbuild(
+        "entry.mjs",
+        "--bundle",
+        "--format=esm",
+        "--platform=browser",
+        "--target=chrome105",
+        "--minify",
+        "--legal-comments=inline",
+        f"--banner:js=/*! @floating-ui/dom {PINS['@floating-ui/dom']} — MIT"
+        " — licenses: floating-ui.LICENSES.txt */",
         f"--outfile={out}",
         cwd=work,
     )
@@ -563,6 +614,7 @@ def build_mcp_app(work: Path) -> list[Path]:
 
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "beautiful-mermaid": build_beautiful_mermaid,
+    "floating-ui": build_floating_ui,
     "highlight": build_highlight,
     "mcp-app": build_mcp_app,
     "plot": build_plot,
@@ -589,10 +641,20 @@ REBUILDS = {
     "@pierre/diffs": ("pierre",),
     "@modelcontextprotocol/ext-apps": ("mcp-app",),
     "beautiful-mermaid": ("beautiful-mermaid",),
+    "@floating-ui/dom": ("floating-ui",),
+    "@floating-ui/core": ("floating-ui",),
+    "@floating-ui/utils": ("floating-ui",),
     "elkjs": ("beautiful-mermaid",),
     "entities": ("beautiful-mermaid",),
     "shiki": ("pierre",),
-    "esbuild": ("beautiful-mermaid", "highlight", "mcp-app", "plot", "pierre"),
+    "esbuild": (
+        "beautiful-mermaid",
+        "floating-ui",
+        "highlight",
+        "mcp-app",
+        "plot",
+        "pierre",
+    ),
 }
 
 

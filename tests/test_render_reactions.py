@@ -839,6 +839,13 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
         expect(field).to_have_value("Keep this draft, still anchored 3 lines")
         narrowed = bar.bounding_box()
         assert narrowed["x"] + narrowed["width"] <= 492, narrowed
+        narrowed_target = page.locator("#how-cap").bounding_box()
+        assert (
+            narrowed["x"] + narrowed["width"] <= narrowed_target["x"]
+            or narrowed["x"] >= narrowed_target["x"] + narrowed_target["width"]
+            or narrowed["y"] + narrowed["height"] <= narrowed_target["y"]
+            or narrowed["y"] >= narrowed_target["y"] + narrowed_target["height"]
+        ), (narrowed_target, narrowed)
     page.keyboard.press("Tab")
     expect(suggest).to_be_focused()
     page.keyboard.press("Escape")
@@ -910,12 +917,12 @@ FLOAT_ROOM = """() => {
 def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     browser, serve
 ):
-    """A one-line note uses the shared action corner. A longer one widens before it
-    wraps, grows down as far as the room the placement states — a note of a dozen lines
-    shows them all, and only one taller than the band below the banner scrolls, standing
-    inside that band — and the corner stays fixed through all of that. On a narrow screen
-    the same room caps the bar and the field is what gives, so the ellipsis beside it
-    keeps its room."""
+    """A one-line note uses the shared action corner. A longer one uses the width of
+    its chosen rail and then wraps, growing through the room placement states — a dozen
+    lines shows them all, and only one taller than the band below the banner scrolls,
+    standing inside that band — and the corner stays fixed through all of that. On a
+    narrow screen the same room caps the bar and the field is what gives, so the
+    ellipsis beside it keeps its room."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
@@ -953,10 +960,10 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     )
     page.evaluate(RENDERED)
     wide = field.evaluate(FIELD_BOX)
-    assert wide["w"] > rest["w"] and wide["h"] > rest["h"], (
+    assert wide["w"] >= rest["w"] and wide["h"] > rest["h"], (
         rest,
         wide,
-    )  # wider, wrapped
+    )  # a rail already at its compact minimum wraps without moving or widening
     assert wide["over"] < 0 and wide["r"] == rest["r"], (rest, wide)
     bounds = bar.bounding_box()
     assert bounds and bounds["x"] + bounds["width"] <= room["right"], (room, bounds)
@@ -973,12 +980,13 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     page.evaluate(RENDERED)  # placeFab answers the input a frame later
     bounds = bar.bounding_box()
     trigger = bar.locator(".lf-response-more").bounding_box()
+    narrow_field = field.bounding_box()
     assert bounds and 8 <= bounds["x"] and bounds["x"] + bounds["width"] <= 382, bounds
     assert trigger and trigger["x"] + trigger["width"] <= 382, (bounds, trigger)
-    assert field.evaluate(FIELD_BOX)["w"] < wide["w"], (
-        wide,
-        bounds,
-    )  # the field gave the room
+    assert narrow_field["x"] + narrow_field["width"] <= trigger["x"], (
+        narrow_field,
+        trigger,
+    )
     assert errors == []
     page.close()
 

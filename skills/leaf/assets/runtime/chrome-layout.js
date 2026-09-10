@@ -278,10 +278,10 @@ export function syncLayout() {
   syncFloats();
   dockSeats();
 }
-// The response bar lives in the document, and syncLayout is where its containing box
-// changes shape — the panel takes or returns its strip and a resize moves every rect.
-// Re-place it against the durable anchor so it cannot overhang the narrowed shell and
-// create sideways-scrollable overflow.
+// The response bar lives in the viewport plane, and syncLayout is where its usable
+// reading boundary changes shape — the panel takes or returns its strip and a resize
+// moves every rect. Re-place it against the durable anchor so it cannot overhang the
+// narrowed shell.
 function syncFloats() {
   if (syncReactLayout()) return;
   refreshFab();

@@ -34,7 +34,7 @@ import {
   anchorStands,
   anchorTargetAt,
   fabAnchorAt,
-  holdFabLeft,
+  fabPositioned,
   refreshFab,
   showFab,
 } from "./surface.js";
@@ -360,35 +360,35 @@ export function stepResponseOptions(binding) {
 // with the remaining local actions and keep the group's primary control in place.
 // The composer supplies a field instead of a primary margin element, so it owns this layout
 // adapter rather than borrowing the margin's target aggregation and spill machinery.
-export function setResponseOptions(
-  open,
-  { focus = null, returnFocus = false, place = true } = {},
-) {
-  const next = Boolean(open && fabAnchorAt() && responseOptionsAvailable());
-  if (next === responseOptionsOpen) {
-    if (next && focus) {
-      const options = responseOptionButtons();
-      (focus === "reaction"
-        ? options.find((control) => control.classList.contains("lf-react"))
-        : options[0]
-      )?.focus({ preventScroll: true });
-    }
-    return next;
-  }
-  holdFabLeft(next && place);
-  if (next) setReact(false);
-  responseOptionsOpen = next;
-  fabBar.classList.toggle("lf-response-open", next);
-  fabMore.setAttribute("aria-expanded", String(next));
-  if (place && fabAnchorAt()) showFab(fabAnchorAt());
-  if (next && focus) {
+const focusResponseOption = (focus) => {
+  void fabPositioned().then((positioned) => {
+    if (!positioned || !responseOptionsOpen) return;
     const options = responseOptionButtons();
     const destination =
       focus === "reaction"
         ? options.find((control) => control.classList.contains("lf-react"))
         : options[0];
     destination?.focus({ preventScroll: true });
-  } else if (!next && returnFocus) {
+    paintKeys();
+  });
+};
+
+export function setResponseOptions(
+  open,
+  { focus = null, returnFocus = false, place = true } = {},
+) {
+  const next = Boolean(open && fabAnchorAt() && responseOptionsAvailable());
+  if (next === responseOptionsOpen) {
+    if (next && focus) focusResponseOption(focus);
+    return next;
+  }
+  if (next) setReact(false);
+  responseOptionsOpen = next;
+  fabBar.classList.toggle("lf-response-open", next);
+  fabMore.setAttribute("aria-expanded", String(next));
+  if (place && fabAnchorAt()) showFab(fabAnchorAt());
+  if (next && focus) focusResponseOption(focus);
+  else if (!next && returnFocus) {
     (composerOpen && fabInput.checkVisibility() ? fabInput : fabMore).focus({
       preventScroll: true,
     });
@@ -517,7 +517,13 @@ export function openComposer(
   showComposer(true);
   showFab(anchor);
   syncComposer();
-  if (focus) composerInput.focus();
+  if (focus) {
+    const focusEpoch = composerEpoch;
+    void fabPositioned().then((positioned) => {
+      if (positioned && composerOpen && focusEpoch === composerEpoch)
+        composerInput.focus();
+    });
+  }
   watchComposer();
   // Programmatic carrying fires no input event, so persist that one move explicitly.
   // An automatically opened empty field has no draft to save; its first edit does.

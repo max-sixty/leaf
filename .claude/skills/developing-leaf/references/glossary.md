@@ -11,10 +11,9 @@ lifecycles are owned by their protocol references.
 
 ## How to use the vocabulary
 
-A term earns its own entry when current Leaf behavior can answer both questions:
-
-1. What makes two instances the same kind?
-2. What nearby thing is explicitly not that kind?
+A term earns its own entry when current Leaf behavior supplies a stable identity
+criterion. Add a short example only when the definition would otherwise remain
+abstract.
 
 Name the narrowest established kind. Qualify a noun when another web or Leaf concept
 uses the same word. Treat retention and meaning as separate dimensions: a mode can be
@@ -22,17 +21,17 @@ tab-scoped without becoming display state, for example.
 
 ## Packages, declarations, and elements
 
-| Term | Identity criterion | Not this |
-|---|---|---|
-| **Package** | One composable source directory containing declarations and their payload | The composed Leaf layer |
-| **Leaf layer** | One checked, vendored composition of packages | A CSS cascade layer |
-| **Leaf element type** | One registered `lf-*` tag identity | A `$*` layer fact |
-| **Element declaration** | The registry record for one Leaf element type | An authored occurrence of the type |
-| **Leaf element** | One authored occurrence of a Leaf element type | A native HTML element or its declaration |
-| **Compound owner** | A Leaf element whose body owns declared direct members | An open-markup container |
-| **Compound member** | A Leaf element whose declaration admits one or more direct owner types | Any nested widget |
-| **Structural element** | A Leaf element with a declared role in reading structure | A member with no reading role |
-| **Addressable element** | An authored, identified element eligible as a reader target | Generated chrome or a compound member as such |
+| Term | Identity criterion |
+|---|---|
+| **Package** | One composable source directory containing declarations and their payload |
+| **Leaf layer** | One checked, vendored composition of packages |
+| **Leaf element type** | One registered `lf-*` tag identity |
+| **Element declaration** | The registry record for one Leaf element type |
+| **Leaf element** | One authored occurrence of a Leaf element type |
+| **Compound owner** | A Leaf element whose body owns declared direct members |
+| **Compound member** | A Leaf element whose declaration admits one or more direct owner types |
+| **Structural element** | A Leaf element with a declared role in reading structure |
+| **Addressable element** | An authored, identified element eligible as a reader target |
 
 An element declaration keeps independent dimensions independent:
 
@@ -48,37 +47,37 @@ item.
 
 ## Authored reading structure
 
-| Term | Identity criterion | Not this |
-|---|---|---|
-| **Page shell** | The body-level responsive sizing envelope after chrome reservations | The authored content root |
-| **Content frame** | `body > main`, the root of authored content | A reading column in every posture |
-| **Reading column** | The flow presentation of the content frame | A bounded workspace canvas |
-| **Workspace** | An authored structural composition that keeps task regions together | Runtime auxiliary chrome |
-| **Pane** | A leaf in a workspace composition that owns one reading region | Every reading region |
-| **Partition** | A binary structural node arranging two panes or partitions | A pane or reading region |
-| **Reading region** | A stable semantic place used by navigation and reading-position recovery | A physical overflow box |
-| **Effective reading scroller** | The scroll container currently governing one reading region | Every scrollable ancestor |
-| **Scrollport** | A physical overflow box | The semantic region it happens to scroll |
-| **Reading arrangement** | The current relation between structural elements, regions, and their scrollers | Saved reader view state |
-| **Reading posture** | The content frame's responsive presentation: `flow` or `bounded` | An interaction mode |
+| Term | Identity criterion |
+|---|---|
+| **Page shell** | The body-level responsive sizing envelope after chrome reservations |
+| **Content frame** | `body > main`, the root of authored content |
+| **Reading column** | The flow presentation of the content frame |
+| **Workspace** | An authored structural composition that keeps task regions together |
+| **Pane** | A leaf in a workspace composition that owns one reading region |
+| **Partition** | A binary structural node arranging two panes or partitions |
+| **Reading region** | A stable semantic place used by navigation and reading-position recovery |
+| **Effective reading scroller** | The scroll container currently governing one reading region |
+| **Scrollport** | A physical overflow box |
+| **Reading arrangement** | The current relation between structural elements, regions, and their scrollers |
+| **Reading posture** | The content frame's responsive presentation: `flow` or `bounded` |
 
 A root workspace may produce bounded posture. An embedded workspace remains in flow.
 A compound widget may own reading regions without being a pane.
 
 ## Chrome and auxiliary surfaces
 
-| Term | Identity criterion | Not this |
-|---|---|---|
-| **Chrome** | Runtime-owned interface outside authored content | Authored widgets |
-| **Chrome root** | The one `.lf-chrome` container | The page shell |
-| **Banner** | The persistent chrome row carrying page status and global controls | The shortcut bar or an auxiliary surface |
-| **Banner control** | One control seated in the banner's global control order, whether on the row or folded into its overflow disclosure | A Go-to address or a status sentence |
-| **Auxiliary surface** | Chrome opened alongside or over the content frame | An authored workspace |
-| **Thread panel** | The right-side auxiliary surface containing threads | An ARIA tab panel |
-| **Tray slot** | The left-side chrome position that admits one tray | A tray itself |
-| **Tray** | A mutually exclusive auxiliary surface admitted by the tray slot | A generic panel |
-| **Auxiliary placement** | Whether an auxiliary surface stands `beside` or `covering` the content frame | Reading posture |
-| **Auxiliary chrome state** | Which auxiliary surfaces are open and where focus belongs among them | All saved reader view state |
+| Term | Identity criterion |
+|---|---|
+| **Chrome** | Runtime-owned interface outside authored content |
+| **Chrome root** | The one `.lf-chrome` container |
+| **Banner** | The persistent chrome row carrying page status and global controls |
+| **Banner control** | One control seated in the banner's global control order, whether on the row or folded into its overflow disclosure |
+| **Auxiliary surface** | Chrome opened alongside or over the content frame |
+| **Thread panel** | The right-side auxiliary surface containing threads |
+| **Tray slot** | The left-side chrome position that admits one tray |
+| **Tray** | A mutually exclusive auxiliary surface admitted by the tray slot |
+| **Auxiliary placement** | Whether an auxiliary surface stands `beside` or `covering` the content frame |
+| **Auxiliary chrome state** | Which auxiliary surfaces are open and where focus belongs among them |
 
 The current trays are the **Asks tray** and **Leaves tray**. Use *covering auxiliary
 surface*, not *modal workspace*: a covering surface and a modal dialog are different
@@ -88,25 +87,25 @@ web interaction primitives.
 
 **Page Map** is the feature, not one of its projections. It has three presentations:
 
-| Term | Identity criterion | Not this |
-|---|---|---|
-| **Page inventory** | The complete logical collection of Page Map destinations and actions | One visual projection of it |
-| **Margin projection** | The compact page-side projection of the inventory | The complete inventory or only its rail placement |
-| **Page Map dialog** | The searchable modal projection of the inventory | The Page Map feature as a whole |
+| Term | Identity criterion |
+|---|---|
+| **Page inventory** | The complete logical collection of Page Map destinations and actions |
+| **Margin projection** | The compact page-side projection of the inventory |
+| **Page Map dialog** | The searchable modal projection of the inventory |
 
 The margin has a separate spatial hierarchy:
 
-| Term | Identity criterion | Not this |
-|---|---|---|
-| **Page margin** | Lateral space outside the content frame | Width already reserved from the shell |
-| **Margin strip** | Lateral width reserved from the shell | The rail inside it |
-| **Rail** | The right-hand lane used when the margin projection stands beside content | A command chooser or dialog list |
-| **Margin row** | One target-anchored geometry participant | Its visible grouped contents |
-| **Margin cluster** | The visible group attached to one target | The geometry row as such |
-| **Margin contribution** | One provider's registered bundle of margin content | One actionable or informational entry |
-| **Margin entry** | One action, disclosure, or status in a contribution | An arbitrary DOM element |
-| **Margin placement** | The spatial result `rail`, `docked`, or `withheld` | A temporal lifecycle |
-| **Margin rank** | The declared ordering class of an entry | Purpose, tone, or lifecycle |
+| Term | Identity criterion |
+|---|---|
+| **Page margin** | Lateral space outside the content frame |
+| **Margin strip** | Lateral width reserved from the shell |
+| **Rail** | The right-hand lane used when the margin projection stands beside content |
+| **Margin row** | One target-anchored geometry participant |
+| **Margin cluster** | The visible group attached to one target |
+| **Margin contribution** | One provider's registered bundle of margin content |
+| **Margin entry** | One action, disclosure, or status in a contribution |
+| **Margin placement** | The spatial result `rail`, `docked`, or `withheld` |
+| **Margin rank** | The declared ordering class of an entry |
 
 *Withheld* means no spatial allocation is currently available; it does not imply that
 time alone will make the entry appear.
@@ -116,31 +115,31 @@ time alone will make the entry appear.
 **Contents outline** is generated page navigation derived from authored headings. Its
 presentations are:
 
-| Term | Identity criterion | Not this |
-|---|---|---|
-| **Contents spine** | The roomy margin presentation that distributes heading destinations over the document's height | The Page Map's margin projection |
-| **Open contents outline** | The ordinary in-flow or scrollable presentation that exposes every included heading label | A sidebar as such |
+| Term | Identity criterion |
+|---|---|
+| **Contents spine** | The roomy margin presentation that distributes heading destinations over the document's height |
+| **Open contents outline** | The ordinary in-flow or scrollable presentation that exposes every included heading label |
 
 `lf-toc` is the authored element that requests the contents outline. A sidebar is one
 possible authored position for it, not the feature's name.
 
 ## Keyboard grammar
 
-| Term | Identity criterion | Not this |
-|---|---|---|
-| **Keyboard context** | The complete runtime situation used to resolve commands: focus path, active surface, and any active mode, sequence, chooser, or native layer | Focus alone |
-| **Scope** | A registered command-applicability and shadowing boundary | A mode or visual surface |
-| **Binding** | One canonical normalized keyboard chord matched against a keyboard event | Its displayed spelling |
-| **Command** | One stable semantic operation identified by a dotted id | A presentation group containing several operations |
-| **Mode** | A bounded context that reinterprets inputs until the reader explicitly exits it | A prefix sequence or one-shot chooser |
-| **Sequence** | A prefix grammar whose valid continuations narrow until completion or cancellation | A persistent mode |
-| **Chooser** | A temporary interaction that presents candidates and ends when one is chosen or the interaction closes | Native text selection |
-| **Search context** | A temporary interaction that filters or walks matches for a query | A chooser without a query |
-| **Hint** | A transient visible input code attached to one candidate in the current interaction snapshot | A stable address |
-| **Address** | A complete ordered token path selecting one candidate in the current Go-to map | One painted hint token |
-| **Go-to target** | An addressable candidate in the Go-to map | Necessarily a navigation destination |
-| **Destination** | A place or semantic region where navigation lands | A control activated in place |
-| **Action target** | The semantic subject upon which an operation acts | `event.target` or a geometry box |
+| Term | Identity criterion |
+|---|---|
+| **Keyboard context** | The complete runtime situation used to resolve commands: focus path, active surface, and any active mode, sequence, chooser, or native layer |
+| **Scope** | A registered command-applicability and shadowing boundary |
+| **Binding** | One canonical normalized keyboard chord matched against a keyboard event |
+| **Command** | One stable semantic operation identified by a dotted id |
+| **Mode** | A bounded context that reinterprets inputs until the reader explicitly exits it |
+| **Sequence** | A prefix grammar whose valid continuations narrow until completion or cancellation |
+| **Chooser** | A temporary interaction that presents candidates and ends when one is chosen or the interaction closes |
+| **Search context** | A temporary interaction that filters or walks matches for a query |
+| **Hint** | A transient visible input code attached to one candidate in the current interaction snapshot |
+| **Address** | A complete ordered token path selecting one candidate in the current Go-to map |
+| **Go-to target** | An addressable candidate in the Go-to map |
+| **Destination** | A place or semantic region where navigation lands |
+| **Action target** | The semantic subject upon which an operation acts |
 
 The named interaction contexts are:
 
@@ -165,18 +164,18 @@ The keyboard help presentations are:
 
 ## Navigation verbs
 
-| Verb | Use it for | Do not use it for |
-|---|---|---|
-| **Scroll** | Relative pixel movement of the effective reading scroller | Semantic destination changes |
-| **Page step** | Relative viewport-sized scrolling | Walking among targets |
-| **Walk** | Ordered semantic movement among same-kind destinations | Arbitrary scrolling |
-| **Go to** | Resolve an address, then activate its Go-to target | Every change of focus |
-| **Activate** | Invoke the current target's primary operation | Choose a different candidate |
-| **Return** | Reverse an entered transition to a stored or structurally known origin | Any Escape action |
-| **Retreat** | Remove one prefix, filter, or search substate while staying in an interaction | Close the whole interaction |
-| **Exit** | Leave a mode | Close a panel or dialog |
-| **Dismiss** | Close a surface without claiming origin restoration | Exit a mode |
-| **Unwind** | Perform the innermost available Escape step when its concrete kind depends on context | A specific retreat, exit, dismiss, or return operation |
+| Verb | Use it for |
+|---|---|
+| **Scroll** | Relative pixel movement of the effective reading scroller |
+| **Page step** | Relative viewport-sized scrolling |
+| **Walk** | Ordered semantic movement among same-kind destinations |
+| **Go to** | Resolve an address, then activate its Go-to target |
+| **Activate** | Invoke the current target's primary operation |
+| **Return** | Reverse an entered transition to a stored or structurally known origin |
+| **Retreat** | Remove one prefix, filter, or search substate while staying in an interaction |
+| **Exit** | Leave a mode |
+| **Dismiss** | Close a surface without claiming origin restoration |
+| **Unwind** | Perform the innermost available Escape step when its concrete kind depends on context |
 
 ## Reader-local state
 
@@ -204,13 +203,13 @@ auxiliary chrome state.
 
 ## Authored presentation elements
 
-| Term | Identity criterion | Not this |
-|---|---|---|
-| **Chronology** | Authored subject-matter entries in time order | Leaf's append-only event log |
-| **Chronology entry** | One observation, intervention, warning, or failure in a chronology | A Leaf event |
-| **Text document** | A file-backed textual data presentation | Its data source identity |
-| **Tab set** | A control choosing one of several mutually exclusive views in a region | A set restricted to workstreams |
-| **Tab panel** | The view shown for one tab | The thread panel |
+| Term | Identity criterion |
+|---|---|
+| **Chronology** | Authored subject-matter entries in time order |
+| **Chronology entry** | One observation, intervention, warning, or failure in a chronology |
+| **Text document** | A file-backed textual data presentation |
+| **Tab set** | A control choosing one of several mutually exclusive views in a region |
+| **Tab panel** | The view shown for one tab |
 
 The `source` attribute and source ids remain data-binding vocabulary. Native DOM events
 and ordinary HTML list items remain correctly named when that is what they are.

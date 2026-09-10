@@ -1331,8 +1331,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     border-inline-start: 3px solid var(--mark-ink); color: var(--muted);
     font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
   /* The thread header owns its address and settlement action. Its columns keep their
-     complete hit boxes disjoint; without an address, a generic label states the
-     action's thread-wide ownership. */
+     complete hit boxes disjoint. */
   .lf-thread-head { display: grid; grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 8px; align-items: stretch; margin-bottom: 8px; }
   .lf-thread-head > .lf-quote { margin: 0; }

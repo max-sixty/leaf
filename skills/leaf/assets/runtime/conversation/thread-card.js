@@ -117,8 +117,6 @@ export function threadNode(t, grow, commands) {
       },
     ]);
     threadHead.append(quote);
-  } else if (!t.resolved) {
-    threadHead.append(el("span", "lf-thread-label", "Thread"));
   }
   let resolve = null;
   if (!t.resolved) {
@@ -211,8 +209,6 @@ export function paintThreadQuotes({ placedAt, isMarked }) {
     if (thread && !said) {
       const head = quote?.closest(".lf-thread-head");
       quote?.remove();
-      if (head?.querySelector(":scope > .lf-resolve"))
-        head.prepend(el("span", "lf-thread-label", "Thread"));
       if (head && !head.childElementCount) head.remove();
       continue;
     }

@@ -893,7 +893,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         ).content_frame
         card = move_frame.locator("#bg-motion-card")
 
-        expect(status).to_have_text("Accept a suggestion · Playing")
+        expect(status).to_have_text("Playing")
         expect(gallery.locator(".interaction-pointer").first).to_be_visible()
         expect(accept_frame_element).to_have_attribute("data-interaction-ready", "")
         accept_controls = accept_frame.locator(
@@ -944,7 +944,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
             "stage => { window.pauseProbe = stage.animate([{}, {}], {duration: 10000}); }"
         )
         toggle.click()
-        expect(status).to_have_text("Accept a suggestion · Paused")
+        expect(status).to_have_text("Paused")
         assert page.evaluate("window.pauseProbe.playState") == "paused"
         paused_suggestion = """suggestion => {
             const retired = suggestion.querySelector('lf-old');
@@ -964,7 +964,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         toggle.click()
         assert page.evaluate("window.pauseProbe.playState") == "running"
         page.evaluate("window.pauseProbe.cancel()")
-        expect(status).to_have_text("Accept a suggestion · Complete", timeout=10_000)
+        expect(status).to_have_text("Complete", timeout=10_000)
         expect(toggle).to_have_text("Replay")
         expect(toggle).to_be_enabled()
         expect(loop).not_to_be_checked()
@@ -999,13 +999,13 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         assert read_events(page_dir) == before
 
         loop.check()
-        expect(status).to_have_text("Accept a suggestion · Playing")
+        expect(status).to_have_text("Playing")
         expect(accept).not_to_have_attribute("data-lf-state", "accept")
         expect(accept).to_have_attribute("data-lf-state", "accept", timeout=10_000)
         expect(accept).not_to_have_attribute("data-lf-state", "accept", timeout=10_000)
-        expect(status).to_have_text("Accept a suggestion · Playing")
+        expect(status).to_have_text("Playing")
         loop.uncheck()
-        expect(status).to_have_text("Accept a suggestion · Complete", timeout=10_000)
+        expect(status).to_have_text("Complete", timeout=10_000)
 
         displayed_width = accept_frame_element.evaluate(
             "frame => frame.getBoundingClientRect().width"
@@ -1027,16 +1027,16 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
 
         move_tab = gallery.get_by_role("tab", name="Move a card")
         move_tab.click()
-        expect(status).to_have_text("Move a card · Complete", timeout=10_000)
+        expect(status).to_have_text("Complete", timeout=10_000)
         assert card.evaluate("card => card.parentElement.id") == "bg-motion-tried"
         assert move_tab.evaluate("tab => document.activeElement === tab")
         assert read_events(page_dir) == before
 
         toggle.click()
-        expect(status).to_have_text("Move a card · Playing")
+        expect(status).to_have_text("Playing")
         assert card.evaluate("card => card.parentElement.id") == "bg-motion-ready"
         assert card.evaluate("card => card.getAnimations().length") == 0
-        expect(status).to_have_text("Move a card · Complete", timeout=10_000)
+        expect(status).to_have_text("Complete", timeout=10_000)
         assert card.evaluate("card => card.parentElement.id") == "bg-motion-tried"
         assert read_events(page_dir) == before
 
@@ -1045,7 +1045,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         comment_frame = gallery.locator(
             "#bg-interaction-comment [data-interaction-frame]"
         ).content_frame
-        expect(status).to_have_text("Send a comment · Complete", timeout=10_000)
+        expect(status).to_have_text("Complete", timeout=10_000)
         expect(comment_frame.locator("#lf-margin-preview")).to_be_visible()
         expect(comment_frame.locator("#lf-margin-preview")).to_contain_text(
             GALLERY_THREAD_TEXT
@@ -1062,22 +1062,29 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         expect(threads_frame.locator(".lf-panel")).to_be_visible()
         expect(page.locator("body")).not_to_have_attribute("data-lf-panel", "")
         toggle.click()
-        expect(status).to_have_text("Open and close Threads · Paused")
+        expect(status).to_have_text("Paused")
         page.wait_for_timeout(1_500)
         expect(threads_frame.locator("body")).to_have_attribute("data-lf-panel", "")
         toggle.click()
-        expect(status).to_have_text("Open and close Threads · Complete", timeout=15_000)
+        expect(status).to_have_text("Complete", timeout=15_000)
         expect(threads_frame.locator("body")).not_to_have_attribute("data-lf-panel", "")
         expect(threads_frame.locator(".lf-panel")).to_be_hidden()
         assert read_events(page_dir) == before
 
         swipe_tab = gallery.get_by_role("tab", name="Swipe a card")
         swipe_tab.click()
-        expect(status).to_have_text("Swipe a card · Complete", timeout=10_000)
         swipe_frame = gallery.locator(
             "#bg-interaction-swipe [data-interaction-frame]"
         ).content_frame
         swipe_card = swipe_frame.locator("#bg-motion-swipe-card")
+        swipe_keep = swipe_frame.locator(".lf-swipe-keep")
+        expect(status).to_have_text("Playing")
+        expect(swipe_keep).to_be_enabled()
+        assert swipe_card.evaluate("card => card.parentElement.id") == (
+            "bg-motion-swipe-queue"
+        )
+        expect(status).to_have_text("Complete", timeout=10_000)
+        expect(swipe_keep).to_be_disabled()
         assert swipe_card.evaluate("card => card.parentElement.id") == (
             "bg-motion-swipe-keep"
         )
@@ -1085,11 +1092,12 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         assert read_events(page_dir) == before
 
         toggle.click()
-        expect(status).to_have_text("Swipe a card · Playing")
+        expect(status).to_have_text("Playing")
+        expect(swipe_keep).to_be_enabled()
         assert swipe_card.evaluate("card => card.parentElement.id") == (
             "bg-motion-swipe-queue"
         )
-        expect(status).to_have_text("Swipe a card · Complete", timeout=10_000)
+        expect(status).to_have_text("Complete", timeout=10_000)
         assert swipe_card.evaluate("card => card.parentElement.id") == (
             "bg-motion-swipe-keep"
         )
@@ -1183,7 +1191,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         expect(threads_frame.locator(".lf-panel")).to_be_visible()
         assert threads_tab.evaluate("tab => document.activeElement === tab")
         status = gallery.locator("[data-interaction-status]")
-        expect(status).to_have_text("Open and close Threads · Complete", timeout=20_000)
+        expect(status).to_have_text("Complete", timeout=20_000)
         assert threads_tab.evaluate("tab => document.activeElement === tab")
 
         # A tab holds focus on its own, so standing there survives anything short of
@@ -1209,7 +1217,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         assert page.evaluate("() => document.activeElement?.id") == (
             "bg-interactions-title"
         )
-        expect(status).to_have_text("Open and close Threads · Complete", timeout=20_000)
+        expect(status).to_have_text("Complete", timeout=20_000)
         assert page.evaluate("() => document.activeElement?.id") == (
             "bg-interactions-title"
         )
@@ -1234,12 +1242,12 @@ def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
             "#bg-interaction-accept [data-interaction-frame]"
         ).content_frame.locator("#bg-motion-accept")
         expect(status).to_have_text(
-            "Accept a suggestion · Ready — motion will start only when you press Play"
+            "Ready — motion will start only when you press Play"
         )
         page.wait_for_timeout(900)
         assert accept.get_attribute("data-lf-state") is None
         gallery.locator("[data-interaction-toggle]").click()
-        expect(status).to_have_text("Accept a suggestion · Complete", timeout=10_000)
+        expect(status).to_have_text("Complete", timeout=10_000)
         expect(accept).to_have_attribute("data-lf-state", "accept")
         assert not errors, errors[:3]
     finally:
@@ -1260,8 +1268,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         toggle = gallery.locator("[data-interaction-toggle]")
         status = gallery.locator("[data-interaction-status]")
         expect(status).to_have_text(
-            "Accept a suggestion · Ready — motion will start only when you press Play",
-            timeout=15_000,
+            "Ready — motion will start only when you press Play", timeout=15_000
         )
 
         page.locator(
@@ -1288,7 +1295,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
             re.compile(r"should the practice exercise come before lunch\?")
         )
         toggle.click()
-        expect(status).to_have_text("Send a comment · Complete", timeout=10_000)
+        expect(status).to_have_text("Complete", timeout=10_000)
         expect(page.locator("#lf-margin-preview")).to_contain_text(GALLERY_THREAD_TEXT)
         expect(comment_frame.locator("#lf-margin-preview")).to_contain_text(
             GALLERY_THREAD_TEXT
@@ -1304,7 +1311,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         ).content_frame
         expect(threads_frame.locator("body")).to_have_attribute("data-lf-panel", "")
         expect(page.locator("body")).to_have_attribute("data-lf-panel", "")
-        expect(status).to_have_text("Open and close Threads · Complete", timeout=15_000)
+        expect(status).to_have_text("Complete", timeout=15_000)
         expect(threads_frame.locator("body")).not_to_have_attribute("data-lf-panel", "")
         expect(page.locator("body")).to_have_attribute("data-lf-panel", "")
         assert page.evaluate("localStorage.getItem('lf-panel-open')") == "1"
@@ -1318,12 +1325,12 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
         page.reload(wait_until="domcontentloaded")
         gallery = page.locator("#bg-interactions")
         status = gallery.locator("[data-interaction-status]")
-        expect(status).to_have_text("Send a comment · Ready", timeout=15_000)
+        expect(status).to_have_text("Ready", timeout=15_000)
         gallery.locator("[data-interaction-toggle]").evaluate(
             "toggle => toggle.click()"
         )
         expect(gallery.locator("[data-interaction-status]")).to_have_text(
-            "Send a comment · Complete", timeout=15_000
+            "Complete", timeout=15_000
         )
         assert not errors, errors[:3]
     finally:
@@ -1360,14 +1367,11 @@ def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
                 const gallery = document.querySelector('#bg-interactions');
                 const status = gallery?.querySelector('[data-interaction-status]');
                 const toggle = gallery?.querySelector('[data-interaction-toggle]');
-                return status?.textContent
-                    === 'Send a comment · Loading'
-                    && toggle?.disabled;
+                return status?.textContent === 'Loading' && toggle?.disabled;
             }"""
         )
         expect(gallery.locator("[data-interaction-status]")).to_have_text(
-            "Send a comment · Ready — motion will start only when you press Play",
-            timeout=15_000,
+            "Ready — motion will start only when you press Play", timeout=15_000
         )
         expect(toggle).to_be_enabled()
         expect(
@@ -1445,20 +1449,20 @@ def test_a_failed_gallery_frame_does_not_block_other_demos(serve, browser):
         status = gallery.locator("[data-interaction-status]")
         toggle = gallery.locator("[data-interaction-toggle]")
         expect(status).to_have_text(
-            "Accept a suggestion · Ready — motion will start only when you press Play"
+            "Ready — motion will start only when you press Play"
         )
         expect(toggle).to_be_enabled()
 
         gallery.get_by_role("tab", name="Send a comment").click()
-        expect(status).to_have_text("Send a comment · Could not play", timeout=5_000)
+        expect(status).to_have_text("Could not play", timeout=5_000)
         expect(toggle).to_be_disabled()
 
         gallery.get_by_role("tab", name="Move a card").click()
         expect(status).to_have_text(
-            "Move a card · Ready — motion will start only when you press Play"
+            "Ready — motion will start only when you press Play"
         )
         toggle.click()
-        expect(status).to_have_text("Move a card · Complete", timeout=10_000)
+        expect(status).to_have_text("Complete", timeout=10_000)
         expect(toggle).to_have_text("Replay")
         expect(toggle).to_be_enabled()
         assert any(

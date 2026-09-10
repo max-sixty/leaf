@@ -267,9 +267,9 @@ def _pause_gallery_swipe(page):
     """Expose the live swipe controls and hold the card in its unseen pile."""
     page.get_by_role("tab", name="Swipe a card", exact=True).click()
     status = page.locator("#bg-interactions [data-interaction-status]")
-    expect(status).to_have_text("Swipe a card · Playing")
+    expect(status).to_have_text("Playing")
     page.locator("#bg-interactions [data-interaction-toggle]").click()
-    expect(status).to_have_text("Swipe a card · Paused")
+    expect(status).to_have_text("Paused")
     frame = page.locator(
         "#bg-interactions #bg-interaction-swipe [data-interaction-frame]"
     ).content_frame

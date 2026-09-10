@@ -697,7 +697,7 @@ export function installInteractionGallery() {
     throw new Error("interaction gallery has an invalid viewport size");
   viewport.value = gallery.dataset.interactionViewport;
   viewportLabel.append(viewport);
-  const status = offer("span", "interaction-status", "Loading the first interaction…");
+  const status = offer("span", "interaction-status", "Loading…");
   status.dataset.interactionStatus = "";
   status.setAttribute("aria-live", "polite");
   controls.append(toggle, loopLabel, viewportLabel, status);
@@ -731,7 +731,7 @@ export function installInteractionGallery() {
       finished: "Complete",
       error: "Could not play",
     };
-    status.textContent = `${label} · ${states[active.state]}`;
+    status.textContent = states[active.state];
     toggle.setAttribute("aria-label", `${words[active.state]} ${label} animation`);
     if (active.state === "finished" && loop.checked && onScreen) {
       const completed = active;

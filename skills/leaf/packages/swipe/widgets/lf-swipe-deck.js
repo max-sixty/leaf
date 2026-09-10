@@ -451,6 +451,10 @@ export const interactionGalleryScenario = {
         ),
       },
     });
+    // The contained gallery document is generated in the browser, so its Ask has no
+    // server-projected availability. The scenario owns that synthetic starting state.
+    for (const control of deck.querySelectorAll(".lf-swipe-pass, .lf-swipe-keep"))
+      control.disabled = false;
   },
   async play({ root, arrive, press, track, until, finish }) {
     await arrive();

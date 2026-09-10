@@ -49,8 +49,19 @@ def now_iso() -> str:
 
 
 def read_cursor(page_dir: Path) -> int:
-    """The seq the agent has acknowledged through (`leaf ack`); 0 before any."""
-    return (read_json(page_dir / CURSOR_FILE) or {"seq": 0})["seq"]
+    """The seq the agent has acknowledged through (`leaf ack`); 0 before any.
+
+    A cursor is a position in this log, so one past its end belongs to a log that
+    is gone — what `page init` on a directory whose log was moved or renamed away
+    leaves behind. Nothing the log holds now was acknowledged through that
+    position, so it reads as 0: the events in the replacement log are delivered,
+    and the next `leaf ack` writes a position this log can hold. Trusting the
+    stored seq instead is silent and unbounded — every event the new log ever
+    takes arrives at or below the cursor, so `leaf wait` never returns, the hooks
+    report each comment as already answered, and `leaf ack` writes nothing."""
+    stored = (read_json(page_dir / CURSOR_FILE) or {"seq": 0})["seq"]
+    events = read_events(page_dir)
+    return 0 if stored > (events[-1]["seq"] if events else 0) else stored
 
 
 def jsonl_line(event: dict) -> str:

@@ -85,6 +85,7 @@ import {
   once,
   offer,
   paintKeys,
+  projectionChanged,
   quoted,
   revisionLabel,
   registerMarginContribution,
@@ -670,7 +671,7 @@ customElements.define(
       if (stood) this.#pencil.focus();
       // Replay may have been held by this editor. Its close is the generic projection
       // invalidation that lets the state feed retry the complete reading now.
-      document.dispatchEvent(new Event("lf-projection"));
+      projectionChanged();
     }
 
     async #commit() {

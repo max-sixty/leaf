@@ -176,7 +176,8 @@ new checkout. If Worktrunk requests approval for the project commands, ask the u
 to run `wt config approvals add`. The refresh command captures every worked example,
 validates the rebuilt site, pushes the complete JPEG set to
 `max-sixty/leaf-assets`, and updates `example-previews.json` and the catalog links in
-this checkout. Because it pushes the asset repository immediately, run it only when
-the user has authorized that publication. The generator checks the required Charter
-and San Francisco fonts and fails rather than publishing images rendered with
-fallback fonts.
+this checkout. Run it after the example changes are ready, and rerun it after
+integrating `main` or making later fixes that change a first viewport. Those refreshes
+are part of the authorized change and need no separate authorization. The generator
+checks the required Charter and San Francisco fonts and fails rather than publishing
+images rendered with fallback fonts.

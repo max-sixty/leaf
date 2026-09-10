@@ -105,6 +105,7 @@ export {
   layoutChanged,
   measure,
   offer,
+  projectionChanged,
   quoted,
   reachedForWords,
   relabel,

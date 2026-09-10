@@ -1043,14 +1043,14 @@ STORED_DRAFT_SETTLED = """ctx => {
 def watched(page):
     """Everything a page says went wrong, on every channel that carries it.
 
-    `pageerror` is an uncaught exception and the console is what the page itself wrote,
-    and between them a whole channel goes unread: an `error` event with no exception
-    behind it reaches neither. Chrome reports a ResizeObserver loop that way. A runtime
-    change that put the layout writer inside an observation of the box that writer
-    resizes made every load report one, and the suite called it clean — 754 tests, no
-    console output, nothing on `pageerror`. Routed into the console here, which is the
-    one channel every reader in this file already has, and only for the events with no
-    exception, since the rest arrive on `pageerror` already.
+    `pageerror` is an uncaught exception, while the console carries warnings and errors
+    from the page and browser. Between them a whole channel goes unread: an `error`
+    event with no exception behind it reaches neither. Chrome reports a ResizeObserver
+    loop that way. A runtime change that put the layout writer inside an observation of
+    the box that writer resizes made every load report one, and the suite called it
+    clean — 754 tests, no console output, nothing on `pageerror`. Routed into the
+    console here, which is the one channel every reader in this file already has, and
+    only for the events with no exception, since the rest arrive on `pageerror` already.
 
     The script is installed by `render_checks.install_window_errors`, which
     `render_version` lays in for the same
@@ -1060,7 +1060,12 @@ def watched(page):
 
     Must be called before the page navigates, the init script being what carries it."""
     errors = []
-    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+
+    def console_message(message):
+        if problem := render_gate_model.console_problem(message):
+            errors.append(problem)
+
+    page.on("console", console_message)
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
     return errors
@@ -1215,7 +1220,7 @@ def open_page(
     upgraded=True,
     color_scheme="light",
 ):
-    """A page with its console errors collected and its document and log state applied.
+    """A page with its browser problems collected and document and log state applied.
 
     `pin` asks for the version the URL names rather than the newest, and is a keyword
     because the URL a handover carries already has a query holding the page's key: a

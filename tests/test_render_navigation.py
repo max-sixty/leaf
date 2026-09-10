@@ -2142,16 +2142,16 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     )
     expect(page.locator(".lf-notice")).to_be_visible()
     page.keyboard.press("t")
+    first = page.locator(
+        f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[0]}"]'
+    )
+    expect(first).to_be_focused()
     assert page.evaluate(
         """() => ({
           position: document.querySelector('.lf-walk-position').checkVisibility(),
           notice: document.querySelector('.lf-notice').checkVisibility(),
         })"""
     ) == {"position": True, "notice": False}
-    first = page.locator(
-        f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[0]}"]'
-    )
-    expect(first).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(position).to_have_text("Thread 1 of 2")
     expect(position).to_be_visible()
@@ -2178,10 +2178,13 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(second.locator(".lf-conversation-msg").first).to_be_visible()
     preview_room = page.evaluate(
         """() => ({
+          previewTop: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
           previewBottom: document.querySelector('.lf-margin-preview').getBoundingClientRect().bottom,
+          bannerBottom: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
           statusTop: document.querySelector('.lf-bottom-status').getBoundingClientRect().top,
         })"""
     )
+    assert preview_room["previewTop"] >= preview_room["bannerBottom"] + 7, preview_room
     assert preview_room["previewBottom"] <= preview_room["statusTop"], preview_room
 
     status = page.locator(".lf-bottom-status")

@@ -66,7 +66,8 @@ Leaf also ships optional packages that select by bare name. `diagram` adds `lf-d
 and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
 technical backlog deck; `playground` adds declarative controls, presets, CSS-bound
-previews, and one typed configuration action; `command-hub` adds multi-agent
+previews, and one typed configuration action; `targeting` lets readers select preview
+elements and submit structured, reversible change proposals; `command-hub` adds multi-agent
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
 description and compact checks table, plus a data-backed unified call diff; `monitoring`
 adds an asymmetric overview, evidence, and exception workspace. `gallery`
@@ -78,6 +79,7 @@ leaf page init --package diagram PAGE
 leaf page init --package diff PAGE
 leaf page init --package swipe PAGE
 leaf page init --package playground PAGE
+leaf page init --package targeting PAGE
 leaf page init --package command-hub PAGE
 leaf page init --package diff --package pr-review PAGE
 leaf page init --package monitoring PAGE
@@ -292,8 +294,9 @@ Non-widget facets contain `units`, keyed by unit id, and position facets also co
 recordless units are undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
 `false` is the only return value state projection interprets: return it while a live
-edit prevents rendering. When the edit closes, dispatch `lf-projection` on `document`
-so Leaf retries deferred state after the gesture has finished staging its local action.
+edit prevents rendering. After the edit closes, call `projectionChanged()` so the state
+feed retries the deferred authoritative projection after the gesture has finished
+staging its local action.
 Projection ignores every other return value. A renderer may return the `Animation` for
 its production transition so an interaction-gallery scenario can join that motion to
 the gallery's playback controls; the same call must still reach its complete state when
@@ -341,23 +344,30 @@ module and use relative imports, while third-party or data files can live under
 theme.
 
 A widget contributes each command once with `commands(source, title, rows, options)`.
-The dispatcher, shortcut bar, `?` reference, `aria-keyshortcuts`, and Ask projection all
+The dispatcher, shortcut bar, command reference, `aria-keyshortcuts`, and Ask projection all
 consume those same live rows. Set a row or route's `decision` to its concise, non-empty
-action-name string—or a function returning one—and give it `control` when that control
-answers, advances, or revises the Ask containing `source`. The action name is separate
-from `label`, which remains the command register's own-scope keycap override. In the
-complete reference, a keyless Decision command falls back to its action name rather than
-showing a blank keycap. The Ask projection always spells the binding it resolved beside
-the `decision` action name, so its inline hint says what the reader actually presses. A
-row may have zero or one live binding in the Decision role: zero receives the Ask's next
-free contextual `1` through `9`, while one keeps its canonical binding, such as
-`ArrowLeft`. Each action keeps one command id. Dispatch, the reference, the shortcut bar,
-its binding badge, and `aria-keyshortcuts` all use that id. `bindingBadge` may name an empty face a widget already positions; core
-writes the resolved binding there, so the package does not keep a second key map. Do
-not maintain a second Ask-control list.
+action-name string—or a function returning one—and give it `control` for the visible
+element that performs the action. A Decision action begins an answer, answers, advances,
+or revises the Ask containing `source`. The action name is separate from `label`, which
+remains the command register's own-scope keycap override. In the command reference, a
+keyless Decision command falls back to its action name rather than showing a blank keycap.
+The Ask projection always spells the binding it resolved beside the `decision` action
+name, so its inline hint says what the reader actually presses. A row may have zero or one
+live binding in the Decision role: zero receives the Ask's next free contextual `1`
+through `9`, while one keeps its canonical binding, such as `ArrowLeft`. Each action keeps
+one command id. Dispatch, the command reference, the shortcut bar, its binding badge, and
+`aria-keyshortcuts` all use that id. `bindingBadge` may name an empty face a widget
+already positions; core writes the resolved binding there, so the package does not keep
+a second key map. Do not maintain a second Ask-control list.
 Otherwise core paints the binding at the visible control. Routes let one parameterized
-row contribute distinct controls and bindings. The control's own `click()` remains the
-single activation path.
+row contribute distinct controls and bindings. The Ask projection invokes the row's
+declared `run`; a run-less native command falls back to its control's `click()`.
+
+Every visible press a widget builds with `offer()` or `selectableOffer()` also joins the
+generated target map after `g`. Packages do not declare another `g` binding or repeat
+those controls in a destination list. Text and range inputs remain ordinary Tab stops;
+buttons, checkboxes, radios, and selectable controls are addressable because they have a
+discrete activation.
 
 When the scope belongs to an Ask, `options.answer` may read its concise current answer for
 the answered row in the Asks tray. Leaf normalizes whitespace and bounds the displayed
@@ -401,9 +411,9 @@ Every row passed to `commands()` has a stable dotted `id`, such as `draft.save`.
 identity when its key or wording changes: the command browser and repeated widget
 instances use it instead of display prose. If one compact row binds keys with different
 meanings, add `routes` with an `id`, `binding`, and action sentence for each meaning. The
-shortcut bar stays compact, while the complete reference lists and runs each route on its own.
+shortcut bar stays compact, while the command reference lists and runs each route on its own.
 Use `runFromReference: false` only for a parameterized step that cannot be run without a
-choice the reference does not have, such as a generated hint tied to the live viewport. An
+choice the command reference does not have, such as a generated hint tied to the live viewport. An
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).
 

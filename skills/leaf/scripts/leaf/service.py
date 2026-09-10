@@ -1,6 +1,5 @@
 """Page claims, serialized transactions, status, and event admission."""
 
-import hashlib
 import os
 import secrets
 from datetime import datetime, timedelta
@@ -29,12 +28,6 @@ from leaf.schema import EVENTS_FILE, STATUS_FILE, WIDGET_KINDS
 # A repeated live detail carries only liveness. Renew it comfortably before the
 # fifteen-minute activity boundary without turning tool output into file churn.
 STREAM_ACTIVITY_RENEWAL = timedelta(minutes=5)
-
-
-def stream_reply_attempt(turn_id: str) -> str:
-    """Return a schema-valid idempotency key for one mirrored Codex reply."""
-    digest = hashlib.sha256(turn_id.encode()).hexdigest()[:32]
-    return f"codex-{digest}"
 
 
 def claim_path(page_dir: Path) -> Path:
@@ -315,62 +308,6 @@ class PageTransaction:
         if turn_id is not None and activity.get("turn") != turn_id:
             return
         stream.pop("activity")
-        if stream:
-            status["stream"] = stream
-        else:
-            status.pop("stream", None)
-        write_json(self.page_dir / STATUS_FILE, status)
-
-    def set_stream_reply(
-        self,
-        session_id: str,
-        turn_id: str,
-        conversation: str,
-        reply_to: str,
-        item_id: str | None,
-        text: str,
-        state: str,
-        *,
-        settles: bool = False,
-    ) -> None:
-        """Replace the provisional reply mirrored from one Codex turn."""
-        status = dict(self.status)
-        stream = dict(status.get("stream") or {})
-        standing = stream.get("reply") or {}
-        timestamp = (
-            standing.get("ts")
-            if standing.get("session") == session_id and standing.get("turn") == turn_id
-            else None
-        )
-        reply = {
-            "session": session_id,
-            "turn": turn_id,
-            "attempt": stream_reply_attempt(turn_id),
-            "conversation": conversation,
-            "reply_to": reply_to,
-            "item": item_id,
-            "text": text,
-            "state": state,
-            "settles": settles,
-            "agent": (self.claim or {}).get("agent", "Codex"),
-            "ts": timestamp or now_iso(),
-        }
-        if standing == reply:
-            return
-        stream["reply"] = reply
-        status["stream"] = stream
-        write_json(self.page_dir / STATUS_FILE, status)
-
-    def clear_stream_reply(self, session_id: str, turn_id: str | None = None) -> None:
-        """Remove this task's provisional reply without changing conversation history."""
-        status = dict(self.status)
-        stream = dict(status.get("stream") or {})
-        reply = stream.get("reply")
-        if not reply or reply.get("session") != session_id:
-            return
-        if turn_id is not None and reply.get("turn") != turn_id:
-            return
-        stream.pop("reply")
         if stream:
             status["stream"] = stream
         else:

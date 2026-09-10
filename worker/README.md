@@ -16,11 +16,12 @@ Runtime assets live behind release-addressed URLs with immutable cache headers, 
 the browser sends the document's release and layer identities to every API request. A
 mixed response reloads instead of letting one release interpret another release's
 state. The build-generated manifest is the routing authority shared by the Worker and
-the Python adapter. Published media, revisions, and version documents stay on the edge;
+the Python adapter, and carries each page's title, description, and card image, which
+both halves compose into the head a crawler and a link preview read. Published media, revisions, and version documents stay on the edge;
 when one of those paths is absent from the release, the Worker asks the reader's
 active container so a newly created private revision can become the live document.
 
-The deployment admits up to 6,000 concurrent `basic` containers. After a session is
+The deployment admits up to 5,990 concurrent `basic` containers. After a session is
 active, a visible page holds it through Leaf's news stream; a passive page opens no
 stream. Hidden tabs close their streams, so the ten-minute application idle timer can
 begin after the browser session has no visible Leaf tab. This is resource lifetime, not
@@ -86,10 +87,12 @@ Every request record carries the page's public session reference and canonical e
 id; the container continues with that event id through App Server availability, task
 and turn start, first notification, first model activity, and completion. Leaf's
 record omits message text, prompts, source IP keys, cookies, and private session ids.
-Cloudflare wraps it in invocation metadata. `scripts/query-site-agent-logs.py` queries
-the last 24 hours for one exact event id or the public session reference shown in the
-page and emits only Leaf's declared diagnostic fields, which makes it the concise path
-for a phase profile:
+Cloudflare wraps it in invocation metadata. `scripts/query-site-agent-logs.py` accepts
+one exact event id or the public session reference shown in the page. It searches the
+production and dev Analytics Engine indexes for each accepted event, then queries its
+narrow Observability window and emits only Leaf's declared diagnostic fields. The
+narrow query keeps Cloudflare's Adaptive Bit Rate at `1`; a sampled result fails
+instead of presenting a partial phase profile:
 
 ```sh
 CLOUDFLARE_API_TOKEN=... uv run scripts/query-site-agent-logs.py EVENT_ID_OR_REFERENCE
@@ -126,19 +129,22 @@ reference and event id. The reference also appears in Analytics Engine, so an ag
 can start with the number the reader sees without exposing the private session cookie.
 Its retryable steps reserve source capacity, then ask that reader's container to create or resume one Codex
 App Server task rooted at the actual page directory and deliver the event through
-Leaf's immutable delivery record, passed inline as structured `leaf_feedback`. The
+Leaf's immutable delivery envelope, passed inline as structured `leaf_delivery` when
+the task is idle or queued by its immutable `leaf-delivery` id while a turn is active. The
 website-specific App Server starts without the authoring plugin: its compact developer
 instructions and the ready `$LEAF` CLI are the complete interface, so skill discovery
 cannot turn a small reader response into a full authoring workflow. The hosted task can
 revise `index.html`, validate it, append thread replies, and leave the page waiting. The
 initiating App Server connection projects the turn's native activity notifications back
-through Leaf. A repeated workflow sees the event's durable pickup and does not start
-the work twice. Task startup failure after its retries and a failure while following a
-started turn each append a short failure reply through the same event log.
-Once App Server reports a terminal turn, the container closes that exact Leaf turn and
-gives each accepted input the turn left unanswered its final assistant message. A failed
-or interrupted turn gets a failure reply instead, and a completed turn with no message
-at all gets a completed-without-reply receipt.
+through Leaf. For queued input it stays subscribed through the active turn, records the
+queued turn opening, and observes that turn to its terminal state. A repeated workflow
+sees the event's durable pickup and does not start the work twice. Task startup failure
+after its retries appends a short failure reply through the same event log.
+Once App Server reports a terminal turn, the container closes that exact Leaf turn.
+Only explicit `leaf reply`, a page revision closed with `leaf resolve`, and `leaf
+receipt` settle accepted input; the turn's final assistant message remains in the
+Codex transcript.
+A failed or interrupted turn still gets a deterministic failure reply from the host.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the
@@ -158,6 +164,29 @@ Run the complete local site with Docker available:
 cd worker
 npm ci
 npm run dev
+```
+
+The one standing remote development environment runs the same Worker, Workflow,
+Container image, credential proxy, and browser benchmark at
+`https://leaf-website-dev.maxsixty.workers.dev`. It is an ordinary Wrangler `dev`
+environment with its own Worker, container application, Durable Objects, Workflow,
+and Analytics Engine dataset. The shared rate-limit namespace is the only bound
+resource it reuses from production.
+
+Wrangler secrets do not carry across named environments. The first deployment reads
+both credentials from the process and creates the dev Worker with its OpenAI secret:
+
+```sh
+CLOUDFLARE_API_TOKEN=... OPENAI_API_KEY=... npm run deploy:dev --prefix worker
+```
+
+Later deployments need only `CLOUDFLARE_API_TOKEN`, which the agent host loads from its
+credential store. The command builds the current checkout, deploys only that named
+environment, gives its commit plus working-tree state a release identity, waits for
+that exact release, and runs the complete agent benchmark:
+
+```sh
+npm run deploy:dev --prefix worker
 ```
 
 The deploy requires a Cloudflare Workers Paid account with Containers enabled, a

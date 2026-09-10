@@ -688,7 +688,7 @@ LONG_LINE_DIFF_PAGE = leaf_page(
     "patch",
     "<h1 id='t'>Review</h1>"
     + _filler("lead", 30)
-    + '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
+    + '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff>'
     + _filler("tail", 30),
 )
 

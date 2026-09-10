@@ -382,11 +382,17 @@ lf-call-diff {
 }
 
 .lf-call-line[data-meta] {
+  grid-template-columns: 2rem minmax(0, 1fr);
   min-width: 0;
-  overflow-x: auto;
   padding-block: var(--sp-1);
   background: var(--code-chrome);
   color: var(--code-muted);
+  white-space: normal;
+}
+
+.lf-call-line[data-meta] .lf-call-body {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .lf-call-marker {

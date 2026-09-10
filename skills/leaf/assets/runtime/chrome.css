@@ -1725,13 +1725,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding-inline: 12px; overflow: hidden; pointer-events: none;
     white-space: pre-wrap; }
   .lf-thread-transition-text { display: block; }
-  /* The conversation has its fixed position measured from its margin controls. JS
-     chooses a free side margin when one exists and otherwise overlays the document;
-     neither placement changes the page's container posture. */
-  .lf-margin-preview[data-lf-thread] { position-anchor: auto; position-area: none;
-    position-try-fallbacks: none;
-    inset: var(--lf-thread-top, calc(var(--lf-banner-h) + 8px)) auto auto
-      var(--lf-thread-left, 8px);
+  /* Floating UI measures the conversation against its selected page lane or the
+     source controls when the document leaves no free side lane. */
+  .lf-margin-preview[data-lf-thread] { inset: 0 auto auto 0;
     width: min(var(--lf-thread-width, var(--thread-card)), calc(100vw - 16px));
     max-height: var(--lf-thread-max-height,
       calc(100vh - var(--lf-banner-h) - 16px)); margin: 0; }

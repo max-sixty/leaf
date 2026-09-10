@@ -39,10 +39,10 @@ handed over: the exact current source loads in the host's browser (whichever
 executable `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN` names, else
 Playwright's `channel="chrome"`, else the first browser `PATH` answers with — the
 caller supplies playwright, which
-`bin/leaf` does on seeing `--render`) and the render invariants the static lint cannot reach run
-against it — no console or page errors, no fail-soft error box, every visible
-widget occupies real space, code that reads against the block it is set on, no
-sideways scroll, in both color schemes.
+`bin/leaf` does on seeing `--render`) and the render invariants the static lint cannot
+reach run against it — no console warnings or errors, no page errors, no fail-soft
+error box, every visible widget occupies real space, code that reads against the block
+it is set on, no sideways scroll, in both color schemes.
 The invariants live in render_version, which the tests/test_render_*.py modules drive over
 the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome

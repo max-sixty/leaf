@@ -276,6 +276,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             str(page_dir),
             "--to",
             root["id"],
+            "--initiates",
             "--section",
             "flow",
             "--part",
@@ -294,7 +295,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     assert original["anchor"]["section"] == "old-wording"
     assert original["anchor"]["quote"] == "The retry starts here."
     assert original["anchor"] != current
-    assert state_json(page_dir)["threads"] == [
+    assert state_json(page_dir)["conversations"] == [
         {"id": root["id"], "anchor": current, "resolved": None}
     ]
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
@@ -336,6 +337,8 @@ def test_a_reply_refuses_to_move_a_held_command_goal(page_dir):
             str(page_dir),
             "--to",
             root["id"],
+            "--for",
+            root["id"],
             "--section",
             "backfill-first",
             "--text",
@@ -369,6 +372,7 @@ def test_a_moving_reply_activates_the_revision_before_validating_markup(page_dir
             str(page_dir),
             "--to",
             root["id"],
+            "--initiates",
             "--section",
             "answer",
             "--text",
@@ -837,6 +841,8 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
                 str(page_dir),
                 "--to",
                 root["id"],
+                "--for",
+                root["id"],
                 "--text",
                 "fixed in v2",
             ],
@@ -853,7 +859,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
     assert event["parent"] == answer["id"]
     assert event["agent"] == "Indexer" and event["session"] == "s-7"
 
-    threads = state_json(page_dir)["threads"]
+    threads = state_json(page_dir)["conversations"]
     assert [t["resolved"] for t in threads] == ["claude"]
 
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
@@ -888,10 +894,10 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
         page_dir, {"kind": "unresolve", "author": "user", "parent": root["id"]}
     )
 
-    thread = state_json(page_dir)["threads"][0]
+    thread = state_json(page_dir)["conversations"][0]
     assert thread["resolved"] is None
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", root["id"]]
+        cli_model.cli, ["events", str(page_dir), "--conversation", root["id"]]
     )
     assert history.exit_code == 0, history.output
     assert [json.loads(line)["id"] for line in history.output.splitlines()] == [
@@ -925,7 +931,7 @@ def test_a_closed_thread_stops_asking(page_dir):
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "gm-decision", "tag": "lf-ask", "thread": root["id"]}
+        {"id": "gm-decision", "tag": "lf-ask", "conversation": root["id"]}
     ]
     events_model.append_event(
         page_dir, {"kind": "resolve", "author": "claude", "parent": root["id"]}
@@ -956,8 +962,8 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
             )
         )
     assert state_json(page_dir)["asks"] == [
-        {"id": "group-a-decision", "tag": "lf-ask", "thread": roots[0]["id"]},
-        {"id": "group-b-decision", "tag": "lf-ask", "thread": roots[1]["id"]},
+        {"id": "group-a-decision", "tag": "lf-ask", "conversation": roots[0]["id"]},
+        {"id": "group-b-decision", "tag": "lf-ask", "conversation": roots[1]["id"]},
     ]
 
     append_command(
@@ -972,7 +978,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "group-b-decision", "tag": "lf-ask", "thread": roots[1]["id"]}
+        {"id": "group-b-decision", "tag": "lf-ask", "conversation": roots[1]["id"]}
     ]
 
 
@@ -1067,7 +1073,8 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     assert out.exit_code == 0, out.output
     state = json.loads(out.stdout)
     assert [
-        (s["widget"], s["action"], s["detail"], s["thread"]) for s in state["state"]
+        (s["widget"], s["action"], s["detail"], s["conversation"])
+        for s in state["state"]
     ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
 
 
@@ -1099,6 +1106,8 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             str(page_dir),
             "--to",
             "c1",
+            "--for",
+            "c1",
             "--text",
             "See:",
             "--markup",
@@ -1113,6 +1122,8 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "reply",
             str(page_dir),
             "--to",
+            "c1",
+            "--for",
             "c1",
             "--text",
             "See:",

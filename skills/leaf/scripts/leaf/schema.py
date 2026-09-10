@@ -27,23 +27,25 @@ MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report", "request"}
 ANSWER_ASK_INSTRUCTION = (
-    "`leaf page state <page>` lists each thread's current state, and "
-    "`leaf events <page> --thread <id>` prints its exact records. A thread with "
+    "`leaf page state <page>` lists each conversation's current state, and "
+    "`leaf conversation read <page> <id>` prints one exact bounded history. A "
+    "conversation with "
     "`response.kind: version` is answered by revising the page and resolving it; open a "
     "separate `leaf comment --section <ask-id>` on the same Ask if that revision "
-    "needs an answer first. Reply to other threads with `leaf reply <page> --to "
-    "<id> --text ...`; an ordinary reply leaves the thread open for the reader."
+    "needs an answer first. Reply to other conversations with the delivery's exact "
+    "`leaf reply <page> --to <response.to> --for <event-id> --text ...`; an ordinary "
+    "reply leaves the conversation open for the reader."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
-    "A wait result prints one page's unacknowledged user events and worker reports "
-    "as JSON lines under a first line naming the page and carrying the conversations "
-    "those events land in."
+    "A wait result prints one immutable Leaf delivery envelope containing one page's "
+    "complete ordered batch, conversation context, and capture-time response "
+    "requirements. The same envelope is available with `leaf delivery read <id>`."
 )
 ACK_BATCH_INSTRUCTION = (
     "If wait output is truncated, acknowledge nothing and rerun with enough output "
     "capacity for the whole batch. After the complete batch reaches its next durable "
-    "consumer, the wait owner runs `leaf ack <page> <highest-seq>` for the page the "
-    "batch's first line names. Ack advances the cursor, then waits for the next batch "
+    "consumer, the wait owner runs `leaf ack <page> <through-seq>` for the page and "
+    "sequence the batch names. Ack advances the cursor, then waits for the next batch "
     "while the page remains live."
 )
 HTML_NAME = r"[a-z][a-z0-9-]*"

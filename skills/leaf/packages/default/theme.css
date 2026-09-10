@@ -566,10 +566,10 @@ lf-compare:has(> lf-variant > :not(a, abbr, area, audio, b, bdi, bdo, br, button
  * multiple-choice card already wears, saying the slot is untaken and where the press
  * lands.
  *
- * The Ask's action address temporarily takes that same opening-edge slot in either arity.
+ * The Ask's binding badge temporarily takes that same opening-edge slot in either arity.
  * The slot is reserved beside the author's chip band and title on every card, so neither
- * a pick nor an address moves or covers the words. A document-only chosen card keeps the
- * compact caption below: it has no live header state or action address. */
+ * a pick nor a binding badge moves or covers the words. A document-only chosen card keeps
+ * the compact caption below: it has no live header state or binding badge. */
 lf-options:has(> lf-option > strong) > lf-option[chosen] { padding-bottom: 32px; }
 lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
                      position: absolute; left: var(--sp-3); bottom: 9px; }
@@ -693,8 +693,8 @@ html.lf-copy lf-option[chosen]::after { content: "✓"; color: var(--ok-ink);
                                        font-family: var(--sans); font-weight: 700; }
 lf-option .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: options-pick;
                      outline-offset: var(--here-ring-gap); border-radius: 4px; }
-/* The Ask's action keys, worn on the option cells it addresses. The gutter reads status,
- * address, then prose, so each chip starts after the status rule and ends before the
+/* The Ask's action keys, worn on the option cells they bind. The gutter reads status,
+ * binding badge, then prose, so each badge starts after the status rule and ends before the
  * cell's words. A card aligns its digit with the top of its content; rows centre theirs. */
 lf-option > .lf-key-badge { position: absolute; inset-inline-start: var(--lf-key-badge-start); }
 lf-options:has(> lf-option > strong) > lf-option > .lf-key-badge { top: 8px; }
@@ -888,6 +888,9 @@ lf-options > .lf-done > .lf-key-badge { position: absolute;
   }
   .lf-another { position: relative; display: flex; align-items: center; gap: var(--sp-2); }
   .lf-another:not([hidden]) { min-height: var(--aim-floor); }
+  .lf-another > .lf-key-badge { position: absolute;
+                              inset-inline-start: var(--lf-key-badge-start);
+                              top: 0; bottom: 0; margin: auto 0; }
   /* The field holds the option before it is recorded, so its words use the document's
    * face just as they will after the module turns them into an lf-option. Its shared
    * submit action carries the full accessible name; hiding the empty state changes
@@ -971,7 +974,7 @@ lf-options:not(:has(> lf-option > strong)) > lf-option {
  * Stated twice because the two cases carry different weight, and the group's own column
  * is set at a weight the form has to clear: a live choose group states
  * --lf-key-badge-col on every child, so the form's addition has to outrank that rather
- * than be reset by it. Without `choose` there is no address column and the mark's is
+ * than be reset by it. Without `choose` there is no binding-badge column and the mark's is
  * the whole of it. */
 lf-options:not(:has(> lf-option > strong)) > :is(lf-option, .lf-another) {
                      --lf-pick-col: 17px; --lf-row-gap: var(--sp-2);
@@ -1791,7 +1794,7 @@ lf-specimen > [data-lf-said="label"]::before { content: "quoted · "; }
 /* A quoted choose group renders as one that never declared `choose`. That promise is
  * kept where each pressable look is granted, not undone here: every affordance rule in
  * the lf-options section — the hand, the lift, the joined shape, the reserved strip and
- * address column, the row wash — excludes exhibits in its own selector
+ * binding-badge column, the row wash — excludes exhibits in its own selector
  * (`:not(:where([data-lf-exhibit]) *)`, the marker the runtime paints from this entry's
  * x-exhibit), because an unkeying block here lost every contest against a plainly-spelled
  * guard and missed every affordance written after it. The upgrade holds the half no

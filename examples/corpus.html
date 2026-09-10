@@ -359,6 +359,21 @@ outside average, before, after
               kind="toggle"
               value="false"
             ></lf-playground-control>
+            <lf-playground-control
+              name="format"
+              label="Format"
+              kind="choice"
+              value="banner"
+            >
+              <lf-playground-choice
+                value="banner"
+                label="Banner"
+              ></lf-playground-choice>
+              <lf-playground-choice
+                value="status strip"
+                label="Status strip"
+              ></lf-playground-choice>
+            </lf-playground-control>
             <lf-playground-control name="tone" label="Tone" kind="choice" value="calm">
               <lf-playground-choice value="calm" label="Calm"></lf-playground-choice>
               <lf-playground-choice
@@ -393,6 +408,10 @@ outside average, before, after
                 value="false"
               ></lf-playground-setting>
               <lf-playground-setting
+                for="format"
+                value="banner"
+              ></lf-playground-setting>
+              <lf-playground-setting
                 for="accent"
                 value="#4f766f"
               ></lf-playground-setting>
@@ -401,24 +420,69 @@ outside average, before, after
               <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
               <lf-playground-setting for="compact" value="true"></lf-playground-setting>
               <lf-playground-setting
+                for="format"
+                value="status strip"
+              ></lf-playground-setting>
+              <lf-playground-setting
                 for="accent"
                 value="#b6533c"
               ></lf-playground-setting>
             </lf-playground-preset>
 
             <lf-playground-preview id="notification-preview">
-              <article id="notification-card" aria-labelledby="notification-title">
-                <header>
-                  <p class="eyebrow">Deployment update</p>
-                  <h2 id="notification-title"></h2>
-                </header>
-                <p>
-                  Version 2.8.0 changed the checkout service. Review the deployment run
-                  and current service health.
-                </p>
-                <p id="notification-owner"><strong>Owner:</strong> Payments platform</p>
-                <footer>Recorded at 14:32 · 18 checks completed</footer>
-              </article>
+              <p>
+                Change one control to update both candidates, then choose the format
+                that keeps the deployment state easiest to scan.
+              </p>
+              <div id="notification-candidates">
+                <figure
+                  class="notification-candidate"
+                  data-notification-format="banner"
+                >
+                  <figcaption>A · Banner</figcaption>
+                  <article
+                    class="notification-card"
+                    id="notification-card"
+                    aria-labelledby="notification-title"
+                  >
+                    <header>
+                      <p class="eyebrow">Deployment update</p>
+                      <h2 class="notification-title" id="notification-title"></h2>
+                    </header>
+                    <p>
+                      Version 2.8.0 changed the checkout service. Review the deployment
+                      run and current service health.
+                    </p>
+                    <p class="notification-owner" id="notification-owner">
+                      <strong>Owner:</strong> Payments platform
+                    </p>
+                    <footer>Recorded at 14:32 · 18 checks completed</footer>
+                  </article>
+                </figure>
+                <figure
+                  class="notification-candidate"
+                  data-notification-format="status strip"
+                >
+                  <figcaption>B · Status strip</figcaption>
+                  <article
+                    class="notification-card"
+                    id="notification-strip"
+                    aria-labelledby="notification-strip-title"
+                  >
+                    <header>
+                      <p class="eyebrow">Checkout · version 2.8.0</p>
+                      <h2 class="notification-title" id="notification-strip-title"></h2>
+                    </header>
+                    <p>
+                      Review the deployment run and current service health. Recorded at
+                      14:32 after 18 checks.
+                    </p>
+                    <p class="notification-owner">
+                      <strong>Owner:</strong> Payments platform
+                    </p>
+                  </article>
+                </figure>
+              </div>
               <section id="notification-artifact" hidden>
                 <lf-text-document
                   id="notification-artifact-source"
@@ -429,8 +493,17 @@ outside average, before, after
             </lf-playground-preview>
 
             <lf-playground-output id="notification-instruction">
-              Create this notification as <code>deployment-notification.html</code>.
-              When it is ready, show me the generated source here for review.
+              Build the
+              <lf-playground-value for="format"></lf-playground-value> deployment
+              notification as <code>deployment-notification.html</code>. Use
+              <lf-playground-value for="tone"></lf-playground-value> styling,
+              <lf-playground-value for="radius"></lf-playground-value> corners,
+              <lf-playground-value for="accent"></lf-playground-value> accents, compact
+              spacing set to <lf-playground-value for="compact"></lf-playground-value>,
+              owner visibility set to
+              <lf-playground-value for="show-owner"></lf-playground-value>, and title it
+              <lf-playground-value for="title"></lf-playground-value>. Show me the
+              generated source here for review.
             </lf-playground-output>
           </lf-playground>
         </lf-ask>
@@ -543,9 +616,8 @@ outside average, before, after
         <a href="https://github.com/max-sixty/worktrunk/pull/3865"
           >Worktrunk PR #3865</a
         >
-        shipped a unified-diff preview for the switch picker. Review the merged revision
-        as if it were still awaiting a final decision; the exact 46-file patch remains
-        available below.
+        adds a unified-diff preview for the switch picker. The captured revision is
+        awaiting a merge decision; its exact 46-file patch remains available below.
       </p>
 
       <details id="pr-request-context">
@@ -560,7 +632,9 @@ outside average, before, after
         <h2>Review finding</h2>
         <div class="pr-agent-brief" id="pr-agent-summary">
           <p>
-            <strong>The final revision is safe to approve with two follow-ups.</strong>
+            <strong
+              >The current revision is safe to approve with two follow-ups.</strong
+            >
             <code>PreparedDiff</code> owns each complete Git diff invocation;
             <code>TempIndex</code> includes untracked files without changing the real
             index; and the picker loads off-screen worktrees only when selected.
@@ -568,9 +642,9 @@ outside average, before, after
           <p>
             Review found sparse-checkout divergence, a shared temporary directory, a
             symlink race while copying the index, and stale prewarming claims. The
-            merged revision corrects all four. Two follow-ups remain: selected-row
-            demand latency has no benchmark, and
-            <code>wt step commit --dry-run</code> can still stage its own
+            current revision corrects all four. Two follow-ups remain: selected-row
+            demand latency has no benchmark, and a pre-existing
+            <code>wt step commit --dry-run</code> gap can still stage its own
             temporary-index artifact when <code>TMPDIR</code> sits inside the worktree.
           </p>
         </div>
@@ -820,7 +894,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
       </section>
 
       <details id="pr-history-disclosure">
-        <summary>Review history · four fixes before merge</summary>
+        <summary>Review history · four fixes in review</summary>
         <section id="pr-history">
           <h2>Review history</h2>
           <lf-chronology id="pr-review-chronology">
@@ -864,17 +938,9 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
               at="04:57 UTC"
               kind="observation"
             >
-              <strong>Final review approved with follow-ups</strong> The shared
-              <code>TempIndex</code> path and orchestration prose converged;
+              <strong>Agent review recommends approval with follow-ups</strong> The
+              shared <code>TempIndex</code> path and orchestration prose converged;
               selected-row latency and dry-run temp artifacts remained visible notes.
-            </lf-chronology-entry>
-            <lf-chronology-entry
-              id="pr-chronology-merged"
-              at="05:18 UTC"
-              kind="observation"
-            >
-              <strong>Merged</strong> Six commits landed after all reported checks
-              passed.
             </lf-chronology-entry>
           </lf-chronology>
         </section>
@@ -888,9 +954,10 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
         </p>
         <aside class="pr-review-gesture" id="pr-comment-help">
           <p>
-            <strong>Review in place.</strong> Alt-click a source line to comment on the
-            whole line, or drag across an exact expression to quote it. Comments retain
-            the file, side, line, and quote even when the file disclosure is closed.
+            <strong>Review in place.</strong> Alt-click a file header or source line to
+            comment on that whole target, or drag across an exact expression to quote
+            it. Comments retain their file coordinate—and, for line comments, side,
+            line, and quote—even when the file disclosure is closed.
           </p>
         </aside>
         <lf-diff id="pr-exact-patch" source="pr-review-patch" snapshot="1" collapsed>
@@ -986,13 +1053,16 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                   <span class="pr-status-gap">gap</span>
                 </td>
                 <td>
-                  A reviewer reproduced the extra index and lock entries with plain Git.
+                  The captured hunk moves the existing staging path onto
+                  <code>TempIndex</code> without changing its <code>git add</code>
+                  semantics; a reviewer reproduced the extra index and lock entries with
+                  plain Git.
                 </td>
               </tr>
             </tbody>
           </table>
           <details id="pr-prepared-diff-evidence">
-            <summary>Exact PreparedDiff source at the merged revision</summary>
+            <summary>Exact PreparedDiff source at the current revision</summary>
             <p id="pr-prepared-diff-note">
               This 169-line repository slice contains the source-owning abstraction and
               all three preparation entry points.
@@ -1009,24 +1079,23 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
 
       <section id="pr-outcome">
         <lf-ask id="pr-outcome-decision">
-          <h2>How would you have reviewed the final revision?</h2>
+          <h2>Should this revision merge?</h2>
           <p id="pr-outcome-context">
-            The pull request is already merged. Choose the review judgment best
-            supported by the captured revision and evidence.
+            Choose the review judgment best supported by the captured revision and
+            evidence.
           </p>
           <lf-options id="pr-outcome-choice" choose>
             <lf-option id="pr-outcome-follow-up">
-              <strong>Approve with two follow-ups.</strong> This revision was ready; add
-              a selected-row latency benchmark and a dry-run artifact regression in
-              subsequent work.
-              <em>My take: this best matches the final evidence and review trail.</em>
+              <strong>Merge with two follow-ups.</strong> Add a selected-row latency
+              benchmark and a dry-run artifact regression in subsequent work.
+              <em>My take: this best matches the evidence and review trail.</em>
             </lf-option>
             <lf-option id="pr-outcome-approve">
-              <strong>Approve without follow-ups.</strong> This revision was ready;
-              close the two remaining gaps as non-actionable.
+              <strong>Merge without follow-ups.</strong> Close the two remaining gaps as
+              non-actionable.
             </lf-option>
             <lf-option id="pr-outcome-request-changes">
-              <strong>Would have requested two changes.</strong> Add a selected-row
+              <strong>Hold the merge for two changes.</strong> Add a selected-row
               latency budget, and prevent <code>wt step commit --dry-run</code> from
               staging temporary-index artifacts when <code>TMPDIR</code> is inside the
               worktree.
@@ -3000,11 +3069,15 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             ><span class="bg-feature-detail">: line comments in review context</span>
           </h3>
           <p id="bg-inline-diff-guide">
-            The seeded Thread follows its added line. Reply or resolve in place. Close
-            the file to move the Thread to the page margin, then reopen it to return the
-            conversation to the diff.
+            The seeded Thread follows its added line. Reply or resolve in place, or
+            Alt-click the file header to start a file-level Thread. Close the file to
+            move the line Thread to the page margin, then reopen it to return the
+            conversation to the diff. Mark the file reviewed to exercise persistent file
+            progress.
           </p>
-          <lf-diff id="bg-review-diff" source="gallery-patch"><pre></pre></lf-diff>
+          <lf-diff id="bg-review-diff" source="gallery-patch" review>
+            <pre></pre>
+          </lf-diff>
         </section>
 
         <section id="bg-source-captures">
@@ -3520,6 +3593,39 @@ gallery/
                 the title “<lf-playground-value for="title"></lf-playground-value>.”
               </lf-playground-output>
             </lf-playground>
+          </lf-ask>
+        </section>
+
+        <section id="bg-targeting">
+          <p class="eyebrow bg-feature-elements">lf-targeting · lf-target-preview</p>
+          <h3>
+            <strong>Targeting</strong
+            ><span class="bg-feature-detail"
+              >: identify, preview, and submit edits</span
+            >
+          </h3>
+          <p id="bg-targeting-guide">
+            Select element and choose its Article boundary. Rename it, switch its scope
+            to Shared class, add and remove a style, then add a target-bound
+            instruction. Select the nested heading as a second target and inspect the
+            structured action before using Submit changes.
+          </p>
+          <lf-ask id="bg-targeting-ask">
+            <h4 id="bg-targeting-question">Which exact changes should be made?</h4>
+            <lf-targeting id="bg-targeting-workbench" submit-label="Submit changes">
+              <lf-target-preview id="bg-targeting-preview">
+                <div class="bg-target-card-grid">
+                  <article id="bg-target-release" class="bg-target-card">
+                    <h5 class="bg-target-heading">Release readiness</h5>
+                    <p>Keep the owner and remaining checks visible.</p>
+                  </article>
+                  <article id="bg-target-evidence" class="bg-target-card">
+                    <h5 class="bg-target-heading">Evidence trail</h5>
+                    <p>Link each claim to the exact run that supports it.</p>
+                  </article>
+                </div>
+              </lf-target-preview>
+            </lf-targeting>
           </lf-ask>
         </section>
 

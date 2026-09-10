@@ -2324,6 +2324,44 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
         page.close()
 
 
+def test_thread_focus_waits_for_the_lazy_placement_module(browser, serve):
+    """A thread opened while its placement module loads keeps focus on the page."""
+    page, errors = open_page(
+        browser,
+        serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]),
+        context=browser.new_context(viewport={"width": 600, "height": 844}),
+    )
+    held = []
+    page.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
+    preview = page.locator(".lf-margin-preview")
+    thread = preview.locator(".lf-conversation-thread")
+    try:
+        page.keyboard.press("t")
+        holding(page, held, 1, "the thread placement module")
+        expect(preview).to_have_css("opacity", "0")
+        assert not page.evaluate(
+            "card => card.contains(document.activeElement)", preview.element_handle()
+        )
+        page.evaluate(
+            """() => new Promise(resolve => {
+              dispatchEvent(new Event('resize'));
+              requestAnimationFrame(() => requestAnimationFrame(resolve));
+            })"""
+        )
+        expect(preview).to_have_css("opacity", "0")
+
+        held.pop(0).continue_()
+        page.unroute("**/vendor/floating-ui.esm.js")
+        expect(preview).to_have_css("opacity", "1")
+        expect(thread).to_be_focused()
+        assert errors == []
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        page.context.close()
+
+
 def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve):
     """A failed lazy module cannot leave a hidden live composer holding focus."""
     url = serve(FEATURE_GALLERY)
@@ -2338,6 +2376,38 @@ def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve
     assert "Failed to fetch dynamically imported module" in str(raised.value)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-composer")).to_be_hidden()
+    assert any(
+        "Failed to fetch dynamically imported module" in error for error in errors
+    )
+    page.close()
+
+
+def test_an_unavailable_floating_ui_module_withdraws_the_thread_preview(browser, serve):
+    """A failed lazy module cannot leave a hidden thread card holding focus."""
+    url = serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")])
+    page = browser.new_page(viewport={"width": 600, "height": 844})
+    errors = watched(page)
+    page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    page.wait_for_function(BOTH_STAMPS)
+
+    with page.expect_event("pageerror") as raised:
+        page.keyboard.press("t")
+    assert "Failed to fetch dynamically imported module" in str(raised.value)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    focus = page.evaluate(
+        """() => {
+          const active = document.activeElement;
+          return {
+            tag: active?.tagName,
+            className: active?.className,
+            controls: active?.getAttribute('aria-controls'),
+            visible: active?.checkVisibility?.() ?? false,
+            inside: document.querySelector('.lf-margin-preview').contains(active),
+          };
+        }"""
+    )
+    assert not focus["inside"] and focus["visible"], focus
     assert any(
         "Failed to fetch dynamically imported module" in error for error in errors
     )

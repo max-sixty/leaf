@@ -132,7 +132,9 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
             + (f"; found {declared_csp}" if declared_csp else "")
         )
 
-    for meta in parser.lf_metas:
+    for meta in parser.named_metas:
+        if not meta["name"].startswith("lf-"):
+            continue  # ordinary document metadata: a title, a description, a card
         where = f'<meta name="{meta["name"]}"> (line {meta["line"]})'
         if meta["name"] not in LF_META:
             errors.append(f"{where}: unknown lf- meta; known: {sorted(LF_META)}")

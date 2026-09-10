@@ -4370,6 +4370,79 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
     page.close()
 
 
+def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
+    """The file header is a durable target before its patch is fetched or opened."""
+    authored = leaf_page(
+        "file comment",
+        '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
+        "collapsed><pre></pre></lf-diff>",
+    )
+    url = serve(authored)
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        {
+            "files": [
+                {
+                    "key": "app.py",
+                    "path": "app.py",
+                    "kind": "patch",
+                    "additions": 1,
+                    "deletions": 1,
+                    "patch": """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-old = True
++new = True
+""",
+                }
+            ]
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.wait_for_function(
+        "() => document.querySelector('lf-diff.lf-rendered') !== null"
+    )
+
+    details = page.locator("lf-diff details").first
+    file_row = page.locator("lf-diff .lf-diff-file").first
+    summary = details.locator("summary")
+    expect(details).not_to_have_attribute("open", "")
+    expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
+    expect(file_row).to_have_attribute("data-lf-datum", '["app.py","file"]')
+    expect(file_row).to_have_attribute("data-lf-datum-label", "app.py · file")
+
+    summary.hover(position={"x": 100, "y": 10})
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_be_visible()
+    page.keyboard.up("Alt")
+    summary.click(modifiers=["Alt"])
+    expect(details).not_to_have_attribute("open", "")
+    expect(page.locator("#lf-composer-quote")).to_contain_text("§ app.py · file")
+    page.locator(".lf-fab-input").fill("Review this file as a whole.")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+
+    comments = [
+        event for event in sent_events(serve.page_dir) if event["kind"] == "comment"
+    ]
+    assert [comment["anchor"] for comment in comments] == [
+        {
+            "section": "patch",
+            "datum": '["app.py","file"]',
+            "source": "review-patch",
+            "data_revision": 1,
+        }
+    ]
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, True)
+    expect(page.locator(".lf-thread .lf-quote")).to_have_text("§ app.py · file")
+    expect(page.locator(".lf-thread")).to_contain_text("Review this file as a whole.")
+    assert errors == []
+    page.close()
+
+
 def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     """The data feed supplies the patch while its line key supplies both comment routes.
 
@@ -4421,6 +4494,10 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(added).to_have_attribute("data-lf-source-revision", "1")
 
     details = page.locator("lf-diff details").first
+    summary = details.locator("summary")
+    file_row = page.locator("lf-diff .lf-diff-file").first
+    expect(file_row).to_have_attribute("data-lf-datum", '["app.py","file"]')
+    expect(file_row).to_have_attribute("data-lf-datum-label", "app.py · file")
     details.evaluate(
         "element => { element.open = false; window.__lfDiffDetails = element; }"
     )
@@ -4435,13 +4512,13 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(details).not_to_have_attribute("open", "")
     details.evaluate("element => { element.open = true; }")
 
-    summary = details.locator("summary")
-    summary.hover()
+    summary.hover(position={"x": 100, "y": 10})
     page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "patch")
+    expect(page.locator(".lf-aim")).to_be_visible()
     page.keyboard.up("Alt")
     summary.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
+    expect(page.locator("#lf-composer-quote")).to_contain_text("§ app.py · file")
     expect(details).to_have_attribute("open", "")
     page.keyboard.press("Escape")
 

@@ -16,16 +16,18 @@ key, the address it binds, and a URL the reader cannot reach.
 
 ## Wait loop
 
-One unnamed `leaf wait` watches every page the host session owns. A batch begins
-with `{"page": …, "threads": […], "handling": {…}}` and continues with that
-page's events. Name a
+One unnamed `leaf wait` watches every page the host session owns. It prints one
+complete `leaf-delivery-v1` envelope, the same object an App Server carries
+inline and a queued Codex task reads by id. Each batch names its `page`,
+`through_seq`, `conversations`, `handling`, and complete ordered `events`. Name a
 page only to pick up a page this session did not serve; `leaf wait <page>` claims
 it.
 
 Start `leaf wait` as a background task and end the turn. Its completion becomes
-host input and records the included moves as opened in that exact turn. After each
-batch, start `leaf ack` as the next background task; it acknowledges that batch
-and waits for another. The event reference owns the complete-batch and
+host input and records the included moves as opened in that exact turn. Process
+every event and its capture-time `obligation.response`. After each batch, start
+`leaf ack <page> <through_seq>` as the next background task; it acknowledges that
+batch and waits for another. The event reference owns the complete-batch and
 acknowledgement rules.
 
 If a turn ends without answering an acknowledged move, the next prompt hook
@@ -39,7 +41,7 @@ batch. After `leaf ack` advances the cursor, however, its exit stays 0 whether
 the rearmed wait delivered or ended; read its streams rather than branching on
 that status:
 
-- JSON lines on stdout are the next batch.
+- One JSON delivery envelope on stdout is the next input.
 - `the leaf ended` or `the leaves ended` on stderr means every page left in the
   watch is idle; `nothing to watch` means the session holds none. End the loop.
 - `server is not running` gives the recovery command. After recovery, resume

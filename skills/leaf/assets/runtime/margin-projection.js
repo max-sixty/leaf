@@ -27,10 +27,11 @@
    opened. Page Map and Go-to arrivals activate the exact visible control;
    they do not choose another action for the reader.
 
-   The thread card stays attached to its owning cluster, chooses a readable side margin
-   before overlaying the document, and closes after that cluster leaves the visible
-   region. It contains the complete inline conversation view; the Threads panel remains
-   the complete index and takes over when already open.
+   The thread card stays attached to its owning cluster. Leaf prefers the right then left
+   page lane before overlaying the document; Floating UI fits the card within that lane or
+   reading region. The card closes after its cluster leaves the region. It contains the
+   complete inline conversation view; the Threads panel remains the complete index and
+   takes over when already open.
 
    Cluster reconciliation preserves each surviving control, proxy, and count badge so a
    state refresh cannot cancel a held pointer or move focus. A print-media render is
@@ -97,6 +98,9 @@ import { claimed, focusSurface } from "./conversation/surfaces.js";
 import { anchorLabel } from "./conversation/messages.js";
 
 import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
+
+let floatingUiModule = null;
+const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 
 export function createMarginProjection({
   panelIsOpen,
@@ -336,7 +340,6 @@ export function createMarginProjection({
     for (const played of threadTransitionMotions) played.cancel();
     threadTransitionMotions = [];
     chromeRoot.querySelector(".lf-thread-transition")?.remove();
-    preview.style.removeProperty("opacity");
   }
 
   // A comment written beside the page becomes this larger inline thread. Carry its
@@ -417,16 +420,32 @@ export function createMarginProjection({
   function scheduleThreadTransition(origin, entry) {
     clearThreadTransition();
     const epoch = threadTransitionEpoch;
-    // Margin packing finishes on the next frame. Keep the real card transparent until
-    // then, so the carried shell aims at the marker's settled position without flashing
-    // the card at its provisional one.
-    preview.style.opacity = "0";
-    requestAnimationFrame(() => {
-      if (epoch !== threadTransitionEpoch) return;
-      preview.style.removeProperty("opacity");
-      if (previewEntry?.key !== entry.key || !preview.matches(":popover-open")) return;
-      placeThreadPreview();
+    // Margin packing finishes on the next frame. The placement reset keeps the real card
+    // transparent until its asynchronous position lands; this frame must not clear that
+    // gate while the carried shell aims at the marker's settled position.
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        if (
+          epoch !== threadTransitionEpoch ||
+          previewEntry?.key !== entry.key ||
+          !preview.matches(":popover-open")
+        ) {
+          resolve(false);
+          return;
+        }
+        resetThreadPreviewPosition();
+        placeThreadPreview();
+        resolve(threadPreviewPositioned());
+      });
+    }).then((positioned) => {
+      if (
+        !positioned ||
+        epoch !== threadTransitionEpoch ||
+        previewEntry?.key !== entry.key
+      )
+        return false;
       transitionThread(origin);
+      return true;
     });
   }
 
@@ -712,10 +731,28 @@ export function createMarginProjection({
   }
   let postureFrame = 0;
   let previewPositionFrame = 0;
-  let previewPositionRemeasure = false;
   let previewPositionDismissDetached = false;
-  let previewPlacementMetrics = null;
+  let previewPositionEpoch = 0;
   let previewReferenceSeen = false;
+  let previewPositionWaiters = [];
+  let previewFocusPending = null;
+  function answerThreadPreviewPosition(positioned) {
+    const waiters = previewPositionWaiters;
+    previewPositionWaiters = [];
+    for (const resolve of waiters) resolve(positioned);
+  }
+  const threadPreviewPositioned = () =>
+    new Promise((resolve) => previewPositionWaiters.push(resolve));
+  function resetThreadPreviewPosition() {
+    previewPositionEpoch += 1;
+    cancelAnimationFrame(previewPositionFrame);
+    previewPositionFrame = 0;
+    previewPositionDismissDetached = false;
+    previewReferenceSeen = false;
+    delete preview.dataset.lfThreadPlacement;
+    preview.style.opacity = "0";
+    preview.style.pointerEvents = "none";
+  }
   function schedulePostureRender() {
     if (postureFrame) return;
     postureFrame = requestAnimationFrame(() => {
@@ -723,14 +760,6 @@ export function createMarginProjection({
       renderMargin.refresh();
     });
   }
-  const clamp = (value, minimum, maximum) =>
-    Math.max(minimum, Math.min(value, maximum));
-  const overlaps = (one, other, gap = 0) =>
-    one.left < other.right + gap &&
-    other.left < one.right + gap &&
-    one.top < other.bottom + gap &&
-    other.top < one.bottom + gap;
-
   function keepThreadPreviewFocusVisible() {
     const active = document.activeElement;
     if (!(active instanceof HTMLElement) || !preview.contains(active)) return;
@@ -742,47 +771,27 @@ export function createMarginProjection({
     else if (activeBox.top < card.top + inset)
       preview.scrollTop -= card.top + inset - activeBox.top;
   }
-
-  function threadSidePlacement(left, width, height, target, firstTop, lastBottom) {
-    const gap = 8;
-    const totalHeight = lastBottom - firstTop;
-    const cardHeight = Math.min(height, totalHeight);
-    const lastTop = lastBottom - cardHeight;
-    const desired = clamp(
-      (target.top + target.bottom - cardHeight) / 2,
-      firstTop,
-      lastTop,
-    );
-    const candidate = {
-      left,
-      right: left + width,
-      top: desired,
-      bottom: desired + cardHeight,
-    };
-    if (!overlaps(candidate, target, gap))
-      return { top: desired, maxHeight: totalHeight };
-
-    const belowTop = Math.max(firstTop, Math.min(target.bottom + gap, lastBottom));
-    const aboveBottom = Math.max(firstTop, Math.min(target.top - gap, lastBottom));
-    const belowRoom = Math.max(0, lastBottom - belowTop);
-    const aboveRoom = Math.max(0, aboveBottom - firstTop);
-    const below = height <= belowRoom || (height > aboveRoom && belowRoom >= aboveRoom);
-    const room = below ? belowRoom : aboveRoom;
-    if (!room) return null;
-    const placedHeight = Math.min(height, room);
-    return {
-      top: below ? belowTop : aboveBottom - placedHeight,
-      maxHeight: room,
-    };
+  function deferThreadPreviewFocus(positioned, focus) {
+    const pending = { key: previewEntry?.key, holding: document.activeElement };
+    previewFocusPending = pending;
+    void positioned?.then((placed) => {
+      if (previewFocusPending !== pending || pending.key !== previewEntry?.key) return;
+      previewFocusPending = null;
+      const holdingGone =
+        document.activeElement === document.body &&
+        (!pending.holding?.isConnected || !pending.holding?.checkVisibility());
+      if (placed && (document.activeElement === pending.holding || holdingGone))
+        focus();
+    });
   }
 
-  function placeThreadPreview({ remeasure = true, dismissDetached = false } = {}) {
+  function placeThreadPreview({ dismissDetached = false } = {}) {
     if (
       !preview.matches(":popover-open") ||
       !preview.hasAttribute("data-lf-thread") ||
       !previewMarginEntry?.isConnected
     )
-      return;
+      return Promise.resolve(false);
     const controls =
       previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
     const target = controls.getBoundingClientRect();
@@ -794,124 +803,157 @@ export function createMarginProjection({
     const bannerBottom =
       document.querySelector(".lf-banner")?.getBoundingClientRect().bottom ?? 0;
     const gap = 8;
-    const firstLeft = regionBounds?.left ?? 0;
-    const lastRight = regionBounds?.right ?? document.documentElement.clientWidth;
+    const firstLeft = (regionBounds?.left ?? 0) + gap;
+    const lastRight =
+      (regionBounds?.right ?? document.documentElement.clientWidth) - gap;
     const firstTop = Math.max(regionBounds?.top ?? 0, bannerBottom) + gap;
-    const lastBottom = (regionBounds?.bottom ?? innerHeight) - gap;
-    const totalHeight = Math.max(0, lastBottom - firstTop);
-    const lastBottomFor = (left, right) =>
+    const baseBottom = (regionBounds?.bottom ?? innerHeight) - gap;
+    const visibleBoundary = new DOMRect(
+      firstLeft,
+      firstTop,
+      Math.max(0, lastRight - firstLeft),
+      Math.max(0, baseBottom - firstTop),
+    );
+    const style = getComputedStyle(preview);
+    const preferredWidth = Math.min(
+      parseFloat(style.getPropertyValue("--thread-card")),
+      visibleBoundary.width,
+    );
+    const minimumWidth = parseFloat(style.getPropertyValue("--thread-card-min"));
+    const bottomFor = (left, width) =>
       bottomChromeBoxes()
-        .filter((box) => left < box.right && box.left < right)
-        .reduce((bottom, box) => Math.min(bottom, box.top - gap), lastBottom);
-    const referenceVisible = target.bottom > firstTop && target.top < lastBottom;
-    if (referenceVisible) {
-      previewReferenceSeen = true;
-    } else if (previewReferenceSeen && dismissDetached) {
-      closePreview();
-      return;
-    }
-    if (remeasure || !previewPlacementMetrics) {
-      const style = getComputedStyle(preview);
-      previewPlacementMetrics = {
-        preferredWidth: Math.min(
-          parseFloat(style.getPropertyValue("--thread-card")),
-          lastRight - firstLeft - 2 * gap,
+        .filter((box) => left < box.right && box.left < left + width)
+        .reduce((edge, box) => Math.min(edge, box.top - gap), baseBottom);
+    const side = (
+      main
+        ? [
+            { name: "right", left: main.right + gap, right: lastRight },
+            { name: "left", left: firstLeft, right: main.left - gap },
+          ]
+        : []
+    ).find(({ name, left, right }) => {
+      const width = Math.min(preferredWidth, right - left);
+      const cardLeft = name === "right" ? right - width : left;
+      return right - left >= minimumWidth && bottomFor(cardLeft, width) > firstTop;
+    });
+    const boundaryLeft = side?.left ?? firstLeft;
+    const boundaryRight = side?.right ?? lastRight;
+    const width = Math.min(preferredWidth, boundaryRight - boundaryLeft);
+    const cardLeft = side
+      ? side.name === "right"
+        ? boundaryRight - width
+        : boundaryLeft
+      : Math.max(firstLeft, Math.min(target.right - width, lastRight - width));
+    const boundary = new DOMRect(
+      boundaryLeft,
+      firstTop,
+      Math.max(0, boundaryRight - boundaryLeft),
+      Math.max(0, bottomFor(cardLeft, width) - firstTop),
+    );
+    if (!boundary.width || !boundary.height) return Promise.resolve(false);
+    const sourceOutside = target.bottom <= firstTop || target.top >= baseBottom;
+    const crossesSource =
+      cardLeft < target.right + gap && target.left - gap < cardLeft + width;
+    const alignment = side?.name === "left" ? "start" : "end";
+    const placement = side
+      ? crossesSource
+        ? `bottom-${alignment}`
+        : side.name
+      : "bottom-end";
+    const fallbackPlacements = !side || crossesSource ? [`top-${alignment}`] : [];
+    const reference = {
+      contextElement: controls,
+      getBoundingClientRect: () =>
+        new DOMRect(
+          !side || crossesSource
+            ? cardLeft
+            : side.name === "right"
+              ? cardLeft - gap
+              : cardLeft + width + gap,
+          target.top,
+          !side || crossesSource ? width : 0,
+          target.height,
         ),
-        minimumWidth: parseFloat(style.getPropertyValue("--thread-card-min")),
-        borderHeight:
-          parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth),
-        heights: new Map(),
-      };
-    }
-    const metrics = previewPlacementMetrics;
-    const naturalHeight = (width, availableHeight = totalHeight) => {
-      const key = `${width.toFixed(2)}:${availableHeight.toFixed(2)}`;
-      if (!metrics.heights.has(key)) {
-        preview.style.setProperty("--lf-thread-width", `${width}px`);
-        preview.style.setProperty("--lf-thread-max-height", `${availableHeight}px`);
-        metrics.heights.set(key, preview.scrollHeight + metrics.borderHeight);
-      }
-      return metrics.heights.get(key);
     };
-    const sideCandidates = main
-      ? [
-          {
-            name: "right",
-            width: Math.min(metrics.preferredWidth, lastRight - main.right - 2 * gap),
-            get left() {
-              return lastRight - gap - this.width;
-            },
-          },
-          {
-            name: "left",
-            left: gap,
-            width: Math.min(metrics.preferredWidth, main.left - 2 * gap),
-          },
-        ]
-      : [];
-    for (const side of sideCandidates) {
-      if (side.width < metrics.minimumWidth) continue;
-      const sideTop = firstTop;
-      const sideBottom = lastBottomFor(side.left, side.left + side.width);
-      const sideHeight = Math.max(0, sideBottom - sideTop);
-      const height = naturalHeight(side.width, sideHeight);
-      const placement = threadSidePlacement(
-        side.left,
-        side.width,
-        height,
-        target,
-        sideTop,
-        sideBottom,
-      );
-      if (!placement) continue;
-      preview.dataset.lfThreadPlacement = side.name;
-      preview.style.setProperty("--lf-thread-width", `${side.width}px`);
-      preview.style.setProperty("--lf-thread-max-height", `${placement.maxHeight}px`);
-      preview.style.setProperty("--lf-thread-left", `${side.left}px`);
-      preview.style.setProperty("--lf-thread-top", `${placement.top}px`);
-      if (remeasure) keepThreadPreviewFocusVisible();
-      return;
-    }
-
-    // Both margins are unavailable. Preserve the full reading measure over the document,
-    // preferring the room below the selected cluster, then above, then the larger side as
-    // a scrolling viewport. The cluster itself is never part of the area the card spends.
-    const width = metrics.preferredWidth;
-    const lastLeft = lastRight - width - gap;
-    const left = clamp(target.right - width, firstLeft + gap, lastLeft);
-    const overlayTop = firstTop;
-    const overlayBottom = lastBottomFor(left, left + width);
-    const overlayHeight = naturalHeight(width, Math.max(0, overlayBottom - overlayTop));
-    const belowTop = Math.max(overlayTop, Math.min(target.bottom + gap, overlayBottom));
-    const aboveBottom = Math.max(overlayTop, Math.min(target.top - gap, overlayBottom));
-    const belowRoom = Math.max(0, overlayBottom - belowTop);
-    const aboveRoom = Math.max(0, aboveBottom - overlayTop);
-    const below =
-      overlayHeight <= belowRoom ||
-      (overlayHeight > aboveRoom && belowRoom >= aboveRoom);
-    const room = below ? belowRoom : aboveRoom;
-    const cardHeight = Math.min(overlayHeight, room);
-    const top = below ? belowTop : aboveBottom - cardHeight;
-    preview.dataset.lfThreadPlacement = below ? "below" : "above";
     preview.style.setProperty("--lf-thread-width", `${width}px`);
-    preview.style.setProperty("--lf-thread-max-height", `${room}px`);
-    preview.style.setProperty("--lf-thread-left", `${left}px`);
-    preview.style.setProperty("--lf-thread-top", `${top}px`);
-    if (remeasure) keepThreadPreviewFocusVisible();
+    preview.style.setProperty("--lf-thread-max-height", `${boundary.height}px`);
+    const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
+    const epoch = ++previewPositionEpoch;
+    const stillCurrent = () =>
+      epoch === previewPositionEpoch &&
+      preview.matches(":popover-open") &&
+      previewMarginEntry?.isConnected;
+    return floatingUi()
+      .then(({ computePosition, flip, hide, offset, shift, size }) =>
+        computePosition(reference, preview, {
+          placement,
+          strategy: "fixed",
+          middleware: [
+            offset(gap),
+            fallbackPlacements.length &&
+              flip({
+                ...overflow,
+                fallbackPlacements,
+                fallbackStrategy: "bestFit",
+                crossAxis: false,
+              }),
+            size({
+              ...overflow,
+              apply({ availableHeight, availableWidth, placement: placed }) {
+                if (!stillCurrent()) return;
+                const beside = /^(left|right)/.test(placed);
+                preview.style.setProperty(
+                  "--lf-thread-width",
+                  `${Math.max(0, Math.min(width, availableWidth))}px`,
+                );
+                preview.style.setProperty(
+                  "--lf-thread-max-height",
+                  `${Math.max(0, beside ? boundary.height : availableHeight)}px`,
+                );
+              },
+            }),
+            shift({
+              ...overflow,
+              mainAxis: true,
+              crossAxis: (!side || crossesSource) && sourceOutside,
+            }),
+            hide({ boundary: [], rootBoundary: visibleBoundary, padding: 0 }),
+          ],
+        }),
+      )
+      .then(({ x, y, placement, middlewareData }) => {
+        if (!stillCurrent()) return false;
+        const referenceHidden = middlewareData.hide?.referenceHidden ?? false;
+        if (referenceHidden && previewReferenceSeen && dismissDetached) {
+          closePreview();
+          return false;
+        }
+        if (!referenceHidden) previewReferenceSeen = true;
+        preview.dataset.lfThreadPlacement =
+          side?.name ??
+          placement.split("-", 1)[0].replace("bottom", "below").replace("top", "above");
+        preview.style.left = `${x}px`;
+        preview.style.top = `${y}px`;
+        preview.style.removeProperty("opacity");
+        preview.style.removeProperty("pointer-events");
+        keepThreadPreviewFocusVisible();
+        answerThreadPreviewPosition(true);
+        return true;
+      })
+      .catch((error) => {
+        if (!stillCurrent()) return false;
+        closePreview(true);
+        throw error;
+      });
   }
-  function scheduleThreadPreviewPosition(remeasure = false, dismissDetached = false) {
-    if (remeasure) {
-      previewPositionRemeasure = true;
-      previewPositionDismissDetached = false;
-    } else previewPositionDismissDetached ||= dismissDetached;
+  function scheduleThreadPreviewPosition(dismissDetached = false) {
+    previewPositionDismissDetached ||= dismissDetached;
     if (previewPositionFrame) return;
     previewPositionFrame = requestAnimationFrame(() => {
       previewPositionFrame = 0;
-      const measure = previewPositionRemeasure;
       const dismiss = previewPositionDismissDetached;
-      previewPositionRemeasure = false;
       previewPositionDismissDetached = false;
-      placeThreadPreview({ remeasure: measure, dismissDetached: dismiss });
+      placeThreadPreview({ dismissDetached: dismiss });
     });
   }
   // A viewport posture change can replace the focused full conversation with its
@@ -2082,8 +2124,8 @@ export function createMarginProjection({
     { returnFocus = document.activeElement === previewMarginEntry } = {},
   ) {
     if (previewMarginEntry === button) return;
+    resetThreadPreviewPosition();
     previewMarginEntry = button;
-    previewReferenceSeen = false;
     if (returnFocus) button.focus({ preventScroll: true });
   }
 
@@ -2464,17 +2506,20 @@ export function createMarginProjection({
             if (previewMarginEntry === button && button.isConnected)
               showPreview(entry, button, false);
           });
+        else answerThreadPreviewPosition(false);
       } finally {
         previewShowing = false;
       }
     }
     placeThreadPreview();
+    const positioned = threadPreviewPositioned();
     refreshHighlight();
     for (const row of rows.values())
       syncReadingRelation(row, primaryReading(row.lfEntry));
     for (const button of readingMarginEntries.values())
       syncReadingRelation(button, button.lfChoice);
     paintKeys();
+    return positioned;
   }
 
   function togglePinned(entry, button) {
@@ -2484,12 +2529,15 @@ export function createMarginProjection({
       return;
     }
     pinnedKey = entry.key;
-    showPreview(entry, button);
-    const reply = previewList.querySelector("textarea");
-    if (reply) {
-      reply.focus({ preventScroll: true });
-      revealConversation(reply.closest(".lf-conversation-thread"), reply);
-    }
+    const positioned = showPreview(entry, button);
+    if (previewList.querySelector("textarea"))
+      deferThreadPreviewFocus(positioned, () => {
+        if (previewEntry?.key !== entry.key) return;
+        const reply = previewList.querySelector("textarea");
+        if (!reply) return;
+        reply.focus({ preventScroll: true });
+        revealConversation(reply.closest(".lf-conversation-thread"), reply);
+      });
   }
 
   function closePreview(returnFocus = false) {
@@ -2500,7 +2548,9 @@ export function createMarginProjection({
     forcedInlineOptionsKey = null;
     previewEntry = null;
     previewMarginEntry = null;
-    previewReferenceSeen = false;
+    previewFocusPending = null;
+    answerThreadPreviewPosition(false);
+    resetThreadPreviewPosition();
     if (preview.matches(":popover-open")) preview.hidePopover();
     refreshHighlight();
     for (const row of rows.values())
@@ -2571,7 +2621,7 @@ export function createMarginProjection({
     togglePinned(entry, button);
   }
 
-  function openInlineThread(id, transition = null) {
+  function openInlineThread(id, transition = null, onPositioned = null) {
     const itemId = marginThreadItem(threadList().find((t) => t.root.id === id));
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
@@ -2609,13 +2659,23 @@ export function createMarginProjection({
       return null;
     }
     pinnedKey = entry.key;
-    showPreview(entry, button);
+    const initiallyPositioned = showPreview(entry, button);
     const item = [...previewList.children].find(
       (candidate) => candidate.dataset.lfMarginEntry === itemId,
     );
     item?.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
-    if (transition) scheduleThreadTransition(transition, entry);
-    return item?.querySelector(".lf-conversation-thread") ?? null;
+    const thread = item?.querySelector(".lf-conversation-thread") ?? null;
+    const positioned = transition
+      ? scheduleThreadTransition(transition, entry)
+      : initiallyPositioned;
+    if (thread && onPositioned)
+      deferThreadPreviewFocus(positioned, () => {
+        const current = [...previewList.children]
+          .find((candidate) => candidate.dataset.lfMarginEntry === itemId)
+          ?.querySelector(".lf-conversation-thread");
+        if (current) onPositioned(current);
+      });
+    return thread;
   }
 
   // A route that starts on the page stays on the page while that thread has an inline
@@ -2635,19 +2695,28 @@ export function createMarginProjection({
         scrollToThread(id);
         return local;
       }
-      const thread = openInlineThread(id);
+      const thread = openInlineThread(id, null, (positionedThread) => {
+        const destination =
+          focus === "thread"
+            ? positionedThread
+            : (positionedThread.querySelector("textarea:not([disabled])") ??
+              positionedThread);
+        if (destination === positionedThread) {
+          positionedThread.focus({ preventScroll: true });
+          positionedThread.scrollIntoView({
+            behavior: scrollBehavior(),
+            block: "nearest",
+          });
+          scrollToThread(id);
+        } else {
+          landInConversation(destination);
+        }
+      });
       if (thread) {
         const destination =
           focus === "thread"
             ? thread
             : (thread.querySelector("textarea:not([disabled])") ?? thread);
-        if (destination === thread) {
-          thread.focus({ preventScroll: true });
-          thread.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
-          scrollToThread(id);
-        } else {
-          landInConversation(destination);
-        }
         return destination;
       }
     }
@@ -2689,10 +2758,11 @@ export function createMarginProjection({
       ? active.closest?.(".lf-conversation-thread")
       : null;
     if (held) return held;
-    if (active !== previewMarginEntry) return null;
     const conversations = previewList.querySelectorAll(
       ".lf-margin-thread .lf-conversation-thread",
     );
+    const pending = previewFocusPending?.key === previewEntry.key;
+    if (!pending && active !== previewMarginEntry) return null;
     return conversations.length === 1 ? conversations[0] : null;
   };
 
@@ -2716,7 +2786,9 @@ export function createMarginProjection({
       forcedInlineOptionsKey = null;
       previewEntry = null;
       previewMarginEntry = null;
-      previewReferenceSeen = false;
+      previewFocusPending = null;
+      answerThreadPreviewPosition(false);
+      resetThreadPreviewPosition();
       refreshHighlight();
       for (const row of rows.values())
         syncReadingRelation(row, primaryReading(row.lfEntry));
@@ -2728,7 +2800,7 @@ export function createMarginProjection({
     document.addEventListener("lf-answered", renderMargin);
     document.addEventListener("lf-comparison", renderMargin);
     document.addEventListener("lf-margin-layout", () => {
-      placeThreadPreview({ remeasure: true });
+      placeThreadPreview();
       scheduleMarginEntryLabels();
     });
     for (const event of ["pointerover", "focusin"])
@@ -2753,12 +2825,12 @@ export function createMarginProjection({
       "scroll",
       (event) => {
         scheduleRoving();
-        if (!preview.contains(event.target)) scheduleThreadPreviewPosition(false, true);
+        if (!preview.contains(event.target)) scheduleThreadPreviewPosition(true);
       },
       { capture: true, passive: true },
     );
     window.addEventListener("resize", () => {
-      scheduleThreadPreviewPosition(true);
+      scheduleThreadPreviewPosition();
       schedulePostureRender();
     });
     renderMargin();

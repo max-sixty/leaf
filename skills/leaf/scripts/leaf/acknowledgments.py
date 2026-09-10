@@ -126,14 +126,24 @@ def canonical_acknowledgments(
     ]
     for thread_id, thread in threads.items():
         turns = spoken_turns(thread)
-        if thread["resolved"] or not turns or turns[-1]["author"] != "user":
+        unanswered = next(
+            (message for message in reversed(turns) if message["author"] != "claude"),
+            None,
+        )
+        if thread["resolved"] or unanswered is None:
+            continue
+        if any(
+            message["author"] == "claude"
+            and message.get("responds") == unanswered["id"]
+            for message in turns
+        ):
             continue
         if (thread["root"].get("response") or {}).get("kind") == "version" and any(
             seat == seat_root(thread) and root_seq > thread["root"]["seq"]
             for root_seq, seat in clarifications
         ):
             continue
-        source = turns[-1]
+        source = unanswered
         acknowledgments.append(
             receipt(
                 source,
@@ -150,7 +160,7 @@ def canonical_acknowledgments(
     if page is not None:
         for coordinate, (source, spec) in page.projection.actions.items():
             widget, unit, facet = coordinate
-            if not page_action_unsettled(
+            unsettled = page_action_unsettled(
                 coordinate,
                 source,
                 spec,
@@ -158,14 +168,14 @@ def canonical_acknowledgments(
                 page.spoken,
                 page.registry,
                 page.events,
-            ):
-                continue
+            )
             moves.append(
                 (
                     source,
                     {"kind": "widget", "id": widget},
                     [widget, unit, facet],
                     False,
+                    unsettled,
                 )
             )
 
@@ -179,19 +189,19 @@ def canonical_acknowledgments(
             thread = threads.get(thread_id)
             if not thread or thread["resolved"]:
                 continue
-            if any(
+            settled = any(
                 message["kind"] == "reply"
                 and message["author"] == "claude"
-                and message["seq"] > source["seq"]
+                and message.get("responds") == source["id"]
                 for message in thread["msgs"]
-            ):
-                continue
+            )
             moves.append(
                 (
                     source,
                     {"kind": "widget", "id": source["widget"]},
                     list(coordinate),
                     True,
+                    not settled,
                 )
             )
 
@@ -203,12 +213,12 @@ def canonical_acknowledgments(
     # margin entry each in the margin. Chosen before a receipt is minted, so a claim is
     # spent on a move that survives rather than on one dropped here.
     newest: dict[tuple[str, str], dict] = {}
-    for source, target, coordinate, _requires_response in moves:
+    for source, target, coordinate, _requires_response, _unsettled in moves:
         key = (target["id"], coordinate[1])
         if key not in newest or source["seq"] > newest[key]["seq"]:
             newest[key] = source
-    for source, target, coordinate, requires_response in moves:
-        if newest[(target["id"], coordinate[1])] is source:
+    for source, target, coordinate, requires_response, unsettled in moves:
+        if unsettled and newest[(target["id"], coordinate[1])] is source:
             acknowledgments.append(
                 receipt(
                     source,

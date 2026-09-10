@@ -383,8 +383,8 @@ manual navigations as well; the `upgraded=False` escape in `open_page` is only
 for a test whose subject is the interval before those stamps, waits for the
 banner module to exist, and must make its later readiness explicit.
 
-`watched` must be installed before navigation. It collects console errors and
-`pageerror`, and calls `leaf.render_checks.install_window_errors` so browser
+`watched` must be installed before navigation. It collects console warnings, console
+errors, and `pageerror`, and calls `leaf.render_checks.install_window_errors` so browser
 `error` events without an exception reach the same list. That script is shared
 with `render_version`; the suite and the handover gate must not disagree about
 which browser error channels count.
@@ -728,8 +728,8 @@ that distinguish causes. `open_page` enriches HTTP failures with status and URL;
 `round_trip` reports both ends of its wait; a fixture cleanup failure names the
 server or process it could not stop.
 
-At the end of a browser journey, assert the collected error list after all
-gestures, polls, reloads, and route releases, then close the page or let its
+At the end of a browser journey, assert the collected problems after all gestures,
+polls, reloads, and route releases, then close the page or let its
 owning context close it. If an earlier fault is intentionally induced, assert
 and remove that exact expected entry at the point it occurs.
 

@@ -1,0 +1,164 @@
+/* Targeting keeps the authored preview primary. Its generated editor is compact,
+ * and live outlines disappear from static copies and quoted examples. */
+lf-targeting {
+  --lf-frame: 1;
+  display: grid;
+  gap: var(--sp-3);
+  box-sizing: border-box;
+  width: min(100%, 58rem);
+  margin: var(--sp-4) auto;
+  padding: var(--sp-4);
+  border: 1px solid var(--border-2);
+  border-radius: calc(var(--r) * 1.35);
+  background: var(--card);
+  container-type: inline-size;
+}
+
+lf-target-preview {
+  --lf-frame: 1;
+  display: block;
+  min-width: 0;
+  min-height: 12rem;
+  padding: var(--sp-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--field);
+}
+
+lf-targeting .lf-targeting-toolbar,
+lf-targeting .lf-targeting-actions,
+lf-targeting .lf-targeting-form-row,
+lf-targeting .lf-targeting-change-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+lf-targeting .lf-targeting-editor,
+lf-targeting .lf-targeting-targets,
+lf-targeting .lf-targeting-changes,
+lf-targeting .lf-targeting-candidates {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+lf-targeting .lf-targeting-toolbar {
+  justify-content: space-between;
+}
+
+lf-targeting .lf-targeting-status,
+lf-targeting .lf-targeting-heading,
+lf-targeting .lf-targeting-empty,
+lf-targeting .lf-targeting-candidate-context,
+lf-targeting .lf-targeting-change-summary {
+  margin: 0;
+  font: var(--t-6)/1.4 var(--sans);
+}
+
+lf-targeting .lf-targeting-heading {
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+}
+
+lf-targeting .lf-targeting-status,
+lf-targeting .lf-targeting-empty,
+lf-targeting .lf-targeting-candidate-context,
+lf-targeting .lf-targeting-change-summary {
+  color: var(--muted);
+}
+
+lf-targeting .lf-targeting-candidates,
+lf-targeting .lf-targeting-target,
+lf-targeting .lf-targeting-change-form,
+lf-targeting .lf-targeting-change {
+  --lf-frame: 1;
+  padding: var(--sp-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--field);
+}
+
+lf-targeting .lf-targeting-candidates[hidden] {
+  display: none;
+}
+
+lf-targeting .lf-targeting-target,
+lf-targeting .lf-targeting-change-form {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+lf-targeting :is(input, select, textarea) {
+  box-sizing: border-box;
+  min-height: var(--aim-floor);
+  padding: var(--sp-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--ink);
+  font: var(--t-5)/1.35 var(--sans);
+}
+
+lf-targeting textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+lf-targeting .lf-targeting-name {
+  flex: 1 1 12rem;
+}
+
+lf-targeting .lf-targeting-actions {
+  justify-content: flex-end;
+}
+
+lf-targeting[data-lf-targeting-armed] lf-target-preview {
+  cursor: crosshair;
+  border-color: var(--accent);
+}
+
+html:not(.lf-copy)
+  lf-targeting
+  lf-target-preview
+  :is(.lf-targeting-candidate, .lf-targeting-selected) {
+  outline: var(--here-ring-w) solid var(--accent);
+  outline-offset: 2px;
+}
+
+html:not(.lf-copy)
+  lf-targeting
+  lf-target-preview
+  .lf-targeting-candidate {
+  background-color: var(--accent-faint);
+}
+
+lf-targeting.lf-targeting-quoted .lf-targeting-editor,
+html.lf-copy lf-targeting .lf-targeting-editor {
+  display: none;
+}
+
+@container (max-width: 38rem) {
+  lf-targeting {
+    padding: var(--sp-3);
+  }
+
+  lf-targeting .lf-targeting-form-row,
+  lf-targeting .lf-targeting-change-fields {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  lf-targeting :is(input, select, button) {
+    width: 100%;
+  }
+}
+
+@media print {
+  lf-targeting .lf-targeting-editor {
+    display: none;
+  }
+}

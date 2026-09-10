@@ -18,7 +18,13 @@ export function createAuxiliaryChromeNavigation({
     );
     if (inline) {
       const id = inline.dataset.thread;
-      return () => openInlineThread(id);
+      return () => {
+        document.body.focus({ preventScroll: true });
+        openInlineThread(id, null, (thread) => {
+          thread.focus({ preventScroll: true });
+        });
+        return document.body;
+      };
     }
     const ask = control?.closest?.(".lf-asks-row[data-lf-at]");
     if (ask) {

@@ -7,6 +7,10 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>Leaf product gallery</title>
+    <meta
+      name="description"
+      content="Every working Leaf feature on one synthetic page, each with a live example and a focused replay of its motion."
+    />
     <meta name="lf-review" content="sign-off" />
     <meta
       http-equiv="Content-Security-Policy"
@@ -158,6 +162,27 @@
         margin: var(--sp-1) auto 0;
         color: var(--bg-playground-card-muted);
         font: var(--t-5) / 1.45 var(--sans);
+      }
+
+      .bg-target-card-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sp-3);
+      }
+
+      .bg-target-card {
+        --lf-frame: 1;
+        min-width: 0;
+        padding: var(--sp-3);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r);
+        background: var(--card);
+      }
+
+      @media screen and (max-width: 640px) {
+        .bg-target-card-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
       }
 
       .interaction-gallery lf-tabs {
@@ -767,11 +792,15 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             ><span class="bg-feature-detail">: line comments in review context</span>
           </h3>
           <p id="bg-inline-diff-guide">
-            The seeded Thread follows its added line. Reply or resolve in place. Close
-            the file to move the Thread to the page margin, then reopen it to return the
-            conversation to the diff.
+            The seeded Thread follows its added line. Reply or resolve in place, or
+            Alt-click the file header to start a file-level Thread. Close the file to
+            move the line Thread to the page margin, then reopen it to return the
+            conversation to the diff. Mark the file reviewed to exercise persistent file
+            progress.
           </p>
-          <lf-diff id="bg-review-diff" source="gallery-patch"><pre></pre></lf-diff>
+          <lf-diff id="bg-review-diff" source="gallery-patch" review>
+            <pre></pre>
+          </lf-diff>
         </section>
 
         <section id="bg-source-captures">
@@ -1287,6 +1316,39 @@ gallery/
                 the title “<lf-playground-value for="title"></lf-playground-value>.”
               </lf-playground-output>
             </lf-playground>
+          </lf-ask>
+        </section>
+
+        <section id="bg-targeting">
+          <p class="eyebrow bg-feature-elements">lf-targeting · lf-target-preview</p>
+          <h3>
+            <strong>Targeting</strong
+            ><span class="bg-feature-detail"
+              >: identify, preview, and submit edits</span
+            >
+          </h3>
+          <p id="bg-targeting-guide">
+            Select element and choose its Article boundary. Rename it, switch its scope
+            to Shared class, add and remove a style, then add a target-bound
+            instruction. Select the nested heading as a second target and inspect the
+            structured action before using Submit changes.
+          </p>
+          <lf-ask id="bg-targeting-ask">
+            <h4 id="bg-targeting-question">Which exact changes should be made?</h4>
+            <lf-targeting id="bg-targeting-workbench" submit-label="Submit changes">
+              <lf-target-preview id="bg-targeting-preview">
+                <div class="bg-target-card-grid">
+                  <article id="bg-target-release" class="bg-target-card">
+                    <h5 class="bg-target-heading">Release readiness</h5>
+                    <p>Keep the owner and remaining checks visible.</p>
+                  </article>
+                  <article id="bg-target-evidence" class="bg-target-card">
+                    <h5 class="bg-target-heading">Evidence trail</h5>
+                    <p>Link each claim to the exact run that supports it.</p>
+                  </article>
+                </div>
+              </lf-target-preview>
+            </lf-targeting>
           </lf-ask>
         </section>
 

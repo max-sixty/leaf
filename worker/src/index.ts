@@ -24,6 +24,7 @@ import {
   type WorkflowStep,
 } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
+import * as z from "zod/mini";
 
 import {
   activeCookie,
@@ -54,18 +55,39 @@ export interface Env {
   OPENAI_API_KEY: string;
 }
 
-export interface AgentWorkflowParams {
-  sessionId: string;
-  reference: string;
-  route: string;
-  eventId: string;
-  sourceId: string;
-}
+const agentWorkflowParamsSchema = z.object({
+  sessionId: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
+  reference: z.string().check(z.regex(/^\d{12}$/)),
+  route: z
+    .string()
+    .check(z.regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/)),
+  eventId: z.string().check(z.regex(/^[A-Za-z0-9_-]{1,128}$/)),
+  sourceId: z.string().check(z.minLength(1), z.maxLength(64)),
+});
 
-type AgentResult =
-  | { status: "started"; thread: string }
-  | { status: "settled" }
-  | { status: "appended"; event: string };
+export type AgentWorkflowParams = z.infer<typeof agentWorkflowParamsSchema>;
+
+const settledAgentResultSchema = z.object({ status: z.literal("settled") });
+const agentResultSchemas = {
+  start: z.discriminatedUnion("status", [
+    settledAgentResultSchema,
+    z.object({
+      status: z.literal("started"),
+      thread: z.string().check(z.minLength(1)),
+    }),
+  ]),
+  reply: z.discriminatedUnion("status", [
+    settledAgentResultSchema,
+    z.object({
+      status: z.literal("appended"),
+      event: z.string().check(z.minLength(1)),
+    }),
+  ]),
+};
+
+type AgentResult = z.infer<
+  (typeof agentResultSchemas)[keyof typeof agentResultSchemas]
+>;
 
 const GENERATION_FAILURE_REPLY =
   "I couldn’t generate a reply just now. Please send a new message to try again.";
@@ -186,25 +208,11 @@ async function measuredAgentOperation<T>(
 }
 
 function validatedAgentParams(value: unknown): AgentWorkflowParams {
-  const params = value as Partial<AgentWorkflowParams> | null;
-  if (
-    params === null ||
-    typeof params !== "object" ||
-    typeof params.sessionId !== "string" ||
-    !/^[0-9a-f]{32}$/.test(params.sessionId) ||
-    typeof params.reference !== "string" ||
-    !/^\d{12}$/.test(params.reference) ||
-    typeof params.route !== "string" ||
-    !/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/.test(params.route) ||
-    typeof params.eventId !== "string" ||
-    !/^[A-Za-z0-9_-]{1,128}$/.test(params.eventId) ||
-    typeof params.sourceId !== "string" ||
-    params.sourceId.length === 0 ||
-    params.sourceId.length > 64
-  ) {
+  const result = agentWorkflowParamsSchema.safeParse(value);
+  if (!result.success) {
     throw new NonRetryableError("invalid website agent workflow parameters");
   }
-  return params as AgentWorkflowParams;
+  return result.data;
 }
 
 function agentRequest(
@@ -235,26 +243,17 @@ async function askContainer(
     if (response.status < 500) throw new NonRetryableError(message);
     throw new Error(message);
   }
-  let answer: Partial<AgentResult>;
+  let value: unknown;
   try {
-    answer = JSON.parse(raw) as Partial<AgentResult>;
+    value = JSON.parse(raw);
   } catch {
     throw new NonRetryableError(`invalid website agent ${action} response`);
   }
-  const valid =
-    answer.status === "settled" ||
-    (action === "start" &&
-      answer.status === "started" &&
-      typeof answer.thread === "string" &&
-      Boolean(answer.thread)) ||
-    (action === "reply" &&
-      answer.status === "appended" &&
-      typeof answer.event === "string" &&
-      Boolean(answer.event));
-  if (!valid) {
+  const result = agentResultSchemas[action].safeParse(value);
+  if (!result.success) {
     throw new NonRetryableError(`invalid website agent ${action} response`);
   }
-  return answer as AgentResult;
+  return result.data;
 }
 
 export async function runAgentWorkflow(

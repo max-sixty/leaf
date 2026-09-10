@@ -731,11 +731,12 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
     target.scroll_into_view_if_needed()
-    target.click(modifiers=["Alt"])
+    target.click(modifiers=["Alt"], position={"x": 20, "y": 10})
     field = open_compact_comment(page)
     field.fill("Keep this comment connected while its paragraph changes width.")
     page.evaluate(RENDERED)
     bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
     placement = bar.get_attribute("data-lf-placement")
     assert placement in {"top-end", "bottom-end"}, placement
 
@@ -790,10 +791,11 @@ def test_an_above_comment_rechooses_after_vertical_target_motion(browser, serve)
     resized(page, 700, 600)
     target = page.locator("#rn-console-why")
     target.scroll_into_view_if_needed()
-    target.click(modifiers=["Alt"])
+    target.click(modifiers=["Alt"], position={"x": 20, "y": 10})
     field = open_compact_comment(page)
     field.fill("Keep this comment connected when its paragraph moves vertically.")
     bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to paragraph"))
     expect(bar).to_have_attribute("data-lf-placement", "top-end")
 
     target.evaluate(

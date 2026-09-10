@@ -685,15 +685,20 @@ REBUILDS = {
 }
 
 
-# Two pins are not Leaf's own choice of version. beautiful-mermaid imports elkjs and
-# entities, and they are pinned here only because the bundle is self-contained: esbuild
+# Some pins are not Leaf's own choice of version. They are dependencies of the package
+# Leaf chose and are pinned here only because each bundle is self-contained: esbuild
 # resolves those bare imports itself, so the versions have to be named. A release
-# outside the range beautiful-mermaid declares is therefore not a pin to take. npm
-# would install the declared version nested under it, esbuild would bundle that one,
-# and the table would say one thing while the bundle carried another. Their rows read
-# against the dependant's range, so what the report calls movement is movement that can
+# outside the range its dependant declares is therefore not a pin to take. npm would
+# install the declared version nested under it, esbuild would bundle that one, and the
+# table would say one thing while the bundle carried another. Their rows read against
+# the dependant's range, so what the report calls movement is movement that can
 # actually be taken.
-HELD_BY = {"elkjs": "beautiful-mermaid", "entities": "beautiful-mermaid"}
+HELD_BY = {
+    "elkjs": "beautiful-mermaid",
+    "entities": "beautiful-mermaid",
+    "@floating-ui/core": "@floating-ui/dom",
+    "@floating-ui/utils": "@floating-ui/dom",
+}
 
 
 def newest(package: str, within: str = "latest") -> str:

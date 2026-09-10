@@ -6,6 +6,8 @@ set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel)
 run_root=$(mktemp -d "${TMPDIR:-/tmp}/leaf-site-agent.XXXXXX")
 site_root="$run_root/site"
+host_codex_home=${CODEX_HOME:-$HOME/.codex}
+clean_codex_home="$run_root/codex-home"
 log="$repo_root/.tmp/website-agent-local.log"
 server=
 
@@ -21,8 +23,13 @@ trap cleanup EXIT
 uv run --project "$repo_root" "$repo_root/scripts/site.py"
 cp -R "$repo_root/.tmp/site" "$site_root"
 release=$(jq --raw-output .release "$site_root/_leaf/site.json")
+mkdir "$clean_codex_home"
+cp "$repo_root/worker/codex-config.toml" "$clean_codex_home/config.toml"
+cp "$host_codex_home/auth.json" "$clean_codex_home/auth.json"
+chmod 600 "$clean_codex_home/auth.json"
 
-LEAF_SITE_ROOT="$site_root" LEAF_AGENT_EPHEMERAL=1 uv run --project "$repo_root" \
+CODEX_HOME="$clean_codex_home" LEAF_SITE_ROOT="$site_root" LEAF_AGENT_EPHEMERAL=1 \
+  uv run --project "$repo_root" \
   python "$repo_root/worker/server.py" >"$log" 2>&1 &
 server=$!
 

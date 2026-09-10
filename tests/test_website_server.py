@@ -361,6 +361,8 @@ def test_the_local_verifier_requests_ephemeral_codex_tasks(monkeypatch):
     script = (ROOT / "scripts" / "verify-site-agent-local.sh").read_text()
 
     assert "LEAF_AGENT_EPHEMERAL=1" in script
+    assert 'CODEX_HOME="$clean_codex_home"' in script
+    assert 'cp "$host_codex_home/auth.json"' in script
     monkeypatch.setenv("LEAF_AGENT_EPHEMERAL", "1")
     monkeypatch.setattr(website_server, "_agent_host", None)
     assert website_server.website_codex_host().ephemeral is True

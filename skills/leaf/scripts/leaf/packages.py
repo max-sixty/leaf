@@ -103,8 +103,8 @@ def rollback_package_files(created: list) -> None:
             pass
 
 
-def starter_widget_entry(tag: str) -> dict:
-    """One useful upgraded prose block, ready for a package author to specialize."""
+def starter_element_declaration(tag: str) -> dict:
+    """One useful upgraded markup block, ready for a package author to specialize."""
     name = tag.removeprefix("lf-")
     label = name.replace("-", " ")
     title = label.capitalize()
@@ -123,7 +123,7 @@ def starter_widget_entry(tag: str) -> dict:
         },
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-upgrade": True,
         "x-verbatim": True,
         "x-example": (
@@ -331,7 +331,7 @@ def init_starter_widget(
 
     registry_path = package / "registry.json"
     registry = read_json(registry_path) or {}
-    registry[widget] = starter_widget_entry(widget)
+    registry[widget] = starter_element_declaration(widget)
     files = {
         "registry.json": json_bytes(registry, indent=2),
         f"widgets/{module_name}": starter_widget_module(widget),

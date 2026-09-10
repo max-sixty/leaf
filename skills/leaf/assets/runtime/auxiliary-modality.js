@@ -1,25 +1,25 @@
-/* The shared modal boundary for an auxiliary workspace that covers the document.
+/* The shared modal boundary for an auxiliary surface that covers the document.
 
    Visibility owners keep their ordinary surfaces and scrollports while responsive
    layout decides whether they stand beside the page or over it. In the covering
    posture this owner makes every sibling reading surface inert, dims that entire
-   background, gives the workspace modal semantics, and moves focus in only when it was
+   background, gives the surface modal semantics, and moves focus in only when it was
    outside. It re-derives those siblings when the live version replaces the authored
    page. Leaving that posture restores exactly the inert and role state it found; it
    does not rebuild, hide, or scroll either side.
 
    Native inertness owns sequential focus and pointer reach. This owner adds the Tab
-   wrap and programmatic-focus recovery that a non-top-layer workspace still needs.
+   wrap and programmatic-focus recovery that a non-top-layer surface still needs.
    Entering the boundary dismisses pre-existing outside popovers. Native dialogs, and
    popovers deliberately opened after entry, remain available to their top-layer owner. */
 
 import { openNativePopovers } from "./native-layers.js";
 import { under } from "./shadow.js";
 
-export function createWorkspaceModality({ chromeRoot, focusable }) {
+export function createAuxiliaryModality({ chromeRoot, focusable }) {
   const controllers = new Set();
   const scrim = document.createElement("div");
-  scrim.className = "lf-workspace-scrim";
+  scrim.className = "lf-auxiliary-scrim";
   scrim.hidden = true;
   scrim.setAttribute("aria-hidden", "true");
   let active = null;
@@ -52,7 +52,7 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
     }
   };
   const nativeLayerContains = (node) => node?.closest?.("dialog:modal, :popover-open");
-  const overlay = (node) => node.matches?.("dialog:not(.lf-panel), [popover]");
+  const overlay = (node) => node.matches?.("dialog:not(.lf-thread-panel), [popover]");
   const background = (surface) => {
     const nodes = [];
     for (const child of document.body.children) {
@@ -92,7 +92,7 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
 
   function enter(controller) {
     if (active && active !== controller)
-      throw new Error("leaf: two covering workspaces cannot be modal together");
+      throw new Error("leaf: two covering auxiliary surfaces cannot be modal together");
     if (active === controller) return;
 
     for (const popover of openNativePopovers())
@@ -102,7 +102,7 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
     controller.role = controller.surface.getAttribute("role");
     controller.surface.setAttribute("role", "dialog");
     controller.surface.setAttribute("aria-modal", "true");
-    document.body.dataset.lfModalWorkspace = controller.surface.id;
+    document.body.dataset.lfCoveringSurface = controller.surface.id;
     scrim.hidden = false;
     backgroundMutations.observe(document.body, { childList: true });
     backgroundMutations.observe(chromeRoot, { childList: true });
@@ -121,15 +121,15 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
     if (controller.role === null) controller.surface.removeAttribute("role");
     else controller.surface.setAttribute("role", controller.role);
     controller.surface.removeAttribute("aria-modal");
-    delete document.body.dataset.lfModalWorkspace;
+    delete document.body.dataset.lfCoveringSurface;
     scrim.hidden = true;
     active = null;
   }
 
-  function register({ surface, scroller, covers, focus, dismiss }) {
+  function registerAuxiliarySurface({ surface, scroller, covers, focus, dismiss }) {
     if (!surface?.id || !scroller || !covers || !focus || !dismiss)
       throw new Error(
-        "leaf: a modal workspace needs a named surface, scroller, covering reading, focus destination, and dismissal",
+        "leaf: a covering auxiliary surface needs a named surface, scroller, covering reading, focus destination, and dismissal",
       );
     const controller = {
       surface,
@@ -213,7 +213,7 @@ export function createWorkspaceModality({ chromeRoot, focusable }) {
 
   return {
     scrim,
-    register,
+    registerAuxiliarySurface,
     sync,
     mount,
     coveringSurface,

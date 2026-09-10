@@ -2,22 +2,22 @@
 
    `margin-layout` places, packs, docks, and measures the complete host and its transient
    control labels. Its rail claim is
-   the widest stable contribution seen over a floor of the generated marker's own margin element,
+   the widest stable contribution seen over a floor of the generated marker's own margin entry,
    and is monotonic for the document's lifetime, so neither settling an action nor taking
    one back shifts the readable column. A first contribution wider than that floor still
    widens the claim once; `reserve` is how a contribution declares that width in advance.
    A temporary contribution registers with `claim: false`: it borrows available RHS room
    and docks the complete host when it cannot fit, without moving the column on first open
    or leaving blank room after close. A stable contribution whose future primary and `…`
-   margin element is wider than its resting one declares that pixel width with `reserve`; the
+   margin entry is wider than its resting one declares that pixel width with `reserve`; the
    claim includes it before the control changes. Below the margin breakpoint the complete
    host docks into flow. Visibility and vertical placement read `shownParts` and
    `shownBox`, not the target's raw client rect: a project may set `display: contents`
    while its rendered descendants remain usable, and a collapsed target has no rendered
    part to offer.
 
-   Every live page may grow a page-edge margin element — an anchored comment can arrive on one
-   made entirely of prose — so the living margin reserves the rail as it is built and
+   Every live page may grow a page-edge margin entry — an anchored comment can arrive on one
+   made entirely of prose — so the margin projection reserves the rail as it is built and
    never gives it back. The runtime states that reservation as `data-lf-rail` on the root,
    and the cascade spends it there; neither reads what is standing in the margin, because
    a row's placement depends on the strip it would be answering about. A copy takes no
@@ -29,10 +29,10 @@
    and left with the scripts. So under that floor and on paper, where no rail is drawn, a
    copy's remaining margin contributions take the docked shape rather than the absolute seat they
    were exported into, which hangs off the page box. Not the rows that same pass withheld:
-   an item whose target is not shown wears `lf-waiting` into the file, and a shape taken
+   an item whose target is not shown wears `lf-withheld` into the file, and a shape taken
    on the medium's terms would be the only thing standing a record beside a passage the
    file was folding away when exported. Paper later unfolds that passage through CSS, but
-   a script-free copy cannot rerun the packing pass, so its serialized `lf-waiting`
+   a script-free copy cannot rerun the packing pass, so its serialized `lf-withheld`
    reading remains withheld. Changing that behavior belongs to the live and copied layouts
    together, not to this export override. */
 const rows = new Map();
@@ -67,38 +67,32 @@ const rectsOverlap = (left, right) =>
   left.top < right.bottom &&
   left.bottom > right.top;
 
-function placeMarginElementLabel(control) {
-  const label = control.querySelector(":scope > .lf-margin-element-label");
+function placeMarginEntryLabel(control) {
+  const label = control.querySelector(":scope > .lf-margin-entry-label");
   if (!label || !control.checkVisibility()) return;
-  const marginElementBox = control.getBoundingClientRect();
+  const marginEntryBox = control.getBoundingClientRect();
   const labelBox = label.getBoundingClientRect();
   const edgeAligned = Math.max(
     4,
-    Math.min(marginElementBox.right - labelBox.width, innerWidth - 4 - labelBox.width),
+    Math.min(marginEntryBox.right - labelBox.width, innerWidth - 4 - labelBox.width),
   );
   const cluster = control.closest(".lf-margin-cluster") ?? control.parentElement;
-  const clusterMarginElements = [
-    ...(cluster?.querySelectorAll(".lf-margin-element") ?? []),
+  const clusterMarginEntries = [
+    ...(cluster?.querySelectorAll(".lf-margin-entry") ?? []),
   ]
     .filter((candidate) => candidate.checkVisibility())
     .map((candidate) => candidate.getBoundingClientRect());
-  const clusterLeft = Math.min(...clusterMarginElements.map((box) => box.left));
-  const clusterRight = Math.max(...clusterMarginElements.map((box) => box.right));
-  const centered =
-    (marginElementBox.top + marginElementBox.bottom - labelBox.height) / 2;
+  const clusterLeft = Math.min(...clusterMarginEntries.map((box) => box.left));
+  const clusterRight = Math.max(...clusterMarginEntries.map((box) => box.right));
+  const centered = (marginEntryBox.top + marginEntryBox.bottom - labelBox.height) / 2;
   const candidates = [
-    labelRect("below", edgeAligned, marginElementBox.bottom + 6, labelBox),
-    labelRect(
-      "above",
-      edgeAligned,
-      marginElementBox.top - 6 - labelBox.height,
-      labelBox,
-    ),
+    labelRect("below", edgeAligned, marginEntryBox.bottom + 6, labelBox),
+    labelRect("above", edgeAligned, marginEntryBox.top - 6 - labelBox.height, labelBox),
     labelRect("after", clusterRight + 6, centered, labelBox),
     labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox),
   ];
   const blockers = [
-    ...[...document.querySelectorAll(".lf-margin-element")].filter(
+    ...[...document.querySelectorAll(".lf-margin-entry")].filter(
       (candidate) => candidate !== control && candidate.checkVisibility(),
     ),
     ...document.querySelectorAll(".lf-banner, .lf-shortcut-bar"),
@@ -119,30 +113,27 @@ function placeMarginElementLabel(control) {
   control.dataset.lfLabelSide = choice.name;
   label.style.setProperty(
     "--lf-label-x",
-    `${choice.rect.left - marginElementBox.left}px`,
+    `${choice.rect.left - marginEntryBox.left}px`,
   );
-  label.style.setProperty(
-    "--lf-label-y",
-    `${choice.rect.top - marginElementBox.top}px`,
-  );
+  label.style.setProperty("--lf-label-y", `${choice.rect.top - marginEntryBox.top}px`);
 }
 
 let labelPlacementFrame = 0;
-export function scheduleMarginElementLabels() {
+export function scheduleMarginEntryLabels() {
   if (labelPlacementFrame) return;
   labelPlacementFrame = requestAnimationFrame(() => {
     labelPlacementFrame = 0;
     for (const control of document.querySelectorAll(
-      '.lf-margin-element:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])',
+      '.lf-margin-entry:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])',
     ))
-      placeMarginElementLabel(control);
+      placeMarginEntryLabel(control);
   });
 }
 
 // Whether the page takes a margin strip at all, as distinct from how wide the strip is.
 // The width is `--rail` below and only ever grows; this says the page has taken the
 // strip, and once taken it is never given back. Claimed only while something stands in
-// it, the strip arrived with the gesture that raised the first margin element and left again
+// it, the strip arrived with the gesture that raised the first margin entry and left again
 // with the undo, and each of those moved the readable column under the reader. The
 // cascade reads this attribute rather than asking whether a row is standing, because a
 // row's own placement depends on the strip and a live question about it would feed the
@@ -189,7 +180,7 @@ export function updateMarginRow(row, options = {}) {
 
 export function unregisterMarginRow(row) {
   rows.delete(row);
-  row?.classList.remove("lf-docked", "lf-waiting");
+  row?.classList.remove("lf-docked", "lf-withheld");
   if (row) row.style.transform = "";
   if (!rows.size) {
     observer?.disconnect();
@@ -279,8 +270,8 @@ export function layoutMarginRows() {
     // `remove` re-serializes the class attribute whether or not the tokens stand, and
     // this pass runs on the heartbeat, so ask before clearing: a row that hangs in the
     // margin carries neither class and has nothing to be put back.
-    if (row.classList.contains("lf-docked") || row.classList.contains("lf-waiting"))
-      row.classList.remove("lf-docked", "lf-waiting");
+    if (row.classList.contains("lf-docked") || row.classList.contains("lf-withheld"))
+      row.classList.remove("lf-docked", "lf-withheld");
     row.style.transform = "";
   }
   if (!rows.size) {
@@ -329,12 +320,12 @@ export function layoutMarginRows() {
   const inMargin = [];
   let docked = false;
   for (const { row, options, rect, shown, hangs } of measured) {
-    if (!shown) mark(row, "lf-waiting");
+    if (!shown) mark(row, "lf-withheld");
     // A row the posture read kept docked is measured where it stands, in flow, so its
     // own rect says it fits a rail it is not in. It takes the docked path on the reading
     // that kept it, not on a measurement of somewhere it is not standing.
     else if (!hangs || staysDocked.has(row) || rect.right > room) {
-      if (options.fallback === "hide") mark(row, "lf-waiting");
+      if (options.fallback === "hide") mark(row, "lf-withheld");
       else {
         mark(row, "lf-docked");
         dockedAgainst.set(row, {

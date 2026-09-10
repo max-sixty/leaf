@@ -33,7 +33,7 @@ acknowledgement rules.
 If a turn ends without answering an acknowledged move, the next prompt hook
 carries that obligation back into context and records it as opened in the new
 turn. The page therefore resumes **handling** from that exact prompt delivery;
-the agent does not need a status write to repair the top bar.
+the agent does not need a status write to repair the banner.
 
 The initial `leaf wait` revives a dead server under its recorded lifetime and
 reports that on stderr. Its exit 2 means stderr names an ending rather than a

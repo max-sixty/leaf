@@ -15,7 +15,7 @@ const drawingIn = (payload) =>
   validDrawing(payload?.drawing) ? payload.drawing : null;
 
 export function createPanelComposer({
-  designIsOn,
+  designModeActive,
   wireInput,
   createPageComment,
   showThread,
@@ -25,7 +25,9 @@ export function createPanelComposer({
   let sync = () => {};
   let generalDrawing = drawingIn(loadDraftPayload("general"));
   const generalHint = () =>
-    designIsOn() && !generalDrawing ? "Comment on the layer" : "Comment on the page";
+    designModeActive() && !generalDrawing
+      ? "Comment on the layer"
+      : "Comment on the page";
   const syncGeneral = () => sync();
   const pageComposerDrawing = () => generalDrawing;
 
@@ -61,7 +63,7 @@ export function createPanelComposer({
           const event = { attempt };
           if (raw) event.text = raw;
           const drawing = drawingIn(payload);
-          if (designIsOn() && !drawing) event.about = "layer";
+          if (designModeActive() && !drawing) event.about = "layer";
           if (drawing) event.drawing = drawing;
           return createPageComment(event);
         });

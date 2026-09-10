@@ -68,7 +68,7 @@ customElements.define(
       }
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
-      // the shortcut reference dialog — it stays the static board the theme renders anyway.
+      // the command reference dialog — it stays the static board the theme renders anyway.
       if (quoted(this)) return;
       // Own cards only (:scope-deep would double-wire a nested board's cards).
       for (const card of this.querySelectorAll(":scope > lf-column > lf-card")) {

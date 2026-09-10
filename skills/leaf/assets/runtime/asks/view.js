@@ -44,7 +44,7 @@
    `x-request.ask`, answered or open, not from a list of ask tags. Where a
    source is nested in an `x-ask-surface` region, the row names the region: its heading,
    context, and evidence are the ask the reader is being sent to, while the source
-   remains the owner of the answer. `itemSays` supplies each row's own label and the owned
+   remains the owner of the answer. `addressableSays` supplies each row's own label and the owned
    command scope's `options.answer` supplies its current answer. Selecting a tray row
    travels through the same ask-arrival function as `a` and `A`, so the panel and
    directional walk agree about focus, reveal, arrival placement, and `landed`; only the
@@ -67,7 +67,7 @@
    3. the walk's last `landed` item;
    4. the current reading block and scroll position.
 
-   The chrome is an address, not a page position, so its controls do not become the walk's
+   The chrome is a binding badge, not a page position, so its controls do not become the walk's
    origin. `askStep` compares document positions rather than incrementing an index
    remembered by the walk. A panel thread walk may use log order because the list itself
    is its complete ordered space.
@@ -98,7 +98,7 @@
    ask keeps its centred arrival in the panel's own list. */
 
 import { shownBox, shownParts } from "../geometry.js";
-import { addressPlacement } from "../keyboard/address-placement.js";
+import { keyBadgePlacement } from "../keyboard/key-badge-placement.js";
 import {
   ariaShortcuts,
   bindings,
@@ -116,7 +116,7 @@ import {
 } from "../passages.js";
 import { scrollerFor } from "../reading-regions.js";
 import { el, reserve, reveal } from "../widget-elements.js";
-import { asksBtn, asksList, asksOffered, asksPanel, openTray } from "../trays.js";
+import { asksBtn, asksList, asksOffered, asksPanel, trayIsOpen } from "../trays.js";
 import { registry, tagsDeclaring } from "../registry.js";
 import {
   allAsks as readAllAsks,
@@ -135,19 +135,19 @@ import {
   keys,
   paintKeys,
 } from "../keyboard/scopes.js";
-import { itemSays, itemWord } from "../anchor-resolution.js";
+import { addressableSays, addressableWord } from "../anchor-resolution.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
 
-// Contextual actions for the Ask the reader is standing in. These share the address face
+// Contextual actions for the Ask the reader is standing in. These share the binding-badge face
 // but not the g sequence's lifecycle: the ask view paints them whenever its semantic
 // focus and the dispatch stack leave the contributed action row reachable.
 export function createAskView({
   panelIsOpen,
   pendingRequests,
   setPanel,
-  showTray,
+  setOpenTray,
   trayCovers,
   readableDestination,
   scrollToElement,
@@ -263,14 +263,14 @@ export function createAskView({
     // Only while the tray is up: the count above is what a closed tray says, and these
     // rows are what an open one says. A closed tray reconciling a list on every poll is
     // work for a reader who cannot see it, and rows in a document nothing can press.
-    if (openTray("asks")) renderAsks(all, unanswered);
+    if (trayIsOpen("asks")) renderAsks(all, unanswered);
     for (const { btn, label, n } of blanketAnswers(asks)) {
       const said = `${label} all (${n})`;
       if (btn.textContent !== said) btn.textContent = said;
       showNews(btn, Boolean(n));
     }
     // The a/A row stands on this list, so the surfaces reading it are repainted
-    // where it changes — the rule showFab and showTray already keep for the words
+    // where it changes — the rule showFab and setOpenTray already keep for the words
     // they write. A capability change also moves the tray edge's machine-readable keys.
     const offered = asksOffered();
     const walkOffered = asks.length > 0;
@@ -296,7 +296,7 @@ export function createAskView({
   // the ask with that id is the one the reader means.
   //
   // A row says what kind of thing is asking and then the ask's own opening words, which is
-  // itemSays — the same reading the thread panel labels an anchor with, so a row and a
+  // addressableSays — the same reading the thread panel labels an anchor with, so a row and a
   // comment on that ask say the same thing. Nothing here asks which widget it is: the kind
   // is the element's own word and the words are the element's own text, so the twelfth
   // widget gets a row that reads properly on the day it declares x-awaits.
@@ -339,7 +339,7 @@ export function createAskView({
   }
   function renderAsks(asks = allAsks(), unanswered = new Set(unansweredAsks())) {
     let anchor = null;
-    if (!openTray("asks")) {
+    if (!trayIsOpen("asks")) {
       for (const [, row] of askRowsById) row.remove();
       askRowsById.clear();
       emptyNote.remove();
@@ -380,8 +380,8 @@ export function createAskView({
       const [kind, says, answer] = row.querySelectorAll(
         ".lf-asks-kind, .lf-asks-says, .lf-asks-answer",
       );
-      const word = itemWord(ask);
-      const said = itemSays(ask) || ask.id;
+      const word = addressableWord(ask);
+      const said = addressableSays(ask) || ask.id;
       const answered = !unanswered.has(ask);
       // Written only on change: an unchanged poll must not feed the mutation stream a
       // screen reader rebuilds its buffer on.
@@ -583,7 +583,7 @@ export function createAskView({
     const reserved = new Set(
       actions.map(({ binding }) => binding).filter((binding) => binding !== null),
     );
-    // Generated addresses are bindings too. Read them through the same projection as
+    // Generated binding badges are bindings too. Read them through the same projection as
     // declared package keys so their words cannot name contextual actions the dispatcher
     // has removed.
     const contextual = bindings({
@@ -595,17 +595,17 @@ export function createAskView({
     });
   };
   // A binding with a different result is a different command. Keep each action as a
-  // route under one compact row, so the dispatcher, reference, shortcut bar, and the
+  // route under one compact row, so the dispatcher, command reference, shortcut bar, and the
   // control-facing projections all consume the same binding-to-control identity.
   const actionRoutes = () =>
     availableActions().map(
-      ({ id, control, label, address, run, resolvedBinding: binding }) => ({
+      ({ id, control, label, bindingBadge, run, resolvedBinding: binding }) => ({
         id,
         binding,
         does: `Activate the “${label}” action`,
         line: label,
         control,
-        address,
+        bindingBadge,
         run,
       }),
     );
@@ -640,15 +640,15 @@ export function createAskView({
 
   // The chips are an eye's projection of the same row, and aria-keyshortcuts is its
   // listener-facing projection on each exact action control. A widget that already owns
-  // an address face lends that face and its exact placement; other actions get chrome at
-  // the visible margin element's corner. Off-screen actions keep their working address and name
+  // a binding-badge face lends that face and its exact placement; other actions get chrome at
+  // the visible margin entry's corner. Off-screen actions keep their working badge and name
   // on the shortcut bar but wear no chip. A nearer keyboard layer suppresses the row and both
   // projections through the exact available commands, so a digit never stays
   // promised after a sequence, text box, or modal has taken it.
-  const wornAddresses = new Map();
+  const wornBindingBadges = new Map();
   const wornShortcuts = new Map();
-  function exposedAddress(address, control, visible) {
-    const whole = address.getBoundingClientRect();
+  function exposedBindingBadge(bindingBadge, control, visible) {
+    const whole = bindingBadge.getBoundingClientRect();
     if (
       ["left", "right", "top", "bottom"].some(
         (edge) => Math.abs(whole[edge] - visible[edge]) > 0.5,
@@ -663,7 +663,7 @@ export function createAskView({
       (visible.bottom - visible.top) / 4,
     );
     // An option's state control shares this slot and turns fully transparent while its
-    // address stands. It remains in the hit-test stack without covering the face.
+    // binding badge stands. It remains in the hit-test stack without covering the face.
     const transparentControl =
       Number.parseFloat(getComputedStyle(control).opacity) === 0;
     return [
@@ -675,20 +675,21 @@ export function createAskView({
     ].every(([atX, atY]) => {
       const onTop = elementFromPointAcross(atX, atY);
       return (
-        containsAcross(address, onTop) ||
+        containsAcross(bindingBadge, onTop) ||
         (transparentControl && containsAcross(control, onTop))
       );
     });
   }
-  function restoreAddress(address, { display, priority, text }) {
-    address.removeAttribute("data-lf-ask-address");
-    address.textContent = text;
-    if (display) address.style.setProperty("display", display, priority);
-    else address.style.removeProperty("display");
+  function restoreBindingBadge(bindingBadge, { display, priority, text }) {
+    bindingBadge.removeAttribute("data-lf-ask-binding-badge");
+    bindingBadge.textContent = text;
+    if (display) bindingBadge.style.setProperty("display", display, priority);
+    else bindingBadge.style.removeProperty("display");
   }
   function clearActionProjections() {
-    for (const [address, previous] of wornAddresses) restoreAddress(address, previous);
-    wornAddresses.clear();
+    for (const [bindingBadge, previous] of wornBindingBadges)
+      restoreBindingBadge(bindingBadge, previous);
+    wornBindingBadges.clear();
     for (const [control, { previous, projected }] of wornShortcuts) {
       if (control.getAttribute("aria-keyshortcuts") !== projected) continue;
       if (previous === null) control.removeAttribute("aria-keyshortcuts");
@@ -704,18 +705,22 @@ export function createAskView({
       return;
     }
     // A covering tray does not invalidate the commands or their accessible shortcuts,
-    // but it does hide the page controls that inline address faces claim to label.
-    const addressesVisible = !(openTray("asks") && trayCovers());
-    const placement = addressPlacement();
-    const addressClaims = new Map();
-    for (const { address } of routes)
-      if (address) addressClaims.set(address, (addressClaims.get(address) ?? 0) + 1);
+    // but it does hide the page controls that inline binding-badge faces claim to label.
+    const bindingBadgesVisible = !(trayIsOpen("asks") && trayCovers());
+    const placement = keyBadgePlacement();
+    const bindingBadgeClaims = new Map();
+    for (const { bindingBadge } of routes)
+      if (bindingBadge)
+        bindingBadgeClaims.set(
+          bindingBadge,
+          (bindingBadgeClaims.get(bindingBadge) ?? 0) + 1,
+        );
 
-    // Reuse a widget's page-local address where it has one. Besides preserving the
+    // Reuse a widget's page-local binding badge where it has one. Besides preserving the
     // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
     // the fixed shortcut bar above it. One face belongs to one action, and every part of
     // it must be visible on top; otherwise the ordinary core chip carries the same route.
-    for (const { binding, control, address } of routes) {
+    for (const { binding, control, bindingBadge } of routes) {
       const previousShortcut = control.getAttribute("aria-keyshortcuts");
       const projected = ariaShortcuts([{ keys: [binding] }], false).split(/\s+/);
       const projectedShortcut = [
@@ -730,35 +735,41 @@ export function createAskView({
       });
       control.setAttribute("aria-keyshortcuts", projectedShortcut);
       if (
-        !addressesVisible ||
-        !address?.isConnected ||
-        addressClaims.get(address) !== 1
+        !bindingBadgesVisible ||
+        !bindingBadge?.isConnected ||
+        bindingBadgeClaims.get(bindingBadge) !== 1
       )
         continue;
       const previous = {
-        display: address.style.getPropertyValue("display"),
-        priority: address.style.getPropertyPriority("display"),
-        text: address.textContent,
+        display: bindingBadge.style.getPropertyValue("display"),
+        priority: bindingBadge.style.getPropertyPriority("display"),
+        text: bindingBadge.textContent,
       };
-      address.setAttribute("data-lf-ask-address", "");
-      address.textContent = spell(binding);
-      address.style.display = "block";
-      const box = address.checkVisibility() && placement.visibleBox(address);
-      if (!box || !exposedAddress(address, control, box) || !placement.reserve(box)) {
-        restoreAddress(address, previous);
+      bindingBadge.setAttribute("data-lf-ask-binding-badge", "");
+      bindingBadge.textContent = spell(binding);
+      bindingBadge.style.display = "block";
+      const box = bindingBadge.checkVisibility() && placement.visibleBox(bindingBadge);
+      if (
+        !box ||
+        !exposedBindingBadge(bindingBadge, control, box) ||
+        !placement.reserve(box)
+      ) {
+        restoreBindingBadge(bindingBadge, previous);
         continue;
       }
-      wornAddresses.set(address, previous);
+      wornBindingBadges.set(bindingBadge, previous);
     }
 
     const chips = [];
-    for (const { binding, control, address } of addressesVisible ? routes : []) {
-      if (address && wornAddresses.has(address)) continue;
+    for (const { binding, control, bindingBadge } of bindingBadgesVisible
+      ? routes
+      : []) {
+      if (bindingBadge && wornBindingBadges.has(bindingBadge)) continue;
       const presented = presentedActionControl(control);
       if (!presented.checkVisibility()) continue;
       const box = placement.visibleBox(presented);
       if (!box) continue;
-      const chip = el("span", "lf-address lf-ask-address", spell(binding));
+      const chip = el("span", "lf-key-badge lf-ask-binding-badge", spell(binding));
       chip.setAttribute("aria-hidden", "true");
       chip.style.left = `${box.left}px`;
       chip.style.top = `${box.top}px`;
@@ -807,7 +818,7 @@ export function createAskView({
     // A walk that runs past the foot of an open tray leaves its mark off screen, which is
     // the tray saying nothing exactly while the reader is using it. `nearest` so a row
     // already in view moves nothing.
-    if (row && openTray("asks")) row.scrollIntoView({ block: "nearest" });
+    if (row && trayIsOpen("asks")) row.scrollIntoView({ block: "nearest" });
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
     // A control-less request can borrow its own tab stop while the broader x-ask-surface
@@ -819,7 +830,7 @@ export function createAskView({
   }
   // The place a node puts the reader in the space this walk measures against, and null where
   // it puts them outside that space. The chrome stands over the page rather than in it, and
-  // its controls are addresses the reader holds from wherever they are: a reader who pressed
+  // its controls are binding badges the reader holds from wherever they are: a reader who pressed
   // the Asks button is standing on it, so measuring from it would send the next press back to
   // the top. The layer is also appended after the page, so once the walk clamped at its edges
   // instead of wrapping, taking any of it for a place put the reader behind every ask
@@ -1064,7 +1075,7 @@ export function createAskView({
     // become the whole visible surface, so selecting a page destination closes it
     // before the reveal and focus land; otherwise the correct navigation happens
     // invisibly behind the very sheet that offered it.
-    if (!inChrome(next) && openTray("asks") && trayCovers()) showTray(null);
+    if (!inChrome(next) && trayIsOpen("asks") && trayCovers()) setOpenTray(null);
     reveal(next); // a settled group or an inactive tab has no geometry until it opens
     const source = askSource(next);
     if (source !== next) reveal(source); // let the answering widget settle its own chrome

@@ -28,7 +28,7 @@ import {
   once,
   paintKeys,
   quoted,
-  registerArrangedElement,
+  registerReadingElement,
   reserve,
   says,
   sendAction,
@@ -63,7 +63,7 @@ customElements.define(
     #projected = undefined;
     #ready = false;
     #interactive = false;
-    #arrangements = [];
+    #readingArrangements = [];
 
     connectedCallback() {
       if (!once(this)) {
@@ -372,7 +372,7 @@ customElements.define(
       const controlsId = compoundReadingRegionId(this, "controls");
       const controls = arrangeReadingElement({
         owner: controlsHost,
-        kind: "pane",
+        role: "pane",
         header: presetBar,
         regions: [{ id: controlsId, host: controlsHost }],
       });
@@ -385,7 +385,7 @@ customElements.define(
       const previewId = compoundReadingRegionId(this, "preview");
       const previewRegion = arrangeReadingElement({
         owner: previewHost,
-        kind: "pane",
+        role: "pane",
         regions: [{ id: previewId, host: previewHost }],
       });
 
@@ -393,26 +393,26 @@ customElements.define(
       split.className = "lf-playground-split";
       split.dataset.lfDirection = "columns";
       split.append(controlsHost, previewHost);
-      const splitRegion = arrangeReadingElement({ owner: split, kind: "split" });
+      const splitRegion = arrangeReadingElement({ owner: split, role: "partition" });
 
       this.append(split, actions);
       const workspace = arrangeReadingElement({
         owner: this,
-        kind: "workspace",
+        role: "workspace",
         footer: actions,
       });
-      this.#arrangements = [
-        controls.arrangement,
-        previewRegion.arrangement,
-        splitRegion.arrangement,
-        workspace.arrangement,
+      this.#readingArrangements = [
+        controls.readingArrangement,
+        previewRegion.readingArrangement,
+        splitRegion.readingArrangement,
+        workspace.readingArrangement,
       ];
     }
 
     #registerLayout() {
       const workspaceContent = this.querySelector(":scope > .lf-workspace-content");
       const split = workspaceContent?.querySelector(":scope > .lf-playground-split");
-      const splitContent = split?.querySelector(":scope > .lf-split-content");
+      const splitContent = split?.querySelector(":scope > .lf-partition-content");
       const controlsHost = splitContent?.querySelector(
         ":scope > .lf-playground-controls-region",
       );
@@ -427,8 +427,8 @@ customElements.define(
       const previewBody = previewHost.querySelector(
         ":scope > .lf-pane-content > .lf-pane-body",
       );
-      this.#arrangements = [
-        registerArrangedElement({
+      this.#readingArrangements = [
+        registerReadingElement({
           owner: controlsHost,
           content: controlsHost.querySelector(":scope > .lf-pane-content"),
           body: controlsBody,
@@ -439,7 +439,7 @@ customElements.define(
             },
           ],
         }),
-        registerArrangedElement({
+        registerReadingElement({
           owner: previewHost,
           content: previewHost.querySelector(":scope > .lf-pane-content"),
           body: previewBody,
@@ -450,14 +450,15 @@ customElements.define(
             },
           ],
         }),
-        registerArrangedElement({ owner: split, content: splitContent }),
-        registerArrangedElement({ owner: this, content: workspaceContent }),
+        registerReadingElement({ owner: split, content: splitContent }),
+        registerReadingElement({ owner: this, content: workspaceContent }),
       ];
     }
 
     #cleanupLayout() {
-      for (const arrangement of this.#arrangements) arrangement.cleanup();
-      this.#arrangements = [];
+      for (const readingArrangement of this.#readingArrangements)
+        readingArrangement.cleanup();
+      this.#readingArrangements = [];
     }
 
     #commands() {

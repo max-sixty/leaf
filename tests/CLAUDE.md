@@ -152,7 +152,7 @@ geometry, including a later sibling that must not carry an old divider inside it
 The band has two carriers: `--here-ring`, the outline
 nearly every rule draws, and `--here-shadow`, the same band cast as a shadow by
 the two boxes that cannot spend an outline on it — the anchored response bar and
-the item hint the keyboard is browsing. A shadow ring is the layer's spread with
+the target hint the keyboard is browsing. A shadow ring is the layer's spread with
 no offsets and no blur, and its outset is that spread, where an outline's is its
 width and offset. Each rule names the ring it draws in `--lf-here-ring`, so
 the population the floor divides by is read off the page's composed stylesheets,

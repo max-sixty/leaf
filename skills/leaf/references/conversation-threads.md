@@ -29,7 +29,7 @@ surface for evidence, comparisons, and detailed reasoning. Give the reader
 enough context to know what changed or where to look without retelling the page.
 
 A browser comment may carry a drawing that continues across the page. A mark begun over
-or in the margin beside a semantic item anchors there; one begun where no item shares its
+or in the margin beside an addressable element anchors there; one begun where no addressable element shares its
 line belongs to the page whole. Treat it as visual evidence for that ordinary thread:
 inspect the stroke on the live page, use any accompanying text, and reply or revise through
 the same path as any other comment.

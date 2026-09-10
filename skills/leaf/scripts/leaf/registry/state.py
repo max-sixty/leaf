@@ -11,7 +11,9 @@ from .contract import (
 )
 
 
-def validate_widget_state_relations(tag: str, entry: dict, widgets: dict, path) -> None:
+def validate_widget_state_relations(
+    tag: str, entry: dict, declarations: dict, path
+) -> None:
     # A facet is one independently standing fact. Every way of stating that
     # fact therefore agrees on what it folds over and how authored markup can
     # record it. The name itself remains local to the tag: two widget families
@@ -41,7 +43,7 @@ def validate_widget_state_relations(tag: str, entry: dict, widgets: dict, path) 
             )
 
     # Eligibility reuses the one awaiting projection. Close the target relation here:
-    # self and every permitted holder must declare a local decision or aggregate-only
+    # self and every permitted owner must declare a local decision or aggregate-only
     # rollup. Runtime evaluators then neither guess a widget family nor maintain a
     # second representation of whether descendant reader work remains open.
     for verb, spec in entry.get("x-state", {}).items():
@@ -62,21 +64,21 @@ def validate_widget_state_relations(tag: str, entry: dict, widgets: dict, path) 
                     f"`{field}` must be optional"
                 )
             child_tag = creates["child"]
-            child = widgets.get(child_tag)
+            child = declarations.get(child_tag)
             if child is None:
                 raise RegistryError(
                     f"{path}: <{tag}> x-state verb `{verb}` creates unknown child "
                     f"<{child_tag}>"
                 )
-            if tag not in child.get("x-parent", []):
+            if tag not in child.get("x-owners", []):
                 raise RegistryError(
                     f"{path}: <{tag}> x-state verb `{verb}` creates <{child_tag}>, "
-                    "whose x-parent does not admit the sender"
+                    "whose x-owners does not admit the sender"
                 )
-            if child.get("x-content") != "prose":
+            if child.get("x-content") != "markup":
                 raise RegistryError(
                     f"{path}: <{tag}> x-state verb `{verb}` creates <{child_tag}>, "
-                    "which must declare x-content prose"
+                    "which must declare x-content markup"
                 )
             if set(child.get("required", [])) != {"id"}:
                 raise RegistryError(
@@ -97,20 +99,20 @@ def validate_widget_state_relations(tag: str, entry: dict, widgets: dict, path) 
         if not requirement:
             continue
         target_tags = (
-            [tag] if requirement["target"] == "self" else entry.get("x-parent", [])
+            [tag] if requirement["target"] == "self" else entry.get("x-owners", [])
         )
         if not target_tags:
             raise RegistryError(
-                f"{path}: <{tag}> x-state verb `{verb}` requires its parent, "
-                f"but <{tag}> declares no x-parent"
+                f"{path}: <{tag}> x-state verb `{verb}` requires its owner, "
+                f"but <{tag}> declares no x-owners"
             )
         if not all(
-            widgets[target].get("x-awaits") is not None for target in target_tags
+            declarations[target].get("x-awaits") is not None for target in target_tags
         ):
             missing = sorted(
                 target
                 for target in target_tags
-                if widgets[target].get("x-awaits") is None
+                if declarations[target].get("x-awaits") is None
             )
             raise RegistryError(
                 f"{path}: <{tag}> x-state verb `{verb}` requires "
@@ -120,8 +122,8 @@ def validate_widget_state_relations(tag: str, entry: dict, widgets: dict, path) 
         idless = sorted(
             target
             for target in target_tags
-            if requirement["target"] == "parent"
-            and "id" not in widgets[target].get("required", [])
+            if requirement["target"] == "owner"
+            and "id" not in declarations[target].get("required", [])
         )
         if idless:
             raise RegistryError(
@@ -158,7 +160,7 @@ def validate_widget_record_contracts(
     entry: dict,
     properties: dict,
     said: set,
-    widgets: dict,
+    declarations: dict,
     path,
 ) -> None:
     # One rule set for both channels: x-state and x-report differ in
@@ -173,18 +175,18 @@ def validate_widget_record_contracts(
             fields.append(record["value"])
             if record["kind"] == "position":
                 fields.append(record["order"])
-                if record["within"] not in widgets:
+                if record["within"] not in declarations:
                     raise RegistryError(
                         f"{path}: <{tag}> {channel} verb `{verb}` records a "
                         f"position within unknown widget <{record['within']}>"
                     )
                 if spec["unit"] == "widget" and record["within"] not in entry.get(
-                    "x-parent", []
+                    "x-owners", []
                 ):
                     raise RegistryError(
                         f"{path}: <{tag}> {channel} verb `{verb}` records "
                         f"its own position within <{record['within']}>, which "
-                        "its x-parent does not admit"
+                        "its x-owners does not admit"
                     )
             if record["kind"] == "body":
                 if entry.get("x-content") != "data":
@@ -195,8 +197,8 @@ def validate_widget_record_contracts(
                     )
                 nested = sorted(
                     child
-                    for child, child_entry in widgets.items()
-                    if tag in child_entry.get("x-parent", [])
+                    for child, child_entry in declarations.items()
+                    if tag in child_entry.get("x-owners", [])
                 )
                 if nested:
                     raise RegistryError(
@@ -341,10 +343,10 @@ def validate_widget_record_contracts(
 
 
 def validate_widget_retirement(
-    tag: str, entry: dict, slots: dict, widgets: dict, path
+    tag: str, entry: dict, slots: dict, declarations: dict, path
 ) -> None:
     # Withdrawal is the author taking an unanswered question back, and the
-    # entry says which of its own outcomes that leaves the page in
+    # declaration says which of its own outcomes that leaves the page in
     # (retirable_ids). A verb no slot of this widget retires under would
     # license nothing but the wrapper, so the withdrawal it promises would
     # fail as "ids dropped" on the version that tried it — the misdeclaration
@@ -358,45 +360,45 @@ def validate_widget_retirement(
     retired = entry.get("x-retired-when")
     if retired is None:
         return
-    # Every holder, not the first: a slot that retires on its parent's verb has
-    # to retire whichever parent it was written in, or it would be settled under
+    # Every owner, not the first: a slot that retires on its owner's verb has
+    # to retire whichever owner it was written in, or it would be settled under
     # one and undecidable under another.
-    for parent in entry["x-parent"]:
-        parent_state = widgets[parent].get("x-state", {})
-        if retired not in parent_state:
+    for owner in entry["x-owners"]:
+        owner_state = declarations[owner].get("x-state", {})
+        if retired not in owner_state:
             raise RegistryError(
                 f"{path}: <{tag}> x-retired-when `{retired}` is invalid: "
-                f"<{parent}> does not declare that x-state verb"
+                f"<{owner}> does not declare that x-state verb"
             )
-        if parent_state[retired]["unit"] != "widget":
+        if owner_state[retired]["unit"] != "widget":
             raise RegistryError(
                 f"{path}: <{tag}> x-retired-when `{retired}` must fold by widget"
             )
 
 
-def validate_retirement_facets(slots: dict, widgets: dict, path) -> None:
-    # A holder's retired slots are halves of one decision; outcomes on different
+def validate_retirement_facets(slots: dict, declarations: dict, path) -> None:
+    # An owner's retired slots are halves of one decision; outcomes on different
     # facets could stand at once, leaving no single settlement to render.
-    for holder, outcomes in slots.items():
-        state = widgets[holder]["x-state"]
+    for owner, outcomes in slots.items():
+        state = declarations[owner]["x-state"]
         facets = {state[outcome]["facet"] for outcome in outcomes}
         if len(facets) > 1:
             mapping = ", ".join(
                 f"`{outcome}` → `{state[outcome]['facet']}`" for outcome in outcomes
             )
             raise RegistryError(
-                f"{path}: <{holder}> x-retired-when outcomes span facets "
-                f"({mapping}); every retirement outcome for one holder must "
+                f"{path}: <{owner}> x-retired-when outcomes span facets "
+                f"({mapping}); every retirement outcome for one owner must "
                 "share one facet"
             )
 
 
-def validate_awaiting_units(widgets: dict, path) -> None:
+def validate_awaiting_units(declarations: dict, path) -> None:
     # Asked only after the record and retirement gates above have reported their
     # more fundamental structural errors. An answer may record its complete result
     # either on the widget or on a detail-named part: the projection identifies the
     # answer by owner and verb, while its declared coordinate owns durable replay.
-    for tag, entry in widgets.items():
+    for tag, entry in declarations.items():
         answers = (entry.get("x-awaits") or {}).get("answers", [])
         until = (entry.get("x-awaits") or {}).get("until")
         completion_verbs = set(answers)
@@ -433,16 +435,16 @@ def validate_awaiting_units(widgets: dict, path) -> None:
                 )
             empty = completion["empty"]
             within = empty["within"]
-            container = widgets.get(within)
+            container = declarations.get(within)
             if container is None:
                 raise RegistryError(
                     f"{path}: <{tag}> x-state verb `{verb}` completion names "
                     f"unknown container <{within}>"
                 )
-            if container.get("x-content") != "items":
+            if container.get("x-content") != "members":
                 raise RegistryError(
                     f"{path}: <{tag}> x-state verb `{verb}` completion names "
-                    f"<{within}>, whose x-content is not items"
+                    f"<{within}>, whose x-content is not members"
                 )
             properties = container.get("properties", {})
             mutable = {
@@ -484,29 +486,29 @@ def validate_awaiting_units(widgets: dict, path) -> None:
                 "require their own decision to be closed, so they cannot "
                 "complete it"
             )
-        parent_circular = sorted(
+        owner_circular = sorted(
             verb
             for verb in completion_verbs
             if (entry["x-state"][verb].get("requires") or {})
-            == {"target": "parent", "awaiting": False}
+            == {"target": "owner", "awaiting": False}
         )
-        aggregate_parents = sorted(
-            parent
-            for parent in entry.get("x-parent", [])
-            if (widgets[parent].get("x-awaits") or {}).get("rollup")
+        aggregate_owners = sorted(
+            owner
+            for owner in entry.get("x-owners", [])
+            if (declarations[owner].get("x-awaits") or {}).get("rollup")
         )
-        if parent_circular and aggregate_parents:
+        if owner_circular and aggregate_owners:
             raise RegistryError(
-                f"{path}: <{tag}> x-awaits completion verbs {parent_circular} "
-                f"require aggregate parents {aggregate_parents} to be closed, "
+                f"{path}: <{tag}> x-awaits completion verbs {owner_circular} "
+                f"require aggregate owners {aggregate_owners} to be closed, "
                 "so they cannot complete it"
             )
 
 
 def retirement_slots(registry: dict) -> dict:
-    """holder tag → {outcome verb → the tags that leave the page under it}: every
-    holder/slot pair `x-retired-when` relates, the slot naming the outcome and
-    `x-parent` the widgets whose decision reaches it. Read out of the merged
+    """owner tag → {outcome verb → the tags that leave the page under it}: every
+    owner/member pair `x-retired-when` relates, the member naming the outcome and
+    `x-owners` the widgets whose decision reaches it. Read out of the merged
     registry rather than known here, so which widgets a decision settles is a
     fact about this page's vocabulary and never a list in the code."""
     slots = {}
@@ -514,6 +516,6 @@ def retirement_slots(registry: dict) -> dict:
         if not tag.startswith("lf-") or not entry.get("x-retired-when"):
             continue
         outcome = entry["x-retired-when"]
-        for holder in entry["x-parent"]:
-            slots.setdefault(holder, {}).setdefault(outcome, []).append(tag)
+        for owner in entry["x-owners"]:
+            slots.setdefault(owner, {}).setdefault(outcome, []).append(tag)
     return slots

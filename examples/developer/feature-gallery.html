@@ -28,7 +28,7 @@
       }
 
       #bg-playground-card {
-        --lf-frame: 1;
+        --lf-block-frame: 1;
         --bg-playground-card-ink: var(--ink);
         --bg-playground-card-muted: var(--muted);
         --bg-playground-card-surface: var(--card);
@@ -171,7 +171,7 @@
       }
 
       .bg-target-card {
-        --lf-frame: 1;
+        --lf-block-frame: 1;
         min-width: 0;
         padding: var(--sp-3);
         border: 1px solid var(--border-2);
@@ -388,9 +388,9 @@
         <lf-toc id="bg-contents" max-level="2"></lf-toc>
       </aside>
       <p id="bg-start">
-        Use the contents spine or Map to find a feature; each eyebrow lists its element
-        names. Leaf puts circular controls and status indicators at page edges. Hover
-        over one for its label, or Tab into a group and use ← / → and Enter. Press
+        Use the contents spine or Page Map to find a feature; each eyebrow lists its
+        element names. Leaf puts circular controls and status indicators at page edges.
+        Hover over one for its label, or Tab into a group and use ← / → and Enter. Press
         <kbd>a</kbd> to move through Asks. Changes persist on reload.
       </p>
 
@@ -418,13 +418,12 @@
           </lf-options>
         </lf-ask>
         <p id="bg-core-controls-guide">
-          The top bar also shows <strong>Threads</strong>, the
-          <strong>Versions</strong> menu, <strong>Map</strong> (<kbd>g</kbd> then
-          <kbd>Shift+M</kbd>), <strong>All keyboard shortcuts</strong> (<kbd>?</kbd>
-          twice), and <strong>All leaves</strong> when another Leaf page is live. A
-          quiet status line at the bottom right reports the current keyboard walk or a
-          useful command result. It moves above the bottom-left shortcuts when room is
-          tight.
+          The banner also shows <strong>Threads</strong>, the
+          <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd> then
+          <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd> twice),
+          and <strong>All leaves</strong> when another Leaf page is live. A quiet status
+          line at the bottom right reports the current keyboard walk or a useful command
+          result. It moves above the bottom-left shortcuts when room is tight.
         </p>
       </section>
 
@@ -495,7 +494,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-draft>
         <p id="bg-history-guide">
           <strong>Picked up</strong> means the saved edit entered an agent turn. The
-          receipt and top bar derive their words from the same delivery, turn, and work
+          receipt and banner derive their words from the same delivery, turn, and work
           evidence.
         </p>
         <lf-draft id="bg-history">
@@ -531,8 +530,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
         <p id="bg-resolved-text">
           <strong>A resolved conversation.</strong> The room has a projector. Its
-          earlier question is resolved. Open Threads in the top bar, select Resolved,
-          and try Reopen to bring its Thread control back to the page.
+          earlier question is resolved. Open Threads in the banner, select Resolved, and
+          try Reopen to bring its Thread control back to the page.
         </p>
         <p id="bg-new-thread">
           <strong>A clean passage.</strong> Select some of these words, or Alt-click
@@ -579,26 +578,26 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-margin-controls">
         <p class="eyebrow bg-feature-elements">
-          lf-margin-element-gallery · Action control · Disclosure control · Status
+          lf-margin-entry-gallery · Action control · Disclosure control · Status
           indicator · Lifecycle state · lf-suggestion
         </p>
         <h2>
-          <strong>Margin controls and status indicators</strong
-          ><span class="bg-feature-detail">: every role, tone, and state</span>
+          <strong>Margin entries</strong
+          ><span class="bg-feature-detail">: every rank, tone, and state</span>
         </h2>
         <p id="bg-margin-controls-guide">
-          <strong>Everything visible at once.</strong> The first row holds every role
+          <strong>Everything visible at once.</strong> The first row holds every rank
           and all three behaviors and tones. The second fixes every lifecycle state in
           place. Only busy paints a mark, because only busy has nothing else on the page
           saying it; engaged and failed still rank within the cluster and hold it open.
           These inert specimens use the same constructor and stylesheet as the live
           controls and status indicators.
         </p>
-        <lf-margin-element-gallery
+        <lf-margin-entry-gallery
           id="bg-margin-controls-specimens"
-        ></lf-margin-element-gallery>
+        ></lf-margin-entry-gallery>
         <h3>
-          <strong>Margin control lifecycle</strong
+          <strong>Margin entry lifecycle</strong
           ><span class="bg-feature-detail">: act, fail, settle, and hand off</span>
         </h3>
         <p id="bg-margin-control-workflow-guide">
@@ -648,7 +647,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           ><span class="bg-feature-detail">: answers in context</span>
         </h2>
         <p id="bg-readings-guide">
-          A recorded answer stays visible in the widget that owns it; the page map adds
+          A recorded answer stays visible in the widget that owns it; the Page Map adds
           no second status.
         </p>
         <lf-ask id="bg-outcome-ask">
@@ -704,9 +703,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </h3>
           <p id="bg-drawing-comments-guide">
             Press <kbd>w</kbd> and draw anywhere across the page. Start over this guide
-            or in its margin to anchor the comment here; empty space with no item
-            alongside comments on the page whole. Send the drawing alone or add words
-            first.
+            or in its margin to anchor the comment here; empty space with no addressable
+            element alongside comments on the page whole. Send the drawing alone or add
+            words first.
           </p>
         </section>
 
@@ -721,11 +720,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           <p id="bg-kept-draft-guide">
             Select a few words here, press <kbd>c</kbd>, and type a sentence without
             sending it. Press <kbd>Escape</kbd>: the box goes, the words stay, and a
-            notice names the address that returns to them. Scroll somewhere else, then
-            press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels back to this
-            passage and reopens the box on the sentence. That destination stands in the
-            sequence only while a kept draft does, so pressing <kbd>g</kbd> with nothing
-            written offers no such place to go.
+            notice names the destination that returns to them. Scroll somewhere else,
+            then press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels back to
+            this passage and reopens the box on the sentence. That destination stands in
+            the sequence only while a kept draft does, so pressing <kbd>g</kbd> with
+            nothing written offers no such place to go.
           </p>
         </section>
 
@@ -778,7 +777,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-external-data">
-        <p class="eyebrow bg-feature-elements">lf-diff · lf-source · lf-num</p>
+        <p class="eyebrow bg-feature-elements">lf-diff · lf-text-document · lf-num</p>
         <h2>
           <strong>External data</strong
           ><span class="bg-feature-detail"
@@ -805,9 +804,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </section>
 
         <section id="bg-source-captures">
-          <p class="eyebrow bg-feature-elements">lf-source</p>
+          <p class="eyebrow bg-feature-elements">lf-text-document</p>
           <h3>
-            <strong>Source</strong
+            <strong>Text document</strong
             ><span class="bg-feature-detail">: live and captured data</span>
           </h3>
           <p id="bg-source-guide">
@@ -815,18 +814,18 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             capture. Their captions show the file, capture label, and line range.
           </p>
           <p><strong>Live binding.</strong></p>
-          <lf-source
+          <lf-text-document
             id="bg-source-live"
             source="gallery-source"
             language="toml"
-          ></lf-source>
+          ></lf-text-document>
           <p><strong>Captured snapshot.</strong></p>
-          <lf-source
+          <lf-text-document
             id="bg-source-snapshot"
             source="gallery-source"
             snapshot="1"
             language="toml"
-          ></lf-source>
+          ></lf-text-document>
         </section>
 
         <section id="bg-measurement-lag">
@@ -1042,16 +1041,15 @@ gallery/
 
         <section id="bg-plans-and-history">
           <p class="eyebrow bg-feature-elements">
-            lf-milestones · lf-milestone · lf-timeline · lf-event
+            lf-milestones · lf-milestone · lf-chronology · lf-chronology-entry
           </p>
           <h3>
-            <strong>Milestones</strong>, <strong>Timeline</strong>, and
-            <strong>Events</strong
+            <strong>Milestones</strong> and <strong>Chronology</strong
             ><span class="bg-feature-detail">: state and history</span>
           </h3>
           <p id="bg-plans-guide">
-            Milestones show planned, active, and completed work. A Timeline orders
-            Events by time.
+            Milestones show planned, active, and completed work. A Chronology orders
+            entries by time.
           </p>
           <lf-milestones id="bg-milestones">
             <lf-milestone id="bg-milestone-survey" status="done" when="morning">
@@ -1069,23 +1067,27 @@ gallery/
               <strong>Write the note</strong>
             </lf-milestone>
           </lf-milestones>
-          <lf-timeline id="bg-timeline">
-            <lf-event id="bg-event-alert" at="09:14" kind="warning">
+          <lf-chronology id="bg-chronology">
+            <lf-chronology-entry id="bg-chronology-alert" at="09:14" kind="warning">
               <strong>Rain started</strong> The open path became slippery.
-            </lf-event>
-            <lf-event id="bg-event-closed" at="09:18" kind="failure">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="bg-chronology-closed" at="09:18" kind="failure">
               <strong>Path closed</strong> Standing water blocked the crossing.
-            </lf-event>
-            <lf-event id="bg-event-switch" at="09:20" kind="action">
+            </lf-chronology-entry>
+            <lf-chronology-entry
+              id="bg-chronology-switch"
+              at="09:20"
+              kind="intervention"
+            >
               <strong>Route changed</strong> The sample moved under cover.
-            </lf-event>
-            <lf-event id="bg-event-clear" at="09:42" kind="info">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="bg-chronology-clear" at="09:42" kind="observation">
               <strong>Walk resumed</strong>
-            </lf-event>
-          </lf-timeline>
+            </lf-chronology-entry>
+          </lf-chronology>
         </section>
 
-        <section id="bg-workstream-tabs">
+        <section id="bg-tab-set">
           <p class="eyebrow bg-feature-elements">lf-tabs · lf-tab</p>
           <h3>
             <strong>Tabs</strong
@@ -1512,7 +1514,7 @@ gallery/
               </div>
               <figcaption>
                 The pointer presses the real top-bar control inside a compact Leaf page;
-                the production Threads workspace opens and closes without changing this
+                the production Threads panel opens and closes without changing this
                 gallery page.
               </figcaption>
             </figure>
@@ -1557,19 +1559,19 @@ gallery/
       </section>
 
       <section id="bg-layout-family">
-        <p class="eyebrow bg-feature-elements">lf-workspace · lf-pane · lf-split</p>
+        <p class="eyebrow bg-feature-elements">lf-workspace · lf-pane · lf-partition</p>
         <h2>
           <strong>Workspace regions</strong
           ><span class="bg-feature-detail">: nested reading areas</span>
         </h2>
         <p id="bg-layout-guide">
           This workspace is embedded in a document, so its list, detail regions, and
-          action footer stay in document flow. The same pane and split markup can divide
-          a root workspace into columns and rows when the window has room.
+          action footer stay in document flow. The same pane and partition markup can
+          divide a root workspace into columns and rows when the window has room.
         </p>
         <lf-workspace id="bg-layout-workspace">
           <header><h3>Release candidate review</h3></header>
-          <lf-split id="bg-layout-columns" direction="columns">
+          <lf-partition id="bg-layout-columns" direction="columns">
             <lf-pane id="bg-layout-list" label="Changes">
               <header><h4>Changes</h4></header>
               <lf-tabs id="bg-layout-tabs">
@@ -1591,7 +1593,7 @@ gallery/
               </lf-tabs>
             </lf-pane>
 
-            <lf-split id="bg-layout-rows" direction="rows">
+            <lf-partition id="bg-layout-rows" direction="rows">
               <lf-pane id="bg-layout-evidence" label="Evidence">
                 <header><h4>Evidence</h4></header>
                 <article id="bg-layout-article">
@@ -1637,8 +1639,8 @@ switch --readers checkout-api,orders-api</code></pre>
                   </lf-ask>
                 </footer>
               </lf-pane>
-            </lf-split>
-          </lf-split>
+            </lf-partition>
+          </lf-partition>
         </lf-workspace>
       </section>
 

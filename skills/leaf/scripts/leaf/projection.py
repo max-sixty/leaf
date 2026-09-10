@@ -144,7 +144,7 @@ def enclosing_slot(rec: dict, registry: dict):
         if (
             entry.get("x-retired-when")
             and holder
-            and holder["tag"] in entry["x-parent"]
+            and holder["tag"] in entry["x-owners"]
         ):
             return node, holder
     return None
@@ -279,7 +279,7 @@ def action_subjects(event: dict, byid: dict, within: dict, registry: dict) -> li
     An action names the widget that sent it, but on a container that is rarely
     the thing decided: a `move` names the board and carries {card, to, index}, a
     `choose` names the group and carries {option}. So the subjects are the parts
-    of the widget its detail points at, minus containers (x-content "items") —
+    of the widget its detail points at, minus containers (x-content "members") —
     the column a card landed in is where the decision *put* it, not what it was
     about, and holding a version to a column's contents would refuse it for
     adding an unrelated card. Where a detail names no part of the widget (an
@@ -294,7 +294,7 @@ def action_subjects(event: dict, byid: dict, within: dict, registry: dict) -> li
     subjects = [
         v
         for v in parts
-        if registry.get(byid.get(v, {}).get("tag"), {}).get("x-content") != "items"
+        if registry.get(byid.get(v, {}).get("tag"), {}).get("x-content") != "members"
     ]
     return subjects or [widget]
 
@@ -444,7 +444,7 @@ def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
 
 
 def recorded_owner(unit: str, byid: dict, spk: dict, registry: dict):
-    """The nearest enclosing widget whose registry entry records state."""
+    """The nearest enclosing widget whose element declaration records state."""
     for candidate in reversed(spk.get(unit, EMPTY).within):
         rec = byid.get(candidate)
         entry = registry.get(rec["tag"], {}) if rec else {}
@@ -523,7 +523,7 @@ def page_reading(html: str, events: list, registry: dict, revision: int) -> Page
 
 def rewritten_bodies(actions: dict) -> dict:
     """id → (verb, text): the user's standing rewrite of each element whose
-    registry entry records a verb as the body (x-state record kind "body"), as
+    element declaration records a verb as the body (x-state record kind "body"), as
     replay leaves it. The action projection is read here for the one record kind
     whose state is words rather than markup, so the passage reading can hold
     those words where the authored body was."""

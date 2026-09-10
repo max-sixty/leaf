@@ -131,7 +131,7 @@ or interrupted turn gets a failure reply instead, and a completed turn with no m
 at all gets a completed-without-reply receipt.
 
 The container pins the Codex version its App Server protocol was tested against and
-runs `gpt-5.6-luna` without a reasoning phase. The per-reader Cloudflare Container is the
+runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the
 tool sandbox: nested bubblewrap namespaces are unavailable in that environment, and
 the model has no durable or cross-reader filesystem to reach. Public internet is off.
 The container receives only a dummy OpenAI credential; a trusted Cloudflare outbound

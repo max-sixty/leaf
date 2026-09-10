@@ -3911,6 +3911,13 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert geometry["resolve"]["right"] <= geometry["close"]["left"] - 3, geometry
     assert geometry["messageHead"]["top"] - geometry["head"]["bottom"] < 24
     reply_button.click()
+    expect(preview.locator("textarea")).to_be_visible()
+    page.locator("h1").click()
+    expect(preview).to_be_hidden()
+    marker.click()
+    expect(reply_button).to_be_visible()
+    expect(preview.locator("textarea")).to_be_hidden()
+    reply_button.click()
     expect(reply_button).to_be_hidden()
     expect(preview.locator("textarea")).to_be_focused()
     expect(preview.locator("textarea")).to_be_visible()
@@ -4285,6 +4292,18 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     next_conversation = preview.get_by_role("button", name="Next conversation")
     expect(previous).to_be_disabled()
     expect(next_conversation).to_be_enabled()
+    disabled_style = previous.evaluate(
+        "button => [getComputedStyle(button).backgroundColor, "
+        "getComputedStyle(button).color]"
+    )
+    previous.hover()
+    assert (
+        previous.evaluate(
+            "button => [getComputedStyle(button).backgroundColor, "
+            "getComputedStyle(button).color]"
+        )
+        == disabled_style
+    )
     expect(preview).to_contain_text(COMMENT_ON_ASK["text"])
     next_conversation.click()
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("2 of 2")

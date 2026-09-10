@@ -1747,7 +1747,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview-position { margin-inline-end: 2px; }
   .lf-margin-preview-step { --lf-icon-action-hit: 28px; border: 0;
     background: transparent; color: var(--muted); }
-  .lf-margin-preview-step:hover { background: var(--chip); color: var(--ink); }
+  .lf-margin-preview-step:not(:disabled):hover { background: var(--chip);
+    color: var(--ink); }
   .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 10px; }
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }

@@ -631,7 +631,7 @@ export function createSelectionComposer({
           shouldLand && !panelIsOpen()
             ? openInlineThread(sent.id, transition, (thread) => {
                 const reply = thread.querySelector("textarea");
-                reply.lfRevealReply?.();
+                reply?.lfRevealReply?.();
                 landTyping(reply, composerInput);
               })
             : null;

@@ -2579,8 +2579,6 @@ export function createMarginProjection({
   function closePreview(returnFocus = false) {
     clearThreadTransition();
     const button = previewMarginEntry;
-    for (const reply of previewList.querySelectorAll("textarea"))
-      reply.lfCollapseReply?.();
     pinnedKey = null;
     forcedInlineKey = null;
     forcedInlineOptionsKey = null;
@@ -2819,6 +2817,8 @@ export function createMarginProjection({
     preview.addEventListener("focusin", keepThreadPreviewFocusVisible);
     preview.addEventListener("toggle", (event) => {
       if (event.newState !== "closed") return;
+      for (const reply of previewList.querySelectorAll("textarea"))
+        reply.lfCollapseReply?.();
       clearThreadTransition();
       if (!previewEntry) return;
       const button = previewMarginEntry;

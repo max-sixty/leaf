@@ -420,8 +420,7 @@ customElements.define(
     #defaultName(element) {
       const words = normalizedWords(
         element.getAttribute("aria-label") ||
-          element.querySelector(":scope > :is(h1, h2, h3, h4, h5, h6)")
-            ?.textContent ||
+          element.querySelector(":scope > :is(h1, h2, h3, h4, h5, h6)")?.textContent ||
           element.querySelector(":scope > strong")?.textContent ||
           element.id ||
           says(element),
@@ -532,9 +531,7 @@ customElements.define(
           if (!value) return;
           target.name = value;
           for (const select of [this.#styleTarget, this.#instructionTarget]) {
-            const targetOption = select.querySelector(
-              `option[value="${target.key}"]`,
-            );
+            const targetOption = select.querySelector(`option[value="${target.key}"]`);
             if (targetOption) targetOption.textContent = value;
           }
           this.#dirty = true;

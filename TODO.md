@@ -62,6 +62,11 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Name the keyboard's visible carriers once the command-route model settles.** Add
+  *key badge* and *binding badge* to the developer glossary, then cut code, docs, and
+  tests over. A key badge carries a binding or transient hint code; a binding badge is
+  a key badge showing a currently resolved command binding.
+
 - **Add a foreground path for other agent hosts.** Document a blocking `leaf wait` flow
   for any host that can run a command, then use that experience to define a shared host
   adapter only if another integration needs it.

@@ -263,6 +263,8 @@ const anchorControls = createAnchorControls({
   invalidatePageGeometry: pageGeometry.invalidate,
   messageReferenceRoot: panel,
   draftQuote: composerQuote,
+  presentedControl: (control) => app.margin.presentedControl(control),
+  focused,
 });
 
 const version = createVersionController({

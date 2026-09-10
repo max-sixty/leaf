@@ -82,7 +82,7 @@ host and control selector;
 `runtime/projection-watch.js` owns the lifetime-bound invalidation subscription shared
 by the public semantic projection watchers;
 `runtime/composing/capture.js` owns selection capture and snapping;
-`runtime/composing/surface.js` owns floating comment geometry, item comment entry,
+`runtime/composing/surface.js` owns floating comment geometry, addressable-element comment entry,
 and page-click routing;
 `runtime/composing/target-chooser.js` owns keyboard target hints and whole-page text search;
 `runtime/composing/aim.js` owns modifier aim and captured presses;
@@ -155,7 +155,7 @@ state commit, projection, notification, pending accounting, and rollback;
 `runtime/banner.js` owns banner wording, tone, tab-icon paint, and announcing a
 status kind that has changed;
 `runtime/banner-shelf.js` owns news-control reservation and focus continuity, and
-the fold that decides which of the banner's addresses stand on its row and which
+the fold that decides which of the banner's controls stand on its row and which
 stand in its menu;
 `runtime/motion.js` owns reduced-motion policy, shared scroll behavior, and
 Web Animations playback;
@@ -315,7 +315,7 @@ Startup order is load-bearing:
 
 1. Construct the application, page commands, and UI owners in `leaf.js` before any
    mount reads another owner. Page keys must exist before the first input is wired,
-   because its initial paint reads the input's keyboard address. Adopt the sheets,
+   because its initial paint reads the input's binding badge. Adopt the sheets,
    attach chrome, mount the owners, and wire the shared repaint phases. Repaint invalidations made
    before repaint is mounted retain their intent without executing an incomplete frame.
 2. Begin the first state read without applying its answer.
@@ -389,7 +389,7 @@ declared `x-conversation` seat — that takes the Ask off the reader's list with
 answering it, which is why this gate reads the projection with no seats in
 it. An answer with a position record may declare
 `completion: {empty: {within, when}}`: POST applies the candidate position to the
-authoritative holder relation and admits it only when the one matching item container
+authoritative owner relation and admits it only when the one matching member container
 inside the answering widget is empty. The same predicate decides whether a standing
 record answers the Ask, so no private completion flag can diverge from the durable
 arrangement. An answer or thread-completion verb cannot require its own awaiting value, or
@@ -673,10 +673,10 @@ that adds the capability.
 
 Directional category walks use the category's letter, with case stating direction:
 lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
-walks open asks. Both walks clamp at their first and last items. Keep these as single-key
+walks open asks. Both walks clamp at their first and last destinations. Keep these as single-key
 presses rather than prefix sequences; a walk is often repeated or held. The thread walk
 uses inline thread roots while Threads is closed and panel cards while it is open; only a
-thread with no page or widget-local inline address opens the complete index as a fallback.
+thread with no page or widget-local inline destination opens the complete index as a fallback.
 An active textual search in the thread panel instead owns `n`/`N`: those keys enter the
 found list from its container and then walk its matches, while `t`/`T` stands down so the
 motion has one spelling in that scope. For page search, Enter accepts the current match and
@@ -686,7 +686,7 @@ While the reader stands anywhere in an Ask, its widget's
 ordered actions keep a canonical binding where they declare one and otherwise take the
 next free `1`–`9`. Core projects that exact list into the shortcut bar and visible control
 chips. Each action is a command route; that route is the one
-binding-to-control identity used by dispatch, the reference, the shortcut bar, its address,
+binding-to-control identity used by dispatch, the reference, the shortcut bar, its binding badge,
 and `aria-keyshortcuts`; core does not mint a second identity for the projection. Tab
 walks the real controls without replacing that action map;
 a control's scope adds only its native or local mechanics. `j`/`k` scroll
@@ -720,7 +720,7 @@ Escape's inverse rather than a second row guessing from the resulting scene.
 Which scope a row belongs to follows from what its press acts on. The page holds
 the presses whose subject is the page: `/` searches its text, `n`/`N` repeats that
 search, `s` names its visible
-items, `c` comments on it, `t`/`T` and `a`/`A` walk its open sets, `j`/`k` and `d`/`u` move its
+addressable elements, `c` comments on it, `t`/`T` and `a`/`A` walk its open sets, `j`/`k` and `d`/`u` move its
 reading, and `g` opens its destinations. A surface holds the presses
 whose
 subject is that surface's own
@@ -733,7 +733,7 @@ on the page.
 A surface may also hold the contextual form of a page intent. `c` always means
 comment; its destination follows what the reader is standing on. From the Threads
 list the panel row enters the page-comment box. Everywhere the page has a nearer
-answer—a selection, item, or conversation—the page row enters that box instead.
+answer—a selection, addressable element, or conversation—the page row enters that box instead.
 The rows are mutually exclusive, so the register never asks the reader to choose
 between two meanings for `c`.
 
@@ -750,13 +750,13 @@ answer once they are standing there. The destination, label, command, and return
 all come from `commentDestination`, so the same contextual reading governs every projection.
 
 The destination is the anchor the 💬 carries, then the open thread the reader is
-in or the single inline thread held by a pressed Page-map marker, then the item they are
+in or the single inline thread held by a pressed Page Map marker, then the element they are
 standing in, and, when none of those is in hand, the page-comment box.
 `commentDestination` decides it once and states the
 sentence, return frame, shortcut bar and press together, so the reference, the line,
 what happens, and the way back cannot come to spell it differently. The pointer's answers outrank
 the standing: a selection or a raised 💬 is the more recent thing the reader
-said. `standingItem` and `standingConversation` are what "standing" means here,
+said. `standingElement` and `standingConversation` are what "standing" means here,
 and **Standing somewhere** below owns that reading.
 
 The page-comment box lives in the Threads panel, but entering it does not mean “open
@@ -767,7 +767,7 @@ Escape therefore returns directly to the exact prior control or reading place. F
 already-entered Threads list, `c` adds one nested frame and Escape returns to that list.
 A resolved thread has no reply box, so the general box is the honest contextual answer.
 
-The item's box is the composer, on the item, and not a widget's own conversation
+The addressable element's box is the composer, on the element, and not a widget's own conversation
 seat even where it has one. `commentOnTarget` writes the anchor `renderConversations`
 collects, so the remark lands in that seat's conversation by either route; reaching
 into the seat instead means escaping an author-written id into a selector, asking
@@ -783,9 +783,9 @@ native tag while keeping the next press visible.
 ### Standing somewhere
 
 A press that acts on where the reader is standing reads it through
-`standingItem`: the unanswered Ask where focus is on a control that works it — a
+`standingElement`: the unanswered Ask where focus is on a control that works it — a
 pick, a ✓, a mark — an answered Ask on its explicit review arrival, and the
-innermost item everywhere else, which is the ⌥ aim's own reading. It answers nothing
+innermost addressable element everywhere else, which is the ⌥ aim's own reading. It answers nothing
 in ordinary chrome, where a reader is working on the page rather than standing in it.
 
 ## Standalone copies and print
@@ -838,7 +838,7 @@ been removed. `render-checks/init.js` installs the pre-navigation window-error c
 | `upgraded` and `moving` | upgrade completed and final geometry settled |
 | `invalidPaints` | every var()-backed SVG paint resolves to a valid value in each scheme |
 | `tinyBoxes` | every declared widget has a usable rendered box |
-| `unmarkableItems` | every pointable item has a visible part for an outline |
+| `unmarkableElements` | every addressable element has a visible part for an outline |
 | `misplacedBoxes` | boxes stay in the column or in genuinely reachable overflow |
 | `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
 | `withheldRoom` | a drawing scrolls only when the room, net of margin residents at its band, ran short |

@@ -79,7 +79,7 @@ def unpointable_blocks(parser: StructParser) -> list:
     """Blocks a user will aim at whole that no anchor can name. Advice, never a
     gate:
     references/page-authoring.md's "Stable anchors" states the id rule, and this
-    is its feedback loop. The page that introduced item anchoring hit this
+    is its feedback loop. The page that introduced addressable-element anchoring hit this
     failure itself — its code blocks carried no ids, so a comment aimed at one fell
     through to the enclosing section and read as the gesture being broken rather
     than the page being bare, and nothing anywhere said so.

@@ -25,8 +25,8 @@ from render_harness import (
     told,
 )
 
-ADDRESS_PAGE = leaf_page(
-    "addresses",
+BINDING_BADGE_PAGE = leaf_page(
+    "binding badges",
     """
 <h1 id="h">Two questions, two forms</h1>
 <lf-ask id="cards-decision"><h2>How should the bath be heated?</h2>
@@ -114,7 +114,7 @@ OVER_WORDS = """(el, id) => {
 #
 # The option's width and the opening of its prose come back with the chip, because where
 # the chip belongs is a relation rather than a pinned number. A compact row keeps its
-# address before that opening; a titled card puts it after the opening in the trailing
+# binding badge before that opening; a titled card puts it after the opening in the trailing
 # header-state slot. Both keep it inside the cell and off the authored words.
 INSIDE_ITS_OPTION = """el => {
     const chip = el.getBoundingClientRect();

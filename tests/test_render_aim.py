@@ -319,7 +319,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
     assert 0 <= placed["left"] < placed["right"] <= placed["width"], (
         f"the composer is outside the viewport: {placed}"
     )
-    assert not placed["overlaps"], f"the composer covers its aimed item: {placed}"
+    assert not placed["overlaps"], f"the composer covers its aimed element: {placed}"
     assert errors == []
     page.close()
 
@@ -835,7 +835,7 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     target.evaluate("node => node.scrollIntoView({block: 'center'})")
     page.locator("body").focus()
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     legend = page.locator('.lf-legend-box[data-for="p30"]')
     expect(legend).to_be_visible()
 
@@ -916,7 +916,7 @@ def test_an_aim_tracks_an_equal_width_workspace_swap_every_frame(browser, serve)
         })"""
     )
     page.keyboard.up("Alt")
-    assert len(readings) > 2, "the workspace swap produced no transition trace"
+    assert len(readings) > 2, "the auxiliary-surface swap produced no transition trace"
     assert all(reading["shown"] for reading in readings)
     assert max(abs(reading["dx"]) for reading in readings) < 3
     assert max(abs(reading["dy"]) for reading in readings) < 3
@@ -924,7 +924,7 @@ def test_an_aim_tracks_an_equal_width_workspace_swap_every_frame(browser, serve)
     page.close()
 
 
-def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
+def test_covering_auxiliary_surfaces_separate_page_paint_from_chrome_target_paint(
     browser, serve
 ):
     """A covering auxiliary surface owns its pixels and remains a chrome target itself.
@@ -938,7 +938,7 @@ def test_covering_workspaces_separate_page_paint_from_chrome_target_paint(
     page.locator(".lf-asks").click()
     edge_settled(page, EDGES[1])
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     resized(page, 560, 900)
     tray = page.locator(".lf-asks-panel")
     expect(tray).to_be_visible()
@@ -1137,7 +1137,7 @@ def test_an_aimed_first_press_records_its_pointer_before_claiming_it(browser, se
 def test_an_aimed_press_does_only_what_the_outline_promised(
     browser, serve, case_name, example, required_paths
 ):
-    """⌥-click takes the item under the pointer, and that is the whole of what it does.
+    """⌥-click takes the addressable element under the pointer, and that is the whole of what it does.
 
     Holding ⌥ outlines what a click would take, which is a promise about the next press.
     The runtime used to read that press on the way back up, after every handler out on the
@@ -1299,7 +1299,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     page.close()
 
 
-def test_an_aim_on_a_seam_promises_and_takes_the_same_item(browser, serve):
+def test_an_aim_on_a_seam_promises_and_takes_the_same_element(browser, serve):
     """One reading, at the one place the pointer is.
 
     The cells of a joined group butt, so two of them share an edge with no gap between,
@@ -1455,7 +1455,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     option = page.locator("#opt-shim")
     before = page.evaluate(PAGE_MARKUP)
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
     page.keyboard.press("?")
     page.keyboard.press("?")
@@ -1463,7 +1463,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     expect(reference).to_be_visible()
     expect(reference.locator('tr[data-lf-command="aim.comment"]')).to_have_count(0)
     page.keyboard.press("Escape")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
     # The mode shows what is on the page rather than waiting for the pointer: a legend
     # box on every item, and on every item but a widget's parts its name — the group
@@ -1514,7 +1514,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     assert [e for e in events if e["kind"] == "action"] == []
     # The retained thread names the target the same way the composer named the box. The
     # top-layer margin card stays retired while design mode stands, so the send lands
-    # typing in the ordinary Threads workspace instead of a hidden inline reply.
+    # typing in the ordinary Threads panel instead of a hidden inline reply.
     panel = page.locator(".lf-thread-panel")
     expect(panel).to_be_visible()
     expect(panel.locator(".lf-thread .lf-quote")).to_have_text(
@@ -1527,9 +1527,9 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     # Escape backs out one rung at a time — the reply, then the mode.
     page.keyboard.press("Escape")
     expect(panel.locator(".lf-thread:focus")).to_have_count(1)
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     page.keyboard.press("Escape")
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
     expect(page.locator(".lf-inspect")).to_be_hidden()
     expect(page.locator(".lf-legend-box")).to_have_count(0)
     assert errors == []
@@ -1708,7 +1708,7 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread")).to_be_focused()
     page.keyboard.press("l")
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
     # And the thread panel, which is the case where the aim's own geometry had nothing to
     # say. A fixed box is not clipped by the root scrollport, while body is the page shell
@@ -1764,7 +1764,7 @@ def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
     expect(response_bar).to_have_attribute("data-lf-paint-plane", "chrome")
     assert int(response_bar.evaluate("el => getComputedStyle(el).zIndex")) > int(
         page.locator(".lf-thread-panel").evaluate("el => getComputedStyle(el).zIndex")
-    ), "the field opened on chrome underneath the workspace it describes"
+    ), "the field opened on chrome underneath the auxiliary surface it describes"
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "layer · Thread panel width · threads"
     )
@@ -1805,7 +1805,7 @@ def test_design_mode_leaves_prose_to_the_selection(browser, serve):
     )
     page.keyboard.press("Escape")  # the composer, draft kept; the mode still stands
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     heading.click(position={"x": 4, "y": 4})
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text("layer · heading · t")
@@ -1819,16 +1819,16 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     this tab's working state, kept the way the panel's open state is."""
     page, errors = open_page(browser, serve(REPLAYED_PAGE))
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     expect(page.locator('.lf-legend-box[data-for="approach"]')).to_be_visible()
     page.keyboard.press("Escape")
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
     assert errors == []
     page.close()
 
@@ -1921,7 +1921,9 @@ def test_two_names_at_one_corner_step_apart(browser, serve):
     page.close()
 
 
-def test_a_picture_is_one_item_however_many_ids_its_renderer_coined(browser, serve):
+def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coined(
+    browser, serve
+):
     """A generated SVG node still names the authored widget when no parts are declared.
 
     The registry's x-visual contract makes the drawing one item rather than exposing
@@ -2620,7 +2622,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     A replay of another tab's action moves content and repaints the marks where they
     now belong — and the aim used to ride that pass as an answer latched from the last
     mouse event, so the pass itself painted a promise about a card no longer there.
-    The aimed item is derived inside the pass now, and the events only decide when a
+    The aimed element is derived inside the pass now, and the events only decide when a
     pass is worth running. Nothing here moves the mouse after the arm: the page moves
     instead, and the box must follow or clear."""
     url = serve(REPLAYED_PAGE)
@@ -2659,7 +2661,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     page.close()
 
 
-def test_the_aims_box_is_what_the_page_shows_of_the_item(browser, serve):
+def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
     """The promise paints in the chrome's layer, and claims what the page shows.
 
     The aim used to wear the mark's rail, and that band sat at the
@@ -2753,7 +2755,7 @@ def test_the_armed_cursor_says_whether_a_press_would_take_anything(browser, serv
     Holding ⌥ used to draw a plain arrow over the whole page: it said "not a text
     selection" and nothing else, which leaves the one question the outline can't answer
     for a reader who hasn't looked yet — would this click do anything at all? An armed
-    press takes the item under it and acts on nothing where there is none (claimPress),
+    press takes the addressable element under it and acts on nothing where there is none (claimPress),
     so the hand and the arrow are those two states, and the hand is exactly as good as
     the outline beside it because both are read off the same value.
 

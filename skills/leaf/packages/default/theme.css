@@ -347,7 +347,7 @@ lf-chip, .lf-chips span {
    the frame by is a floor at zero specificity, which any cell with an answer of its own
    outranks. Naming kinds is how three children got their margins reset and the fourth
    kept an 8px band under a line already separating, and how the question got no inset at
-   all. Reserved columns the cells share, such as the room a keyboard address stands in,
+   all. Reserved columns the cells share, such as the room a binding badge stands in,
    are named once and read by everything that opens at them — including the forms the
    frame never reaches, since a settled group reserves the same column on the cards behind
    its disclosure.
@@ -598,6 +598,14 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-pick {
    & > lf-option > .lf-key-badge {
                      inset-inline-start: auto; inset-inline-end: var(--sp-2);
                      top: var(--sp-2); }
+   & > .lf-another > .lf-key-badge {
+                     inset-inline-start: auto; inset-inline-end: var(--sp-2); }
+   & > .lf-another .lf-compose-submit {
+                     inset-inline-end:
+                       calc(var(--sp-2) + var(--lf-key-badge-size) + var(--sp-2)); }
+   & > .lf-another textarea {
+                     padding-inline-end:
+                       calc(var(--aim-floor) + var(--sp-4) + var(--lf-key-badge-size) + var(--sp-2)); }
    & > lf-option:has(> .lf-key-badge[data-lf-ask-binding-badge]) > .lf-pick {
                      opacity: 0; }
  }
@@ -704,7 +712,7 @@ lf-options:has(> lf-option > strong) > lf-option > .lf-key-badge { top: 8px; }
  * a set question in. */
 lf-options > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      border-color: var(--ok); background: var(--ok-tint); }
-/* Its Ask address stands where the rows' do: on the address column, centred on the
+/* Its Ask binding badge stands where the rows' do: in the binding column, centred on the
  * press, inside the cell rather than hung off its corner. */
 lf-options > .lf-done { position: relative; }
 lf-options > .lf-done > .lf-key-badge { position: absolute;
@@ -892,17 +900,17 @@ lf-options > .lf-done > .lf-key-badge { position: absolute;
   .lf-another .lf-compose-submit { inset-inline-end: var(--sp-1);
                                   inset-block-end: var(--sp-1); }
   .lf-another .lf-compose-submit[data-lf-empty] { visibility: hidden; }
-  /* The leading column holds the keyboard address and the gap before the option's
-   * words. The address starts at the ordinary 8px inset and takes
-   * --lf-key-box, so changing the utility type grows the
-   * column with the chip. The final 6px keeps the chip off the prose. This room is held
-   * before the keyboard address appears, so focusing an option moves nothing.
+  /* The leading column holds the key badge and the gap before the option's
+   * words. The badge starts at the ordinary 8px inset and takes
+   * --lf-key-badge-size, so changing the utility type grows the
+   * column with the badge. The final 6px keeps the badge off the prose. This room is held
+   * before the key badge appears, so focusing an option moves nothing.
    *
-   * Live pages only: copies and paper receive no keyboard address. The column is named
+   * Live pages only: copies and paper receive no key badge. The column is named
    * because options and generated cells all begin on it. */
   lf-options[choose]:not(:where([data-lf-exhibit]) *) {
                      --lf-key-badge-start: var(--sp-2);
-                     --lf-key-badge-col: calc(var(--lf-key-badge-start) + var(--lf-key-box) + 6px); }
+                     --lf-key-badge-col: calc(var(--lf-key-badge-start) + var(--lf-key-badge-size) + 6px); }
   lf-options[choose]:not(:where([data-lf-exhibit]) *) > lf-option {
                      padding-inline-start: var(--lf-key-badge-col); }
  }
@@ -937,7 +945,7 @@ html.lf-copy lf-options > .lf-another { display: none; }
  * tall card, and the answer to that is to strengthen it, which is what both forms now do.
  *
  * The width is stated as the whole box, because another rule pads this one: a row fills its
- * cell, and a live choose group then takes 30px off the same box for the keyboard address
+ * cell, and a live choose group then takes 30px off the same box for the binding badge
  * (above). Counted outside the 100%, those 30px carried every row past the group, which
  * clips itself, and what went was the last 30px of each line — at the time the column the
  * mark stood in, so the word came out mid-letter, the chosen option lost its tick, and the
@@ -955,7 +963,7 @@ lf-options:not(:has(> lf-option > strong)) > lf-option {
  * the cell the reader writes their own option in alike, because the one thing that makes
  * a list of answers readable is that they all start at the same place.
  *
- * Beside the keyboard address rather than sharing its column: a card is tall enough to
+ * Beside the binding badge rather than sharing its column: a card is tall enough to
  * hold both in one gutter at different heights, and a row is one line. So the row form
  * adds its own 17px to whatever column the group already opens on, and the mark stands
  * in the room that widening made.

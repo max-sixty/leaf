@@ -227,7 +227,7 @@ export function createDrawingController({
     releaseCompatibilityClickSoon();
     if (completed.invalid) {
       shiftDrawingPaint();
-      announce("Drawing canceled because its page item changed.");
+      announce("Drawing canceled because its page element changed.");
       return;
     }
     if (completed.distance < MIN_GESTURE || completed.points.length < 2) {

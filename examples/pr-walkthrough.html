@@ -431,31 +431,55 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
         <section id="pr-history">
           <h2>Review history</h2>
           <lf-chronology id="pr-review-chronology">
-            <lf-chronology-entry id="pr-chronology-open" at="03:32 UTC" kind="observation">
+            <lf-chronology-entry
+              id="pr-chronology-open"
+              at="03:32 UTC"
+              kind="observation"
+            >
               <strong>PR opened</strong> The first revision introduced the unified
               picker tab, shared diff preparation, and broad integration coverage.
             </lf-chronology-entry>
-            <lf-chronology-entry id="pr-chronology-first-review" at="03:43 UTC" kind="warning">
+            <lf-chronology-entry
+              id="pr-chronology-first-review"
+              at="03:43 UTC"
+              kind="warning"
+            >
               <strong>First review withheld approval</strong> It found divergent sparse
               handling, a predictable shared temp directory, startup-cost uncertainty,
               and documentation drift.
             </lf-chronology-entry>
-            <lf-chronology-entry id="pr-chronology-temp-fix" at="04:13 UTC" kind="intervention">
+            <lf-chronology-entry
+              id="pr-chronology-temp-fix"
+              at="04:13 UTC"
+              kind="intervention"
+            >
               <strong>Temp indexes became random, exclusive files</strong> Sparse
               registration and worktree-local temp-directory exclusion gained focused
               tests.
             </lf-chronology-entry>
-            <lf-chronology-entry id="pr-chronology-race-fix" at="04:32 UTC" kind="intervention">
+            <lf-chronology-entry
+              id="pr-chronology-race-fix"
+              at="04:32 UTC"
+              kind="intervention"
+            >
               <strong>The index copy kept ownership of its pathname</strong> Writing
               through the still-open file closed the symlink race, and off-screen
               worktrees moved out of eager prewarm.
             </lf-chronology-entry>
-            <lf-chronology-entry id="pr-chronology-final-review" at="04:57 UTC" kind="observation">
+            <lf-chronology-entry
+              id="pr-chronology-final-review"
+              at="04:57 UTC"
+              kind="observation"
+            >
               <strong>Final review approved with follow-ups</strong> The shared
               <code>TempIndex</code> path and orchestration prose converged;
               selected-row latency and dry-run temp artifacts remained visible notes.
             </lf-chronology-entry>
-            <lf-chronology-entry id="pr-chronology-merged" at="05:18 UTC" kind="observation">
+            <lf-chronology-entry
+              id="pr-chronology-merged"
+              at="05:18 UTC"
+              kind="observation"
+            >
               <strong>Merged</strong> Six commits landed after all reported checks
               passed.
             </lf-chronology-entry>

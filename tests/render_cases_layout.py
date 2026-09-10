@@ -306,7 +306,7 @@ def prose_beside_identifiers(held):
         (
             "Keyboard",
             (
-                "<kbd>r</kbd> arms the bar with address-chip digits, 1–n in declared"
+                "<kbd>r</kbd> arms the bar with binding badges, 1–n in declared"
                 " order; a stray key disarms and keeps its meaning."
             ),
             [
@@ -603,7 +603,7 @@ def draw_edge(page, edge, by):
     )
 
 
-# The room sampled across a workspace motion. The shell owns the value in CSS, so a
+# The room sampled across an auxiliary-surface motion. The shell owns the value in CSS, so a
 # harmless probe resolves the custom-property expression to the width a wide exhibit
 # would actually receive.
 ROOM_EVERY_FRAME = """(frames) => {
@@ -788,11 +788,11 @@ def unfolded_button(control):
     )
 
 
-def banner_address(page, selector):
-    """The banner address named, brought out from behind the row's menu if it is there.
+def banner_control(page, selector):
+    """The named banner control, brought out from behind the row's menu if needed.
 
-    A window too narrow to hold every address folds the ones it cannot into one menu, so
-    a test that presses an address by name has to say which of the two places it is
+    A window too narrow to hold every control folds the ones it cannot into one menu, so
+    a test that presses a control by name has to say which of the two places it is
     standing in. Nothing else about it changes: it is the same control, with the same
     words, the same state paint and the same press. The reading is taken of the page as
     it is rather than of a width the test assumed, so one call reads the same at 1440 and
@@ -809,10 +809,10 @@ def banner_address(page, selector):
     return control
 
 
-# The banner's addresses in the row's one order. The fold takes a run off the front of
+# The banner's controls in the row's one order. The fold takes a run off the front of
 # the row into the menu, so the menu's contents followed by the row read straight
-# through as that one order. The door itself is not an address, and a control the page
-# has taken away is not one either.
+# through as that one order. The door itself is not part of that control order, and a
+# control the page has taken away is not part of it either.
 BANNER_ORDER = """() => {
   const shelf = document.querySelector('.lf-banner-actions');
   const menu = document.querySelector('.lf-banner-menu');
@@ -874,12 +874,12 @@ AIM_POINT = """(el) => {
   return null;
 }"""
 # The promise itself, read where the runtime states it: the aim's box in the chrome's
-# layer carries the aimed item's id (data-for, refreshAim's one write of it). The
+# layer carries the aimed element's id (data-for, refreshAim's one write of it). The
 # composer's own mark then stands on that same item once the press is made, so the box's
 # answer before the press and the draft's after it agreeing is the promise being kept.
 AIMED = """() => document.querySelector(".lf-aim")?.getAttribute("data-for") ?? null"""
 # The item the draft stands on, which is not always the element wearing the outline: a
-# mark hangs on the boxes its item shows through, and a display: contents wrapper shows
+# mark hangs on the boxes its element shows through, and a display: contents wrapper shows
 # through its slots. Reading the raw id said the promise was broken for every suggestion
 # on every example — while the reading that had passed all along was the vacuous one, the
 # outline sitting on a wrapper that draws nothing.
@@ -923,7 +923,7 @@ PAGE_MARKUP = """() => [...document.body.children]
         return c.outerHTML;
     })
     .join("").replaceAll(' class=""', "")"""
-# Every legend box stands on its item: same corner, one pixel out, for every item wholly
+# Every legend box stands on its addressable element: same corner, one pixel out, for every element wholly
 # on screen. Items partly off it are clipped to the scroller (shownRect) and are not
 # compared, and items off it have no box shown at all. An item with no box of its own —
 # one a page styles display: contents — reads as what its contents paint, mirroring

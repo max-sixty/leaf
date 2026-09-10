@@ -3632,7 +3632,7 @@ def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_
     # page and stop lines name the page directory, which may legitimately sit
     # under the checkout — as it does whenever a run is given a `--basetemp`
     # there. Equality on that one line says what the absence was reaching for.
-    runtime = next(l for l in note.splitlines() if l.startswith("runtime"))
+    runtime = next(line for line in note.splitlines() if line.startswith("runtime"))
     assert runtime == "runtime  unknown payload (unknown source)"
 
 

@@ -16,7 +16,6 @@ from leaf import session as session_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
-    ADDRESS_PAGE,
     ALL_ASKS_IN_ORDER,
     ASK_IN_A_CARD_PAGE,
     ASK_ROW_SAYS,
@@ -25,6 +24,7 @@ from render_support import (
     ASKS_IN_ORDER,
     ASKS_PAGE,
     BAD_CHART_PAGE,
+    BINDING_BADGE_PAGE,
     BOARD_PAGE,
     BOTH_STAMPS,
     CHANGE_SHAPES_PAGE,
@@ -65,7 +65,7 @@ from render_support import (
     SWAP_PAGE,
     CutOff,
     actions,
-    banner_address,
+    banner_control,
     compare_with,
     holding,
     leaf_page,
@@ -3604,9 +3604,9 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     page.keyboard.press("a")
     expect(decision).to_be_focused()
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    expect(
-        page.locator(".lf-ask-binding-badgees > .lf-ask-binding-badge")
-    ).to_have_text(["←", "→"])
+    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
+        ["←", "→"]
+    )
     assert "← / →\nPass / Keep" in shortcut_bar_text(page)
 
     page.keyboard.press("Tab")
@@ -3636,7 +3636,7 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
     expect(
-        page.locator(".lf-ask-binding-badgees > .lf-ask-binding-badge")
+        page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")
     ).to_have_count(0)
     assert "Undo last swipe" not in shortcut_bar_text(page)
     assert [event["action"] for event in actions(serve.page_dir)] == [
@@ -4525,14 +4525,14 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     """A changed span may cross a nested widget without painting its generated UI."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     page.locator('[data-lf-margin-for="bg-route-ask"] [role="button"]').click()
-    addresses = page.locator("#bg-route > lf-option > .lf-key-badge")
-    expect(addresses).to_have_text(["1", "2"])
+    badges = page.locator("#bg-route > lf-option > .lf-key-badge")
+    expect(badges).to_have_text(["1", "2"])
 
     assert page.locator("#bg-nested-change > lf-new > p").evaluate(
         """node => [...(CSS.highlights.get('lf-sug-ins') ?? [])]
           .some(range => range.intersectsNode(node.firstChild))"""
     ), "the proposal has to carry word-level insertion emphasis"
-    assert addresses.evaluate_all(
+    assert badges.evaluate_all(
         """nodes => {
           const ranges = [...(CSS.highlights.get('lf-sug-ins') ?? [])];
           return nodes.map(node =>
@@ -5630,8 +5630,8 @@ def test_ask_action_name_functions_must_return_text(browser, serve):
     page.close()
 
 
-def test_ask_explicit_commands_do_not_consume_contextual_address_slots(browser, serve):
-    """Only keyless Decision commands count against the nine numeric addresses."""
+def test_ask_explicit_commands_do_not_consume_contextual_binding_slots(browser, serve):
+    """Only keyless Decision commands count against the nine numeric bindings."""
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     resized(page, 900, 900)
 
@@ -5674,7 +5674,7 @@ def test_ask_explicit_commands_do_not_consume_contextual_address_slots(browser, 
     expect(page.locator("#sug")).to_be_focused()
 
     # Accept and Reject take 1 and 2; nine explicitly bound commands consume no numeric
-    # address, so the keyless command declared after all of them still receives 3.
+    # binding, so the keyless command declared after all of them still receives 3.
     page.keyboard.press("3")
     expect(page.get_by_role("button", name="Later keyless")).to_have_attribute(
         "data-activated", "1"
@@ -5684,10 +5684,10 @@ def test_ask_explicit_commands_do_not_consume_contextual_address_slots(browser, 
     page.close()
 
 
-def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
+def test_ask_option_binding_badges_stay_one_projection_when_focus_enters_a_card(
     browser, serve
 ):
-    """Tab keeps the Ask's address projection on the same option-card faces."""
+    """Tab keeps the Ask's binding badges on the same option-card faces."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     resized(page, 900, 900)
 
@@ -5723,12 +5723,12 @@ def test_ask_option_addresses_stay_one_projection_when_focus_enters_a_card(
     page.close()
 
 
-def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
-    """A row address that reaches the shortcut bar yields to the legend naming its digit."""
-    page, errors = open_page(browser, serve(ADDRESS_PAGE))
+def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
+    """A binding badge that reaches the shortcut bar yields to the legend naming its digit."""
+    page, errors = open_page(browser, serve(BINDING_BADGE_PAGE))
     resized(page, 900, 520)
 
-    # The first Ask uses titled cards, whose trailing addresses cannot meet the leading
+    # The first Ask uses titled cards, whose trailing binding badges cannot meet the leading
     # shortcut bar. Step to the compact row Ask, where both occupy the leading edge.
     page.keyboard.press("a")
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
@@ -5737,16 +5737,16 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
     expect(
         page.locator("#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
     ).to_have_text(["1", "2"])
-    # Put the second row's address one pixel into the shortcut bar's band. The first stays a
+    # Put the second row's badge one pixel into the shortcut bar's band. The first stays a
     # row above it, so a placement pass that reserves the legend keeps one and removes
     # the other. Calculate the scroll from their current boxes rather than pinning the
     # fixture to today's spacing.
     page.evaluate(
         """() => {
-          const addresses = document.querySelectorAll(
+          const badges = document.querySelectorAll(
             '#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]'
           );
-          const last = addresses[addresses.length - 1].getBoundingClientRect();
+          const last = badges[badges.length - 1].getBoundingClientRect();
           const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
           scrollTo(0, scrollY + last.top - line.top - 1);
         }"""
@@ -5764,12 +5764,12 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
           return {
             line: read(document.querySelector('.lf-shortcut-bar')),
             chips: [...document.querySelectorAll(
-              '.lf-ask-binding-badgees > .lf-ask-binding-badge, [data-lf-ask-binding-badge]'
+              '.lf-ask-binding-badges > .lf-ask-binding-badge, [data-lf-ask-binding-badge]'
             )].map(read),
           };
         }"""
     )
-    assert geometry["chips"], "the fixture did not leave an Ask address on screen"
+    assert geometry["chips"], "the fixture did not leave an Ask binding badge on screen"
     assert all(
         chip["right"] <= geometry["line"]["left"]
         or geometry["line"]["right"] <= chip["left"]
@@ -5784,7 +5784,7 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
 
 def test_a_needed_draft_contributes_its_current_ask_action(browser, serve):
     source = leaf_page(
-        "needed draft address",
+        "needed draft binding",
         """
 <h1>Supply the copy</h1>
 <lf-ask id="copy-ask"><h2>What should the invitation say?</h2>
@@ -5986,7 +5986,7 @@ def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serv
     Rebuilding a view the reader is already looking at is motion that says nothing, and
     it costs them whatever adjustment they had made within it. The gate reads what the
     page shows of the ask rather than what its own box claims, which is the reading
-    commentOnItem makes before its own travel.
+    commentOnAddressable makes before its own travel.
 
     The first press is the control: the walk does travel, from a page that opens above
     the change, so a second press standing still is this gate rather than a walk that
@@ -6059,12 +6059,12 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     # measures from where the reader stands in the page and steps on rather than
     # restarting — the button being no place to measure from.
     #
-    # Reached through `banner_address` rather than by clicking the button where it
+    # Reached through `banner_control` rather than by clicking the button where it
     # would stand on a wide row: at this fixture's 900px the row cannot hold every
-    # address in a face wider than this desk's, and folding one is the row's stated
-    # answer. Which address the fold takes is the banner's business and not this
+    # control in a face wider than this desk's, and folding one is the row's stated
+    # answer. Which control the fold takes is the banner's business and not this
     # walk's, so the helper opens the door where it has to.
-    banner_address(page, ".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     page.keyboard.press("a")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 
@@ -6448,9 +6448,9 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     tells one from the other. And the thread's label read `§ ps-decision`, the bare id.
 
     The label is the part with the mechanism worth naming. An element anchor is labelled
-    with its item's opening words, read when the node is built — and on the reconcile
+    with its element's opening words, read when the node is built — and on the reconcile
     that first builds this node, the message body carrying the widget has not been
-    connected yet, so the item did not exist and the reading came back empty. A node the
+    connected yet, so the element did not exist and the reading came back empty. A node the
     reconcile keeps is never built again, so nothing asked a second time. It is repainted
     with the quote now, which is the pass that already exists for records whose subject
     the reconcile has just written."""
@@ -6729,7 +6729,7 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     expect(page.locator("#sug-delete")).to_be_hidden()
     expect(progress).to_have_text("Asks 1/4")
 
-    banner_address(page, ".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     row = page.locator('.lf-asks-row[data-lf-at="sug-delete"]')
     expect(row.locator(".lf-asks-answer")).to_have_text("Accepted")
     row.click()
@@ -6789,7 +6789,7 @@ def test_a_row_stands_the_reader_on_the_ask_it_names(browser, serve):
     # sheet must dismiss the sheet; otherwise all the focus and scrolling below happen
     # correctly behind an opaque surface.
     resized(page, 560, 620)
-    banner_address(page, ".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
 
     # The last of the four, which a short window leaves well off screen.

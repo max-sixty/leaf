@@ -541,7 +541,7 @@ export function createSelectionComposer({
   // and unreachable, which is the same as lost for a reader who does not know where the
   // words went. A destination rather than a page letter: the page's alphabet is small, and
   // what this press does is travel to a passage and open the box standing on it, which is
-  // what every other uppercase mnemonic in the sequence does with its own workspace.
+  // what every other uppercase mnemonic in the sequence does with its own auxiliary surface.
   //
   // Dead while the composer is up, because then the draft is already in front of the
   // reader and `c` is the press that enters it. Live off the stored record rather than

@@ -241,7 +241,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
         )
         reference = page.locator(".lf-session-reference")
         expect(reference).not_to_be_visible()
-        page.get_by_role("button", name="More page addresses", exact=True).click()
+        page.get_by_role("button", name="More page controls", exact=True).click()
         expect(reference).to_be_visible()
         expect(reference).to_have_text("Session 239383829012")
         expect(reference).to_have_accessible_name(
@@ -279,7 +279,7 @@ def test_a_website_session_reference_survives_a_failed_first_read(
     try:
         page.goto(url, wait_until="load")
         expect(page.locator(".lf-banner .lf-status-text")).to_contain_text(status_words)
-        page.get_by_role("button", name="More page addresses", exact=True).click()
+        page.get_by_role("button", name="More page controls", exact=True).click()
         expect(page.locator(".lf-session-reference")).to_have_text(
             "Session 239383829012"
         )
@@ -311,7 +311,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         expect(badge).to_have_text("Preview · fb77@26499ea1abcd+")
         expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
 
-        page.get_by_role("button", name="More page addresses", exact=True).click()
+        page.get_by_role("button", name="More page controls", exact=True).click()
         expect(badge).to_be_visible()
         badge.click()
         expect(page.locator(".lf-live")).to_have_text("Copied preview diagnostics")
@@ -414,11 +414,11 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         ),
     ],
 )
-def test_a_restored_workspace_has_its_final_geometry_before_runtime_loads(
+def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
     browser, serve, saved, root_attribute, body_attribute
 ):
-    """Returning readers do not watch their saved workspace move the document."""
-    url = serve(leaf_page("Restored workspace", "<h1>Restored workspace</h1>"))
+    """Returning readers do not watch saved auxiliary chrome move the document."""
+    url = serve(leaf_page("Restored surface", "<h1>Restored surface</h1>"))
     context = browser.new_context(viewport={"width": 1600, "height": 900})
     priming = context.new_page()
     priming.goto(url, wait_until="load")
@@ -1431,7 +1431,7 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
         page.close()
 
 
-def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
+def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     browser, serve
 ):
     """Restored chrome may neither publish stale asks nor replace a current choice.
@@ -1440,7 +1440,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
     Opening Threads during that interval replaces the remembered tray. Replay leaves
-    that workspace standing while it paints the accepted state and exposes the completed
+    that Thread panel standing while it paints the accepted state and exposes the completed
     Ask as a closed route for review.
     """
     url = serve(SHORT_SUGGESTION)
@@ -3339,9 +3339,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     page.close()
 
 
-def test_feature_gallery_receipt_and_top_bar_share_agent_activity(browser, serve):
+def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve):
     """The gallery's injected-chrome case exercises the external state it cannot
-    author: exact delivery into a turn drives both the receipt and top bar, and a
+    author: exact delivery into a turn drives both the receipt and banner, and a
     later waiting declaration cannot split them."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     page_dir = serve.page_dir
@@ -3351,7 +3351,7 @@ def test_feature_gallery_receipt_and_top_bar_share_agent_activity(browser, serve
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": "Does the top bar agree with this receipt?",
+            "text": "Does the banner agree with this receipt?",
         },
     )
     record_claim(page_dir, id="gallery", pid=os.getpid(), agent="Claude")
@@ -3957,9 +3957,9 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     assert not [event for event in sent_events(serve.page_dir) if event.get("token")]
     page.keyboard.press("Escape")
     # A retired thread lands on the surface the reader's own gesture reaches. With the
-    # widget still on the page its passages keep a page-local address, so the margin's
+    # widget still on the page its passages keep a page-local destination, so the margin's
     # thread margin entry and each passage's comment count open the fallback card and Threads
-    # stays shut; a disconnected widget leaves no such address and the panel answers.
+    # stays shut; a disconnected widget leaves no such destination and the panel answers.
     if failure == "disconnect":
         expect(markers).to_have_count(0)
         page.get_by_role("button", name=re.compile(r"^Threads")).click()
@@ -4203,7 +4203,9 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     page.set_viewport_size({"width": 1280, "height": 720})
 
     data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Current instructions.\n")
-    expect(page.locator("lf-text-document code")).to_have_text("Current instructions.\n")
+    expect(page.locator("lf-text-document code")).to_have_text(
+        "Current instructions.\n"
+    )
     assert datum.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == {
         **origin,
         "revision": 2,
@@ -4226,7 +4228,9 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
         "# Leaf\n\nOriginal instructions.\n"
     )
     compare_with(page, 1)
-    expect(page.locator("lf-text-document")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    expect(page.locator("lf-text-document")).to_have_class(
+        re.compile(r"\blf-ins-block\b")
+    )
     expect(page.locator("#latency-line")).to_have_class(re.compile(r"\blf-ins-block\b"))
     compare_with(page, 1)
 

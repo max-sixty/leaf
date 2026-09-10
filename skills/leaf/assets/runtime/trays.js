@@ -11,7 +11,7 @@ import { allAsks } from "./asks/model.js";
 import { walkRows } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { iconElement } from "./icons.js";
-import { dismissBannerAddresses, focusBannerAddress } from "./banner-shelf.js";
+import { dismissBannerControls, focusBannerControl } from "./banner-shelf.js";
 // The left side holds one tray at a time. `setOpenTray` owns `openTrayKey` and renders the
 // complete outcome for leaves and asks. The leaves tray overlays the document because its
 // rows leave the page. The asks tray takes a strip because its rows travel within the
@@ -180,7 +180,7 @@ export function createTrays({
     // Threads and trays are alternate auxiliary surfaces. Retire the standing one before another
     // opens so layout, focus, and persisted state never have to reconcile two of them.
     if (key) {
-      dismissBannerAddresses();
+      dismissBannerControls();
       beforeOpen({ remember });
     }
     trays.get(openTrayKey)?.modality.sync(false);
@@ -218,7 +218,7 @@ export function createTrays({
         if (out) out.finished.then(hide, () => {});
         else hide();
         if (returnFocus && panel.contains(document.activeElement))
-          focusBannerAddress(btn);
+          focusBannerControl(btn);
       }
     }
     if (remember) readerStore.set(TRAY_SLOT_KEY, key ?? "");

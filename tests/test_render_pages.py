@@ -97,7 +97,7 @@ def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve)
           const hints = [...document.querySelectorAll('.lf-target-chooser-hint')].map(node => {
             const at = node.getBoundingClientRect();
             return {
-              code: node.dataset.lfTarget,
+              code: node.dataset.lfHintCode,
               distance: Math.hypot(
                 at.left + at.width / 2 - box.left,
                 at.top + at.height / 2 - box.top,
@@ -108,9 +108,9 @@ def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve)
           return hints[0]?.distance < 30 ? hints[0].code : null;
         }"""
     )
-    assert code, "the summary had no semantic-selection hint"
+    assert code, "the summary had no target-chooser hint"
     page.keyboard.type(code)
-    expect(page.locator(".lf-live")).to_contain_text("Selected list: Observed")
+    expect(page.locator(".lf-live")).to_contain_text("Chosen list: Observed")
     assert errors == []
     page.close()
 
@@ -2921,7 +2921,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     )
     assert page.evaluate(sideways) == 0
 
-    # A left workspace and the page's own left margin are consecutive strips. The fixed
+    # A left auxiliary surface and the page's own left margin are consecutive strips. The fixed
     # ToC follows the shell's left edge instead of remaining behind the Asks sheet.
     resized(page, 1700, 900)
     page.locator(".lf-asks").click()
@@ -2931,7 +2931,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           && document.querySelector('.lf-asks-panel').getAnimations().length === 0
           && document.querySelector('lf-toc').getAnimations().length === 0"""
     )
-    workspace = page.evaluate(
+    geometry = page.evaluate(
         """() => {
           const tray = document.querySelector('.lf-asks-panel').getBoundingClientRect();
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
@@ -2943,21 +2943,21 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
                   tocPosition: getComputedStyle(document.querySelector('lf-toc')).position};
         }"""
     )
-    assert workspace["sidebarPosition"] == "sticky"
-    assert workspace["tocPosition"] == "fixed"
-    assert workspace["sidebarLeft"] >= workspace["trayRight"] - 1
-    assert abs(workspace["tocLeft"] - workspace["trayRight"] - 24) <= 1
-    assert 64 <= workspace["tocTop"] <= 68
+    assert geometry["sidebarPosition"] == "sticky"
+    assert geometry["tocPosition"] == "fixed"
+    assert geometry["sidebarLeft"] >= geometry["trayRight"] - 1
+    assert abs(geometry["tocLeft"] - geometry["trayRight"] - 24) <= 1
+    assert 64 <= geometry["tocTop"] <= 68
     # The map is sized to the window rather than to the room left under the shortcut bar, so
     # its foot is the window's less the banner and the inset. The line stands over its
     # last entry and this asserts that it does: the line is a hover here, and the map is
     # not one of the regions that ends above it (`lf-toc`'s rule carries the TODO).
-    assert abs(workspace["tocBottom"] - 876) <= 1, (
-        f"the map is no longer sized to the window: {workspace}"
+    assert abs(geometry["tocBottom"] - 876) <= 1, (
+        f"the map is no longer sized to the window: {geometry}"
     )
-    assert workspace["lineTop"] < workspace["tocBottom"], (
+    assert geometry["lineTop"] < geometry["tocBottom"], (
         f"the shortcut bar no longer stands over the map's foot, so the cutoff this page "
-        f"accepts has been closed somewhere without the TODO being settled: {workspace}"
+        f"accepts has been closed somewhere without the TODO being settled: {geometry}"
     )
     page.locator(".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()

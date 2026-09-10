@@ -231,7 +231,7 @@ export function bake() {
   // handler kept. The handlers left with the scripts above, so a copy that carried them
   // offered a press nothing can take — and the first Tab into an exported decision page
   // landed on one. It was a `choose` group's pick mark, which
-  // drew the keyboard address for a key that answers nothing, into a row holding no
+  // drew the binding badge for a key that answers nothing, into a row holding no
   // column for it: the 30px an option reserves is live-page-only, so the digit came
   // down 8px over the option's own first word.
   //

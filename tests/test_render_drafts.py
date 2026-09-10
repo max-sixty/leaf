@@ -1640,7 +1640,7 @@ def test_a_held_comment_send_leaves_a_later_keyboard_comment_open(held_events, s
           return [...document.querySelectorAll('.lf-target-chooser-hint')]
             .sort((a, b) => Math.abs(a.getBoundingClientRect().top - top)
                           - Math.abs(b.getBoundingClientRect().top - top))[0]
-            .dataset.lfTarget;
+            .dataset.lfHintCode;
         }"""
     )
     page.keyboard.type(target_code)

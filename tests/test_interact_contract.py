@@ -39,6 +39,7 @@ from interact_support import (
     comment,
     decide,
     declare_data_input,
+    element_declaration,
     fetch,
     fixture_version_path,
     live_versions,
@@ -48,7 +49,6 @@ from interact_support import (
     stamp,
     styled,
     trial_version,
-    element_declaration,
 )
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model

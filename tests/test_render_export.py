@@ -1470,7 +1470,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
 
     A copy over-promising is the other half of that, and it went unread for as long as
     there was nothing here asking. Tab into an exported decision page landed on a pick
-    mark, which summoned the keyboard address for a key that answers nothing, into a row
+    mark, which summoned the binding badge for a key that answers nothing, into a row
     holding no column for it; a board's ten grips each opened a grab cursor; twenty
     options lit under a pointer that could not pick one. So the copy is asked what it
     still offers, in the three registers an offer is made in — a widget's chrome still

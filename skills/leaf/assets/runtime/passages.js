@@ -2,7 +2,7 @@
 
    Passages use one representation: ordered segments `{node, start, end}` over composed
    text. `textNodesUnder` produces the segments, and quote capture, quote resolution,
-   reading position, item labels, and version-comparison readings all use them. Never
+   reading position, element labels, and version-comparison readings all use them. Never
    introduce another text walk for one of those jobs.
 
    Two readings are intentionally different:
@@ -64,7 +64,7 @@
    Hit testing asks two different questions. `elementFromPointAcross` and `markAt`
    (anchor-resolution.js) may descend into a shadow root when the exact marked text matters.
    `aimedTarget` (composing/aim.js) may keep document retargeting when the host is the
-   semantic item. Choose the reading by the question, not by convenience.
+   addressable element. Choose the reading by the question, not by convenience.
 
    The page's widget inventory remains the document's declared inventory. Do not
    silently discover nested widget families inside shadow roots as new top-level
@@ -152,7 +152,9 @@ let settlementSlotsMemo;
 export function settlementSlots() {
   if (settlementSlotsMemo != null) return settlementSlotsMemo;
   const value = {};
-  for (const [tag, entry] of elementDeclarations().filter(([, e]) => e["x-retired-when"]))
+  for (const [tag, entry] of elementDeclarations().filter(
+    ([, e]) => e["x-retired-when"],
+  ))
     for (const owner of entry["x-owners"])
       ((value[owner] ??= {})[entry["x-retired-when"]] ??= []).push(tag);
   if (Object.keys(registry).length) settlementSlotsMemo = value;

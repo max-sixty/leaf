@@ -1,4 +1,4 @@
-/* The go-to sequence: `g` opens one destination mode, and this owner holds its vocabulary.
+/* The Go-to sequence: `g` opens one prefix grammar, and this owner holds its vocabulary.
 
    Visible, visually discovered targets share one generated-letter namespace. Links,
    tabs, folds, the presses a widget built, and visible margin targets are read together
@@ -22,10 +22,10 @@
    the panel open. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
    Page Map, `g V` Versions, and `g D` the unsent draft the composer put away. A named
-   panel address toggles that panel, matching its visible control. Completing one that
+   panel destination toggles that panel, matching its visible control. Completing one that
    opens a surface exchanges the transient sequence for a return frame which restores the
-   standing and workspace captured before `g` armed; completing it again closes the
-   surface without adding a frame. These destinations remain available when a workspace
+   standing and auxiliary chrome state captured before `g` armed; completing it again closes the
+   surface without adding a frame. These destinations remain available when an auxiliary surface
    covers the page: the sequence belongs to that modal surface while the inert document's
    ordinary scopes remain unavailable.
 
@@ -42,9 +42,9 @@
    that shared prefix.
    Generated hints are opaque routes, so none may be dropped for a collision; the shared
    hint placement pass spreads them around the shortcut bar and one another. Escape removes
-   one typed letter, then a filter, then closes the mode. A letter from the hint alphabet is consumed
+   one typed letter, then a filter, then closes the sequence. A letter from the hint alphabet is consumed
    even when a scene refresh made it invalid, with explicit feedback instead of an
-   unrelated page action; another unrelated key closes the mode and is redispatched with
+   unrelated page action; another unrelated key closes the sequence and is redispatched with
    its ordinary meaning.
 
    A press may deliberately leave layers standing while moving focus outside them. That is
@@ -53,10 +53,10 @@
    and keeps both the panel and its narrowing. A panel covering the document cannot make
    that promise, so its ordinary Escape rung remains the route back.
 
-   Keyboard destinations also capture the workspace they replace. `g T`, `g A`, and
+   Keyboard destinations also capture the auxiliary chrome state they replace. `g T`, `g A`, and
    `g L` may exchange a standing panel or tray for another; their return frame restores
    that prior auxiliary surface and re-resolves its semantic row when reconciliation rebuilt it.
-   `g M` uses the same frame for the complete Page-map sheet. `g V` contributes the
+   `g M` uses the same frame for the Page Map dialog. `g V` contributes the
    version menu's own return frame to that destination vocabulary. Direct destinations
    therefore restore the standing their owner displaced rather than merely focusing the
    destination's banner control after closing it.
@@ -284,8 +284,8 @@ export function createGoToSequence({
     {
       id: "navigation.page-map",
       key: "Shift+m",
-      does: "Go to the Page Map",
-      line: "Page Map",
+      does: "Open the Page Map dialog",
+      line: "Page Map dialog",
       control: () => mapButton,
       when: () => true,
       go: (...args) => enterPageMap(...args),
@@ -302,7 +302,7 @@ export function createGoToSequence({
     control.click();
   }
 
-  const MARGIN_TARGET_KIND = "Margin control or status indicator";
+  const MARGIN_TARGET_KIND = "Margin entry";
   const TARGET_KINDS = [
     {
       kind: MARGIN_TARGET_KIND,
@@ -519,7 +519,7 @@ export function createGoToSequence({
     if (on && !goToActive && claimsEsc(focused())) return;
     if (on) stopGlide(seenScroller());
     goToActive = on;
-    // The mode itself reveals page navigation such as a roomy contents map. Publish that
+    // The sequence itself reveals page navigation such as a roomy contents map. Publish that
     // state before taking the visible-scene reading so those routes enter the same map as
     // links that were already standing in the document.
     document.body.toggleAttribute(PAGE_PAINT_ATTRIBUTE.goto, on);
@@ -530,7 +530,7 @@ export function createGoToSequence({
     scrolling = false;
     refreshCandidates = false;
     clearTimeout(scrollTimer);
-    // The chips are the eye's copy; the window itself is spoken, or the mode change is silent
+    // The chips are the eye's copy; the sequence itself is spoken, or the context change is silent
     // to exactly the reader who cannot see them.
     if (on)
       announce(
@@ -813,7 +813,7 @@ export function createGoToSequence({
           does: "Type a visible target's hint",
           line: "visible target",
           // Once armed, keep the alphabet claimed even when a filter has no members. A key
-          // then reports the miss inside this mode rather than falling through to a page
+          // then reports the miss inside this sequence rather than falling through to a page
           // command whose letter happened to match it.
           when: () => (goToActive ? true : targetCapability()),
           run: typeHint,
@@ -962,7 +962,7 @@ export function createGoToSequence({
   // The way in to the sequence. Its row supplies the same leader every painted Go-to hint uses,
   // so the letter the reader presses and the letter the page prints cannot diverge.
   //
-  // The page-level row promises the mode rather than any particular ephemeral hint.
+  // The page-level row promises the sequence rather than any particular ephemeral hint.
   const OPEN_GO_TO = {
     id: "navigation.go-to.open",
     keys: ["g"],

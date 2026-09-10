@@ -1,5 +1,5 @@
 /* This module owns how a binding is drawn: the steps a row's sequence or label breaks
- * into, which leading steps match presses the active mode has accepted, and the
+ * into, which leading steps match presses the active interaction has accepted, and the
  * key-sequence element every surface renders them as. */
 import { labelOf, spell, word } from "./bindings.js";
 

@@ -24,7 +24,7 @@
 
    Keyboard and pointer expansion share one state. Focus arrival through Tab unfolds a
    compact cluster, Left and Right walk it, and Escape folds only the layer that gesture
-   opened. Page-map and generated-address arrivals activate the exact visible control;
+   opened. Page Map and Go-to arrivals activate the exact visible control;
    they do not choose another action for the reader.
 
    The thread card stays attached to its owning cluster, chooses a readable side margin
@@ -1287,7 +1287,7 @@ export function createMarginProjection({
       },
       shown: (target) =>
         Boolean(target && shownParts(target).some((part) => part.checkVisibility())),
-      // Compact mode has no page rail. Dock every contributed item even when a
+      // The compact margin projection has no page rail. Dock every contributed entry even when a
       // positioned widget happens to leave enough local room for the absolute
       // prototype; that accident must not give one nested target a desktop posture.
       hangs: () => !readingRegionFor(row.lfEntry?.target) && !panelWouldCover(),
@@ -2282,7 +2282,7 @@ export function createMarginProjection({
       });
     });
     // Geometry is one read-only batch after every row has reconciled. Reading a target
-    // between two marker writes forced one full document layout per Page-map entry —
+    // between two marker writes forced one full document layout per Page Map entry —
     // including on the two-second heartbeat. The spoken positions use the main rect
     // already read above and one final scroll height, then write every name together.
     const mainHeight = main?.scrollHeight ?? 0;
@@ -2339,7 +2339,7 @@ export function createMarginProjection({
     scheduleMarginLayout();
     scheduleRoving();
     scheduleMarginEntryLabels();
-    // Every Page-map host contributes the same keyboard section. Its capability is the
+    // Every Page Map host contributes the same keyboard section. Its capability is the
     // map's existence; each row already asks the narrower question of whether its press
     // works from the current focus. Repeating live geometry in every scope's `when`
     // forced a layout per location when paintKeys reflected them.
@@ -2456,7 +2456,7 @@ export function createMarginProjection({
         // Chromium also refuses a second popover operation in the same rendering turn,
         // even when it belongs to another surface. Keep the requested marker current and
         // try the show once that turn has settled; a focus move meanwhile cancels it, and
-        // focus remains a usable Page-map arrival if the browser still refuses the preview.
+        // focus remains a usable Page Map arrival if the browser still refuses the preview.
         if (!(error instanceof DOMException) || error.name !== "InvalidStateError")
           throw error;
         if (retry)
@@ -2553,7 +2553,7 @@ export function createMarginProjection({
     const landsOnTarget = focusMap && !entryHasMarginHost(entry);
     if (focusMap && !landsOnTarget) focusMapControl(entry);
     item.activate();
-    // A Page-map-only location has no margin control to receive the handoff. Reveal its
+    // A Page Map-only location has no margin entry to receive the handoff. Reveal its
     // target first, then lend that authored element a programmatic tab stop so keyboard
     // focus and the visible arrival name the same place.
     if (landsOnTarget && entry.target?.isConnected) focusDestination(entry.target);
@@ -2619,7 +2619,7 @@ export function createMarginProjection({
   }
 
   // A route that starts on the page stays on the page while that thread has an inline
-  // address. Widget-local surfaces are already rendered, while a margin-projection thread is
+  // destination. Widget-local surfaces are already rendered, while a margin-projection thread is
   // opened on demand. Threads remains the complete fallback for a detached or otherwise
   // unaddressable conversation. Callers choose only the landing within the conversation;
   // this function owns the surface choice so a mark, its accessibility note, and t/T

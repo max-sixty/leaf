@@ -35,7 +35,7 @@ import {
   targetChooserHintLayer,
   pageSearchSurface,
 } from "./runtime/composing/target-chooser.js";
-import { createStandingItem } from "./runtime/composing/standing.js";
+import { createStandingElement } from "./runtime/composing/standing.js";
 import {
   createReactionController,
   reactionTokens,
@@ -403,7 +403,7 @@ asks = createAskView({
   repaint,
 });
 
-const standingItem = createStandingItem({
+const standingElement = createStandingElement({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
   askPlace: asks.askPlace,
   standingIn: asks.standingIn,
@@ -481,7 +481,7 @@ reactions = createReactionController({
   showFab: responseSurface.showFab,
   visualActionAnchor: anchorControls.visualActionAnchor,
   standingConversation,
-  standingItem,
+  standingElement,
 });
 targets = createTargetChooser({
   scrollToRange: anchorTravel.scrollToRange,
@@ -638,7 +638,7 @@ pageKeys = createPageKeys({
   dismissFab: responseSurface.dismissFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
   fabOptionsAvailable: responseSurface.fabOptionsAvailable,
-  commentOnItem: responseSurface.commentOnItem,
+  commentOnAddressable: responseSurface.commentOnAddressable,
   focusFabComment: responseSurface.focusFabComment,
   showFabOptions: responseSurface.showFabOptions,
   updateFab: responseSurface.updateFab,
@@ -663,7 +663,7 @@ pageKeys = createPageKeys({
   VERSIONS: version.VERSIONS,
   activeInlineThread: app.margin.activeInlineThread,
   keyboardRung: app.margin.keyboardRung,
-  standingItem,
+  standingElement,
   actionRow: asks.actionRow,
 });
 const standing = createStanding({

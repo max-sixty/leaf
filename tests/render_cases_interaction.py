@@ -1243,9 +1243,9 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
         "pattern": "^[0-9]+$",
     }
     declarations["lf-drift"].setdefault("required", []).append("offset")
-    declarations["lf-drift"]["x-example"] = declarations["lf-drift"]["x-example"].replace(
-        'id="drift-example"', 'id="drift-example" offset="120"'
-    )
+    declarations["lf-drift"]["x-example"] = declarations["lf-drift"][
+        "x-example"
+    ].replace('id="drift-example"', 'id="drift-example" offset="120"')
     declarations["lf-drift"]["properties"]["deep"] = {"type": "boolean"}
     declarations["lf-drift"]["properties"]["bare"] = {"type": "boolean"}
     deep = deep or bare

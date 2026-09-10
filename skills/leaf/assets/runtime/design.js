@@ -12,7 +12,7 @@ import { CONTROL_WORD_CAP, designName, DESIGN_MODE_KEY } from "./design-readings
 // writer (paintInspect), beside the box it names.
 export const inspectEl = el("div", "lf-ui lf-inspect lf-target-paint");
 inspectEl.setAttribute("aria-hidden", "true");
-// Design mode's legend: a box for every item on the page while the mode stands, drawn
+// Design mode's legend: a box for every addressable element on the page while the mode stands, drawn
 // here in the chrome's layer (paintLegend, its one writer). Paint about the page, so it
 // says nothing to a screen reader — the mode's announcement and the names under the
 // pointer are the spoken copy.
@@ -71,9 +71,10 @@ export function createDesignMode({
   }
 
   // The legend: what is on the page, shown while the mode stands rather than found by
-  // hovering. One box per item in the chrome's layer (the stylesheet's .lf-legend-box
-  // says what it looks like and why), and on every item but a widget's parts the
-  // item's name — the words a design comment on it will carry (designName). The parts
+  // hovering. One box per addressable element in the chrome's layer (the stylesheet's
+  // .lf-legend-box says what it looks like and why), and on every addressable but a
+  // widget's parts the element's name — the words a design comment on it will carry
+  // (designName). The parts
   // keep the hairline alone: a board's cards each have an id and each is a target, but a
   // tag on every card names nothing a reader can't see and hides what they can.
   //
@@ -82,17 +83,17 @@ export function createDesignMode({
   // that has since moved. What moves it: a scroll (a board's sideways one included), a
   // replay (paintAnchors), a resize, the page's markup changing under it (legendMoves —
   // a diagram finishing its draw, a details opening, a card dragged), and a size
-  // changing with no mutation to say so (legendSizes — an image landing inside an item,
+  // changing with no mutation to say so (legendSizes — an image landing inside an element,
   // a font swapping in). The shell observer in chrome-layout hears the body's own size
-  // and workspace-margin motion and sends them through pageShifted too.
+  // and auxiliary-surface or margin motion and sends them through pageShifted too.
   // Coalesced to a frame off those doors; the mode change paints in place, so the class
   // and the legend land together.
   //
-  // Reads before writes, in two passes: a box's geometry is a DOM write, and an item's
-  // rect read after one is a layout forced per item — the thrash a legend of a few
+  // Reads before writes, in two passes: a box's geometry is a DOM write, and an element's
+  // rect read after one is a layout forced per element — the thrash a legend of a few
   // hundred boxes cannot afford on every scroll frame. So the box set is settled first,
   // every rect is read, and only then is anything placed.
-  const legendBoxes = new Map(); // item → { box, radius, tagW }
+  const legendBoxes = new Map(); // addressable → { box, radius, tagW }
   const legendSizes = new ResizeObserver(() => pageGeometry.pageShifted());
   const legendMoves = new MutationObserver((records) => {
     // The legend's own writes are mutations too, inside the chrome; a repaint that heard
@@ -124,37 +125,39 @@ export function createDesignMode({
       attributes: true,
       characterData: true,
     });
-    const items = [...document.querySelectorAll(ADDRESSABLE)].filter(isAddressable);
-    // The set: a box for every item, in document order so a part's box paints over its
-    // widget's, and no box for an item the page no longer holds.
-    const present = new Set(items);
-    for (const [item, { box }] of legendBoxes)
-      if (!present.has(item)) {
+    const addressables = [...document.querySelectorAll(ADDRESSABLE)].filter(
+      isAddressable,
+    );
+    // The set: a box for every addressable, in document order so a part's box paints over
+    // its widget's, and no box for an element the page no longer holds.
+    const present = new Set(addressables);
+    for (const [addressable, { box }] of legendBoxes)
+      if (!present.has(addressable)) {
         box.remove();
-        legendBoxes.delete(item);
-        legendSizes.unobserve(item);
+        legendBoxes.delete(addressable);
+        legendSizes.unobserve(addressable);
       }
     // A widget's part is what its declaration says it is — a tag declaring x-owners has a
-    // holder, and is what the holder is made of — rather than what stands inside a
+    // compound owner, and is what the owner is made of — rather than what stands inside a
     // widget: a tab holds a whole page, and every heading and paragraph of that page is
     // the author's, and named.
     const parts = new Set(tagsDeclaring((e) => e["x-owners"]));
-    for (const item of items) {
-      if (legendBoxes.has(item)) continue;
+    for (const addressable of addressables) {
+      if (legendBoxes.has(addressable)) continue;
       const box = el("div", "lf-legend-box lf-page-paint");
-      box.dataset.for = item.id; // which item, stated where a test can read it (as .lf-aim's)
-      if (!parts.has(item.tagName.toLowerCase()))
-        box.append(el("span", "lf-legend-tag", designName(item)));
-      legendBoxes.set(item, { box });
+      box.dataset.for = addressable.id; // which element, stated where a test can read it (as .lf-aim's)
+      if (!parts.has(addressable.tagName.toLowerCase()))
+        box.append(el("span", "lf-legend-tag", designName(addressable)));
+      legendBoxes.set(addressable, { box });
       legendRoot.append(box);
-      legendSizes.observe(item);
+      legendSizes.observe(addressable);
     }
     // The reads.
     const clips = new Map();
     const under = banner.getBoundingClientRect().bottom;
-    const placed = items.map((item) => {
-      const entry = legendBoxes.get(item);
-      entry.radius ??= getComputedStyle(item).borderRadius;
+    const placed = addressables.map((addressable) => {
+      const entry = legendBoxes.get(addressable);
+      entry.radius ??= getComputedStyle(addressable).borderRadius;
       if (!legendTagH && entry.box.firstChild)
         legendTagH = entry.box.firstChild.getBoundingClientRect().height;
       // A tag's width is its text's (nowrap) under a viewport-relative cap (40vw), so
@@ -164,7 +167,7 @@ export function createDesignMode({
       // so it keeps its last answer until the pass after it shows again.
       if (entry.box.style.display !== "none")
         entry.tagW = entry.box.firstChild ? entry.box.firstChild.offsetWidth : 0;
-      return [entry, shownRect(item, clips)];
+      return [entry, shownRect(addressable, clips)];
     });
     // The writes. Names that would land on one spot step apart: a suggestion and the
     // block it wraps share a top-left corner, and two tags written there garble both —
@@ -210,7 +213,7 @@ export function createDesignMode({
     }
   }
 
-  // What a design press is about: the nearest thing with an id — a page item, the same
+  // What a design press is about: the nearest thing with an id — an addressable element, the same
   // answer the ⌥ aim gives, or inside the chrome the part the runtime named — and the
   // control the press landed on where it landed on one, since "the grip" and "the card"
   // are different remarks. Nothing where the press is the mode's own machinery: the

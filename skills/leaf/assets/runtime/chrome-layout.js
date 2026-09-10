@@ -23,21 +23,21 @@
 // while nested scrollports report on their elements. Use `scrollerFor(el)` where a widget
 // may be one an agent sent, since a widget in a message is scrolled by the panel's own
 // list and by nothing else. Threads and trays are alternate auxiliary surfaces, so only
-// one stands at a time. The strip-taking workspaces—Threads and Asks—take room when the
+// one stands at a time. The strip-taking auxiliary surfaces—Threads and Asks—take room when the
 // viewport can hold them and cover the page under their respective media query otherwise;
-// Leaves always covers because its rows leave this page. Workspace modality is a shared
+// Leaves always covers because its rows leave this page. Auxiliary modality is a shared
 // inert boundary outside this geometry owner; the reference and Page Map keep native
 // `showModal()`. The shell's
 // inline size already reflects the margins a beside panel or tray takes. `--strip-l`, `--strip-r`,
 // `--lf-room`, and `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is
 // the named `lf-page` style container a margin resident asks for them; `--lf-shell-inset-left`
-// carries the left workspace offset to viewport-fixed page furniture, and `--lf-bottom-chrome-clear`
+// carries the left auxiliary-surface offset to viewport-fixed page furniture, and `--lf-bottom-chrome-clear`
 // carries the bottom chrome's band to whatever has to end above it; `--lf-claim-right` is the
 // project-layer extension claim. A script-free copy therefore answers the same layout
 // from its own viewport without exporting session geometry.
 
 // Application composition supplies feature-local geometry. This owner cannot open
-// workspaces, send commands, or reconcile conversation DOM.
+// auxiliary surfaces, send commands, or reconcile conversation DOM.
 import { drawnEdge } from "./drawn-edge.js";
 import { motion } from "./motion.js";
 
@@ -110,7 +110,7 @@ export function createChromeLayout({
   // box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
   // it yields to a margin idiom is stated above.
   function syncLayout() {
-    // How many of the banner's addresses stand on its row is a reservation taken from the
+    // How many of the banner's controls stand on its row is a reservation taken from the
     // row's current box, so it belongs here with the rest of them and it goes first: what
     // it decides is the banner's own contents, which nothing below reads. The banner is
     // fixed, so a fold cannot resize the boxes this function is watching.

@@ -454,7 +454,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     lifted = True
     told(page)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
-    page.locator("[data-lf-for='sug-in-card']").get_by_role(
+    page.locator("[data-lf-margin-for='sug-in-card']").get_by_role(
         "button", name="Retry", exact=True
     ).click()
     round_trip(page)
@@ -2128,7 +2128,7 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     page.locator(".lf-composer textarea").fill("held open across the panel opening")
-    # A press on the banner's own button gives the workspace the screen and focus.
+    # A press on the banner's own button gives the Thread panel the screen and focus.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-composer")).to_be_hidden()

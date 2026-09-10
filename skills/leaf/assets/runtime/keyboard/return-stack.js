@@ -20,23 +20,24 @@
 
    Two independently requested entries remain two frames. `g T` enters the Threads list;
    `c` from that list enters its page-comment box. Two Escapes return first to the list
-   and then to the exact place and workspace `g T` displaced. A filter or other state
+   and then to the exact place and auxiliary chrome state `g T` displaced. A filter or other state
    entered inside a surface gets its own frame or its control's own nearer Escape step.
    Never infer the inverse of a keyboard entry from whatever panels happen to be open
    afterwards.
 
-   A bounded mode may instead own its complete entry, nesting, cancellation, and origin
+   A bounded interaction may instead own its complete entry, nesting, cancellation, and origin
    machine inside the one scope that claims the keyboard while it stands. The shortcut
-   reference, the `g`
-   address window, target chooser, page search, and reactions use that form. Such a mode
+   command reference, the `g`
+   Go-to sequence, target chooser, page search, and reactions use that form. Such an interaction
    does not also push a command frame. What is forbidden is the middle state: opening with
    an ordinary `run`, then asking a shared scene inspection or unrelated outer scope to
    guess what Escape should restore.
 
    Landing focus in what a press opened is arrival, not a second layer: a tray on its
    first row, the versions menu on a version, the panel on its list, or the comment box
-   `c` named. A later command into a different mode is another layer. The reference's
-   search box is part of its one complete mode because `COMMAND_REFERENCE_SCOPE` owns the whole keyboard
+   `c` named. A later command into a different interaction is another layer. The command
+   reference's search box is part of its one complete search context because
+   `COMMAND_REFERENCE_SCOPE` owns the whole keyboard
    while it stands; its letters were never the page's to take back.
 
    The rule holds for a sequence as much as for a surface, where the stack it is about is
@@ -73,7 +74,7 @@ import {
 import { coveringAuxiliarySurface, openAuxiliarySurfaceFor } from "./register.js";
 
 // A native layer opened above a covering auxiliary surface owns entries made inside it. The
-// workspace remains the fallback floor when no browser top layer stands.
+// auxiliary surface remains the fallback floor when no browser top layer stands.
 const currentLayer = () => currentNativeLayer(focused()) ?? coveringAuxiliarySurface();
 
 export function restoreReturnPlace({ control, reading }) {

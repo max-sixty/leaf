@@ -183,7 +183,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
 
 
 def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
-    """Whitespace is part of the drawable page plane. With no semantic item under the
+    """Whitespace is part of the drawable page plane. With no addressable element under the
     starting point, the stroke opens a page comment and keeps document coordinates."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     page.evaluate("document.body.style.minHeight = '180000px'")
@@ -412,7 +412,9 @@ def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
     page.close()
 
 
-def test_a_margin_start_uses_the_item_alongside_it_as_context(browser, serve):
+def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
+    browser, serve
+):
     """Starting beside content keeps that horizontal item's semantic anchor, so opening
     its composer or reflowing the page cannot separate the ink from what it marks."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
@@ -811,7 +813,7 @@ def test_an_inline_conversation_keeps_drawing_context_on_the_page(browser, serve
 
 def test_an_unsent_drawing_stands_down_when_its_data_revision_changes(browser, serve):
     """Draft ink consumes the anchor pass's outdated reading instead of stretching
-    itself over the source widget after its original datum version disappears."""
+    itself over the text-document widget after its original datum version disappears."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     target = page.locator(
         "lf-diff [data-line-type='change-deletion'][data-lf-datum]"

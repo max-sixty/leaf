@@ -791,7 +791,7 @@ ROOM_GEOMETRY = """() => {
                  centre: (b.left + b.right) / 2 };
     };
     // The CSS shell's box. It is not the window: the root owns document scrolling and
-    // reserves a stable gutter, while body margins yield room to standing workspaces.
+    // reserves a stable gutter, while body margins yield room to auxiliary surfaces.
     // `room` above is the body's content box; this reading includes the full shell so
     // the test can tell which edge that room came out of.
     const page = () => {

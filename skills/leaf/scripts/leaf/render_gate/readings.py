@@ -127,9 +127,11 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     failsoft = evaluate_probe(page, "failSoftErrors")
     invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
-    visual_provider_problems = evaluate_probe(page, "invalidVisualProviders", declarations)
+    visual_provider_problems = evaluate_probe(
+        page, "invalidVisualProviders", declarations
+    )
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
-    unmarkable = evaluate_probe(page, "unmarkableItems")
+    unmarkable = evaluate_probe(page, "unmarkableElements")
     overflow = evaluate_probe(page, "rootOverflow")
     misplaced = evaluate_probe(page, "misplacedBoxes")
     withheld = evaluate_probe(page, "withheldRoom")
@@ -164,7 +166,9 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         # thread chrome already has the thread's reply surface and conversationBox
         # deliberately returns none there. Everywhere else, ask the merged registry
         # for the instances and the module's own marker for the host it placed.
-        missing_conversations = evaluate_probe(page, "missingConversations", declarations)
+        missing_conversations = evaluate_probe(
+            page, "missingConversations", declarations
+        )
         # Behind the caught-up wait above: a report moves a painted attribute and
         # the pass that speaks it runs before the stamp, so a reading taken any
         # earlier asks after a word the page has not been asked to say yet. A page

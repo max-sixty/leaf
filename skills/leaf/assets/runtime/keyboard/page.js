@@ -82,7 +82,7 @@ export function createPageKeys({
   dismissFab,
   fabAnchorAt,
   fabOptionsAvailable,
-  commentOnItem,
+  commentOnAddressable,
   focusFabComment,
   showFabOptions,
   updateFab,
@@ -107,7 +107,7 @@ export function createPageKeys({
   VERSIONS,
   activeInlineThread,
   keyboardRung,
-  standingItem,
+  standingElement,
   actionRow,
 }) {
   const inPanel = () => panelFocusIsInside(panelIsOpen);
@@ -142,7 +142,7 @@ export function createPageKeys({
   // and answers a container that is merely collapsed the same honest way: no box, so this is
   // not where the press goes.
   //
-  // `focused()` here where standingItem takes the host: this asks whether the reader is
+  // `focused()` here where standingElement takes the host: this asks whether the reader is
   // inside a conversation, and a widget an agent sent stages its controls in a shadow tree
   // of its own, so the innermost focus is where they actually are. The climb out is
   // closestAcross's.
@@ -154,7 +154,8 @@ export function createPageKeys({
   //
   // One aim and then one climb, rather than four cases. The pointer's aim outranks position,
   // being the more recent thing the reader said; below it the answer walks outward from where
-  // they are standing — the nearest conversation's box, then the nearest item, then the page,
+  // they are standing — the nearest conversation's box, then the nearest addressable element,
+  // then the page,
   // which is what is left when they are standing nowhere in it. An element anchor answers in
   // its own word (a figure, a card), the way the panel names one.
   //
@@ -193,7 +194,7 @@ export function createPageKeys({
         ...commenting(
           anchor.quote
             ? "selection"
-            : addressableWord(elementById(anchor.section)) || "item",
+            : addressableWord(elementById(anchor.section)) || "element",
         ),
         box: fabInput,
         go: focusFabComment,
@@ -210,12 +211,12 @@ export function createPageKeys({
         go: () => landIn(said),
         returnFrame: () => boxReturnFrame(said.held, said.box),
       };
-    const here = standingItem();
+    const here = standingElement();
     if (here)
       return {
         ...commenting(addressableWord(here)),
         box: fabInput,
-        go: () => commentOnItem(here),
+        go: () => commentOnAddressable(here),
         returnFrame: composerReturnFrame,
       };
     return {
@@ -290,7 +291,7 @@ export function createPageKeys({
   // the version chooser had. A bare or unknown type resolves to "text", so the default lands
   // on the typed side.
   // The fallback Escape reading for state reached without a registered keyboard entry:
-  // pointer-opened workspaces, captured targets, and ordinary focus traversal. Commanded
+  // pointer-opened auxiliary surfaces, captured targets, and ordinary focus traversal. Commanded
   // entries use the return stack and never infer their inverse from this resulting scene.
   //
   // So the first rung is theirs: out on the page, the innermost thing they are in is the Ask
@@ -1263,7 +1264,7 @@ export function createPageKeys({
   // row says which control it duplicates; its projection follows liveness too, so a disabled
   // Ask does not advertise a shortcut the dispatcher has withdrawn. The latest-version
   // chip's route spans two rows, so it is composed from both. The Go-to owner paints
-  // sequential sequence overlays while its mode stands; this projection keeps the complete
+  // sequential steps while its interaction stands; this projection keeps the complete
   // route in the tooltip at rest.
   //
   // The pass runs in the standing chrome's frame, which the `lf-actions` heartbeat asks for

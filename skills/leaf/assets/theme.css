@@ -275,7 +275,7 @@
   --here-shadow: 0 0 0 var(--here-ring-w);
   --target-trace-w: 1.5px;
   --target-trace-ink: color-mix(in srgb, var(--ink-2) 42%, var(--paper));
-  /* A keyboard address chip's box: the line box, which is a ratio of the font, plus
+  /* A keyboard badge's box: the line box, which is a ratio of the font, plus
      the ring drawn around it (chrome.css dresses one). It is a token for the
      reason the ring's width is — a box somebody else holds room for has to be read
      back in a calc, and the option that holds a column for one is in another layer's
@@ -458,7 +458,7 @@ html:root {
 /* Margin features claim named strips instead of overwriting page padding themselves.
  * A static copy must subtract exactly the room its padding reserved; the live page can
  * measure its final box, but both still need one shared answer. The right side hosts
- * sidenotes, suggestion controls, and the living map's inline conversations. They occupy
+ * sidenotes, suggestion controls, and the margin projection's inline conversations. They occupy
  * the same strip and are collision-laid-out rather than summed, so the page reserves only
  * the widest claim.
  * The left still has one claimant: aside.sidebar writes --strip-l directly. */
@@ -1294,7 +1294,7 @@ ol.steps > li { counter-increment: step; position: relative; padding-left: 34px;
 /* The step's own number, off the ladder for the reason the ladder states: it is set
    against a 21px disc rather than against the prose, so it is a fit and says so here. The
    apparatus rung would fill the disc; the room is what is scarce, as it is for the pick
-   mark's ✓ and the keyboard address's digit. */
+   mark's ✓ and the binding badge's digit. */
 ol.steps > li::before { content: counter(step); position: absolute; left: 0;
                         top: 2px; width: 21px; height: 21px; border-radius: 50%;
                         background: var(--accent); color: var(--card); font-size: 12px;
@@ -1863,7 +1863,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-margin-marker[hidden] { display: none; }
 /* A marker reporting a status is excluded here as it is from the runtime's press
  * styles: neither the pointer nor the keyboard gives inert status an interactive accent
- * treatment. The focus outline still says where the Page-map walk has landed. */
+ * treatment. The focus outline still says where the Page Map walk has landed. */
 .lf-margin-marker:not([data-lf-behavior="status"]):is(:hover, :focus-visible, [aria-expanded="true"]),
 .lf-margin-more:is(:hover, :focus-visible, [aria-expanded="true"]) {
     border-color: var(--accent); color: var(--ink); background: var(--paper); }

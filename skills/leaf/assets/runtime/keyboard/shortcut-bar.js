@@ -213,30 +213,30 @@ const completeLine = (scopes, candidates) => {
     rows,
   };
 };
-const openAllShortcuts = (captureReturnPlace) =>
+const openCompleteReference = (captureReturnPlace) =>
   openCommandReference(
     (id, origin) => executeCommand(id, origin, beforeShortcutCommand),
     captureReturnPlace,
   );
 function advanceShortcutHelp(captureReturnPlace) {
   if (!shortcutHelpAvailable() || shortcutShelfIsOpen)
-    return openAllShortcuts(captureReturnPlace);
+    return openCompleteReference(captureReturnPlace);
   const scopes = stack();
   const { candidates, short } = arrange(lineRows(scopes));
   const shown = completeLine(scopes, candidates)?.rows ?? short;
   if (!candidates.some((row) => !shown.has(row)))
-    return openAllShortcuts(captureReturnPlace);
+    return openCompleteReference(captureReturnPlace);
   shortcutShelfIsOpen = true;
   repaint();
   announce(
-    "More keyboard shortcuts shown. Press question mark again for all shortcuts, or Escape to show less.",
+    "Shortcut shelf expanded. Press question mark again for Command reference, or Escape to collapse it.",
   );
 }
 export function closeShortcutShelf({ silent = false } = {}) {
   if (!shortcutShelfIsOpen) return;
   shortcutShelfIsOpen = false;
   repaint();
-  if (!silent) announce("Fewer keyboard shortcuts shown.");
+  if (!silent) announce("Shortcut shelf collapsed.");
 }
 export function renderShortcutBar(goToStatus) {
   // One walk, read twice: `at` and `when` are the page's own state and a second walk would
@@ -306,7 +306,7 @@ export function renderShortcutBar(goToStatus) {
   else shortcutBarMore.removeAttribute("aria-keyshortcuts");
   // Read where it is painted, like every other cell. Every destination keeps its complete
   // sequence while the reader advances through it: completed keys change face, but no key is
-  // added, removed, or moved. A sequence control such as Escape is a way out of the mode, not
+  // added, removed, or moved. A sequence control such as Escape is a way out of the interaction, not
   // another destination, so it keeps its ordinary one-step face.
   const sequenceScope = complete?.scope;
   const sequence = word(sequenceScope?.sequence) ?? [];
@@ -381,7 +381,7 @@ export function renderShortcutBar(goToStatus) {
     while (rowsUsed() > 2 && removable.length) removable.shift().hidden = true;
     return;
   }
-  // A sequence is the complete menu of the mode it names. Its live rows wrap rather than
+  // A sequence is the complete menu of the interaction it names. Its live rows wrap rather than
   // disappearing, even where the ordinary shortlist would yield a lower-ranked hint.
   if (complete) return;
   // On a window narrower than those two
@@ -399,7 +399,7 @@ export function renderShortcutBar(goToStatus) {
 
 export const shortcutShelfOpen = () => shortcutShelfIsOpen && shortcutHelpAvailable();
 
-// Boot supplies the two transient modes More closes. The shelf renderer and its
+// Boot supplies the two transient interactions More closes. The shelf renderer and its
 // reference rows never import those command owners to draw their current declarations.
 export function mountShortcutBar({ setGoToSequence, setReact, captureReturnPlace }) {
   shortcutBarMore.onclick = () => {
@@ -417,7 +417,7 @@ export const SHORTCUT_HELP = {
   runFromCommandReference: false,
   keys: ["?"],
   does: () => (shortcutShelfOpen() ? "Command reference" : "More keyboard shortcuts"),
-  line: () => (shortcutShelfOpen() ? "all shortcuts" : "more"),
+  line: () => (shortcutShelfOpen() ? "command reference" : "more"),
   control: () => shortcutBarMore,
   run: () => shortcutBarMore.click(),
 };

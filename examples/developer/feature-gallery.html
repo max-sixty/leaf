@@ -363,9 +363,9 @@
         <lf-toc id="bg-contents" max-level="2"></lf-toc>
       </aside>
       <p id="bg-start">
-        Use the contents spine or Map to find a feature; each eyebrow lists its element
-        names. Leaf puts circular controls and status indicators at page edges. Hover
-        over one for its label, or Tab into a group and use ← / → and Enter. Press
+        Use the contents spine or Page Map to find a feature; each eyebrow lists its
+        element names. Leaf puts circular controls and status indicators at page edges.
+        Hover over one for its label, or Tab into a group and use ← / → and Enter. Press
         <kbd>a</kbd> to move through Asks. Changes persist on reload.
       </p>
 
@@ -393,8 +393,8 @@
           </lf-options>
         </lf-ask>
         <p id="bg-core-controls-guide">
-          The top bar also shows <strong>Threads</strong>, the
-          <strong>Versions</strong> menu, <strong>Map</strong> (<kbd>g</kbd> then
+          The banner also shows <strong>Threads</strong>, the
+          <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd> then
           <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd> twice),
           and <strong>All leaves</strong> when another Leaf page is live. A quiet status
           line at the bottom right reports the current keyboard walk or a useful command
@@ -469,7 +469,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-draft>
         <p id="bg-history-guide">
           <strong>Picked up</strong> means the saved edit entered an agent turn. The
-          receipt and top bar derive their words from the same delivery, turn, and work
+          receipt and banner derive their words from the same delivery, turn, and work
           evidence.
         </p>
         <lf-draft id="bg-history">
@@ -505,8 +505,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
         <p id="bg-resolved-text">
           <strong>A resolved conversation.</strong> The room has a projector. Its
-          earlier question is resolved. Open Threads in the top bar, select Resolved,
-          and try Reopen to bring its Thread control back to the page.
+          earlier question is resolved. Open Threads in the banner, select Resolved, and
+          try Reopen to bring its Thread control back to the page.
         </p>
         <p id="bg-new-thread">
           <strong>A clean passage.</strong> Select some of these words, or Alt-click
@@ -678,9 +678,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </h3>
           <p id="bg-drawing-comments-guide">
             Press <kbd>w</kbd> and draw anywhere across the page. Start over this guide
-            or in its margin to anchor the comment here; empty space with no item
-            alongside comments on the page whole. Send the drawing alone or add words
-            first.
+            or in its margin to anchor the comment here; empty space with no addressable
+            element alongside comments on the page whole. Send the drawing alone or add
+            words first.
           </p>
         </section>
 
@@ -695,11 +695,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           <p id="bg-kept-draft-guide">
             Select a few words here, press <kbd>c</kbd>, and type a sentence without
             sending it. Press <kbd>Escape</kbd>: the box goes, the words stay, and a
-            notice names the address that returns to them. Scroll somewhere else, then
-            press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels back to this
-            passage and reopens the box on the sentence. That destination stands in the
-            sequence only while a kept draft does, so pressing <kbd>g</kbd> with nothing
-            written offers no such place to go.
+            notice names the destination that returns to them. Scroll somewhere else,
+            then press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels back to
+            this passage and reopens the box on the sentence. That destination stands in
+            the sequence only while a kept draft does, so pressing <kbd>g</kbd> with
+            nothing written offers no such place to go.
           </p>
         </section>
 
@@ -777,7 +777,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <section id="bg-source-captures">
           <p class="eyebrow bg-feature-elements">lf-text-document</p>
           <h3>
-            <strong>Source</strong
+            <strong>Text document</strong
             ><span class="bg-feature-detail">: live and captured data</span>
           </h3>
           <p id="bg-source-guide">
@@ -1015,13 +1015,12 @@ gallery/
             lf-milestones · lf-milestone · lf-chronology · lf-chronology-entry
           </p>
           <h3>
-            <strong>Milestones</strong>, <strong>Timeline</strong>, and
-            <strong>Events</strong
+            <strong>Milestones</strong> and <strong>Chronology</strong
             ><span class="bg-feature-detail">: state and history</span>
           </h3>
           <p id="bg-plans-guide">
-            Milestones show planned, active, and completed work. A Timeline orders
-            Events by time.
+            Milestones show planned, active, and completed work. A Chronology orders
+            entries by time.
           </p>
           <lf-milestones id="bg-milestones">
             <lf-milestone id="bg-milestone-survey" status="done" when="morning">
@@ -1046,7 +1045,11 @@ gallery/
             <lf-chronology-entry id="bg-chronology-closed" at="09:18" kind="failure">
               <strong>Path closed</strong> Standing water blocked the crossing.
             </lf-chronology-entry>
-            <lf-chronology-entry id="bg-chronology-switch" at="09:20" kind="intervention">
+            <lf-chronology-entry
+              id="bg-chronology-switch"
+              at="09:20"
+              kind="intervention"
+            >
               <strong>Route changed</strong> The sample moved under cover.
             </lf-chronology-entry>
             <lf-chronology-entry id="bg-chronology-clear" at="09:42" kind="observation">
@@ -1449,7 +1452,7 @@ gallery/
               </div>
               <figcaption>
                 The pointer presses the real top-bar control inside a compact Leaf page;
-                the production Threads workspace opens and closes without changing this
+                the production Threads panel opens and closes without changing this
                 gallery page.
               </figcaption>
             </figure>
@@ -1501,8 +1504,8 @@ gallery/
         </h2>
         <p id="bg-layout-guide">
           This workspace is embedded in a document, so its list, detail regions, and
-          action footer stay in document flow. The same pane and split markup can divide
-          a root workspace into columns and rows when the window has room.
+          action footer stay in document flow. The same pane and partition markup can
+          divide a root workspace into columns and rows when the window has room.
         </p>
         <lf-workspace id="bg-layout-workspace">
           <header><h3>Release candidate review</h3></header>

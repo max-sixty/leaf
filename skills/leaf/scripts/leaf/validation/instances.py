@@ -114,7 +114,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
 
 
 def layout_errors(lf_elements: list, registry: dict) -> list:
-    """Validate the direct grammar of registry-declared structural widgets."""
+    """Validate the direct grammar of registry-declared structural elements."""
     errors = []
     for rec in lf_elements:
         role = registry.get(rec["tag"], {}).get("x-reading-role")
@@ -454,7 +454,7 @@ def declared_word_errors(lf_elements: list, registry: dict) -> list:
 def line_ref_errors(lf_elements: list, registry: dict) -> list:
     """A declared line reference outside the body it points into. x-lines names the
     attributes holding 1-based line numbers or ranges of the nearest data body — the
-    element's own, or its holder's (lf-note's `at` anchors in its lf-code). The
+    element's own, or its enclosing data element's (lf-note's `at` anchors in its lf-code). The
     modules miss silently in both directions — a reversed range paints nothing, a
     note past the end docks at the block's foot — and version-to-version drift is
     exactly how one goes stale, so the door refuses what no reader would ever see."""
@@ -471,10 +471,10 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
             # traceback that eats every other error.
             if not re.fullmatch(r"[0-9]+(?:-[0-9]+)?(?:,[0-9]+(?:-[0-9]+)?)*", value):
                 continue
-            holder = rec if rec["body"].strip() else rec.get("holder") or {}
+            body_owner = rec if rec["body"].strip() else rec.get("holder") or {}
             # The modules' own trim: leading blank lines and trailing whitespace
             # are the source's furniture, not lines.
-            body = re.sub(r"\s+$", "", re.sub(r"^\n+", "", holder.get("body", "")))
+            body = re.sub(r"\s+$", "", re.sub(r"^\n+", "", body_owner.get("body", "")))
             count = len(body.split("\n"))
             where = at(rec, f'{attr}="{value}"')
             for part in value.split(","):

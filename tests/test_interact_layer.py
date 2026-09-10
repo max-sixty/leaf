@@ -24,11 +24,11 @@ from interact_support import (
     add_test_widget,
     case_alias,
     check,
+    element_declaration,
     fixture_version_path,
     install_payload,
     record_claim,
     shipped_payload,
-    element_declaration,
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -254,6 +254,78 @@ def test_the_skill_routes_every_reference_it_ships():
     for path in references:
         relative = path.relative_to(root).as_posix()
         assert relative in skill, relative
+
+
+def test_the_retired_ontology_has_no_parallel_interface():
+    """The glossary is a cutover: old names cannot remain as compatibility paths."""
+    retired_paths = [
+        "assets/runtime/workspace.js",
+        "assets/runtime/workspace-modality.js",
+        "assets/runtime/margin-elements.js",
+        "assets/runtime/living-margin.js",
+        "assets/runtime/page-map.js",
+        "assets/runtime/arrangements.js",
+        "assets/runtime/panel-workspace.js",
+        "assets/runtime/keyboard/address.js",
+        "assets/runtime/keyboard/address-placement.js",
+        "assets/runtime/keyboard/reference.js",
+        "assets/runtime/composing/targets.js",
+        "packages/default/widgets/lf-split.js",
+    ]
+    assert not [path for path in retired_paths if (SKILL_ROOT / path).exists()]
+
+    registries = [SKILL_ROOT / "assets" / "registry.json"]
+    registries.extend((SKILL_ROOT / "packages").glob("*/registry.json"))
+    retired_tags = {"lf-split", "lf-timeline", "lf-event", "lf-source"}
+    retired_keys = {"x-parent", "x-children", "x-layout"}
+    retired_body_grammars = {"mixed", "children", "none"}
+    for path in registries:
+        registry = json.loads(path.read_text(encoding="utf-8"))
+        assert retired_tags.isdisjoint(registry), path
+        for tag, declaration in registry.items():
+            if tag.startswith("$"):
+                continue
+            assert retired_keys.isdisjoint(declaration), f"{path}:{tag}"
+            assert declaration.get("x-content") not in retired_body_grammars, (
+                f"{path}:{tag}"
+            )
+
+    interface_roots = [
+        SKILL_ROOT / "assets" / "runtime",
+        SKILL_ROOT / "packages",
+        SKILL_ROOT / "scripts" / "leaf",
+    ]
+    source = "\n".join(
+        path.read_text(encoding="utf-8")
+        for root in interface_roots
+        for path in root.rglob("*")
+        if path.suffix in {".css", ".js", ".py"} and "vendor" not in path.parts
+    )
+    for token in (
+        "marginElement",
+        "itemWord",
+        "itemSays",
+        "itemDeclarations",
+        "widgetEntries",
+        "addressPlacement",
+        "addressLayer",
+        "createAddressSequence",
+        "workspaceModality",
+        "livingMargin",
+        "pageMapSheet",
+        "panelWorkspace",
+        "createStandingItem",
+        "standingItem",
+        "commentOnItem",
+        "focusBannerAddress",
+        "dismissBannerAddresses",
+        "unmarkableItems",
+        "openAllShortcuts",
+        "lf-address",
+        "lf-margin-element",
+        "data-lf-layout",
+    ):
+        assert token not in source, token
 
 
 def test_the_python_instructions_name_every_module_they_own():
@@ -1062,9 +1134,9 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE).group(1)
 
-    workspace = (assets / "runtime" / "thread-panel.js").read_text()
+    thread_panel = (assets / "runtime" / "thread-panel.js").read_text()
     for pattern, source in (
-        (r'^export const THREAD_PANEL_KEY = "([^"]+)";', workspace),
+        (r'^export const THREAD_PANEL_KEY = "([^"]+)";', thread_panel),
         (r'^export const TRAY_SLOT_KEY = "([^"]+)";', trays),
         (r'key: "(lf-thread-panel-width)"', layout),
         (r'key: "(lf-tray-slot-width)"', trays),

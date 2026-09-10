@@ -1,4 +1,4 @@
-"""Comment marks, addresses, and keyboard navigation tests."""
+"""Comment marks, Go-to addresses, and keyboard navigation tests."""
 
 import json
 import re
@@ -8,9 +8,9 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_support import (
-    ADDRESS_PAGE,
     ADDRESSED_PAGE,
     ASKS_PAGE,
+    BINDING_BADGE_PAGE,
     BOARD_PAGE,
     CHIPS,
     CLIPPED_BY,
@@ -931,7 +931,7 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
 
     option = page.locator("#bg-choice-street")
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     option.scroll_into_view_if_needed()
     option_box = option.bounding_box()
     assert option_box is not None
@@ -954,7 +954,7 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     assert design_comment["anchor"] == {"section": "bg-choice-street"}
     page.locator("body").focus()
     page.keyboard.press("Escape")
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
     ready = page.locator("#bg-request-live")
     restart = ready.get_by_role("button", name="Restart the sample worker", exact=True)
@@ -1661,11 +1661,11 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
 
 
 def test_a_questions_digits_are_drawn_whole(browser, serve):
-    """An address arrives into room its option is already holding, and lands on nothing.
+    """A binding badge arrives into room its option already holds, and lands on nothing.
 
     Every earlier placement borrowed that room instead, and each borrow showed. On the
     cell's outer corner the chip was half outside a group that clips itself, so no
-    address the product drew had ever been whole — seven of its seventeen pixels gone,
+    binding badge the product drew had ever been whole — seven of its seventeen pixels gone,
     and in a bare-label group the first digit was a sliver.
     Out in the page margin beside the group it was whole and it was in the neighbouring
     card's prose, because a middle column's margin is another cell. Neither showed up
@@ -1675,7 +1675,7 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
     So the cell holds a place for it, and this asks the two questions that place
     answers — does any ancestor cut it, is it on anybody's words — in both forms,
     stepped through with the key that reaches them. Rows reserve a leading gutter;
-    titled cards share their trailing header-state slot with the same Ask-owned address
+    titled cards share their trailing header-state slot with the same Ask-owned binding badge
     that temporarily replaces status.
 
     How far down the column it stands is each form's own answer, so each is asked for the
@@ -1689,7 +1689,7 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
     How far in it stands is each form's own relation: edge, digit, then prose for a row;
     prose opening, then digit, then edge for a card. The two forms deliberately no longer
     claim one rail, while every option within a form still claims one stable seat."""
-    page, errors = open_page(browser, serve(ADDRESS_PAGE))
+    page, errors = open_page(browser, serve(BINDING_BADGE_PAGE))
     seats = {"card": {}, "row": {}}
     for options, sitting in [
         (["c-heater", "c-cable", "c-hand"], "card"),
@@ -1705,7 +1705,7 @@ def test_a_questions_digits_are_drawn_whole(browser, serve):
             cut = chip.evaluate(CLIPPED_BY)
             assert cut is None, f"{id_}'s digit is cut: {cut}"
             # Never on the hairline the outer corner would have shared with the cells
-            # around it, and never in either neighbour's room. Rows put the address in
+            # around it, and never in either neighbour's room. Rows put the binding badge in
             # the leading gutter; cards put it in their trailing header-state slot.
             sits = chip.evaluate(INSIDE_ITS_OPTION)
             if sitting == "card":
@@ -2475,7 +2475,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
 ):
     """Pointer arrival opens one layer directly in its reply box. A thread reached by
     t opens on its card, so c or Enter adds a second layer and Escape returns through
-    each one. The Page-map fallback remains live at the same time: this proves declaration
+    each one. The Page Map fallback remains live at the same time: this proves declaration
     order cannot move it ahead of the causal frame. The page mark follows both focus modes."""
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
@@ -2527,8 +2527,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     assert "reply" in shortcut_bar_text(page)
-    # The walk itself made no return frame. Its Page-map fallback is still live, but a
-    # sequence armed afterwards is an inner mode and Escape cancels that mode first.
+    # The walk itself made no return frame. Its Page Map fallback is still live, but a
+    # sequence armed afterwards is an inner interaction and Escape cancels that sequence first.
     page.keyboard.press("g")
     assert "cancel" in shortcut_bar_text(page)
     page.keyboard.press("Escape")
@@ -3308,7 +3308,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     ), "an inline hint repeated the sequence context"
 
     mixed = page.locator(
-        f'{CHIPS}[data-lf-go-to-kind="Margin control or status indicator"]'
+        f'{CHIPS}[data-lf-go-to-kind="Margin entry"]'
         '[data-lf-go-to-target="opts-decision"]'
     )
     expect(mixed).to_have_count(2)
@@ -3519,7 +3519,7 @@ def test_generated_hints_spread_without_hiding_a_crowded_target(browser, serve):
            }"""
     )
     assert piles["found"] == [], (
-        f"addresses are drawn on top of each other: {piles['found']} "
+        f"hints are drawn on top of each other: {piles['found']} "
         f"(drawn: {piles['drawn']})"
     )
     assert len(piles["drawn"]) == 5, piles
@@ -3561,7 +3561,7 @@ def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
            }}"""
     )
     assert fouled == [], (
-        f"addresses are drawn over the shortcut bar that explains them: {fouled}"
+        f"hints are drawn over the shortcut bar that explains them: {fouled}"
     )
     assert errors == []
     page.close()
@@ -3570,7 +3570,8 @@ def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
 def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     """Mnemonics reach global surfaces; generated hints reach the visible scene.
 
-    Threads, Asks, Page Map, and page edges keep stable named routes. margin controls and status indicators,
+    The Threads panel, Asks tray, Page Map dialog, and page edges keep stable named
+    routes. Margin entries,
     tabs, links, folds, and the presses a widget built instead share one viewport-local
     letter namespace."""
     url = serve(ADDRESSED_PAGE)
@@ -3655,7 +3656,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
             "Threads panel",
         ),
         (
-            "navigation.panel.asks",
+            "navigation.tray.asks",
             ["g", "A"],
             ["pressed", "neutral"],
             "Asks tray",
@@ -3664,7 +3665,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
             "navigation.page-map",
             ["g", "M"],
             ["pressed", "neutral"],
-            "Page Map",
+            "Page Map dialog",
         ),
         (
             "navigation.target",
@@ -3712,7 +3713,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
             "aria-label", " then ".join(step.replace(" / ", " or ") for step in steps)
         )
         expect(hint).to_contain_text(words)
-    assert "navigation.panel.leaves" not in reference_commands
+    assert "navigation.tray.leaves" not in reference_commands
 
     # The visible More control and its registered `?` command are one route. An unmatched
     # key first disarms the sequence and keeps its ordinary meaning; a pointer press must enter
@@ -3788,7 +3789,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         assert geometry["height"] <= 800 * 0.2, geometry
     resized(page, 1280, 800)
     expect(page.locator(CHIPS).first).to_be_visible()
-    # The chips are the eye's copy of a mode; a reader who cannot see them is told the
+    # The chips are the eye's copy of the Go-to sequence; a reader who cannot see them is told the
     # window opened and what it holds, off the same rows the line just drew.
     expect(page.locator(".lf-live")).to_contain_text("visible targets")
     expect(page.locator(".lf-live")).to_contain_text("type a hint")
@@ -3818,7 +3819,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     expect(page.locator(CHIPS)).to_have_count(0)
 
-    # A direct destination also remembers the workspace it displaced. Threads replaces
+    # A direct destination also remembers the auxiliary chrome state it displaced. Threads replaces
     # Asks while it stands; one Escape restores both that tray and its exact focused row.
     ask = page.locator(".lf-asks-row").first
     page.keyboard.press("g")
@@ -3830,7 +3831,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(page.locator(".lf-asks-panel")).to_be_visible()
     expect(ask).to_be_focused()
 
-    # Page Map has its own close step, but that does not waive the same workspace
+    # Page Map has its own close step, but that does not waive the same auxiliary-state
     # contract: leaving it restores the Asks row it stood over. Its door is the one that
     # can forget, because a dialog delivers `close` in a task of its own — a frame after
     # the dispatcher has already put the reader back — so the door's own return route has
@@ -3885,9 +3886,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     ).to_be_focused()
     page.keyboard.press("Escape")
 
-    # A visible Margin control or status indicator shares the generated target map. Activating the hint
+    # A visible Margin entry shares the generated target map. Activating the hint
     # opens the same thread preview as its marker.
-    go_to_address(page, "Margin control or status indicator", "p1")
+    go_to_address(page, "Margin entry", "p1")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread textarea").first).to_be_focused()
     page.keyboard.press("Escape")
@@ -4007,7 +4008,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
              return chip ? chip.dataset.lfHintCode : null;
            }"""
     )
-    assert pick_code, "the pick mark the widget built got no address"
+    assert pick_code, "the pick mark the widget built got no Go-to hint"
     page.keyboard.type(pick_code)
     expect(page.locator("#opt-a")).to_have_attribute("chosen", "")
 
@@ -4047,21 +4048,21 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
 
 def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
-    """All leaves is the third panel destination and follows the same focus contract."""
+    """All leaves is the second tray destination and follows the same focus contract."""
     live_leaf("second", "A second leaf")
     page, errors = open_page(browser, serve(ADDRESSED_PAGE))
 
     page.keyboard.press("g")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("Leaves tray")
     leaves_hint = page.locator(
-        '.lf-go-to-hints > [data-lf-go-to-command="navigation.panel.leaves"]'
+        '.lf-go-to-hints > [data-lf-go-to-command="navigation.tray.leaves"]'
     )
     expect(leaves_hint).to_have_attribute("data-lf-go-to-address", "g L")
     assert leaves_hint.locator("kbd").evaluate_all(
         "keys => keys.map(key => [key.textContent, key.dataset.lfSequenceStepState])"
     ) == [["g", "pressed"], ["L", "neutral"]]
     # A live control label may change while the sequence stands. The detached overlay is
-    # owned by the address layer, so a routine poll cannot erase it.
+    # owned by the Go-to hint layer, so a routine poll cannot erase it.
     live_leaf("third", "A third leaf")
     round_trip(page)
     expect(page.locator(".lf-others")).to_contain_text("All leaves (3)")
@@ -4123,10 +4124,10 @@ def test_clamped_leaf_lists_share_the_walk_position(browser, serve, live_leaf):
     page.close()
 
 
-def test_a_completed_asks_tray_stays_reachable_through_its_toggle_address(
+def test_a_completed_asks_tray_stays_reachable_through_its_banner_control(
     browser, serve
 ):
-    """An answered tray can close and reopen through its panel address."""
+    """An answered tray can close and reopen through its banner control."""
     page, errors = open_page(
         browser,
         serve(
@@ -4490,7 +4491,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     page, errors = open_page(browser, serve(CONTROL_LABEL_PAGE))
     opener = page.get_by_role("button", name="? more", exact=True)
     opener.click()
-    opener = page.get_by_role("button", name="? all shortcuts", exact=True)
+    opener = page.get_by_role("button", name="? command reference", exact=True)
     opener.click()
     help_el = page.locator(".lf-command-reference")
     close = page.get_by_role("button", name="Back to more shortcuts")
@@ -5018,7 +5019,7 @@ def test_the_g_chord_reaches_a_checkbox_a_widget_built(browser, serve):
 
     page.keyboard.press("g")
     code = address_code(page, "Control", "soft-wrap")
-    # The repaint replaces address chips. Resolve and measure the current chip in
+    # The repaint replaces Go-to hints. Resolve and measure the current hint in
     # one browser turn rather than retaining a handle across that replacement.
     index = page.evaluate(
         """selector => {
@@ -5331,25 +5332,34 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
     page.close()
 
 
-def test_named_workspace_chords_toggle_their_panels(browser, serve, live_leaf):
-    """Desktop panels toggle beside the page; Leaves toggles in its covering posture."""
+def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
+    browser, serve, live_leaf
+):
+    """Desktop auxiliary surfaces toggle beside the page or in covering placement."""
     live_leaf("second", "A second leaf")
     page, errors = open_page(browser, serve(ASKS_PAGE, comments=1))
 
     for key, command, name, surface, control, covering in (
         (
             "Shift+t",
-            "threads",
-            "Threads",
+            "navigation.panel.threads",
+            "Threads panel",
             ".lf-thread-panel",
             ".lf-threads-toggle",
             False,
         ),
-        ("Shift+a", "asks", "Asks", ".lf-asks-panel", ".lf-asks", False),
+        (
+            "Shift+a",
+            "navigation.tray.asks",
+            "Asks tray",
+            ".lf-asks-panel",
+            ".lf-asks",
+            False,
+        ),
         (
             "Shift+l",
-            "leaves",
-            "All leaves",
+            "navigation.tray.leaves",
+            "Leaves tray",
             ".lf-others-panel",
             ".lf-others",
             True,
@@ -5363,10 +5373,10 @@ def test_named_workspace_chords_toggle_their_panels(browser, serve, live_leaf):
         page.keyboard.press("g")
         expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
         close_hint = page.locator(
-            f'.lf-shortcut-bar .lf-shortcut[data-lf-command-ids~="navigation.panel.{command}"]'
+            f'.lf-shortcut-bar .lf-shortcut[data-lf-command-ids~="{command}"]'
         )
         expect(close_hint).to_be_visible()
-        expect(close_hint).to_contain_text(f"close {name} panel")
+        expect(close_hint).to_contain_text(f"close {name}")
         page.keyboard.press(key)
         expect(page.locator(surface)).to_be_hidden()
         expect(page.locator(control)).to_have_attribute("aria-expanded", "false")
@@ -5378,7 +5388,7 @@ def test_named_workspace_chords_toggle_their_panels(browser, serve, live_leaf):
 def test_global_destinations_switch_from_a_covering_workspace(
     browser, serve, live_leaf
 ):
-    """A modal workspace keeps the global addresses that can replace or cover it."""
+    """A covering auxiliary surface keeps the global Go-to addresses that can replace it."""
     live_leaf("second", "A second leaf")
     url = serve(ASKS_PAGE, comments=1)
     _publish(serve.page_dir, 2, ASKS_PAGE, "two")
@@ -5440,7 +5450,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
     expect(versions).to_be_hidden()
     assert page.locator(".lf-thread-panel").evaluate(
         "panel => panel.contains(document.activeElement)"
-    ), "Tab left the version popover but escaped its modal workspace"
+    ), "Tab left the version popover but escaped its covering auxiliary surface"
 
     origin.focus()
     page.keyboard.press("g")
@@ -5900,7 +5910,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     # The popover is nonmodal, but the modal below it remains a hard floor. A page
     # command and the widget ancestor outside the dialog are both unreachable.
     page.keyboard.press("l")
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
     page.keyboard.press("Escape")
     expect(popover).to_be_hidden()
     expect(modal).to_be_visible()
@@ -6348,7 +6358,7 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     version = page.locator(".lf-version")
     banner_destinations = {
         "navigation.panel.threads": (page.locator(".lf-threads-toggle"), "T"),
-        "navigation.panel.asks": (page.locator(".lf-asks"), "A"),
+        "navigation.tray.asks": (page.locator(".lf-asks"), "A"),
         "version.open": (version, "V"),
     }
     for control, suffix in banner_destinations.values():
@@ -6894,7 +6904,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
 ):
     """The short line is a glance, not the command reference. It keeps the first
     innermost live action and the way out when the current scene has one. One `? more`
-    unfolds a bounded shelf of current commands; `? all shortcuts` then opens the
+    unfolds a bounded shelf of current commands; `? command reference` then opens the
     complete searchable register.
 
     The panel's general box is the causal contrast for the cap. A full page row crosses
@@ -6951,7 +6961,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(help_el).to_be_hidden()
     expect(line).to_have_attribute("data-lf-shelf-open", "true")
     expect(page.locator(".lf-live")).to_contain_text(
-        "More keyboard shortcuts shown. Press question mark again for all shortcuts"
+        "Shortcut shelf expanded. Press question mark again for Command reference"
     )
     assert visible_hints.count() > 2
     expect(line).to_contain_text("less")
@@ -6985,7 +6995,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
         assert geometry["bandHeight"] <= geometry["maxItemHeight"] * 2 + 8, geometry
     page.set_viewport_size({"width": 1200, "height": 800})
     page.evaluate(RENDERED)
-    more = page.get_by_role("button", name="? all shortcuts", exact=True)
+    more = page.get_by_role("button", name="? command reference", exact=True)
     expect(more).to_have_attribute("aria-expanded", "true")
     more.click()
     expect(help_el).to_be_visible()
@@ -7012,11 +7022,11 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(help_el).to_be_hidden()
     expect(line).to_have_attribute("data-lf-shelf-open", "true")
     expect(
-        page.get_by_role("button", name="? all shortcuts", exact=True)
+        page.get_by_role("button", name="? command reference", exact=True)
     ).to_be_focused()
     page.keyboard.press("Escape")
     expect(line).to_have_attribute("data-lf-shelf-open", "false")
-    expect(page.locator(".lf-live")).to_contain_text("Fewer keyboard shortcuts shown")
+    expect(page.locator(".lf-live")).to_contain_text("Shortcut shelf collapsed")
     expect(page.get_by_role("button", name="? more", exact=True)).to_have_attribute(
         "aria-expanded", "false"
     )

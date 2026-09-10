@@ -1,5 +1,4 @@
-/* The command reference: the complete keyboard-command listing behind `?` and the mode that owns the
-   keyboard while it stands.
+/* The command reference: the complete command catalog behind `?` and its modal search context.
 
    A true mode may own the keyboard. An armed Go-to sequence and the open reference claim
    the relevant keys through their scope. A longer-lived menu keeps the reference
@@ -9,7 +8,7 @@
    reference notes the ones it was opened over and stands them back up before that restore
    — the dialog that says what a menu's keys are cannot be what takes the menu away. If a
    covering auxiliary surface began while the reference stood, its owner declines a pre-boundary
-   layer outside that workspace and supplies the new return place instead. Otherwise the
+   layer outside that auxiliary surface and supplies the new return place instead. Otherwise the
    reference stands each layer back up from its own invoker — `lfInvoker`, the link a layer
    declares because the platform's own runs one way only — so the layer's way out survives
    the round trip too.
@@ -185,7 +184,7 @@ let commandsAtOpen = new Set();
 let commandReferenceOrigin = null;
 // The shared return-place primitive records a control or the current reading block. A
 // block is focused and then let go of, moving the browser's sequential starting point
-// without turning prose into a standing item.
+// without turning prose into a standing addressable element.
 // The layers the reference was opened over. A modal dialog clears every auto popover on
 // its way into the top layer — the platform's rule, not Leaf's — so the overlay that
 // exists to say what the versions menu's keys are was also what took the menu away, and
@@ -407,8 +406,8 @@ function showCommandReference(open, restoreFocus, invokeCommand, captureOrigin) 
       // it though no thread is focused. Filtering both by the same predicate is what took
       // the thread's own keys out of the reference altogether.
       //
-      // A transient mode is the exception, and it is one because there is no standing near
-      // it: the reader is in it or it is not there. Opening this modal dismisses the mode,
+      // A transient interaction is the exception, and it is one because there is no standing near
+      // it: the reader is in it or it is not there. Opening this modal dismisses the interaction,
       // so its declaration records that its rows must retain their boundary-time liveness.
       // Deriving that fact from a blanket keyboard claim coupled two independent parts of a
       // scope and made exempting `?` change what the reference listed.
@@ -605,7 +604,7 @@ function showCommandReference(open, restoreFocus, invokeCommand, captureOrigin) 
   if (closing) {
     for (const layer of commandReferenceLayers) {
       if (!layer.isConnected || layer.matches(":popover-open")) continue;
-      // A responsive change may have established a modal workspace while the native
+      // A responsive change may have established a covering auxiliary surface while the native
       // dialog stood above both surfaces. A popover captured before that boundary may
       // return only when it belongs inside it. A layer captured over this same boundary
       // was deliberately opened above it and keeps the ordinary reference round trip.

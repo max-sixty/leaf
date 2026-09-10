@@ -28,7 +28,7 @@ tab-scoped without becoming display state, for example.
 | **Leaf layer** | One checked, vendored composition of packages | A CSS cascade layer |
 | **Leaf element type** | One registered `lf-*` tag identity | A `$*` layer fact |
 | **Element declaration** | The registry record for one Leaf element type | An authored occurrence of the type |
-| **Leaf element** or **widget instance** | One authored occurrence of a Leaf element type | A native HTML element or its declaration |
+| **Leaf element** | One authored occurrence of a Leaf element type | A native HTML element or its declaration |
 | **Compound owner** | A Leaf element whose body owns declared direct members | An open-markup container |
 | **Compound member** | A Leaf element whose declaration admits one or more direct owner types | Any nested widget |
 | **Structural element** | A Leaf element with a declared role in reading structure | A member with no reading role |
@@ -71,6 +71,8 @@ A compound widget may own reading regions without being a pane.
 |---|---|---|
 | **Chrome** | Runtime-owned interface outside authored content | Authored widgets |
 | **Chrome root** | The one `.lf-chrome` container | The page shell |
+| **Banner** | The persistent chrome row carrying page status and global controls | The shortcut bar or an auxiliary surface |
+| **Banner control** | One control seated in the banner's global control order, whether on the row or folded into its overflow disclosure | A Go-to address or a status sentence |
 | **Auxiliary surface** | Chrome opened alongside or over the content frame | An authored workspace |
 | **Thread panel** | The right-side auxiliary surface containing threads | An ARIA tab panel |
 | **Tray slot** | The left-side chrome position that admits one tray | A tray itself |
@@ -108,6 +110,19 @@ The margin has a separate spatial hierarchy:
 
 *Withheld* means no spatial allocation is currently available; it does not imply that
 time alone will make the entry appear.
+
+## Contents outline
+
+**Contents outline** is generated page navigation derived from authored headings. Its
+presentations are:
+
+| Term | Identity criterion | Not this |
+|---|---|---|
+| **Contents spine** | The roomy margin presentation that distributes heading destinations over the document's height | The Page Map's margin projection |
+| **Open contents outline** | The ordinary in-flow or scrollable presentation that exposes every included heading label | A sidebar as such |
+
+`lf-toc` is the authored element that requests the contents outline. A sidebar is one
+possible authored position for it, not the feature's name.
 
 ## Keyboard grammar
 

@@ -680,7 +680,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     expect(draft).to_be_focused()
     expect(draft).to_have_value("Keep this comment about the original source.")
     expect(quote).to_contain_text(
-        "“Original source words.”" if quote_anchor else "§ source"
+        "“Original source words.”" if quote_anchor else "§ text-document"
     )
     assert page.evaluate("() => CSS.highlights.get('lf-pending').size") == 0
     expect(page.locator("#source.lf-pending, #source .lf-pending")).to_have_count(0)
@@ -1610,14 +1610,12 @@ def test_escape_lets_go_of_the_ask_the_reader_is_standing_on(browser, serve):
         "letting go left the reader holding the control on a page that fits the window"
     )
 
-    # A generated Page-map hint arrives the way the walk does and then presses the exact
+    # A generated Page Map hint arrives the way the walk does and then presses the exact
     # Accept margin entry it names. What unfolds there is that press's own result rather than
     # the arrival's, and the ladder still owes one Escape to let go of where the press
     # left the reader.
     with sending(page, "the addressed suggestion's acceptance"):
-        go_to_address(
-            page, "Margin control or status indicator", "sug-refill", "accept"
-        )
+        go_to_address(page, "Margin entry", "sug-refill", "accept")
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     assert page.evaluate(
@@ -2689,7 +2687,7 @@ customElements.define("lf-tally", class extends HTMLElement {
 def test_state_origin_readings_compose_on_one_target(browser, serve):
     """Each provenance channel gets one standing reading on a target.
 
-    Independent reader facets collapse to one Page-map reading, while reader, report,
+    Independent reader facets collapse to one Page Map reading, while reader, report,
     and restatement origins remain separate. An outline property could only show the
     last of these; the projection handed to the margin must preserve all three.
     """
@@ -3330,7 +3328,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
     identified as overriding authored placement in the tab that moved it and in a fresh
     replay alike, because the runtime compares the page's state against the version's
     own snapshot rather than remembering who wrote what. The runtime's quiet word and
-    Page-map entry carry that origin while the grip names the move and its destination.
+    Page Map entry carry that origin while the grip names the move and its destination.
     The card the move displaced stays unmarked — the log named one card, not its
     neighbours. The honoring version says the state itself, so on it the
     disagreement and both renderings are gone."""
@@ -3357,7 +3355,7 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
         )
     ).to_be_visible()
 
-    # A fresh tab reads the same fact from replay alone, and paints both its Page-map
+    # A fresh tab reads the same fact from replay alone, and paints both its Page Map
     # reading and its durable spoken state.
     second, second_errors = open_page(browser, url)
     expect(second.locator("#card-importer")).to_have_attribute(

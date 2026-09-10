@@ -105,7 +105,7 @@ where each one comes with the markup it is written as. The vendored theme owns
 palette, type, spacing, headings, tables, code, and widget presentation. Use a
 page-local `<style>` only for presentation unique to this page.
 
-Widget attributes carry scalars; children carry prose; an item's title is a
+Widget attributes carry scalars; children carry prose; a titled compound member uses a
 leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text. The
@@ -128,7 +128,7 @@ page width.
 
 ## Stable anchors
 
-Give each section, major block, and widget item a stable, meaningful `id` at the
+Give each section, major block, and Leaf element a stable, meaningful `id` at the
 tightest semantic boundary a reader can distinguish. Where a sole child fills a
 transparent wrapper, let the child carry the pair's one id.
 Put a titled section's public id on the `<section>`, not on its heading just for

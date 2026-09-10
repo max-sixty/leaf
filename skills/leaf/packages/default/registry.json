@@ -883,7 +883,7 @@
     "x-reading-role": "pane",
     "x-upgrade": true,
     "x-verbatim": true,
-    "x-example": "<lf-pane id=\"detail\" label=\"Selected item\"><p>Read the selected item.</p></lf-pane>"
+    "x-example": "<lf-pane id=\"detail\" label=\"Selected record\"><p>Read the selected record.</p></lf-pane>"
   },
   "lf-partition": {
     "description": "A binary structural partition in columns or rows. Each direct child declares the pane or partition role through x-reading-role; tag names do not define membership.",

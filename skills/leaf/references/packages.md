@@ -8,9 +8,9 @@ result that `page init` vendors after composing the kernel and packages.
 Read this reference when a design comment arrives with `"about": "layer"`, or
 when `/leaf` is invoked on a widget to build or a look to change.
 
-## Package roles
+## Package reach
 
-| Package                             | Reaches                            |
+| Package                             | Included in                        |
 | ----------------------------------- | ---------------------------------- |
 | a package selected with `--package` | pages that select its name or path |
 | the project's `.leaf/`              | pages initialized from the project |
@@ -201,7 +201,7 @@ required string enum, and the child admits the container through `x-owners`. `ve
 check` then refuses a missing or repeated enum value. This keeps fixed role sets in the
 package contract without adding their tags or vocabulary to Leaf.
 
-A structural widget declares `x-reading-role` as `workspace`, `pane`, or `partition` and keeps
+A structural element declares `x-reading-role` as `workspace`, `pane`, or `partition` and keeps
 `x-content: markup`. Every role requires `id`; a pane also requires a string `label`, and
 a partition requires `direction` with the complete `columns`/`rows` enum. A workspace has
 exactly one direct body element between its optional native `header` and `footer`. A

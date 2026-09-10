@@ -2750,7 +2750,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     bare fixture because the panel has to be holding something for its boxes to exist,
     and a seeded example is the corpus's own conversation. The log has to hold an
     anchored comment, not merely exist: the planted rule traps its margin against a
-    thread's quoted address, so a page whose log carries only widget events opens the
+    thread's quoted target, so a page whose log carries only widget events opens the
     panel on nothing and reports the control as missing."""
     seeded = [
         path

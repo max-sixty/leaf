@@ -392,7 +392,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     expect(write_hint).to_have_count(0)
 
     # Enter has no invented meaning on the Ask or an option mark. Tab enters the real
-    # controls, while the same Ask-owned numbers and addresses remain standing there.
+    # controls, while the same Ask-owned numbers and binding badges remain standing there.
     page.keyboard.press("Enter")
     expect(page.locator("#storage-decision")).to_be_focused()
     page.keyboard.press("Tab")
@@ -442,7 +442,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page.keyboard.press("2")
     expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
     chosen = page.locator("#storage-stop .lf-pick")
-    # The digit acts within the Ask without turning address selection into focus
+    # The digit acts within the Ask without turning binding selection into focus
     # navigation; the reader remains on the control they tabbed to.
     expect(mark).to_be_focused()
     expect(chosen).to_have_attribute("role", "checkbox")
@@ -489,9 +489,9 @@ def test_ask_addresses_are_screen_only_apparatus(browser, serve):
     """An Ask's key hints stay out of selected page words and off paper."""
     page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     page.keyboard.press("a")
-    addresses = page.locator("#storage-options > lf-option > .lf-key-badge")
-    expect(addresses).to_have_text(["1", "2"])
-    expect(addresses.first).to_be_visible()
+    badges = page.locator("#storage-options > lf-option > .lf-key-badge")
+    expect(badges).to_have_text(["1", "2"])
+    expect(badges.first).to_be_visible()
 
     selected = page.locator("#storage-options").evaluate(
         """group => {
@@ -504,14 +504,14 @@ def test_ask_addresses_are_screen_only_apparatus(browser, serve):
         }"""
     )
     assert "1" not in selected and "2" not in selected, (
-        f"the Ask's address digits came away with its authored words: {selected!r}"
+        f"the Ask's binding digits came away with its authored words: {selected!r}"
     )
-    assert addresses.evaluate_all(
+    assert badges.evaluate_all(
         "els => els.every(el => getComputedStyle(el).userSelect === 'none')"
     )
 
     page.emulate_media(media="print")
-    expect(addresses.first).to_be_hidden()
+    expect(badges.first).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -599,18 +599,18 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
         f"mark {mark_ring}"
     )
     assert washed, "nothing says which cell the keyboard is on"
-    address = option.locator(":scope > .lf-key-badge")
-    expect(address).to_be_visible()
+    badge = option.locator(":scope > .lf-key-badge")
+    expect(badge).to_be_visible()
     assert mark.evaluate("el => getComputedStyle(el).opacity") == "0"
     assert (
         abs(
-            address.bounding_box()["x"]
-            + address.bounding_box()["width"]
+            badge.bounding_box()["x"]
+            + badge.bounding_box()["width"]
             - mark.bounding_box()["x"]
             - mark.bounding_box()["width"]
         )
         < 0.5
-    ), "the keyboard address does not replace the card's header state slot"
+    ), "the binding badge does not replace the card's header state slot"
 
     page.evaluate("() => document.activeElement.blur()")
     before = option.bounding_box()
@@ -786,7 +786,7 @@ def test_every_cell_of_a_joined_control_butts_and_opens_where_its_neighbours_do(
     )
 
     # And they open at one column, which is the half a reader sees first: the question
-    # hung a whole address column left of the words it was a question about. Every cell,
+    # hung a whole binding column left of the words it was a question about. Every cell,
     # the reader's own among them: that cell holds the option they write when none of the
     # authored ones is the answer, so a cell drawn short of the column starts the one box
     # the group takes words in outside the run of boxes the group is. Its own 12px did
@@ -913,7 +913,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
         f"the exhibit is drawn as a control to answer: {quoted_box} border"
     )
     # The live card reserves one header slot for either its chosen state or keyboard
-    # address. An exhibit can grow neither, so its title keeps that room.
+    # binding badge. An exhibit can grow neither, so its title keeps that room.
     assert quoted_card["stateRoom"] == 0 and live_card["stateRoom"] == "80px", (
         "the exhibit reserves the live card's header state slot: "
         f"{quoted_card['stateRoom']} vs {live_card['stateRoom']}"
@@ -1222,12 +1222,12 @@ def test_a_group_says_how_many_of_it_the_reader_may_take(browser, serve):
     page.close()
 
 
-def test_only_addressed_cards_yield_their_header_state_to_the_ask(browser, serve):
-    """An Ask address replaces only the state control on the card that owns it.
+def test_only_bound_cards_yield_their_header_state_to_the_ask(browser, serve):
+    """An Ask binding badge replaces only the state control on the card that owns it.
 
     A package may contribute more actions than the nine contextual number bindings.
     The remaining cards still need their checkboxes: hiding every sibling as soon as
-    one address exists erases both the unaddressed action and the group's multiple-choice
+    one binding exists erases both the unbound action and the group's multiple-choice
     arity from those cards.
     """
     options = "".join(
@@ -1257,7 +1257,7 @@ def test_only_addressed_cards_yield_their_header_state_to_the_ask(browser, serve
     for index in range(1, 10):
         assert page.locator(f"#route-{index} > .lf-pick").evaluate(opacity) == "0"
     assert page.locator("#route-10 > .lf-pick").evaluate(opacity) == "1", (
-        "the unaddressed tenth action lost its visible checkbox to a sibling's address"
+        "the unbound tenth action lost its visible checkbox to a sibling's binding badge"
     )
 
     assert errors == []
@@ -2517,7 +2517,7 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
 ):
     """Done is a cell of the joined control, and the reader's newest move is its receipt.
 
-    The Ask projection writes each option's key into the address slot the row keeps
+    The Ask projection writes each option's key into the binding slot the row keeps
     for it; Done kept none, so its chip was hung at the button's corner, half outside
     the group's frame — a stray `4` a blind drive could not place. And a tick followed
     by Done are two coordinates, each of which minted a receipt: "✓ Sent · just now"
@@ -2542,8 +2542,8 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_receipt(
     assert (
         frame["x"] <= box["x"]
         and box["x"] + box["width"] <= frame["x"] + frame["width"]
-    ), f"Done's address chip {box} stands outside the group {frame}"
-    expect(page.locator(".lf-ask-binding-badgees .lf-ask-binding-badge")).to_have_count(
+    ), f"Done's binding badge {box} stands outside the group {frame}"
+    expect(page.locator(".lf-ask-binding-badges .lf-ask-binding-badge")).to_have_count(
         0
     )
     done.click()

@@ -11,8 +11,9 @@
    hides the draft.
    The same anchor resolves both states against the target's geometry.
 
-   The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the durable,
-   compact `.lf-fab-input` followed by one response ellipsis. An explicit item target
+   The bar a selection or keyboard-selected addressable raises is `.lf-fab-bar`: the
+   durable, compact `.lf-fab-input` followed by one response ellipsis. An explicit
+   addressable target
    opens and focuses that field. Selecting a passage leaves the field open but unfocused
    without collapsing the browser selection; the reader can still copy
    the selection or use its native context menu, then enter the field with Comment. The
@@ -654,20 +655,20 @@ export function createResponseSurface({
   // opens on it where it is, rather than springing it open and reflowing the page under
   // the reader who was looking at it.
   //
-  // Instant, and before the box is measured. Placing reads the item's box, so that has to
-  // be the box the item keeps; and opening focuses the textarea, whose scroll-into-view
-  // cancels a glide already under way — which is what left the item flush against an edge
+  // Instant, and before the box is measured. Placing reads the addressable's box, so that has
+  // to be the box the addressable keeps; and opening focuses the textarea, whose
+  // scroll-into-view cancels a glide already under way — which is what left the addressable flush against an edge
   // rather than framed, and is not `openComposer`'s to give up, three other presses opening
   // that box against a passage they have not moved.
-  function bringForward(item) {
-    if (!item) return;
-    const seen = shownRect(item, new Map());
-    if (!seen || seen.bottom <= BANNER_CLEAR) scrollToElement(item, "instant");
+  function bringForward(addressable) {
+    if (!addressable) return;
+    const seen = shownRect(addressable, new Map());
+    if (!seen || seen.bottom <= BANNER_CLEAR) scrollToElement(addressable, "instant");
   }
 
-  function commentOnItem(item) {
-    bringForward(item);
-    commentOnTarget({ anchor: { section: item.id }, element: item });
+  function commentOnAddressable(addressable) {
+    bringForward(addressable);
+    commentOnTarget({ anchor: { section: addressable.id }, element: addressable });
   }
 
   // Every explicit target gesture ends here. The gesture has already resolved its stable
@@ -883,7 +884,7 @@ export function createResponseSurface({
   // the composer that press just opened. Hence one function, called from both.
   // The two side panels are absent from it on purpose. A float answers the press in front
   // of it and stands down behind it; the thread panel and the leaves tray are
-  // workspaces the reader stood up, kept through a reload (THREAD_PANEL_KEY, TRAY_SLOT_KEY) and so
+  // auxiliary surfaces the reader stood up, kept through a reload (THREAD_PANEL_KEY, TRAY_SLOT_KEY) and so
   // through a click all the more — a tray any press removes cannot be watched while
   // working, which is the tray's point. Each closes by its own button, its key, or Esc.
   function standDown(target) {
@@ -1087,7 +1088,7 @@ export function createResponseSurface({
     fabTargetAt,
     fabReturnTo,
     bringForward,
-    commentOnItem,
+    commentOnAddressable,
     commentOnTarget,
     focusFabComment,
     fabOptionsAvailable,

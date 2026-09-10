@@ -74,14 +74,14 @@ NEAREST_HINT = """(selector) => {
       const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
       return Math.hypot(ar.left - target.left, ar.top - target.top)
            - Math.hypot(br.left - target.left, br.top - target.top);
-    })[0].dataset.lfTarget;
+    })[0].dataset.lfHintCode;
 }"""
 
 
 def hint_code(page, selector, hints):
-    """Press `s` and hand back the code the hint nearest one item carries.
+    """Press `s` and hand back the code the hint nearest one target carries.
 
-    The codes are the layer's to hand out, so a test naming one names whichever item
+    The codes are the layer's to hand out, so a test naming one names whichever target
     the run gave it to. `hints` is the count the page offers, asserted before the codes
     are read: the overlay paints on a frame of its own, and a read before it lands finds
     no hint to be nearest to.
@@ -549,9 +549,9 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     page.close()
 
 
-def test_an_item_hint_opens_comment_and_a_token_outlines_the_item(browser, serve):
+def test_a_target_hint_opens_comment_and_a_token_outlines_the_element(browser, serve):
     """Keyboard target choosing opens Comment. Choosing a token puts an
-    element anchor in the log, which paints as a solid hairline on the item's boxes
+    element anchor in the log, which paints as a solid hairline on the element's boxes
     and a glyph seated at its first line."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.type(hint_code(page, "#prose", 3))
@@ -577,7 +577,7 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
 ):
     """Explicit reaction mode spends every margin entry on feedback, at either posture.
 
-    Existing suggestion actions stay in the complete Page-map inventory instead of
+    Existing suggestion actions stay in the complete Page Map inventory instead of
     displacing tokens or adding an overflow detour. Pointer and keyboard activation
     still press the original reaction with its target intact.
     """
@@ -1032,7 +1032,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
 
     The panel can leave usable room beside it or cover the response controls at narrower
     widths. Resizing between those postures preserves the draft, withdraws its unavailable
-    surface, and hands the keyboard to the visible conversation workspace.
+    surface, and hands the keyboard to the visible Thread panel.
     """
     page, errors = open_page(browser, serve(PANEL_PAGE))
     initial_events = events_model.read_events(serve.page_dir)

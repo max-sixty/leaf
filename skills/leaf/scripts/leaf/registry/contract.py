@@ -105,7 +105,7 @@ def visual_part_attribute(entry: dict) -> str | None:
 
 
 def visual_parts(record: dict, registry: dict) -> tuple[str, ...]:
-    """Stable visual-part ids declared by one authored widget instance."""
+    """Stable visual-part ids declared by one authored Leaf element."""
     attribute = visual_part_attribute(registry.get(record.get("tag"), {}))
     value = record.get("attrs", {}).get(attribute) if attribute else None
     return tuple(value.split()) if value else ()

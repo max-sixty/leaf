@@ -999,9 +999,9 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
     """A framed replay is a picture, and the reader is standing in the page holding it.
 
     Each frame runs a whole second Leaf page, and a Leaf page arrives: it restores the
-    workspace this reader last had open and puts them on its own body. Neither is this
+    auxiliary surface this reader last had open and puts them on its own body. Neither is this
     document's to do. The arrangements are the reader's, read from a store the frame
-    shares with the page around it, so restoring them opens a workspace inside the
+    shares with the page around it, so restoring them opens an auxiliary surface inside the
     picture that nobody asked this gallery for. The focus is worse, because a document
     has only one: focus taken into a frame is focus taken off the page the reader is
     actually on, which folds their open margin cluster, drops their selection hints and

@@ -12,7 +12,7 @@
    literal rather than the --lf-thread-panel-width the runtime writes. */
 /* `.lf-chrome` is one fixed runtime root containing the banner, tray panel, thread panel,
    composer, floating comment control, live region, shortcut bar and status, help,
-   inspection paint, legend, and address layer. The page and panel are separate scroll
+   inspection paint, legend, and Go-to hint layer. The page and panel are separate scroll
    regions.
 
    The runtime's private stylesheet is one `@scope` rooted at `.lf-chrome`. Private class
@@ -22,7 +22,7 @@
    be covered by the render suite.
 
    A shared class owns only the look shared on both sides of the scope line. Placement
-   remains with each surface. For example, an address chip may share type, border, and
+   remains with each surface. For example, a key badge may share type, border, and
    color while a reply box and an option reserve and position it differently.
 
    Typography follows Data projections. An authored `lf-note` inside `lf-code` takes
@@ -34,7 +34,7 @@
    A control that draws the band on itself draws it only where nothing else holds that
    box's one outline. A decision written out around the control wears the band already,
    and the log's news about the content — `restated`, `reader-override`, `reported` — has
-   no second carrier, while the band also has the washed cell and the address chips.
+   no second carrier, while the band also has the washed cell and the key badges.
 
    Every rule that draws the ring names it in `--lf-here-ring`, in the same declaration
    (theme.css carries why). Whether a box wears a ring is the paint's answer — the
@@ -62,7 +62,7 @@
    Suggest restores it in replacement-text mode. Their structural icons use the same
    stroked SVG vocabulary as target margin entries; only authored reaction tokens supply text
    glyphs. */
-/* Workspace state changes the shell's size immediately; only this presentation
+/* Auxiliary chrome state changes the shell's size immediately; only this presentation
    offset moves. Registering the length lets Web Animations interpolate it while
    container queries continue to read the one final shell width. */
 @property --lf-shell-motion-x {
@@ -71,7 +71,7 @@
   initial-value: 0px;
 }
 /* Page-attached chrome is absolute against the initial containing block, not against
-   body. Body is the page shell and may move or narrow for standing workspaces; the
+   body. Body is the page shell and may move or narrow for standing auxiliary surfaces; the
    document coordinate system does neither, and root scrolling still carries absolute
    chrome with the passage it stands beside. */
 /* The chrome's line box, said once, because one control in the banner cannot be
@@ -354,16 +354,16 @@
    what a decided suggestion adds, and a focus ring is nothing a decision changes. */
 .lf-btn:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: btn; outline-offset: 2px; }
 .lf-chip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: chip; outline-offset: 1px; }
-/* One sequential step keeps one geometry in options, the shortcut bar, page addresses and
+/* One sequential step keeps one geometry in options, the shortcut bar, banner controls and
    the reference. A sequence composes these fixed boxes instead of making spaces inside
    one keycap carry time. A compact choice label such as g / G remains one decision
-   point. The address chip is worn on both sides of the scope — an option's own corner
-   in the page, and the sequence's chips in the chrome's address layer — so its box is
+   point. The key badge is worn on both sides of the scope — an option's own corner
+   in the page, and the sequence's hints in the chrome's Go-to hint layer — so its box is
    stated here, at document level, where a rule inside the @scope block could not reach
    the chip in the page. The chrome's own step keys wear the same box, spelled again
    inside the scope (`.lf-binding-sequence > kbd`), because naming them here would put two
    private names on the document-level surface the coined-class probe pins; keep the
-   two declaration lists identical. An address is an available key, so this neutral
+   two declaration lists identical. A binding is an available key, so this neutral
    face is also its complete colour statement; completed steps take the pressed face
    below. */
 .lf-key-badge { box-sizing: border-box;
@@ -702,7 +702,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     .lf-preview, .lf-react, .lf-version-diff, .lf-version-row, .lf-command-reference-command,
     .lf-quote, .lf-margin-entry) { min-height: var(--aim-floor); min-width: var(--aim-floor); }
   /* Page paint belongs under a covering auxiliary surface. Paint whose target is inside the
-     chrome belongs above that workspace, including when the same aim or response bar moves
+     chrome belongs above that auxiliary surface, including when the same aim or response bar moves
      between the two. The target owner states the plane; document order keeps aim,
      response bar, and inspect in their ordinary order within it. */
   :is(.lf-page-paint, .lf-target-paint) { z-index: 8890; }
@@ -739,16 +739,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     background: var(--veil); backdrop-filter: blur(6px); border-bottom: 1px solid var(--rule); }
   .lf-banner-status, .lf-banner-actions { display: flex; align-items: center;
     gap: var(--lf-banner-gap); }
-  /* The sentence wins the row. It takes whatever the addresses leave and keeps a floor
+  /* The sentence wins the row. It takes whatever the controls leave and keeps a floor
      of its own below that, which is what the shelf's cap on the next rule states from
      the other end. Growing into free space rather than reserving its own words is what
      keeps the row still: a status ageing from "is working" to "last checked in" is a
      longer sentence in a box that has not changed size, so nothing beside it moves. */
   .lf-banner-status { flex: 1 1 auto; min-width: 0; }
-  /* The addresses take the room the sentence's floor leaves them, and whatever does not
+  /* The controls take the room the sentence's floor leaves them, and whatever does not
      fit that cap folds into the shelf's own menu (foldShelf). So the row sheds
-     addresses before the status sheds words, and it sheds them into somewhere rather
-     than off an edge: there is no strip here to scroll, and no address reachable only
+     controls before the status sheds words, and it sheds them into somewhere rather
+     than off an edge: there is no strip here to scroll, and no control reachable only
      by discovering that there is.
 
      The floor is not written here. banner.js asks its own status writer for every line
@@ -766,7 +766,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      looked at.
 
      Two lines, and no more than the words need. A floor generous enough to hold any of
-     them on one line would be paid for in addresses folded away at widths that had room
+     them on one line would be paid for in controls folded away at widths that had room
      for them; two lines is what readable means here. A published page's own line ("This
      is an example on the Leaf website. … Install Leaf") is longer than any line a
      reader's own page can reach, and it is in the reservation exactly where it is in the
@@ -782,14 +782,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      fitting would be answering the right question with the one measurement it must not
      move: --lf-banner-h is the document's own top offset, so the height changing walks
      the whole page down. What could legally decide it is a set that cannot change under
-     a reader — and the standing addresses are not that set. Asks is absent until a page
+     a reader — and the standing controls are not that set. Asks is absent until a page
      has one, and the first ask arriving with no gesture behind it would then push the
      document down while somebody was reading it, which is the fault every reservation on
-     this row exists to prevent. The set that is stable is every address that could ever
+     this row exists to prevent. The set that is stable is every control that could ever
      stand, at its reserved width — and most of it is not there: on a pinned version that
      is the latest chip's 251 reserved pixels for news that has not arrived, so the
-     banner would take two rows on a 1200px window showing four addresses. The row is an
-     open layer besides, and a package can seat an address after boot, so that set is not
+     banner would take two rows on a 1200px window showing four controls. The row is an
+     open layer besides, and a package can seat a control after boot, so that set is not
      knowable for the page's life either. The fold is the answer: what a crowded row
      cannot hold goes behind a door standing where it would have, reachable by press and
      by key, and the page under the banner never moves.
@@ -804,11 +804,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       - 2 * var(--lf-banner-gap));
     justify-content: safe flex-end; overflow: hidden;
     padding: 4px 5px; }
-  /* An address keeps its words at every width, and says so: a flex item's default
+  /* A control keeps its words at every width, and says so: a flex item's default
      minimum is its own words, but the aim floor states a minimum width in pixels for
      every control in the layer, and a stated minimum lets the item shrink past its
-     words to that number. A row of clipped addresses overflows nothing, so the fold,
-     which reads overflow, would never fire; an address that cannot shrink is what
+     words to that number. A row of clipped controls overflows nothing, so the fold,
+     which reads overflow, would never fire; a control that cannot shrink is what
      hands the fold something to measure. */
   .lf-banner-actions > .lf-btn { flex: none; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)) { border-color: transparent;
@@ -818,7 +818,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      and the resting rule above clears both at the same specificity — so on this row
      the class would paint ink alone. Restate the treatment the open auxiliary surface wears,
      which the reader already reads as "this control is doing something": neither the
-     fill nor the ring is a metric, so the address keeps the width it reserved. */
+     fill nor the ring is a metric, so the control keeps the width it reserved. */
   .lf-banner-actions > .lf-btn.on {
     background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
@@ -833,8 +833,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-dot.listening { background: var(--ok); }
   .lf-dot.away { background: var(--warn); }
   .lf-dot.offline { background: var(--danger); }
-  /* The developer preview is an address like the rest, but the shelf keeps it behind
-     the overflow door at every width. It stays here in the shared address vocabulary
+  /* The developer preview is a key badge like the rest, but the shelf keeps it behind
+     the overflow door at every width. It stays here in the shared key-badge vocabulary
      because the menu moves the same node rather than constructing a second diagnostic.
      A press copies the diagnostics, so its text is one line however long the name is. */
   .lf-preview { padding: 2px 7px;
@@ -854,7 +854,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
     line-height: 1.35; }
   .lf-status-text .lf-age { color: var(--muted); }
-  /* The door onto the folded addresses. It stands where they would have: at the row's
+  /* The door onto the folded controls. It stands where they would have: at the row's
      start, so the menu's contents read straight on into the row's and the two are one
      order rather than two to keep in step. */
   .lf-banner-more { anchor-name: --lf-banner-more; flex: none; }
@@ -888,23 +888,23 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
     box-shadow: 0 8px 24px var(--shade); padding: 4px; }
   .lf-banner-menu:popover-open { display: flex; }
-  /* A folded address is the same control, so it keeps its own paint and states its own
+  /* A folded control is the same control, so it keeps its own paint and states its own
      words; what the menu decides is that it reads as a row rather than as a chip. It
-     does not state display: whether an address is drawn at all belongs to the address,
+     does not state display: whether a control is drawn at all belongs to the control,
      and a rule here stating it for the whole menu would put a control the page has
      taken away — the map above 900, a chip with no news — into the list as a blank. */
   .lf-banner-menu > .lf-btn { width: 100%; text-align: left; }
   .lf-banner-menu > .lf-btn:where(:not(.primary)) { border-color: transparent;
     background: none; }
   .lf-banner-menu > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
-  /* The fold moves the row's own node, so an address folded while it is doing
+  /* The fold moves the row's own node, so a control folded while it is doing
      something has to go on saying so. The menu's resting rule clears the same two
      declarations the row's does, and for the same reason, so `.on` needs the same
      answer here: the treatment the open auxiliary surface already keeps in the menu on its
      own specificity. The menu reserves no width, so nothing is spent restating it. */
   .lf-banner-menu > .lf-btn.on {
     background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
-  /* The addresses stay packed against the row's end. That decides who pays for a
+  /* The controls stay packed against the row's end. That decides who pays for a
      control changing size: it moves itself and the controls to its left, while
      everything to its right keeps its place. It is also what the fold rests on — the
      widest a control may ever say is the width it already holds, so the fold's answer
@@ -946,8 +946,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      far edges stay pinned to the viewport's corner and its margins centre the box in
      the band between them and the anchor, nowhere near the button. */
   .lf-version { anchor-name: --lf-version-btn; }
-  /* A pinned or deferred page keeps the full destination in the Latest address, but
-     that address may be behind the fold. Mark its stable Versions door with the same
+  /* A pinned or deferred page keeps the full destination in the Latest control, but
+     that control may be behind the fold. Mark its stable Versions door with the same
      border-and-ink vocabulary as a folded-news door, without adding words or width. */
   :is(.lf-banner-actions, .lf-banner-menu) > .lf-version[data-lf-news] {
     border-color: var(--accent); color: var(--accent); }
@@ -1012,10 +1012,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     border-right: 1px solid var(--rule); display: none; flex-direction: column;
     padding-bottom: var(--lf-safe-bottom); padding-left: var(--lf-safe-left); }
   .lf-tray-panel.open { display: flex; }
-  /* A modal workspace takes the whole window: the banner is one of the inert siblings,
+  /* A covering auxiliary surface takes the whole window: the banner is one of the inert siblings,
      not an available strip above it. Its shared scrim therefore stands above the banner
      and below the active surface. Chrome-owned targeting and native top-layer dialogs
-     keep their higher planes so a command inside the workspace can still show its aim. */
+     keep their higher planes so a command inside the auxiliary surface can still show its aim. */
   .lf-auxiliary-scrim { position: fixed; inset: 0;
     z-index: 9010; background: color-mix(in srgb, var(--ink) 24%, transparent); }
   .lf-auxiliary-scrim[hidden] { display: none; }
@@ -1078,7 +1078,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     color: var(--ok-ink); }
   .lf-asks[data-lf-complete] { border-color: var(--ok);
     background: var(--ok-tint); color: var(--ok-ink); }
-  /* Version news remains a legible address at every width. When the row runs out of
+  /* Version news remains a legible control at every width. When the row runs out of
      room the shelf above scrolls; clipping the one control instead left a visible
      eighteen-pixel button containing none of its words. */
   .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; flex: none; }
@@ -1330,7 +1330,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-quote { margin: 0 0 8px; padding: 2px 8px 2px 12px;
     border-inline-start: 3px solid var(--mark-ink); color: var(--muted);
     font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
-  /* The thread header owns its address and settlement action. Its columns keep their
+  /* The thread header owns its quoted target and settlement action. Its columns keep their
      complete hit boxes disjoint. */
   .lf-thread-head { display: grid; grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 8px; align-items: stretch; margin-bottom: 8px; }
@@ -1976,14 +1976,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     padding: 1px 6px; border-radius: 3px; font-size: var(--t-6); line-height: 1.5;
     background: var(--accent); color: var(--paper); }
   .lf-inspect.lf-shown { display: block; }
-  /* On a phone the banner is a status line with the page's addresses under it, not a
-     cropped desktop row. The status gets the first line to itself, so the addresses
+  /* On a phone the banner is a status line with the page's controls under it, not a
+     cropped desktop row. The status gets the first line to itself, so the controls
      have the whole width to fit in; what still does not fit folds into the same menu it
-     folds into on a desk. One row of addresses, in the row's one order, at every width
+     folds into on a desk. One row of controls, in the row's one order, at every width
      — the reader who learned this banner on a laptop finds it here.
 
      The status keeps to one line in its own 36px row. Two would be a row that changes
-     height as a sentence ages, which moves every address under it for no gesture; the
+     height as a sentence ages, which moves every control under it for no gesture; the
      whole line is a press away in the title, as the wide row's runaway detail is. */
   @media screen and (width <= 840px) {
     .lf-banner { display: grid; grid-template-columns: minmax(0, 1fr);
@@ -2007,7 +2007,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
        weight, so it has to carry the floor itself or a touch shelf loses four pixels.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 6px; }
-    /* The address run starts at the left on this two-row banner. Keep its menu under
+    /* The control run starts at the left on this two-row banner. Keep its menu under
        the same door; pinning the menu to the viewport's right made it appear to belong
        to Threads after the Versions door wrapped to the left. Its viewport max-width
        above still keeps the far edge inside the phone. */

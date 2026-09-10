@@ -12,9 +12,9 @@ from .state import (
     validate_retirement_facets,
 )
 from .widgets import (
+    element_declarations,
     validate_widget_relations,
     validate_widget_schemas,
-    element_declarations,
 )
 
 

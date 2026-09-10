@@ -206,7 +206,7 @@ customElements.define(
         controls: this.#row,
         // The slots use tint and strike/insert paint to carry their relationship on the
         // page. Away from that paint, concatenating them turns `red` → `blue` into the
-        // meaningless `redblue`; give the shared Page-map projection the same relation
+        // meaningless `redblue`; give the shared Page Map projection the same relation
         // in words without teaching it this widget's tags.
         subject: () => this.#subject(),
         state: () =>

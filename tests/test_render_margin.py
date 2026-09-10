@@ -286,7 +286,7 @@ def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
 
 
 def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serve):
-    """A heartbeat refresh cannot force layout once per Page-map location."""
+    """A heartbeat refresh cannot force layout once per Page Map location."""
     corpus = next(example for example in EXAMPLES if example.stem == "corpus")
     page, errors = open_page(browser, serve(corpus))
     resized(page, 1440, 900)
@@ -984,7 +984,7 @@ DENSE_SUGGESTIONS_PAGE = leaf_page(
   map.</p>""",
 )
 PAGE_MAP_PAGE = leaf_page(
-    "Twelve Page-map locations",
+    "Twelve Page Map locations",
     "".join(
         f'<section id="map-{n}" style="min-height: 420px">'
         f"<h2>Location {n}</h2><p>Body {n}</p></section>"
@@ -1004,10 +1004,10 @@ PAGE_MAP_EVENTS = [
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
+def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
     browser, serve, width
 ):
-    """Ask travel shows hoisted answers above fixed chrome, with their addresses."""
+    """Ask travel shows hoisted answers above fixed chrome, with binding badges."""
     context = browser.new_context(
         viewport={"width": width, "height": 900}, reduced_motion="reduce"
     )
@@ -1024,15 +1024,15 @@ def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
         context=context,
     )
     # Twice: the gallery's core surfaces open on a decision, which is the page's first
-    # ask and carries no address of its own, and the suggestions this case is about
+    # ask and carries no binding of its own, and the suggestions this case is about
     # begin after it.
     page.keyboard.press("a")
     expect(page.locator("#bg-choice-ask")).to_be_focused()
     page.keyboard.press("a")
     expect(page.locator("#bg-replace")).to_be_focused()
-    expect(
-        page.locator(".lf-ask-binding-badgees > .lf-ask-binding-badge")
-    ).to_have_text(["1", "2"])
+    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
+        ["1", "2"]
+    )
     geometry = page.evaluate(
         """() => {
           const item = document.querySelector('[data-lf-margin-for="bg-replace"]');
@@ -1055,7 +1055,7 @@ def test_ask_addresses_follow_the_feature_gallery_s_visible_margin_controls(
               node => node.getBoundingClientRect().top
             )),
             chips: boxes([...document.querySelectorAll(
-              '.lf-ask-binding-badgees > .lf-ask-binding-badge'
+              '.lf-ask-binding-badges > .lf-ask-binding-badge'
             )]),
           };
         }"""
@@ -1458,7 +1458,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
     assert [
         " ".join(heading.split())
         for heading in headings
-        if "margin control" in heading.casefold()
+        if "margin entr" in heading.casefold()
     ] == [
         "Margin entries: every rank, tone, and state",
         "Margin entry lifecycle: act, fail, settle, and hand off",
@@ -1697,9 +1697,7 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
 
     page.keyboard.press("g")
     expect(page.locator(".lf-page-map-dialog")).to_be_hidden()
-    locations = page.locator(
-        f'{CHIPS}[data-lf-go-to-kind="Margin control or status indicator"]'
-    )
+    locations = page.locator(f'{CHIPS}[data-lf-go-to-kind="Margin entry"]')
     expect(locations).to_have_count(1)
 
     # When the motion settles, regenerate the map over the newly visible window.
@@ -1711,9 +1709,7 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
         })"""
     )
     expect(locations).to_have_count(1)
-    page.keyboard.type(
-        address_code(page, "Margin control or status indicator", "map-11")
-    )
+    page.keyboard.type(address_code(page, "Margin entry", "map-11"))
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
     expect(preview).to_contain_text("Map note 11")
@@ -1770,7 +1766,7 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     target = show_after.evaluate(
         "button => button.closest('[data-lf-margin-for]').dataset.lfMarginFor"
     )
-    page.keyboard.type(address_code(page, "Margin control or status indicator", target))
+    page.keyboard.type(address_code(page, "Margin entry", target))
     expect(
         page.get_by_role(
             "button",
@@ -1786,7 +1782,7 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1280, 720)
     page.locator("#bg-choice-ask").scroll_into_view_if_needed()
-    go_to_address(page, "Margin control or status indicator", "bg-choice-ask")
+    go_to_address(page, "Margin entry", "bg-choice-ask")
     page.keyboard.press("Escape")
     margins_laid_out(page)
     host = page.locator('[data-lf-margin-for="bg-choice-ask"]')
@@ -1891,7 +1887,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
         browser,
         serve(
             leaf_page(
-                "Margin control or status indicator behavior",
+                "Margin entry behavior",
                 """
 <p>Replace
   <lf-suggestion id="address-action">
@@ -1909,15 +1905,13 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     disclosure = page.get_by_role("button", name="Edit address-disclosure", exact=True)
     page.keyboard.press("g")
     suggestion_hints = page.locator(
-        f'{CHIPS}[data-lf-go-to-kind="Margin control or status indicator"]'
+        f'{CHIPS}[data-lf-go-to-kind="Margin entry"]'
         '[data-lf-go-to-target="address-action"]'
     )
     expect(suggestion_hints).to_have_count(2)
     with sending(page, "the addressed suggestion's acceptance"):
         page.keyboard.type(
-            address_code(
-                page, "Margin control or status indicator", "address-action", "accept"
-            )
+            address_code(page, "Margin entry", "address-action", "accept")
         )
     expect(page.locator("#address-action lf-old")).to_be_hidden()
     expect(page.locator("#address-action lf-new")).to_be_visible()
@@ -1928,9 +1922,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     expect(page.locator("#address-action lf-old")).to_be_visible()
 
     with sending(page, "the addressed suggestion's rejection"):
-        go_to_address(
-            page, "Margin control or status indicator", "address-action", "reject"
-        )
+        go_to_address(page, "Margin entry", "address-action", "reject")
     expect(page.locator("#address-action lf-old")).to_be_visible()
     expect(page.locator("#address-action lf-new")).to_be_hidden()
 
@@ -1948,7 +1940,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     page.keyboard.press("g")
     expect(
         page.locator(
-            f'{CHIPS}[data-lf-go-to-kind="Margin control or status indicator"]'
+            f'{CHIPS}[data-lf-go-to-kind="Margin entry"]'
             '[data-lf-go-to-target="address-disclosure"]'
         )
     ).to_have_count(0)
@@ -1962,9 +1954,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
           button.tabIndex = 0;
         }"""
     )
-    go_to_address(
-        page, "Margin control or status indicator", "address-disclosure", "edit"
-    )
+    go_to_address(page, "Margin entry", "address-disclosure", "edit")
     expect(page.locator("#address-disclosure textarea")).to_be_focused()
     expect(disclosure).to_be_hidden()
 
@@ -2596,7 +2586,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
 
     # On a narrow screen each item docks directly after the rendered block that owns its
     # target. It does not join every other action at the end of their common section, and
-    # the desktop map marker leaves the compact action row to the Map dialog.
+    # the desktop map marker leaves the compact action row to the Page Map dialog.
     page.keyboard.press("Escape")
     page.evaluate("() => document.activeElement.blur()")
     resized(page, 390, 900)
@@ -2650,7 +2640,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     """Page Map includes durable provenance even when the margin has no margin entry for it.
 
     A reader listening to the margin walk hears only the margin entries they can visit. The
-    Page-map count remains the count of every mapped target, including provenance-only
+    Page Map count remains the count of every mapped target, including provenance-only
     locations.
     """
     comment = {
@@ -2880,7 +2870,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     address_target = marker.evaluate(
         "row => row.closest('[data-lf-margin-for]').dataset.lfMarginFor"
     )
-    go_to_address(page, "Margin control or status indicator", address_target)
+    go_to_address(page, "Margin entry", address_target)
     expect(marker).to_be_focused()
 
     # Standing there is not the same as being the way in. A repaint under the reader
@@ -3948,7 +3938,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
 
     preview.get_by_role("button", name="Close thread").focus()
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     expect(preview).to_be_hidden()
     page.mouse.move(4, 200)
     page.locator("body").focus()
@@ -3959,7 +3949,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     expect(preview).to_be_hidden()
     page.keyboard.press("Enter")
     expect(preview).to_be_hidden()
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
     assert errors == []
     page.close()
@@ -4742,10 +4732,10 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
 
 
 def test_a_folded_compact_map_returns_to_the_banner_overflow(browser, serve):
-    """A modal returns to the visible door that exposed its folded Map address."""
+    """A dialog returns to the visible door that exposed its folded Page Map control."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 390, 700)
-    more = page.get_by_role("button", name="More page addresses", exact=True)
+    more = page.get_by_role("button", name="More page controls", exact=True)
     more.click()
     toggle = page.locator(".lf-page-map-toggle")
     expect(toggle).to_be_visible()

@@ -10,9 +10,9 @@ the relevant design note or in git history.
   [the evaluation plan](notes/agent-usability-evals.md#first-executable-slice), then use
   their failures to choose any new reading interface.
 
-- **Prototype short conversations in the Living Margin.** Compare a pinned marker card
+- **Prototype short conversations in the margin projection.** Compare a pinned marker card
   with a sparse left-comment layout on wide pages. Keep complete history and search in
-  Threads, use the existing Map sheet on narrow pages, and never leave both margin
+  Threads, use the existing Page Map dialog on narrow pages, and never leave both margin
   presentations visible at once.
 
 ## General reader continuity

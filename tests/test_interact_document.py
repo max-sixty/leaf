@@ -652,9 +652,9 @@ def test_the_block_content_lists_are_the_platform_set_and_the_inline_marker():
     )
     lists = [_balanced(theme, found.end()) for found in re.finditer(r":not\(", theme)]
     lists = [found for found in lists if found.startswith("a, abbr")]
-    assert (
-        len(lists) == 2
-    ), "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
+    assert len(lists) == 2, (
+        "expected the suggestion-slot list and lf-compare's stacked-variant trigger"
+    )
     registry = validation_model.incoming_registry(
         [schema_model.ASSETS, schema_model.DEFAULT_PACKAGE]
     )
@@ -1752,9 +1752,9 @@ def test_a_version_may_not_quietly_rewrite_what_the_user_decided(page_dir):
     # Re-emitting what v1 said is the ordinary republish, and costs nothing:
     # the user's edit is already on screen over it.
     v2("Ship the flag dark, then backfill.")
-    assert (
-        check(page_dir, version=2).exit_code == 0
-    ), "a republish that changes nothing must pass"
+    assert check(page_dir, version=2).exit_code == 0, (
+        "a republish that changes nothing must pass"
+    )
 
     # Writing their own words back is the other quiet case, and the commoner
     # one: the version agrees with the edit rather than overruling it. A gate
@@ -2272,25 +2272,25 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
 
     # An untouched card rewritten, the moved card's own words left alone.
     write(2, [X, ("card-y", "", "Wire the importer and its backfill")], [])
-    assert (
-        check(page_dir, version=2).exit_code == 0
-    ), "an untouched card is not the gate's business"
+    assert check(page_dir, version=2).exit_code == 0, (
+        "an untouched card is not the gate's business"
+    )
 
     # The card written where the user put it. Redundant now that replay
     # carries the move, but a version that does it anyway is not wrong.
     write(2, [Y], [X])
-    assert (
-        check(page_dir, version=2).exit_code == 0
-    ), "relocating the moved card must pass"
+    assert check(page_dir, version=2).exit_code == 0, (
+        "relocating the moved card must pass"
+    )
 
     # The moved card's own words rewritten: now the decision is in question.
     write(2, [("card-x", "", "Guard the delete behind the flag"), Y], [])
     result = check(page_dir, version=2)
     assert result.exit_code == 1
     assert "card-x" in result.output and "move on r1" in result.output
-    assert (
-        "card-y" not in result.output
-    ), "the gate named a card nobody had decided about"
+    assert "card-y" not in result.output, (
+        "the gate named a card nobody had decided about"
+    )
 
     write(2, [("card-x", " restated", "Guard the delete behind the flag"), Y], [])
     assert check(page_dir, version=2).exit_code == 0
@@ -2353,15 +2353,15 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
 
     # A version may also incorporate the standing pick into authored markup.
     write(2, a=" chosen")
-    assert (
-        check(page_dir, version=2).exit_code == 0
-    ), "marking the pick is not a rewrite"
+    assert check(page_dir, version=2).exit_code == 0, (
+        "marking the pick is not a rewrite"
+    )
 
     # An option nobody picked, rewritten freely.
     write(2, a=" chosen", stage="One table at a time, behind a flag.")
-    assert (
-        check(page_dir, version=2).exit_code == 0
-    ), "an unpicked option is free to change"
+    assert check(page_dir, version=2).exit_code == 0, (
+        "an unpicked option is free to change"
+    )
 
     # The picked one, rewritten — the user chose those words.
     write(2, a=" chosen", shim="Fastest to ship, and we own the shim forever.")
@@ -4143,7 +4143,7 @@ def test_page_state_before_first_stamp(page_dir):
 
 def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     """A block a user points at whole needs an id, or the aim falls through to
-    the enclosing section — the failure item anchoring's own page shipped. Advice
+    the enclosing section — the failure addressable-element anchoring's own page shipped. Advice
     on a passing run, not a gate, and quiet where a tight wrapper (a figure around
     a table) already gives the aim something to hold."""
     blocks = (
@@ -4376,9 +4376,9 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
 
     for scheme, block in (("light", light), ("dark", dark)):
         steps, paper = _palette(theme, block)
-        assert (
-            len(steps) == declared
-        ), f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
+        assert len(steps) == declared, (
+            f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
+        )
         faint = [c for c in steps if _contrast(c, paper) < 3.0]
         assert not faint, f"{scheme}: {faint} under 3:1 against {paper}"
         pairs = [(a, b) for i, a in enumerate(steps) for b in steps[i + 1 :]]
@@ -4386,13 +4386,13 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
             (min(_apart(a, b, "protan"), _apart(a, b, "deutan")), a, b)
             for a, b in pairs
         )
-        assert (
-            blind[0] >= 8.0
-        ), f"{scheme}: {blind[1]} and {blind[2]} are {blind[0]:.1f} apart to a dichromat"
+        assert blind[0] >= 8.0, (
+            f"{scheme}: {blind[1]} and {blind[2]} are {blind[0]:.1f} apart to a dichromat"
+        )
         seen = min((_apart(a, b), a, b) for a, b in pairs)
-        assert (
-            seen[0] >= 15.0
-        ), f"{scheme}: {seen[1]} and {seen[2]} are {seen[0]:.1f} apart"
+        assert seen[0] >= 15.0, (
+            f"{scheme}: {seen[1]} and {seen[2]} are {seen[0]:.1f} apart"
+        )
 
 
 def test_page_inspection_places_cards_among_identified_siblings(page_dir):

@@ -60,8 +60,8 @@ def test_short_inline_code_selection_offers_comment(browser, serve):
     page.close()
 
 
-def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
-    """The keyboard target is the same stable item Alt-click would take. Choosing the
+def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
+    """The keyboard target is the same addressable element Alt-click would take. Choosing the
     paragraph focuses its in-place Comment field without making a native selection."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.press("s")
@@ -79,7 +79,7 @@ def test_s_aims_at_the_item_named_by_its_hint(browser, serve):
     )
     expect(page.locator(".lf-command-reference")).to_be_hidden()
     expect(page.locator(".lf-live")).to_contain_text(
-        "More keyboard shortcuts shown. Press question mark again for all shortcuts"
+        "Shortcut shelf expanded. Press question mark again for Command reference"
     )
     page.keyboard.press("?")
     expect(
@@ -295,7 +295,7 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
 def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, serve):
     """The hint alphabet is a prefix-free tree, so adding a twenty-seventh target does
     not turn every target into a two-key address. Many remain one key and only the tail
-    branches. A two-key tail hint raises the same ordinary item anchor as Alt-click."""
+    branches. A two-key tail hint raises the same element anchor as Alt-click."""
     figures = "".join(
         f'<figure id="visual-{i}"><svg viewBox="0 0 32 18" width="32" height="18" '
         f'role="img" aria-label="Visual {i}"><rect x="1" y="1" width="30" '
@@ -352,7 +352,9 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     page.close()
 
 
-def test_nested_item_hints_show_containment_without_covering_each_other(browser, serve):
+def test_nested_target_hints_show_containment_without_covering_each_other(
+    browser, serve
+):
     """A container and its first child may paint the same box corner. Both remain
     reachable, while the enclosed target steps right to show which hint names it."""
     html = leaf_page(
@@ -388,7 +390,7 @@ def test_nested_item_hints_show_containment_without_covering_each_other(browser,
     page.close()
 
 
-def test_identical_nested_item_hints_choose_the_innermost_target(browser, serve):
+def test_identical_nested_target_hints_choose_the_innermost_target(browser, serve):
     """A transparent wrapper and its only child can describe one visible box. The
     chooser names that box once and agrees with direct aiming by opening Comment on
     the child."""
@@ -421,7 +423,9 @@ def test_identical_nested_item_hints_choose_the_innermost_target(browser, serve)
     page.close()
 
 
-def test_selection_hints_name_only_items_shown_by_a_disclosure(browser, serve):
+def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
+    browser, serve
+):
     """A shut disclosure keeps its own hint but not hints for its contents. The same
     rule applies after a prefix narrows the open disclosure's map."""
     inside = "".join(f'<span id="inside-{i}">{i}</span>' for i in range(30))
@@ -471,7 +475,7 @@ def test_selection_hints_name_only_items_shown_by_a_disclosure(browser, serve):
 
 
 def test_s_opens_the_same_comment_field_on_a_declared_visual_part(browser, serve):
-    """A declared picture part outranks its enclosing item without changing what aim
+    """A declared picture part outranks its enclosing addressable element without changing what aim
     means. Choosing its hint focuses the part-anchored composer."""
     page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
     page.keyboard.press("s")
@@ -946,7 +950,7 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
     page.close()
 
 
-def test_scrolling_item_hints_does_not_measure_hidden_targets(browser, serve):
+def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     """A smooth scroll repositions the small visible map and refreshes its membership
     once at rest; targets inside a closed disclosure never incur geometry reads."""
     hidden_count = 1000
@@ -1220,10 +1224,10 @@ def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser,
     page.close()
 
 
-def test_a_partly_banner_clipped_atomic_item_keeps_its_hint_below_the_banner(
+def test_a_partly_banner_clipped_atomic_element_keeps_its_hint_below_the_banner(
     browser, serve
 ):
-    """Atomic visuals use item geometry rather than text ranges, but obey the same
+    """Atomic visuals use element geometry rather than text ranges, but obey the same
     upper chrome boundary when only their lower edge is exposed."""
     html = leaf_page(
         "top-edge visual",

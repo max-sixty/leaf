@@ -648,11 +648,7 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     if route == "g":
         page.keyboard.press("g")
-        page.keyboard.type(
-            address_code(
-                page, "Margin control or status indicator", "sug-refill", "accept"
-            )
-        )
+        page.keyboard.type(address_code(page, "Margin entry", "sug-refill", "accept"))
     else:
         accept.focus()
         page.keyboard.press(route)
@@ -747,16 +743,16 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     expect(picked).to_be_visible()
     option = faces(page, "#tq-one .lf-key-badge")[0]
     page.keyboard.press("g")
-    addressed = page.locator(CHIPS).first.locator("kbd").last
-    expect(addressed).to_be_visible()
-    assert addressed.get_attribute("data-lf-sequence-step-state") == "neutral"
+    sequence_step = page.locator(CHIPS).first.locator("kbd").last
+    expect(sequence_step).to_be_visible()
+    assert sequence_step.get_attribute("data-lf-sequence-step-state") == "neutral"
     sequence, legend = faces(
         page,
         f"{CHIPS} kbd:last-child",
         '.lf-shortcut-bar .lf-shortcut[data-lf-command-ids~="navigation.target"] kbd:last-child',
     )
 
-    # The option's address and the sequence's letter keep one physical key face. Both are
+    # The option's binding badge and the sequence's letter keep one physical key face. Both are
     # ordinary available bindings, so geometry and emphasis stay the same.
     assert option["key"] == sequence["key"], (
         "one physical key has two geometries:\n  "
@@ -2388,7 +2384,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
     assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
         "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
-        "to are not on the two marked items either side of it, so a press that read either "
+        "to are not on the two marked elements either side of it, so a press that read either "
         f"of them would pass this: {seam}"
     )
 
@@ -2516,7 +2512,7 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
     seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
     assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
         "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
-        "to are not on the two marked items either side of it, so a tap that read either "
+        "to are not on the two marked elements either side of it, so a tap that read either "
         f"of them would pass this: {seam}"
     )
 
@@ -4460,11 +4456,11 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
               const a = left.getBoundingClientRect(), b = right.getBoundingClientRect();
               return Math.hypot(a.left - box.left, a.top - box.top)
                    - Math.hypot(b.left - box.left, b.top - box.top);
-            })[0].dataset.lfTarget;
+            })[0].dataset.lfHintCode;
         }"""
     )
     page.keyboard.type(datum_hint)
-    expect(page.locator(".lf-live")).to_contain_text("Selected app.py · new line 2")
+    expect(page.locator(".lf-live")).to_contain_text("Chosen app.py · new line 2")
     page.keyboard.press("Escape")
 
     added.click(modifiers=["Alt"])

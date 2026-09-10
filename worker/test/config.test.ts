@@ -71,10 +71,12 @@ describe("deployment configuration", () => {
     expect(dev.workers_dev).toBe(true);
     expect(dev.routes).toEqual([]);
     expect(devContainer.name).toBe("leaf-website-dev-leafexamplesession");
-    expect(devContainer.max_instances).toBe(10);
-    expect({ ...devContainer, name: container.name, max_instances: 6_000 }).toEqual(
-      container,
-    );
+    expect(devContainer.max_instances).toBe(1);
+    expect({
+      ...devContainer,
+      name: container.name,
+      max_instances: container.max_instances,
+    }).toEqual(container);
     expect(dev.assets).toEqual(config.assets);
     expect(dev.secrets).toEqual(config.secrets);
     expect(dev.durable_objects).toEqual(config.durable_objects);
@@ -89,9 +91,12 @@ describe("deployment configuration", () => {
     ]);
   });
 
-  it("admits the full current account capacity of basic sessions", () => {
-    expect(container.max_instances).toBe(6_000);
+  it("reserves one basic container slot for development", () => {
+    const [devContainer] = config.env.dev.containers;
+
+    expect(container.max_instances + devContainer.max_instances).toBe(6_000);
     expect(container.instance_type).toBe("basic");
+    expect(devContainer.instance_type).toBe("basic");
   });
 
   it("bounds reader starts and per-container model calls", () => {

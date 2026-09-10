@@ -278,7 +278,9 @@ WIDE_TABLE_PAGE = leaf_page(
 # each name is written, and nothing else differs between the two pages below. The
 # names run past ninety characters so that bare they hold the table open on any font:
 # at seventy-nine the bare table scrolled by ten pixels on a Mac and fitted on CI's
-# fonts, where the gate, rightly silent, read as broken.
+# fonts, where the gate, rightly silent, read as broken. At compact width the table
+# becomes an honest horizontal scroller, because this fixture isolates the wide
+# column-allocation case rather than testing responsive table design.
 def prose_beside_identifiers(held):
     rows = [
         (
@@ -322,6 +324,11 @@ def prose_beside_identifiers(held):
     return leaf_page(
         "held",
         f"""
+<style>
+@media (max-width: 600px) {{
+  #held :is(th, td, code) {{ white-space: nowrap; }}
+}}
+</style>
 <h1 id="t">The plan</h1>
 <p id="p">Each item, the mechanism that carries it, and the test that holds it.</p>
 <table id="held">
@@ -389,16 +396,18 @@ UNMARKABLE_PAGE = LONG_PAGE.replace(
 # margin carries it: far enough and the whole box is out in the margin, which is what a
 # sidenote is; not far enough and the box straddles the edge, which is a spill. The
 # fourth says the same side in the logical spelling, and the fifth is the run of prose a
-# resident holds — every one of which inherits the box its parent put out there.
+# resident holds — every one of which inherits the box its parent put out there. The
+# compact posture has no margin for these synthetic residents, so it removes them.
 FLOATING_PAGE = LONG_PAGE.replace(
     "</main>",
-    "<div id='in-the-margin' style='float: left; clear: left; width: 180px;"
+    "<style>@media (max-width: 600px) { .fixture-margin-float { display: none; } }</style>"
+    "<div class='fixture-margin-float' id='in-the-margin' style='float: left; clear: left; width: 180px;"
     " margin-left: -204px'>Beside <code id='inner-word'>--flag</code>.</div>"
-    "<div id='half-out' style='float: left; clear: left; width: 180px;"
+    "<div class='fixture-margin-float' id='half-out' style='float: left; clear: left; width: 180px;"
     " margin-left: -90px'>Across.</div>"
-    "<div id='logical' style='float: inline-start; clear: left; width: 180px;"
+    "<div class='fixture-margin-float' id='logical' style='float: inline-start; clear: left; width: 180px;"
     " margin-left: -204px'>Beside.</div>"
-    "<div id='off-window' style='float: left; clear: left; width: 180px;"
+    "<div class='fixture-margin-float' id='off-window' style='float: left; clear: left; width: 180px;"
     " margin-left: -900px'>Gone.</div>\n</main>",
 )
 SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(

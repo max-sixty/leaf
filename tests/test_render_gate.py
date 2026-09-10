@@ -721,6 +721,23 @@ def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, se
     assert sum("ordinary error from first attempt" in f for f in failures) == 1
 
 
+def test_a_console_warning_fails_the_render_gate(browser, serve):
+    def prepare(page):
+        page.add_init_script(
+            "addEventListener('DOMContentLoaded', () => "
+            "console.warn('authored warning'), {once: true});"
+        )
+
+    failures = render_gate_model.render_version(
+        primed(browser, prepare), serve(LONG_PAGE)
+    )
+
+    warnings = [
+        failure for failure in failures if "warning: authored warning" in failure
+    ]
+    assert len(warnings) == 2, failures
+
+
 def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
     pages = []
 
@@ -1673,7 +1690,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
 @pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
 def test_page_fixture_renders(browser, serve, page_fixture):
     """Every shipped example and the developer gallery lay out in both color schemes: no
-    fail-soft error box, no console error, every visible widget occupies real
+    fail-soft error box, no console warning or error, every visible widget occupies real
     space, no sideways scroll, no words on screen a selection can't reach. A
     widget that upgrades into a 1x1 box, or a heading painted by a pseudo-element,
     is the shape of failure a static lint cannot see. The invariants live in
@@ -2177,16 +2194,20 @@ def test_the_render_gate_tells_a_float_in_the_margin_from_one_spilling_out_of_it
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):
     """A narrow authored body is not the page's viewport. Its child can be wider than
     that body while still fitting on screen, so measuring body would invent sideways
-    document overflow where the canonical root scrollport has none."""
+    document overflow where the canonical root scrollport has none. The compact rule
+    preserves that same body-versus-scrollport contrast within its smaller viewport."""
     source = leaf_page(
         "root scrollport width",
         """
 <style>
 body { width: 400px; }
 #wide-inside-window { width: 700px; }
+@media (max-width: 600px) {
+  #wide-inside-window { width: 500px; }
+}
 </style>
 <h1>Capacity plan</h1>
-<div id="wide-inside-window">Seven hundred pixels still fit in this viewport.</div>
+<div id="wide-inside-window">This box still fits in the viewport.</div>
 """,
     )
 
@@ -2217,13 +2238,17 @@ def test_the_render_gate_tells_a_fixed_margin_resident_from_a_fixed_spill(
     The first shape is the roomy sidebar posture: it starts in the outer gutter and never
     moves beneath the pointer. The second differs only in its horizontal position and
     straddles the readable column, so exempting fixed boxes outright would make the gate
-    blind to the same spill it catches in flow and in floats."""
+    blind to the same spill it catches in flow and in floats. The compact posture has no
+    outer gutter, so neither synthetic resident applies there."""
     source = leaf_page(
         "fixed margin residents",
         """
 <style>
 #fixed-margin { position: fixed; top: 80px; left: 24px; width: 180px; }
 #fixed-half { position: fixed; top: 500px; left: 180px; width: 180px; }
+@media (max-width: 600px) {
+  #fixed-margin, #fixed-half { display: none; }
+}
 </style>
 <h1>Migration plan</h1>
 <div id="fixed-margin">A stable route in the margin.</div>

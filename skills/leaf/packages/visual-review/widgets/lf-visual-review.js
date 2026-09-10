@@ -51,7 +51,9 @@ function setEcho(element, text) {
 }
 
 function previewUrl(target, path) {
-  return new URL(path, target.url).href;
+  const base = new URL(target.url);
+  if (!base.pathname.endsWith("/")) base.pathname += "/";
+  return new URL(path.replace(/^\/+/, ""), base).href;
 }
 
 function captureText(capture) {
@@ -355,7 +357,7 @@ customElements.define(
 
     #createCase(id) {
       const item = document.createElement("li");
-      item.className = "lf-vr-queue-item";
+      item.className = "lf-vr-queue-item lf-ui";
       const tab = offer("button", "lf-vr-case-tab");
       tab.type = "button";
       tab.dataset.case = id;
@@ -467,7 +469,7 @@ customElements.define(
     }
 
     #step(delta) {
-      const ids = [...this.#caseEntries.keys()];
+      const ids = this.#run.cases.map(({ id }) => id);
       const current = Math.max(0, ids.indexOf(this.#selected));
       const next = ids[(current + delta + ids.length) % ids.length];
       this.#select(next);

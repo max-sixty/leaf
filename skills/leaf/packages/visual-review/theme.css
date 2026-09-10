@@ -132,7 +132,7 @@ lf-visual-review > .lf-arranged-after {
 
 .lf-vr-case-classification {
   grid-column: 2;
-  color: var(--muted);
+  color: var(--ink-2);
   font-size: .72rem;
 }
 

@@ -690,7 +690,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "base": {"revision": "4c118aa", "url": "https://base.example/rev/"},
         "candidate": {
             "revision": "7b921ac",
-            "url": "https://candidate.example/rev/",
+            "url": "https://candidate.example/rev",
         },
         "cases": [
             {
@@ -769,10 +769,10 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         first.locator(f'.lf-conversation-thread[data-thread="{case_thread["id"]}"]')
     ).to_have_count(1)
     expect(first.get_by_role("link", name="Open base")).to_have_attribute(
-        "href", "https://base.example/runs?owner=max"
+        "href", "https://base.example/rev/runs?owner=max"
     )
     expect(first.get_by_role("link", name="Open candidate")).to_have_attribute(
-        "href", "https://candidate.example/runs?owner=max"
+        "href", "https://candidate.example/rev/runs?owner=max"
     )
     expect(first.get_by_role("link", name="Open trace")).to_have_attribute(
         "href", "https://trace.example/runs/17"
@@ -793,9 +793,15 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(second.locator(".lf-vr-trace-link")).to_be_hidden()
     expect(widget.locator('.lf-vr-case-tab[data-case="run-detail"]')).to_be_focused()
 
+    inserted_case = record["cases"][1] | {
+        "id": "run-middle",
+        "title": "Inserted run case",
+        "path": "/runs/middle",
+    }
     changed = record | {
         "cases": [
             record["cases"][0],
+            inserted_case,
             record["cases"][1]
             | {"result": "The detail route remains stable after the rerun."},
         ]
@@ -812,10 +818,13 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         )
     ).to_have_count(1)
     assert original.evaluate(
-        "node => node === document.querySelectorAll('.lf-vr-case')[1]"
+        "node => node === document.querySelector('.lf-vr-case[data-lf-datum=\"run-detail\"]')"
     )
     expect(second).to_be_visible()
     expect(first).to_have_attribute("data-disposition", "looks-right")
+    widget.locator('.lf-vr-case-tab[data-case="run-list"]').click()
+    page.keyboard.press("ArrowDown")
+    expect(widget.locator('.lf-vr-case-tab[data-case="run-middle"]')).to_be_focused()
 
     resized(page, 390, 900)
     assert page.evaluate(

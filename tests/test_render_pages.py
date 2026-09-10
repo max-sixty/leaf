@@ -249,8 +249,8 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             # its visible route rather than requiring every margin element to stand at rest.
             item = glyph.locator("xpath=ancestor::*[@data-lf-margin-for][1]")
             visible = item.locator(
-                f'[data-lf-margin-element-key="take-back:{reaction["id"]}"]:visible, '
-                f'[data-lf-margin-element-key="take-back:{reaction["id"]}:proxy"]:visible'
+                f'[data-lf-margin-element-key="reaction:{reaction["id"]}:open"]:visible, '
+                f'[data-lf-margin-element-key="reaction:{reaction["id"]}:open:proxy"]:visible'
             )
             more = item.locator(":scope > .lf-margin-more")
             if not visible.count() and more.is_visible():
@@ -263,8 +263,8 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 sheet = page.get_by_role("dialog", name="Page map", exact=True)
                 expect(
                     sheet.locator(
-                        f'[data-lf-map-margin-element$=":take-back:{reaction["id"]}"], '
-                        f'[data-lf-map-margin-element$=":take-back:{reaction["id"]}:proxy"]'
+                        f'[data-lf-map-margin-element$=":reaction:{reaction["id"]}:open"], '
+                        f'[data-lf-map-margin-element$=":reaction:{reaction["id"]}:open:proxy"]'
                     )
                 ).to_be_visible()
                 page.keyboard.press("Escape")

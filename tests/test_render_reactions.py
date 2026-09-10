@@ -2212,12 +2212,14 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
             '.lf-margin-cluster[data-lf-margin-for="how-store"] .lf-react-mark'
           )]
             .map(m => [m.innerText, m.getAttribute('role'),
-                       m.getAttribute('aria-label'), m.getAttribute('tabindex')]),
+                       m.getAttribute('aria-label'), m.getAttribute('tabindex'),
+                       m.getAttribute('aria-expanded'),
+                       m.getAttribute('aria-controls')]),
         })"""
     )
     assert copy == {
         "washed": ["every edit"],
-        "glyph": [["✂️", "img", "shorten", None]],
+        "glyph": [["✂️", "img", "shorten", None, None, None]],
     }, copy
     # The other half of the same promise, and the half no gate can see: the copy's
     # `offering` reads the cursor and nothing else, so paint that arrives with the

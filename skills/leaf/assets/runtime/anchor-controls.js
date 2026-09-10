@@ -258,10 +258,15 @@ export function createAnchorControls({
           remove.id = `lf-reaction-remove-${root.id}`;
         }
         mark.setAttribute("aria-controls", remove.id);
-        mark.onclick = (event) =>
+        mark.onclick = (event) => {
+          const standing = focused();
           setReactionRemoval(record, record.expanded === root.id ? null : root.id, {
-            focus: event.detail === 0,
+            focus:
+              event.detail === 0 &&
+              (standing === mark || standing?.lfForwardedControl === mark) &&
+              standing.matches(":focus-visible, .lf-focus-visible"),
           });
+        };
         remove.onclick = () => withdrawReaction(root);
         return [mark, remove];
       });

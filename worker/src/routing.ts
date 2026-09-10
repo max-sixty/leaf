@@ -17,6 +17,8 @@ const PAGE_ROOT = /^(?:\/|\/[a-z0-9-]+(?:\/[a-z0-9-]+)*)$/;
 const RELEASE_ASSET =
   /^\/_leaf-release\/(?:[0-9a-f]{40}|[0-9a-f]{64})\/[a-z0-9-]+$/;
 const STATE = /^\/_leaf\/state\/[a-z0-9-]+\.json$/;
+// The card image a shared link unfurls into, at the page root that stores it.
+const CARD = /^(?:\/[a-z0-9-]+)*\/media\/[0-9a-f]{16}\.[a-z]+$/;
 
 const sitePageSchema = z
   .object({
@@ -28,9 +30,12 @@ const sitePageSchema = z
           !directory.startsWith("/") && !directory.split("/").includes(".."),
       ),
     ),
+    description: z.string().check(z.minLength(1)),
+    image: z.string().check(z.regex(CARD)),
     kind: z.union([z.literal("product"), z.literal("example")]),
     layer: z.string().check(z.minLength(1)),
     state: z.string().check(z.regex(STATE)),
+    title: z.string().check(z.minLength(1)),
     states: z.record(
       z.string().check(z.regex(/^[1-9][0-9]*$/)),
       z.string().check(z.regex(STATE)),

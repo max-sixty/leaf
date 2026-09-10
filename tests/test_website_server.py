@@ -65,7 +65,13 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
     manifest = {
         "release": "0" * 64,
         "pages": {
-            route: {"directory": directory, "kind": kind}
+            route: {
+                "directory": directory,
+                "kind": kind,
+                "title": f"The {route} page",
+                "description": f"What a reader does at {route}.",
+                "image": "/media/card.png",
+            }
             for route, (directory, kind) in pages.items()
         },
     }
@@ -93,6 +99,55 @@ class FakeCodexHost:
             only_if_unclaimed=True,
             identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
         )
+
+
+PAGE_SOURCE = """<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Choose the next fix</title>
+    <meta name="description" content="Pick one." />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'" />
+    <script type="module" src="/leaf.js"></script>
+  </head>
+  <body>
+    <main><h1>Choose</h1></main>
+  </body>
+</html>
+"""
+
+
+@pytest.mark.parametrize(
+    ("page_root", "kind", "url"),
+    (
+        ("", "product", "https://leaf.page/"),
+        ("/examples/decision", "example", "https://leaf.page/examples/decision/"),
+    ),
+)
+def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
+    """A crawler reads absolute URLs, and reads them from inside the head."""
+    page = {
+        "kind": kind,
+        "title": 'Choose the "next" fix',
+        "description": "Pick one.",
+        "image": "/media/card.png",
+    }
+    served = website_server.with_site_head(
+        PAGE_SOURCE.encode(), page_root, page
+    ).decode()
+    head = served[: served.index("</head>")]
+    assert f'<link rel="canonical" href="{url}">' in head
+    assert f'<meta property="og:url" content="{url}">' in head
+    assert (
+        '<meta property="og:image" content="https://leaf.page/media/card.png">' in head
+    )
+    assert (
+        '<meta property="og:title" content="Choose the &quot;next&quot; fix">' in head
+    )
+    assert '<meta name="twitter:card" content="summary_large_image">' in head
+    # The sitenote is website chrome for the examples, and rides the runtime
+    # boundary rather than the head the metadata went into.
+    assert ("sitenote.js" in served) is (kind == "example")
 
 
 def test_agent_logs_are_structured_and_content_free(capsys):
@@ -331,10 +386,17 @@ def test_the_agent_log_query_finds_an_event_or_reference(key, value, lookup):
 
 def test_the_website_label_follows_the_script_contract_not_its_formatting():
     document = (
-        b'<!doctype html><html><head><script\n type="module" '
+        b'<!doctype html><html><head><meta http-equiv="Content-Security-Policy" '
+        b'content="default-src \'self\'"><script\n type="module" '
         b'src="/leaf.js"></script></head><body></body></html>'
     )
-    injected = website_server.with_sitenote(document, "/examples/decision")
+    page = {
+        "kind": "example",
+        "title": "Decision",
+        "description": "Pick one.",
+        "image": "/media/card.png",
+    }
+    injected = website_server.with_site_head(document, "/examples/decision", page)
     assert injected.index(b"/examples/decision/sitenote.js") < injected.index(
         b'src="/leaf.js"'
     )

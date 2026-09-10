@@ -145,6 +145,7 @@ export function createPageMap({
     button.lfMapEntry = entry;
     button.lfMapItem = item;
     delete button.lfMapControl;
+    delete button.lfForwardedControl;
     button.dataset.lfMapItem = item.id;
     delete button.dataset.lfMapMarginElement;
     const label = item.text || entry.title;
@@ -162,6 +163,7 @@ export function createPageMap({
   function syncSheetControl(button, entry, control) {
     button.lfMapEntry = entry;
     button.lfMapControl = control;
+    button.lfForwardedControl = control;
     delete button.lfMapItem;
     delete button.dataset.lfMapItem;
     button.dataset.lfMapMarginElement = sheetControlKey(entry, control);
@@ -189,6 +191,26 @@ export function createPageMap({
       }
       const control = button.lfMapControl;
       if (!control) return;
+      const controls = marginElements(control.parentElement);
+      const relation = control.getAttribute("aria-controls");
+      const controlled = relation
+        ? controls.find((candidate) => candidate.id === relation)
+        : null;
+      // A disclosure that owns another contributed control unfolds within the map.
+      // The first press can then reveal the exact second action without closing the
+      // only surface where a spilled contribution is reachable.
+      if (controlled) {
+        const entry = button.lfMapEntry;
+        control.click();
+        requestAnimationFrame(() => {
+          const controlledKey = `control:${sheetControlKey(entry, controlled)}`;
+          const revealed = sheetList.querySelector(
+            `[data-lf-map-key="${CSS.escape(controlledKey)}"]`,
+          );
+          (revealed ?? button).focus({ preventScroll: true });
+        });
+        return;
+      }
       const returnTo = from;
       closeOwnsFocus = true;
       sheet.close();

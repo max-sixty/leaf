@@ -280,7 +280,14 @@ export function bake() {
       mark.replaceWith(staticMark);
       mark = staticMark;
     }
-    for (const attr of ["tabindex", "data-lf-offer", "title", "type"])
+    for (const attr of [
+      "tabindex",
+      "data-lf-offer",
+      "title",
+      "type",
+      "aria-controls",
+      "aria-expanded",
+    ])
       mark.removeAttribute(attr);
     mark.setAttribute("role", "img");
     mark.setAttribute("aria-label", mark.dataset.token);

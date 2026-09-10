@@ -479,11 +479,21 @@ body.lf-drawing main .lf-conversation * { cursor: auto !important; }
 html.lf-copy mark.lf-react { background: var(--react); color: inherit;
   text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
 /* The glyphs of the reactions standing on a target — a margin element per reaction, the margin element
-   being the reaction's own eraser (anchors.js seatReactions). This is an unpositioned
+   revealing the reaction's separate eraser (anchor-controls.js seatReactions). This is an unpositioned
    contribution: the living margin joins it to the target's other RHS controls and
    decides whether their one complete item hangs or docks. */
 .lf-reacts { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .lf-react-mark { text-align: center; }
+/* Opening a standing reaction leaves its familiar face in place and reveals the
+   separately named removal action beside it. The relation changes; the mark does not
+   acquire a selected ring or pretend the reaction itself changed. */
+.lf-react-mark[data-lf-behavior="disclosure"] {
+  border-width: 2px; border-color: var(--border-2); color: var(--ink);
+  box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+}
+.lf-margin-element.lf-react-mark[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
+  border-color: var(--border-2);
+}
 /* The draft's own passage uses the accent contour. An open composer is on screen
    whenever this is, and an already-posted element keeps the posted colour instead, so
    the two states never contend on one element. */

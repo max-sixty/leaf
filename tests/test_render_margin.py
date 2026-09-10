@@ -1130,12 +1130,18 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
         if event.get("token") == "prioritize"
         and event.get("anchor", {}).get("section") == "bg-crowded"
     )
-    take_back = sheet.locator(
-        f'[data-lf-map-margin-element$=":take-back:{reaction["id"]}"]'
+    reaction_actions = sheet.locator(
+        f'[data-lf-map-margin-element$=":reaction:{reaction["id"]}:open"]'
     )
-    expect(take_back).to_have_attribute("aria-label", "prioritize — take it back")
+    expect(reaction_actions).to_have_attribute(
+        "aria-label", "prioritize reaction actions"
+    )
+    reaction_actions.click()
+    expect(sheet).to_be_visible()
+    remove = sheet.get_by_role("button", name="Remove prioritize reaction", exact=True)
+    expect(remove).to_be_focused()
     with sending(page, "the withdrawal of the spilled reaction"):
-        take_back.click()
+        remove.click()
     expect(sheet).to_be_hidden()
     expect(crowded.locator(f'[data-event="{reaction["id"]}"]')).to_have_count(0)
     last = events_model.read_events(serve.page_dir)[-1]
@@ -3559,7 +3565,7 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]
     receipt = page.locator(".lf-margin-cluster").filter(
-        has=page.get_by_role("button", name=re.compile(r"^keep — take it back$"))
+        has=page.get_by_role("button", name="keep reaction actions", exact=True)
     )
     expect(receipt).to_have_count(1)
     assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6

@@ -194,9 +194,7 @@ def test_the_agent_log_query_deduplicates_a_batched_turn(monkeypatch, capsys):
         },
     }
     responses = {
-        ("reference", "123456789012"): {
-            "result": {"events": {"events": [shared]}}
-        },
+        ("reference", "123456789012"): {"result": {"events": {"events": [shared]}}},
         ("eventId", "event-1"): {
             "result": {
                 "events": {

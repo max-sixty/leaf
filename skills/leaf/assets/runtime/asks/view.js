@@ -110,6 +110,7 @@ import {
   closestAcross,
   containsAcross,
   elementById,
+  elementFromPointAcross,
   inChrome,
   TEXT_BLOCK,
 } from "../passages.js";
@@ -646,6 +647,39 @@ export function createAskView({
   // promised after a sequence, text box, or modal has taken it.
   const wornAddresses = new Map();
   const wornShortcuts = new Map();
+  function exposedAddress(address, control, visible) {
+    const whole = address.getBoundingClientRect();
+    if (
+      ["left", "right", "top", "bottom"].some(
+        (edge) => Math.abs(whole[edge] - visible[edge]) > 0.5,
+      )
+    )
+      return false;
+    const x = (visible.left + visible.right) / 2;
+    const y = (visible.top + visible.bottom) / 2;
+    const inset = Math.min(
+      3,
+      (visible.right - visible.left) / 4,
+      (visible.bottom - visible.top) / 4,
+    );
+    // An option's state control shares this slot and turns fully transparent while its
+    // address stands. It remains in the hit-test stack without covering the face.
+    const transparentControl =
+      Number.parseFloat(getComputedStyle(control).opacity) === 0;
+    return [
+      [x, y],
+      [x, visible.top + inset],
+      [x, visible.bottom - inset],
+      [visible.left + inset, y],
+      [visible.right - inset, y],
+    ].every(([atX, atY]) => {
+      const onTop = elementFromPointAcross(atX, atY);
+      return (
+        containsAcross(address, onTop) ||
+        (transparentControl && containsAcross(control, onTop))
+      );
+    });
+  }
   function restoreAddress(address, { display, priority, text }) {
     address.removeAttribute("data-lf-ask-address");
     address.textContent = text;
@@ -673,11 +707,14 @@ export function createAskView({
     // but it does hide the page controls that inline address faces claim to label.
     const addressesVisible = !(openTray("asks") && trayCovers());
     const placement = addressPlacement();
+    const addressClaims = new Map();
+    for (const { address } of routes)
+      if (address) addressClaims.set(address, (addressClaims.get(address) ?? 0) + 1);
 
     // Reuse a widget's page-local address where it has one. Besides preserving the
     // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
-    // the fixed shortcut bar above it. Hide a face that has no clear visible box, just as the
-    // general address pass drops a route chip where the screen cannot say it safely.
+    // the fixed shortcut bar above it. One face belongs to one action, and every part of
+    // it must be visible on top; otherwise the ordinary core chip carries the same route.
     for (const { binding, control, address } of routes) {
       const previousShortcut = control.getAttribute("aria-keyshortcuts");
       const projected = ariaShortcuts([{ keys: [binding] }], false).split(/\s+/);
@@ -692,7 +729,12 @@ export function createAskView({
         projected: projectedShortcut,
       });
       control.setAttribute("aria-keyshortcuts", projectedShortcut);
-      if (!addressesVisible || !address?.isConnected) continue;
+      if (
+        !addressesVisible ||
+        !address?.isConnected ||
+        addressClaims.get(address) !== 1
+      )
+        continue;
       const previous = {
         display: address.style.getPropertyValue("display"),
         priority: address.style.getPropertyPriority("display"),
@@ -702,7 +744,7 @@ export function createAskView({
       address.textContent = spell(binding);
       address.style.display = "block";
       const box = address.checkVisibility() && placement.visibleBox(address);
-      if (!placement.reserve(box)) {
+      if (!box || !exposedAddress(address, control, box) || !placement.reserve(box)) {
         restoreAddress(address, previous);
         continue;
       }
@@ -711,7 +753,7 @@ export function createAskView({
 
     const chips = [];
     for (const { binding, control, address } of addressesVisible ? routes : []) {
-      if (address) continue;
+      if (address && wornAddresses.has(address)) continue;
       const presented = presentedActionControl(control);
       if (!presented.checkVisibility()) continue;
       const box = placement.visibleBox(presented);

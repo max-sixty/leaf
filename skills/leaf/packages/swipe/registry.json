@@ -15,12 +15,12 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-children": {
+    "x-required-members": {
       "lf-swipe-pile": {
         "one-each": "verdict"
       }
     },
-    "x-content": "items",
+    "x-content": "members",
     "x-upgrade": true,
     "x-state": {
       "swipe": {
@@ -134,10 +134,10 @@
       "verdict"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-swipe-deck"
     ],
-    "x-content": "items",
+    "x-content": "members",
     "x-upgrade": false
   },
   "lf-swipe-card": {
@@ -156,10 +156,10 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-swipe-pile"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-upgrade": false
   }
 }

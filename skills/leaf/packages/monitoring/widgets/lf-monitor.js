@@ -4,7 +4,7 @@ import {
   arrangeReadingElement,
   fitRootReadingElement,
   once,
-  registerArrangedElement,
+  registerReadingElement,
   settle,
 } from "/runtime/widget-api.js";
 
@@ -35,7 +35,7 @@ const minimumSize = (owner, content) => {
   const style = getComputedStyle(owner);
   const frame = frameSize(owner);
   const furnitureHeight = [...owner.children]
-    .filter((node) => node.classList.contains("lf-arranged-furniture"))
+    .filter((node) => node.classList.contains("lf-reading-frame"))
     .reduce((height, node) => height + node.getBoundingClientRect().height, 0);
   return {
     height:
@@ -52,7 +52,7 @@ const minimumSize = (owner, content) => {
 customElements.define(
   "lf-monitor",
   class extends HTMLElement {
-    #arrangement = null;
+    #readingArrangement = null;
     #content = null;
     #fitting = null;
 
@@ -60,22 +60,22 @@ customElements.define(
       if (once(this)) {
         const arranged = arrangeReadingElement({
           owner: this,
-          kind: "workspace",
+          role: "workspace",
           header: direct(this, "header"),
           footer: direct(this, "footer"),
         });
-        this.#arrangement = arranged.arrangement;
+        this.#readingArrangement = arranged.readingArrangement;
         this.#content = arranged.content;
       } else {
         this.#content = this.querySelector(":scope > .lf-workspace-content");
-        this.#arrangement = registerArrangedElement({
+        this.#readingArrangement = registerReadingElement({
           owner: this,
           content: this.#content,
         });
       }
       this.#fitting = fitRootReadingElement({
         owner: this,
-        arrangement: this.#arrangement,
+        readingArrangement: this.#readingArrangement,
         minimumSize: () => minimumSize(this, this.#content),
       });
       settle(this.#fitting.update());
@@ -84,8 +84,8 @@ customElements.define(
     disconnectedCallback() {
       this.#fitting?.cleanup();
       this.#fitting = null;
-      this.#arrangement?.cleanup();
-      this.#arrangement = null;
+      this.#readingArrangement?.cleanup();
+      this.#readingArrangement = null;
     }
   },
 );

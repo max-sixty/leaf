@@ -1386,7 +1386,7 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
     """A standalone copy keeps the decision's origin after removing live chrome.
 
     Structural state such as a card move still differs from the authored version after
-    export, so the retained origin attribute needs a local spoken word when Page map is
+    export, so the retained origin attribute needs a local spoken word when Page Map is
     no longer present.
     """
     url = serve(REPLAYED_PAGE)
@@ -1470,7 +1470,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
 
     A copy over-promising is the other half of that, and it went unread for as long as
     there was nothing here asking. Tab into an exported decision page landed on a pick
-    mark, which summoned the keyboard address for a key that answers nothing, into a row
+    mark, which summoned the binding badge for a key that answers nothing, into a row
     holding no column for it; a board's ten grips each opened a grab cursor; twenty
     options lit under a pointer that could not pick one. So the copy is asked what it
     still offers, in the three registers an offer is made in — a widget's chrome still
@@ -1495,7 +1495,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
         links: document.querySelectorAll('link[rel="stylesheet"]').length,
         presented: document.body.dataset.lfPresented,
         themeMarker: getComputedStyle(document.querySelector('main'))
-            .getPropertyValue('--lf-column').trim(),
+            .getPropertyValue('--lf-reading-column').trim(),
         // A page gives up a CSS shell claim for what it hangs in the margin, and
         // a copy keeps only the strips whose residents came with it: a suggestion's
         // controls are gone from a file that can decide nothing, and its rail with them,
@@ -1764,7 +1764,11 @@ def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_pat
                 found[inline[i]] = inline.getPropertyValue(inline[i]);
         return found;
     }"""
-    session = ("--lf-panel-w", "--lf-tray-w", "--lf-bottom-chrome-clear")
+    session = (
+        "--lf-thread-panel-width",
+        "--lf-tray-slot-width",
+        "--lf-bottom-chrome-clear",
+    )
 
     live = browser.new_page(viewport={"width": 1200, "height": 900})
     live.goto(url, wait_until="load")

@@ -5,7 +5,7 @@
  */
 
 export const askActionLayer = Object.assign(document.createElement("div"), {
-  className: "lf-ui lf-addresses lf-ask-addresses",
+  className: "lf-ui lf-key-badges lf-ask-binding-badges",
 });
 askActionLayer.setAttribute("aria-hidden", "true");
 

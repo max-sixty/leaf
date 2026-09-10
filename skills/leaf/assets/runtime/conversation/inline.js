@@ -17,7 +17,7 @@ import { loadDraft } from "../drafts.js";
 
 /* Textual conversation views rendered outside the retained Threads list.
 
-   A thread margin element uses an already-open panel; with the panel closed, its comment opens
+   A thread margin entry uses an already-open panel; with the panel closed, its comment opens
    inline at every width and the card overlays the page where no beside posture fits. An
    interactive reply embedded in a message explicitly opens the complete panel view. */
 function paintConversationBody(body, message) {

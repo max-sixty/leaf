@@ -1,14 +1,14 @@
-/* The semantic item a comment or reaction at the current focus addresses. */
+/* The addressable element a comment or reaction at the current focus acts on. */
 import { documentFocused } from "../keyboard/scopes.js";
 import { inChrome } from "../passages.js";
-import { itemAt } from "../anchor-resolution.js";
+import { addressableAt } from "../anchor-resolution.js";
 
-// The item the reader is standing in, which is what a press means when they have pointed
-// at nothing. The ⌥ aim reaches an item through the pointer and focus used to reach none
+// The addressable element the reader is standing in, which is what a press means when they
+// have pointed at nothing. The ⌥ aim reaches an element through the pointer and focus used to reach none
 // at all: tabbing to a link in an option left `c` offering the page.
 //
 // The unanswered Ask where the reader is standing on a control that works it, and the innermost
-// item everywhere else. The control the walk stands them on is one part of the question
+// addressable element everywhere else. The control the walk stands them on is one part of the question
 // (standOn), so a press made
 // from a pick, a ✓ or a mark means the question those answer. Standing *in* an Ask is not
 // the same fact: a reader who tabbed to a hyperlink has said
@@ -22,7 +22,7 @@ import { itemAt } from "../anchor-resolution.js";
 // keys; this says what a remark made here is about. They agree wherever the reader is
 // working the Ask, which is every arrival the Ask walk makes.
 //
-// Below that, the innermost item — the aim's own reading — through `askPlace`, so a
+// Below that, the innermost addressable element — the aim's own reading — through `askPlace`, so a
 // control a widget hoisted into the margin speaks for the Ask it points back at rather
 // than for the block it hangs beside.
 //
@@ -33,13 +33,13 @@ import { itemAt } from "../anchor-resolution.js";
 //
 // `documentFocused()` rather than `focused()`: a control
 // staged in a shadow tree retargets to its host, and the host is the place in the document
-// both the chrome guard and the item walk want. standingConversation below wants the inner
+// both the chrome guard and the element walk want. standingConversation below wants the inner
 // reading, and says so.
-export function createStandingItem({ isAskControl, askPlace, standingIn }) {
-  return function standingItem() {
+export function createStandingElement({ isAskControl, askPlace, standingIn }) {
+  return function standingElement() {
     const held = documentFocused();
     if (!held || held === document.body || inChrome(held)) return null;
     const working = isAskControl(held) ? standingIn() : null;
-    return working ?? itemAt(askPlace(held));
+    return working ?? addressableAt(askPlace(held));
   };
 }

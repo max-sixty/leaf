@@ -27,15 +27,15 @@ def thread_markup_contract_errors(parser, registry: dict) -> list:
 
 def widget_errors(lf_elements: list, registry: dict) -> list:
     """Validate parsed lf-* elements against the registry: schema over the
-    attribute instance, x-parent nesting, and the x-content model."""
+    attribute instance, x-owners nesting, and the x-content model."""
     errors = []
-    # Containers ("items") admit exactly the tags that declare them as x-parent.
-    children_of = {}
+    # Member containers admit exactly the tags that declare them as x-owners.
+    members_of = {}
     for tag, entry in registry.items():
         if not tag.startswith("lf-"):
             continue
-        for parent in entry.get("x-parent", []):
-            children_of.setdefault(parent, set()).add(tag)
+        for owner in entry.get("x-owners", []):
+            members_of.setdefault(owner, set()).add(tag)
 
     for rec in lf_elements:
         tag, where = rec["tag"], at(rec)
@@ -57,18 +57,18 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
             errors.append(f"{where}: {err.message}")
-        want_parents = entry.get("x-parent", [])
-        if want_parents and rec["parent"] not in want_parents:
+        want_owners = entry.get("x-owners", [])
+        if want_owners and rec["parent"] not in want_owners:
             actual = f", found <{rec['parent']}>" if rec["parent"] else ""
-            wanted = " or ".join(f"<{p}>" for p in want_parents)
-            errors.append(f"{where}: must be a direct child of {wanted}{actual}")
-        # Tags declaring this one as x-parent are admissible children under any
-        # content model — that is what x-parent means. "data" takes one <pre> and
-        # those, "items" element children only, "none" nothing at all.
+            wanted = " or ".join(f"<{owner}>" for owner in want_owners)
+            errors.append(f"{where}: must be a direct member of {wanted}{actual}")
+        # Tags that name this declaration in x-owners are its admissible members under
+        # any content model. "data" takes one <pre>, "members" takes element members
+        # only, and "empty" takes nothing at all.
         content = entry["x-content"]
-        allowed = children_of.get(tag, set())
+        allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})
-        if content == "none" and (rec["children"] or rec["text"]):
+        if content == "empty" and (rec["children"] or rec["text"]):
             errors.append(f"{where}: takes no content — write <{tag} …></{tag}>")
         elif content == "data":
             others = [c for c in stray if c != "pre"]
@@ -82,42 +82,42 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
                 errors.append(
                     f"{where}: text outside its <pre> — the whole body goes inside it"
                 )
-        elif content == "items":
+        elif content == "members":
             if stray:
                 errors.append(
-                    f"{where}: admits only {sorted(allowed)} children, found {stray}"
+                    f"{where}: admits only {sorted(allowed)} members, found {stray}"
                 )
             if rec["text"]:
-                errors.append(f"{where}: loose text between its items isn't allowed")
-        for child_tag, constraint in entry.get("x-children", {}).items():
+                errors.append(f"{where}: loose text between its members isn't allowed")
+        for member_tag, constraint in entry.get("x-required-members", {}).items():
             attribute = constraint["one-each"]
-            values = registry[child_tag]["properties"][attribute]["enum"]
+            values = registry[member_tag]["properties"][attribute]["enum"]
             direct = [
-                child
-                for child in lf_elements
-                if child["holder"] is rec
-                and child["parent"] == tag
-                and child["tag"] == child_tag
+                member
+                for member in lf_elements
+                if member["holder"] is rec
+                and member["parent"] == tag
+                and member["tag"] == member_tag
             ]
             counts = {
-                value: sum(child["attrs"].get(attribute) == value for child in direct)
+                value: sum(member["attrs"].get(attribute) == value for member in direct)
                 for value in values
             }
             missing = [value for value, count in counts.items() if count == 0]
             repeated = [value for value, count in counts.items() if count > 1]
             if missing or repeated:
                 errors.append(
-                    f"{where}: must contain exactly one direct <{child_tag}> for "
+                    f"{where}: must contain exactly one direct <{member_tag}> for "
                     f"each `{attribute}` value; missing {missing}, repeated {repeated}"
                 )
     return errors
 
 
 def layout_errors(lf_elements: list, registry: dict) -> list:
-    """Validate the direct grammar of registry-declared structural widgets."""
+    """Validate the direct grammar of registry-declared structural elements."""
     errors = []
     for rec in lf_elements:
-        role = registry.get(rec["tag"], {}).get("x-layout")
+        role = registry.get(rec["tag"], {}).get("x-reading-role")
         if role is None:
             continue
         where = at(rec)
@@ -127,18 +127,22 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
             footers = [i for i, child in enumerate(direct) if child == "footer"]
             if len(headers) > 1 or len(footers) > 1:
                 errors.append(
-                    f"{where}: x-layout {role} admits at most one direct <header> "
+                    f"{where}: x-reading-role {role} admits at most one direct <header> "
                     "and one direct <footer>"
                 )
             if headers and headers[0] != 0:
-                errors.append(f"{where}: x-layout {role} direct <header> must be first")
+                errors.append(
+                    f"{where}: x-reading-role {role} direct <header> must be first"
+                )
             if footers and footers[0] != len(direct) - 1:
-                errors.append(f"{where}: x-layout {role} direct <footer> must be last")
+                errors.append(
+                    f"{where}: x-reading-role {role} direct <footer> must be last"
+                )
             if role == "workspace":
                 body = [child for child in direct if child not in {"header", "footer"}]
                 if len(body) != 1 or body[0] == "#text":
                     errors.append(
-                        f"{where}: x-layout workspace must contain exactly one direct "
+                        f"{where}: x-reading-role workspace must contain exactly one direct "
                         f"body element, found {body or 'nothing'}"
                     )
             continue
@@ -149,21 +153,22 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
             if child.get("holder") is rec and child.get("parent") == rec["tag"]
         ]
         roles = [
-            registry.get(child["tag"], {}).get("x-layout") for child in direct_widgets
+            registry.get(child["tag"], {}).get("x-reading-role")
+            for child in direct_widgets
         ]
         if (
             len(direct) != 2
             or len(direct_widgets) != 2
-            or any(child_role not in {"pane", "split"} for child_role in roles)
+            or any(child_role not in {"pane", "partition"} for child_role in roles)
         ):
             found = [
                 f"<{child['tag']}> "
-                f"({registry.get(child['tag'], {}).get('x-layout') or 'not structural'})"
+                f"({registry.get(child['tag'], {}).get('x-reading-role') or 'not structural'})"
                 for child in direct_widgets
             ]
             errors.append(
-                f"{where}: x-layout split must contain exactly two direct pane or "
-                f"split widgets and no loose content, found {found or direct or 'nothing'}"
+                f"{where}: x-reading-role partition must contain exactly two direct pane or "
+                f"partition widgets and no loose content, found {found or direct or 'nothing'}"
             )
     return errors
 
@@ -449,7 +454,7 @@ def declared_word_errors(lf_elements: list, registry: dict) -> list:
 def line_ref_errors(lf_elements: list, registry: dict) -> list:
     """A declared line reference outside the body it points into. x-lines names the
     attributes holding 1-based line numbers or ranges of the nearest data body — the
-    element's own, or its holder's (lf-note's `at` anchors in its lf-code). The
+    element's own, or its enclosing data element's (lf-note's `at` anchors in its lf-code). The
     modules miss silently in both directions — a reversed range paints nothing, a
     note past the end docks at the block's foot — and version-to-version drift is
     exactly how one goes stale, so the door refuses what no reader would ever see."""
@@ -466,10 +471,10 @@ def line_ref_errors(lf_elements: list, registry: dict) -> list:
             # traceback that eats every other error.
             if not re.fullmatch(r"[0-9]+(?:-[0-9]+)?(?:,[0-9]+(?:-[0-9]+)?)*", value):
                 continue
-            holder = rec if rec["body"].strip() else rec.get("holder") or {}
+            body_owner = rec if rec["body"].strip() else rec.get("holder") or {}
             # The modules' own trim: leading blank lines and trailing whitespace
             # are the source's furniture, not lines.
-            body = re.sub(r"\s+$", "", re.sub(r"^\n+", "", holder.get("body", "")))
+            body = re.sub(r"\s+$", "", re.sub(r"^\n+", "", body_owner.get("body", "")))
             count = len(body.split("\n"))
             where = at(rec, f'{attr}="{value}"')
             for part in value.split(","):

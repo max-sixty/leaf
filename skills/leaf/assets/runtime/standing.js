@@ -6,9 +6,9 @@
 export function createStanding({
   markHere,
   paintStanding,
-  renderLine,
-  paintAddresses,
-  paintTargets,
+  renderShortcutBar,
+  paintGoToHints,
+  paintTargetChooserHints,
   paintCoreControls,
   paintInputs,
 }) {
@@ -16,12 +16,12 @@ export function createStanding({
   function paintStandingContent() {
     markHere();
     paintStanding();
-    // The shortcut bar is geometry for every address and target painted around it. Render
+    // The shortcut bar is geometry for every Go-to and target-chooser hint painted around it. Render
     // its new words first, then let chrome-layout.js place that resulting
     // box before any consumer reads it. ResizeObserver remains the door for font, window,
     // and other size changes; state-driven content changes complete in this frame rather
     // than leaving placement and hints one observer frame behind.
-    renderLine();
+    renderShortcutBar();
   }
 
   // Controls and geometry that depend on the laid-out content above.
@@ -31,8 +31,8 @@ export function createStanding({
     // own door alone went stale on the door it did not
     // have: a poll that retires an Ask moves the list under an armed window, and only the
     // panel's own render was calling the chip pass.
-    paintAddresses();
-    paintTargets();
+    paintGoToHints();
+    paintTargetChooserHints();
     paintCoreControls();
     paintInputs();
   }

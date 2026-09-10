@@ -1,10 +1,10 @@
-/* Shared light-DOM construction for structural and compound arrangements.
+/* Shared light-DOM construction for structural and compound reading arrangements.
 
    The caller chooses which direct authored nodes are furniture and whether the
    remaining content is a reading region. This helper owns the common DOM and
    registration lifecycle, plus the page-room observation a root fits against; CSS owns
    division and scrolling, while each root supplies its own minimum-size policy. */
-import { registerArrangement } from "./reading-regions.js";
+import { registerReadingArrangement } from "./reading-regions.js";
 import { LAYOUT, layoutChanged } from "./widget-elements.js";
 import { once } from "./widget-upgrade.js";
 
@@ -14,30 +14,33 @@ const generated = (className) => {
   return node;
 };
 
-const syncRootWorkspace = (owner) => {
+const syncWorkspaceContext = (owner) => {
+  if (!owner.classList.contains("lf-workspace-reading")) {
+    owner.removeAttribute("data-lf-workspace-context");
+    return;
+  }
   const main = owner.parentElement;
   const isRoot =
-    owner.classList.contains("lf-workspace-arranged") &&
     main?.matches("body > main") &&
     [...main.children].filter((child) => !child.matches("script, style, template"))
       .length === 1;
-  owner.toggleAttribute("data-lf-root-workspace", Boolean(isRoot));
+  owner.dataset.lfWorkspaceContext = isRoot ? "root" : "embedded";
 };
 
 export function arrangeReadingElement({
   owner,
-  kind,
+  role,
   header = null,
   footer = null,
   regions = [],
 }) {
-  if (!owner || !["workspace", "pane", "split"].includes(kind))
-    throw new Error("leaf: an arranged element needs an owner and layout kind");
+  if (!owner || !["workspace", "pane", "partition"].includes(role))
+    throw new Error("leaf: a reading element needs an owner and reading role");
 
-  const content = generated(`lf-arranged-content lf-${kind}-content`);
-  const body = kind === "pane" ? generated("lf-arranged-body lf-pane-body") : content;
-  const furniture = new Set([header, footer].filter(Boolean));
-  const arrangement = registerArrangement({
+  const content = generated(`lf-reading-content lf-${role}-content`);
+  const body = role === "pane" ? generated("lf-reading-body lf-pane-body") : content;
+  const frame = new Set([header, footer].filter(Boolean));
+  const readingArrangement = registerReadingArrangement({
     owner,
     content,
     regions: regions.map((region) => ({
@@ -47,26 +50,26 @@ export function arrangeReadingElement({
     })),
   });
   for (const child of [...owner.childNodes]) {
-    if (!furniture.has(child)) body.append(child);
+    if (!frame.has(child)) body.append(child);
   }
   if (body !== content) content.append(body);
-  header?.classList.add("lf-arranged-furniture", "lf-arranged-before");
-  footer?.classList.add("lf-arranged-furniture", "lf-arranged-after");
+  header?.classList.add("lf-reading-frame", "lf-reading-before");
+  footer?.classList.add("lf-reading-frame", "lf-reading-after");
   owner.replaceChildren(...[header, content, footer].filter(Boolean));
-  owner.classList.add("lf-arranged", `lf-${kind}-arranged`);
-  syncRootWorkspace(owner);
+  owner.classList.add("lf-reading", `lf-${role}-reading`);
+  syncWorkspaceContext(owner);
 
   layoutChanged(owner);
-  return { body, content, arrangement };
+  return { body, content, readingArrangement };
 }
 
-export function registerArrangedElement({
+export function registerReadingElement({
   owner,
   content,
   body = content,
   regions = [],
 }) {
-  const arrangement = registerArrangement({
+  const readingArrangement = registerReadingArrangement({
     owner,
     content,
     regions: regions.map((region) => ({
@@ -75,9 +78,9 @@ export function registerArrangedElement({
       body: region.body ?? body,
     })),
   });
-  syncRootWorkspace(owner);
+  syncWorkspaceContext(owner);
   layoutChanged(owner);
-  return arrangement;
+  return readingArrangement;
 }
 
 const directChild = (owner, tag) =>
@@ -87,13 +90,13 @@ export function defineReadingPaneElement(tagName) {
   customElements.define(
     tagName,
     class extends HTMLElement {
-      #arrangement = null;
+      #readingArrangement = null;
 
       connectedCallback() {
         if (!once(this)) {
           const content = this.querySelector(":scope > .lf-pane-content");
           const body = this.querySelector(":scope > .lf-pane-content > .lf-pane-body");
-          this.#arrangement = registerArrangedElement({
+          this.#readingArrangement = registerReadingElement({
             owner: this,
             content,
             body,
@@ -105,27 +108,31 @@ export function defineReadingPaneElement(tagName) {
         const footer = directChild(this, "footer");
         this.setAttribute("role", "region");
         this.setAttribute("aria-label", this.getAttribute("label"));
-        this.#arrangement = arrangeReadingElement({
+        this.#readingArrangement = arrangeReadingElement({
           owner: this,
-          kind: "pane",
+          role: "pane",
           header,
           footer,
           regions: [{ id: this.id, host: this }],
-        }).arrangement;
+        }).readingArrangement;
       }
 
       disconnectedCallback() {
-        this.#arrangement?.cleanup();
-        this.#arrangement = null;
+        this.#readingArrangement?.cleanup();
+        this.#readingArrangement = null;
       }
     },
   );
 }
 
-export function fitRootReadingElement({ owner, arrangement, minimumSize }) {
-  if (!owner || !arrangement?.setPosture || typeof minimumSize !== "function")
+export function fitRootReadingElement({ owner, readingArrangement, minimumSize }) {
+  if (
+    !owner ||
+    !readingArrangement?.setReadingPosture ||
+    typeof minimumSize !== "function"
+  )
     throw new Error(
-      "leaf: root fitting needs an owner, arrangement, and minimum-size reader",
+      "leaf: root fitting needs an owner, reading arrangement, and minimum-size reader",
     );
 
   let active = true;
@@ -134,8 +141,8 @@ export function fitRootReadingElement({ owner, arrangement, minimumSize }) {
 
   const choosePosture = async () => {
     if (!active || !owner.isConnected) return;
-    if (!owner.hasAttribute("data-lf-root-workspace")) {
-      await arrangement.setPosture("flow");
+    if (owner.dataset.lfWorkspaceContext !== "root") {
+      await readingArrangement.setReadingPosture("flow");
       return;
     }
 
@@ -163,7 +170,7 @@ export function fitRootReadingElement({ owner, arrangement, minimumSize }) {
       minimum !== null &&
       availableWidth >= minimum.width &&
       availableHeight >= minimum.height;
-    await arrangement.setPosture(bounded ? "bounded" : "flow");
+    await readingArrangement.setReadingPosture(bounded ? "bounded" : "flow");
   };
 
   const update = () => {
@@ -178,7 +185,7 @@ export function fitRootReadingElement({ owner, arrangement, minimumSize }) {
     return scheduled;
   };
 
-  if (owner.hasAttribute("data-lf-root-workspace")) {
+  if (owner.dataset.lfWorkspaceContext === "root") {
     resize = new ResizeObserver(update);
     resize.observe(document.body);
     window.addEventListener("resize", update);

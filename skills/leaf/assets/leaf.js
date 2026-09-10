@@ -101,6 +101,7 @@ import {
   reserveListClearance,
 } from "./runtime/trays.js";
 import { createWorkspaceNavigation } from "./runtime/workspace.js";
+import { createWorkspaceModality } from "./runtime/workspace-modality.js";
 import { restoreArrangements } from "./runtime/arrangements.js";
 import { readerStore } from "./runtime/storage.js";
 import { createVersionController, versionBtn, versionMenu } from "./runtime/version.js";
@@ -180,7 +181,18 @@ let pageKeys;
 
 const panelVisibility = createPanelVisibility();
 const { panelIsOpen } = panelVisibility;
-const navigation = createNavigation({ panelIsOpen });
+const workspaceModality = createWorkspaceModality({ chromeRoot, focusable: FOCUSABLE });
+const navigation = createNavigation({
+  panelIsOpen,
+  coveringWorkspaceScroller: workspaceModality.coveringScroller,
+});
+const panelModality = workspaceModality.register({
+  surface: panel,
+  scroller: () => threadsBox,
+  covers: navigation.panelCovers,
+  focus: () => threadsBox,
+  dismiss: () => panelWorkspace.setPanel(false),
+});
 
 const targetPaintCaps = {
   clearAim: targetPaint.clearAim,
@@ -518,6 +530,7 @@ layout = createChromeLayout({
   bottomChromeBoxes,
   reserveListClearance,
   restateTrayEdge: () => trays.traysEdge.state(),
+  syncWorkspaces: workspaceModality.sync,
   syncReactLayout: reactions.syncReactLayout,
   refreshFab: responseSurface.refreshFab,
   dockSeats: anchorControls.dockSeats,
@@ -541,6 +554,7 @@ panelWorkspace = createPanelWorkspace({
   syncGeneral: panelComposer.syncGeneral,
   refreshHover: anchorPaint.refreshHover,
   rememberOpen: (open) => readerStore.set(PANEL_KEY, open ? "1" : "0"),
+  modality: panelModality,
   repaint,
 });
 trays = createTrays({
@@ -554,6 +568,7 @@ trays = createTrays({
   paintLeavesOffer,
   renderAsks: asks.renderAsks,
   renderMargin: app.margin.renderMargin,
+  registerModalWorkspace: workspaceModality.register,
 });
 const workspace = createWorkspaceNavigation({
   panelIsOpen,
@@ -583,12 +598,14 @@ address = createAddress({
   placeThreadEdge,
   seenScroller: navigation.seenScroller,
   stopGlide,
+  coveringWorkspaceSurface: workspaceModality.coveringSurface,
   enterPageMap: pageMap.enterPageMap,
   leavePageMap: pageMap.leavePageMap,
   pageMapIsActive: pageMap.pageMapIsActive,
 });
 pageKeys = createPageKeys({
   panelIsOpen,
+  coveringWorkspaceSurface: workspaceModality.coveringSurface,
   stepReading: navigation.stepReading,
   openAsks: app.openAsks,
   GO: address.GO,
@@ -685,6 +702,7 @@ chromeRoot.append(
   liveEl,
   mediaViewer,
   shortcutReferenceDialog,
+  workspaceModality.scrim,
   bottomStatusEl,
   shortcutBarEl,
   inspectEl,
@@ -704,7 +722,8 @@ mountBanner({
   paintApproval: paintVersionApproval,
 });
 reserveBannerControls();
-registerPageScopes(pageKeys.scopes, REFERENCE, pageKeys.typing);
+registerPageScopes(pageKeys.scopes, REFERENCE, pageKeys.typing, workspaceModality);
+workspaceModality.mount();
 panelComposer.mount();
 selectionComposer.mount();
 responseSurface.mount();

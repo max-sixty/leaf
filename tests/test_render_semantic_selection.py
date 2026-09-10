@@ -503,32 +503,21 @@ def test_s_opens_the_same_comment_field_on_a_declared_visual_part(browser, serve
 def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
     browser, serve
 ):
-    """A fixed panel covers rather than clips the page. Hint geometry read from the page
-    alone therefore still exists behind it, but a key drawn above the chrome there would
-    appear to name a panel control and choose hidden document content. The rendered stack
-    at each target's corner decides whether it is actually exposed."""
+    """A covering panel removes the inert document from page-target selection."""
     page, errors = open_page(browser, serve(ROOT / "examples" / "corpus.html"))
     resized(page, 700, 900)
-    page.get_by_role("button", name=re.compile(r"^Threads")).click()
-    expect(page.locator(".lf-panel")).to_be_visible()
     page.keyboard.press("s")
     expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-target-hint")).to_have_count(0)
 
-    geometry = page.evaluate(
-        """() => {
-          const panel = document.querySelector('.lf-panel').getBoundingClientRect();
-          return {
-            panelLeft: panel.left,
-            centres: [...document.querySelectorAll('.lf-target-hint')].map((hint) => {
-              const box = hint.getBoundingClientRect();
-              return box.left + box.width / 2;
-            }),
-          };
-        }"""
-    )
-    assert geometry["centres"]
-    assert max(geometry["centres"]) < geometry["panelLeft"], (
-        f"a selection hint is painted on the covering thread panel: {geometry}"
+    page.get_by_role("button", name=re.compile(r"^Threads")).click()
+    expect(page.locator(".lf-panel")).to_be_visible()
+    assert page.locator("main").evaluate("el => el.inert")
+    expect(page.locator(".lf-panel")).to_have_attribute("aria-modal", "true")
+    page.keyboard.press("s")
+    assert page.locator(".lf-target-hint").count() == 0, (
+        "page target selection crossed the covering workspace boundary"
     )
     assert errors == []
     page.close()

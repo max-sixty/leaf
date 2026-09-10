@@ -23,11 +23,6 @@ the relevant design note or in git history.
   race belongs to version travel generally; independent pane scrollports only exposed
   more instances of it.
 
-- **#24 — Make covering workspaces modal.** When Threads or a tray covers the document,
-  keep focus and scrolling inside that workspace instead of leaving covered document
-  controls keyboard-reachable. Preserve the subject, draft, and reading landmark when
-  crossing the responsive threshold.
-
 ## Workspace follow-ups
 
 The workspace research after [PR #455](https://github.com/max-sixty/leaf/pull/455)

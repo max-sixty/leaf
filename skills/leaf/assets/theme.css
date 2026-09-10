@@ -496,10 +496,13 @@ body { position: static !important; box-sizing: border-box !important;
   ) body { margin-right: var(--lf-panel-w); }
 }
 @media screen and (width <= 840px) {
-  :is(
-    html[data-lf-restore-panel],
-    html[data-lf-live]:has(body[data-lf-panel])
-  ) { overflow-y: hidden; }
+  html[data-lf-restore-panel] { overflow-y: hidden; }
+}
+/* A workspace that covers the document owns the one visible reading scrollport. The
+ * runtime's shared modality boundary states this independently of which workspace is
+ * open, including Leaves, whose overlay posture does not depend on viewport width. */
+@media screen {
+  html[data-lf-live]:has(body[data-lf-modal-workspace]) { overflow-y: hidden; }
 }
 @media screen and (not (width <= 600px)) {
   :is(
@@ -511,10 +514,7 @@ body { position: static !important; box-sizing: border-box !important;
   }
 }
 @media screen and (width <= 600px) {
-  :is(
-    html[data-lf-restore-tray="asks"],
-    html[data-lf-live]:has(body[data-lf-tray="asks"])
-  ) { overflow-y: hidden; }
+  html[data-lf-restore-tray="asks"] { overflow-y: hidden; }
 }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page

@@ -57,6 +57,7 @@ import { keeps } from "../widget-elements.js";
 
 export function createPageKeys({
   panelIsOpen,
+  coveringWorkspaceSurface,
   stepReading,
   openAsks,
   GO,
@@ -371,6 +372,52 @@ export function createPageKeys({
     promoteEscape: () => !Boolean(fabAnchorAt()) || reactionTokens().length === 0,
     when: () => !current() && Boolean(rung()),
     run: () => rung().out(),
+  };
+
+  const PAGE_MOVE = {
+    id: "page.move",
+    keys: ["d", "u"],
+    routes: [
+      {
+        id: "page.down",
+        binding: "d",
+        does: "Move 60% of a page down",
+        line: "page down",
+      },
+      {
+        id: "page.up",
+        binding: "u",
+        does: "Move 60% of a page up",
+        line: "page up",
+      },
+    ],
+    does: "Move 60% of a page down or up",
+    line: "page down / up",
+    repeat: true,
+    run: (binding) => stepReading(binding === "d" ? 0.6 : -0.6, "page"),
+  };
+
+  const SCROLL_MOVE = {
+    id: "scroll.move",
+    keys: ["j", "k"],
+    routes: [
+      {
+        id: "scroll.down",
+        binding: "j",
+        does: "Scroll down a little",
+        line: "scroll down",
+      },
+      {
+        id: "scroll.up",
+        binding: "k",
+        does: "Scroll up a little",
+        line: "scroll up",
+      },
+    ],
+    does: "Scroll down or up a little",
+    line: "scroll down / up",
+    repeat: true,
+    run: (binding) => stepReading(binding === "j" ? 60 : -60, "pixel"),
   };
 
   // ---------- what a scope takes ----------
@@ -1096,56 +1143,10 @@ export function createPageKeys({
           repeat: true,
           run: (binding) => stepAsk(binding === "a" ? 1 : -1),
         },
-        {
-          id: "page.move",
-          keys: ["d", "u"],
-          routes: [
-            {
-              id: "page.down",
-              binding: "d",
-              does: "Move 60% of a page down",
-              line: "page down",
-            },
-            {
-              id: "page.up",
-              binding: "u",
-              does: "Move 60% of a page up",
-              line: "page up",
-            },
-          ],
-          does: "Move 60% of a page down or up",
-          line: "page down / up",
-          // An ordinary row, ranked where it stands. It was the one persistent declaration in
-          // the runtime, which spent a third of the resting line restating what every reader
-          // already does with a wheel, a trackpad or the space bar — and spent it on every
-          // page, in every scope, beside whatever the reader was actually doing. Scrolling is
-          // the one capability no page has to advertise. The shelf and the reference still
-          // name it, which is where a key the reader has not asked after belongs.
-          repeat: true,
-          run: (binding) => stepReading(binding === "d" ? 0.6 : -0.6, "page"),
-        },
-        {
-          id: "scroll.move",
-          keys: ["j", "k"],
-          routes: [
-            {
-              id: "scroll.down",
-              binding: "j",
-              does: "Scroll down a little",
-              line: "scroll down",
-            },
-            {
-              id: "scroll.up",
-              binding: "k",
-              does: "Scroll up a little",
-              line: "scroll up",
-            },
-          ],
-          does: "Scroll down or up a little",
-          line: "scroll down / up",
-          repeat: true,
-          run: (binding) => stepReading(binding === "j" ? 60 : -60, "pixel"),
-        },
+        // Scrolling is available in the page and in a covering workspace. The latter
+        // reuses these rows while the modal floor suspends the rest of page scope.
+        PAGE_MOVE,
+        SCROLL_MOVE,
         {
           // The last thing the reader did to this page, put back. Its own key rather
           // than the platform's ⌘Z, which belongs to the box a reader is typing in and
@@ -1207,6 +1208,20 @@ export function createPageKeys({
         AIM,
       ],
     };
+    const COVERING_WORKSPACE = {
+      title: "In the covering workspace",
+      root: coveringWorkspaceSurface,
+      when: () => Boolean(coveringWorkspaceSurface()),
+      at: () => Boolean(coveringWorkspaceSurface()),
+      // The global address vocabulary is still a route out of this workspace. Reuse its
+      // one entry row here; GO moves its own root to the same modal surface while armed.
+      rows: [
+        PAGE_MOVE,
+        SCROLL_MOVE,
+        GOTO,
+        { ...BACK_OUT, when: () => Boolean(rung()) },
+      ],
+    };
     const scopes = [
       SHORTCUT_REFERENCE,
       SHORTCUT_SHELF,
@@ -1222,6 +1237,7 @@ export function createPageKeys({
       TYPING,
       THREAD,
       PANEL,
+      COVERING_WORKSPACE,
       LINK,
       DISCLOSURE,
       DRAW,

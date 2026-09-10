@@ -7,8 +7,10 @@
    captured `shortcutReferenceOrigin`, so the reader returns to the control or reading place that
    opened it. A modal dialog clears the top layer's auto popovers on its way in, so the
    reference notes the ones it was opened over and stands them back up before that restore
-   — the dialog that says what a menu's keys are cannot be what takes the menu away. It
-   stands each one back up from that layer's own invoker — `lfInvoker`, the link a layer
+   — the dialog that says what a menu's keys are cannot be what takes the menu away. If a
+   covering workspace began while the reference stood, its owner declines a pre-boundary
+   layer outside that workspace and supplies the new return place instead. Otherwise the
+   reference stands each layer back up from its own invoker — `lfInvoker`, the link a layer
    declares because the platform's own runs one way only — so the layer's way out survives
    the round trip too.
 
@@ -47,7 +49,13 @@ import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { completeRowSteps, keySequence, neutralStates } from "./presentation.js";
 import { restoreReturnPlace } from "./return-stack.js";
 import { el } from "../widget-elements.js";
-import { ELEMENTS, pageScopes } from "./register.js";
+import {
+  coveringWorkspaceFocus,
+  coveringWorkspaceSurface,
+  ELEMENTS,
+  pageScopes,
+  workspaceAllowsNativeLayer,
+} from "./register.js";
 import {
   byCommand,
   elementScopes,
@@ -185,6 +193,7 @@ let shortcutReferenceOrigin = null;
 // row in a hidden popover and focus fell to the body. Note what stood, put it back before
 // the restore, and the exemption costs the reader nothing again.
 let shortcutReferenceLayers = [];
+let shortcutReferenceBoundary = null;
 const shortcutReferenceWords = (value) =>
   String(value ?? "")
     .toLocaleLowerCase()
@@ -225,12 +234,13 @@ function showShortcutReference(open, restoreFocus, invokeCommand, captureOrigin)
   // The dialog itself remains a focus stop, so either route keeps the page suspended.
   const preserveSelection = open && Boolean(pageSelection());
   const handBack = !open && restoreFocus && shortcutReferenceDialog.contains(focused());
-  const origin = handBack ? shortcutReferenceOrigin : null;
+  let origin = handBack ? shortcutReferenceOrigin : null;
   const restore = origin?.control ?? null;
   const closing = !open && shortcutReferenceDialog.open;
   if (open && !shortcutReferenceOpen) {
     shortcutReferenceOrigin = captureOrigin();
     shortcutReferenceLayers = [...document.querySelectorAll(":popover-open")];
+    shortcutReferenceBoundary = coveringWorkspaceSurface();
     commandsAtOpen = availableCommands();
   }
   shortcutReferenceOpen = open;
@@ -588,11 +598,16 @@ function showShortcutReference(open, restoreFocus, invokeCommand, captureOrigin)
   if (open && !shortcutReferenceDialog.open) shortcutReferenceDialog.showModal();
   else if (!open && shortcutReferenceDialog.open) shortcutReferenceDialog.close();
   // Back in the same order they were in: the dialog is out of the top layer by here, so a
-  // popover that is still on the page can stand again, and the restore below then reaches
-  // a control that is painted.
+  // eligible popover that is still on the page can stand again, and the restore below
+  // then reaches a control that is painted.
   if (closing) {
     for (const layer of shortcutReferenceLayers) {
       if (!layer.isConnected || layer.matches(":popover-open")) continue;
+      // A responsive change may have established a modal workspace while the native
+      // dialog stood above both surfaces. A popover captured before that boundary may
+      // return only when it belongs inside it. A layer captured over this same boundary
+      // was deliberately opened above it and keeps the ordinary reference round trip.
+      if (!workspaceAllowsNativeLayer(layer, shortcutReferenceBoundary)) continue;
       // A popover hands focus back to whatever had it when it was shown, and what the
       // closing dialog leaves focused is the body — so a layer stood back up from here
       // would have no way out, and the reader's exit from the menu would be the one thing
@@ -603,7 +618,16 @@ function showShortcutReference(open, restoreFocus, invokeCommand, captureOrigin)
         layer.lfInvoker?.focus({ preventScroll: true });
       layer.showPopover();
     }
+    const originNode = origin?.control ?? origin?.reading;
+    if (
+      originNode &&
+      !workspaceAllowsNativeLayer(originNode, shortcutReferenceBoundary)
+    ) {
+      const focus = coveringWorkspaceFocus();
+      origin = focus ? { control: focus, reading: null } : null;
+    }
     shortcutReferenceLayers = [];
+    shortcutReferenceBoundary = null;
   }
   // The reference is a list long enough to scroll, and anything a mouse can scroll a
   // keyboard has to reach. `reachScrollers` is the runtime's one answer to that and had

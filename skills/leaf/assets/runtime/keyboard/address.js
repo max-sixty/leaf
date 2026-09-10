@@ -25,7 +25,9 @@
    panel address toggles that panel, matching its visible control. Completing one that
    opens a surface exchanges the transient sequence for a return frame which restores the
    standing and workspace captured before `g` armed; completing it again closes the
-   surface without adding a frame.
+   surface without adding a frame. These destinations remain available when a workspace
+   covers the page: the sequence belongs to that modal surface while the inert document's
+   ordinary scopes remain unavailable.
 
    `BUILTIN_DIRECT_DESTINATIONS` declares the uppercase destinations this owner implements;
    another owner contributes a complete row through `directDestinations`. `TARGET_KINDS`
@@ -127,6 +129,7 @@ export function createAddress({
   placeThreadEdge,
   seenScroller,
   stopGlide,
+  coveringWorkspaceSurface,
   enterPageMap,
   leavePageMap,
   pageMapIsActive,
@@ -736,6 +739,7 @@ export function createAddress({
   const GO = {
     title: "Go to",
     escape: "inner",
+    root: () => coveringWorkspaceSurface() ?? document,
     reach: "with g armed",
     sequence: sequenceKeys,
     sequencePrefix,

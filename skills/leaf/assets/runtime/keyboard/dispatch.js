@@ -57,6 +57,11 @@
    closing the layer exposes the same frame again. The universal reference is the
    boundary's one route through to another layer.
 
+   A covering workspace uses the same modal command floor without entering the browser's
+   top layer. Its owner makes the background DOM inert, and this dispatcher keeps only
+   scopes rooted in the workspace plus the return frame that can close it. A native layer
+   opened above the workspace keeps its own scopes above that floor.
+
    A popover hands focus back to whatever had it when the popover showed — not to its
    invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
    relationship and nothing about focus. So a key that opens a layer runs the press from
@@ -73,6 +78,7 @@
    such as refusing the mouseup that ends a text-selection drag. */
 import { answers, bindings, commandEntries, live, spell, word } from "./bindings.js";
 import {
+  coveringWorkspaceSurface,
   ELEMENTS,
   pageScopes,
   textEntryScope,
@@ -163,22 +169,40 @@ export function stack(binding = null) {
     if (scope === TYPING && typing) return [];
     return scope;
   });
+  const workspace = coveringWorkspaceSurface();
   const layer = currentNativeLayer(active);
   const ordered = (scopes) => {
     const activeScopes = scopes.filter(standing);
     return binding === "Escape" ? escapeOrder(activeScopes, active) : activeScopes;
   };
-  if (!layer) return ordered(expanded);
+  if (!layer) {
+    if (!workspace) return ordered(expanded);
+    const owned = expanded.filter((scope) => {
+      const root = scopeRoot(scope);
+      return scope === RETURN || root === workspace || workspace.contains(root);
+    });
+    return ordered([...owned, MODAL_BOUNDARY]);
+  }
   const modal = currentModalLayer(active);
   const inLayer = (scope) => nativeLayerFor(scopeRoot(scope)) === layer;
   if (layer !== modal) {
     // The popover, its focused controls, and explicitly inner modes stand above the
     // browser's light-dismiss boundary. Everything else remains reachable for keys the
     // boundary does not claim, but its Escape cannot fall through into the covered page.
-    const aboveModal = modal
+    const aboveBoundary = modal
       ? (scope) => nativeLayersFor(scopeRoot(scope)).includes(modal)
-      : () => true;
-    const available = expanded.filter(aboveModal);
+      : workspace
+        ? (scope) => {
+            const root = scopeRoot(scope);
+            return (
+              scope === RETURN ||
+              inLayer(scope) ||
+              root === workspace ||
+              workspace.contains(root)
+            );
+          }
+        : () => true;
+    const available = expanded.filter(aboveBoundary);
     const foreground = (scope) =>
       inLayer(scope) ||
       elementStack.includes(scope) ||
@@ -189,7 +213,7 @@ export function stack(binding = null) {
       POPOVER_BOUNDARY,
       ...available.filter((scope) => !foreground(scope)),
     ];
-    if (modal) popoverStack.push(MODAL_BOUNDARY);
+    if (modal || workspace) popoverStack.push(MODAL_BOUNDARY);
     return ordered(popoverStack);
   }
   const owned = expanded.filter((scope) =>

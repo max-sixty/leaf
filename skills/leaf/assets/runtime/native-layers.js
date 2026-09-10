@@ -40,6 +40,13 @@ const prune = () => {
     if (!open(layers[index])) layers.splice(index, 1);
 };
 
+// Modal owners close pre-existing popovers before establishing a new floor. Read the
+// tracked native stack so a popover promoted from a declared shadow root is included too.
+export function openNativePopovers() {
+  prune();
+  return layers.filter((node) => node.matches(":popover-open"));
+}
+
 export function currentNativeLayer(focused = null) {
   const containing = nativeLayerFor(focused);
   prune();

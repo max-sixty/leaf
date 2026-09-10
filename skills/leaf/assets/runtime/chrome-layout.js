@@ -25,8 +25,9 @@
 // list and by nothing else. Threads and trays are alternate auxiliary workspaces, so only
 // one stands at a time. The strip-taking workspaces—Threads and Asks—take room when the
 // viewport can hold them and cover the page under their respective media query otherwise;
-// Leaves always covers because its rows leave this page. A workspace covering the page is
-// only ever `show()`n; the reference and the page map keep `showModal()`. The shell's
+// Leaves always covers because its rows leave this page. Workspace modality is a shared
+// inert boundary outside this geometry owner; the reference and page map keep native
+// `showModal()`. The shell's
 // inline size already reflects the margins a beside panel or tray takes. `--strip-l`, `--strip-r`,
 // `--lf-room`, and `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is
 // the named `lf-page` style container a margin resident asks for them; `--lf-shell-inset-left`
@@ -94,6 +95,7 @@ export function createChromeLayout({
   bottomChromeBoxes,
   reserveListClearance,
   restateTrayEdge,
+  syncWorkspaces,
   syncReactLayout,
   refreshFab,
   dockSeats,
@@ -338,6 +340,7 @@ export function createChromeLayout({
     addEventListener("resize", () => {
       commentsEdge.state();
       restateTrayEdge();
+      syncWorkspaces();
       pageShifted();
       syncLayout();
     });

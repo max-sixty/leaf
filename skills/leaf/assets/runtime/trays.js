@@ -10,6 +10,8 @@ import { pagePresented } from "./presentation.js";
 import { allAsks } from "./asks/model.js";
 import { walkRows } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
+import { iconElement } from "./icons.js";
+import { dismissBannerAddresses, focusBannerAddress } from "./banner-shelf.js";
 // The left side holds one tray at a time. `showTray` owns `trayUp` and renders the
 // complete outcome for leaves and asks. The leaves tray overlays the document because its
 // rows leave the page. The asks tray takes a strip because its rows travel within the
@@ -67,11 +69,18 @@ export const trayCovers = () => trayCovering.matches;
 // walked to the end of. Callers state the clearance; this owner decides which lists it
 // reaches and how each one spends it.
 const trayLists = [];
-function trayList(panel) {
+function trayFurniture(panel, name) {
+  const head = el("div", "lf-tray-head");
+  const title = el("span", "lf-panel-title", name);
+  const close = el("button", "lf-btn lf-icon-action lf-close-action");
+  close.append(iconElement("cross", "lf-action-icon"));
+  close.title = `Close ${name.toLowerCase()} (Esc)`;
+  close.setAttribute("aria-label", `Close ${name.toLowerCase()}`);
   const list = el("div", "lf-tray-list");
-  panel.append(list);
+  head.append(title, close);
+  panel.append(head, list);
   trayLists.push(list);
-  return list;
+  return { list, close };
 }
 export function reserveListClearance(clear) {
   for (const list of trayLists) {
@@ -100,7 +109,8 @@ export const othersPanel = el("nav", "lf-ui lf-tray-panel lf-others-panel");
 othersPanel.id = "lf-leaves";
 othersPanel.setAttribute("aria-label", "Leaves on this machine");
 othersPanel.tabIndex = -1;
-export const leavesList = trayList(othersPanel);
+const leavesFurniture = trayFurniture(othersPanel, "Leaves");
+export const leavesList = leavesFurniture.list;
 // A tray of the page's active asks, on the same edge: open and answered rows in the
 // order the page asks them. The list is declaration-driven, so a widget joins without
 // a row here knowing what kind of thing it is standing for.
@@ -108,7 +118,8 @@ export const asksPanel = el("nav", "lf-ui lf-tray-panel lf-asks-panel");
 asksPanel.id = "lf-asks";
 asksPanel.setAttribute("aria-label", "Asks from this page");
 asksPanel.tabIndex = -1;
-export const asksList = trayList(asksPanel);
+const asksFurniture = trayFurniture(asksPanel, "Asks");
+export const asksList = asksFurniture.list;
 
 // The left edge holds one tray at a time. Leaves and asks are the same furniture asking
 // at two scopes — which page needs me, and what this page needs of me — and each has to
@@ -145,6 +156,7 @@ export function createTrays({
   paintLeavesOffer,
   renderAsks,
   renderMargin,
+  registerModalWorkspace,
 }) {
   const trays = new Map();
   const beforeOpen = ({ remember = true } = {}) => {
@@ -163,13 +175,17 @@ export function createTrays({
     land: landEdge,
   });
 
-  function showTray(key, { remember = true } = {}) {
+  function showTray(key, { remember = true, returnFocus = true } = {}) {
     if (trayUp === key) return;
     // Threads and trays are alternate workspaces. Retire the standing one before another
     // opens so layout, focus, and persisted state never have to reconcile two of them.
-    if (key) beforeOpen({ remember });
+    if (key) {
+      dismissBannerAddresses();
+      beforeOpen({ remember });
+    }
+    trays.get(trayUp)?.workspace.sync(false);
     trayUp = key;
-    for (const [name, { panel, btn, paint }] of trays) {
+    for (const [name, { panel, btn, paint, workspace }] of trays) {
       const open = name === key;
       btn.setAttribute("aria-expanded", String(open));
       if (open) {
@@ -179,12 +195,14 @@ export function createTrays({
         // reader watches the list they just closed blank out and an empty card slide away.
         paint?.();
         panel.classList.add("open");
+        workspace.sync(true);
         motion(
           panel,
           [{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
           200,
         );
       } else if (panel.classList.contains("open")) {
+        workspace.sync(false);
         // Slid out before hidden, and hidden only if still closed on arrival — a
         // reopen mid-slide leaves the panel standing rather than racing the finish.
         const out = motion(
@@ -199,7 +217,8 @@ export function createTrays({
         };
         if (out) out.finished.then(hide, () => {});
         else hide();
-        if (panel.contains(document.activeElement)) btn.focus();
+        if (returnFocus && panel.contains(document.activeElement))
+          focusBannerAddress(btn);
       }
     }
     if (remember) readerStore.set(TRAY_KEY, key ?? "");
@@ -216,13 +235,21 @@ export function createTrays({
   // Registration only. No tray opens while this module evaluates: showTray runs from a
   // press, and restoreTrays from the arrangement restore at boot, after every owner has
   // evaluated.
-  function trayIs(key, panel, btn, paint) {
-    trays.set(key, { panel, btn, paint });
+  function trayIs(key, panel, btn, close, paint) {
+    const workspace = registerModalWorkspace({
+      surface: panel,
+      scroller: () => panel.querySelector(".lf-tray-list"),
+      covers: () => key === "leaves" || trayCovers(),
+      focus: () =>
+        panel.querySelector(".lf-tray-list button, .lf-tray-list a[href]") ?? panel,
+      dismiss: () => showTray(null),
+    });
+    trays.set(key, { panel, btn, close, paint, workspace });
   }
   // The painters are thunks: each tray's owner imports this module back, so neither
   // painter is a binding this module can read as it evaluates.
-  trayIs("leaves", othersPanel, othersBtn, paintLeavesOffer);
-  trayIs("asks", asksPanel, asksBtn, renderAsks);
+  trayIs("leaves", othersPanel, othersBtn, leavesFurniture.close, paintLeavesOffer);
+  trayIs("asks", asksPanel, asksBtn, asksFurniture.close, renderAsks);
   const trayNames = Object.freeze([...trays.keys()]);
 
   // A persisted tray is state-dependent chrome: Asks folds the log and Leaves comes from
@@ -237,6 +264,7 @@ export function createTrays({
     tray.btn.setAttribute("aria-expanded", "true");
     tray.paint?.();
     tray.panel.classList.add("open");
+    tray.workspace.sync(true);
     document.body.dataset.lfTray = trayUp;
   }
   function restoreTrays() {
@@ -256,9 +284,10 @@ export function createTrays({
   function mountTrays() {
     traysEdge.handle(othersPanel, () => othersBtn);
     traysEdge.handle(asksPanel, () => asksBtn);
-    for (const [key, { btn }] of trays) {
+    for (const [key, { btn, close }] of trays) {
       btn.classList.add("lf-workspace");
       btn.onclick = () => showTray(openTray(key) ? null : key);
+      close.onclick = () => showTray(null);
       btn.setAttribute("aria-expanded", "false");
     }
     keys(

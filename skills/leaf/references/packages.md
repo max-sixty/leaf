@@ -66,7 +66,8 @@ Leaf also ships optional packages that select by bare name. `diagram` adds `lf-d
 and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
 technical backlog deck; `playground` adds declarative controls, presets, CSS-bound
-previews, and one typed configuration action; `command-hub` adds multi-agent
+previews, and one typed configuration action; `targeting` lets readers select preview
+elements and submit structured, reversible change proposals; `command-hub` adds multi-agent
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
 description and compact checks table, plus a data-backed unified call diff; `monitoring`
 adds an asymmetric overview, evidence, and exception workspace. `gallery`
@@ -78,6 +79,7 @@ leaf page init --package diagram PAGE
 leaf page init --package diff PAGE
 leaf page init --package swipe PAGE
 leaf page init --package playground PAGE
+leaf page init --package targeting PAGE
 leaf page init --package command-hub PAGE
 leaf page init --package diff --package pr-review PAGE
 leaf page init --package monitoring PAGE
@@ -285,6 +287,9 @@ scripts.
 returns to. Widget facets are `{action, value, detail}`: `action` is null for authored
 state; `value` is the typed record value or a recordless outcome verb (null means
 undecided); `detail` retains generated-child labels and other declared event data.
+When `renderState` returns false because a reader owns a local edit, call
+`projectionChanged()` after that edit closes so the state feed retries the deferred
+authoritative projection.
 Non-widget facets contain `units`, keyed by unit id, and position facets also contain
 `value`, a map from container id to the complete ordered ids it holds. Missing
 recordless units are undecided. Render the final composition and keep independent

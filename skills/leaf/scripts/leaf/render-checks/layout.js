@@ -107,6 +107,11 @@ export function misplacedBoxes() {
   // formatting context keeps in.)
   const main = document.querySelector("main");
   if (!main) return [];
+  // The column belongs to the page. Leaf's controls may stand inside `main`, but
+  // their own labels and boxes are chrome rather than content the page placed there.
+  // Ask the shared layer boundary rather than a class directly: a widget may declare
+  // words inside that chrome as the page speaking, and those remain the page's boxes.
+  const pageBox = (el) => !uiInside(el, main);
   const { isResident, left, residents, right } = marginReading(main);
   // A widget the registry declares wide is answered for out here, the way an
   // absolutely-positioned resident is: standing past the column is what it was
@@ -180,7 +185,7 @@ export function misplacedBoxes() {
     // against the box that frames it, and a board scrolls, so every card on every
     // board was excused from the only reading that applies to it. A diagram in a card
     // was drawn across the neighbouring column and this said the page was clean.
-    if (!el.checkVisibility() || (!wide && answeredFor(el))) continue;
+    if (!pageBox(el) || !el.checkVisibility() || (!wide && answeredFor(el))) continue;
     const b = el.getBoundingClientRect();
     if (b.width < 1) continue;
     const frame = wide ? framing(el) : null;
@@ -300,7 +305,7 @@ export function misplacedBoxes() {
         : el.parentElement;
   };
   for (const el of main.querySelectorAll("*")) {
-    if (!el.checkVisibility()) continue;
+    if (!pageBox(el) || !el.checkVisibility()) continue;
     // Nothing inside an <svg> is the page's flow: a foreignObject clips by its
     // nature, and diagram label boxes run an even 8px outside theirs on an
     // ordinary graph — the drawing's own accounting, not the page losing words.

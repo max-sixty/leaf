@@ -120,6 +120,11 @@ export const LAYOUT = "lf-layout";
 export const layoutChanged = (el) =>
   el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
 
+// A widget may temporarily decline renderState while the reader owns a local edit.
+// When that edit closes, the state feed retries the deferred authoritative projection.
+export const projectionChanged = () =>
+  document.dispatchEvent(new Event("lf-projection"));
+
 // A number a widget can only read off a box the browser has laid out. Three ship: the
 // room a pick mark's word will need, the room a card keeps clear of its grip, the width
 // of a roster's state column. Every one is measured rather than stated for the same

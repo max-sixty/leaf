@@ -98,24 +98,21 @@ try {
   const app = page.frameLocator("iframe").frameLocator("iframe");
   await app.locator('body[data-lf-presented="1"]').waitFor();
   assert.equal(await app.locator("iframe").count(), 0);
-  assert.equal(
-    await app.getByRole("heading", { name: "Where sessions live" }).isVisible(),
-    true,
-  );
+  assert.equal(await app.locator("h1").isVisible(), true);
   assert.equal(await app.locator(".lf-banner").isVisible(), true);
   await page
     .locator("iframe")
     .screenshot({ path: path.join(results, "direct-leaf.png") });
-  const choice = app.locator("#opt-redis").getByRole("checkbox");
+  const choice = app.locator("#heat-opt-floor").getByRole("checkbox");
   await choice.focus();
   await choice.press("Space");
-  await app.locator("#opt-redis[chosen]").waitFor();
+  await app.locator("#heat-opt-floor[chosen]").waitFor();
   const action = await newEvent(
-    (event) => event.kind === "action" && event.widget === "session-options",
+    (event) => event.kind === "action" && event.widget === "heat-first",
   );
   assert.equal(action.kind, "action");
-  assert.equal(action.widget, "session-options");
-  await app.locator("#decision-lede").evaluate((element) => {
+  assert.equal(action.widget, "heat-first");
+  await app.locator("#heat-lede").evaluate((element) => {
     const range = document.createRange();
     range.selectNodeContents(element);
     const selection = getSelection();
@@ -125,7 +122,7 @@ try {
   });
   const commentText = `Comment delivered directly through MCP tools: ${randomUUID()}`;
   await app.locator(".lf-fab-input").fill(commentText);
-  await app.locator(".lf-fab-input").press("Enter");
+  await app.locator(".lf-fab-input").press("ControlOrMeta+Enter");
   const comment = await newEvent(
     (event) => event.kind === "comment" && event.text === commentText,
   );

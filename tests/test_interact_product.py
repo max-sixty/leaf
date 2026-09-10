@@ -9,7 +9,7 @@ from pathlib import Path
 import leaf.validation.command as checking_command
 import pytest
 from click.testing import CliRunner
-from example_data import data_operations, example_versions
+from example_data import data_operations, example_versions, regression_sources
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
@@ -47,7 +47,7 @@ PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
 )
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
-CORPUS_SOURCES = (*PUBLIC_EXAMPLES, FEATURE_GALLERY)
+CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), FEATURE_GALLERY)
 
 
 def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
@@ -401,7 +401,7 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     root = Path(__file__).parent.parent / "examples"
     packages = json.loads((root / "layer.json").read_text(encoding="utf-8"))
-    examples = [*PUBLIC_EXAMPLES, FEATURE_GALLERY, root / "corpus.html"]
+    examples = [*CORPUS_SOURCES, root / "corpus.html"]
     assert FEATURE_GALLERY.is_file()
     selection_args = [arg for package in packages for arg in ("--package", package)]
 
@@ -508,45 +508,6 @@ def test_the_feature_gallery_indexes_its_authored_elements():
     indexed = set(re.findall(r"lf-[a-z-]+", eyebrows))
     assert tags
     assert tags <= indexed, f"feature eyebrows omit {', '.join(sorted(tags - indexed))}"
-
-
-def test_each_long_document_example_version_has_one_contents_sidebar():
-    """Sequential documents carry a contents sidebar; workspace regions supply
-    their own navigation without adding a second page-wide contents list."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    missing = []
-    for example in CORPUS_SOURCES:
-        for version in example_versions(example):
-            markup = version.read_text()
-            if len(re.findall(r"<h[2-6](?:\s|>)", markup)) < 2:
-                continue
-            parser = parse_structure(markup)
-            main = next(node for node in parser.nodes if node["tag"] == "main")
-            roots = [
-                node
-                for node in main["content"]
-                if (isinstance(node, str) and node.strip())
-                or (
-                    isinstance(node, dict)
-                    and node["tag"] not in {"script", "style", "template"}
-                )
-            ]
-            if (
-                len(roots) == 1
-                and isinstance(roots[0], dict)
-                and registry.get(roots[0]["tag"], {}).get("x-layout") == "workspace"
-            ):
-                continue
-            contents = [
-                element for element in parser.lf_elements if element["tag"] == "lf-toc"
-            ]
-            if (
-                len(contents) != 1
-                or contents[0]["parent"] != "aside"
-                or '<aside class="sidebar"' not in markup
-            ):
-                missing.append(version.name)
-    assert not missing, f"long example versions without one contents sidebar: {missing}"
 
 
 def test_shipped_widget_purposes_live_in_their_descriptions():

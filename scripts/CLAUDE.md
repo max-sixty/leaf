@@ -13,10 +13,10 @@ file says which script owns what, and the rules that hold across them.
   under `.tmp/previews/<source-stem>`, watching the fixture and the selected runtime.
   `--export` writes the browser-drawn result as one standalone file instead.
 - `corpus.py` generates the internal `examples/corpus.html` stress fixture and its
-  companion data from the public examples and the developer feature gallery.
+  companion data from the examples, regression pages under `tests/fixtures/pages/`, and the developer feature gallery.
 - `example_assets.py` fetches the immutable `max-sixty/leaf-assets` commit named by
   `example-previews.json` into `.tmp`; `site.py` calls it when that revision is absent.
-- `example-previews.py`, invoked as `wt refresh-previews`, draws the stills for
+- `example-previews.py`, invoked as `wt refresh-previews`, draws the stills selected by
   `docs/examples.html` through the live published-example server. It refuses fallback
   fonts, pushes the complete image set, and updates the tracked commit pin and catalog.
 
@@ -37,10 +37,16 @@ rules a new or changed example has to meet.
   `.github/workflows/publish-site.yaml` deploys both halves for relevant pushes to
   `main`; it runs the local check before the first public operation, then verifies the
   exact release again after deployment. That production pass also sends one private
-  comment and requires the hosted Codex task to publish a revision and reply. A turn
-  the container settles with its own generation failure is asked once more, because
-  that settlement reports the model rather than the release; every other ending is a
-  red deployment on the first ask.
+  comment and requires the hosted Codex task to publish a revision and reply. With
+  `LEAF_VERIFY_AGENT=1`, `verify-site.py` prints the request acknowledgement, activity
+  transitions, publication, reply, and changed-page presentation timings. A turn the
+  container settles with its own generation failure is asked once more, because that
+  settlement reports the model rather than the release; every other ending is a red
+  deployment on the first ask.
+  `verify-site-agent-local.sh` runs the same delivery, App Server, edit, publication,
+  reply, and browser-reload path against the host's Codex login. It bypasses the
+  Cloudflare Worker, Workflow, container resources, and outbound credential proxy, so
+  it checks agent behavior without measuring production infrastructure.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws the Leaf
   screenshots that demo uses. Keep the latter while the product can make those frames
   stale.

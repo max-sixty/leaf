@@ -85,7 +85,7 @@
 
    A label names this press, not the broad feature. Prefer "Comment on selection" or "Hide
    comments" to "Comment" or "Toggle". Compute the word through `word` when visible state
-   chooses the sentence. Repaint through `paintHere` when any fact used by a word or
+   chooses the sentence. Request a repaint when any fact used by a word or
    liveness predicate changes.
 
    A run-less row may still project a native press when that meaning is worth naming in
@@ -409,6 +409,7 @@ export function answers(binding, ev) {
 export function checked(rows, where) {
   const ids = new Set();
   rows.forEach((row, i) => {
+    if (!row) throw new TypeError(`${where}: row ${i + 1} is missing`);
     if (
       row.decision !== undefined &&
       !(

@@ -91,7 +91,9 @@ one when it prunes.
 The `test_interact_*.py` modules exercise authored markup, the registry, the
 event log, CLI commands, vendoring, publishing, export, and server lifetime. The
 `test_render_*.py` modules drive the browser runtime and the render gate.
-File-side fixtures live in `interact_support.py`. Browser process and page
+Full-page navigation and comparison regressions live in `fixtures/pages/`, outside
+the published examples. Their companions follow `examples/CLAUDE.md`; the page and
+corpus sweeps include them. File-side fixtures live in `interact_support.py`. Browser process and page
 fixtures live in `render_harness.py`; reusable browser cases are grouped by
 interaction, layout, navigation, and widget behavior in `render_cases_*.py`.
 Both fixture modules use `TemporaryPageServer`, the same process-owned server as
@@ -454,7 +456,7 @@ The causal helpers:
   new send enter the wire, and waits for its round trip; undo can be refused
   while the preceding gesture is still unresolved.
 - `shortcut_bar_text(page)` reads what the shortcut bar says, once, after the repaint's own
-  frame. `paintHere` coalesces to a `requestAnimationFrame`, so a read taken in
+  frame. `repaint` coalesces to a `requestAnimationFrame`, so a read taken in
   the same round-trip as the press is a read of the frame before.
 
 A surface that reads the same before and after the press cannot be its own

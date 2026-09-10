@@ -11,7 +11,6 @@ import { registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
 import { settle, settling } from "./widget-upgrade.js";
 import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
-import { buildReactBar } from "./reactions.js";
 import { rememberAuthoredParents } from "./projection/authored.js";
 import {
   opaquePassageParts,
@@ -110,7 +109,7 @@ export async function importWidgets(scope) {
   );
 }
 
-export async function upgradeWidgets() {
+export async function upgradeWidgets({ buildReactionBar }) {
   const response = await fetch("/registry.json");
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
@@ -129,7 +128,7 @@ export async function upgradeWidgets() {
   )
     throw new Error("leaf: registry lacks $events, $languages, $tones or $reactions");
   revealLayer();
-  buildReactBar();
+  buildReactionBar();
   rememberPassageParts();
   rememberAuthoredParents();
   markDeclared(document.body, MARKED_IN_PAGE);

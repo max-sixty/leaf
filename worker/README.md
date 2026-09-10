@@ -20,7 +20,7 @@ the Python adapter. Published media, revisions, and version documents stay on th
 when one of those paths is absent from the release, the Worker asks the reader's
 active container so a newly created private revision can become the live document.
 
-The deployment admits up to 15,000 concurrent `lite` containers. After a session is
+The deployment admits up to 6,000 concurrent `basic` containers. After a session is
 active, a visible page holds it through Leaf's news stream; a passive page opens no
 stream. Hidden tabs close their streams, so the ten-minute application idle timer can
 begin after the browser session has no visible Leaf tab. This is resource lifetime, not
@@ -83,11 +83,29 @@ read the account's other analytics datasets too; if that is broader than the age
 should see, put a fixed session-reference lookup endpoint in front of it instead of
 handing the token to the agent.
 
+Hosted turns also emit content-free structured logs under `component=leaf-agent`.
+Every request log carries the page's public session reference and canonical event id;
+the container continues with that event id through App Server availability, task
+start, first notification, and completion. The logs omit message text, prompts, source
+IP keys, cookies, and private session ids. Follow one live request from `worker/` with:
+
+```sh
+npx wrangler tail leaf-website --format=json --search leaf-agent
+```
+
+Historical Worker and Container logs are available in Workers Observability because
+`wrangler.toml` enables it. An agent that needs those logs requires a separate
+Cloudflare token with `Workers Observability Write`; live `wrangler tail` access also
+requires `Workers Tail Read`. The Analytics-only token above can map a session
+reference to an event id but cannot query or tail runtime logs.
+The local end-to-end verifier prints the same container records and leaves them at
+`.tmp/website-agent-local.log` for a later agent to inspect.
+
 When Leaf accepts a reader message that its canonical activity projection says needs
 a response, the Worker starts one Cloudflare Workflow named with the public session
 reference and event id. The reference also appears in Analytics Engine, so an operator
 can start with the number the reader sees without exposing the private session cookie.
-Its retryable steps ask that reader's container to create or resume one Codex
+Its retryable steps reserve source capacity, then ask that reader's container to create or resume one Codex
 App Server task rooted at the actual page directory and deliver the event through
 Leaf's ordinary `leaf-delivery` record. Codex loads the shipped Leaf plugin and uses its
 native filesystem tools, so the hosted task can revise `index.html`, validate it, append

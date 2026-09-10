@@ -26,11 +26,15 @@ from playwright.sync_api import expect
 from render_support import (
     _CARD,
     BOTH_STAMPS,
+    CHART_PAGE,
     DRAFT_EDITED,
     DRAFT_TEXT,
     EXAMPLES,
     FEATURE_GALLERY,
     FIRST_PRESENTATION,
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
     JOURNEY_V1,
     JOURNEY_V2,
     LONG_PAGE,
@@ -40,6 +44,7 @@ from render_support import (
     SHADOWED_DIFF,
     SHORT_SUGGESTION,
     SUGGEST_BLOCK,
+    SUGGESTION_PAGE,
     TAB_AND_DOT,
     TAB_TONE,
     TOKEN,
@@ -73,6 +78,26 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+VISUAL_ACTION_TIMING = """
+  window.__lfVisualActionInsertions = [];
+  new MutationObserver(records => {
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (!(node instanceof Element)) continue;
+        const holders = [
+          ...(node.matches('.lf-visual-actions') ? [node] : []),
+          ...node.querySelectorAll('.lf-visual-actions'),
+        ];
+        for (const _holder of holders)
+          window.__lfVisualActionInsertions.push(
+            document.body?.hasAttribute('data-lf-presented') ?? false
+          );
+      }
+    }
+  }).observe(document, {childList: true, subtree: true});
+"""
 
 
 def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
@@ -264,7 +289,7 @@ def test_a_website_session_reference_survives_a_failed_first_read(
 def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     preview = {
         "kind": "example",
-        "example": "postmortem",
+        "example": "triage-board",
         "checkout": "fb77",
         "commit": "26499ea1abcd",
         "dirty": True,
@@ -292,7 +317,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         expect(page.locator(".lf-notice")).to_have_text("Copied preview diagnostics")
         expect(page.locator(".lf-notice")).to_be_visible()
         diagnostics = page.evaluate("() => navigator.clipboard.readText()")
-        assert "example: postmortem" in diagnostics
+        assert "example: triage-board" in diagnostics
         assert "checkout: fb77" in diagnostics
         assert "interaction: reader" in diagnostics
         assert "commit: 26499ea1abcd" in diagnostics
@@ -1573,6 +1598,66 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
         page.close()
 
 
+def test_visual_actions_arrive_only_after_authoritative_presentation(browser, serve):
+    """Visual response controls are a presented reading, never startup scaffolding."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    held = []
+    page.add_init_script(VISUAL_ACTION_TIMING)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(serve(CHART_PAGE), wait_until="load")
+        page.wait_for_function(
+            "() => document.querySelectorAll('lf-chart.lf-rendered').length === 5"
+        )
+        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+        expect(page.locator(".lf-visual-actions")).to_have_count(0)
+        assert page.evaluate("() => window.__lfVisualActionInsertions") == []
+
+        assert held, (
+            "the first state read completed before the startup boundary was read"
+        )
+        held.pop(0).continue_()
+        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+        expect(page.locator(".lf-visual-actions")).to_have_count(5)
+        assert all(page.evaluate("() => window.__lfVisualActionInsertions"))
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_failed_anchor_presentation_keeps_visual_actions_withheld(browser, serve):
+    """A malformed visual reading cannot leave durable controls on a partial page."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held = []
+    page.add_init_script(VISUAL_ACTION_TIMING)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(
+            serve(
+                GENERIC_VISUAL_PAGE,
+                layer_registry=GENERIC_VISUAL_LAYER,
+                layer_widgets=GENERIC_VISUAL_WIDGETS,
+            ),
+            wait_until="load",
+        )
+        page.wait_for_function(
+            "() => document.querySelector('lf-test-visual')?.parts?.length === 3"
+        )
+        page.locator("lf-test-visual").evaluate(
+            "visual => { visual.parts[1] = {...visual.parts[0]}; }"
+        )
+        assert held, "the first state read completed before the visual was malformed"
+        held.pop(0).continue_()
+
+        expect(page.locator(".lf-status-text")).to_contain_text("reload", timeout=5000)
+        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+        expect(page.locator(".lf-visual-actions")).to_have_count(0)
+        assert page.evaluate("() => window.__lfVisualActionInsertions") == []
+    finally:
+        page.close()
+
+
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
     """Malformed state leaves authored content readable but interaction unresolved."""
     url = serve(
@@ -1717,7 +1802,8 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     # existing controls keep their compact form; Page map states the provenance,
     # and the target keeps the local quiet word.
     expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
-    page.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
     rewritten = page.get_by_role(
         "button", name=re.compile(r"^Open rewritten: Rewritten")
     )
@@ -2536,6 +2622,112 @@ def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
         page.close()
 
 
+def test_the_first_read_and_the_reader_s_later_ones_are_bounded_apart(browser, serve):
+    """Two reads, two deadlines, because they are answerable to different things.
+
+    `publish-site` deployed release `5b6be522…`, ran a hosted agent turn on it, and
+    then read the reloaded page standing on the revision from before the turn. A
+    container that has just run a turn answers its next state read in seconds rather
+    than milliseconds — measured against a live deployment at 123 ms before a turn and
+    2252-3918 ms after one. A bound inside that spread does not delay such a read, it
+    ends it: an expiry is a completed offline answer, so the page takes the container
+    for gone while the answer it asked for is still on its way. Nothing waits on the
+    first read — the page presents at its own wait, tested below — so its bound can sit
+    outside every reading a live container takes. The deploy gate gives that container
+    120 seconds for each read it makes of it.
+
+    Every read after presentation answers to the reader instead. The banner's one way
+    to say the server stopped answering runs through a read that *completed* with
+    nothing, and a read still in flight holds the page's one slot, so this bound is the
+    whole time a live page can go on showing a reading the server has abandoned. It
+    stays on a reader's timescale rather than the gate's.
+    """
+    record_read_bounds = """
+      window.__leafReadBounds = [];
+      const native = AbortSignal.timeout.bind(AbortSignal);
+      Object.defineProperty(AbortSignal, 'timeout', {
+        value: (ms) => {
+          window.__leafReadBounds.push(ms);
+          return native(ms);
+        },
+      });
+    """
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.add_init_script(record_read_bounds)
+    # A read that brings nothing is what puts the page back on the clock: a page holding
+    # an answer asks again only when its news moves, so refusing the reads is how a
+    # second one is reached without waiting on the server to say something new.
+    page.route("**/api/state*", refuse)
+    try:
+        page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
+        expect(page.locator("body[data-lf-presented]")).to_have_count(1)
+        page.wait_for_function("() => window.__leafReadBounds.length >= 2")
+        bounds = page.evaluate("() => window.__leafReadBounds")
+        assert bounds[0] == 120_000, bounds
+        assert bounds[1] == 10_000, bounds
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, serve):
+    """The reader's page arrives on the runtime's wait, not on the container's answer.
+
+    Presentation is where durable controls, the heartbeat and the news stream open, so a
+    container that accepts the connection and says nothing would otherwise decide whether
+    the reader gets a usable page at all — and the read's own bound is set outside what a
+    live container takes, which is far past anyone's patience for a page. The wait ends
+    without ending the read: the request stays in flight, no second one opens beside it,
+    and the answer that lands after the page has presented offline is applied where it
+    stands.
+    """
+    # The wait is read off the page rather than written here, and shortened so the test
+    # spends its own time on the behaviour instead of on the bound. It is the first long
+    # timer the page installs; every other one this runtime sets is either shorter than
+    # this floor or installed after presentation.
+    shorten_the_first_long_wait = """
+      window.__leafPresentationWait = null;
+      const native = window.setTimeout.bind(window);
+      window.setTimeout = (fn, ms, ...rest) => {
+        if (window.__leafPresentationWait === null && ms >= 5000) {
+          window.__leafPresentationWait = ms;
+          return native(fn, 200, ...rest);
+        }
+        return native(fn, ms, ...rest);
+      };
+    """
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.add_init_script(shorten_the_first_long_wait)
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
+        expect(page.locator("body[data-lf-presented]")).to_have_count(1)
+        expect(page.locator(".lf-status-text")).to_contain_text(
+            "Server offline — reconnecting"
+        )
+        assert page.evaluate("() => window.__leafPresentationWait") >= 10_000
+
+        # The read the page presented without is still the one it is waiting on. Ticks of
+        # the shared clock pass with the slot held, and none of them opens a second read.
+        page.wait_for_timeout(4000)
+        assert len(held) == 1, held
+        assert not page.locator("body[data-lf-presented]").evaluate(
+            "body => body.dataset.lfReading ?? ''"
+        )
+
+        held[0].fulfill(json=held[0].fetch().json())
+        told(page)
+        expect(page.locator(".lf-status-text")).not_to_contain_text(
+            "Server offline — reconnecting"
+        )
+        assert errors == []
+    finally:
+        page.close()
+
+
 def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     """The network slot ends with the read, not an unbounded package repaint."""
     page, errors = open_page(browser, serve(LONG_PAGE))
@@ -3278,7 +3470,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(page.locator(".lf-panel")).to_be_visible()
     work_line = page.locator(".lf-receipt")
     work_button = page.locator('.lf-margin-reading-option[data-lf-kinds~="activity"]')
-    notice = page.locator(".lf-banner-status .lf-notice")
+    notice = page.locator(".lf-bottom-status .lf-notice")
 
     def claim(claim_ts, session="s"):
         """A page claim made now, carrying local work last renewed whenever."""
@@ -4679,3 +4871,34 @@ def test_data_notification_waits_for_a_version_activation(browser, serve):
     expect(page.locator("#lede")).to_have_text("Live status follows now.")
     assert errors == []
     page.close()
+
+
+def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser, serve):
+    """Importing capabilities does not start a half-constructed browser application."""
+    url = serve(SUGGESTION_PAGE)
+    boot = (serve.page_dir / "leaf.js").read_text()
+    context = browser.new_context()
+    context.route(
+        "**/leaf.js",
+        lambda route: route.fulfill(
+            content_type="text/javascript",
+            body="await import('/runtime/widget-api.js');\n"
+            "window.apiImportedBeforeBoot = true;\n"
+            "await import('/leaf-boot.js');",
+        ),
+    )
+
+    def boot_after_one_frame(route):
+        # Import side effects have a real frame in which to escape before boot owns
+        # presentation; this is controlled ordering rather than a network-speed race.
+        context.pages[0].evaluate("() => new Promise(requestAnimationFrame)")
+        route.fulfill(content_type="text/javascript", body=boot)
+
+    context.route("**/leaf-boot.js", boot_after_one_frame)
+    page, errors = open_page(browser, url, context=context)
+    assert page.evaluate("window.apiImportedBeforeBoot") is True
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    assert errors == []
+    context.close()

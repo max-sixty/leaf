@@ -36,6 +36,7 @@ from .leases import lock_is_held, transition_lock
 from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_reading
 from .schema import (
+    CURSOR_FILE,
     DATA_FILE,
     EVENTS_FILE,
     LAYER_PLACEHOLDER,
@@ -418,6 +419,10 @@ def _commit_layer(
     # the page transaction lease. Publish it only after the layer and initial
     # status commit, so a failed first write still takes the fresh-init path.
     if fresh:
+        # A log this page starts holds nothing the old one's reader acknowledged,
+        # so the acknowledgement position goes with the log it named. Re-vendoring
+        # an existing page keeps both.
+        (page_dir / CURSOR_FILE).unlink(missing_ok=True)
         replace_files([(page_dir / EVENTS_FILE, b"", False)])
     print(f"initialized {page_dir}")
 

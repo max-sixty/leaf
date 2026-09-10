@@ -10,8 +10,8 @@
    tray that takes a strip, `[data-lf-tray="asks"]`, is trays.js's STRIP_TRAYS. A
    container or media query cannot read a custom property, which is why each query is a
    literal rather than the --lf-panel-w the runtime writes. */
-/* `.lf-chrome` is one fixed runtime root containing the banner and its notice, the tray
-   panel, thread panel, composer, floating comment control, live region, shortcut bar, help,
+/* `.lf-chrome` is one fixed runtime root containing the banner, tray panel, thread panel,
+   composer, floating comment control, live region, shortcut bar and status, help,
    inspection paint, legend, and address layer. The page and panel are separate scroll
    regions.
 
@@ -239,7 +239,7 @@
    for stillness. */
 @media (prefers-reduced-motion: reduce) {
   .lf-margin-element[data-lf-state="busy"]:not([data-lf-behavior="status"])::after {
-    animation: none; border-style: dotted;
+    animation: none;
   }
 }
 /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
@@ -894,13 +894,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      own specificity. The menu reserves no width, so nothing is spent restating it. */
   .lf-banner-menu > .lf-btn.on {
     background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
-  /* The line's momentary other words (notifications.js), in its place rather than beside
-     it: the row holds one sentence at a time, and a narrow window clips the notice the
-     way it clips the line. Ink rather than the line's ink-2, since it is news. */
-  .lf-notice { display: none; color: var(--ink); white-space: nowrap; overflow: hidden;
-    text-overflow: ellipsis; min-width: 0; }
-  .lf-notice.show { display: block; }
-  .lf-banner-status:has(> .lf-notice.show) > .lf-status-text { display: none; }
   /* The addresses stay packed against the row's end. That decides who pays for a
      control changing size: it moves itself and the controls to its left, while
      everything to its right keeps its place. It is also what the fold rests on — the
@@ -1322,22 +1315,13 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-quote { margin: 0 0 8px; padding: 2px 8px 2px 12px;
     border-inline-start: 3px solid var(--mark-ink); color: var(--muted);
     font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
-  /* The address and Resolve are different actions. Their parent gives each one a
-     column, so the quote's paint and hit box end before the larger icon aim begins.
-     They share a top edge, and a wrapped quote grows below the compact action. */
+  /* The thread header owns its address and settlement action. Its columns keep their
+     complete hit boxes disjoint; without an address, a generic label states the
+     action's thread-wide ownership. */
   .lf-thread-head { display: grid; grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 8px; align-items: stretch; margin-bottom: 8px; }
   .lf-thread-head > .lf-quote { margin: 0; }
-  .lf-thread-head > .lf-resolve { position: relative; inset: auto; }
-  /* A source-less thread keeps Resolve in its corner and gives its first message head
-     the action's complete band. */
-  :is(.lf-thread, .lf-going) > .lf-resolve { position: absolute;
-    inset-block-start: var(--lf-thread-pad); inset-inline-end: var(--lf-thread-pad); }
-  :is(.lf-thread, .lf-going):not(:has(> .lf-quote)):has(> .lf-resolve)
-    > .lf-msg:first-of-type > .lf-msg-head {
-    align-items: last baseline;
-    min-height: max(28px, var(--aim-floor));
-    padding-inline-end: calc(max(28px, var(--aim-floor)) + 8px); }
+  .lf-thread-head > .lf-resolve { grid-column: 2; }
   .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
   .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: passage-focus;
     outline-offset: 2px; }
@@ -1350,8 +1334,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      scrolled rather than clipped a few rules down, because it stands alone in a box
      the reader is typing into and has no thread beneath it to bury. */
   .lf-thread .lf-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
-  .lf-quote.detached { border-inline-start-style: dashed;
-    border-inline-start-color: var(--border-2); color: var(--muted-2); cursor: default; }
+  .lf-quote.detached { border-inline-start-color: var(--border-2);
+    color: var(--muted-2); cursor: default; }
   /* Out of the picture, still in the accessibility tree — see the composer's quote in
      paintAnchors for the one thing that wears this and why. */
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
@@ -1385,10 +1369,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-msg-body li { margin: 2px 0; }
   .lf-msg-body pre { padding: 8px 10px; }
   .lf-msg-body blockquote { padding: 2px 10px; }
-  /* A reference to an element this version hasn't got, wearing the same word the
-     quote above wears for the same fact. The whole text-decoration shorthand,
-     because a widget's § reference (lf-ref) undressed its underline and a style
-     alone would paint nothing there. paintAnchors is the one writer. */
+  /* A reference to an element this version hasn't got keeps its underline but
+     changes it to dashed, while muted ink reinforces that its press is disabled.
+     The whole text-decoration shorthand, because a widget's § reference (lf-ref)
+     undressed its underline and a style alone would paint nothing there.
+     paintAnchors is the one writer. */
   .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
   .lf-compose { display: block; margin-top: 8px; }
   .lf-compose textarea { display: block; width: 100%; min-width: 0; }
@@ -1535,14 +1520,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     display: inline-flex; align-items: center; justify-content: center;
     border: 1px solid transparent; border-radius: var(--r); background: var(--card);
     opacity: 0; cursor: pointer;
-  }
-  /* In a source-less thread the first agent message shares the top row with Resolve.
-     Stand its reaction trigger beyond Resolve's complete focus band. */
-  .lf-thread:not(:has(> .lf-quote)):has(> .lf-resolve)
-    > .lf-msg.claude:first-of-type
-    > .lf-react-strip > .lf-react-trigger {
-    inset-inline-end: calc(max(28px, var(--aim-floor))
-      + var(--here-ring-w) + 2px + 2px);
   }
   .lf-react-strip.lf-react-open > .lf-react-trigger { display: inline-flex; }
   .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
@@ -1815,39 +1792,50 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      register the dispatcher walks (see the module docstring). A sequence shows its whole
      live scope; More unfolds the remaining current register before it opens the complete reference.
      Hints are the eye's copy of facts spoken elsewhere and stay aria-hidden; More is a
-     real control. A clamped walk's position stands separately at the page's head.
+     real control. Useful transient state balances the line at the opposite edge: a
+     semantic walk's live ordinal, or a brief command or arrival notice in its place.
      syncLayout keeps the line out of a side-by-side thread panel and, over a covering
      panel, lifts it only when its rendered box actually meets the panel foot. The chrome
      root reserves that fixed bottom surface for each scroll region it crosses, so its
      last lines never end underneath it. Overflow remains a backstop for a window too
      narrow to hold even the short line. */
+  :is(.lf-shortcut-bar, .lf-bottom-status) {
+    color: var(--muted); font-size: var(--t-6); padding: 5px 10px;
+    border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
   .lf-shortcut-bar { position: fixed; left: calc(18px + var(--lf-safe-left));
     bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
     display: flex; gap: 12px; align-items: baseline;
     max-width: calc(100vw - var(--lf-shortcut-bar-right, 0px) - 36px
       - var(--lf-safe-left) - var(--lf-safe-right));
-    overflow: hidden; color: var(--muted); font-size: var(--t-6); white-space: nowrap;
-    background: var(--card); border: 1px solid var(--rule); border-radius: var(--r);
-    padding: 5px 10px; }
+    overflow: hidden; white-space: nowrap; }
   .lf-shortcut-bar[data-lf-wrap="true"] { width: max-content; flex-wrap: wrap;
     row-gap: 6px; align-items: baseline; }
   .lf-shortcut-bar:not(:has(> :not([hidden]))) { display: none; }
-  /* TODO: The page-head corner is stable, but it is not a settled home for this
-     navigation state. Revisit the surface rather than moving it between contexts. */
-  .lf-walk-position { position: fixed;
-    top: calc(var(--lf-banner-h) + 14px);
-    left: calc(var(--lf-shell-inset-left, 0px) + 18px + var(--lf-safe-left));
+  .lf-bottom-status { position: fixed;
+    right: calc(18px + var(--lf-safe-right) + var(--lf-shortcut-bar-right, 0px));
+    bottom: calc(14px + var(--lf-safe-bottom));
     z-index: 8940; pointer-events: none;
-    padding: 5px 10px; border: 1px solid var(--rule); border-radius: var(--r);
-    background: var(--card); color: var(--ink-2); font-size: var(--t-5);
-    font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .lf-walk-position[data-lf-boundary] { border-color: var(--accent);
-    background: var(--accent); color: var(--card); }
+    max-width: calc(100vw - var(--lf-shortcut-bar-right, 0px) - 36px
+      - var(--lf-safe-left) - var(--lf-safe-right));
+    width: max-content; min-height: calc(var(--lf-key-box) + 12px); align-content: center;
+    white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .lf-bottom-status:not(:has(> .lf-context-status:not([hidden]),
+      > .lf-walk-position:not([hidden]), > .lf-notice.show)) { display: none; }
+  .lf-walk-position { font-variant-numeric: tabular-nums; }
+  .lf-context-status { white-space: normal; }
+  .lf-bottom-status:has(> .lf-walk-position[data-lf-boundary], > .lf-notice.show) {
+    border-color: var(--accent); background: var(--accent); color: var(--card); }
   .lf-walk-position[hidden] { display: none; }
-  /* Leaves covers rather than narrows the page, so it does not contribute the shell
-     inset that Asks does. Keep this page-head reading at the page's exposed edge. */
-  .lf-others-panel.open ~ .lf-walk-position {
-    left: calc(var(--lf-tray-w) + 18px + var(--lf-safe-left)); }
+  .lf-notice { display: none; color: inherit; font-size: inherit; line-height: inherit;
+    white-space: normal; min-width: 0; }
+  .lf-notice.show { display: block; }
+  .lf-bottom-status:has(> .lf-notice.show) > :not(.lf-notice) { display: none; }
+  .lf-bottom-status:has(> .lf-context-status:not([hidden])) > .lf-walk-position {
+    display: none; }
+  @media screen and (width <= 840px) {
+    .lf-bottom-status { right: auto; left: calc(18px + var(--lf-safe-left)); }
+  }
   /* A touch device has no keyboard hints to advertise, so the resting line stands down
      whole rather than shrinking. Every hint on it names a key the reader cannot press,
      and the box they cost stands over the words and the controls of a page whose window
@@ -1855,9 +1843,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      keyboard can begin a category walk and its position stands alone.
      More is the only pointer route to the reference; on a tablet with an attached
      keyboard the question-mark key remains its route.
-     Geometry readers ask whether either box is shown: syncLayout and composers read the
-     bottom line, while targets and addresses also read the page-head position. A zero
-     box is the same state the empty line has always had. */
+     Geometry readers ask whether either bottom box is shown. A zero box is the same
+     state the empty line has always had. */
   @media (pointer: coarse) {
     .lf-shortcut-bar { display: none; }
   }
@@ -1980,7 +1967,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      height as a sentence ages, which moves every address under it for no gesture; the
      whole line is a press away in the title, as the wide row's runaway detail is. */
   @media screen and (width <= 840px) {
-    .lf-walk-position { display: none; }
     .lf-banner { display: grid; grid-template-columns: minmax(0, 1fr);
       grid-template-rows: 36px minmax(0, 1fr); gap: 0;
       padding: var(--lf-safe-top) 0 0; }

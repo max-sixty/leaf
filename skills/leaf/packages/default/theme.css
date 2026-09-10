@@ -166,11 +166,11 @@ html.lf-copy body > main:has(> .lf-workspace-arranged[data-lf-root-workspace]) {
   }
 }
 
-/* lf-gloss: the prose stays prose, and its dotted underline is the whole visible
- * affordance. The underline is deliberately quieter than a link — this phrase goes
- * nowhere — while the top-layer card uses the page's ordinary paper, ink, and rule
- * rather than inventing a tooltip palette. Static copies and paper put the explanation
- * after the phrase, where they can honour its words. */
+/* lf-gloss: the prose stays prose, and its underline is the whole visible
+ * affordance. The words keep the page's ink while the underline uses the accent —
+ * this phrase goes nowhere — and the top-layer card uses the page's ordinary paper,
+ * ink, and rule rather than inventing a tooltip palette. Static copies and paper put
+ * the explanation after the phrase, where they can honour its words. */
 lf-gloss { display: inline; }
 /* The no-script rendering of x-says. Once the runtime writes the selectable span, that
  * span takes over; a static exported copy keeps the span and gives it the same inline
@@ -180,7 +180,6 @@ lf-gloss:has(> [data-lf-said="tip"])::after { content: none; }
 @media screen {
   html:not(.lf-copy) lf-gloss {
     text-decoration-line: underline;
-    text-decoration-style: dotted;
     text-decoration-color: var(--accent);
     text-decoration-thickness: 1px;
     text-underline-offset: .18em;

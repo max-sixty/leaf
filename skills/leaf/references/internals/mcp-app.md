@@ -7,10 +7,12 @@ explicit experiment, not a prerequisite for full Leaf in Codex.
 
 A developer-only direct-resource probe under `scripts/mcp-app/direct-*` bundles the
 canonical vendored runtime and routes reads/writes through MCP tools to the same
-PageStateService and event admission. Experiment 56 in `notes/mcp-apps/` verifies
-the design-decision fixture, a keyboard choice, and an anchored comment with no
-nested Leaf iframe or external resource requests in the official reference host.
-It also verifies accepted ui/message transport, not Codex idle wake. This is a
+PageStateService and event admission. The probe uses the Heating Review page with
+its inline chart data.
+Experiment 56 in `notes/mcp-apps/` established a keyboard choice and an anchored
+comment with no nested Leaf iframe or external resource requests in the official
+reference host. It also verified accepted ui/message transport, not Codex idle
+wake. This is a
 fixed-page experiment, not the installed server described below; version/data,
 dynamic assets, and compact-layout parity remain incomplete.
 

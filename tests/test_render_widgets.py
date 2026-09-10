@@ -138,11 +138,25 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     )
     assert readings["queue"][1] > readings["queue"][0], readings
     assert readings["detail"][1] > readings["detail"][0], readings
+    expect(queue).to_have_attribute("data-lf-more-below", "")
+    expect(detail).to_have_attribute("data-lf-more-below", "")
     queue.evaluate("el => el.scrollTop = 300")
     page.wait_for_function(
         "() => document.querySelector('#queue > .lf-pane-content > .lf-pane-body').scrollTop > 0"
     )
     assert detail.evaluate("el => el.scrollTop") == 0
+    expect(queue).to_have_attribute("data-lf-more-below", "")
+    queue.evaluate("el => el.scrollTop = el.scrollHeight")
+    expect(queue).not_to_have_attribute("data-lf-more-below", "")
+    queue.evaluate(
+        """el => {
+          const more = document.createElement('div');
+          more.style.height = '200px';
+          el.append(more);
+          el.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}));
+        }"""
+    )
+    expect(queue).to_have_attribute("data-lf-more-below", "")
 
     # Only direct furniture is slotted. An article's native header remains in the
     # pane's reading body rather than becoming pane chrome.
@@ -162,6 +176,8 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
         }"""
     )
     assert flow["detail"]["top"] >= flow["queue"]["bottom"] - 1, flow
+    expect(queue).not_to_have_attribute("data-lf-more-below", "")
+    expect(detail).not_to_have_attribute("data-lf-more-below", "")
     assert errors == []
     page.close()
 
@@ -474,6 +490,22 @@ def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
     assert page.evaluate(
         "document.documentElement.scrollHeight === document.documentElement.clientHeight"
     )
+    overflowing = page.locator(
+        "lf-monitor-region > .lf-pane-content > .lf-pane-body"
+    ).evaluate_all(
+        "bodies => bodies.filter(body => body.scrollHeight > body.clientHeight + 1)"
+        ".map(body => body.closest('lf-monitor-region').id)"
+    )
+    assert overflowing, "the custom reading regions all fit, so no cue is exercised"
+    for region_id in overflowing:
+        expect(
+            page.locator(f"#{region_id} > .lf-pane-content > .lf-pane-body")
+        ).to_have_attribute("data-lf-more-below", "")
+    first_overflowing = page.locator(
+        f"#{overflowing[0]} > .lf-pane-content > .lf-pane-body"
+    )
+    first_overflowing.evaluate("body => body.scrollTop = body.scrollHeight")
+    expect(first_overflowing).not_to_have_attribute("data-lf-more-below", "")
 
     resized(page, 1100, 500)
     expect(monitor).to_have_attribute("data-lf-posture", "flow")
@@ -3084,10 +3116,9 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         "Checkout needs attention"
     )
     with sending(page, "the notification configuration"):
-        playground.get_by_role("button", name="Send configuration").click()
-    # A choose is replaceable until the host stamps its result. Keep that legitimate
-    # update route, but label it as sending configuration rather than creating twice.
-    expect(playground.get_by_role("button", name="Send configuration")).to_be_enabled()
+        playground.get_by_role("button", name="Create notification").click()
+    # The reader can revise the configuration until the host stamps its result.
+    expect(playground.get_by_role("button", name="Create notification")).to_be_enabled()
     action = next(
         event
         for event in reversed(sent_events(serve.page_dir))
@@ -3102,8 +3133,8 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         "tone": "urgent",
     }
     assert action["detail"]["instruction"] == (
-        "Create deployment-notification.html, capture it as notification-artifact, "
-        "then revise this page with the generated source below Original configuration."
+        "Create this notification as deployment-notification.html. "
+        "When it is ready, show me the generated source here for review."
     )
 
     logged_action = next(
@@ -4426,16 +4457,14 @@ def test_a_terse_compare_keeps_its_side_by_side_grid(browser, serve):
     here as two variants that stacked."""
     page, errors = open_page(
         browser,
-        serve(
-            (Path(__file__).parent.parent / "examples/design-decision.html").read_text()
-        ),
+        serve(Path(__file__).parent.parent / "examples/developer/feature-gallery.html"),
     )
     top = "el => el.getBoundingClientRect().top"
-    assert page.locator("#var-session-cookie").evaluate(top) == page.locator(
-        "#var-fallback-cookie"
+    assert page.locator("#bg-variant-paper").evaluate(top) == page.locator(
+        "#bg-variant-screen"
     ).evaluate(top), "chip-led terse variants must share a row"
-    assert page.locator("#var-payments-regime").evaluate(top) != page.locator(
-        "#var-sessions-regime"
+    assert page.locator("#bg-variant-paper-detail").evaluate(top) != page.locator(
+        "#bg-variant-screen-detail"
     ).evaluate(top), "block-content variants must stack"
     assert errors == []
     page.close()

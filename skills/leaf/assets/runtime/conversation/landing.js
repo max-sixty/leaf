@@ -28,15 +28,12 @@ import { shownBand, shownBox } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { scrollBehavior } from "../motion.js";
 import { closestAcross } from "../passages.js";
-import { scrollToThread } from "../anchors.js";
-import { panelIsOpen, setPanel } from "../chrome-layout.js";
-import { threadsBox } from "./panel.js";
+import { threadsBox } from "./panel-elements.js";
 import { reachedForWords } from "../widget-elements.js";
-import { revealThread } from "./narrowing.js";
 import { finishFold } from "./folding.js";
+import { SAYS_IN, SAY_BOX } from "./selectors.js";
 
-const SAYS_IN = ".lf-thread, .lf-conversation-thread, .lf-conversation";
-export const SAY_BOX = ":scope > .lf-compose textarea, :scope > .lf-say textarea";
+export { SAY_BOX } from "./selectors.js";
 const conversationReturns = new WeakMap();
 
 // Keep a whole conversation in view when it fits. A long thread reveals its reply
@@ -123,17 +120,7 @@ export const standingConversation = () => {
 };
 export const backFromConversation = (box) => conversationReturns.get(box) ?? null;
 
-export function landInConversation(box, route = null) {
-  return landIn({ box, route });
-}
-
-const focusConversation = ({ held, box }) => {
-  box.focus({ preventScroll: true });
-  revealConversation(held, box);
-  if (held.dataset.id) scrollToThread(held.dataset.id);
-};
-
-export const landIn = ({ held = null, box, route = null }) => {
+function prepareLanding({ held = null, box, route = null }) {
   if (
     route &&
     (!(route.target instanceof Element) ||
@@ -151,9 +138,8 @@ export const landIn = ({ held = null, box, route = null }) => {
       once: true,
     });
   }
-  focusConversation({ held, box });
-  return true;
-};
+  return { held, box };
+}
 
 // A completion may navigate only until the reader's next gesture or focus moves
 // elsewhere. Replacing its control can drop focus to body without a new intent.
@@ -162,17 +148,64 @@ const leaveLanding = () => landingIntent++;
 for (const type of ["pointerdown", "keydown", "input", "wheel"])
   addEventListener(type, leaveLanding, { capture: true, passive: true });
 addEventListener("blur", leaveLanding);
-export const retainPanelLanding = (source) => {
+const retainLanding = (source, available, fallback = null) => {
   const intent = landingIntent;
   return () => {
     const at = focused();
     return (
-      panelIsOpen() &&
+      available() &&
       intent === landingIntent &&
-      (at === document.body || at === threadsBox || source.contains(at))
+      (at === document.body || at === fallback || source.contains(at))
     );
   };
 };
+
+export const retainPanelLanding = (source, panelIsOpen) =>
+  retainLanding(source, panelIsOpen, threadsBox);
+
+// A candidate can remove the reader's direct conversation box before a later renderer
+// refuses that state. Restore the same logical conversation and caret after its prior
+// view is reconciled, unless a newer reader gesture has taken over.
+export function retainConversationFocus(panelIsOpen) {
+  const input = focused();
+  const held = input && closestAcross(input, SAYS_IN);
+  if (!held || held.querySelector(SAY_BOX) !== input) return () => {};
+  const selection = [
+    input.selectionStart,
+    input.selectionEnd,
+    input.selectionDirection,
+  ];
+  let restoredInput;
+  let mayLand;
+  if (held.matches(".lf-thread") && held.parentElement === threadsBox) {
+    const id = held.dataset.id;
+    restoredInput = () =>
+      threadsBox
+        .querySelector(`.lf-thread[data-id="${CSS.escape(id)}"]`)
+        ?.querySelector(SAY_BOX);
+    mayLand = retainPanelLanding(held, panelIsOpen);
+  } else if (held.matches(".lf-conversation-thread")) {
+    const host = held.parentElement;
+    const id = held.dataset.thread;
+    restoredInput = () =>
+      host
+        .querySelector(
+          `:scope > .lf-conversation-thread[data-thread="${CSS.escape(id)}"]`,
+        )
+        ?.querySelector(SAY_BOX);
+    mayLand = retainLanding(held, () => host.isConnected);
+  } else if (held.matches(".lf-conversation")) {
+    restoredInput = () => held.querySelector(SAY_BOX);
+    mayLand = retainLanding(held, () => held.isConnected);
+  } else return () => {};
+  return () => {
+    if (!mayLand()) return;
+    const restored = restoredInput();
+    if (!restored) return;
+    restored.focus({ preventScroll: true });
+    restored.setSelectionRange(...selection);
+  };
+}
 // Landing belongs to the list, not to whatever moved the focus. The list already says
 // which of its own edges cannot be stood on — `scroll-padding`, room for a stuck
 // heading and for the focused card's edge — and every route that could reach a thread
@@ -237,7 +270,7 @@ const finishPress = (event, shouldLand) => {
 };
 addEventListener("pointerup", (event) => finishPress(event, true), true);
 addEventListener("pointercancel", (event) => finishPress(event, false), true);
-// Mounted from chrome.js.
+// Mounted from leaf.js.
 export function wireThreadLanding() {
   threadsBox.addEventListener("pointerdown", (event) => {
     if (event.isPrimary) pressedPointer = event.pointerId;
@@ -260,13 +293,12 @@ const listNode = (id) => {
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
 // focus at its own words so Tab reaches its controls. Sending a reply stays with its
 // editor through revealConversation instead.
-export function showThread(id, { focus = "reply" } = {}) {
-  setPanel(true);
+function showThreadNow(id, focus, revealThread) {
   let node = listNode(id);
   const going = node?.closest(".lf-going");
   if (going) {
-    revealThread(id);
     finishFold(going.dataset.id);
+    revealThread(id);
     node = listNode(id);
   } else if (!node) {
     revealThread(id);
@@ -298,4 +330,22 @@ export function showThread(id, { focus = "reply" } = {}) {
   target.classList.remove("grow");
   target.classList.add("flash");
   setTimeout(() => target.classList.remove("flash"), 1300);
+}
+
+export function createConversationLanding({ setPanel, scrollToThread, revealThread }) {
+  const landIn = (destination) => {
+    const prepared = prepareLanding(destination);
+    if (!prepared) return false;
+    const { held, box } = prepared;
+    box.focus({ preventScroll: true });
+    revealConversation(held, box);
+    if (held.dataset.id) scrollToThread(held.dataset.id);
+    return true;
+  };
+  const landInConversation = (box, route = null) => landIn({ box, route });
+  const showThread = (id, { focus = "reply" } = {}) => {
+    setPanel(true);
+    showThreadNow(id, focus, revealThread);
+  };
+  return { landIn, landInConversation, showThread };
 }

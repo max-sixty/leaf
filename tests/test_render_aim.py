@@ -758,12 +758,9 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     browser, serve
 ):
     """Reference geometry, not content size, invalidates the chosen margin rail."""
-    page, errors = open_page(
-        browser,
-        serve(next(example for example in EXAMPLES if example.stem == "release-notes")),
-    )
+    page, errors = open_page(browser, serve(LONG_PAGE))
     resized(page, 1440, 800)
-    target = page.locator("#rn-console-why")
+    target = page.locator("#p10")
     target.scroll_into_view_if_needed()
     target.click(modifiers=["Alt"])
     field = open_compact_comment(page)
@@ -771,7 +768,7 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("data-lf-placement", "right-start")
 
-    target.evaluate("node => { node.style.transform = 'translateX(230px)' }")
+    target.evaluate("node => { node.style.transform = 'translateX(600px)' }")
     expect(bar).to_have_attribute("data-lf-placement", "left-start")
     target_after = target.bounding_box()
     after = bar.bounding_box()

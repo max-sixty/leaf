@@ -1,5 +1,5 @@
 import { el } from "./widget-elements.js";
-import { paintHere } from "./keyboard/scopes.js";
+import { repaint } from "./repaint.js";
 // Generated rows that switch views keep the same outer box. Controls may give up ink
 // while retaining their cells. A status item that can appear later reserves its place for
 // the page's life. When a row runs out of room it gives up whole controls before it gives
@@ -64,7 +64,7 @@ overflowMenu.addEventListener("toggle", (event) => {
       ?.focus();
   // Whatever the row asked for while the menu stood open is asked again now it has not.
   if (!open) foldShelf();
-  paintHere();
+  repaint();
 });
 
 // The controls the banner's news arrives as, each present only while it has something

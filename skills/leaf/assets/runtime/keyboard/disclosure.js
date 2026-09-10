@@ -32,7 +32,7 @@
    and `shadowStage` hands it each root. */
 import { PRESS } from "./bindings.js";
 import { paintKeys } from "./scopes.js";
-import { disclosed } from "./page.js";
+
 import { inChrome } from "../passages.js";
 
 // Where a disclosure keeps which way it stands, in both spellings. Declared up here
@@ -42,7 +42,7 @@ import { inChrome } from "../passages.js";
 // `aria-keyshortcuts` a listener is read. Repainting the line alone left the attribute
 // standing whichever way the row was when its scope was declared, naming the arrow that no
 // longer moves the section and withholding the one that does. `paintKeys()` is the superset
-// — it revalidates the connected scopes and ends in `paintHere()` — so the watcher that
+// — it revalidates the connected scopes and requests the shared repaint — so the watcher that
 // already hears this write is the one place both surfaces are kept together, rather than a
 // repaint each DISCLOSE row has to remember for itself.
 // A write that says what the attribute already said is not a disclosure changing, and
@@ -67,3 +67,17 @@ export const DISCLOSE = (el) => {
   if (open === null) return [...PRESS, "ArrowLeft", "ArrowRight"];
   return inChrome(el) ? PRESS : [...PRESS, open ? "ArrowLeft" : "ArrowRight"];
 };
+
+export const DISCLOSURE_SELECTOR =
+  'details > summary, :is(button, [role="button"])[aria-expanded]';
+
+// Which way the disclosure at this element is standing: open, shut, or null where it is
+// not a disclosure at all — which is a question asked from wherever the reader happens to
+// be, the reference listing a scope the page has rather than the one they are in.
+export function disclosed(el) {
+  return !el?.matches?.(DISCLOSURE_SELECTOR)
+    ? null
+    : el.matches("details > summary")
+      ? el.parentElement.open
+      : el.getAttribute("aria-expanded") === "true";
+}

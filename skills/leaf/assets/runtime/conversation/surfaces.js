@@ -1,23 +1,32 @@
 /* Registry-declared widget-local placements for canonical Thread views.
 
-   A surface owns only the DOM geometry that seats a thread. Core owns which
-   threads qualify, their retained rendering, and whether a local view suppresses
-   the living-margin fallback. Adapter faults release that widget's core views
-   and report through the page-error channel; they cannot stop other threads
-   reconciling. Core rendering faults still fail the complete state application.
-
-   With the panel closed, an exact projected-datum comment opens in a declared widget
-   Thread surface when that widget supplies a visible outlet. A local surface uses the
-   canonical Thread fold and core-owned controls; only its container and layout belong
-   to the widget. Closing, filtering, or lazily withholding the datum removes the claim
-   and restores the living-margin fallback. Deliberate travel may reveal or hydrate the
-   datum, then runs the same reconciliation path to claim it. */
-import { renderPanel, setChildren } from "./reconcile.js";
+   Registrations are the domain's durable extension points. Each public registration is
+   supplied the application invalidation that owns its next semantic render; the module
+   stores no application service or generic event channel. */
+import { setChildren } from "../dom-children.js";
 import { reportPageError } from "../layer-client.js";
 import { containsAcross } from "../passages.js";
-import { renderThreadSurface } from "./inline.js";
 import { registry } from "../registry.js";
-export function registerThreadSurface(owner, adapter) {
+import { renderThreadSurface } from "./inline.js";
+import { removeConversationNode } from "./reaction-strips.js";
+
+const registrations = new Map();
+let claimedIds = new Set();
+
+function update(registration) {
+  if (registration.reconcileQueued) return;
+  registration.reconcileQueued = true;
+  queueMicrotask(() => {
+    registration.reconcileQueued = false;
+    void registration.invalidate();
+  });
+}
+
+export function registerThreadSurface(
+  owner,
+  adapter,
+  { invalidate, closeReactionMode },
+) {
   if (!(owner instanceof Element))
     throw new TypeError("registerThreadSurface owner must be a widget element");
   if (registry[owner.localName]?.["x-thread-surface"] !== true)
@@ -34,41 +43,42 @@ export function registerThreadSurface(owner, adapter) {
     throw new TypeError(
       "registerThreadSurface adapter needs begin, outletFor, and end functions",
     );
+  if (typeof invalidate !== "function")
+    throw new TypeError("registerThreadSurface needs an invalidation function");
+  if (typeof closeReactionMode !== "function")
+    throw new TypeError("registerThreadSurface needs reaction teardown");
   if (registrations.has(owner))
     throw new Error(`registerThreadSurface(${owner.localName}) registered twice`);
-
-  const registration = { adapter, owner, outlets: new Set() };
+  const registration = {
+    adapter,
+    owner,
+    invalidate,
+    closeReactionMode,
+    outlets: new Set(),
+    reconcileQueued: false,
+  };
   registrations.set(owner, registration);
-  update();
+  update(registration);
   let active = true;
   return {
-    update,
+    update: () => update(registration),
     unregister() {
       if (!active) return;
       active = false;
       registrations.delete(owner);
       clearRegistration(registration);
-      update();
+      update(registration);
     },
   };
 }
 
-const registrations = new Map();
-let claimedIds = new Set();
-let reconcileQueued = false;
-
-function update() {
-  if (reconcileQueued) return;
-  reconcileQueued = true;
-  queueMicrotask(() => {
-    reconcileQueued = false;
-    renderPanel();
-  });
+function removeNode(node, commands) {
+  removeConversationNode(node, commands.reaction.closeReactionMode);
 }
 
-function clearOutlets(outlets) {
+function clearOutlets(outlets, commands) {
   for (const outlet of outlets) {
-    setChildren(outlet, []);
+    setChildren(outlet, [], (node) => removeNode(node, commands));
     delete outlet.dataset.lfThreadSurface;
   }
 }
@@ -79,25 +89,30 @@ function reportFailure({ owner }, error) {
   );
 }
 
-function clearRegistration(registration) {
+function clearRegistration(registration, commands) {
   try {
     registration.adapter.begin();
     registration.adapter.end();
   } catch (error) {
     reportFailure(registration, error);
   }
-  clearOutlets(registration.outlets);
+  if (commands) clearOutlets(registration.outlets, commands);
+  else
+    for (const outlet of registration.outlets)
+      setChildren(outlet, [], (node) =>
+        removeConversationNode(node, registration.closeReactionMode),
+      );
   registration.outlets.clear();
 }
 
-export function renderSurfaces(threads, placedAt) {
+export function renderSurfaces(threads, placedAt, commands) {
   const nextClaimed = new Set();
   for (const registration of [...registrations.values()]) {
     const { adapter, owner } = registration;
     if (registrations.get(owner) !== registration) continue;
     if (!owner.isConnected) {
       registrations.delete(owner);
-      clearRegistration(registration);
+      clearRegistration(registration, commands);
       continue;
     }
     const byOutlet = new Map();
@@ -122,7 +137,6 @@ export function renderSurfaces(threads, placedAt) {
       }
       adapter.end();
       if (registrations.get(owner) !== registration) continue;
-      // end may move or detach an outlet. Claim only the finished layout.
       for (const outlet of byOutlet.keys()) {
         if (!outlet.isConnected) byOutlet.delete(outlet);
         else if (!containsAcross(owner, outlet))
@@ -131,19 +145,19 @@ export function renderSurfaces(threads, placedAt) {
           );
       }
     } catch (error) {
-      clearOutlets(registration.outlets);
+      clearOutlets(registration.outlets, commands);
       registration.outlets.clear();
       reportFailure(registration, error);
       continue;
     }
-    clearOutlets([...registration.outlets].filter((outlet) => !byOutlet.has(outlet)));
+    clearOutlets(
+      [...registration.outlets].filter((outlet) => !byOutlet.has(outlet)),
+      commands,
+    );
     registration.outlets = new Set(byOutlet.keys());
     for (const [outlet, localThreads] of byOutlet) {
-      // Core controls seated inside a widget are a nested interaction scope, not part
-      // of that widget's shortcut surface. The keyboard register stops its ancestor
-      // walk here while retaining scopes declared on the Thread controls themselves.
       outlet.dataset.lfThreadSurface = "";
-      renderThreadSurface(outlet, localThreads);
+      renderThreadSurface(outlet, localThreads, commands);
       for (const thread of localThreads) nextClaimed.add(thread.root.id);
     }
   }
@@ -152,6 +166,7 @@ export function renderSurfaces(threads, placedAt) {
 }
 
 export const claimed = (id) => claimedIds.has(id);
+
 export function focusSurface(id, { focus = "reply" } = {}) {
   for (const registration of registrations.values()) {
     const root = registration.owner.shadowRoot ?? registration.owner;

@@ -28,7 +28,7 @@
    - `renderQuiet` gives `x-paints` facts and state provenance a clipped spoken reading.
    - `markDeclared` exposes the declared width model, inline run, and quoting to the
      theme.
-   - `renderSettlement` (projection.js) paints the holder's authoritative settlement.
+   - `renderSettlement` (projection/presentation.js) paints the holder's authoritative settlement.
    - `renderRetired` marks slots retired by the declared holder relation.
    - The Ask model (asks/model.js) reads `x-awaits`, while the Ask tray
      projects a declared `x-ask-surface` region around that source where one exists;
@@ -101,6 +101,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   yield: "data-lf-yield",
   holds: "data-lf-holds",
   cut: "data-lf-cut",
+  moreBelow: "data-lf-more-below",
   goto: "data-lf-goto",
   traffic: "data-lf-traffic",
 });

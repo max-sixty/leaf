@@ -75,24 +75,34 @@
    that is a fact about where it was put — and neither is a box too tall for the region
    it is in. */
 import { el } from "../widget-elements.js";
-import { refreshHover, scrollToElement } from "../anchors.js";
 import { scrollBehavior } from "../motion.js";
-import { threadsBox } from "./panel.js";
-import { panelIsOpen } from "../chrome-layout.js";
+import { threadsBox } from "./panel-elements.js";
 import { pointerAt } from "../pointer.js";
-import { focused, paintHere } from "../keyboard/scopes.js";
+import { focused } from "../keyboard/scopes.js";
 import { conversational } from "./model.js";
 import { runtime } from "../context.js";
 import { ago } from "../presence.js";
-import { setChildren } from "./reconcile.js";
+import { setChildren } from "../dom-children.js";
+import { removeConversationNode } from "./reaction-strips.js";
 import { settling } from "../widget-upgrade.js";
 import { captureAuthoredFacets } from "../projection/authored.js";
 import { reachScrollers } from "../reach.js";
-import { toggleBtn } from "../banner.js";
 import { foldOut, hasFolding, isFolding } from "./folding.js";
 import { inPageOrder, pageOutline, threadGroups } from "./placement.js";
 import { inFilter, noMatchNote, paintNarrowing } from "./narrowing.js";
 import { paintThreadQuotes, threadNode } from "./thread-card.js";
+
+// The open threads, in the order t/T walk either surface. The panel's children are the
+// canonical list: folding a settled thread renames it out of this list in that frame.
+export const openThreads = ({
+  visibleOnly = true,
+  panelOpen = threadsBox.checkVisibility(),
+} = {}) =>
+  [...threadsBox.querySelectorAll(":scope > .lf-thread")].filter(
+    (thread) =>
+      (!visibleOnly || !thread.hidden) &&
+      (panelOpen || thread.dataset.resolved !== "true"),
+  );
 
 const emptyNote = el(
   "div",
@@ -106,7 +116,7 @@ const emptyNote = el(
 // line for the three runs that name no place (groupFor). A key never changes kind, so the
 // node a key holds never has to.
 const groupNodes = new Map();
-function groupNode(key, group) {
+function groupNode(key, group, commands) {
   let node = groupNodes.get(key);
   if (!node) {
     node = group.target
@@ -123,7 +133,8 @@ function groupNode(key, group) {
   // The press is rewired on every reconcile and the word is not: a version activation
   // replaces the heading the group names with a new element, and the same sentence.
   if (group.target)
-    node.onclick = () => scrollToElement(group.target, scrollBehavior(), "start");
+    node.onclick = () =>
+      commands.scrollToElement(group.target, scrollBehavior(), "start");
   return node;
 }
 
@@ -152,7 +163,7 @@ function systemNode(e, text) {
 // reserved for at one. Threads then landed under it, which is the whole defect this
 // number exists to prevent. Writing a custom property does not resize the observed box,
 // so the observer cannot feed itself.
-function paintHeadRoom() {
+function paintHeadRoom(panelIsOpen) {
   // Not while the panel is shut, which is most of a page's life. Every heading measures
   // zero in `display: none`, so the answer is never the room a heading takes — it is the
   // absence of a panel, written at the cost of a forced layout on every reconcile for a
@@ -169,9 +180,9 @@ function paintHeadRoom() {
     `${Math.max(0, ...heads.map((h) => h.offsetHeight))}px`,
   );
 }
-// Observed once the chrome is mounted (chrome.js): the list is the panel's.
-export function mountThreadList() {
-  new ResizeObserver(paintHeadRoom).observe(threadsBox);
+// Observed once the chrome is mounted (leaf.js): the list is the panel's.
+export function mountThreadList(panelIsOpen) {
+  new ResizeObserver(() => paintHeadRoom(panelIsOpen)).observe(threadsBox);
 }
 
 // Keep one card at the same viewport position while this list changes around it.
@@ -198,9 +209,9 @@ const heldBox = (card) => {
   const box = card.getBoundingClientRect();
   return box.width && box.height ? box : null;
 };
-function takeScrollHold() {
+function takeScrollHold(panelIsOpen) {
   const priorHold = activeHold;
-  if (priorHold) correctScrollHold(priorHold);
+  if (priorHold) correctScrollHold(priorHold, panelIsOpen);
   activeHold = null;
   if (!panelIsOpen()) {
     threadsBox.style.removeProperty("overflow-anchor");
@@ -282,7 +293,7 @@ function releaseScrollHold(hold) {
   threadsBox.style.removeProperty("overflow-anchor");
 }
 
-function correctScrollHold(hold) {
+function correctScrollHold(hold, panelIsOpen) {
   if (activeHold !== hold || !panelIsOpen()) return false;
   let box = null;
   const reference = hold.references.find(({ card }) => {
@@ -320,28 +331,28 @@ function correctScrollHold(hold) {
   return true;
 }
 
-function followScrollHold(hold) {
-  if (!correctScrollHold(hold)) {
+function followScrollHold(hold, panelIsOpen) {
+  if (!correctScrollHold(hold, panelIsOpen)) {
     releaseScrollHold(hold);
     return;
   }
-  if (hasFolding()) requestAnimationFrame(() => followScrollHold(hold));
+  if (hasFolding()) requestAnimationFrame(() => followScrollHold(hold, panelIsOpen));
   else releaseScrollHold(hold);
 }
 
-function finishScrollHold(hold) {
+function finishScrollHold(hold, panelIsOpen) {
   if (!hold) return;
-  correctScrollHold(hold);
-  if (hasFolding()) requestAnimationFrame(() => followScrollHold(hold));
+  correctScrollHold(hold, panelIsOpen);
+  if (hasFolding()) requestAnimationFrame(() => followScrollHold(hold, panelIsOpen));
   else releaseScrollHold(hold);
 }
 
-export function holdScrollPosition(mutate) {
-  const hold = takeScrollHold();
+export function holdScrollPosition(mutate, panelIsOpen) {
+  const hold = takeScrollHold(panelIsOpen);
   try {
     return mutate();
   } finally {
-    finishScrollHold(hold);
+    finishScrollHold(hold, panelIsOpen);
   }
 }
 
@@ -352,11 +363,15 @@ export function holdScrollPosition(mutate) {
 // no restore could give back was identity: nothing could animate, one send route kept
 // focus and the other dropped it, and a user's own comment landed below the fold
 // of a list put back exactly where it was. Nodes surviving is what deleted all of it.
-export function renderThreads(all) {
-  return holdScrollPosition(() => reconcileThreads(all));
+export function renderThreads(all, commands) {
+  return holdScrollPosition(
+    () => reconcileThreads(all, commands),
+    commands.panelIsOpen,
+  );
 }
 
-function reconcileThreads(all) {
+function reconcileThreads(all, commands) {
+  const removeNode = (node) => removeConversationNode(node, commands.closeReactionMode);
   // The conversations. A bare reaction is paint on the page and a chip on the page
   // row, and counts for nothing here: no card, no address, no place in the walk.
   const threads = all.filter(conversational);
@@ -364,19 +379,19 @@ function reconcileThreads(all) {
   // The page's outline, read once for the whole reconcile: every thread asks it where it
   // stands and which run it belongs to.
   const outline = pageOutline();
-  const group = threadGroups(threads, outline);
+  const group = threadGroups(threads, outline, commands.placedAt);
   // Newcomers settle in (`grow`) only when the user already has the list in front
   // of them: the first populated render is the page loading, not news arriving, and a
   // node animated while the panel is closed would replay the moment it opens.
   // (Reduced motion isn't asked here: grow is a CSS animation, and those are the
   // theme's one global guard's to stop.)
   const grow =
-    panelIsOpen() && Boolean(threadsBox.querySelector(":scope > .lf-thread"));
+    commands.panelIsOpen() && Boolean(threadsBox.querySelector(":scope > .lf-thread"));
 
   // Where the reader's own narrowing applies, and the only place it does: the page's
   // marks, the inline conversation seats and the banner's count are readings of the log
   // and go on saying what the log says. What the panel shows is the panel's business.
-  const ordered = inPageOrder(threads);
+  const ordered = inPageOrder(threads, commands.placedAt);
   const shown = ordered.filter((t) => inFilter(t, group.get(t)));
   const wanted = [];
   if (!threads.length) wanted.push(emptyNote);
@@ -417,14 +432,21 @@ function reconcileThreads(all) {
       : null;
     const node =
       t.resolved && isFolding(t.root.id)
-        ? foldOut(t)
+        ? foldOut(t, commands.repaintConversation)
         : t.resolved &&
             !visible.has(t) &&
             prior &&
             !prior.hidden &&
             prior.dataset.resolved === "false"
-          ? foldOut(t)
-          : threadNode(t, grow);
+          ? foldOut(t, commands.repaintConversation)
+          : threadNode(t, grow, {
+              reply: commands.card.reply,
+              settlement: commands.card.settlement,
+              reaction: commands.card.reaction,
+              travel: commands.card.travel,
+              anchors: commands.card.anchors,
+              openThreads,
+            });
     if (!node) continue;
     const onItsWayOut = node.matches(".lf-going");
     const hiding = !visible.has(t) && !onItsWayOut && !node.hidden;
@@ -442,7 +464,7 @@ function reconcileThreads(all) {
     const here = group.get(t);
     if (here.key !== standing) {
       standing = here.key;
-      if (here.label) wanted.push(groupNode(here.key, here));
+      if (here.label) wanted.push(groupNode(here.key, here, commands));
     }
     wanted.push(node);
   }
@@ -452,7 +474,7 @@ function reconcileThreads(all) {
   // answering the last one waiting on the reader is exactly that — and a removed node drops
   // focus to body, which hands the next Space to the page behind the panel. Land them on
   // the list, where Escape lands them and t/T can walk on from.
-  setChildren(threadsBox, wanted);
+  setChildren(threadsBox, wanted, removeNode);
   // A card kept but hidden still contains the focus for a moment: the browser only
   // drops it to body at its next rendering step, after this has run. Read the hidden
   // card as the removal it is for the reader.
@@ -461,7 +483,7 @@ function reconcileThreads(all) {
     (!threadsBox.contains(focused()) || focused()?.closest?.(".lf-thread[hidden]"))
   )
     threadsBox.focus({ preventScroll: true });
-  paintHeadRoom();
+  paintHeadRoom(commands.panelIsOpen);
   // Frozen markup has the same initial-value boundary as a page: connected and
   // fully upgraded, before its first projection. Async widgets register their work
   // on connection, so take the settling queue after setChildren above. Later list
@@ -471,15 +493,18 @@ function reconcileThreads(all) {
     reachScrollers(threadsBox);
   });
 
-  toggleBtn.textContent = `Threads (${open.length})`;
+  commands.setThreadCount(open.length);
   paintNarrowing(threads, shown, group);
   // The anchor pass wrote its record before this list existed, and this reconcile may have
   // built the nodes that wear it. Both passes therefore repaint it: the one that changes
   // the record, and the one that changes what the record is painted on.
-  paintThreadQuotes();
-  paintHere(); // the t/T and g rows, and an armed window's chips, stand on this list
+  paintThreadQuotes({
+    placedAt: commands.placedAt,
+    isMarked: commands.isMarked,
+  });
+  commands.onListChanged();
   // Narrowing and reconciliation can move another card under a pointer that did not
   // move. Read :hover after the browser has laid out this list, in refreshHover's frame.
-  refreshHover();
+  commands.refreshAnchorHover();
   return prepared;
 }

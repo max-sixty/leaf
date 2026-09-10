@@ -13,21 +13,17 @@ import {
 } from "./banner-shelf.js";
 import { latestChip, versionBtn, versionLabels } from "./version.js";
 import { asksBtn, othersBtn } from "./trays.js";
-import { COVERING, syncLayout } from "./chrome-layout.js";
+import { COVERING } from "./chrome-layout.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
-import { post } from "./outbox.js";
-import { paintHere } from "./keyboard/scopes.js";
-import { announce, notice, noticeEl } from "./notifications.js";
+import { repaint } from "./repaint.js";
+import { announce, notice } from "./notifications.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 export const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
-// The line's momentary other words (notifications.js): a gesture recorded, a version
-// arrived, a send refused. Seated after the line it stands in for, so the row holds
-// one sentence at a time.
 const bannerStatus = el("div", "lf-banner-status");
-bannerStatus.append(dot, statusText, noticeEl);
+bannerStatus.append(dot, statusText);
 
 export const toggleBtn = el(
   "button",
@@ -602,7 +598,8 @@ function arrangeBannerControls() {
 
 // The banner's row, mounted once the version chooser and the trays exist: the invariant
 // middle first, then the edge families around it (arrangeBannerControls).
-export function mountBanner() {
+export function mountBanner({ approveVersion, paintApproval }) {
+  document.addEventListener("lf-actions", paintApproval);
   for (const control of [asksBtn, othersBtn]) showNews(control, false);
   // Seed the invariant middle once; arrangeBannerControls puts the two edge families
   // around it and later preserves any registry-declared controls added among these three.
@@ -610,12 +607,25 @@ export function mountBanner() {
 
   arrangeBannerControls();
   banner.append(bannerStatus, bannerActions);
+  approveBtn.onclick = async () => {
+    if (approving) return;
+    approving = true;
+    approveBtn.setAttribute("aria-busy", "true");
+    paintApproval();
+    try {
+      await approveVersion();
+    } finally {
+      approving = false;
+      approveBtn.removeAttribute("aria-busy");
+      paintApproval();
+    }
+  };
 }
 
 // Sign-off belongs to the authored version, while the control belongs to the live
 // chrome that survives one. A soft activation can therefore add or remove the same
 // control; rebuilding the banner would throw away focus and every reserved neighbour.
-export function stateSignoff(next) {
+export function stateSignoff(next, syncLayout, paintApproval) {
   signoffDeclared = next;
   const shown = signoffDeclared && runtime.currentStamp !== null;
   if (shown === signoff) return;
@@ -708,8 +718,11 @@ function currentBannerReservations() {
 
 let approving = false;
 
-export function paintApproval() {
-  const approved = (runtime.browser?.conversation?.done ?? []).some(
+export function paintApproval(pendingApprovals) {
+  const approved = [
+    ...(runtime.browser?.conversation?.done ?? []),
+    ...pendingApprovals,
+  ].some(
     (e) =>
       e.kind === "done" &&
       e.revision === runtime.currentRevision &&
@@ -729,24 +742,5 @@ export function paintApproval() {
   approveBtn.title = approved
     ? "Approved. Press z to take it back while it is still your last gesture"
     : "Approve this work; the page stays open for follow-up";
-  paintHere();
+  repaint();
 }
-
-approveBtn.onclick = async () => {
-  if (approving) return;
-  approving = true;
-  approveBtn.setAttribute("aria-busy", "true");
-  paintApproval();
-  try {
-    await post({
-      kind: "done",
-      revision: runtime.currentRevision,
-      version: runtime.currentStamp,
-      text: "Looks good",
-    });
-  } finally {
-    approving = false;
-    approveBtn.removeAttribute("aria-busy");
-    paintApproval();
-  }
-};

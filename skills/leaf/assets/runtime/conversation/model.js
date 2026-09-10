@@ -1,17 +1,15 @@
-/* Conversation structure and turn-taking projected by the server.
+/* Pure conversation structure and turn-taking projected by the server.
 
-   This reads the log by `isReaction`, `spoken`, `turns`, and `bareReaction`, the names
-   `events.py` reads it by, and answers `reactionsOn` from the fold it last built. The
-   panel lists `conversational` threads only; a card shows its turns and its root, so a
+   This reads projected threads by `isReaction`, `spoken`, `turns`, and `bareReaction`,
+   the names `events.py` reads them by. The panel lists `conversational` threads only;
+   a card shows its turns and its root, so a
    thread that grew out of a reaction opens on the mark, whose body
    conversation/messages.js writes as the glyph and its word. Whose turn a thread is
    (`awaitsReader`, `awaitsAgent`) is the server's projection, read here rather than
    derived: the banner's Ask count and the panel's narrowing ask the same question
    and must get one answer. */
-import { sameAnchor } from "../anchors.js";
-import { registry } from "../registry.js";
-import { PENDING, runtime } from "../context.js";
-import { pendingMessages } from "../outbox.js";
+import { sameAnchor } from "../anchor-coordinate.js";
+import { PENDING } from "./identity.js";
 
 export const isReaction = (message) => Boolean(message.token);
 export const isAddressable = (message) => message.addressable !== false;
@@ -29,8 +27,6 @@ export const threadKey = (thread) => thread.root.attempt ?? thread.root.id;
 
 export const bareReaction = (thread) => thread.bare_reaction;
 export const conversational = (thread) => !bareReaction(thread);
-export const tokenEntry = (name) => registry.$reactions.tokens[name];
-
 // Which widget's seat a pending thread stands in, by the rule `seat_root` reads the log
 // by: an element anchor naming that widget and carrying nothing else. Spelled again here
 // because the server has not seen this message yet, and a thread that seated itself
@@ -40,17 +36,16 @@ const pendingSeat = (message) =>
     ? null
     : (message.anchor.section ?? null);
 
-// The reader's own unread messages, folded into the server's threads. A reply joins the
-// thread it answers; a comment opens one where it was written. Both leave again the
-// moment a receipt names their attempt, so this is a reading of the same log the server
-// projects rather than a second store beside it.
+// The reader's own pending gestures, folded into the server's threads. A reply joins the
+// thread it answers; a comment opens one where it was written; settlement changes its
+// state. They leave again when the server accepts or refuses them, so this is a reading
+// of the same outbox and log the server projects rather than a second store beside it.
 //
 // The derived facts a pending thread carries are the ones the reader just made true: the
 // agent owes the next word, the reader owes none, and a thread the reader opened with
 // words is a conversation rather than a mark.
-function withPending(threads) {
-  const messages = pendingMessages();
-  if (!messages.length) return threads;
+export function foldThreads(threads, messages, reactions, settlements) {
+  if (!messages.length && !reactions.length && !settlements.length) return threads;
   // A thread the reader opened answers to two names for as long as this tab holds a
   // reply written against the first: the one this page gave it, and the one the log
   // gave back. Both reach the one conversation, so a reply written into the card a
@@ -63,39 +58,46 @@ function withPending(threads) {
     return copy;
   });
   const opened = [];
-  for (const message of messages) {
-    if (message.kind === "reply") continue;
+  // Open both kinds before attaching either kind of reply. The delivery queue lets a
+  // reader answer a locally named root before the server has named it; that root may be
+  // words or a reaction, independently of whether the answer itself carries a token.
+  for (const root of [...messages, ...reactions]) {
+    if (root.kind === "reply") continue;
+    const reaction = isReaction(root);
     const thread = {
-      root: message,
-      anchor: message.anchor ?? null,
-      msgs: [message],
+      root,
+      anchor: root.anchor ?? null,
+      msgs: [root],
       resolved: null,
-      awaits_agent: true,
+      awaits_agent: !reaction,
       awaits_reader: false,
-      bare_reaction: false,
-      seat: pendingSeat(message),
+      bare_reaction: reaction,
+      seat: pendingSeat(root),
     };
     opened.push(thread);
-    byName.set(message.id, thread);
+    byName.set(root.id, thread);
   }
-  // After the threads, so a reply into a conversation this tab has not sent yet finds
-  // the one standing for it.
-  for (const message of messages)
-    if (message.kind === "reply") byName.get(message.parent)?.msgs.push(message);
+  for (const reply of [...messages, ...reactions])
+    if (reply.kind === "reply") byName.get(reply.parent)?.msgs.push(reply);
+  for (const thread of opened) {
+    const said = spoken(thread);
+    thread.bare_reaction = isReaction(thread.root) && !said.length;
+    thread.awaits_agent = Boolean(said.length);
+  }
+  for (const settlement of settlements) {
+    const thread = byName.get(settlement.parent) ?? byName.get(settlement.localParent);
+    if (!thread) continue;
+    thread.resolved =
+      settlement.kind === "resolve" ? { author: "user", pending: true } : null;
+  }
   return [...copies, ...opened];
-}
-
-let lastThreads = [];
-export function buildThreads() {
-  lastThreads = withPending(runtime.browser?.conversation?.threads ?? []);
-  return lastThreads;
 }
 
 // The bare reactions standing on exactly this anchor — the bar's own question, asked
 // so its chips can say which tokens are already there. Anchors are compared as
 // records, the way the file compares them.
-export const reactionsOn = (anchor) =>
-  lastThreads
+export const reactionsAt = (threads, anchor) =>
+  threads
     .filter(
       (thread) =>
         bareReaction(thread) && !thread.resolved && sameAnchor(thread.anchor, anchor),

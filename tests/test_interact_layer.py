@@ -1012,8 +1012,9 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE).group(1)
 
+    workspace = (assets / "runtime" / "panel-workspace.js").read_text()
     for pattern, source in (
-        (r'^export const PANEL_KEY = "([^"]+)";', layout),
+        (r'^export const PANEL_KEY = "([^"]+)";', workspace),
         (r'^export const TRAY_KEY = "([^"]+)";', trays),
         (r'key: "(lf-panel-width)"', layout),
         (r'key: "(lf-tray-width)"', trays),
@@ -1979,6 +1980,22 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     assert result.exit_code != 0
     assert "<lf-toned-note> x-example is invalid" in result.output
     assert message in result.output
+
+
+def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
+    """The acknowledgement cursor is a position in the log. A directory whose log
+    is absent takes the fresh-page path, so the position it kept names nothing."""
+    events_model.append_event(
+        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
+    )
+    interact_files.write_json(page_dir / "cursor.json", {"seq": 1})
+    (page_dir / "events.jsonl").unlink()
+
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert interact_files.read_json(page_dir / "cursor.json") is None
+    assert events_model.read_cursor(page_dir) == 0
 
 
 def test_revendoring_removes_files_the_layer_retired(page_dir):

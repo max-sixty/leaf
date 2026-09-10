@@ -26,6 +26,7 @@ from render_support import (
     LONG_PAGE,
     NOTED_PAGE,
     OVER_WORDS,
+    PAGE_FIXTURES,
     PANEL_PAGE,
     RENDERED,
     ROOT,
@@ -396,7 +397,7 @@ def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve):
 def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
     browser, serve
 ):
-    example = next(e for e in EXAMPLES if e.stem == "review-queue")
+    example = next(e for e in PAGE_FIXTURES if e.stem == "review-queue")
     page, errors = open_page(browser, serve(example))
     resized(page, 1100, 520)
     queue = page.locator("#review-queue .lf-pane-body")
@@ -427,7 +428,7 @@ def test_review_queue_links_are_its_only_navigator_and_keep_both_readings(
 
 
 def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
-    example = next(e for e in EXAMPLES if e.stem == "review-queue")
+    example = next(e for e in PAGE_FIXTURES if e.stem == "review-queue")
     page, errors = open_page(
         browser,
         serve(
@@ -464,7 +465,7 @@ def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
 def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyboard(
     browser, serve
 ):
-    example = next(e for e in EXAMPLES if e.stem == "review-queue")
+    example = next(e for e in PAGE_FIXTURES if e.stem == "review-queue")
 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
@@ -539,7 +540,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
     browser, serve
 ):
     """The comparison is simultaneous when room permits and sequential when it does not."""
-    example = next(e for e in EXAMPLES if e.stem == "current-proposed-comparison")
+    example = next(e for e in PAGE_FIXTURES if e.stem == "current-proposed-comparison")
     page, errors = open_page(browser, serve(example))
     workspace = page.locator("#comparison-workspace")
     current = page.locator("#comparison-current")
@@ -574,7 +575,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
 
 def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve):
     """Each policy owns a separate anchor and pane-local return route."""
-    example = next(e for e in EXAMPLES if e.stem == "current-proposed-comparison")
+    example = next(e for e in PAGE_FIXTURES if e.stem == "current-proposed-comparison")
     page, errors = open_page(
         browser,
         serve(
@@ -632,7 +633,7 @@ def test_each_comparison_result_keeps_its_own_comment_destination(browser, serve
 
 def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, serve):
     """One v1 choice remains authoritative in the v2 policy and rollout."""
-    example = next(e for e in EXAMPLES if e.stem == "current-proposed-comparison")
+    example = next(e for e in PAGE_FIXTURES if e.stem == "current-proposed-comparison")
 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
@@ -889,7 +890,9 @@ def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, s
     destination = "#bg-quoted-and-visual"
     page, errors = open_page(browser, root + destination)
 
-    links = page.get_by_role("navigation", name="On this page").get_by_role("link")
+    links = page.get_by_role("navigation", name="On this page").get_by_role(
+        "link", include_hidden=True
+    )
     targets = links.evaluate_all(
         """links => links.map(link => {
           const href = link.getAttribute('href');
@@ -927,10 +930,11 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     expect(approve).to_have_text("Approve version")
 
     option = page.locator("#bg-choice-street")
-    option_box = option.bounding_box()
-    assert option_box is not None
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
+    option.scroll_into_view_if_needed()
+    option_box = option.bounding_box()
+    assert option_box is not None
     page.mouse.click(
         option_box["x"] + option_box["width"] / 2,
         option_box["y"] + option_box["height"] / 2,
@@ -1504,10 +1508,26 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     position = page.locator(".lf-walk-position")
     expect(position).to_have_text("Ask 1 of 4 open")
     expect(position).to_have_attribute("aria-hidden", "true")
-    expect(position.locator("xpath=parent::*")).to_have_class(re.compile("lf-chrome"))
+    expect(position.locator("xpath=parent::*")).to_have_class(
+        re.compile("lf-bottom-status")
+    )
     marks = page.locator("#live-question .lf-pick")
     # The arrival stands on the Ask, which wears its options' digits; the marks
     # are the next Tab stops.
+    expect(
+        page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+    ).to_have_text(["1", "2"])
+    page.evaluate(
+        """async () => {
+          const [{notice}, {repaint}] = await Promise.all([
+            import('/runtime/notifications.js'),
+            import('/runtime/repaint.js'),
+          ]);
+          notice('Saved — sent');
+          repaint();
+        }"""
+    )
+    expect(page.locator(".lf-notice")).to_be_visible()
     expect(
         page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
     ).to_have_text(["1", "2"])
@@ -1546,8 +1566,8 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     page.close()
 
 
-def test_the_ask_walk_position_stays_at_the_page_head(browser, serve):
-    """Navigation state keeps one roomy place while its destination and face change."""
+def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
+    """Navigation state keeps one quiet place while its destination and face change."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     resized(page, 390, 780)
     position = page.locator(".lf-walk-position")
@@ -1556,20 +1576,24 @@ def test_the_ask_walk_position_stays_at_the_page_head(browser, serve):
 
     page.keyboard.press("a")
     expect(position).to_have_text("Ask 1 of 4 open")
-    expect(position).to_be_hidden()
+    expect(position).to_be_visible()
     resized(page, 1200, 780)
     expect(position).to_be_visible()
     geometry = page.evaluate(
         """() => {
           const box = (selector) => document.querySelector(selector).getBoundingClientRect();
           const position = box('.lf-walk-position');
+          const status = box('.lf-bottom-status');
           const line = box('.lf-shortcut-bar');
           const positionStyle = getComputedStyle(
             document.querySelector('.lf-walk-position'));
+          const statusStyle = getComputedStyle(document.querySelector('.lf-bottom-status'));
           const lineStyle = getComputedStyle(document.querySelector('.lf-shortcut-bar'));
           const banner = box('.lf-banner');
           return {position: {left: position.left, right: position.right,
                              top: position.top, bottom: position.bottom},
+                  status: {left: status.left, right: status.right,
+                           top: status.top, bottom: status.bottom},
                   line: {left: line.left, right: line.right,
                          top: line.top, bottom: line.bottom},
                   banner: {bottom: banner.bottom},
@@ -1577,25 +1601,30 @@ def test_the_ask_walk_position_stays_at_the_page_head(browser, serve):
                     .className,
                   parent: document.querySelector('.lf-walk-position').parentElement
                     .className,
-                  face: {background: positionStyle.backgroundColor,
+                  face: {background: statusStyle.backgroundColor,
                          lineBackground: lineStyle.backgroundColor,
-                         border: positionStyle.borderTopWidth,
-                         shadow: positionStyle.boxShadow},
+                         border: statusStyle.borderTopWidth,
+                         positionBackground: positionStyle.backgroundColor,
+                         positionBorder: positionStyle.borderTopWidth,
+                         shadow: statusStyle.boxShadow},
                   font: {line: parseFloat(lineStyle.fontSize),
                          position: parseFloat(positionStyle.fontSize)},
                   userSelect: positionStyle.userSelect};
         }"""
     )
     assert "lf-walk-position" not in geometry["first"], geometry
-    assert "lf-chrome" in geometry["parent"], geometry
-    assert geometry["position"]["left"] == 18, geometry
-    assert geometry["position"]["top"] == geometry["banner"]["bottom"] + 14, geometry
-    assert geometry["position"]["bottom"] < geometry["line"]["top"], geometry
-    assert geometry["font"]["position"] > geometry["font"]["line"], geometry
+    assert "lf-bottom-status" in geometry["parent"], geometry
+    assert geometry["status"]["right"] == 1182, geometry
+    assert geometry["status"]["top"] == geometry["line"]["top"], geometry
+    assert geometry["status"]["bottom"] == geometry["line"]["bottom"], geometry
+    assert geometry["status"]["left"] > geometry["line"]["right"], geometry
+    assert geometry["font"]["position"] == geometry["font"]["line"], geometry
     assert geometry["face"]["background"] == geometry["face"]["lineBackground"], (
         geometry
     )
     assert geometry["face"]["border"] == "1px", geometry
+    assert geometry["face"]["positionBackground"] == "rgba(0, 0, 0, 0)", geometry
+    assert geometry["face"]["positionBorder"] == "0px", geometry
     assert geometry["face"]["shadow"] == "none", geometry
     assert geometry["userSelect"] == "none", geometry
 
@@ -1603,19 +1632,19 @@ def test_the_ask_walk_position_stays_at_the_page_head(browser, serve):
         page.keyboard.press("a")
         expect(position).to_have_text(f"Ask {index} of 4 open")
     expect(position).not_to_have_attribute("data-lf-boundary", "")
-    ordinary = position.evaluate("node => getComputedStyle(node).backgroundColor")
+    status = page.locator(".lf-bottom-status")
+    ordinary = status.evaluate("node => getComputedStyle(node).backgroundColor")
     page.keyboard.press("a")
     expect(position).to_have_text("Ask 4 of 4 open")
     expect(position).to_have_attribute("data-lf-boundary", "")
-    assert position.evaluate(
-        "node => ({left: node.getBoundingClientRect().left, "
-        "top: node.getBoundingClientRect().top})"
-    ) == {
-        "left": geometry["position"]["left"],
-        "top": geometry["position"]["top"],
-    }
     assert (
-        position.evaluate("node => getComputedStyle(node).backgroundColor") != ordinary
+        status.evaluate("node => node.getBoundingClientRect().left")
+        == geometry["status"]["left"]
+    )
+    assert status.evaluate("node => getComputedStyle(node).backgroundColor") != ordinary
+    assert (
+        position.evaluate("node => getComputedStyle(node).backgroundColor")
+        == geometry["face"]["positionBackground"]
     )
     expect(position).not_to_have_attribute("data-lf-boundary", "")
 
@@ -2083,39 +2112,56 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     page.keyboard.press("n")
     expect(page.locator(f'.lf-thread[data-id="{roots[1]}"]')).to_be_focused()
     expect(position).to_have_text("Thread 1 of 1 shown")
-    expect(position.locator("xpath=parent::*")).to_have_class(re.compile("lf-chrome"))
+    expect(position.locator("xpath=parent::*")).to_have_class(
+        re.compile("lf-bottom-status")
+    )
     expect(position.locator("xpath=ancestor::*[@id='lf-shortcut-bar']")).to_have_count(
         0
     )
-    panel_position = position.evaluate(
-        "node => ({left: node.getBoundingClientRect().left, "
-        "top: node.getBoundingClientRect().top, "
-        "bottom: node.getBoundingClientRect().bottom})"
+    panel_status = page.evaluate(
+        """() => ({
+          statusRight: document.querySelector('.lf-bottom-status').getBoundingClientRect().right,
+          panelLeft: document.querySelector('.lf-panel').getBoundingClientRect().left,
+        })"""
     )
+    assert panel_status["statusRight"] < panel_status["panelLeft"], panel_status
     assert position_is_front(), "the open Threads panel painted over its walk position"
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, False)
     expect(position).to_be_hidden()
 
+    page.evaluate(
+        "async () => (await import('/runtime/notifications.js'))"
+        ".notice('Agent replied — open Threads', {background: true})"
+    )
+    expect(page.locator(".lf-notice")).to_be_visible()
     page.keyboard.press("t")
+    assert page.evaluate(
+        """() => ({
+          position: document.querySelector('.lf-walk-position').checkVisibility(),
+          notice: document.querySelector('.lf-notice').checkVisibility(),
+        })"""
+    ) == {"position": True, "notice": False}
     first = page.locator(
         f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[0]}"]'
     )
     expect(first).to_be_focused()
     expect(page.locator(".lf-panel")).to_be_hidden()
     expect(position).to_have_text("Thread 1 of 2")
+    expect(position).to_be_visible()
+    expect(page.locator(".lf-notice")).not_to_be_visible()
     expect(position).to_have_attribute("aria-hidden", "true")
-    expect(position.locator("xpath=parent::*")).to_have_class(re.compile("lf-chrome"))
-    assert (
-        position.evaluate(
-            "node => ({left: node.getBoundingClientRect().left, "
-            "top: node.getBoundingClientRect().top, "
-            "bottom: node.getBoundingClientRect().bottom})"
-        )
-        == panel_position
+    expect(position.locator("xpath=parent::*")).to_have_class(
+        re.compile("lf-bottom-status")
     )
     assert position_is_front(), "the margin thread painted over its walk position"
 
+    resized(page, 600, 844)
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    page.keyboard.press("t")
+    expect(first).to_be_focused()
+    expect(position).to_have_text("Thread 1 of 2")
     page.keyboard.press("t")
     second = page.locator(
         f'.lf-margin-preview .lf-conversation-thread[data-thread="{roots[1]}"]'
@@ -2123,15 +2169,22 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(second).to_be_focused()
     expect(page.locator(".lf-panel")).to_be_hidden()
     expect(position).to_have_text("Thread 2 of 2")
+    expect(second.locator(".lf-conversation-msg").first).to_be_visible()
+    preview_room = page.evaluate(
+        """() => ({
+          previewBottom: document.querySelector('.lf-margin-preview').getBoundingClientRect().bottom,
+          statusTop: document.querySelector('.lf-bottom-status').getBoundingClientRect().top,
+        })"""
+    )
+    assert preview_room["previewBottom"] <= preview_room["statusTop"], preview_room
 
-    ordinary = position.evaluate("node => getComputedStyle(node).backgroundColor")
+    status = page.locator(".lf-bottom-status")
+    ordinary = status.evaluate("node => getComputedStyle(node).backgroundColor")
     page.keyboard.press("t")
     expect(second).to_be_focused()
     expect(position).to_have_text("Thread 2 of 2")
     expect(position).to_have_attribute("data-lf-boundary", "")
-    assert (
-        position.evaluate("node => getComputedStyle(node).backgroundColor") != ordinary
-    )
+    assert status.evaluate("node => getComputedStyle(node).backgroundColor") != ordinary
     expect(position).not_to_have_attribute("data-lf-boundary", "")
 
     page.keyboard.press("Shift+t")
@@ -2350,13 +2403,21 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         f"the gap between inline threads lost its separator: {separator}"
     )
 
-    resolve = thread.locator(":scope > .lf-resolve")
-    expect(resolve).to_have_css("position", "absolute")
+    resolve = thread.locator(":scope > .lf-thread-head > .lf-resolve")
+    expect(thread.locator(":scope > .lf-thread-head > .lf-thread-label")).to_have_text(
+        "Thread"
+    )
+    expect(resolve).to_have_css("position", "relative")
     placement = thread.evaluate(
         """el => {
           const own = el.getBoundingClientRect();
           const inset = parseFloat(getComputedStyle(el).paddingTop);
-          const control = el.querySelector(':scope > .lf-resolve').getBoundingClientRect();
+          const actions = el.querySelector(
+            ':scope > .lf-thread-head'
+          ).getBoundingClientRect();
+          const control = el.querySelector(
+            ':scope > .lf-thread-head > .lf-resolve'
+          ).getBoundingClientRect();
           const headNode = el.querySelector(
             ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
           );
@@ -2366,19 +2427,21 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
             ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-body'
           );
           const body = bodyNode.getBoundingClientRect();
-          return {controlTop: control.top, expectedTop: own.top + inset,
+          return {actionsTop: actions.top, actionsBottom: actions.bottom,
+                  controlTop: control.top, expectedTop: own.top + inset,
                   controlBottom: control.bottom, headTop: head.top,
-                  headBottom: head.bottom, authorBottom: author.bottom,
+                  authorBottom: author.bottom,
                   bodyTop: body.top,
                   bodyMargin: parseFloat(getComputedStyle(bodyNode).marginTop)};
         }"""
     )
     assert placement["controlTop"] == pytest.approx(placement["expectedTop"], abs=1)
-    assert placement["controlBottom"] <= placement["headBottom"], (
-        f"Resolve hung below the first inline message's row: {placement}"
+    assert placement["actionsTop"] == pytest.approx(placement["controlTop"], abs=1)
+    assert placement["actionsBottom"] == pytest.approx(
+        placement["controlBottom"], abs=1
     )
-    assert placement["headTop"] < placement["controlBottom"], (
-        f"Resolve took a row above the first inline message: {placement}"
+    assert placement["controlBottom"] <= placement["headTop"], (
+        f"Resolve did not keep its own row above the first inline message: {placement}"
     )
     assert placement["bodyTop"] - placement["authorBottom"] == pytest.approx(
         placement["bodyMargin"], abs=1
@@ -3198,7 +3261,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         {
             "command": "navigation.target.filter.margin-elements",
             "keys": ["g", "m"],
-            "action": "Show only visible margin controls and status indicators",
+            "action": "Show only visible margin targets",
         },
         {
             "command": "navigation.target.filter.threads",
@@ -3296,6 +3359,10 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     expect(page.locator(".lf-live")).to_have_text(
         "1 visible Ask controls; type a hint or press Tab to hear them."
     )
+    expect(page.locator(".lf-notice")).to_be_visible()
+    page.keyboard.press("Tab")
+    expect(page.locator(".lf-walk-position")).to_have_text("Target 1 of 1")
+    expect(page.locator(".lf-notice")).to_be_hidden()
     page.keyboard.type(ask_code)
     expect(page.locator("#opts-decision")).to_be_focused()
     expect(page.locator("#opts-decision")).to_have_attribute("data-lf-ask", "1")
@@ -3310,6 +3377,33 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.keyboard.press("a")
     expect(page.locator(CHIPS)).to_have_count(0)
     expect(page.locator(".lf-live")).to_have_text("No visible Ask controls.")
+    status = page.locator(".lf-bottom-status")
+    expect(status.locator(".lf-context-status")).to_have_text(
+        "No visible Ask controls."
+    )
+    expect(status).to_be_visible()
+    expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
+    page.evaluate(
+        """async () => {
+          window.__liveChanges = [];
+          new MutationObserver(() => {
+            const words = document.querySelector('.lf-live').textContent;
+            if (words) window.__liveChanges.push(words);
+          }).observe(document.querySelector('.lf-live'), {
+            childList: true,
+            subtree: true,
+          });
+          (await import('/runtime/notifications.js'))
+            .notice('Agent replied — open Threads', {background: true});
+        }"""
+    )
+    expect(page.locator(".lf-live")).to_have_text("Agent replied — open Threads")
+    assert page.evaluate(
+        """() => ({
+          context: document.querySelector('.lf-context-status').checkVisibility(),
+          notice: document.querySelector('.lf-notice').checkVisibility(),
+        })"""
+    ) == {"context": True, "notice": False}
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("d")
     expect(page.locator("body")).to_have_attribute("data-lf-goto", "")
@@ -3318,9 +3412,28 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     )
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     resized(page, 1200, 800)
+    expect(status.locator(".lf-context-status")).to_have_text(
+        "No visible Ask controls."
+    )
+    expect(status).to_be_visible()
     expect(page.locator(CHIPS)).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator(CHIPS).first).to_be_visible()
+    expect(page.locator(".lf-notice")).to_have_class(re.compile(r"\bshow\b"))
+    expect(page.locator(".lf-live")).to_have_text("All go-to targets.")
+    page.wait_for_timeout(100)
+    assert (
+        page.evaluate(
+            "() => window.__liveChanges.filter(words => "
+            "words === 'Agent replied — open Threads').length"
+        )
+        == 1
+    ), "showing deferred news announced it a second time"
+    assert status.evaluate(
+        "node => getComputedStyle(node).backgroundColor"
+    ) != page.locator(".lf-shortcut-bar").evaluate(
+        "node => getComputedStyle(node).backgroundColor"
+    )
 
     page.keyboard.press("h")
     links = page.locator(f'{CHIPS}[data-lf-address-kind="Link"]')
@@ -3332,6 +3445,41 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     page.keyboard.type(address_code(page, "Link", "lk2"))
     page.wait_for_url(re.compile(r"#p2$"))
     expect(page.locator("#p2")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve):
+    """Generated hints reserve stable status, not a transient notice's footprint."""
+    page, errors = open_page(browser, serve(ADDRESSED_PAGE))
+    resized(page, 1280, 800)
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    page.locator("#lk2").evaluate(
+        "node => Object.assign(node.style, {position: 'fixed', right: '18px', bottom: '18px'})"
+    )
+
+    page.keyboard.press("g")
+    fixed_link_selector = (
+        f'{CHIPS}[data-lf-address-kind="Link"][data-lf-address-for="lk2"]'
+    )
+    fixed_link_hint = page.locator(fixed_link_selector)
+    expect(fixed_link_hint).to_be_visible()
+    fixed_link_top = page.evaluate(
+        "selector => document.querySelector(selector).getBoundingClientRect().top",
+        fixed_link_selector,
+    )
+
+    page.keyboard.press("h")
+    expect(page.locator(f'{CHIPS}:not([data-lf-address-kind="Link"])')).to_have_count(0)
+    expect(page.locator(".lf-notice")).to_be_visible()
+    assert (
+        page.evaluate(
+            "selector => document.querySelector(selector).getBoundingClientRect().top",
+            fixed_link_selector,
+        )
+        == fixed_link_top
+    )
+    expect(page.locator(".lf-notice")).to_be_visible()
     assert errors == []
     page.close()
 
@@ -3933,8 +4081,7 @@ def test_clamped_leaf_lists_share_the_walk_position(browser, serve, live_leaf):
     leaves_boxes = page.evaluate(
         """() => {
           const tray = document.querySelector('.lf-others-panel').getBoundingClientRect();
-          const position = document.querySelector('.lf-walk-position')
-            .getBoundingClientRect();
+          const position = document.querySelector('.lf-walk-position').getBoundingClientRect();
           return {trayRight: tray.right, positionLeft: position.left};
         }"""
     )
@@ -4536,10 +4683,10 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
 
     search.fill("resolve it")
     result = help_el.locator(
-        '.lf-shortcut-reference-command[data-lf-command="thread.resolve"]'
+        '.lf-shortcut-reference-command[data-lf-command="thread.resolution.toggle"]'
     )
     expect(result).to_have_count(1)
-    expect(result).to_have_attribute("data-lf-command", "thread.resolve")
+    expect(result).to_have_attribute("data-lf-command", "thread.resolution.toggle")
     expect(search).to_have_attribute("aria-haspopup", "grid")
     page.keyboard.press("ArrowDown")
     expect(search).to_be_focused()
@@ -4556,7 +4703,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("Enter")
     expect(help_el).to_be_visible()
     expect(help_el.locator(".lf-shortcut-reference-meta")).to_have_text(
-        "Available on a thread's Resolve button"
+        "Available on a focused thread"
     )
     search.fill("close response choices")
     cancel_reaction = help_el.locator(
@@ -4583,7 +4730,6 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("Enter")
     thread = page.locator(".lf-thread").last
     expect(thread).to_be_focused()
-    thread.get_by_role("button", name="Resolve thread", exact=True).focus()
     page.keyboard.press("?")
     page.keyboard.press("?")
     search.fill("resolve it")
@@ -4848,11 +4994,16 @@ def test_the_g_chord_reaches_a_checkbox_a_widget_built(browser, serve):
     checkbox.evaluate("node => { node.id = 'soft-wrap'; }")
 
     page.keyboard.press("g")
-    chip = page.locator(f'{CHIPS}[data-lf-address-for="soft-wrap"]')
     code = address_code(page, "Control", "soft-wrap")
-    index = chip.evaluate(
-        "node => [...node.parentElement.children]"
-        ".filter(candidate => candidate.dataset.lfAddress).indexOf(node)"
+    # The repaint replaces address chips. Resolve and measure the current chip in
+    # one browser turn rather than retaining a handle across that replacement.
+    index = page.evaluate(
+        """selector => {
+          const node = document.querySelector(selector);
+          return [...node.parentElement.children]
+            .filter(candidate => candidate.dataset.lfAddress).indexOf(node);
+        }""",
+        f'{CHIPS}[data-lf-address-for="soft-wrap"]',
     )
     assert index >= 0
     for _ in range(index + 1):
@@ -5564,8 +5715,9 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
               line: `close ${id}`,
             }),
           });
-          invoke(row('outer', outer), 'x', () => outer.showModal());
-          invoke(row('inner', inner), 'x', () => inner.showModal());
+          const origin = {control: null, reading: null};
+          invoke(row('outer', outer), 'x', () => outer.showModal(), origin);
+          invoke(row('inner', inner), 'x', () => inner.showModal(), origin);
           inner.close();
           return current().does;
         }"""
@@ -5674,6 +5826,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
                 {id: 'test.bad-frame', returnFrame: () => ({active: () => true})},
                 'F8',
                 () => {},
+                {control: null, reading: null},
               );
               return 'accepted';
             } catch (error) {
@@ -6661,10 +6814,8 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     page.close()
 
 
-def test_a_coarse_pointer_gets_only_active_navigation_context(browser, serve):
-    """A phone drops both key hints and the active navigation position.
-
-    Neither hidden surface reserves a band at the document's foot."""
+def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, serve):
+    """A phone drops key hints but keeps active navigation status."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
@@ -6693,6 +6844,20 @@ def test_a_coarse_pointer_gets_only_active_navigation_context(browser, serve):
             "moreShown": False,
         }, room
 
+        page.evaluate(
+            """async () => {
+              (await import('/runtime/notifications.js')).notice('Saved — sent');
+              dispatchEvent(new Event('resize'));
+            }"""
+        )
+        expect(page.locator(".lf-notice")).to_be_visible()
+        assert (
+            page.evaluate(
+                "() => getComputedStyle(document.querySelector('.lf-chrome')).paddingBottom"
+            )
+            == "0px"
+        ), "a transient notice reserved document space"
+
         # And the page is still whole underneath. Everything that asks how far down the
         # page reaches asks it of the line's box, and a line with no box answers 0 — the
         # top of the window — which reads as "all of it is covered". Item hints and the
@@ -6708,7 +6873,7 @@ def test_a_coarse_pointer_gets_only_active_navigation_context(browser, serve):
         expect(line).to_be_hidden()
         position = page.locator(".lf-walk-position")
         expect(position).to_have_text("Ask 1 of 4 open")
-        expect(position).to_be_hidden()
+        expect(position).to_be_visible()
         active_room = page.evaluate(
             """() => ({
               height: document.querySelector('.lf-walk-position')
@@ -6717,8 +6882,8 @@ def test_a_coarse_pointer_gets_only_active_navigation_context(browser, serve):
                 document.querySelector('.lf-chrome')).paddingBottom),
             })"""
         )
-        assert active_room["height"] == 0, active_room
-        assert active_room["reserved"] == 0, active_room
+        assert active_room["height"] > 0, active_room
+        assert active_room["reserved"] > 0, active_room
 
         page.locator("#h").click()
         expect(line).to_be_hidden()
@@ -6908,7 +7073,7 @@ def test_the_expanded_key_line_stands_down_for_a_page_press_and_another_command(
 def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser, serve):
     """A frame passes between one Tab and the next for every reader, and none for a test.
 
-    `renderLine` runs under `paintHere`'s frame, so it repaints the shortcut bar just after
+    `renderLine` runs under the shared repaint frame, so it repaints the shortcut bar just after
     focus lands somewhere — including on More, the line's own button. Clearing the line
     with `textContent = ""` took More out of the document, and removing a focused element
     blurs it; it came straight back as the same node, connected, with the reader dropped
@@ -6977,7 +7142,7 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
 def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser, serve):
     """A repaint that schedules the next one is a loop no surface reports.
 
-    `paintCoreControls` runs inside `paintHere` and writes what the More control
+    `paintCoreControls` runs inside the shared repaint and writes what the More control
     currently says, `aria-expanded` among it. The runtime watches `open` and
     `aria-expanded` over the whole document, because those two attributes are how both
     spellings of a disclosure keep which way they stand, and it repaints the line for
@@ -7742,11 +7907,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     page.close()
 
 
-def test_resolution_uses_its_control_while_x_remains_a_close_symbol(browser, serve):
-    """A focused thread does not overload the close symbol as a resolution key.
+def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
+    """A focused thread resolves on r while x remains unbound.
 
-    Resolve and Reopen remain keyboard actions through their controls. Enter on a
-    focused open thread still reaches its reply box."""
+    The visible Resolve and Reopen controls retain their native keyboard routes. Enter
+    on a focused open thread still reaches its reply box."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
 
@@ -7761,15 +7926,8 @@ def test_resolution_uses_its_control_while_x_remains_a_close_symbol(browser, ser
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
     line = page.locator(".lf-shortcut-bar")
 
-    def tab_to(target, limit=40):
-        for _ in range(limit):
-            page.keyboard.press("Tab")
-            if target.evaluate("node => node === document.activeElement"):
-                return
-        raise AssertionError("Tab did not reach the expected control")
-
-    # The thread scope does not advertise Resolve before or after focus. Its visible
-    # control owns the keyboard route.
+    # The thread route is contextual: the complete reference teaches it before focus,
+    # while the short line offers it only after the reader stands in a thread.
     expect(line).not_to_contain_text("resolve")
     page.keyboard.press("?")
     page.keyboard.press("?")
@@ -7779,40 +7937,31 @@ def test_resolution_uses_its_control_while_x_remains_a_close_symbol(browser, ser
     focused_section = page.locator(".lf-shortcut-reference-section").filter(
         has=page.get_by_role("heading", name="On a focused thread", exact=True)
     )
-    expect(focused_section.get_by_text("Resolve it", exact=True)).to_have_count(0)
+    expect(focused_section.get_by_text("Resolve it", exact=True)).to_have_count(1)
     page.keyboard.press("Escape")
 
-    # x leaves the focused thread open. Tab and Enter on the visible control resolve it,
-    # with the button's existing landing taking focus to the next thread.
+    # x has no command. r resolves the thread, with the button's existing
+    # landing taking focus to the next thread.
     page.keyboard.press("t")
     first = page.locator(f'.lf-thread[data-id="{c1}"]')
     expect(first).to_be_focused()
-    expect(line).not_to_contain_text("resolve")
+    expect(line).to_contain_text("resolve")
     page.keyboard.press("x")
     expect(first).to_be_visible()
     assert not any(
         event["kind"] == "resolve" for event in events_model.read_events(serve.page_dir)
     )
-    resolve_control = first.get_by_role("button", name="Resolve thread", exact=True)
-    tab_to(resolve_control)
-    expect(resolve_control).to_be_focused()
-    expect(line).to_contain_text("resolve")
-    page.keyboard.press("x")
-    expect(first).to_be_visible()
-    page.keyboard.press("Enter")
+    page.keyboard.press("r")
     round_trip(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     expect(page.locator(f'.lf-thread[data-id="{c2}"]')).to_be_focused()
 
-    # The Resolved state and Reopen control put a settled thread in the ordinary Tab
-    # journey. Enter performs the control's named action.
+    # The same key reopens a focused resolved thread.
     page.locator('[data-filter-value="resolved"]').click()
     resolved = page.locator(f'.lf-thread[data-id="{c1}"]:not([hidden])')
-    reopen_control = resolved.get_by_role("button", name="Reopen")
-    tab_to(reopen_control)
-    expect(reopen_control).to_be_focused()
+    resolved.focus()
     expect(line).to_contain_text("reopen")
-    page.keyboard.press("Enter")
+    page.keyboard.press("r")
     round_trip(page)
     reopened = page.locator(f'.lf-threads > .lf-thread[data-id="{c1}"]')
     expect(reopened.locator(":scope > .lf-compose textarea")).to_be_focused()
@@ -8118,7 +8267,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     # The picked group is the control on the other side: answered, so off both readings,
     # and the switch leaves it there. Read through the shortcut bar, because `markHere` paints
-    # inside `paintHere`'s frame — an absence read in the same round trip as the focus is
+    # inside the shared repaint frame — an absence read in the same round trip as the focus is
     # the frame before the paint, and stays green while a ring lands here a frame later.
     # The word is the other half of the same fact: with `standingIn` null the reading falls
     # through to the innermost item, which from a pick is the option and not the question.

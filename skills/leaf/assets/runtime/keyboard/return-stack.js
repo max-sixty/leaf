@@ -70,10 +70,7 @@ import {
   nativeLayerFor,
   nativeLayerOrder,
 } from "../native-layers.js";
-import {
-  coveringWorkspaceSurface,
-  openWorkspaceSurfaceFor,
-} from "../workspace-modality.js";
+import { coveringWorkspaceSurface, openWorkspaceSurfaceFor } from "./register.js";
 
 const currentLayer = () => {
   const workspace = coveringWorkspaceSurface();

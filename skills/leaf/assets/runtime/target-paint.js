@@ -9,7 +9,6 @@
 
 import { clippedRect, documentPoint, shownBox } from "./geometry.js";
 import { el } from "./widget-elements.js";
-import { aimBox } from "./composing/aim.js";
 import { inChrome } from "./passages.js";
 
 // Persistent pointer-inert projections for every element target. A semantic visual
@@ -18,6 +17,8 @@ export const visualMarkLayer = el("div", "lf-ui lf-visual-marks");
 visualMarkLayer.setAttribute("aria-hidden", "true");
 export const targetTraceBox = el("div", "lf-ui lf-target-trace lf-target-paint");
 targetTraceBox.setAttribute("aria-hidden", "true");
+export const aimBox = el("div", "lf-ui lf-aim lf-target-paint");
+aimBox.setAttribute("aria-hidden", "true");
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SHAPE_STROKE_ROOM = 2;

@@ -1,8 +1,52 @@
-"""Read the companions shipped beside authored examples."""
+"""Read the authored catalog, regression inputs, and page companions."""
 
 import json
 import re
+from html.parser import HTMLParser
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+TEST_PAGES = ROOT / "tests" / "fixtures" / "pages"
+
+
+def regression_sources() -> list[Path]:
+    """Full-page regression inputs that are neither examples nor website routes."""
+    return sorted(TEST_PAGES.glob("*.html"))
+
+
+def catalog_sources() -> list[Path]:
+    """The authored catalog owns its selection and order; commented cards are omitted.
+
+    HTML comments deliberately contribute no links. Keeping this reading with the
+    fixture readers lets preview generation follow the curated page without another
+    list of featured names or promoting every regression input to the showcase.
+    """
+
+    class Catalog(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.sources = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag != "a" or "example-link" not in attrs.get("class", "").split():
+                return
+            match = re.fullmatch(r"/examples/([a-z0-9-]+)/", attrs["href"])
+            if match is None:
+                raise ValueError(
+                    f"catalog entry must name an example route: {attrs['href']}"
+                )
+            source = ROOT / "examples" / f"{match.group(1)}.html"
+            if not source.is_file() or source in self.sources:
+                raise ValueError(f"catalog example is missing or repeated: {source}")
+            self.sources.append(source)
+
+    catalog = Catalog()
+    catalog.feed((ROOT / "docs" / "examples.html").read_text(encoding="utf-8"))
+    if not catalog.sources:
+        raise ValueError("the examples catalog is empty")
+    return catalog.sources
+
 
 # A prior version ships under the source directory's versions/, so a builder's
 # top-level `*.html` glob never reads one as a page of its own.

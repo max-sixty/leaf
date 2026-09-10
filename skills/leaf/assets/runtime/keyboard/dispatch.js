@@ -58,10 +58,9 @@
    boundary's one route through to another layer.
 
    A covering workspace uses the same modal command floor without entering the browser's
-   top layer: its shared owner makes the background DOM inert, and this dispatcher keeps
-   only scopes rooted in the workspace plus the return frame that can close it. A stale
-   background popover remains below that floor; a popover inside the workspace remains
-   above it. The reference is the same one permitted route through either boundary.
+   top layer. Its owner makes the background DOM inert, and this dispatcher keeps only
+   scopes rooted in the workspace plus the return frame that can close it. A popover
+   inside the workspace remains above that floor.
 
    A popover hands focus back to whatever had it when the popover showed — not to its
    invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
@@ -77,50 +76,24 @@
    result. A platform-native press stays native. Arrival may focus or reveal the control
    before activation. Modality checks belong only to gesture guards before activation,
    such as refusing the mouseup that ends a text-selection drag. */
+import { answers, bindings, commandEntries, live, spell, word } from "./bindings.js";
 import {
-  MODIFIER_KEYS,
-  answers,
-  bindings,
-  commandEntries,
-  live,
-  spell,
-  word,
-} from "./bindings.js";
-import { shortcutBarExpanded, less } from "./shortcut-bar.js";
-import { referenceOpen } from "./reference.js";
-import {
+  coveringWorkspaceSurface,
   ELEMENTS,
-  EVERYTHING,
-  LESS_SHORTCUTS,
   pageScopes,
-  REFERENCE,
-  takesLetters,
-  TYPING,
-} from "./page.js";
-import { claimsEsc, focused, recoveredLabelFocus, scopesFor } from "./scopes.js";
-import { repaint } from "../repaint.js";
+  textEntryScope,
+  universalReference,
+} from "./register.js";
+import { EVERYTHING } from "./text-entry.js";
+import { takesLetters } from "../focus.js";
+import { focused, recoveredLabelFocus, scopesFor } from "./scopes.js";
 import { RETURN, invoke } from "./return-stack.js";
-import { isSequenceActive, setSequence } from "./address.js";
-import { REACT, setReact } from "../reactions.js";
-import { runtime } from "../context.js";
 import {
   currentModalLayer,
   currentNativeLayer,
   nativeLayerFor,
   nativeLayersFor,
 } from "../native-layers.js";
-import { captureReturnPlace } from "../version.js";
-import { coveringWorkspaceSurface } from "../workspace-modality.js";
-
-const beforeCommand = (row) => {
-  if (
-    shortcutBarExpanded() &&
-    !referenceOpen() &&
-    row !== REFERENCE &&
-    row !== LESS_SHORTCUTS
-  )
-    less({ silent: true });
-};
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the reader
@@ -140,7 +113,7 @@ export const readerIn = (scope) => !scope.at || scope.at();
 const standing = (scope) => readerIn(scope) && pageHas(scope);
 const nativeBoundary = (claims) => ({
   get rows() {
-    return [REFERENCE];
+    return [universalReference()];
   },
   claims,
   escapeBoundary: true,
@@ -177,6 +150,7 @@ export function stack(binding = null) {
   const active = focused();
   const elementStack = scopesFor(active);
   const typing = takesLetters(active);
+  const TYPING = textEntryScope();
   const expanded = pageScopes().flatMap((scope) => {
     if (scope === ELEMENTS) {
       if (!typing) return [...elementStack, RETURN];
@@ -197,9 +171,6 @@ export function stack(binding = null) {
   });
   const workspace = coveringWorkspaceSurface();
   const rememberedLayer = currentNativeLayer(active);
-  // A folded banner popover may still be completing its close after its command has
-  // opened a covering workspace. It is background now: the workspace is the floor until
-  // a native layer inside it, or a modal dialog above it, actually takes over.
   const layer =
     workspace &&
     rememberedLayer &&
@@ -313,23 +284,7 @@ function unclaimedScopes(binding) {
 // statement here instead of an ordering between nine listeners. `isComposing` is the one
 // guard that stays an event's rather than a scope's: an IME's own Escape is not the
 // runtime's to take.
-document.addEventListener("keydown", (ev) => {
-  if (ev.isComposing) return;
-  if (run(ev)) return;
-  // Any other key disarms the sequence and keeps its ordinary meaning, so a mistyped g costs
-  // nothing: g T is a panel trip and g g re-arms. A key naming no destination disarms the
-  // same way. Spelled as walking
-  // again rather than as a rule, so the meaning a key keeps is the meaning the register
-  // gives it. A modifier alone is half a press rather than a key: the Shift that
-  // capitalizes G arrives as a keydown of its own ahead of it, and disarming on that
-  // took the window down before the G it was armed for.
-  if ((isSequenceActive() || standing(REACT)) && !MODIFIER_KEYS.includes(ev.key)) {
-    setSequence(false);
-    setReact(false);
-    run(ev);
-  }
-});
-function run(ev) {
+export function dispatchKey(ev, { beforeCommand, captureOrigin }) {
   const recovered = recoveredLabelFocus(ev);
   const nearer = shadow();
   for (const scope of stack(answers("Escape", ev) ? "Escape" : null)) {
@@ -365,7 +320,7 @@ function run(ev) {
       if (!matched.row.native) ev.preventDefault();
       if (ev.repeat && !matched.row.repeat) return true;
       beforeCommand?.(matched.row);
-      const origin = matched.row.returnFrame ? captureReturnPlace() : null;
+      const origin = matched.row.returnFrame ? captureOrigin() : null;
       invoke(
         matched.row,
         matched.binding,
@@ -432,39 +387,10 @@ export function availableCommands() {
   }
   return available;
 }
-export function executeCommand(id, origin = null) {
+export function executeCommand(id, origin, beforeCommand) {
   const command = commandFor(id);
   if (!command) return false;
   beforeCommand?.(command.row);
   invoke(command.row, command.binding, () => command.row.run(command.binding), origin);
   return true;
 }
-
-// A focus move is the one change in where the reader is standing that no state writer
-// sees, so it asks for the paint itself — the ring and the line both, which is why one
-// call answers for it. Focus entering a box, or a control that claims Escape, also disarms
-// the sequence — a digit typed in a box is text, and a chip left blooming would promise a
-// cancel the control would consume.
-//
-// Not for a placement, which emits the same pair around a focus that never left: the
-// margin takes a docked cluster out of flow to measure where it can hang and puts it and
-// the reader back, once per layout pass. Answering that as a move painted the standing
-// chrome, whose layout pass asked for the next placement, and a page with the reader
-// standing in a docked cluster laid its margin out on every frame for as long as they
-// stood there. The reader has not moved and nothing they can see has changed, so there
-// is nothing here to paint.
-document.addEventListener("focusin", () => {
-  if (runtime.placingChrome) return;
-  // The same question `setSequence` asks before arming, so it takes the same answer: two
-  // readings of where the reader is standing would refuse to arm somewhere they then
-  // failed to disarm.
-  const active = focused();
-  if (standing(REACT) && (takesLetters(active) || claimsEsc(active))) setReact(false);
-  if (isSequenceActive() && (takesLetters(active) || claimsEsc(active))) {
-    setSequence(false);
-  }
-  repaint();
-});
-document.addEventListener("focusout", () => {
-  if (!runtime.placingChrome) repaint();
-});

@@ -56,14 +56,13 @@ export interface Env {
 
 export interface AgentWorkflowParams {
   sessionId: string;
+  reference: string;
   route: string;
   eventId: string;
   sourceId: string;
 }
 
 type AgentResult =
-  | { status: "ready" }
-  | { status: "connected"; thread: string }
   | { status: "started"; thread: string }
   | { status: "settled" }
   | { status: "appended"; event: string };
@@ -73,8 +72,7 @@ const GENERATION_FAILURE_REPLY =
 const RATE_LIMIT_REPLY =
   "This public demo is busy right now. Please wait a minute, then send a new message.";
 const CODEX_PROXY_CREDENTIAL = "leaf-outbound-proxy";
-const CLOUDFLARE_CONTAINER_CA =
-  "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
+const CLOUDFLARE_CONTAINER_CA = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
 interface LeafEvent {
   id: string;
   attempt?: string;
@@ -116,11 +114,7 @@ export class LeafWebsiteSession extends Container<Env> {
 // Assignment invokes Container's inherited setter, which registers the handler for
 // ContainerProxy. A static class field would shadow that setter.
 LeafWebsiteSession.outboundByHost = {
-  "api.openai.com": async (
-    request: Request,
-    env: Env,
-    ctx: OutboundHandlerContext,
-  ) => {
+  "api.openai.com": async (request: Request, env: Env, ctx: OutboundHandlerContext) => {
     const url = new URL(request.url);
     if (request.method !== "POST" || url.pathname !== "/v1/responses") {
       return new Response("blocked website agent request", { status: 403 });
@@ -149,13 +143,46 @@ function randomSessionId(): string {
 // A support handle, not a credential: it projects the whole random cookie into a short
 // numeric space while leaving 88 bits unknown, and no server door accepts it as identity.
 function sessionReference(sessionId: string): string {
-  return (BigInt(`0x${sessionId}`) % 1_000_000_000_000n)
-    .toString()
-    .padStart(12, "0");
+  return (BigInt(`0x${sessionId}`) % 1_000_000_000_000n).toString().padStart(12, "0");
 }
 
 function agentWorkflowId(reference: string, eventId: string): string {
   return `reply-${reference}-${eventId}`;
+}
+
+function agentLog(
+  event: string,
+  params: Pick<AgentWorkflowParams, "reference" | "route" | "eventId">,
+  fields: Record<string, unknown> = {},
+): void {
+  console.log({
+    component: "leaf-agent",
+    event,
+    reference: params.reference,
+    route: params.route,
+    eventId: params.eventId,
+    ...fields,
+  });
+}
+
+async function measuredAgentOperation<T>(
+  event: string,
+  params: AgentWorkflowParams,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const started = Date.now();
+  agentLog(`${event}_started`, params);
+  try {
+    const result = await operation();
+    agentLog(`${event}_completed`, params, { durationMs: Date.now() - started });
+    return result;
+  } catch (error) {
+    agentLog(`${event}_failed`, params, {
+      durationMs: Date.now() - started,
+      error: error instanceof Error ? error.name : "unknown",
+    });
+    throw error;
+  }
 }
 
 function validatedAgentParams(value: unknown): AgentWorkflowParams {
@@ -165,6 +192,8 @@ function validatedAgentParams(value: unknown): AgentWorkflowParams {
     typeof params !== "object" ||
     typeof params.sessionId !== "string" ||
     !/^[0-9a-f]{32}$/.test(params.sessionId) ||
+    typeof params.reference !== "string" ||
+    !/^\d{12}$/.test(params.reference) ||
     typeof params.route !== "string" ||
     !/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/.test(params.route) ||
     typeof params.eventId !== "string" ||
@@ -180,7 +209,7 @@ function validatedAgentParams(value: unknown): AgentWorkflowParams {
 
 function agentRequest(
   params: AgentWorkflowParams,
-  action: "turn" | "start" | "reply",
+  action: "start" | "reply",
   body: object,
 ): Request {
   const root = params.route === "/" ? "" : params.route;
@@ -194,7 +223,7 @@ function agentRequest(
 async function askContainer(
   env: Env,
   params: AgentWorkflowParams,
-  action: "turn" | "start" | "reply",
+  action: "start" | "reply",
   body: object,
 ): Promise<AgentResult> {
   const response = await getContainer(env.PAGES, params.sessionId).fetch(
@@ -214,11 +243,6 @@ async function askContainer(
   }
   const valid =
     answer.status === "settled" ||
-    (action === "turn" && answer.status === "ready") ||
-    (action === "turn" &&
-      answer.status === "connected" &&
-      typeof answer.thread === "string" &&
-      Boolean(answer.thread)) ||
     (action === "start" &&
       answer.status === "started" &&
       typeof answer.thread === "string" &&
@@ -240,28 +264,25 @@ export async function runAgentWorkflow(
 ): Promise<AgentResult> {
   let fallback = GENERATION_FAILURE_REPLY;
   let appendStep = "append startup failure";
+  agentLog("workflow_started", params);
   try {
-    const turn = await step.do(
-      "read turn",
-      {
-        retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-        timeout: "1 minute",
-      },
-      () => askContainer(env, params, "turn", { event: params.eventId }),
-    );
-    if (turn.status !== "ready") return turn;
     const allowed = await step.do(
       "reserve model capacity",
       {
         retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
         timeout: "1 minute",
       },
-      async () =>
-        (
-          await env.SOURCE_AGENT_RATE_LIMITER.limit({
-            key: params.sourceId,
-          })
-        ).success,
+      () =>
+        measuredAgentOperation(
+          "capacity_reservation",
+          params,
+          async () =>
+            (
+              await env.SOURCE_AGENT_RATE_LIMITER.limit({
+                key: params.sourceId,
+              })
+            ).success,
+        ),
     );
     if (allowed) {
       return await step.do(
@@ -270,14 +291,20 @@ export async function runAgentWorkflow(
           retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
           timeout: "2 minutes",
         },
-        () => askContainer(env, params, "start", { event: params.eventId }),
+        () =>
+          measuredAgentOperation("container_start", params, () =>
+            askContainer(env, params, "start", { event: params.eventId }),
+          ),
       );
     } else {
       fallback = RATE_LIMIT_REPLY;
       appendStep = "append rate limit";
     }
-  } catch {
+  } catch (error) {
     // The deterministic fallback closes the exact event after startup retries.
+    agentLog("workflow_startup_failed", params, {
+      error: error instanceof Error ? error.name : "unknown",
+    });
   }
   return step.do(
     appendStep,
@@ -286,10 +313,12 @@ export async function runAgentWorkflow(
       timeout: "1 minute",
     },
     () =>
-      askContainer(env, params, "reply", {
-        event: params.eventId,
-        text: fallback,
-      }),
+      measuredAgentOperation("fallback_reply", params, () =>
+        askContainer(env, params, "reply", {
+          event: params.eventId,
+          text: fallback,
+        }),
+      ),
   );
 }
 
@@ -359,9 +388,9 @@ async function resumeFailedWorkflow(env: Env, workflowId: string): Promise<void>
 async function startAgentWorkflow(
   env: Env,
   params: AgentWorkflowParams,
-  reference: string,
 ): Promise<void> {
-  const workflowId = agentWorkflowId(reference, params.eventId);
+  const started = Date.now();
+  const workflowId = agentWorkflowId(params.reference, params.eventId);
   try {
     await env.AGENT_WORKFLOW.create({ id: workflowId, params });
   } catch (error) {
@@ -373,6 +402,7 @@ async function startAgentWorkflow(
       throw error;
     }
   }
+  agentLog("workflow_admitted", params, { durationMs: Date.now() - started });
 }
 
 function staticAssetResponse(response: Response): Response {
@@ -452,6 +482,7 @@ async function staticState(
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const requestStarted = Date.now();
     const url = new URL(request.url);
     const pathname = url.pathname;
     if (isPrivatePageRequest(pathname)) {
@@ -547,11 +578,15 @@ export default {
         const sourceId = request.headers.get("CF-Connecting-IP") ?? sessionId;
         const params = {
           sessionId,
+          reference,
           route: route.root,
           eventId: accepted.event.id,
           sourceId,
         };
-        await startAgentWorkflow(env, params, reference);
+        agentLog("event_accepted", params, {
+          durationMs: Date.now() - requestStarted,
+        });
+        await startAgentWorkflow(env, params);
       }
     }
     const requestLayer = request.headers.get("Leaf-Layer");

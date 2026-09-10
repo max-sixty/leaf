@@ -47,7 +47,7 @@ import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { completeRowSteps, keySequence, neutralStates } from "./presentation.js";
 import { restoreReturnPlace } from "./return-stack.js";
 import { el } from "../widget-elements.js";
-import { ELEMENTS, pageScopes } from "./page.js";
+import { ELEMENTS, pageScopes } from "./register.js";
 import {
   byCommand,
   elementScopes,
@@ -59,8 +59,7 @@ import {
 } from "./scopes.js";
 import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
-import { captureReturnPlace } from "../version.js";
-import { availableCommands, executeCommand, readerIn } from "./dispatch.js";
+import { availableCommands, readerIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
 
 export const shortcutReferenceDialog = document.createElement("dialog");
@@ -200,7 +199,7 @@ const referenceBinding = (value) =>
     .replace(/\s+/g, " ");
 shortcutReferenceDialog.addEventListener("cancel", (event) => {
   event.preventDefault();
-  showShortcutReference(false);
+  closeReference();
 });
 // A modal dialog's backdrop reports the dialog itself as the click target. Compare
 // the pointer with the painted box so the backdrop remains a light-dismiss surface
@@ -217,10 +216,10 @@ shortcutReferenceDialog.addEventListener("mousedown", (event) => {
     // Closing returns focus to the door. Consume the backdrop press so the dialog's
     // default mousedown focus does not immediately replace that deliberate return.
     event.preventDefault();
-    showShortcutReference(false);
+    closeReference();
   }
 });
-function showShortcutReference(open, restoreFocus = true) {
+function showShortcutReference(open, restoreFocus, invokeCommand, captureOrigin) {
   // Focusing a text input replaces the document selection. Keep a passage the reader has
   // in hand when `?` opens the reference, while an ordinary open lands directly in search.
   // The dialog itself remains a focus stop, so either route keeps the page suspended.
@@ -230,7 +229,7 @@ function showShortcutReference(open, restoreFocus = true) {
   const restore = origin?.control ?? null;
   const closing = !open && shortcutReferenceDialog.open;
   if (open && !shortcutReferenceOpen) {
-    shortcutReferenceOrigin = captureReturnPlace();
+    shortcutReferenceOrigin = captureOrigin();
     shortcutReferenceLayers = [...document.querySelectorAll(":popover-open")];
     commandsAtOpen = availableCommands();
   }
@@ -350,10 +349,10 @@ function showShortcutReference(open, restoreFocus = true) {
               // displaced, not that transient implementation node. Run after the close's
               // focus restoration too, so the command's own destination wins the frame.
               const origin = shortcutReferenceOrigin;
-              showShortcutReference(false);
+              closeReference();
               requestAnimationFrame(() => {
-                if (!executeCommand(id, origin)) {
-                  showShortcutReference(true);
+                if (!invokeCommand(id, origin)) {
+                  openReference(invokeCommand, captureOrigin);
                   shortcutReferenceDialog.querySelector(
                     ".lf-shortcut-reference-meta",
                   ).textContent = "That command is no longer available";
@@ -394,7 +393,7 @@ function showShortcutReference(open, restoreFocus = true) {
       // they can see which state they are in and a row that would refuse the press must
       // not be on screen. A scope they are merely near is listed whole: a row's `when`
       // asks whether the press moves *here*, and here is not where they are, so a grip's
-      // "arrows move" belongs in the reference though no card is held and `x` belongs in
+      // "arrows move" belongs in the reference though no card is held and `r` belongs in
       // it though no thread is focused. Filtering both by the same predicate is what took
       // the thread's own keys out of the reference altogether.
       //
@@ -695,7 +694,12 @@ export function runSelected() {
   command.click();
   return true;
 }
-shortcutReferenceClose.onclick = () => showShortcutReference(false);
+shortcutReferenceClose.onclick = () => closeReference();
 
 export const referenceOpen = () => shortcutReferenceOpen;
-export { showShortcutReference as showReference };
+// The opening command supplies the action chosen from this particular reference.
+// Each rendered row closes over it; no view imports its caller’s command policy.
+export const openReference = (invokeCommand, captureOrigin) =>
+  showShortcutReference(true, true, invokeCommand, captureOrigin);
+export const closeReference = (restoreFocus = true) =>
+  showShortcutReference(false, restoreFocus, null, null);

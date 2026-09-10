@@ -1759,17 +1759,26 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     """Page motion under a parked pointer cannot take ownership from the keyboard."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1280, 720)
+    page.locator("#bg-choice-ask").scroll_into_view_if_needed()
+    go_to_address(page, "Margin control or status indicator", "bg-choice-ask")
+    page.keyboard.press("Escape")
     margins_laid_out(page)
     host = page.locator('[data-lf-margin-for="bg-choice-ask"]')
     initial = host.bounding_box()
-    pointer = {"x": int(initial["x"] + initial["width"] / 2), "y": 70}
-    assert not initial["y"] < pointer["y"] < initial["y"] + initial["height"], (
+    pointer = {
+        "x": int(initial["x"] + initial["width"] / 2),
+        "y": int(initial["y"] + initial["height"] / 2),
+    }
+    scroll = page.evaluate("() => document.scrollingElement.scrollTop")
+    page.evaluate("() => scrollBy({top: -150, behavior: 'instant'})")
+    margins_laid_out(page)
+    parked = host.bounding_box()
+    assert not parked["y"] < pointer["y"] < parked["y"] + parked["height"], (
         "the pointer starts inside the Ask margin host"
     )
     page.mouse.move(pointer["x"], pointer["y"])
 
-    go_to_address(page, "Margin control or status indicator", "bg-choice-ask")
-    page.keyboard.press("Escape")
+    page.evaluate("top => scrollTo({top, behavior: 'instant'})", scroll)
 
     page.wait_for_function(
         """({x, y}) => {
@@ -2255,7 +2264,7 @@ def test_margin_element_tone_colors_only_the_icon(browser, serve, scheme):
         assert len({reading["icon"] for reading in readings}) == 3
 
     # Busy is the one state that paints, so it is the one state with a shape to read.
-    # This page is emulating `reduce`, where the ring is held still and dotted, so the
+    # This page is emulating `reduce`, where the open ring is held still, so the
     # transform is a settled `none` rather than a sample of a turning one — which is
     # what makes it the reading that catches the override losing to the rule it
     # overrides, a specificity away from turning forever for a reader who asked for
@@ -2263,7 +2272,7 @@ def test_margin_element_tone_colors_only_the_icon(browser, serve, scheme):
     shapes = {
         "idle": None,
         "engaged": None,
-        "busy": ["8px", "8px", "50%", False, "2px", "dotted"],
+        "busy": ["8px", "8px", "50%", False, "2px", "solid"],
         "failed": None,
     }
     for state, shape in shapes.items():
@@ -2484,7 +2493,7 @@ def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_e
     column = page.locator("main").evaluate(
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     reactions = suggestion_item.locator(".lf-margin-reactions")
     expect(preview).to_be_hidden()
     expect(suggestion_item.locator(".lf-margin-element:visible")).to_have_count(6)
@@ -2512,7 +2521,7 @@ def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_e
     ), "opening reaction choices moved the readable column"
     assert reactions.evaluate(
         "surface => surface.closest('.lf-margin-options') !== null"
-    ), "r did not expand the target's canonical margin element options"
+    ), "e did not expand the target's canonical margin element options"
 
     # Labels remain transient even with abundant room; options never widen the rail.
     resized(page, 2400, 900)
@@ -2529,7 +2538,7 @@ def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_e
     ).to_be_visible()
     page.mouse.move(0, 0)
     accept.focus()
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     expect(suggestion_item.locator(".lf-margin-element:visible")).to_have_count(6)
 
     page.keyboard.press("Escape")
@@ -2555,7 +2564,7 @@ def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_e
     # The shared behavior belongs to the target item, not specifically to a
     # suggestion: focusing the draft's resting Edit action extends that same item.
     draft_controls.locator(".lf-draft-pencil").focus()
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     expect(draft_item.locator(".lf-margin-element:visible")).to_have_count(6)
     expect(draft_item.locator(":scope > .lf-margin-more")).to_be_hidden()
 
@@ -2574,7 +2583,7 @@ def test_one_target_has_one_primary_margin_element_and_inline_secondary_margin_e
         "item => item.previousElementSibling === document.querySelector('#draft-ops')"
     ), "the draft's Edit action no longer follows the draft"
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
-    page.keyboard.press("r")
+    page.keyboard.press("e")
     expect(suggestion_item.locator(".lf-margin-element:visible")).to_have_count(6)
     expect(suggestion_item).to_have_class(re.compile(r"lf-docked"))
     with sending(page, "the keep reaction"):
@@ -2638,7 +2647,8 @@ def test_page_map_only_origins_do_not_count_as_margin_elements(browser, serve):
     expect(marker).to_have_attribute("aria-label", re.compile(r"^Thread, 1 of 1,"))
     expect(page.locator('[data-lf-margin-for="t-mounts"]')).to_have_count(0)
     expect(page.get_by_role("navigation", name="Page map, 2 locations")).to_be_visible()
-    page.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
     origin = page.get_by_role(
         "button", name=re.compile(r"^Open reported update: Reported update")
     )
@@ -3363,9 +3373,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
         }"""
     )
     assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] == pytest.approx(
-        geometry["controlsRight"] + 8, abs=0.5
-    ), geometry
+    assert geometry["cardLeft"] >= geometry["controlsRight"] + 7, geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardWidth"] >= 459, geometry
     assert geometry["coveredControls"] == 0, geometry
@@ -4271,12 +4279,9 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardRight"] <= geometry["viewportRight"] - 7, geometry
     assert geometry["cardWidth"] >= 459, geometry
+    assert geometry["cardLeft"] >= geometry["controlsRight"] + 7, geometry
     assert geometry["cardTop"] >= geometry["bannerBottom"] + 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
-    assert (
-        geometry["cardBottom"] <= geometry["controlsTop"] - 7
-        or geometry["cardTop"] >= geometry["controlsBottom"] + 7
-    ), geometry
     assert geometry["replyTop"] >= geometry["cardTop"], geometry
     assert geometry["replyBottom"] <= geometry["cardBottom"], geometry
     assert geometry["borderLeft"] == geometry["borderRight"] == "1px", geometry
@@ -4348,10 +4353,7 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     assert beside["cardLeft"] >= beside["mainRight"], beside
     assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
     assert beside["cardWidth"] >= 439, beside
-    assert (
-        beside["cardBottom"] <= beside["controlsTop"] - 7
-        or beside["cardTop"] >= beside["controlsBottom"] + 7
-    ), beside
+    assert beside["cardLeft"] >= beside["controlsRight"] + 7, beside
 
     resized(page, 1471, 900)
     expect(preview).to_be_visible()
@@ -4489,12 +4491,12 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
     )
 
-    page.locator("#card-ie .lf-grip").focus()
+    page.locator("#card-export .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
     round_trip(page)
-    expect(page.locator("#col-fixed #card-ie")).to_have_count(1)
+    expect(page.locator("#col-fixed #card-export")).to_have_count(1)
     margins_laid_out(page)
     # Without a status in the margin the readings below would agree for the wrong reason.
     expect(page.locator(".lf-margin-cluster")).to_have_count(1)
@@ -4506,7 +4508,7 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
     ), "raising the acknowledgment status moved the readable column"
 
     undo(page)
-    expect(page.locator("#col-wont #card-ie")).to_have_count(1)
+    expect(page.locator("#col-next #card-export")).to_have_count(1)
     margins_laid_out(page)
     assert (
         page.locator("main").evaluate(

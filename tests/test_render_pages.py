@@ -78,16 +78,17 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
-def test_postmortem_summary_is_addressable_and_baseline_aligned(browser, serve):
-    example = next(path for path in EXAMPLES if path.stem == "postmortem")
+def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve):
+    example = next(path for path in EXAMPLES if path.stem == "ship-review")
     page, errors = open_page(browser, serve(example))
-    summary = page.locator("#pm-summary")
+    summary = page.locator("#off-facts")
     expect(summary).to_be_visible()
     assert (
         summary.evaluate("element => getComputedStyle(element).alignItems")
         == "baseline"
     )
 
+    summary.scroll_into_view_if_needed()
     page.keyboard.press("s")
     expect(page.locator(".lf-target-hint")).not_to_have_count(0)
     code = summary.evaluate(
@@ -109,7 +110,7 @@ def test_postmortem_summary_is_addressable_and_baseline_aligned(browser, serve):
     )
     assert code, "the summary had no semantic-selection hint"
     page.keyboard.type(code)
-    expect(page.locator(".lf-live")).to_contain_text("Selected list: Detected")
+    expect(page.locator(".lf-live")).to_contain_text("Selected list: Observed")
     assert errors == []
     page.close()
 
@@ -2819,7 +2820,18 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     container query sees the resulting content box and returns the aside to the flow. A
     narrow viewport proves the same fallback comes from CSS alone, and print proves
     paper reserves no blank margin for a posture it cannot use."""
-    example = next(p for p in EXAMPLES if p.stem == "release-notes")
+    # Compose the wide release-note exhibit with a sidebar; the short public draft
+    # no longer needs one of its own.
+    example = (
+        next(p for p in EXAMPLES if p.stem == "release-notes")
+        .read_text()
+        .replace(
+            '<section id="rn-cli-section">',
+            '<aside class="sidebar" id="test-sidebar">'
+            '<lf-toc id="test-sidebar-toc"></lf-toc></aside>'
+            '<section id="rn-cli-section">',
+        )
+    )
     page, errors = open_page(browser, serve(example))
     sidebar = page.locator("aside.sidebar")
 
@@ -2970,16 +2982,17 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           const carried = scroller.scrollTop + main.getBoundingClientRect().bottom
             - parseFloat(getComputedStyle(main).paddingBottom)
             - parseFloat(style.marginBottom) - box.height - offset;
-          const at = Math.round((stands + carried) / 2);
+          const lastScroll = scroller.scrollHeight - scroller.clientHeight;
+          const at = Math.round((stands + Math.min(carried, lastScroll)) / 2);
           scroller.scrollTo(0, at);
-          return { at, stands, carried };
+          return { at, stands, carried, lastScroll };
         }"""
     )
     # The stretch has to exist before a point halfway along it says anything. A page
     # too short to lift the box off where it was authored parks the scroll behind
     # `stands`, and the ring assertion below would then report a position rather than
     # the page that made it meaningless.
-    assert parked["carried"] > parked["stands"], (
+    assert min(parked["carried"], parked["lastScroll"]) > parked["stands"], (
         f"the page is too short for the sidebar to stand on its own offset: {parked}"
     )
     page.wait_for_function(
@@ -3241,6 +3254,8 @@ def test_paper_takes_the_press_off_everything_it_cannot_press(browser, serve):
     example = next(e for e in EXAMPLES if e.stem == "corpus")
     page, errors = open_page(browser, serve(example))
 
+    page.get_by_role("tab", name="Command", exact=True).click()
+    expect(page.locator("#corpus-command-hub")).to_be_visible()
     on_screen = page.evaluate(PRINTED_OFFERS)
     assert sum(1 for offer in on_screen if offer["pressable"]) > 20, (
         f"the page draws almost nothing as pressable on screen, so paper taking it away "

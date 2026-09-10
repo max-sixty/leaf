@@ -41,7 +41,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from click.testing import CliRunner
-from example_data import data_operations, example_versions
+from example_data import data_operations, example_versions, regression_sources
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -71,8 +71,8 @@ PUBLIC_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "corpus")
 assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
     "expected exactly one generated corpus beside the public examples"
 )
-CORPUS_SOURCES = (*PUBLIC_EXAMPLES, FEATURE_GALLERY)
-PAGE_FIXTURES = (*EXAMPLES, FEATURE_GALLERY)
+CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), FEATURE_GALLERY)
+PAGE_FIXTURES = (*EXAMPLES, *regression_sources(), FEATURE_GALLERY)
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.

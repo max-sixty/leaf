@@ -1347,13 +1347,11 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-msg.claude { position: relative; }
 .lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
           font-size: var(--t-6); }
-.lf-conversation-thread > .lf-resolve.lf-icon-action { position: absolute; z-index: 2;
-          inset-block-start: var(--sp-1); inset-inline-end: var(--sp-1); }
-.lf-conversation-thread:has(> .lf-resolve)
-          > .lf-conversation-msg:first-of-type > .lf-conversation-head {
-          align-items: last baseline;
-          min-height: max(28px, var(--aim-floor));
-          padding-inline-end: calc(max(28px, var(--aim-floor)) + var(--sp-2)); }
+.lf-conversation-thread > .lf-thread-head { display: grid;
+          grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+          margin-bottom: var(--sp-2); }
+.lf-thread-label { color: var(--muted-2); font: 600 var(--t-6)/1.35 var(--sans);
+          letter-spacing: .04em; text-transform: uppercase; }
 .lf-conversation-msg.claude .lf-conversation-head b { color: var(--accent); }
 .lf-conversation-head time { color: var(--muted-2); }
 .lf-conversation-head .lf-edited { color: var(--muted-2); }
@@ -1429,12 +1427,6 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           display: inline-flex; align-items: center; justify-content: center;
           border: 1px solid transparent; border-radius: var(--r); background: var(--card);
           opacity: 0; cursor: pointer; }
-/* A source-less inline thread can put Resolve and the first reply on the same row. */
-.lf-conversation-thread:has(> .lf-resolve)
-          > .lf-conversation-msg.claude:first-of-type
-          > .lf-react-strip > .lf-react-trigger {
-          inset-inline-end: calc(max(28px, var(--aim-floor))
-                    + var(--here-ring-w) + 1px + 2px); }
 .lf-react-strip.lf-react-open > .lf-react-trigger { display: inline-flex; }
 .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
           fill: none; stroke: currentColor; stroke-width: 1.6;

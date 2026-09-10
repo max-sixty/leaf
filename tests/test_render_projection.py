@@ -1751,7 +1751,8 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     expect(task).to_have_attribute("status", "review")
     expect(task).to_have_attribute("data-lf-reported", "1")
     expect(task).not_to_have_attribute("data-lf-reader-override", "1")
-    page.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
     report_reading = page.get_by_role(
         "button", name=re.compile(r"^Open reported update: Reported update")
     )
@@ -2695,7 +2696,10 @@ def test_state_origin_readings_compose_on_one_target(browser, serve):
     page, errors = open_page(browser, serve(REPORT_PAGE))
     origins = page.evaluate(
         """async () => {
-          const {stateOrigins} = await import('/runtime/projection/fold.js');
+          const [{projectionOrigins}, {authoredStates}] = await Promise.all([
+            import('/runtime/projection/model.js'),
+            import('/runtime/projection/authored.js'),
+          ]);
           const entry = (id, kind, facet) => ({
             unit: 't-parser',
             e: {id, kind},
@@ -2712,7 +2716,7 @@ def test_state_origin_readings_compose_on_one_target(browser, serve):
               ['report-progress', entry('report-progress', 'report', 'progress')],
             ]),
           };
-          return stateOrigins(projection);
+          return projectionOrigins(authoredStates, projection);
         }"""
     )
     assert origins == [
@@ -3367,7 +3371,8 @@ def test_a_moved_card_identifies_its_reader_origin_across_tabs(browser, serve):
             exact=True,
         )
     ).to_be_visible()
-    second.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
+    second.keyboard.press("g")
+    second.keyboard.press("Shift+m")
     reader_origin = second.get_by_role(
         "button", name=re.compile(r"^Open your change: Your change")
     )
@@ -4581,10 +4586,9 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     page.close()
 
 
-def test_refusal_does_not_paint_a_queued_recordless_thread_action(browser, serve):
-    """The outbox is delivery order, not wholly an optimistic overlay. A recorded
-    choice is already painted, but the record-less Done press waits for acceptance;
-    correcting the older choice must not paint that queued press early."""
+def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, serve):
+    """A queued recordless action paints immediately and each refusal removes only
+    the local outcome belonging to that attempt."""
     url = serve(REPLY_HOST_PAGE)
     events_model.append_event(serve.page_dir, THREAD_ASKS[1])
     page, errors = open_page(browser, url)
@@ -4596,7 +4600,7 @@ def test_refusal_does_not_paint_a_queued_recordless_thread_action(browser, serve
     done = page.locator("#tq-set .lf-done")
     done.click()
     expect(done).to_have_attribute("aria-busy", "true")
-    expect(done).to_have_attribute("aria-pressed", "false")
+    expect(done).to_have_attribute("aria-pressed", "true")
 
     first_attempt = held[0].request.post_data_json["attempt"]
     with page.expect_request(
@@ -4616,7 +4620,7 @@ def test_refusal_does_not_paint_a_queued_recordless_thread_action(browser, serve
         )
 
     expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
-    expect(done).to_have_attribute("aria-pressed", "false")
+    expect(done).to_have_attribute("aria-pressed", "true")
     second_attempt = held[1].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[1].fulfill(
@@ -4636,18 +4640,9 @@ def test_refusal_does_not_paint_a_queued_recordless_thread_action(browser, serve
     page.close()
 
 
-def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
-    """The Done press has no local projection, so it waits for the log and owes the
-    reader what every waiting press owes: `aria-busy` while the answer is in
-    the wire, and the pressed state only once the log has taken it. Nothing said the
-    press had landed before this, and a `button` styled by the theme gets no `:active`
-    of its own, so the reader had the round trip with no answer of any kind.
-
-    One press is one `answer` action, which this group's own comment has always
-    claimed and nothing checked. A second press cannot be caught in the wire — `post`
-    sends one action at a time, so it never reaches the route — so what it would leave
-    is a second line in the log once the queue drains, and that is where this reads it.
-    """
+def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
+    """Done paints its semantic result while delivery is held, and repeated presses
+    still produce one action."""
     url = serve(REPLY_HOST_PAGE)
     for event in THREAD_ASKS:
         events_model.append_event(serve.page_dir, event)
@@ -4661,9 +4656,7 @@ def test_a_done_press_says_it_is_waiting_and_answers_once(browser, serve):
     holding(page, held, 1, "the answer")
 
     expect(done).to_have_attribute("aria-busy", "true")
-    # The press is acknowledged; the answer it asks for is not painted, the log not
-    # having taken it yet.
-    expect(done).to_have_attribute("aria-pressed", "false")
+    expect(done).to_have_attribute("aria-pressed", "true")
     done.click()
     done.click()
 
@@ -4882,8 +4875,11 @@ def test_command_goal_conversation_follows_its_declaration_not_talk(
     page.close()
 
 
-def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
-    """A typed host request locks its siblings until its exact receipt arrives."""
+def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt(
+    browser, serve
+):
+    """A typed host request paints and locks its siblings before the log answers,
+    then waits for its exact receipt."""
     page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     operations = page.locator("#dedupe-operations")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
@@ -4912,11 +4908,18 @@ def test_command_hub_request_waits_for_one_linked_host_receipt(browser, serve):
           });
         }"""
     )
-    with sending(page, "the restart request"):
-        operations.get_by_role("button", name="Restart with a fresh worker").click()
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    operations.get_by_role("button", name="Restart with a fresh worker").click()
+    holding(page, held, 1, "the restart request")
+    expect(operations).to_contain_text("restart requested · waiting for the host")
+    expect(request_row).to_have_attribute("data-lf-answer-state", "answered")
     assert page.evaluate("() => window.__lfFirstRequestAnswer") == (
         "Restart with a fresh worker"
     ), "the open Asks tray missed the package's first request projection"
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     requests = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -6145,5 +6148,68 @@ def test_a_spent_request_and_a_static_badge_say_so_before_the_press(browser, ser
     assert spent["cursor"] == "default", (
         "a spent request still takes the hand, so the page invites a press it will refuse"
     )
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("replacement", ["rebuilt", "removed"])
+def test_datum_travel_resolves_the_destination_after_reveal(
+    browser, serve, replacement
+):
+    url = serve(
+        leaf_page(
+            "reveal replaces projection",
+            '<h1 id="title">Call change</h1>'
+            '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
+            '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
+        ),
+        packages=("pr-review", "diff"),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "calls-data",
+        "calldiff diff main → feature\n  changed()  app.py:1\n+ └─ added()  app.py:2",
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -1 +1,2 @@\n changed()\n+added()\n",
+    )
+    page, errors = open_page(browser, url)
+    page.locator("#calls .lf-call-toggle").click()
+    # A container may synchronously rebuild its projection while revealing it.
+    # Repeat that lifecycle on every reveal so a second reveal after resolution
+    # cannot hide a stale-node scroll behind the first successful re-query.
+    page.locator("#patch").evaluate(
+        """(source, replacement) => {
+          let revealed = false;
+          source.addEventListener('lf-reveal', () => {
+            const row = source.shadowRoot.querySelector(
+              `[data-lf-datum='["app.py","new",2]']`);
+            if (!row) return;
+            if (replacement === 'removed' || revealed) {
+              row.remove();
+            } else {
+              const next = row.cloneNode(true);
+              row.replaceWith(next);
+              revealed = true;
+            }
+          });
+        }""",
+        replacement,
+    )
+    page.locator("#calls .lf-call-location").last.click()
+    if replacement == "rebuilt":
+        expect(page.locator(".lf-live")).to_have_text(
+            "Opened app.py:2 in the exact patch"
+        )
+        expect(
+            page.locator('lf-diff [data-lf-datum=\'["app.py","new",2]\']')
+        ).to_be_in_viewport()
+    else:
+        expect(page.locator(".lf-live")).to_have_text(
+            "app.py:2 is not present in the exact patch"
+        )
     assert errors == []
     page.close()

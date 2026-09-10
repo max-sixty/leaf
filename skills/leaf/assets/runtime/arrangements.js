@@ -12,25 +12,23 @@
    the restore that broke, and the geometry the combinations would add is measured on
    the first visit already. */
 import { readerStore, tabStore } from "./storage.js";
-import { commentsEdge, PANEL_KEY, setPanel } from "./chrome-layout.js";
-import { restoreTrays, TRAY_KEY, trayNames, traysEdge } from "./trays.js";
-import { DESIGN_KEY, setDesign } from "./design.js";
-
-let publishedArrangements = [];
+import { PANEL_KEY } from "./panel-workspace.js";
+import { TRAY_KEY } from "./trays.js";
+import { DESIGN_KEY } from "./design-readings.js";
 
 export const ARRANGEMENTS = [
   { name: "the thread panel open", ...readerStore.where(PANEL_KEY), value: "1" },
   {
     name: "the thread panel at the width the reader drew it to",
-    ...readerStore.where(commentsEdge.key),
+    ...readerStore.where("lf-panel-width"),
     value: "560",
   },
   {
     name: "the tray panel at the width the reader drew it to",
-    ...readerStore.where(traysEdge.key),
+    ...readerStore.where("lf-tray-width"),
     value: "260",
   },
-  ...trayNames.map((tray) => ({
+  ...["leaves", "asks"].map((tray) => ({
     name: `the ${tray} tray standing`,
     ...readerStore.where(TRAY_KEY),
     value: tray,
@@ -41,7 +39,13 @@ export const ARRANGEMENTS = [
 // The chrome put back the way this reader left it, before the page is presented: the
 // widths first, so a panel or tray put back open is open at the width they left it at
 // rather than sliding to it afterwards.
-export function restoreArrangements() {
+export function restoreArrangements({
+  commentsEdge,
+  traysEdge,
+  setPanel,
+  restoreTrays,
+  setDesign,
+}) {
   // The widths first, so a panel or a tray put back open is open at the width the reader
   // left it at rather than sliding to it afterwards.
   commentsEdge.restore();

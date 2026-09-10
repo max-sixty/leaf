@@ -239,7 +239,7 @@
    for stillness. */
 @media (prefers-reduced-motion: reduce) {
   .lf-margin-element[data-lf-state="busy"]:not([data-lf-behavior="status"])::after {
-    animation: none; border-style: dotted;
+    animation: none;
   }
 }
 /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
@@ -1315,22 +1315,13 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-quote { margin: 0 0 8px; padding: 2px 8px 2px 12px;
     border-inline-start: 3px solid var(--mark-ink); color: var(--muted);
     font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
-  /* The address and Resolve are different actions. Their parent gives each one a
-     column, so the quote's paint and hit box end before the larger icon aim begins.
-     They share a top edge, and a wrapped quote grows below the compact action. */
+  /* The thread header owns its address and settlement action. Its columns keep their
+     complete hit boxes disjoint; without an address, a generic label states the
+     action's thread-wide ownership. */
   .lf-thread-head { display: grid; grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 8px; align-items: stretch; margin-bottom: 8px; }
   .lf-thread-head > .lf-quote { margin: 0; }
-  .lf-thread-head > .lf-resolve { position: relative; inset: auto; }
-  /* A source-less thread keeps Resolve in its corner and gives its first message head
-     the action's complete band. */
-  :is(.lf-thread, .lf-going) > .lf-resolve { position: absolute;
-    inset-block-start: var(--lf-thread-pad); inset-inline-end: var(--lf-thread-pad); }
-  :is(.lf-thread, .lf-going):not(:has(> .lf-quote)):has(> .lf-resolve)
-    > .lf-msg:first-of-type > .lf-msg-head {
-    align-items: last baseline;
-    min-height: max(28px, var(--aim-floor));
-    padding-inline-end: calc(max(28px, var(--aim-floor)) + 8px); }
+  .lf-thread-head > .lf-resolve { grid-column: 2; }
   .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
   .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: passage-focus;
     outline-offset: 2px; }
@@ -1343,8 +1334,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      scrolled rather than clipped a few rules down, because it stands alone in a box
      the reader is typing into and has no thread beneath it to bury. */
   .lf-thread .lf-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
-  .lf-quote.detached { border-inline-start-style: dashed;
-    border-inline-start-color: var(--border-2); color: var(--muted-2); cursor: default; }
+  .lf-quote.detached { border-inline-start-color: var(--border-2);
+    color: var(--muted-2); cursor: default; }
   /* Out of the picture, still in the accessibility tree — see the composer's quote in
      paintAnchors for the one thing that wears this and why. */
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
@@ -1378,10 +1369,11 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-msg-body li { margin: 2px 0; }
   .lf-msg-body pre { padding: 8px 10px; }
   .lf-msg-body blockquote { padding: 2px 10px; }
-  /* A reference to an element this version hasn't got, wearing the same word the
-     quote above wears for the same fact. The whole text-decoration shorthand,
-     because a widget's § reference (lf-ref) undressed its underline and a style
-     alone would paint nothing there. paintAnchors is the one writer. */
+  /* A reference to an element this version hasn't got keeps its underline but
+     changes it to dashed, while muted ink reinforces that its press is disabled.
+     The whole text-decoration shorthand, because a widget's § reference (lf-ref)
+     undressed its underline and a style alone would paint nothing there.
+     paintAnchors is the one writer. */
   .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
   .lf-compose { display: block; margin-top: 8px; }
   .lf-compose textarea { display: block; width: 100%; min-width: 0; }
@@ -1529,14 +1521,6 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     display: inline-flex; align-items: center; justify-content: center;
     border: 1px solid transparent; border-radius: var(--r); background: var(--card);
     opacity: 0; cursor: pointer;
-  }
-  /* In a source-less thread the first agent message shares the top row with Resolve.
-     Stand its reaction trigger beyond Resolve's complete focus band. */
-  .lf-thread:not(:has(> .lf-quote)):has(> .lf-resolve)
-    > .lf-msg.claude:first-of-type
-    > .lf-react-strip > .lf-react-trigger {
-    inset-inline-end: calc(max(28px, var(--aim-floor))
-      + var(--here-ring-w) + 2px + 2px);
   }
   .lf-react-strip.lf-react-open > .lf-react-trigger { display: inline-flex; }
   .lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;

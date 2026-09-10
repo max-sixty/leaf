@@ -433,15 +433,15 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    for action, pending in (
-        ("Resolve thread", "Resolving thread…"),
-        ("Reopen", "Reopening…"),
+    for action, optimistic in (
+        ("Resolve thread", "Reopen"),
+        ("Reopen", "Resolve thread"),
     ):
         with page.expect_request("**/api/event"):
             thread.get_by_role("button", name=action, exact=True).click()
-        expect(thread.get_by_role("button", name=pending)).to_have_attribute(
-            "aria-busy", "true"
-        )
+        expect(
+            thread.get_by_role("button", name=optimistic, exact=True)
+        ).to_have_attribute("aria-busy", "true")
         page.locator("#later").fill("Keep my later focus here.")
         held.pop().continue_()
         round_trip(page)
@@ -455,7 +455,7 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(
 def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     held_events, serve, view
 ):
-    """Both thread views acknowledge a held request and allow a refused one to retry."""
+    """Both thread views resolve immediately and restore a refused request."""
     browser, held = held_events
     page, errors = open_page(
         browser,
@@ -484,28 +484,35 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     expect(resolve).to_be_visible()
     resolve.scroll_into_view_if_needed()
-    before = resolve.bounding_box()
     with page.expect_request("**/api/event"):
         resolve.click()
-    busy = thread.get_by_role("button", name="Resolving thread…", exact=True)
-    expect(busy).to_be_disabled()
-    expect(busy).to_be_focused()
-    expect(busy).to_have_attribute("aria-busy", "true")
-    expect(busy).not_to_have_attribute("aria-keyshortcuts", re.compile(r".+"))
-    assert busy.bounding_box() == pytest.approx(before, abs=1)
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    if view == "inline":
+        expect(thread.get_by_role("button", name="Resolve thread")).to_have_count(0)
+    else:
+        expect(page.locator(".lf-threads")).to_contain_text("No open threads.")
     assert not any(
         event["kind"] == "resolve" for event in events_model.read_events(serve.page_dir)
     )
     held.pop().fulfill(
         json={"ok": False, "final": True, "error": "Please retry."},
     )
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    if view == "inline":
+        page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+        thread = page.locator(".lf-margin-thread")
+        resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+    else:
+        thread = page.locator(f'.lf-thread[data-id="{root}"]')
+        resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     expect(resolve).to_be_enabled()
     expect(resolve).not_to_have_attribute("aria-busy", "true")
     expect(resolve).not_to_have_attribute("aria-keyshortcuts", re.compile(r".*x.*"))
     resolve.focus()
     with page.expect_request("**/api/event"):
         page.keyboard.press("Enter")
-    expect(busy).to_be_disabled()
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
     if view == "panel":
         page.locator(".lf-general textarea").fill("My next thought can keep its focus.")
     held.pop().continue_()
@@ -528,7 +535,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
 def test_settlement_controls_share_one_request_across_page_and_panel(
     held_events, serve
 ):
-    """Mirrored controls share pending delivery, resolution, and reopening."""
+    """Mirrored controls share optimistic resolution, delivery, and reopening."""
     browser, held = held_events
     url = serve(SEATED_QUESTION_PAGE)
     root = events_model.append_event(
@@ -548,11 +555,10 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
     panel = page.locator(f'.lf-thread[data-id="{root}"]')
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Resolve thread", exact=True).click()
-    for thread in (inline, panel):
-        expect(
-            thread.get_by_role("button", name="Resolving thread…", exact=True)
-        ).to_be_disabled()
-    pending = panel.get_by_role("button", name="Resolving thread…", exact=True)
+    pending = inline.get_by_role("button", name="Reopen", exact=True)
+    expect(pending).to_be_disabled()
+    expect(pending).to_have_attribute("aria-busy", "true")
+    expect(page.locator(".lf-threads")).to_contain_text("No open threads.")
     pending.focus()
     page.keyboard.press("Enter")
     assert len(held) == 1
@@ -566,7 +572,10 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
     ] == ["resolve"]
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Reopen").click()
-    expect(inline.get_by_role("button", name="Reopening…")).to_be_disabled()
+    for thread in (inline, panel):
+        optimistic = thread.get_by_role("button", name="Resolve thread", exact=True)
+        expect(optimistic).to_be_disabled()
+        expect(optimistic).to_have_attribute("aria-busy", "true")
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -1986,7 +1995,7 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
         "node => node.getBoundingClientRect().right"
     )
     assert resolved_edge == pytest.approx(action_edge, abs=1), (
-        "the held outcome left Resolve's metadata-row edge"
+        "the held outcome left Resolve's thread-header edge"
     )
     held = page.evaluate(LIST_STATE)
     assert held["standing"] == [c1, c2, c3], (
@@ -2660,6 +2669,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-trigger",
         "lf-react-trigger-icon",
         "lf-resolve",
+        # The same thread header owns settlement in the panel and in inline seats;
+        # the authored theme gives both views the same label/control alignment.
+        "lf-thread-head",
         # Active buttons share the theme's existing .lf-btn.on state.
         "on",
         # Primary buttons keep the authored theme's filled action face when they

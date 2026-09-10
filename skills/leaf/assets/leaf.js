@@ -1,130 +1,672 @@
-/* Leaf runtime, loaded via <script type="module" src="/leaf.js">: the boot module. It
- * imports every runtime owner and runs the boot sequence below. skills/leaf/assets/CLAUDE.md
- * names each owner's responsibility and the rule against reading one while it evaluates. */
-
+/* Leaf runtime boot and application composition root. */
 import chromeSheet from "./runtime/chrome.css" with { type: "css" };
-import { mountLayout, syncLayout } from "./runtime/chrome-layout.js";
-
-import { declareLeavesKeys, leavesOffered } from "./runtime/live-leaves.js";
-
-import { fabBar, openDraft, pendingComposer } from "./runtime/composing/selection.js";
-import { updateFab, wireFabInput } from "./runtime/composing/surface.js";
-
 import { containedPage, runtime } from "./runtime/context.js";
-import { promoteDeferredModals } from "./runtime/deferred-modals.js";
+import { chromeRoot } from "./runtime/chrome.js";
+import { marksSheet } from "./runtime/shadow.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
-
-import { askActionLayer, buildBulkAnswers, syncAsks } from "./runtime/asks/view.js";
-
-import { paintKeys, reflectFirstScopes } from "./runtime/keyboard/scopes.js";
-import { paintStandingContent, paintStandingGeometry } from "./runtime/standing.js";
-import { repaint, wireRepaint } from "./runtime/repaint.js";
-
-import { liveEl, notice } from "./runtime/notifications.js";
-
-import { pageShifted, setAnchoringReady, mountAnchors } from "./runtime/anchors.js";
+import { promoteDeferredModals } from "./runtime/deferred-modals.js";
+import { upgradeWidgets } from "./runtime/widget-loader.js";
+import { captureAuthoredFacets } from "./runtime/projection/authored.js";
+import {
+  settlePageInterface,
+  PAGE_INTERFACE,
+  PAGE_PAINT_ATTRIBUTE,
+  PRESENTATION,
+} from "./runtime/presentation.js";
+import { mountApplication } from "./runtime/application.js";
+import { createEngagement } from "./runtime/composing/engagement.js";
+import { createCompositionInputs } from "./runtime/composing/input.js";
+import {
+  createSelectionComposer,
+  composerOpen,
+  composerQuote,
+  fabBar,
+  fabInput,
+  pendingAbout,
+  pendingAnchor,
+  pendingDrawing,
+} from "./runtime/composing/selection.js";
+import { createResponseSurface } from "./runtime/composing/surface.js";
+import { createDrawingController } from "./runtime/composing/drawing.js";
+import { createDrawingPaint } from "./runtime/composing/drawing-paint.js";
+import { createAim } from "./runtime/composing/aim.js";
+import {
+  createTargetSelection,
+  selectionLayer,
+  selectionSearch,
+} from "./runtime/composing/targets.js";
+import { createStandingItem } from "./runtime/composing/standing.js";
+import {
+  createReactionController,
+  reactionTokens,
+  sendReaction,
+  undoSentence,
+} from "./runtime/reactions.js";
+import { createAnchorPaint } from "./runtime/anchor-paint.js";
+import { createAnchorControls } from "./runtime/anchor-controls.js";
+import { createAnchorTravel } from "./runtime/anchor-travel.js";
+import {
+  aimTargetAt,
+  resolveAnchor,
+  setAnchoringReady,
+} from "./runtime/anchor-resolution.js";
+import { createPageGeometry } from "./runtime/page-geometry.js";
+import * as targetPaint from "./runtime/target-paint.js";
+import { pointerAt } from "./runtime/pointer.js";
+import { allThreads } from "./runtime/conversation/state.js";
+import { anchorLabel } from "./runtime/conversation/messages.js";
+import {
+  createConversationLanding,
+  revealConversation,
+  retainConversationFocus,
+  retainPanelLanding,
+  standingConversation,
+  wireThreadLanding,
+} from "./runtime/conversation/landing.js";
+import { createPanelComposer } from "./runtime/conversation/panel.js";
+import { focusSurface } from "./runtime/conversation/surfaces.js";
+import { focusedThreadOf } from "./runtime/conversation/focus.js";
+import { mountThreadList } from "./runtime/conversation/thread-list.js";
+import { wireThreadCards } from "./runtime/conversation/thread-card.js";
+import {
+  revealThread,
+  wireNarrowing,
+  widen,
+} from "./runtime/conversation/narrowing.js";
+import {
+  panel,
+  closeBtn,
+  panelFoot,
+  threadsBox,
+  mountPanelReadingRegion,
+  panelWouldCover,
+} from "./runtime/conversation/panel-elements.js";
+import { createLivingMargin } from "./runtime/living-margin.js";
+import { createPageMap } from "./runtime/page-map.js";
+import { createAskView } from "./runtime/asks/view.js";
+import { askActionLayer, ASK_CONTROL } from "./runtime/asks/view-elements.js";
+import { createDesignController, inspectEl, legendRoot } from "./runtime/design.js";
+import { createChromeLayout } from "./runtime/chrome-layout.js";
+import {
+  createPanelVisibility,
+  createPanelWorkspace,
+  PANEL_KEY,
+} from "./runtime/panel-workspace.js";
+import {
+  createTrays,
+  asksPanel,
+  currentTray,
+  othersBtn,
+  othersPanel,
+  reserveListClearance,
+} from "./runtime/trays.js";
+import { createWorkspaceNavigation } from "./runtime/workspace.js";
+import { createWorkspaceModality } from "./runtime/workspace-modality.js";
+import { restoreArrangements } from "./runtime/arrangements.js";
+import { readerStore } from "./runtime/storage.js";
+import { createVersionController, versionBtn, versionMenu } from "./runtime/version.js";
 import {
   banner,
+  foldBannerRow,
+  isSignoffDeclared,
   loadIcon,
   mountBanner,
   paintApproval,
   renderStatus,
   reserveBannerControls,
+  stateSignoff,
+  toggleBtn,
 } from "./runtime/banner.js";
 import { overflowMenu, showNews } from "./runtime/banner-shelf.js";
-
-import { mountConversation, renderPanel } from "./runtime/conversation/reconcile.js";
 import {
-  mountPanelReadingRegion,
-  panel,
-  wireGeneralBox,
-} from "./runtime/conversation/panel.js";
-import { wireThreadLanding } from "./runtime/conversation/landing.js";
-import { mountThreadList } from "./runtime/conversation/thread-list.js";
-import { wireNarrowing } from "./runtime/conversation/narrowing.js";
-import { wireThreadCards } from "./runtime/conversation/thread-card.js";
-
-import { beginRead, startFeed } from "./runtime/state-feed.js";
-
-import { installArrival, versionMenu } from "./runtime/version.js";
-import { upgradeWidgets } from "./runtime/widget-loader.js";
-
-import {
-  PAGE_INTERFACE,
-  PAGE_PAINT_ATTRIBUTE,
-  PRESENTATION,
-  settlePageInterface,
-} from "./runtime/presentation.js";
-
-import { marksSheet } from "./runtime/shadow.js";
-
-import { asksPanel, othersBtn, othersPanel, restoreTray } from "./runtime/trays.js";
-import {
-  commentBox,
-  commentRows,
-  declareFindBoxKeys,
-  declareResponseOptionKeys,
-  letGo,
-} from "./runtime/keyboard/page.js";
-import { chromeRoot } from "./runtime/chrome.js";
-import { restoreArrangements } from "./runtime/arrangements.js";
-import { captureAuthoredFacets } from "./runtime/projection/authored.js";
-import { layoutMarginRows } from "./runtime/margin-layout.js";
+  leavesOffered,
+  othersLinks,
+  paintLeavesOffer,
+  renderOthers,
+  declareLeavesKeys,
+} from "./runtime/live-leaves.js";
+import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
+import { replaceClaimState } from "./runtime/updates.js";
+import { createAddress, addressLayer } from "./runtime/keyboard/address.js";
+import { createPageKeys } from "./runtime/keyboard/page.js";
+import { mountKeyboard } from "./runtime/keyboard/controller.js";
+import { registerPageScopes } from "./runtime/keyboard/register.js";
 import { shortcutReferenceDialog } from "./runtime/keyboard/reference.js";
-import { bottomStatusEl, shortcutBarEl } from "./runtime/keyboard/shortcut-bar.js";
-import { offer } from "./runtime/widget-elements.js";
-import { focusDestination } from "./runtime/focus.js";
-import { inspectEl, legendRoot } from "./runtime/design.js";
-import { addressLayer } from "./runtime/keyboard/address.js";
-import { selectionLayer, selectionSearch } from "./runtime/composing/targets.js";
 import {
-  mountTargetPaint,
-  targetTraceBox,
-  visualMarkLayer,
-} from "./runtime/target-paint.js";
-import { drawingLayer } from "./runtime/composing/drawing.js";
-import { mountMargin } from "./runtime/living-margin.js";
-import { aimBox } from "./runtime/composing/aim.js";
-import { FOCUSABLE } from "./runtime/reach.js";
-import { activeRowLabel } from "./runtime/keyboard/dispatch.js";
+  bottomChromeBoxes,
+  less,
+  mountShortcutBar,
+  REFERENCE,
+  renderLine,
+  shortcutBarEl,
+  standingStatusBoxes,
+  bottomStatusEl,
+} from "./runtime/keyboard/shortcut-bar.js";
+import { activeRowLabel, availableCommands } from "./runtime/keyboard/dispatch.js";
+import { focused, paintKeys, reflectFirstScopes } from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
+import { createStanding } from "./runtime/standing.js";
+import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
+import { layoutMarginRows } from "./runtime/margin-layout.js";
+import {
+  createNavigation,
+  placeThreadEdge,
+  glideTo,
+  stopGlide,
+} from "./runtime/navigation.js";
+import { focusDestination, letGo } from "./runtime/focus.js";
+import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
-import { configureInput } from "./runtime/composing/input.js";
+import { offer } from "./runtime/widget-elements.js";
+import { FOCUSABLE } from "./runtime/reach.js";
 
-wireRepaint({
-  reflectFirstScopes,
-  paintStandingContent,
-  syncLayout,
-  pageShifted,
-  paintStandingGeometry,
+let app;
+const paintVersionApproval = () => paintApproval(app.pendingApprovals());
+let panelWorkspace;
+let trays;
+let layout;
+let landing;
+let pageMap;
+let asks;
+let panelComposer;
+let selectionComposer;
+let responseSurface;
+let drawing;
+let aim;
+let targets;
+let reactions;
+let pageGeometry;
+let address;
+let pageKeys;
+
+const panelVisibility = createPanelVisibility();
+const { panelIsOpen } = panelVisibility;
+const workspaceModality = createWorkspaceModality({ chromeRoot, focusable: FOCUSABLE });
+const navigation = createNavigation({
+  panelIsOpen,
+  coveringWorkspaceScroller: workspaceModality.coveringScroller,
+});
+const panelModality = workspaceModality.register({
+  surface: panel,
+  scroller: () => threadsBox,
+  covers: navigation.panelCovers,
+  focus: () => threadsBox,
 });
 
-const commentAddress = () => ({
-  box: commentBox(),
-  label: activeRowLabel(commentRows()),
+const targetPaintCaps = {
+  clearAim: targetPaint.clearAim,
+  paintAim: targetPaint.paintAim,
+  paintTrace: targetPaint.paintTrace,
+  setTargets: targetPaint.setTargets,
+  shifted: targetPaint.shifted,
+  geometryChanged: targetPaint.geometryChanged,
+};
+const anchorPaint = createAnchorPaint({
+  targetPaint: targetPaintCaps,
+  pointer: pointerAt,
+  focusedAnchorThreadId: () =>
+    focused()?.closest?.(".lf-conversation-thread")?.dataset.thread ??
+    focusedThreadOf()?.dataset.id,
+  hoveredPanelThreadId: () =>
+    threadsBox.querySelector(":scope > .lf-thread:hover")?.dataset.id ?? null,
+  panelThreadForId: (id) =>
+    id
+      ? threadsBox.querySelector(`:scope > .lf-thread[data-id="${CSS.escape(id)}"]`)
+      : null,
+});
+const drawingPaint = createDrawingPaint({
+  anchors: anchorPaint,
+  activeDrawing: () => drawing.activeDrawing(),
+  draftDrawings: () => drawing.draftDrawings(),
+});
+const design = createDesignController({
+  pageGeometry: {
+    refreshAim: () => pageGeometry.refreshAim(),
+    pageShifted: () => pageGeometry.pageShifted(),
+  },
+  syncGeneral: () => panelComposer.syncGeneral(),
+  composer: {
+    showFab: (...args) => responseSurface.showFab(...args),
+    openComposer: (...args) => selectionComposer.openComposer(...args),
+  },
+  closePreview: (...args) => app.margin.closePreview(...args),
+  marginTargetAt: (...args) => app.margin.marginTargetAt(...args),
+  banner,
+  announce,
+  repaint,
+});
+aim = createAim({
+  refreshAim: () => pageGeometry.refreshAim(),
+  commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
+  standDown: (...args) => responseSurface.standDown(...args),
+  drawingIsOn: () => drawing.isDrawing(),
+  design,
+});
+pageGeometry = createPageGeometry({
+  refreshAnchorHover: anchorPaint.refreshHover,
+  aim: { isOn: aim.aimIsOn, target: aim.aimedTarget },
+  pointer: pointerAt,
+  design,
+  targetPaint: targetPaintCaps,
+  shiftDrawings: drawingPaint.shifted,
+  queueLegend: design.queueLegend,
+  activeActionAnchor: () => responseSurface.fabAnchorAt(),
+  refreshActionBar: () => responseSurface.refreshFab(),
+});
+const anchorTravel = createAnchorTravel({
+  anchors: anchorPaint,
+  currentThreads: allThreads,
+  refreshConversation: () => app.refreshConversation(),
+  announce,
+  focused,
+});
+landing = createConversationLanding({
+  setPanel: (...args) => panelWorkspace.setPanel(...args),
+  scrollToThread: anchorTravel.scrollToThread,
+  revealThread: (id) => revealThread(id, app.refreshNarrowing),
+});
+const anchorControls = createAnchorControls({
+  commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
+  openThread: (...args) => app.margin.openPageThread(...args),
+  withdrawReaction: (...args) => app.withdraw(...args),
+  labelAnchor: anchorLabel,
+  invalidateConversation: () => app.refreshConversation(),
+  invalidatePageGeometry: pageGeometry.invalidate,
+  messageReferenceRoot: panel,
+  draftQuote: composerQuote,
 });
 
-// The chrome follows `main` in the document, which is right for reading and wrong for
-// reaching: nothing stood between the top of the page and the banner but the whole page,
-// and the top of the page is where a keyboard reader's next Tab starts whenever they are
-// holding no control. So one stop stands in front of everything, the way a skip link
-// always has.
-//
-// Prepended to the body rather than put in the chrome, because tab order is document
-// order and the chrome is last; there is no `tabindex` that would buy this and no reason
-// to want one. It carries the offer marker `offer` writes, so paper drops it with every
-// other injected control and a copy takes it out with the layer it points at. It takes no
-// row in the register either: a control is a route to a capability rather than a
-// capability of its own, and this one's whole design is to be the first thing a reader
-// finds without having been told about it.
-// Which control the skip link lands on is decided by trying the focus, not by a reading
-// of whether the control looks available. The banner's controls are conditional in
-// several ways at once — Leaves is absent where the machine has one leaf, Asks where the page waits on
-// nobody, the newest-version chip is drawn only while there is a newer version, and
-// sign-off is disabled until the page is presented — and each of those makes focus
-// silently do nothing rather than fail. So the walk asks the browser the only question
-// that matters here, whether the reader ended up on it, and the banner itself is the
-// answer when none of them will have them.
+const version = createVersionController({
+  designIsOn: design.isOn,
+  paintLegend: design.paintLegend,
+  midComposition: () => app.midComposition(),
+  readAndApply: (...args) => app.readAndApply(...args),
+  banner,
+  stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
+  landedAt: (...args) => asks.landedAt(...args),
+  setLanded: (...args) => asks.setLanded(...args),
+  resetAuthoredPage: (...args) => app.resetAuthoredPage(...args),
+  readableDestination: anchorTravel.readableDestination,
+  scrollToElement: anchorTravel.scrollToElement,
+});
+
+const inputs = createCompositionInputs({
+  uploadMedia,
+  inputAddress: () => ({
+    box: pageKeys.commentBox(),
+    label: activeRowLabel(pageKeys.commentRows()),
+  }),
+});
+
+app = mountApplication({
+  createEngagement,
+  isSelecting: () => targets.isSelecting(),
+  pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
+  wireInput: inputs.wireInput,
+  anchorPaint,
+  anchorControls,
+  drawingPaint,
+  pageGeometry,
+  anchorTravel,
+  readConversationDraft: () => ({
+    open: composerOpen,
+    anchor: pendingAnchor,
+    about: pendingAbout,
+    drawing: pendingDrawing,
+  }),
+  activeActionAnchor: () => responseSurface.fabAnchorAt(),
+  landInConversation: (...args) => landing.landInConversation(...args),
+  showThread: (...args) => landing.showThread(...args),
+  setPanel: (...args) => panelWorkspace.setPanel(...args),
+  panelIsOpen,
+  panelCovers: () => layout.panelCovers(),
+  onConversationChanged: repaint,
+  retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
+  retainConversationFocus: () => retainConversationFocus(panelIsOpen),
+  revealReplyEditor: (input, behavior) =>
+    revealConversation(
+      input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation"),
+      input,
+      behavior,
+    ),
+  setThreadCount: (count) => {
+    toggleBtn.textContent = count === null ? "Threads" : `Threads (${count})`;
+  },
+  buildReactSurface: (...args) => reactions.buildReactSurface(...args),
+  closeReactionMode: () => reactions.setReact(false),
+  sendReaction,
+  updateFab: (...args) => responseSurface.updateFab(...args),
+  createLivingMargin,
+  margin: {
+    bottomChromeBoxes,
+    designIsOn: design.isOn,
+    comparisonBase: version.comparisonBase,
+    comparisonChanges: version.comparisonChanges,
+    inlineComparison: version.inlineComparison,
+    toggleInlineComparison: version.toggleInlineComparison,
+    leavePageMap: (...args) => pageMap.leavePageMap(...args),
+    openPageMap: (...args) => pageMap.openPageMap(...args),
+    pageMapContextContains: (...args) => pageMap.pageMapContextContains(...args),
+    renderPageMap: (...args) => pageMap.renderPageMap(...args),
+    standsWith: (...args) => asks.standsWith(...args),
+    revealConversation,
+    goToAsk: (...args) => asks.goToAsk(...args),
+  },
+  state: {
+    prepareActivation: (state) => version.prepareActivation(state, layout.syncLayout),
+    acceptData,
+    notifyDataSubscribers,
+    replaceClaimState,
+    isSignoffDeclared,
+    paintApproval: paintVersionApproval,
+    renderStatus,
+    renderVersions: version.renderVersions,
+    stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
+    renderOthers,
+  },
+  feed: {
+    prepareActivation: (state) => version.prepareActivation(state, layout.syncLayout),
+    notifyDataSubscribers,
+    renderStatus,
+  },
+});
+
+pageMap = createPageMap({
+  activeInMargin: app.margin.pageMapActive,
+  activateItem: app.margin.activateMapItem,
+  faceFor: app.margin.faceForMap,
+  focusFallback: app.margin.focusMapControl,
+});
+
+// Ask view is constructed below by its owner factory; all accesses above are inert closures.
+asks = createAskView({
+  panelIsOpen,
+  pendingRequests: app.pendingRequests,
+  readingBlock: version.readingBlock,
+  focusForNavigation: app.margin.focusForNavigation,
+  presentedControl: app.margin.presentedControl,
+  setPanel: (...args) => panelWorkspace.setPanel(...args),
+  showTray: (...args) => trays.showTray(...args),
+  trayCovers: () => trays.traysEdge.over.matches,
+  readableDestination: anchorTravel.readableDestination,
+  scrollToElement: anchorTravel.scrollToElement,
+  refreshConversation: () => app.refreshConversation(),
+  placeBulkAnswer: (button) => versionBtn.before(button),
+  availableCommands,
+  announce,
+  repaint,
+});
+
+const standingItem = createStandingItem({
+  isAskControl: (node) => node?.matches?.(ASK_CONTROL),
+  askPlace: asks.askPlace,
+  standingIn: asks.standingIn,
+});
+
+panelComposer = createPanelComposer({
+  designIsOn: design.isOn,
+  wireInput: inputs.wireInput,
+  createPageComment: app.createPageComment,
+  showThread: landing.showThread,
+  setPanel: (...args) => panelWorkspace.setPanel(...args),
+  paintDrawings: () => drawingPaint.paint(allThreads()),
+});
+selectionComposer = createSelectionComposer({
+  panelIsOpen,
+  setReact: (...args) => reactions.setReact(...args),
+  designIsOn: design.isOn,
+  marginOpenInlineThread: app.margin.openInlineThread,
+  threadTransitionOrigin: app.margin.threadTransitionOrigin,
+  anchorStands: (...args) => responseSurface.anchorStands(...args),
+  anchorTargetAt: (...args) => responseSurface.anchorTargetAt(...args),
+  bringForward: (...args) => responseSurface.bringForward(...args),
+  fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
+  holdFabLeft: (...args) => responseSurface.holdFabLeft(...args),
+  refreshFab: (...args) => responseSurface.refreshFab(...args),
+  showFab: (...args) => responseSurface.showFab(...args),
+  goAddress: (...args) => address.goAddress(...args),
+  createComment: app.createComment,
+  focusSurface,
+  showThread: landing.showThread,
+  refreshConversation: app.refreshConversation,
+  wireInput: inputs.wireInput,
+});
+responseSurface = createResponseSurface({
+  panelCovers: navigation.panelCovers,
+  markAt: anchorPaint.markAt,
+  scrollToElement: anchorTravel.scrollToElement,
+  visualActionAnchor: anchorControls.visualActionAnchor,
+  hideComposer: selectionComposer.hideComposer,
+  openComposer: selectionComposer.openComposer,
+  resetResponseOptions: selectionComposer.resetResponseOptions,
+  responseOptionsAvailable: selectionComposer.responseOptionsAvailable,
+  setResponseOptions: selectionComposer.setResponseOptions,
+  syncResponseOptions: selectionComposer.syncResponseOptions,
+  designIsOn: design.isOn,
+  designTarget: design.target,
+  openOnDesign: design.open,
+  isReactArmed: () => reactions.isReactArmed(),
+  reactionContextContains: (...args) => reactions.reactionContextContains(...args),
+  reactionTokens,
+  setReact: (...args) => reactions.setReact(...args),
+  banner,
+  bottomChromeBoxes,
+  less: (...args) => less(...args),
+  closeVersionMenu: version.closeVersionMenu,
+  versionMenuIsOpen: () => versionMenu.matches(":popover-open"),
+  openPageThread: app.margin.openPageThread,
+  isDrawing: () => drawing.isDrawing(),
+  refreshConversation: app.refreshConversation,
+});
+reactions = createReactionController({
+  marginElementChoices: app.margin.marginElementChoices,
+  marginElementContextContains: app.margin.marginElementContextContains,
+  foldMarginElementOptions: app.margin.foldMarginElementOptions,
+  openMarginElementOptions: app.margin.openMarginElementOptions,
+  unfoldedMarginElements: app.margin.unfoldedMarginElements,
+  designIsOn: design.isOn,
+  hideComposer: selectionComposer.hideComposer,
+  syncResponseOptions: selectionComposer.syncResponseOptions,
+  fabAnchorAt: responseSurface.fabAnchorAt,
+  fabReturnTo: responseSurface.fabReturnTo,
+  fabTargetAt: responseSurface.fabTargetAt,
+  hasPageSelectionTarget: responseSurface.hasPageSelectionTarget,
+  showFab: responseSurface.showFab,
+  visualActionAnchor: anchorControls.visualActionAnchor,
+  standingConversation,
+  standingItem,
+});
+targets = createTargetSelection({
+  scrollToRange: anchorTravel.scrollToRange,
+  banner,
+  bottomChromeBoxes,
+  shortcutBarEl,
+  standingStatusBoxes,
+  commentOnTarget: responseSurface.commentOnTarget,
+  updateFab: responseSurface.updateFab,
+  fabAnchorAt: responseSurface.fabAnchorAt,
+});
+drawing = createDrawingController({
+  anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPaint.pendingAt },
+  pageGeometry: { refreshAim: pageGeometry.refreshAim },
+  pointer: pointerAt,
+  visibleTargets: targets.visibleTargets,
+  pageDrawing: panelComposer.pageComposerDrawing,
+  composerDraft: () => ({
+    open: composerOpen,
+    anchor: pendingAnchor,
+    drawing: pendingDrawing,
+  }),
+  openAnchoredDrawing: (anchor, drawing) =>
+    selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
+  openPageDrawing: panelComposer.openPageDrawing,
+  setDesign: design.set,
+  stopSelecting: targets.stopSelecting,
+  closeReactionMode: () => reactions.setReact(false),
+  banner,
+  announce,
+  paintDrawings: () => drawingPaint.paint(allThreads()),
+  shiftDrawingPaint: drawingPaint.shifted,
+  repaint,
+});
+
+layout = createChromeLayout({
+  panelIsOpen,
+  elements: {
+    panel,
+    closeBtn,
+    panelFoot,
+    threadsBox,
+    shortcutBarEl,
+    bottomStatusEl,
+    chromeRoot,
+  },
+  foldBannerRow,
+  scheduleThreadPreviewPosition: app.margin.scheduleThreadPreviewPosition,
+  bottomChromeBoxes,
+  reserveListClearance,
+  restateTrayEdge: () => trays.traysEdge.state(),
+  syncWorkspaces: workspaceModality.sync,
+  syncReactLayout: reactions.syncReactLayout,
+  refreshFab: responseSurface.refreshFab,
+  dockSeats: anchorControls.dockSeats,
+  pageShifted: pageGeometry.pageShifted,
+  layoutMarginRows,
+  repaint,
+  repaintPage,
+});
+panelWorkspace = createPanelWorkspace({
+  visibility: panelVisibility,
+  layout,
+  elements: { panel, toggleBtn },
+  hideTray: ({ remember }) => {
+    if (currentTray()) trays.showTray(null, { remember });
+  },
+  activeInlineThread: app.margin.activeInlineThread,
+  showThread: landing.showThread,
+  refreshConversation: app.refreshConversation,
+  closeReactionMode: () => reactions.setReact(false),
+  closePreview: app.margin.closePreview,
+  syncGeneral: panelComposer.syncGeneral,
+  refreshHover: anchorPaint.refreshHover,
+  rememberOpen: (open) => readerStore.set(PANEL_KEY, open ? "1" : "0"),
+  modality: panelModality,
+  repaint,
+});
+trays = createTrays({
+  landEdge: layout.landEdge,
+  moveShell: layout.moveShell,
+  panelIsOpen,
+  setPanel: panelWorkspace.setPanel,
+  syncLayout: layout.syncLayout,
+  closePreview: app.margin.closePreview,
+  leavesOffered,
+  paintLeavesOffer,
+  renderAsks: asks.renderAsks,
+  renderMargin: app.margin.renderMargin,
+  registerModalWorkspace: workspaceModality.register,
+});
+const workspace = createWorkspaceNavigation({
+  panelIsOpen,
+  setPanel: panelWorkspace.setPanel,
+  showTray: trays.showTray,
+  openInlineThread: app.margin.openInlineThread,
+});
+address = createAddress({
+  panelIsOpen,
+  panelCovers: navigation.panelCovers,
+  elements: { banner, toggleBtn, shortcutBarEl },
+  standingStatusBoxes,
+  directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
+  workspaceState: workspace.workspaceState,
+  restoreWorkspace: workspace.restoreWorkspace,
+  setPanel: panelWorkspace.setPanel,
+  showTray: trays.showTray,
+  scrollToElement: anchorTravel.scrollToElement,
+  showThread: landing.showThread,
+  leavesOffered,
+  othersLinks,
+  activateMarginElement: app.margin.activateMarginElement,
+  activeInlineThread: app.margin.activeInlineThread,
+  marginElementKind: app.margin.marginElementKind,
+  visibleMarginElements: app.margin.visibleMarginElements,
+  glideTo,
+  placeThreadEdge,
+  seenScroller: navigation.seenScroller,
+  stopGlide,
+  enterPageMap: pageMap.enterPageMap,
+  leavePageMap: pageMap.leavePageMap,
+  pageMapIsActive: pageMap.pageMapIsActive,
+});
+pageKeys = createPageKeys({
+  panelIsOpen,
+  coveringWorkspaceSurface: workspaceModality.coveringSurface,
+  stepReading: navigation.stepReading,
+  openAsks: app.openAsks,
+  GO: address.GO,
+  GOTO: address.GOTO,
+  undoable: app.undoable,
+  undoLast: app.undoLast,
+  unaccountedGesture: app.unaccountedGesture,
+  setPanel: panelWorkspace.setPanel,
+  showTray: trays.showTray,
+  workspaceState: workspace.workspaceState,
+  restoreWorkspace: workspace.restoreWorkspace,
+  widen: () => widen(app.refreshNarrowing),
+  landIn: landing.landIn,
+  stepAsk: asks.stepAsk,
+  stepThread: (dir) =>
+    navigation.stepThread(dir, {
+      openPageThread: app.margin.openPageThread,
+      scrollToThread: anchorTravel.scrollToThread,
+      activeInlineThread: app.margin.activeInlineThread,
+    }),
+  composerHolds: selectionComposer.composerHolds,
+  focusedResponseOption: selectionComposer.focusedResponseOption,
+  responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
+  responseReactionButtons: selectionComposer.responseReactionButtons,
+  setResponseOptions: selectionComposer.setResponseOptions,
+  stepResponseOptions: selectionComposer.stepResponseOptions,
+  dismissFab: responseSurface.dismissFab,
+  fabAnchorAt: responseSurface.fabAnchorAt,
+  fabOptionsAvailable: responseSurface.fabOptionsAvailable,
+  commentOnItem: responseSurface.commentOnItem,
+  focusFabComment: responseSurface.focusFabComment,
+  showFabOptions: responseSurface.showFabOptions,
+  updateFab: responseSurface.updateFab,
+  hasReactionTarget: reactions.hasReactionTarget,
+  REACT: reactions.REACT,
+  reactionTokens,
+  setReact: reactions.setReact,
+  undoSentence: () => undoSentence(app.undoable),
+  designIsOn: design.isOn,
+  setDesign: design.set,
+  PAGE_SEARCH: targets.PAGE_SEARCH,
+  REPEAT_PAGE_SEARCH: targets.REPEAT_PAGE_SEARCH,
+  SELECT: targets.SELECT,
+  startSelecting: targets.startSelecting,
+  AIM: aim.AIM,
+  isDrawing: drawing.isDrawing,
+  setDrawing: drawing.setDrawing,
+  generalHint: panelComposer.generalHint,
+  CHOOSER: version.CHOOSER,
+  NEWEST: version.NEWEST,
+  VERSIONS: version.VERSIONS,
+  activeInlineThread: app.margin.activeInlineThread,
+  keyboardRung: app.margin.keyboardRung,
+  standingItem,
+  actionRow: asks.actionRow,
+});
+const standing = createStanding({
+  markHere: asks.markHere,
+  paintStanding: anchorPaint.paintStanding,
+  renderLine: () => renderLine(address.addressStatus),
+  paintAddresses: address.paintAddresses,
+  paintTargets: targets.paintTargets,
+  paintCoreControls: pageKeys.paintCoreControls,
+  paintInputs: inputs.paintInputs,
+});
+
 const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
 skipToChrome.onclick = () => {
   for (const control of banner.querySelectorAll(FOCUSABLE)) {
@@ -134,83 +676,111 @@ skipToChrome.onclick = () => {
   focusDestination(banner);
 };
 
-function mountChrome() {
-  configureInput({ upload: uploadMedia, address: commentAddress });
-  mountBanner();
-  chromeRoot.append(
-    banner,
-    overflowMenu,
-    versionMenu,
-    othersPanel,
-    asksPanel,
-    panel,
-    legendRoot,
-    addressLayer,
-    askActionLayer,
-    selectionLayer,
-    selectionSearch,
-    visualMarkLayer,
-    drawingLayer,
-    targetTraceBox,
-    aimBox,
-    fabBar,
-    liveEl,
-    mediaViewer,
-    shortcutReferenceDialog,
-    bottomStatusEl,
-    shortcutBarEl,
-    inspectEl,
-  );
-  document.body.prepend(skipToChrome);
-  document.body.append(chromeRoot);
-  mountPanelReadingRegion();
-  reserveBannerControls();
-  mountMargin();
-  mountTargetPaint();
-  mountAnchors();
-  wireThreadLanding();
-  mountConversation();
-  mountThreadList();
-  wireNarrowing();
-  mountLayout();
-  // A disclosure opening or closing changes what the next press does, and no writer in this
-  // file reports it: the word on a summary's row is read off `open`, and the reader standing
-  // there has moved nothing else. Left unpainted, the line said "close" for the three seconds
-  // until a poll happened past — a shortcut bar stale about the press under the reader's finger,
-  // where every gate reads it as eventually right.
-  //
-  // Watched as state rather than heard as an event, because the event only covers one of the
-  // two spellings and only in one of the two trees. `toggle` is not composed, so a <details>
-  // a widget staged in a shadow root fires nothing a document listener hears, and a control
-  // keeping its state in aria-expanded fires nothing anywhere. Both keep that state in an
-  // attribute, so one observer over the two attributes answers for both, and `shadowStage`
-  // hands it each root it attaches. It is the document's rather than each element's: the
-  // disclosures on a page are whatever its author wrote and whatever its widgets built,
-  // which is not a list this file can hold.
-  watchDisclosures(document);
-  wireThreadCards();
-  wireFabInput();
-  declareLeavesKeys();
-  declareFindBoxKeys();
-  declareResponseOptionKeys();
-  wireGeneralBox();
-}
-
-// ---------- styles ----------
-// The chrome's sheet and the marks' arrive as CSS modules: part of the import graph, so
-// both are constructed before this module's first line runs, and adopted rather than
-// written into the head, so a version activation's head reconciliation never meets
-// them. shadowStage adopts the marks into every root it builds; the bake writes both
-// into a <style> for a copy, which has no module graph to carry them.
 document.adoptedStyleSheets = [chromeSheet, marksSheet];
+chromeRoot.append(
+  banner,
+  overflowMenu,
+  versionMenu,
+  othersPanel,
+  asksPanel,
+  panel,
+  legendRoot,
+  addressLayer,
+  askActionLayer,
+  selectionLayer,
+  selectionSearch,
+  targetPaint.visualMarkLayer,
+  drawingPaint.layer,
+  targetPaint.targetTraceBox,
+  targetPaint.aimBox,
+  fabBar,
+  liveEl,
+  mediaViewer,
+  shortcutReferenceDialog,
+  bottomStatusEl,
+  shortcutBarEl,
+  inspectEl,
+);
+document.body.prepend(skipToChrome);
+document.body.append(chromeRoot);
+mountPanelReadingRegion();
+version.mount();
+mountBanner({
+  approveVersion: () =>
+    app.post({
+      kind: "done",
+      revision: runtime.currentRevision,
+      version: runtime.currentStamp,
+      text: "Looks good",
+    }),
+  paintApproval: paintVersionApproval,
+});
+reserveBannerControls();
+registerPageScopes(pageKeys.scopes, REFERENCE, pageKeys.typing, workspaceModality);
+workspaceModality.mount();
+panelComposer.mount();
+selectionComposer.mount();
+responseSurface.mount();
+reactions.mount();
+targets.mount();
+drawing.mount();
+aim.mount();
+targetPaint.mountTargetPaint();
+anchorPaint.mount();
+anchorControls.mount();
+anchorTravel.mount();
+pageGeometry.mount();
+pageMap.mount(chromeRoot);
+asks.mount();
+app.margin.mount();
+app.mountConversation();
+mountThreadList(panelIsOpen);
+wireThreadLanding();
+wireThreadCards();
+wireNarrowing(app.refreshNarrowing);
+trays.mountTrays();
+panelWorkspace.mountPanelWorkspace();
+layout.mountLayoutObservers();
+address.mountAddress();
+mountShortcutBar({
+  setSequence: address.setSequence,
+  setReact: reactions.setReact,
+  captureReturnPlace: version.captureReturnPlace,
+});
+mountKeyboard({
+  isSequenceActive: address.isSequenceActive,
+  setSequence: address.setSequence,
+  REACT: reactions.REACT,
+  setReact: reactions.setReact,
+  captureReturnPlace: version.captureReturnPlace,
+});
+declareLeavesKeys();
+pageKeys.declareFindBoxKeys();
+pageKeys.declareResponseOptionKeys();
+watchDisclosures(document);
+mountRepaint({
+  reflectFirstScopes,
+  paintStandingContent: standing.paintStandingContent,
+  syncLayout: layout.syncLayout,
+  pageShifted: pageGeometry.pageShifted,
+  paintStandingGeometry: standing.paintStandingGeometry,
+});
 
-mountChrome();
+window.leafInteractionGalleryFrame?.mount({
+  toggleBtn,
+  panelIsOpen,
+  setPanel: panelWorkspace.setPanel,
+  detachComposer: selectionComposer.detachComposer,
+  fabInput,
+  openComposer: selectionComposer.openComposer,
+  closePreview: app.margin.closePreview,
+  openInlineThread: app.margin.openInlineThread,
+  threadTransitionOrigin: app.margin.threadTransitionOrigin,
+  currentTray,
+  showTray: trays.showTray,
+});
 
-// The server can build the authoritative page state while the browser loads and settles
-// the registry's widget modules. Its answer stays buffered until startPage has captured
-// the upgraded authored facets that replay starts from.
-const initialStateRead = beginRead();
-
+const initialStateRead = app.beginRead();
 let interactionGalleryModule;
 let interactionGalleryLoading;
 let failedInteractionGallery;
@@ -231,115 +801,71 @@ async function syncInteractionGallery() {
   }
 }
 document.addEventListener("lf-actions", () => void syncInteractionGallery());
-document.addEventListener(PAGE_INTERFACE, (event) => {
-  event.detail.pending.push(syncInteractionGallery());
-});
+document.addEventListener(PAGE_INTERFACE, (event) =>
+  event.detail.pending.push(syncInteractionGallery()),
+);
 
-// A fresh arrival starts on the page, the same stable focus destination the Escape ladder
-// uses after chrome. Root scrolling no longer depends on this handoff; focus ownership
-// still does, since Space on a button presses it rather than scrolling the document.
-//
-// Here rather than in the start block below, which runs asynchronous upgrades while the
-// authored document is already readable: body can name the page now, and stateful widget
-// controls remain unavailable until presentPage crosses their semantic boundary.
 if (!containedPage) {
-  restoreArrangements();
+  restoreArrangements({
+    commentsEdge: layout.commentsEdge,
+    traysEdge: trays.traysEdge,
+    setPanel: panelWorkspace.setPanel,
+    restoreTrays: trays.restoreTrays,
+    setDesign: design.set,
+  });
   letGo();
 }
-const { landArrival, savedView } = installArrival();
-const savedComposer = pendingComposer();
+const { landArrival, savedView } = version.installArrival();
+const savedComposer = selectionComposer.pendingComposer();
 
-// ---------- start ----------
-// One positive fact for the semantic-interaction boundary. Authored HTML already paints.
-// Success has applied the log; an unavailable first poll has painted the offline status
-// and deliberately lets the authored state accept durable interaction. A caught startup
-// failure cannot make either promise, so controls and top-layer UI remain unavailable.
 function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
-  // Anchors are durable coordinates, so their pass and every route that can mint one
-  // begin only after replay has reconciled the authored document. An early native text
-  // selection can then resolve against the standing DOM, while a retired passage cannot
-  // leave a composer carrying its authored words.
   setAnchoringReady(true);
   try {
-    renderPanel();
+    app.refreshConversation();
   } catch (error) {
     setAnchoringReady(false);
     throw error;
   }
-  // The stamp is the promise that every semantic prerequisite above succeeded, not merely
-  // that presentation was attempted. Keep it absent when a malformed widget makes the
-  // anchor reading fail, so durable controls remain withheld on that partial page.
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
-  updateFab();
-  // Repaint the remaining state-dependent chrome and controls in this same task. Replay
-  // is already complete, so the presented attribute opens interaction on the state it names.
-  restoreTray();
+  responseSurface.updateFab();
+  trays.restoreTray();
   showNews(othersBtn, leavesOffered());
   paintKeys();
   document.dispatchEvent(new Event("lf-actions"));
-  paintApproval();
+  paintVersionApproval();
   repaint();
-  // Fragment arrival reads after those controls have taken their final space. Margin
-  // placement normally batches into a frame; a fresh arrival runs that pending layout
-  // now so a docked row above the target cannot move it again after the landing.
   layoutMarginRows();
   landArrival();
   if (savedView && savedView.revision < runtime.currentRevision)
     notice(`Updated to ${runtime.currentLabel}`, { background: true });
-  openDraft(savedComposer);
+  selectionComposer.openDraft(savedComposer);
   promoteDeferredModals();
-  // The presented attribute and every write after it are one JavaScript task. Give
-  // geometry consumers one synchronous read of the authoritative startup layout before
-  // semantic interaction opens; they may replace geometry already painted from authored
-  // state, and later ResizeObserver and layout signals own reader-driven changes.
   document.dispatchEvent(new Event(PRESENTATION));
 }
 
-// Upgrades flush before the anchor pass and the view restore, so quotes and reading
-// positions are re-found in the enhanced, replayed DOM rather than authored markup. An
-// async function, never top-level await: every owner has evaluated before boot runs, and
-// the behavior modules that consume the public facade are imported after it.
 async function startPage() {
   const [upgraded] = await Promise.all([
-    upgradeWidgets(),
-    // Alongside rather than after, and caught rather than fatal: the tab icon is not
-    // what the page is for, so a layer missing it says so in the console and leaves the
-    // rest working. It is still awaited here, because `version export` copies the
-    // page at the stamp below, and an icon arriving later would leave the copy's
-    // tab to chance.
-    loadIcon().catch((err) => console.error(err)),
+    upgradeWidgets({
+      buildReactionBar: () =>
+        reactions.buildReactBar({
+          withdrawReaction: app.withdraw,
+          postReaction: app.post,
+        }),
+    }),
+    loadIcon().catch((error) => console.error(error)),
   ]);
   if (!upgraded) return;
-  syncLayout();
-  // Before the first poll's replay: the authored facets are the markup's
-  // initial condition, and replay is about to overwrite them in the DOM.
+  layout.syncLayout();
   captureAuthoredFacets();
-  buildBulkAnswers();
-  syncAsks();
-  // Optional page interface adds controls and may reset the widgets it composes. Its
-  // dynamic imports and first installation settle beside this document's widgets; the
-  // same boundary runs when a later version replaces the authored page.
+  asks.buildBulkAnswers();
+  asks.syncAsks();
   await settlePageInterface();
-  // Every widget has upgraded and every async one has settled, so the geometry and
-  // the drawn SVG are final. `version export` copies the page at this moment and has no
-  // other way to know it arrived: a load event fires before the modules run, and
-  // networkidle only says a bundle finished downloading, not that it finished
-  // drawing. The stamp says the document is done becoming itself.
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.upgraded, "1");
-  // Apply the buffered first read only after that stamp, preserving the two readiness
-  // facts but presenting neither half on its own. What that read cannot decide is
-  // whether the page arrives at all: startFeed waits a fixed time for it and then
-  // presents offline without ending it, so the heartbeat and the stream begin at that
-  // wait rather than at the container's answer. The request stays in flight holding the
-  // page's one read slot, so it cannot be overtaken by a second answer, and what it
-  // finally brings is applied where the page stands.
-  startFeed(presentPage, initialStateRead);
+  app.startFeed(presentPage, initialStateRead);
 }
 
 startPage().catch((error) => {
-  // The boundary itself must fail visibly. Authored HTML remains readable, while the
-  // status names the fault and the absent presented stamp keeps durable controls closed.
   window.dispatchEvent(new Event("lf-startup-failed"));
   reportPageError(`page failed to start: ${error?.message ?? error}`);
   renderStatus(error);

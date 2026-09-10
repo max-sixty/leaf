@@ -45,8 +45,11 @@
     <main>
       <lf-workspace id="notification-workspace">
         <lf-ask id="notification-ask">
-          <h1>What deployment notification should the agent create?</h1>
-          <lf-playground id="notification-playground" submit-label="Send configuration">
+          <h1>Create the deployment notification</h1>
+          <lf-playground
+            id="notification-playground"
+            submit-label="Create notification"
+          >
             <lf-playground-control
               name="radius"
               label="Corner radius"
@@ -133,9 +136,8 @@
             </lf-playground-preview>
 
             <lf-playground-output id="notification-instruction">
-              Create <code>deployment-notification.html</code>, capture it as
-              <code>notification-artifact</code>, then revise this page with the
-              generated source below <q>Original configuration</q>.
+              Create this notification as <code>deployment-notification.html</code>.
+              When it is ready, show me the generated source here for review.
             </lf-playground-output>
           </lf-playground>
         </lf-ask>

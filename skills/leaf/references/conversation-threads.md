@@ -49,22 +49,30 @@ runtime resolves, so a path written about in a sentence stays prose.
 `--text` takes inline text; stdin accepts Markdown:
 
 ```bash
-leaf reply <page> --to <thread-id> --text "…"
-leaf reply <page> --to <thread-id> < reply.md
+leaf reply <page> --to <response.to> --for <event-id> --text "…"
+leaf reply <page> --to <response.to> --for <event-id> < reply.md
 ```
+
+Use the `to` and `for` values in the event's delivered `obligation.response`
+verbatim. Leaf rechecks that exact event and address in current state, so a response
+captured before a newer reader correction cannot settle the correction. A widget
+gesture in frozen message markup may name the conversation root in `to` while `for`
+still names the gesture that requires the reply. `leaf conversation read` exposes the
+same response under its current `activity.obligations` when the delivery is no longer
+the freshest reading.
 
 When the change that answers a comment also removes or replaces its passage, move
 the open thread onto the current result in the same reply. Use the same target forms
 as `leaf comment`; for a diagram, prefer its declared stable visual part:
 
 ```bash
-leaf reply <page> --to <thread-id> --quote "<new passage>" --text "Updated this and moved the thread to the result."
-leaf reply <page> --to <thread-id> --section <element-id> --text "Updated this and moved the thread here."
-leaf reply <page> --to <thread-id> --section <diagram-id> --part node:<source-id> --text "Updated this node and moved the thread here."
+leaf reply <page> --to <response.to> --for <event-id> --quote "<new passage>" --text "Updated this and moved the thread to the result."
+leaf reply <page> --to <response.to> --for <event-id> --section <element-id> --text "Updated this and moved the thread here."
+leaf reply <page> --to <response.to> --for <event-id> --section <diagram-id> --part node:<source-id> --text "Updated this node and moved the thread here."
 ```
 
 The reply records the active revision and validated replacement anchor atomically.
-The opening comment keeps its original anchor in `leaf events --thread`, while the
+The opening comment keeps its original anchor in `leaf events --conversation`, while the
 panel, transcript, and `page state` expose the replacement as the thread's current
 location. Do this only when the new target is the same subject after the change; open
 a new thread for a different subject. Held command-goal threads cannot move, and a
@@ -76,8 +84,12 @@ An ordinary reply answers the thread without adding it to the outstanding Ask
 list. Add `--awaits` when the reply's prose asks the reader to answer:
 
 ```bash
-leaf reply <page> --to <thread-id> --awaits --text "Which store should own it?"
+leaf reply <page> --to <response.to> --for <event-id> --awaits --text "Which store should own it?"
 ```
+
+To add an agent-initiated turn to a conversation that currently owes no reply, use
+`--initiates` instead of `--for`. Leaf refuses it while any event in that conversation
+has a standing reply obligation.
 
 A widget whose registry entry declares a local `x-awaits` or
 `x-request.ask` already joins the page's Ask list and keeps its thread "On you"
@@ -105,5 +117,6 @@ that bar by itself; when uncertain, leave the thread open. Reply before resolvin
 leaf resolve <page> --to <thread-id>
 ```
 
-An acknowledged reader message still requires a reply: acknowledgement only
-removes it from future batches.
+An acknowledged reader message still requires an explicit reply: acknowledgement
+only removes it from future deliveries, and a native assistant final message does
+not write to Leaf.

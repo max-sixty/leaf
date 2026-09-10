@@ -1000,7 +1000,9 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
         page_dir,
         monkeypatch,
         "reply",
-        lambda: conversation_model.cmd_reply(page_dir, "c1", "Pick one:", markup),
+        lambda: conversation_model.cmd_reply(
+            page_dir, "c1", "Pick one:", markup, for_event="c1"
+        ),
     )
 
     assert "lf-local-thread" in refusal
@@ -1020,7 +1022,9 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
         '<lf-option id="thread-a">A</lf-option>'
         "</lf-options></lf-ask>"
     )
-    conversation_model.cmd_reply(page_dir, "c1", "Pick one:", markup)
+    conversation_model.cmd_reply(
+        page_dir, "c1", "Pick one:", markup, for_event="c1"
+    )
 
     registry = json.loads((page_dir / "registry.json").read_text())
     option = registry["lf-option"]
@@ -3772,6 +3776,7 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
             str(page_dir),
             "--to",
             json.loads(opened.output)["id"],
+            "--initiates",
             "--text",
             "here:",
             "--markup",
@@ -3955,7 +3960,14 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     assert "already been taken back" in answer["error"], body
     # Answered, the page reaction is a conversation, and the withdrawal would orphan
     # the answer; the reader's move is in the thread it opened.
-    conversation_model.cmd_reply(page_dir, reaction["id"], "Which part is long?", None)
+    conversation_model.cmd_reply(
+        page_dir,
+        reaction["id"],
+        "Which part is long?",
+        None,
+        for_event=None,
+        initiates=True,
+    )
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),

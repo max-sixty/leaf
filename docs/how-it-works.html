@@ -89,9 +89,7 @@ stamped v1 — Two ways to shed load — which?
 
 $ leaf wait ./review
 # … held here, for as long as the reader takes …
-{"page": "/home/you/review", "threads": []}
-{"kind": "action", "author": "user", "revision": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "generated": [], "id": "a0a372ca", "ts": "2026-08-16T02:35:07-07:00", "seq": 2}
-{"kind": "comment", "author": "user", "revision": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed", "quote": "Callers get a 429 immediately"}, "id": "a56486d1", "ts": "2026-08-16T02:35:07-07:00", "seq": 3}
+{"format":"leaf-delivery-v1","id":"d-301","created_at":1786853707,"batches":[{"page":"/home/you/review","through_seq":3,"conversations":[],"handling":{"action":"Honor the reader's choice.","comment":"Answer the reader explicitly."},"events":[{"kind":"action","author":"user","revision":1,"widget":"shed","action":"choose","detail":{"options":["opt-drop"]},"generated":[],"id":"a0a372ca","ts":"2026-08-16T02:35:07-07:00","seq":2,"subject":{"kind":"widget","id":"shed"},"conversations":[]},{"kind":"comment","author":"user","revision":1,"text":"Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.","anchor":{"section":"shed","quote":"Callers get a 429 immediately"},"id":"a56486d1","ts":"2026-08-16T02:35:07-07:00","seq":3,"subject":{"kind":"conversation","id":"a56486d1"},"conversations":[],"obligation":{"as_of_seq":3,"response":{"kind":"reply","to":"a56486d1","for":"a56486d1"}}}]}]}
 
 $ leaf ack ./review 3</code></pre>
         </lf-specimen>
@@ -102,7 +100,7 @@ $ leaf ack ./review 3</code></pre>
           <em>Callers get a 429 immediately</em> and wrote against it — so the objection
           reaches the agent attached to the sentence that prompted it, rather than as a
           paraphrase of where they were looking. The pick belongs to no conversation and
-          the comment opens its own, so the first line's <code>threads</code> is empty;
+          the comment opens its own, so the batch's <code>conversations</code> is empty;
           a later reply in that thread names only the message it answers, and the
           exchange behind it comes along there. The agent answers by updating
           <code>index.html</code>; the valid save goes live, and a meaningful checkpoint

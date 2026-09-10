@@ -3296,6 +3296,7 @@ body { font-family: system-ui, sans-serif; }
         comment["id"],
         "Added the deployment-run link to the artifact.",
         "",
+        for_event=comment["id"],
     )
     refined = stamp_page(
         serve.page_dir,

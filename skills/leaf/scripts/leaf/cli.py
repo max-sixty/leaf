@@ -6,7 +6,7 @@ from pathlib import Path
 
 import click
 
-from leaf.agent_state import cmd_page_state
+from leaf.agent_state import cmd_conversation_read, cmd_page_state
 from leaf.codex import cmd_codex_launch, cmd_codex_start, run_adapter
 from leaf.conversation import (
     cmd_comment,
@@ -17,6 +17,7 @@ from leaf.conversation import (
     thread_of,
 )
 from leaf.data import cmd_data_capture, cmd_data_clear, cmd_data_set
+from leaf.delivery import cmd_delivery_read
 from leaf.exporting import cmd_export
 from leaf.hooks import cmd_hook
 from leaf.host import host_identity
@@ -95,7 +96,7 @@ def codex() -> None:
 @codex.command("launch", short_help="Launch an experimental streaming Codex terminal.")
 @click.option("--codex-path", hidden=True)
 def codex_launch(codex_path: str | None) -> None:
-    """Run Codex with a private local App Server for Leaf replies and activity.
+    """Run Codex with a private local App Server for Leaf delivery and activity.
 
     This integration is experimental.
     """
@@ -111,7 +112,7 @@ def codex_launch(codex_path: str | None) -> None:
 @click.option(
     "--app-server",
     metavar="ENDPOINT",
-    help="stream experimental replies and activity from this local App Server; `codex launch` supplies it",
+    help="deliver input and observe activity through this local App Server; `codex launch` supplies it",
 )
 def codex_start(
     dir: str,
@@ -256,15 +257,60 @@ def guidance(dir: str, audience: str | None) -> None:
 
 @page.command(short_help="Print where the page stands, as JSON.")
 @click.argument("dir", metavar="PAGE")
-@click.option(
-    "--thread", "thread_id", help="Read the effective content of one exact thread."
-)
-def state(dir: str, thread_id: str | None) -> None:
+def state(dir: str) -> None:
     """Fold the log onto the active revision and print the result as one JSON
     object: effective content with source and edit addresses, standing state,
-    reports, open Asks, thread content, versions, presence, and bound data.
+    reports, open Asks, conversation summaries, versions, presence, and bound data.
     Content follows the same document projection as the browser."""
-    cmd_page_state(resolve_dir(dir), thread_id=thread_id)
+    cmd_page_state(resolve_dir(dir))
+
+
+@cli.group(short_help="Read immutable input delivered by any Leaf host.")
+def delivery() -> None:
+    """Inspect transport-independent Leaf deliveries."""
+
+
+@delivery.command("read", short_help="Read one immutable delivery envelope.")
+@click.argument("delivery_id", metavar="DELIVERY_ID")
+def delivery_read(delivery_id: str) -> None:
+    """Print DELIVERY_ID with its complete batches and response requirements."""
+    cmd_delivery_read(delivery_id)
+
+
+@cli.group(short_help="Read one exact Leaf conversation.")
+def conversation() -> None:
+    """Inspect contextual conversation state without selecting delivery work."""
+
+
+@conversation.command("read", short_help="Read one bounded conversation history.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("conversation_id", metavar="CONVERSATION_ID")
+@click.option(
+    "--after",
+    type=click.IntRange(min=0),
+    default=0,
+    show_default=True,
+    metavar="SEQ",
+)
+@click.option(
+    "--limit",
+    type=click.IntRange(min=1, max=100),
+    default=50,
+    show_default=True,
+)
+def conversation_read(
+    dir: str,
+    conversation_id: str,
+    after: int,
+    limit: int,
+) -> None:
+    """Print one current conversation and a page of its exact event history."""
+    cmd_conversation_read(
+        resolve_dir(dir),
+        conversation_id,
+        after=after,
+        limit=limit,
+    )
 
 
 @cli.group(short_help="Set, capture, or clear page-bound external data.")
@@ -533,7 +579,7 @@ def _status_line(state: str, detail: str, on: str | None) -> str:
     "--on",
     "on",
     metavar="SUBJECT",
-    help="The open comment thread or local page widget this work is about.",
+    help="The open conversation or local page widget this work is about.",
 )
 def status(dir: str, state: str, detail: str, on: str | None) -> None:
     """Set the agent's banner state.
@@ -543,7 +589,7 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     storage engine"). A waiting page that declares none falls back to the
     standing "select text to comment".
 
-    --on names the open comment thread or local page widget that detail is about,
+    --on names the open conversation or local page widget that detail is about,
     and the reader sees it beside that subject as well as in the banner. Thread
     work stands until your next reply there. Widget work stands until a later
     version stamp explicitly names it with --completes. Work in flight — a
@@ -613,6 +659,17 @@ def comment(
 @cli.command(short_help="Reply to a thread as the agent.")
 @click.argument("dir", metavar="PAGE")
 @click.option("--to", required=True, metavar="ID", help="comment or reply ID to answer")
+@click.option(
+    "--for",
+    "for_event",
+    metavar="EVENT_ID",
+    help="delivery event whose current reply obligation this answers",
+)
+@click.option(
+    "--initiates",
+    is_flag=True,
+    help="start an agent turn only when this conversation owes no reply",
+)
 @click.option("--quote", help="new passage text to move this thread onto")
 @click.option("--section", metavar="ID", help="new element ID, or scope for --quote")
 @click.option("--part", metavar="ID", help="new declared visual part within --section")
@@ -623,6 +680,8 @@ def comment(
 def reply(
     dir: str,
     to: str,
+    for_event: str | None,
+    initiates: bool,
     quote: str,
     section: str,
     part: str,
@@ -633,7 +692,7 @@ def reply(
 ) -> None:
     """Post a threaded reply as the agent (--text or stdin).
 
-    Supplying --quote, --section, or --part moves the thread's current anchor in
+    Supplying --quote, --section, or --part moves the conversation's current anchor in
     the same event. The opening comment keeps its original anchor in the log.
     """
     page_dir = resolve_dir(dir)
@@ -643,6 +702,8 @@ def reply(
         text,
         markup,
         awaits,
+        for_event=for_event,
+        initiates=initiates,
         quote=quote,
         section=section,
         part=part,
@@ -729,17 +790,17 @@ def receipt(dir: str, request: str, status: str, text: str) -> None:
     help="print events after this sequence",
 )
 @click.option(
-    "--thread",
-    metavar="THREAD",
-    help="print only events belonging to this exact thread id",
+    "--conversation",
+    metavar="CONVERSATION",
+    help="print only events belonging to this exact conversation id",
 )
-def events(dir: str, after: int, thread: str | None) -> None:
+def events(dir: str, after: int, conversation: str | None) -> None:
     """Print the event log as JSON lines.
 
-    THREAD is an exact identity lookup, not a general event filter. This is
+    CONVERSATION is an exact identity lookup, not a general event filter. This is
     read-only and does not acknowledge user events.
     """
-    cmd_events(resolve_dir(dir), after, thread)
+    cmd_events(resolve_dir(dir), after, conversation)
 
 
 @cli.command(short_help="Print the page's exchange as Markdown.")

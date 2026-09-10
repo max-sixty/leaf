@@ -77,24 +77,26 @@ Options:
   --help     Show this message and exit.
 
 Commands:
-  ack         Acknowledge one batch, then wait for the next.
-  codex       Launch Codex and connect Leaf pages to its tasks.
-  comment     Open an agent thread — on a passage, or on the page whole.
-  data        Set, capture, or clear page-bound external data.
-  edit        Edit one of this agent session's messages.
-  events      Print the event log as JSON lines.
-  mcp         Run Leaf's bundled MCP Apps server.
-  package     Create, check, and install packages.
-  page        Create pages and add media.
-  receipt     Record the terminal outcome of a reader request.
-  reply       Reply to a thread as the agent.
-  report      Report a state change onto a page widget, as a worker.
-  resolve     Close a thread as the agent.
-  server      Start, run, or stop the local server.
-  status      Set the agent's banner state.
-  transcript  Print the page's exchange as Markdown.
-  version     Check, stamp, and export versions.
-  wait        Print one page's unacknowledged events and reports, then exit.
+  ack           Acknowledge one batch, then wait for the next.
+  codex         Launch Codex and connect Leaf pages to its tasks.
+  comment       Open an agent thread — on a passage, or on the page whole.
+  conversation  Read one exact Leaf conversation.
+  data          Set, capture, or clear page-bound external data.
+  delivery      Read immutable input delivered by any Leaf host.
+  edit          Edit one of this agent session's messages.
+  events        Print the event log as JSON lines.
+  mcp           Run Leaf's bundled MCP Apps server.
+  package       Create, check, and install packages.
+  page          Create pages and add media.
+  receipt       Record the terminal outcome of a reader request.
+  reply         Reply to a thread as the agent.
+  report        Report a state change onto a page widget, as a worker.
+  resolve       Close a thread as the agent.
+  server        Start, run, or stop the local server.
+  status        Set the agent's banner state.
+  transcript    Print the page's exchange as Markdown.
+  version       Check, stamp, and export versions.
+  wait          Print one page's unacknowledged events and reports, then exit.
 """,
             id="root",
         ),
@@ -476,7 +478,8 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     root = json.loads(opened.output)["id"]
 
     replied = runner.invoke(
-        cli_model.cli, ["reply", str(page_dir), "--to", root, "--text", "sqlite"]
+        cli_model.cli,
+        ["reply", str(page_dir), "--to", root, "--initiates", "--text", "sqlite"],
     )
     assert replied.exit_code == 0, replied.output
     assert replied.output == f"replied in {root}\n"
@@ -484,7 +487,16 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
     # A reply under the reply still names the thread, not the message answered.
     followed = runner.invoke(
         cli_model.cli,
-        ["reply", "--json", str(page_dir), "--to", root, "--text", "and wal mode"],
+        [
+            "reply",
+            "--json",
+            str(page_dir),
+            "--to",
+            root,
+            "--initiates",
+            "--text",
+            "and wal mode",
+        ],
     )
     assert followed.exit_code == 0, followed.output
     under = runner.invoke(
@@ -494,6 +506,7 @@ def test_a_command_that_succeeds_says_what_it_did(tmp_path, monkeypatch):
             str(page_dir),
             "--to",
             json.loads(followed.output)["id"],
+            "--initiates",
             "--text",
             "with a checkpoint",
         ],
@@ -539,7 +552,7 @@ def test_init_help_names_the_source_revision_and_version_layout():
     "args",
     [
         ["version", "check", "page", "--render"],
-        ["reply", "page", "--to", "c1", "--text", "export"],
+        ["reply", "page", "--to", "c1", "--for", "c1", "--text", "export"],
     ],
 )
 def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch, args):

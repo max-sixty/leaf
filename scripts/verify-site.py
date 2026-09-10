@@ -503,6 +503,7 @@ class AgentAsks(NamedTuple):
     asks: int
     revision: int
     profile: AgentProfile | None = None
+    queued: tuple[dict, TurnReading] | None = None
 
 
 def elapsed_time(seconds: float) -> str:
@@ -618,6 +619,46 @@ def ask_for_the_heading(
     return comment
 
 
+def queue_a_second_comment(
+    context,
+    url: str,
+    layer: str,
+    release: str,
+    revision: int,
+    attempt: str,
+    profile: AgentProfile,
+) -> dict:
+    """Post a second real comment after the first hosted turn has started."""
+    posted = context.request.post(
+        urljoin(url, "api/event"),
+        headers={"Leaf-Layer": layer, "Leaf-Release": release},
+        data={
+            "kind": "comment",
+            "revision": revision,
+            "text": (
+                "This message intentionally arrived while your previous turn was "
+                "active. Do not change the page; reply with ‘queued delivery verified’."
+            ),
+            "attempt": attempt,
+        },
+        timeout=120_000,
+    )
+    check(posted.ok, f"{url} rejected its queued deployment-check comment")
+    accepted = posted.json()
+    comment = next(
+        (
+            event
+            for event in accepted.get("state", {}).get("events", [])
+            if event.get("attempt") == attempt
+        ),
+        None,
+    )
+    check(comment is not None, f"{url} did not admit its queued deployment comment")
+    profile.event_ids.append(comment["id"])
+    start_direct_agent(context, url, comment)
+    return comment
+
+
 def await_turn(
     context,
     url: str,
@@ -702,6 +743,7 @@ def ask_until_answered(
     asks = 0
     profile = AgentProfile()
     deadline = time.monotonic() + TURN_LIMIT
+    queued_comment = None
     while True:
         asks += 1
         profile.ask_count = asks
@@ -713,6 +755,16 @@ def ask_until_answered(
         comment = ask_for_the_heading(
             context, url, layer, release, revision, heading, attempt, profile, asks
         )
+        if DIRECT_AGENT and asks == 1:
+            queued_comment = queue_a_second_comment(
+                context,
+                url,
+                layer,
+                release,
+                revision,
+                f"{attempt}-queued",
+                profile,
+            )
         state, published, replies, answer = await_turn(
             context,
             url,
@@ -734,8 +786,28 @@ def ask_until_answered(
             and generation_failed(replies)
             and deadline - time.monotonic() >= TURN_PATIENCE
         ):
+            queued = None
+            if queued_comment is not None:
+                queued_reading = await_turn(
+                    context,
+                    url,
+                    state_url,
+                    layer,
+                    release,
+                    queued_comment,
+                    revision,
+                    heading,
+                    published,
+                    deadline,
+                    profile,
+                )
+                queued = (queued_comment, queued_reading)
             return AgentAsks(
-                TurnReading(state, published, replies, answer), asks, revision, profile
+                TurnReading(state, published, replies, answer),
+                asks,
+                revision,
+                profile,
+                queued,
             )
         print(
             f"↻ {url} settled its ask with the container's generation failure; "
@@ -776,7 +848,7 @@ def verify_agent_turn(browser, release: str) -> None:
         f"deployment-{release[:24]}",
         state,
     )
-    turn, asks, revision, profile = asked
+    turn, asks, revision, profile, queued = asked
     state, published, replies, answer = turn
     if profile is not None:
         print_agent_profile(profile)
@@ -797,6 +869,45 @@ def verify_agent_turn(browser, release: str) -> None:
         answer is not None,
         f"{url} agent returned an unexpected reply{tried}{said}",
     )
+    if queued is not None:
+        queued_comment, queued_turn = queued
+        queued_answer = queued_turn.answer
+        check(
+            queued_answer is not None
+            and queued_answer["text"].strip() == "queued delivery verified",
+            f"{url} agent did not answer its queued comment exactly: "
+            f"{[reply['text'] for reply in queued_turn.replies]}",
+        )
+        queued_state = queued_turn.state
+        terminal_deadline = time.monotonic() + TURN_PATIENCE
+        while (
+            (queued_state.get("activity") or {}).get("kind") in ANSWERING
+            and time.monotonic() < terminal_deadline
+        ):
+            response = context.request.get(
+                state_url,
+                headers={"Leaf-Layer": layer, "Leaf-Release": release},
+                timeout=120_000,
+            )
+            check(response.ok, f"{state_url} returned {response.status}")
+            queued_state = response.json()
+            if profile is not None:
+                profile.observe(queued_state)
+            time.sleep(0.25)
+        check(
+            (queued_state.get("activity") or {}).get("kind") not in ANSWERING,
+            f"{url} queued turn did not reach a terminal activity reading",
+        )
+        pickup_phases = {
+            event["phase"]
+            for event in queued_state.get("events", [])
+            if event.get("kind") == "pickup"
+            and queued_comment["id"] in event.get("events", [])
+        }
+        check(
+            {"queued", "opened"}.issubset(pickup_phases),
+            f"{url} queued comment lifecycle reached {sorted(pickup_phases)}",
+        )
     reloaded = page.reload(wait_until="load", timeout=120_000)
     check(
         reloaded is not None and reloaded.ok,
@@ -872,6 +983,7 @@ def verify_agent_turn(browser, release: str) -> None:
     print(
         f"✓ hosted agent published revision {published['revision']} "
         f"and replied: {answer['text']}"
+        + ("; queued delivery opened and replied" if queued is not None else "")
         + (
             f"; the reloaded page presented in {presented_at:.0f} ms and {followed}"
             if presented_at is not None

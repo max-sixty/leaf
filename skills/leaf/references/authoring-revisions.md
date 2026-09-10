@@ -16,8 +16,8 @@ When `edit.matches_active` is false, the candidate in `index.html` differs from
 the live revision. Its source locations still refer to the active file; reconcile
 the candidate by stable id and content before editing. `inputs` names external
 values and their mutation route: `data set` for live inputs, `capture-and-rebind`
-for pinned inputs. Inspect frozen thread content with
-`leaf page state <page> --thread <id>`; change it through its conversation.
+for pinned inputs. Inspect frozen conversation content with
+`leaf conversation read <page> <id>`; change it through that conversation.
 
 ## Revisions and reader-owned words
 

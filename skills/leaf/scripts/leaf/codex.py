@@ -20,46 +20,37 @@ from xml.etree import ElementTree
 
 from websockets.sync.client import connect, unix_connect
 
+from .delivery import DELIVERY_FORMAT as DELIVERY_FORMAT
+from .delivery import batch_data, delivery_path, freeze_delivery
 from .event_log import flocked, read_cursor
-from .events import build_threads, spoken_turns
 from .files import read_json, write_json
-from .host import host_identity, message_identity, state_home
+from .host import host_identity, state_home
 from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
-from .passages import active_enclosing
 from .schema import EVENTS_FILE
-from .served_state.page import full_state
 from .server import running_server
 from .service import (
     PageTransaction,
     owned_pages,
     restore_page_claim,
-    stream_reply_attempt,
     take_page_claim,
     unacknowledged,
 )
-from .session import Watch, acknowledge, batch_data, read_watch_pass, record_pickup
-from .thread_context import (
-    thread_memberships,
-    thread_roots,
-    thread_structure,
-    thread_widgets,
-)
+from .session import Watch, acknowledge, read_watch_pass, record_pickup
 
 QUEUE_TIMEOUT = 20
 START_TIMEOUT = 20
-DELIVERY_FORMAT = "leaf-codex-delivery-v2"
 QUEUE_FORMAT = "leaf-codex-queue-v1"
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
 STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}
-STREAM_REPLY_METHOD = "item/agentMessage/delta"
+STREAM_MESSAGE_METHOD = "item/agentMessage/delta"
 STREAM_HEARTBEAT_METHODS = {
     "item/commandExecution/outputDelta",
     "item/fileChange/outputDelta",
     "item/mcpToolCall/progress",
 }
 STREAM_THROTTLED_METHODS = (
-    STREAM_TEXT_METHODS | STREAM_HEARTBEAT_METHODS | {STREAM_REPLY_METHOD}
+    STREAM_TEXT_METHODS | STREAM_HEARTBEAT_METHODS | {STREAM_MESSAGE_METHOD}
 )
 
 
@@ -158,7 +149,7 @@ def _tail(text: str, limit: int = 240) -> str:
 
 
 class AppServerEvents:
-    """Fold one task's notifications into separate activity and response readings."""
+    """Fold one task's notifications into activity and terminal readings."""
 
     def __init__(self, thread_id: str):
         self.thread_id = thread_id
@@ -169,7 +160,7 @@ class AppServerEvents:
         self.message_order: list[str] = []
 
     def read(self, message: dict) -> dict | None:
-        """Return one transient activity, reply, or turn-completion update."""
+        """Return one transient activity or turn-completion update."""
         method = message.get("method")
         params = message.get("params") or {}
         message_thread = params.get("threadId")
@@ -188,14 +179,12 @@ class AppServerEvents:
         if method == "turn/completed":
             turn = params["turn"]
             completed = turn["id"]
-            final = self._final_text(turn)
             if self.turn_id == completed:
                 self.turn_id = None
                 self.details.clear()
             return {
                 "turn": completed,
                 "completed": turn.get("status", "completed"),
-                "text": final,
             }
         if turn_id is None:
             return None
@@ -222,7 +211,7 @@ class AppServerEvents:
                 if item.get("text"):
                     return {
                         "turn": turn_id,
-                        "reply": self._reply_update(item["id"], complete=False),
+                        "message": self._message_update(item["id"], complete=False),
                     }
                 return None
             detail = self._item_detail(item)
@@ -239,11 +228,11 @@ class AppServerEvents:
                     return None
                 return {
                     "turn": turn_id,
-                    "reply": self._reply_update(item["id"], complete=True),
+                    "message": self._message_update(item["id"], complete=True),
                 }
             return None
 
-        if method == STREAM_REPLY_METHOD:
+        if method == STREAM_MESSAGE_METHOD:
             item_id = params["itemId"]
             combined = self.text.get(item_id, "") + params["delta"]
             self.text[item_id] = combined
@@ -254,7 +243,7 @@ class AppServerEvents:
                 return None
             return {
                 "turn": turn_id,
-                "reply": self._reply_update(item_id, complete=False),
+                "message": self._message_update(item_id, complete=False),
             }
 
         if method in STREAM_TEXT_METHODS:
@@ -304,48 +293,13 @@ class AppServerEvents:
         ]
         return unknown[-1] if unknown else ""
 
-    def _reply_update(self, item_id: str, *, complete: bool) -> dict:
+    def _message_update(self, item_id: str, *, complete: bool) -> dict:
         return {
             "item": item_id,
             "phase": self.message_phases.get(item_id),
             "text": self._visible_text(),
             "complete": complete,
         }
-
-    def _final_text(self, turn: dict) -> str:
-        items = [
-            item for item in turn.get("items", []) if item["type"] == "agentMessage"
-        ]
-        for item in items:
-            self._record_message(item)
-        final = [
-            item.get("text", "")
-            for item in items
-            if item.get("phase") == "final_answer" and item.get("text")
-        ]
-        if final:
-            return "\n\n".join(final)
-        unknown = [
-            item.get("text", "")
-            for item in items
-            if item.get("phase") is None and item.get("text")
-        ]
-        if unknown:
-            return unknown[-1]
-        stored = [
-            self.text[item_id]
-            for item_id in self.message_order
-            if self.message_phases.get(item_id) == "final_answer"
-            and self.text.get(item_id)
-        ]
-        if stored:
-            return "\n\n".join(stored)
-        unknown_stored = [
-            self.text[item_id]
-            for item_id in self.message_order
-            if self.message_phases.get(item_id) is None and self.text.get(item_id)
-        ]
-        return unknown_stored[-1] if unknown_stored else ""
 
     @staticmethod
     def _item_detail(item: dict) -> str | None:
@@ -394,8 +348,8 @@ def project_app_server_activity(
         clear_activity(events.thread_id, turn_id)
         return last_stream_update
     detail = update.get("activity")
-    if detail is None and (reply := update.get("reply")):
-        detail = _tail(reply["text"])
+    if detail is None and (message_update := update.get("message")):
+        detail = _tail(message_update["text"])
     if detail is None:
         return last_stream_update
     now = time.monotonic()
@@ -409,7 +363,7 @@ def project_app_server_activity(
 
 
 class AppServerClient:
-    """Observe one Codex task and start turns for addressed Leaf feedback."""
+    """Observe one Codex task and open idle turns with Leaf deliveries."""
 
     def __init__(self, endpoint: str, thread_id: str):
         check_app_server_endpoint(endpoint)
@@ -420,13 +374,9 @@ class AppServerClient:
         self.available = threading.Event()
         self.socket = None
         self.last_activity_update = 0.0
-        self.last_reply_update = 0.0
         self.started = False
         self.request_id = 2
         self.requests: queue.Queue[tuple[dict, queue.Queue]] = queue.Queue()
-        self.bindings: dict[str, dict] = {}
-        self.pending_updates: dict[str, list[dict]] = {}
-        self.starting_delivery = False
         self.ready: queue.Queue[BaseException | None] = queue.Queue(maxsize=1)
         self.thread = threading.Thread(
             target=self._run,
@@ -452,17 +402,15 @@ class AppServerClient:
             self.socket.close()
         self.thread.join(timeout=3)
         _clear_stream_activity(self.thread_id)
-        for turn_id in list(self.bindings):
-            _clear_stream_reply(self.thread_id, turn_id)
 
-    def start_delivery(self, delivery: dict, payload: dict) -> dict | None:
-        """Start or steer one Leaf-owned turn and bind its response stream."""
+    def start_delivery(self, payload: dict) -> dict | None:
+        """Open an idle turn; leave active tasks to the durable queue."""
         if not self.available.is_set():
             return None
         answer: queue.Queue[tuple[dict | None, Exception | None]] = queue.Queue(
             maxsize=1
         )
-        self.requests.put(({"delivery": delivery, "payload": payload}, answer))
+        self.requests.put((payload, answer))
         result = answer.get()
         result, error = result
         if error is not None:
@@ -504,7 +452,6 @@ class AppServerClient:
                 {"threadId": self.thread_id, "excludeTurns": False},
             )
             resumed = result.get("thread", {})
-            self._restore_bindings(resumed)
             if resumed.get("status", {}).get("type") == "active":
                 active = next(
                     (
@@ -538,20 +485,11 @@ class AppServerClient:
                     continue
                 self._read(json.loads(raw))
 
-    def _start_delivery(self, socket, request: dict, answer: queue.Queue) -> None:
-        delivery = request["delivery"]
-        active = self.events.turn_id
-        standing = self.bindings.get(active) if active is not None else None
-        if active is not None and (
-            standing is None
-            or (standing["page"], standing["conversation"])
-            != (delivery["page"], delivery["conversation"])
-        ):
+    def _start_delivery(self, socket, payload: dict, answer: queue.Queue) -> None:
+        if self.events.turn_id is not None:
             answer.put((None, None))
             return
-        pending_before = set(self.pending_updates)
         try:
-            self.starting_delivery = True
             result = self._send(
                 socket,
                 "turn/start",
@@ -560,8 +498,8 @@ class AppServerClient:
                     "threadId": self.thread_id,
                     "input": [],
                     "toolOutput": {
-                        "name": "leaf_feedback",
-                        "output": json.dumps(request["payload"], separators=(",", ":")),
+                        "name": "leaf_delivery",
+                        "output": json.dumps(payload, separators=(",", ":")),
                     },
                     "turnTrigger": "leaf",
                 },
@@ -571,75 +509,14 @@ class AppServerClient:
             turn_id = turn.get("id")
             if not turn_id:
                 raise RuntimeError("Codex App Server returned no turn id")
-            if active is not None and turn_id != active:
-                raise RuntimeError("Codex App Server steered a different turn")
-            if active is None and any(
+            if any(
                 item.get("type") == "userMessage" for item in turn.get("items", [])
             ):
-                self.pending_updates.pop(turn_id, None)
-                answer.put(({"turn": turn_id, "bound": False}, None))
+                answer.put((None, None))
                 return
-            self._bind(turn_id, delivery)
-            answer.put(({"turn": turn_id, "bound": True}, None))
+            answer.put(({"turn": turn_id}, None))
         except RuntimeError:
-            for turn_id in set(self.pending_updates) - pending_before:
-                self.pending_updates.pop(turn_id)
             answer.put((None, None))
-        except Exception:
-            for turn_id in set(self.pending_updates) - pending_before:
-                self.pending_updates.pop(turn_id)
-            raise
-        finally:
-            self.starting_delivery = False
-
-    def _bind(self, turn_id: str, delivery: dict) -> None:
-        standing = self.bindings.get(turn_id)
-        if standing is None:
-            standing = {**delivery, "deliveries": [delivery["id"]], "text": ""}
-            self.bindings[turn_id] = standing
-        else:
-            standing["deliveries"].append(delivery["id"])
-            standing["reply_to"] = delivery["reply_to"]
-        _set_stream_reply(
-            self.thread_id,
-            turn_id,
-            standing,
-            None,
-            standing.get("text", ""),
-            "active",
-        )
-        for update in self.pending_updates.pop(turn_id, []):
-            self._project_bound_update(update)
-
-    def _restore_bindings(self, thread: dict) -> None:
-        turns = {turn["id"]: turn for turn in thread.get("turns", [])}
-        for turn_id, binding in list(self.bindings.items()):
-            turn = turns.get(turn_id)
-            if turn is None:
-                _set_stream_reply(
-                    self.thread_id,
-                    turn_id,
-                    binding,
-                    None,
-                    binding.get("text", ""),
-                    "disconnected",
-                )
-                continue
-            for item in turn.get("items", []):
-                if item.get("type") == "agentMessage":
-                    self.events._record_message(item)
-            if turn.get("status") == "inProgress":
-                text = self.events._visible_text()
-                binding["text"] = text
-                _set_stream_reply(
-                    self.thread_id, turn_id, binding, None, text, "active"
-                )
-            else:
-                self._finish_binding(
-                    turn_id,
-                    turn.get("status", "failed"),
-                    self.events._final_text(turn),
-                )
 
     def _read(self, message: dict) -> None:
         update = self.events.read(message)
@@ -648,7 +525,10 @@ class AppServerClient:
         turn_id = update["turn"]
         if message.get("method") == "turn/started":
             _open_stream_turn(self.thread_id, turn_id)
-        if detail := update.get("activity"):
+        detail = update.get("activity")
+        if detail is None and (message_update := update.get("message")):
+            detail = _tail(message_update["text"])
+        if detail:
             now = time.monotonic()
             if (
                 message.get("method") in STREAM_THROTTLED_METHODS
@@ -658,68 +538,9 @@ class AppServerClient:
             else:
                 _set_stream_activity(self.thread_id, turn_id, detail)
                 self.last_activity_update = now
-        if update.get("reply") is not None:
-            self._project_reply(update)
-        if completed := update.get("completed"):
-            if turn_id in self.bindings:
-                self._finish_binding(turn_id, completed, update.get("text", ""))
-            elif self.starting_delivery:
-                self.pending_updates.setdefault(turn_id, []).append(update)
+        if update.get("completed"):
             _clear_stream_activity(self.thread_id, turn_id)
             _close_stream_turn(self.thread_id, turn_id)
-
-    def _project_bound_update(self, update: dict) -> None:
-        if update.get("reply") is not None:
-            self._project_reply(update)
-        if completed := update.get("completed"):
-            self._finish_binding(update["turn"], completed, update.get("text", ""))
-
-    def _project_reply(self, update: dict) -> None:
-        turn_id = update["turn"]
-        binding = self.bindings.get(turn_id)
-        if binding is None:
-            if self.starting_delivery:
-                self.pending_updates.setdefault(turn_id, []).append(update)
-            return
-        reply = update["reply"]
-        binding["text"] = reply["text"]
-        now = time.monotonic()
-        if (
-            not reply["complete"]
-            and now - self.last_reply_update < STREAM_UPDATE_INTERVAL
-        ):
-            return
-        _set_stream_reply(
-            self.thread_id,
-            turn_id,
-            binding,
-            reply["item"],
-            reply["text"],
-            "active",
-            settles=(
-                reply["complete"]
-                and reply["phase"] in {"final_answer", None}
-                and bool(reply["text"])
-            ),
-        )
-        self.last_reply_update = now
-
-    def _finish_binding(self, turn_id: str, state: str, text: str) -> None:
-        binding = self.bindings.pop(turn_id, None)
-        if binding is None:
-            return
-        final = text or binding.get("text", "")
-        if state == "completed":
-            _commit_stream_reply(self.thread_id, turn_id, binding, final)
-        else:
-            _set_stream_reply(
-                self.thread_id,
-                turn_id,
-                binding,
-                None,
-                final,
-                state,
-            )
 
     def _run(self) -> None:
         failures = 0
@@ -732,15 +553,6 @@ class AppServerClient:
             except Exception as error:  # noqa: BLE001
                 self.available.clear()
                 _clear_stream_activity(self.thread_id)
-                for turn_id, binding in self.bindings.items():
-                    _set_stream_reply(
-                        self.thread_id,
-                        turn_id,
-                        binding,
-                        None,
-                        binding.get("text", ""),
-                        "disconnected",
-                    )
                 while True:
                     try:
                         _, answer = self.requests.get_nowait()
@@ -799,10 +611,9 @@ def adapter_start_lock_path(session_id: str) -> Path:
     return state_home() / "sessions" / f"{_session_key(session_id)}.start"
 
 
-def _prompt(path: Path) -> str:
+def _prompt(delivery_id: str) -> str:
     delivery = ElementTree.Element(
-        "leaf-delivery",
-        {"skill": "$leaf", "id": path.stem, "path": str(path)},
+        "leaf-delivery", {"id": delivery_id, "operation": "delivery read"}
     )
     pointer = ElementTree.tostring(delivery, encoding="unicode")
     return f"```xml\n{pointer}\n```"
@@ -811,11 +622,11 @@ def _prompt(path: Path) -> str:
 def _offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
     """Freeze one payload before offering its permanent pointer."""
     if queue["state"] == "offering":
-        payload_path = Path(queue["payload"])
+        payload_path = delivery_path(path.stem)
         payload = read_json(payload_path)
         if payload is None:
             raise RuntimeError("the Codex delivery payload is missing")
-        return PreparedDelivery(_prompt(payload_path), payload)
+        return PreparedDelivery(_prompt(path.stem), payload)
 
     urls = {}
     for batch in queue["batches"]:
@@ -825,31 +636,14 @@ def _offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
             urls[page] = server["url"] if server else None
         batch["url"] = urls[page]
 
-    targets = {(batch["page"], batch.get("conversation")) for batch in queue["batches"]}
-    target = None
-    if len(targets) == 1 and all(batch.get("reply_to") for batch in queue["batches"]):
-        page, conversation = targets.pop()
-        reply_to = queue["batches"][-1]["reply_to"]
-        if conversation is not None and reply_to is not None:
-            target = {
-                "page": page,
-                "conversation": conversation,
-                "reply_to": reply_to,
-            }
-
-    payload_path = path.parent / "payloads" / path.name
-    payload = {
-        "format": DELIVERY_FORMAT,
-        "id": path.stem,
-        "created_at": queue["created_at"],
-        "reply": target,
-        "batches": [
+    payload = freeze_delivery(
+        [
             {key: value for key, value in batch.items() if key != "receipted"}
             for batch in queue["batches"]
         ],
-    }
-    payload_path.parent.mkdir(parents=True, exist_ok=True)
-    write_json(payload_path, payload)
+        delivery_id=path.stem,
+        created_at=queue["created_at"],
+    )
     queue["batches"] = [
         {
             "page": batch["page"],
@@ -861,11 +655,9 @@ def _offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
         }
         for batch in queue["batches"]
     ]
-    queue["payload"] = str(payload_path)
-    queue["reply"] = target
     queue["state"] = "offering"
     _write_queue(path, queue)
-    return PreparedDelivery(_prompt(payload_path), payload)
+    return PreparedDelivery(_prompt(path.stem), payload)
 
 
 def _queues(session_id: str) -> list[tuple[Path, dict]]:
@@ -932,65 +724,19 @@ def _append_batch(
     server = running_server(page_dir)
     url = server["url"] if server else None
     data = batch_data(page_dir, transaction, fresh)
-    target = _stream_target(page_dir, transaction.events, fresh)
     entry = {
         "page": data["page"],
         "session": session_id,
         "url": url,
-        "threads": data["threads"],
+        "through_seq": data["through_seq"],
+        "conversations": data["conversations"],
         "handling": data["handling"],
         "events": data["events"],
-        "conversation": target and target["conversation"],
-        "reply_to": target and target["reply_to"],
         "receipted": False,
     }
     queue["batches"].append(entry)
     _write_queue(path, queue)
     return path, len(queue["batches"]) - 1, entry
-
-
-def _stream_target(
-    page_dir: Path, events: list[dict], batch: list[dict]
-) -> dict | None:
-    """Return the one conversation a complete batch asks Codex to answer."""
-    roots = thread_roots(events)
-    structure = thread_structure(events)
-    memberships = thread_memberships(
-        events,
-        roots,
-        thread_widgets(structure, roots),
-        active_enclosing(page_dir),
-    )
-    addressed = [memberships.get(event["id"], []) for event in batch]
-    if not addressed or any(len(named) != 1 for named in addressed):
-        return None
-    conversations = {named[0] for named in addressed}
-    if len(conversations) != 1:
-        return None
-    conversation = conversations.pop()
-    thread = build_threads(events, active_enclosing(page_dir)).get(conversation)
-    if (
-        thread is None
-        or (thread["root"].get("response") or {}).get("kind") == "version"
-    ):
-        return None
-    reply_to = next(
-        (
-            event["id"]
-            for event in reversed(batch)
-            if event.get("author") == "user"
-            and event["kind"] in {"comment", "reply"}
-            and event.get("text")
-        ),
-        None,
-    )
-    if reply_to is None:
-        return None
-    return {
-        "page": str(page_dir),
-        "conversation": conversation,
-        "reply_to": reply_to,
-    }
 
 
 def capture_batch(session_id: str, reading) -> bool:
@@ -1090,11 +836,8 @@ def _recover_delivery(
     if queued is not None:
         path, offered, prepared = queued
         direct = None
-        if app_client is not None and offered.get("reply") is not None:
-            direct = app_client.start_delivery(
-                {"id": path.stem, **offered["reply"]},
-                prepared.payload,
-            )
+        if app_client is not None:
+            direct = app_client.start_delivery(prepared.payload)
         if direct is None:
             if app_server is None:
                 queue_delivery(codex_path, session_id, prepared.prompt)
@@ -1170,94 +913,6 @@ def _clear_stream_activity(session_id: str, turn_id: str | None = None) -> None:
     with _locked_codex_pages(session_id) as pages:
         for page in pages:
             page.clear_stream_activity(session_id, turn_id)
-
-
-def _set_stream_reply(
-    session_id: str,
-    turn_id: str,
-    binding: dict,
-    item_id: str | None,
-    text: str,
-    state: str,
-    *,
-    settles: bool = False,
-) -> None:
-    try:
-        with PageTransaction(Path(binding["page"])) as page:
-            claim = page.active_claim
-            if claim is None or claim["id"] != session_id:
-                return
-            page.set_stream_reply(
-                session_id,
-                turn_id,
-                binding["conversation"],
-                binding["reply_to"],
-                item_id,
-                text,
-                state,
-                settles=settles,
-            )
-    except FileNotFoundError:
-        pass
-
-
-def _clear_stream_reply(session_id: str, turn_id: str | None = None) -> None:
-    with _locked_codex_pages(session_id) as pages:
-        for page in pages:
-            page.clear_stream_reply(session_id, turn_id)
-
-
-def _commit_stream_reply(
-    session_id: str,
-    turn_id: str,
-    binding: dict,
-    text: str,
-) -> None:
-    """Atomically complete one draft as a reply, prior settlement, or partial."""
-    try:
-        with PageTransaction(Path(binding["page"])) as page:
-            claim = page.active_claim
-            if claim is None or claim["id"] != session_id:
-                return
-            attempt = stream_reply_attempt(turn_id)
-            existing = next(
-                (event for event in page.events if event.get("attempt") == attempt),
-                None,
-            )
-            thread = build_threads(page.events, active_enclosing(page.page_dir)).get(
-                binding["conversation"]
-            )
-            turns = spoken_turns(thread) if thread else []
-            pending = bool(
-                turns
-                and turns[-1]["author"] == "user"
-                and turns[-1]["id"] == binding["reply_to"]
-            )
-            if existing is None and pending and text:
-                page.append_event(
-                    {
-                        "kind": "reply",
-                        "author": "claude",
-                        **message_identity(),
-                        "parent": binding["reply_to"],
-                        "text": text,
-                        "attempt": attempt,
-                    }
-                )
-            elif existing is None and pending:
-                page.set_stream_reply(
-                    session_id,
-                    turn_id,
-                    binding["conversation"],
-                    binding["reply_to"],
-                    None,
-                    "",
-                    "partial",
-                )
-                return
-            page.clear_stream_reply(session_id, turn_id)
-    except FileNotFoundError:
-        pass
 
 
 def _open_stream_turn(session_id: str, turn_id: str) -> None:
@@ -1437,8 +1092,8 @@ def cmd_codex_start(
     except BaseException:
         restore_page_claim(page_dir, transition)
         raise
-    streamed = f" with live replies from {app_server}" if app_server else ""
-    return f"Codex delivery started for task {session_id}{streamed}"
+    connected = f" through App Server {app_server}" if app_server else ""
+    return f"Codex delivery started for task {session_id}{connected}"
 
 
 def prepare_codex_delivery(
@@ -1452,18 +1107,7 @@ def prepare_codex_delivery(
     try:
         with PageTransaction(page_dir) as page:
             transition = page.take_claim(identity, lifetime)
-            outstanding = {
-                item["event"]
-                for item in full_state(page_dir, page.events)["activity"][
-                    "interactions"
-                ]
-                if item.get("event") is not None
-            }
-            batch = [
-                event
-                for event in unacknowledged(page.events, page.cursor)
-                if event["author"] != "user" or event["id"] in outstanding
-            ]
+            batch = unacknowledged(page.events, page.cursor)
             if not batch:
                 raise RuntimeError("the page has no Leaf input to deliver")
             lock = delivery_lock_path(session_id)
@@ -1494,8 +1138,15 @@ def prepare_codex_delivery(
         raise
 
 
-def accept_codex_delivery(session_id: str) -> list[dict]:
-    """Record and describe the batches an embedded host put in one Codex turn."""
+def accept_codex_delivery(
+    session_id: str,
+    *,
+    phase: str = "opened",
+    turn: str | None = None,
+) -> list[dict]:
+    """Record and describe batches accepted by one Codex carrier."""
+    if phase not in {"queued", "opened"}:
+        raise ValueError(f"unknown delivery phase {phase!r}")
     lock = delivery_lock_path(session_id)
     with flocked(lock):
         offered = [
@@ -1526,11 +1177,11 @@ def accept_codex_delivery(session_id: str) -> list[dict]:
                 for seq, event_id in expected.items()
             ):
                 raise RuntimeError("the Codex delivery no longer matches its page log")
-            claim_turn = page.open_turn(session_id)
+            claim_turn = page.open_turn(session_id, turn) if phase == "opened" else None
             record_pickup(
                 page,
                 [delivered[seq] for seq in expected],
-                phase="opened",
+                phase=phase,
                 session=session_id,
                 turn=claim_turn,
             )
@@ -1550,8 +1201,36 @@ def accept_codex_delivery(session_id: str) -> list[dict]:
         for batch in queue["batches"]:
             batch["receipted"] = True
         queue["state"] = "accepted"
+        queue["transport"] = {"phase": phase, "turn": turn}
         _write_queue(path, queue)
     return accepted
+
+
+def open_queued_codex_delivery(
+    page_dir: Path,
+    session_id: str,
+    event_ids: tuple[str, ...],
+    turn: str,
+) -> str:
+    """Record when a durable queued delivery actually enters its Codex turn."""
+    with PageTransaction(page_dir) as page:
+        claim = page.active_claim
+        if claim is None or claim["id"] != session_id:
+            raise RuntimeError("the queued Codex delivery no longer owns its page")
+        by_id = {event["id"]: event for event in page.events}
+        if any(event_id not in by_id for event_id in event_ids):
+            raise RuntimeError("the queued Codex delivery no longer matches its page")
+        leaf_turn = page.open_turn(session_id, turn)
+        if leaf_turn is None:
+            raise RuntimeError("the queued Codex turn could not open its page claim")
+        record_pickup(
+            page,
+            [by_id[event_id] for event_id in event_ids],
+            phase="opened",
+            session=session_id,
+            turn=leaf_turn,
+        )
+        return leaf_turn
 
 
 def abandon_codex_delivery(session_id: str, event_id: str) -> None:

@@ -764,6 +764,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(first.locator("lf-shot")).to_have_attribute(
         "after", "/media/a99a1b63048502d0.png"
     )
+    expect(first.locator("lf-shot img")).to_have_count(2)
     expect(
         first.locator(f'.lf-conversation-thread[data-thread="{case_thread["id"]}"]')
     ).to_have_count(1)
@@ -785,11 +786,12 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(first).to_have_attribute("data-disposition", "looks-right")
     expect(widget.locator(".lf-vr-foot")).to_have_text("1 of 2 cases reviewed")
 
-    widget.get_by_role("button", name="Run list status").focus()
+    widget.locator('.lf-vr-case-tab[data-case="run-list"]').focus()
     page.keyboard.press("ArrowDown")
     expect(first).to_be_hidden()
     expect(second).to_be_visible()
-    expect(widget.get_by_role("button", name="Run detail navigation")).to_be_focused()
+    expect(second.locator(".lf-vr-trace-link")).to_be_hidden()
+    expect(widget.locator('.lf-vr-case-tab[data-case="run-detail"]')).to_be_focused()
 
     changed = record | {
         "cases": [

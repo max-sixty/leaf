@@ -62,6 +62,11 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Review the guided-still workflow across repeated website changes.** The initial
+  visual-review package passed one end-to-end five-case run. Use it on changes with
+  different navigation, responsive states, and authentication boundaries before
+  treating its authoring choices as settled.
+
 - **Add fast inspection modes to visual reviews.** Extend each existing case with
   side-by-side and opacity views, disclosed masks, fit and actual-size zoom, and
   changed-region navigation. Keep the current visual-run contract and case ids.

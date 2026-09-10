@@ -2,6 +2,8 @@
  * log owns case dispositions and threads. The module keeps browsing selection local,
  * projects each case with source provenance, and delegates aligned image comparison to
  * the existing lf-shot widget. */
+import "/widgets/lf-shot.js";
+
 import {
   actionAvailable,
   arrangeReadingElement,

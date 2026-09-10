@@ -454,31 +454,34 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
     page.close()
 
 
-@pytest.mark.parametrize("width", [1440, 1600])
+@pytest.mark.parametrize("resident", ["sidebar", "sidenote"])
 def test_a_workspace_lands_one_responsive_layout_and_carries_the_column_to_it(
-    browser, serve, width
+    browser, serve, resident
 ):
     """Opening Threads never makes the page visit intermediate responsive postures.
 
-    The gallery composes a left sidebar with the right living margin. At 1440px the
-    final shell withdraws the sidebar; at 1600px it withdraws the full conversation
-    margin. Animating the shell's width crossed either breakpoint in mid-flight, which
-    made the column jump or reverse direction.
+    The two cases supply a left sidebar and a right sidenote. Opening the panel at
+    1440px withdraws either real margin resident, making the column move in opposite
+    directions across the two cases. Animating the shell's width crossed that breakpoint
+    in mid-flight, which made the column jump or reverse.
 
     Hold the runtime motion and seek it deterministically. The shell should already
     have its final width and responsive state at the opening frame, while the column
     starts where the reader left it and travels monotonically to its final position.
     """
-    page, errors = open_page(browser, serve(FEATURE_GALLERY), init_script=HOLD_MOTION)
+    source = leaf_page(
+        "Responsive resident",
+        f'<aside class="{resident}">Margin resident.</aside><h1>Reading</h1>',
+    )
+    page, errors = open_page(browser, serve(source), init_script=HOLD_MOTION)
+    width = 1440
     resized(page, width, 900)
     initial = page.evaluate(
         """() => {
           const main = document.querySelector('main');
           return {
             x: main.getBoundingClientRect().x,
-            claim: getComputedStyle(main).getPropertyValue('--claim-map').trim(),
-            sidebar: getComputedStyle(document.querySelector('aside.sidebar'))
-              .getPropertyValue('--lf-sidebar-posture').trim(),
+            resident: getComputedStyle(document.querySelector('aside')).float,
           };
         }"""
     )
@@ -493,17 +496,14 @@ def test_a_workspace_lands_one_responsive_layout_and_carries_the_column_to_it(
           const main = document.querySelector('main');
           return {
             shell: document.body.getBoundingClientRect().width,
-            claim: getComputedStyle(main).getPropertyValue('--claim-map').trim(),
-            sidebar: getComputedStyle(document.querySelector('aside.sidebar'))
-              .getPropertyValue('--lf-sidebar-posture').trim(),
+            resident: getComputedStyle(document.querySelector('aside')).float,
           };
         }"""
     )
     assert final_layout["shell"] == width - 420
-    assert (initial["claim"], initial["sidebar"]) != (
-        final_layout["claim"],
-        final_layout["sidebar"],
-    ), "the fixture crossed no responsive posture, so it cannot expose the regression"
+    assert initial["resident"] != final_layout["resident"], (
+        "the fixture crossed no responsive posture, so it cannot expose the regression"
+    )
 
     positions = page.evaluate(
         """() => {
@@ -1341,51 +1341,22 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
     page.close()
 
 
-def test_one_version_is_a_passive_label(browser, serve):
-    """A lone version orients the reader without advertising an empty choice."""
+def test_one_version_opens_a_menu_with_its_version(browser, serve):
+    """A lone version keeps its note reachable without advertising a version walk."""
     page, errors = open_page(browser, serve(LONG_PAGE))
     version = page.locator(".lf-version")
-    expect(version).to_be_disabled()
-    expect(version).to_have_text("v1")
-    expect(version).not_to_have_attribute("aria-haspopup", re.compile(r".+"))
-    expect(version).not_to_have_attribute("aria-expanded", re.compile(r".+"))
-    expect(page.locator(".lf-version-menu")).to_be_hidden()
-    threads = page.locator(".lf-threads-toggle")
-    expect(threads).to_have_css("border-top-color", "rgba(0, 0, 0, 0)")
-    expect(threads).to_have_css("background-color", "rgba(0, 0, 0, 0)")
-    expect(threads).to_have_css("border-bottom-left-radius", "0px")
-    expect(threads).to_have_css("border-bottom-right-radius", "0px")
-    threads.click()
-    expect(threads).to_have_attribute("aria-expanded", "true")
-    expect(threads).not_to_have_css("box-shadow", "none")
-    assert errors == []
-    page.close()
-
-
-def test_a_yielded_version_returns_when_it_becomes_a_choice(browser, serve):
-    """A quiet label hidden for room can become an active destination later."""
-    html = SUGGESTION_PAGE.replace(
-        "<title>suggestions</title>",
-        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
-    )
-    url = serve(html)
-    page, errors = open_page(browser, url)
-    version = page.locator(".lf-version")
-
-    resized(page, 320, 844)
-    expect(version).to_be_hidden()
-    expect(version).to_have_attribute("data-lf-yielded", "1")
-
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(html)
-    stamp_version_file(serve.page_dir, 2, "two")
     expect(version).to_be_enabled()
+    expect(version).to_have_text("v1")
     expect(version).to_have_attribute("aria-haspopup", "menu")
-    expect(version).not_to_have_attribute("data-lf-yielded", re.compile(r".+"))
-    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
-
-    resized(page, 1200, 844)
-    expect(version).to_be_visible()
-    expect(version).not_to_have_attribute("data-lf-yielded", re.compile(r".+"))
+    expect(version).to_have_attribute("aria-expanded", "false")
+    version.click()
+    expect(version).to_have_attribute("aria-expanded", "true")
+    menu = page.locator(".lf-version-menu")
+    expect(menu).to_be_visible()
+    expect(menu.locator(".lf-version-row")).to_have_count(1)
+    expect(menu.locator(".lf-version-row")).to_have_attribute("aria-current", "true")
+    expect(menu.locator(".lf-version-num")).to_have_text("v1 (latest version)")
+    expect(menu.locator(".lf-version-note")).to_have_text("t")
     assert errors == []
     page.close()
 
@@ -1402,10 +1373,7 @@ def test_the_versions_menu_hangs_from_the_chooser_that_opens_it(browser, serve):
     the button's own box rather than against numbers, because what the anchor promises is
     a relation and not a coordinate.
     """
-    url = serve(LONG_PAGE)
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(LONG_PAGE)
-    stamp_version_file(serve.page_dir, 2, "two")
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, serve(LONG_PAGE))
     chooser = page.locator(".lf-version")
     expect(chooser).to_be_enabled()
     chooser.click()
@@ -1490,9 +1458,6 @@ def test_a_phone_banner_folds_its_addresses_into_one_menu(browser, serve, other_
     # The row keeps the reading loop and the door; everything else is behind it.
     expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
     expect(page.locator(".lf-banner-actions > .lf-threads-toggle")).to_be_visible()
-    expect(page.locator(".lf-banner-actions > .lf-version.lf-passive")).to_be_visible()
-    expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(0)
-
     # Every folded address, from the keyboard, through that one door. The press is the
     # popover's own invoker, so the menu opens and puts the reader on its first address
     # without anything here focusing it for them.
@@ -4899,10 +4864,8 @@ RING_SCOPE_CONTROL = {
 # The window a scope's own surface stands in, where that is not the walk's own. These
 # entries are floors the layer states rather than preferences: the Map control is drawn
 # under the margin's breakpoint and nowhere else, while the contents-link and thread-card
-# walks use the wider room where their page-margin surfaces stand beside the source. Ship
-# review stands a contents map too, so that beside posture waits for 1472px of shell
-# rather than 1208px (theme.css). Every other scope is read at the width the page opened
-# at.
+# walks use a wide window where their page-margin surfaces can stand beside the source.
+# Every other scope is read at the width the page opened at.
 RING_WALK_VIEWPORT = (1200, 900)
 # Scopes whose page-margin surfaces the standing panel takes the place of.
 RING_SCOPES_WITHOUT_PANEL = {"a contents link", "a thread card"}

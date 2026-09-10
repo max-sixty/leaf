@@ -3468,9 +3468,9 @@ def test_a_transient_notice_does_not_move_generated_address_hints(browser, serve
         "selector => document.querySelector(selector).getBoundingClientRect().top",
         fixed_link_selector,
     )
-
-    page.keyboard.press("h")
-    expect(page.locator(f'{CHIPS}:not([data-lf-address-kind="Link"])')).to_have_count(0)
+    page.evaluate(
+        "async () => (await import('/runtime/notifications.js')).notice('Links only.')"
+    )
     expect(page.locator(".lf-notice")).to_be_visible()
     assert (
         page.evaluate(
@@ -4112,8 +4112,10 @@ def test_clamped_leaf_lists_share_the_walk_position(browser, serve, live_leaf):
     page.close()
 
 
-def test_a_g_panel_destination_survives_a_completed_asks_tray(browser, serve):
-    """An open panel remains reachable after working its last row completes it."""
+def test_a_completed_asks_tray_stays_reachable_through_its_toggle_address(
+    browser, serve
+):
+    """An answered tray can close and reopen through its panel address."""
     page, errors = open_page(
         browser,
         serve(
@@ -4141,7 +4143,11 @@ def test_a_g_panel_destination_survives_a_completed_asks_tray(browser, serve):
     expect(page.locator(".lf-asks-panel")).to_have_class(re.compile(r"\bopen\b"))
 
     page.keyboard.press("g")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Asks panel")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close Asks panel")
+    page.keyboard.press("Shift+a")
+    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+
+    page.keyboard.press("g")
     page.keyboard.press("Shift+a")
     expect(page.locator(".lf-asks-row")).to_be_focused()
     assert errors == []
@@ -5308,6 +5314,35 @@ def test_the_arrows_say_which_way_the_section_under_the_reader_goes(browser, ser
     page.close()
 
 
+def test_named_workspace_chords_toggle_their_panels(browser, serve, live_leaf):
+    """Repeating a panel's complete address closes the panel it opened."""
+    live_leaf("second", "A second leaf")
+    page, errors = open_page(browser, serve(ASKS_PAGE, comments=1))
+
+    for key, command, name, surface, control in (
+        ("Shift+t", "threads", "Threads", ".lf-panel", ".lf-threads-toggle"),
+        ("Shift+a", "asks", "Asks", ".lf-asks-panel", ".lf-asks"),
+        ("Shift+l", "leaves", "All leaves", ".lf-others-panel", ".lf-others"),
+    ):
+        page.keyboard.press("g")
+        page.keyboard.press(key)
+        expect(page.locator(surface)).to_be_visible()
+
+        page.keyboard.press("g")
+        expect(page.locator("body")).to_have_attribute("data-lf-goto", "")
+        close_hint = page.locator(
+            f'.lf-shortcut-bar .lf-key[data-lf-commands~="navigation.panel.{command}"]'
+        )
+        expect(close_hint).to_be_visible()
+        expect(close_hint).to_contain_text(f"close {name} panel")
+        page.keyboard.press(key)
+        expect(page.locator(surface)).to_be_hidden()
+        expect(page.locator(control)).to_have_attribute("aria-expanded", "false")
+
+    assert errors == []
+    page.close()
+
+
 def test_the_key_line_says_what_a_press_will_do(browser, serve):
     """The shortcut bar and dispatcher read one return frame for each keyboard entry."""
     url = serve(NOTED_PAGE)
@@ -6093,6 +6128,7 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     banner_destinations = {
         "navigation.panel.threads": (page.locator(".lf-threads-toggle"), "T"),
         "navigation.panel.asks": (page.locator(".lf-asks"), "A"),
+        "version.open": (version, "V"),
     }
     for control, suffix in banner_destinations.values():
         expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
@@ -6100,8 +6136,6 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     expect(page.locator(".lf-goto-targets > [data-lf-address-command]")).to_have_count(
         0
     )
-    expect(version).to_be_disabled()
-    expect(version).to_have_attribute("title", "v1")
     expect(page.locator(".lf-latest-chip")).to_have_attribute(
         "title", re.compile(r"\(g V v\)$")
     )
@@ -6182,6 +6216,7 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     resized(page, 390, 800)
     for command, control in (
         ("navigation.panel.threads", page.locator(".lf-threads-toggle")),
+        ("version.open", page.locator(".lf-version")),
     ):
         hint = page.locator(
             f'.lf-goto-targets > .lf-target-hint[data-lf-address-command="{command}"]'
@@ -7793,7 +7828,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(
         help_el.locator("tr", has_text="bottom of the page").locator(".lf-key-sequence")
     ).to_have_attribute("aria-label", "g then Shift+g")
-    expect(help_el.locator('tr[data-lf-command="version.open"]')).to_have_count(0)
+    versions_route = help_el.locator(
+        'tr[data-lf-command="version.open"] .lf-key-sequence'
+    )
+    expect(versions_route.locator("kbd")).to_have_text(["g", "V"])
+    expect(versions_route).to_have_attribute("aria-label", "g then Shift+v")
     sequence_control = help_el.locator('tr[data-lf-command="navigation.address.back"]')
     expect(sequence_control).to_have_class(re.compile(r"\blf-sequence-control\b"))
     expect(sequence_control.locator("td").first).to_have_css(
@@ -7807,9 +7846,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Previous open thread")
     expect(help_el).not_to_contain_text("On a focused thread")
     expect(help_el).not_to_contain_text("waiting on you for")
-    # A first version is passive orientation, so neither a chooser nor a walk is offered.
-    expect(help_el).not_to_contain_text("The versions, and what each one changed")
-    expect(help_el).not_to_contain_text("Close the versions menu")
+    # A first version has a menu and a way out, but no neighbouring version to walk.
+    expect(help_el).to_contain_text("The versions, and what each one changed")
+    expect(help_el).to_contain_text("Close the versions menu")
     expect(help_el).not_to_contain_text("Later version")
     expect(help_el).not_to_contain_text("Earlier version")
     page.keyboard.press("Escape")
@@ -7855,8 +7894,8 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         help_el.locator("tr", has_text="Previous open thread").locator("kbd")
     ).to_have_text("T")
     expect(help_el).to_contain_text("On a focused thread")
-    # Still one version, so neither the chooser nor its walk is advertised.
-    expect(help_el).not_to_contain_text("Close the versions menu")
+    # Still one version, so there is no version walk to advertise.
+    expect(help_el).to_contain_text("Close the versions menu")
     expect(help_el).not_to_contain_text("Later version")
     expect(help_el).not_to_contain_text("Earlier version")
     page.keyboard.press("Escape")

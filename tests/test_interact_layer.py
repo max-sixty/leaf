@@ -853,9 +853,12 @@ def test_init_vendors_the_layer(page_dir):
     for name in ["leaf.js", "theme.css", "registry.json"]:
         assert (page_dir / name).is_file()
     assert (page_dir / "runtime" / "widget-api.js").is_file()
+    assert (page_dir / "vendor" / "jsdiff.esm.js").is_file()
     assert (page_dir / "widgets" / "lf-tabs.js").is_file()
     assert (page_dir / "widgets" / "lf-chart.js").is_file()
     assert (page_dir / "vendor" / "plot.esm.js").is_file()
+    assert (page_dir / "vendor" / "floating-ui.esm.js").is_file()
+    assert (page_dir / "vendor" / "floating-ui.LICENSES.txt").is_file()
     # The selected packages land in the same flat directories as the default one,
     # which is what lets a widget import `/vendor/…` without knowing where it came
     # from (PAGE_PACKAGES).

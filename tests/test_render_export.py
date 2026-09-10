@@ -1445,7 +1445,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
         // copies that hold a strip: the strip could have been held open for nothing and
         // the band still read as occupied. The claimants are the ones the cascade names
         // — aside.sidebar writes --strip-l, while aside.sidenote and the living
-        // margin's items write --claim-note, --claim-rail, and --claim-map. A copy
+        // margin's items write --claim-note and --claim-rail. A copy
         // carries no .lf-chrome, read above, and a project layer's own --lf-claim-right
         // furniture is outside the corpus this runs over.
         empty: ((main) => {

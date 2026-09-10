@@ -3422,16 +3422,14 @@ def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
 def test_the_versions_menu_can_close_from_every_door(browser, serve):
     """A version menu opened from either door returns to its actual origin.
 
-    A single version is now passive orientation rather than an empty choice. Publish a
-    second version so this test keeps exercising the menu's pointer and keyboard exits.
+    A first version's menu has no version walk, so its exits cannot depend on one.
     """
     url = serve(INLINE_PAGE)
-    _publish(serve.page_dir, 2, INLINE_PAGE, "two")
     page, errors = open_page(browser, live_url(url))
     menu = page.locator(".lf-version-menu")
     line = page.locator(".lf-shortcut-bar")
 
-    # Two versions: the menu opens from the global route and Escape ends it.
+    # One version: the menu opens from the global route and Escape ends it.
     page.keyboard.press("g")
     expect(line).to_contain_text("versions")
     page.keyboard.press("Escape")
@@ -3439,7 +3437,7 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     expect(menu).to_be_hidden()
     open_versions(page)
     expect(menu).to_be_visible()
-    expect(page.locator(".lf-version-row")).to_have_count(2)
+    expect(page.locator(".lf-version-row")).to_have_count(1)
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -3454,29 +3452,39 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     page.keyboard.press("Escape")
     expect(origin).to_be_focused()
 
-    # The pointer's door reaches the same layer and Escape still ends it. Exact numbered
-    # travel is the unfamiliar menu action and keeps the compact line's second slot from
-    # both doors; Escape remains in the complete reference as the standard way out.
+    # The pointer's door reaches the same layer and Escape still ends it. A one-row menu
+    # offers neither a walk nor an exact-version shortcut that would reopen the page the
+    # reader is already on.
     page.locator(".lf-version").click()
     expect(menu).to_be_visible()
     pointer_line = shortcut_bar_text(page)
-    assert "walk — marking changes" in pointer_line, pointer_line
-    assert "1–2\nopen version" in pointer_line, pointer_line
-    assert "close" not in pointer_line, pointer_line
+    assert "walk — marking changes" not in pointer_line, pointer_line
+    assert "open version" not in pointer_line, pointer_line
     page.keyboard.press("Escape")
     expect(menu).not_to_be_visible()
     open_versions(page)
     keyboard_line = shortcut_bar_text(page)
-    assert "walk — marking changes" in keyboard_line, keyboard_line
-    assert "1–2\nopen version" in keyboard_line, keyboard_line
-    assert "back" not in keyboard_line, keyboard_line
+    assert "walk — marking changes" not in keyboard_line, keyboard_line
+    assert "open version" not in keyboard_line, keyboard_line
     page.keyboard.press("Escape")
 
     # The line is the menu's while the reader is in it: its own actions are named and the
     # page's keys are gone with the presses the mode took.
     open_versions(page)
-    expect(line).to_contain_text("walk — marking changes")
+    expect(line).not_to_contain_text("walk — marking changes")
     expect(line).not_to_contain_text("page down")
+    page.keyboard.press("Escape")
+
+    # A second version makes the walk and numbered destinations live without changing
+    # the panel or its exits.
+    _publish(serve.page_dir, 2, INLINE_PAGE, "second")
+    wait_for_revision(page, 2)
+    page.wait_for_function(
+        "() => document.querySelectorAll('.lf-version-row').length > 1"
+    )
+    open_versions(page)
+    expect(line).to_contain_text("walk — marking changes")
+    expect(line).to_contain_text("open version")
     page.keyboard.press("Escape")
     assert errors == []
     page.close()
@@ -3710,9 +3718,8 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     menu = page.locator(".lf-version-menu")
     panel = page.locator(".lf-panel")
     line = page.locator(".lf-shortcut-bar")
-    # Keep the page below the contextual-thread breakpoint so the premise remains about
-    # the page scope rather than the right-margin conversation it now opens at 1208px.
-    resized(page, 1207, 900)
+    # Hold a desktop page size so opening the menu changes only the active keyboard scope.
+    resized(page, 1200, 900)
     # Every one of them live on the page, which is what makes the suspension below the
     # mode's rather than the rows' own liveness.
     for word in ["threads", "page down / up"]:
@@ -3763,6 +3770,75 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     page.keyboard.press("t")
     expect(panel).to_be_visible()
     expect(page.locator(".lf-thread").first).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
+    browser, serve
+):
+    """Anchor travel treats the bottom toolbar's scroll padding as covered space.
+
+    A passage can be geometrically inside the viewport while its last line is under the
+    shortcut bar. The control places it just above that band first, proving travel leaves
+    a readable destination alone, then inside the band, where the same public thread walk
+    must move it back into the usable reading area.
+    """
+    source = leaf_page(
+        "Bottom clearance",
+        """
+<h1>Anchor travel</h1>
+<div style="height: 900px" aria-hidden="true"></div>
+<p id="destination">The passage remains readable above the bottom toolbar.</p>
+<div style="height: 900px" aria-hidden="true"></div>
+""",
+    )
+    page, errors = open_page(
+        browser,
+        serve(source, anchored=(("destination", "The passage remains readable"),)),
+    )
+    resized(page, 1000, 700)
+    destination = page.locator("#destination")
+
+    def place_bottom(offset):
+        return page.evaluate(
+            """offset => {
+              const scroller = document.scrollingElement;
+              const destination = document.getElementById('destination');
+              const clear = parseFloat(getComputedStyle(scroller).scrollPaddingBottom);
+              const before = destination.getBoundingClientRect();
+              scroller.scrollBy(0, before.bottom - (innerHeight - clear + offset));
+              const after = destination.getBoundingClientRect();
+              return {clear, bottom: after.bottom, viewport: innerHeight,
+                scroll: scroller.scrollTop};
+            }""",
+            offset,
+        )
+
+    clear = place_bottom(-4)
+    assert clear["clear"] > 0
+    page.keyboard.press("t")
+    expect(page.locator(".lf-conversation-thread")).to_be_focused()
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
+        clear["scroll"], abs=1
+    )
+
+    covered = place_bottom(clear["clear"] / 2)
+    assert covered["bottom"] <= covered["viewport"]
+    assert covered["bottom"] > covered["viewport"] - covered["clear"]
+    page.keyboard.press("t")
+    page.wait_for_function(
+        """() => {
+          const clear = parseFloat(getComputedStyle(document.scrollingElement)
+            .scrollPaddingBottom);
+          return document.getElementById('destination').getBoundingClientRect().bottom
+            <= innerHeight - clear + .5;
+        }"""
+    )
+    assert page.evaluate("() => document.scrollingElement.scrollTop") != pytest.approx(
+        covered["scroll"], abs=1
+    )
+    expect(destination).to_be_in_viewport()
     assert errors == []
     page.close()
 
@@ -4776,7 +4852,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     round_trip(page)
     assert len(events_model.read_events(serve.page_dir)) == count
     page.keyboard.press("g")
-    assert "versions" not in shortcut_bar_text(page)
+    assert "versions" in shortcut_bar_text(page)
     page.keyboard.press("Escape")
     file.evaluate("details => { details.open = true; }")
     expect(thread.locator("textarea")).to_be_visible()

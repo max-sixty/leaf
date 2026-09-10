@@ -1483,8 +1483,7 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
     wide content: the widget's own box scrolls sideways and the document does not."""
     page, errors = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
 
-    # A live page reserves conversation room before its first comment. This width
-    # still leaves the complete drawing room on both supported font platforms.
+    # This width leaves the complete drawing room on both supported font platforms.
     resized(page, 1920, 900)
     wide = page.evaluate(DIAGRAM_ROOM)
     assert wide["natural"] > wide["wide"], (
@@ -1662,9 +1661,8 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     reach it: an overflow off the start edge is unreachable in any direction, and the
     drawing's first node is the one a reader follows the graph from."""
     page, errors = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
-    # Linux's DejaVu labels draw this graph at 1217px. The live page also reserves
-    # conversation room before its first thread, so use a width where the drawing
-    # fits after that strip and a classic scrollbar have both been taken.
+    # Linux's DejaVu labels draw this graph at 1217px. Use a width where the drawing
+    # fits after the control rail and a classic scrollbar have both been taken.
     resized(page, 1920, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
 
@@ -2769,14 +2767,12 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     page.close()
 
 
-def test_a_note_shares_the_page_axis_with_the_widest_right_margin(browser, serve):
-    """The right-side claims share one strip, whose widest claim sets the page's axis.
+def test_a_note_sets_the_page_axis_at_every_roomy_width(browser, serve):
+    """An authored note sets the right-side strip and the page's axis.
 
-    Below the conversation-margin floor, the note's whole 384px strip wins over the
-    margin element rail. Above it, the live page reserves 520px for conversations before the
-    first comment, so the note adds no second strip. Both cases retain readable prose
-    and the complete note on the page. Neither an always-384px expectation nor two
-    roomy readings would exercise both sides of this shared reservation.
+    Possible future conversations reserve no empty column, so widening the page past
+    the former thread breakpoint leaves the note's 384px strip as the widest claim.
+    Both widths retain readable prose and the complete note on the page.
 
     Every reading is against the page's box rather than the window, the two being the
     same width only where a scrollbar takes no room. Body owns the document's scroll and
@@ -2788,7 +2784,8 @@ def test_a_note_shares_the_page_axis_with_the_widest_right_margin(browser, serve
     url = serve(NOTE_AND_WIDE_PAGE)
     page, errors = open_page(browser, url)
 
-    for width, strip in ((1190, 384), (1600, 520)):
+    strip = 384
+    for width in (1190, 1600):
         resized(page, width, 900)
         at = page.evaluate(ROOM_GEOMETRY)
         axis = at["pageBox"]["left"] + (at["pageBox"]["width"] - strip) / 2

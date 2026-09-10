@@ -35,38 +35,10 @@
 // project-layer extension claim. A script-free copy therefore answers the same layout
 // from its own viewport without exporting session geometry.
 
-import { layoutMarginRows } from "./margin-layout.js";
+// Application composition supplies feature-local geometry. This owner cannot open
+// workspaces, send commands, or reconcile conversation DOM.
 import { drawnEdge } from "./drawn-edge.js";
-import { setReact, syncReactLayout } from "./reactions.js";
-import {
-  activeInlineThread,
-  closePreview,
-  scheduleThreadPreviewPosition,
-} from "./living-margin.js";
-import { containsAcross } from "./passages.js";
-import {
-  closeBtn,
-  panel,
-  panelFoot,
-  syncGeneral,
-  threadsBox,
-} from "./conversation/panel.js";
-import { focused } from "./keyboard/scopes.js";
-import { repaint, repaintPage } from "./repaint.js";
-import { currentTray, reserveListClearance, showTray, traysEdge } from "./trays.js";
-import { foldBannerRow, toggleBtn } from "./banner.js";
-import {
-  bottomStatusEl,
-  bottomChromeBoxes,
-  shortcutBarEl,
-} from "./keyboard/shortcut-bar.js";
-import { chromeRoot } from "./chrome.js";
-import { dockSeats, pageShifted, refreshHover } from "./anchors.js";
-import { refreshFab } from "./composing/surface.js";
 import { motion } from "./motion.js";
-import { renderPanel } from "./conversation/reconcile.js";
-import { readerStore } from "./storage.js";
-import { showThread } from "./conversation/landing.js";
 
 // The width the panel stands at for a reader who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -106,407 +78,327 @@ export const COVERING = `(width <= ${PANEL_W * 2}px)`;
 // spellings equal, since a stylesheet cannot read a constant.
 export const PANEL_PROP = "--lf-panel-w";
 
-// Panel open/closed is remembered too: it survives live activation, document travel,
-// and reload, so reopening the panel by hand after every revision gets old fast.
-export const PANEL_KEY = "lf-panel-open";
-
-const closeReactions = () => setReact(false);
-const panelChanged = (open) => {
-  if (open) closePreview();
-};
-
-let panelOpen = false;
-let shellMotion = null;
-export const panelIsOpen = () => panelOpen;
-// Whether the panel stands over the page rather than beside it — the same fact as which
-// of the two rules that take the strip the page is under, and as which region the
-// reader's own scrolling moves. Asked of the edge's query rather than stored, so no reader
-// of it can hold an answer from a window that has gone.
-export const panelCovers = () => panelOpen && commentsEdge.over.matches;
-// Whether the reader is standing in the panel rather than merely looking at it — focus,
-// not visibility, the same line PANEL draws for its own scope and the one every surface
-// here reads. A press that acts on where the reader is standing has to ask it of the
-// focus: beside the page the panel is a column of its own, and a reader working down the
-// list is in it whatever the window is wide enough to show behind them.
-export const inPanel = () => panelOpen && containsAcross(panel, focused());
-// The panel is shown, never shown modally, at either posture. A modal dialog makes the
-// rest of the document inert, and the panel covering the page is the posture in which the
-// page most needs to stay live: the toggle that opened it is out in the banner and is how
-// it closes, the Asks toggle beside it is the other workspace this one replaces
-// (test_workspaces_replace_each_other_instead_of_stacking), and the strip of page still
-// showing beside a covering sheet is still page a reader can point a hint at
-// (test_selection_hints_do_not_name_page_content_behind_a_covering_panel, which is the
-// one that states what "covering" means here — the panel covers the page rather than
-// clipping it, and what it covers is out of reach only where it is actually painted over).
-// What modality was carrying instead is already owned elsewhere and stays: the covering
-// sheet's scroll lock is the stylesheet's (COVERING's `overflow-y: hidden`), while this
-// non-modal workspace remains one rung in the keyboard stack.
-//
-// Opening a <dialog> runs the browser's dialog focusing steps whichever way it is opened,
-// so the invoker has to be given its focus back: raising the panel is not a request to
-// leave where the reader was standing, and the toggle that lost it would otherwise hold
-// aria-expanded with no ring on it and hand the reader's next Space to a button they
-// never chose. A reader who asked to go in says so with the press that takes them —
-// `g T` focuses the list and `c` focuses its requested box — and setPanel's own handoff
-// is the other thing that moves them.
-function showPanelLayer() {
-  // Both a comment destination and Threads navigation may ask for a panel that is already
-  // showing. Nothing to redo, and the focus below would otherwise fire against a reader
-  // already standing inside.
-  if (panel.open) return;
-  const invoker = document.activeElement;
-  panel.show();
-  if (invoker?.isConnected && !panel.contains(invoker))
-    invoker.focus({ preventScroll: true });
-}
-// A window that has changed is a cap that has changed, so each edge restates its
-// standing width. CSS container queries read the resulting body width directly.
-addEventListener("resize", () => {
-  commentsEdge.state();
-  traysEdge.state();
-});
-// Every writer here is a writer of the chrome, so nothing this function does resizes the
-// box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
-// it yields to a margin idiom is stated above.
-export function syncLayout() {
-  // How many of the banner's addresses stand on its row is a reservation taken from the
-  // row's current box, so it belongs here with the rest of them and it goes first: what
-  // it decides is the banner's own contents, which nothing below reads. The banner is
-  // fixed, so a fold cannot resize the boxes this function is watching.
-  foldBannerRow();
-  scheduleThreadPreviewPosition();
-  const panelBeside = panelOpen && !panelCovers();
-  const overlapsAcross = (one, other) =>
-    one.left < other.right && other.left < one.right;
-  const overlaps = (one, other) =>
-    overlapsAcross(one, other) && one.top < other.bottom && other.top < one.bottom;
-  const foot = panelFoot.getBoundingClientRect();
-  // Beside the page, the thread panel owns the right strip all the way to its foot. Cap
-  // the line's room at that strip rather than letting a long hint cross into the panel.
-  shortcutBarEl.style.setProperty(
-    "--lf-shortcut-bar-right",
-    (panelBeside ? commentsEdge.width() : 0) + "px",
-  );
-  bottomStatusEl.style.setProperty(
-    "--lf-shortcut-bar-right",
-    (panelBeside ? commentsEdge.width() : 0) + "px",
-  );
-  // Start at the line's ordinary foot. A covering sheet lifts it only where the sheet's
-  // own foot actually occupies the same pixels. The old posture-level answer lifted the
-  // line by every covering footer's height even when the footer stood wholly to its
-  // right — a two-dimensional collision inferred from one viewport breakpoint.
-  shortcutBarEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
-  let line = shortcutBarEl.getBoundingClientRect();
-  if (panelCovers() && line.height && overlaps(line, foot)) {
-    // The foot is the complete fixed region: composer plus the page's reaction strip
-    // when one is offered. offsetHeight retains the safe-area arithmetic owned by the
-    // stylesheet and follows a draft as its textarea grows.
-    shortcutBarEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
-    line = shortcutBarEl.getBoundingClientRect();
-  }
-  // The status shares the line's baseline when each occupies its own corner. If either
-  // grows until their horizontal spans meet, stack the status above the line instead.
-  bottomStatusEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
-  let status = bottomStatusEl.getBoundingClientRect();
-  if (line.height && status.height && overlapsAcross(status, line)) {
-    bottomStatusEl.style.bottom = `${innerHeight - line.top + 7}px`;
-    status = bottomStatusEl.getBoundingClientRect();
-  } else if (panelCovers() && status.height && overlaps(status, foot)) {
-    bottomStatusEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
-    status = bottomStatusEl.getBoundingClientRect();
-  }
-  // What a scroll region gives up is the part of the line that stands over it: the band
-  // from the line's top down to that region's own foot, plus the air above the line.
-  // Read off the rendered line rather than stated as a number, which is what keeps it
-  // true when the line's face or its padding moves — and off each region's own foot,
-  // because the three do not end in the same place. The document ends at the foot of
-  // the window; the panel's list ends at the top of the complete panel foot, whose
-  // composer can grow to half the window with a draft.
-  //
-  // The band and not the height. The height alone leaves out every inset holding the
-  // line off the foot — the 14px above, a covering sheet's lift, the device's safe area
-  // — which spent 14 of the 20px of air on the inset and left the document's last line
-  // 5px clear rather than 20, and over a covering sheet was short by the whole lift:
-  // 148px of line standing on a reservation of 51. One box read rather than three
-  // numbers added up, so a fourth inset cannot be introduced without this following it.
-  //
-  // A bottom surface that is not rendered is a band nothing stands in, so nothing
-  // reserves it. A region gives up only the deepest surface crossing its own width.
-  const roomBelow = (region) => {
-    const clearances = bottomChromeBoxes()
-      .filter((box) => overlapsAcross(box, region) && region.bottom > box.top)
-      .map((box) => Math.ceil(region.bottom - box.top) + 20);
-    return clearances.length ? Math.max(...clearances) + "px" : null;
-  };
-  const clear =
-    roomBelow({
-      left: 0,
-      right: document.documentElement.clientWidth,
-      bottom: document.documentElement.clientHeight,
-    }) ?? "0px";
-  // The document's, taken as the chrome container's own box rather than as padding on
-  // body. The container is in the flow, holds nothing but out-of-flow chrome, and is
-  // watched by nobody, so what it takes is room the document has and no measurement's
-  // business.
-  const boundedWorkspace = document.querySelector(
-    "body > main > .lf-workspace-arranged[data-lf-root-workspace][data-lf-posture='bounded']",
-  );
-  chromeRoot.style.paddingBottom = boundedWorkspace ? "0px" : clear;
-  // Flow room lets the document reach past the line; scroll padding tells native focus
-  // navigation where the visible edge actually is. Keep both on the same measured band
-  // so a Tab stop already inside the viewport cannot be accepted underneath the line.
-  //
-  // The band is on the root rather than only spent here, so a region this function
-  // cannot reach can end above the line without a fourth inline write. The contents
-  // spine is such a region — fixed page furniture, so no flow room and no list padding
-  // reaches it, and it runs under the line at every width. It does not take the band
-  // today, deliberately: `lf-toc`'s own rule in the default theme carries the reasoning
-  // and the TODO, which is that the line has to be a hover or a foot and not both.
-  document.documentElement.style.setProperty("--lf-bottom-chrome-clear", clear);
-  // A tray's list is the page's other scroll region, in the corner the line is
-  // written into. Its foot is the window's, the tray being held to `bottom: 0`, so the
-  // document's band is its band — and it states it twice, because it reaches
-  // the bottom two ways that take their room from different places. A wheel to the end
-  // reads the padding. A walk's own scroll reads none of it: scroll-padding is what a
-  // scroll-into-view stops short of, and without it the last row's clearance is however
-  // far Chrome happens to overshoot, which is a fact about row height and not about the
-  // line standing there. Stepping the line clear instead was the other answer, and it
-  // takes the tray's width off the line's: a busy scope already fills a laptop's, so
-  // the room it gives up is chips clipped off the right-hand end.
-  reserveListClearance(clear);
-  // The panel's own list is the third scroll region the line can stand over. Its
-  // reservation follows the same rendered overlap as the lift: a covering sheet with a
-  // free lane beside it takes no room for a line that never reaches the list. Spent the
-  // same two ways a tray's is — the wheel reads the padding, a walk's scroll-into-view
-  // reads the scroll padding — and returned to the stylesheet's inset when there is no
-  // shared lane.
-  //
-  // Measured to this list's own foot, which is the top of the complete fixed panel foot
-  // rather than the window's. Giving it the document's band reserved the whole lift
-  // twice: the line is standing on the foot, not on the list, so a grown draft put its
-  // own height of blank paper under the last thread and parked a `t` walk that far short
-  // of the list's end.
-  const listClear = panelOpen
-    ? (roomBelow(threadsBox.getBoundingClientRect()) ?? "")
-    : "";
-  threadsBox.style.paddingBottom = listClear;
-  threadsBox.style.scrollPaddingBottom = listClear;
-  syncFloats();
-  dockSeats();
-}
-// The response bar lives in the document, and syncLayout is where its containing box
-// changes shape — the panel takes or returns its strip and a resize moves every rect.
-// Re-place it against the durable anchor so it cannot overhang the narrowed shell and
-// create sideways-scrollable overflow.
-function syncFloats() {
-  if (syncReactLayout()) return;
-  refreshFab();
-}
-// A workspace state is a responsive-layout boundary, not a sequence of temporary
-// viewport sizes. Apply the state first, so every container query reads the final
-// shell in one pass, then carry the reading column from the box it occupied before
-// the change. Animating body's margin crosses sidebar and sidenote breakpoints during
-// motion and can reverse the column's direction. The offset moves only paint already
-// laid out against the final shell.
-export function moveShell(change) {
-  const main = document.querySelector("body > main");
-  const before = main?.getBoundingClientRect();
-  // A second workspace can replace the first before its motion finishes. Preserve the
-  // currently drawn position, then release the old effect before reading the next
-  // layout; otherwise two animations would both own the same offset.
-  if (shellMotion) {
-    shellMotion.cancel();
-    shellMotion = null;
-  }
-  change();
-  if (!main || !before) {
-    scheduleShellRepaint();
-    return null;
-  }
-  const after = main.getBoundingClientRect();
-  const distance = before.left - after.left;
-  const moved = Math.abs(distance) >= 0.5;
-  const played = moved
-    ? motion(
-        main,
-        [{ "--lf-shell-motion-x": `${distance}px` }, { "--lf-shell-motion-x": "0px" }],
-        180,
-      )
-    : null;
-  shellMotion = played;
-  if (played) {
-    const settled = () => {
-      if (shellMotion === played) shellMotion = null;
-      // The carry changes position without another resize; the repaint's frames lay
-      // the margin's rows out along it and once more at rest (repaintMovingShell).
-      scheduleShellRepaint();
+export function createChromeLayout({
+  panelIsOpen,
+  elements: {
+    panel,
+    closeBtn,
+    panelFoot,
+    threadsBox,
+    shortcutBarEl,
+    bottomStatusEl,
+    chromeRoot,
+  },
+  foldBannerRow,
+  scheduleThreadPreviewPosition,
+  bottomChromeBoxes,
+  reserveListClearance,
+  restateTrayEdge,
+  syncReactLayout,
+  refreshFab,
+  dockSeats,
+  pageShifted,
+  layoutMarginRows,
+  repaint,
+  repaintPage,
+}) {
+  let shellMotion = null;
+  const panelCovers = () => panelIsOpen() && commentsEdge.over.matches;
+  // Every writer here is a writer of the chrome, so nothing this function does resizes the
+  // box it reads: the strip the page yields to the panel is the stylesheet's, and the strip
+  // it yields to a margin idiom is stated above.
+  function syncLayout() {
+    // How many of the banner's addresses stand on its row is a reservation taken from the
+    // row's current box, so it belongs here with the rest of them and it goes first: what
+    // it decides is the banner's own contents, which nothing below reads. The banner is
+    // fixed, so a fold cannot resize the boxes this function is watching.
+    foldBannerRow();
+    scheduleThreadPreviewPosition();
+    const panelBeside = panelIsOpen() && !panelCovers();
+    const overlapsAcross = (one, other) =>
+      one.left < other.right && other.left < one.right;
+    const overlaps = (one, other) =>
+      overlapsAcross(one, other) && one.top < other.bottom && other.top < one.bottom;
+    const foot = panelFoot.getBoundingClientRect();
+    // Beside the page, the thread panel owns the right strip all the way to its foot. Cap
+    // the line's room at that strip rather than letting a long hint cross into the panel.
+    shortcutBarEl.style.setProperty(
+      "--lf-shortcut-bar-right",
+      (panelBeside ? commentsEdge.width() : 0) + "px",
+    );
+    bottomStatusEl.style.setProperty(
+      "--lf-shortcut-bar-right",
+      (panelBeside ? commentsEdge.width() : 0) + "px",
+    );
+    // Start at the line's ordinary foot. A covering sheet lifts it only where the sheet's
+    // own foot actually occupies the same pixels. The old posture-level answer lifted the
+    // line by every covering footer's height even when the footer stood wholly to its
+    // right — a two-dimensional collision inferred from one viewport breakpoint.
+    shortcutBarEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
+    let line = shortcutBarEl.getBoundingClientRect();
+    if (panelCovers() && line.height && overlaps(line, foot)) {
+      // The foot is the complete fixed region: composer plus the page's reaction strip
+      // when one is offered. offsetHeight retains the safe-area arithmetic owned by the
+      // stylesheet and follows a draft as its textarea grows.
+      shortcutBarEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
+      line = shortcutBarEl.getBoundingClientRect();
+    }
+    // The status shares the line's baseline when each occupies its own corner. If either
+    // grows until their horizontal spans meet, stack the status above the line instead.
+    bottomStatusEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
+    let status = bottomStatusEl.getBoundingClientRect();
+    if (line.height && status.height && overlapsAcross(status, line)) {
+      bottomStatusEl.style.bottom = `${innerHeight - line.top + 7}px`;
+      status = bottomStatusEl.getBoundingClientRect();
+    } else if (panelCovers() && status.height && overlaps(status, foot)) {
+      bottomStatusEl.style.bottom = `calc(${panelFoot.offsetHeight + 14}px + var(--lf-safe-bottom))`;
+      status = bottomStatusEl.getBoundingClientRect();
+    }
+    // What a scroll region gives up is the part of the line that stands over it: the band
+    // from the line's top down to that region's own foot, plus the air above the line.
+    // Read off the rendered line rather than stated as a number, which is what keeps it
+    // true when the line's face or its padding moves — and off each region's own foot,
+    // because the three do not end in the same place. The document ends at the foot of
+    // the window; the panel's list ends at the top of the complete panel foot, whose
+    // composer can grow to half the window with a draft.
+    //
+    // The band and not the height. The height alone leaves out every inset holding the
+    // line off the foot — the 14px above, a covering sheet's lift, the device's safe area
+    // — which spent 14 of the 20px of air on the inset and left the document's last line
+    // 5px clear rather than 20, and over a covering sheet was short by the whole lift:
+    // 148px of line standing on a reservation of 51. One box read rather than three
+    // numbers added up, so a fourth inset cannot be introduced without this following it.
+    //
+    // A bottom surface that is not rendered is a band nothing stands in, so nothing
+    // reserves it. A region gives up only the deepest surface crossing its own width.
+    const roomBelow = (region) => {
+      const clearances = bottomChromeBoxes()
+        .filter((box) => overlapsAcross(box, region) && region.bottom > box.top)
+        .map((box) => Math.ceil(region.bottom - box.top) + 20);
+      return clearances.length ? Math.max(...clearances) + "px" : null;
     };
-    played.finished.then(settled, settled);
+    const clear =
+      roomBelow({
+        left: 0,
+        right: document.documentElement.clientWidth,
+        bottom: document.documentElement.clientHeight,
+      }) ?? "0px";
+    // The document's, taken as the chrome container's own box rather than as padding on
+    // body. The container is in the flow, holds nothing but out-of-flow chrome, and is
+    // watched by nobody, so what it takes is room the document has and no measurement's
+    // business.
+    const boundedWorkspace = document.querySelector(
+      "body > main > .lf-workspace-arranged[data-lf-root-workspace][data-lf-posture='bounded']",
+    );
+    chromeRoot.style.paddingBottom = boundedWorkspace ? "0px" : clear;
+    // Flow room lets the document reach past the line; scroll padding tells native focus
+    // navigation where the visible edge actually is. Keep both on the same measured band
+    // so a Tab stop already inside the viewport cannot be accepted underneath the line.
+    //
+    // The band is on the root rather than only spent here, so a region this function
+    // cannot reach can end above the line without a fourth inline write. The contents
+    // spine is such a region — fixed page furniture, so no flow room and no list padding
+    // reaches it, and it runs under the line at every width. It does not take the band
+    // today, deliberately: `lf-toc`'s own rule in the default theme carries the reasoning
+    // and the TODO, which is that the line has to be a hover or a foot and not both.
+    document.documentElement.style.setProperty("--lf-bottom-chrome-clear", clear);
+    // A tray's list is the page's other scroll region, in the corner the line is
+    // written into. Its foot is the window's, the tray being held to `bottom: 0`, so the
+    // document's band is its band — and it states it twice, because it reaches
+    // the bottom two ways that take their room from different places. A wheel to the end
+    // reads the padding. A walk's own scroll reads none of it: scroll-padding is what a
+    // scroll-into-view stops short of, and without it the last row's clearance is however
+    // far Chrome happens to overshoot, which is a fact about row height and not about the
+    // line standing there. Stepping the line clear instead was the other answer, and it
+    // takes the tray's width off the line's: a busy scope already fills a laptop's, so
+    // the room it gives up is chips clipped off the right-hand end.
+    reserveListClearance(clear);
+    // The panel's own list is the third scroll region the line can stand over. Its
+    // reservation follows the same rendered overlap as the lift: a covering sheet with a
+    // free lane beside it takes no room for a line that never reaches the list. Spent the
+    // same two ways a tray's is — the wheel reads the padding, a walk's scroll-into-view
+    // reads the scroll padding — and returned to the stylesheet's inset when there is no
+    // shared lane.
+    //
+    // Measured to this list's own foot, which is the top of the complete fixed panel foot
+    // rather than the window's. Giving it the document's band reserved the whole lift
+    // twice: the line is standing on the foot, not on the list, so a grown draft put its
+    // own height of blank paper under the last thread and parked a `t` walk that far short
+    // of the list's end.
+    const listClear = panelIsOpen()
+      ? (roomBelow(threadsBox.getBoundingClientRect()) ?? "")
+      : "";
+    threadsBox.style.paddingBottom = listClear;
+    threadsBox.style.scrollPaddingBottom = listClear;
+    syncFloats();
+    dockSeats();
   }
-  scheduleShellRepaint();
-  return played;
-}
-export function setPanel(open, { remember = true } = {}) {
-  if (open && currentTray()) showTray(null, { remember });
-  // Closing while focus is inside would drop it on body, the user's place
-  // lost silently; it lands on the one control that reopens what just closed.
-  if (!open && panel.contains(document.activeElement))
-    toggleBtn.focus({ preventScroll: true });
-  panelOpen = open;
-  // Twice, the two readers being on opposite sides of the chrome's own scope: the class
-  // shows the panel, from a rule inside it, and the attribute is what the page yields its
-  // strip to, from a rule outside. A document-level rule naming .lf-panel would be a name
-  // a page could coin and take the strip with, which is the leak
-  // test_a_coined_class_cannot_reach_the_chromes_rules pins, so the posture is stated on
-  // body, where page CSS can see it without naming private chrome.
-  panel.classList.toggle("open", open);
-  const played = moveShell(() => document.body.toggleAttribute("data-lf-panel", open));
-  toggleBtn.setAttribute("aria-expanded", String(open));
-  if (open) {
-    // The layer before what goes in it. The panel is a dialog, and a dialog nobody has
-    // shown yet is display:none, so anything rendered into it measures zero — and
-    // renderPanel is where the anchor pass runs for the threads it draws. A mark hangs
-    // on the boxes its element shows through (shownParts), so a widget an agent sent in
-    // a reply resolved to an element with no box, took no mark, and left the thread
-    // still open in the panel pointing at nothing on either side.
-    showPanelLayer();
-    renderPanel();
-    syncGeneral(); // a restored draft has to reach the Send button's disabled state
-  } else if (panel.open) panel.close();
-  syncLayout();
-  panelChanged(open);
-  if (remember) readerStore.set(PANEL_KEY, open ? "1" : "0");
-  repaint();
-  // The panel is one of the two surfaces the hover reads, so its arriving or going away
-  // is the pointer moving even when the pointer has not: closing it with the keyboard,
-  // from a hand resting on a card, took the card out from under the pointer and left the
-  // page lit about a comment with no panel to explain it. The open half came free through
-  // renderPanel; this is the half that has no render.
-  refreshHover();
-  return played;
-}
-// Field sizing and every other chrome-size change feed the one layout pass.
-// The document shell's size also feeds the page repaint door: content landing can move
-// a target without emitting a pointer or scroll event.
-const scheduleLayout = (shellChanged = false, chromeChanged = false) => {
-  if (shellChanged) repaintPage();
-  else if (chromeChanged) repaint();
-};
-// Body's own box is the first of them, because a workspace lands its final shell width
-// before the column finishes moving there. Width observation handles taking or
-// returning room; moveShell's frames keep page-attached paint with the carried column.
-//
-// A height-only body resize is repaint-only. An image or font can move a later target
-// without resizing that target or mutating the DOM, while sending that ordinary page
-// growth through syncLayout would feed it into the writer that reserves flow content.
-// A width change schedules syncLayout and its page repaint in the following animation
-// frame, outside ResizeObserver delivery, so a reservation changing another watched
-// chrome box cannot create an undelivered-notification loop. A height-only change calls
-// pageShifted during delivery; its direct geometry write belongs to the unobserved aim
-// box, while hover, legend, and action placement defer their work to frames.
-let bodyContentWidth = 0;
-let bodyContentHeight = 0;
-const layoutSizes = new ResizeObserver((entries) => {
-  let layoutChanged = false;
-  let shellMoved = false;
-  let chromeMoved = false;
-  for (const { contentRect, target } of entries) {
-    if (target !== document.body) {
-      layoutChanged = true;
-      chromeMoved = true;
-      continue;
-    }
-    const widthChanged = contentRect.width !== bodyContentWidth;
-    const heightChanged = contentRect.height !== bodyContentHeight;
-    if (widthChanged) {
-      layoutChanged = true;
-    }
-    if (widthChanged || heightChanged) shellMoved = true;
-    bodyContentWidth = contentRect.width;
-    bodyContentHeight = contentRect.height;
+  // The response bar lives in the document, and syncLayout is where its containing box
+  // changes shape — the panel takes or returns its strip and a resize moves every rect.
+  // Re-place it against the durable anchor so it cannot overhang the narrowed shell and
+  // create sideways-scrollable overflow.
+  function syncFloats() {
+    if (syncReactLayout()) return;
+    refreshFab();
   }
-  if (layoutChanged) scheduleLayout(shellMoved, chromeMoved);
-  else if (shellMoved) pageShifted();
-});
-// Wired once the chrome is in the document (leaf.js): the toggle and the parts observed
-// here are other owners', built as their modules evaluate, which this module cannot count
-// on having happened yet.
-export function mountLayout() {
-  commentsEdge.handle(panel, () => closeBtn);
-  let pressedInlineThread = null;
-  toggleBtn.addEventListener("pointerdown", () => {
-    pressedInlineThread = activeInlineThread()?.dataset.thread ?? null;
-  });
-  toggleBtn.addEventListener("pointercancel", () => {
-    pressedInlineThread = null;
-  });
-  toggleBtn.addEventListener("pointerup", () => {
-    setTimeout(() => (pressedInlineThread = null));
-  });
-  toggleBtn.onclick = () => {
-    if (panelOpen) {
-      setPanel(false);
-      return;
+  // A workspace state is a responsive-layout boundary, not a sequence of temporary
+  // viewport sizes. Apply the state first, so every container query reads the final
+  // shell in one pass, then carry the reading column from the box it occupied before
+  // the change. Animating body's margin crosses sidebar and sidenote breakpoints during
+  // motion and can reverse the column's direction. The offset moves only paint already
+  // laid out against the final shell.
+  function moveShell(change) {
+    const main = document.querySelector("body > main");
+    const before = main?.getBoundingClientRect();
+    // A second workspace can replace the first before its motion finishes. Preserve the
+    // currently drawn position, then release the old effect before reading the next
+    // layout; otherwise two animations would both own the same offset.
+    if (shellMotion) {
+      shellMotion.cancel();
+      shellMotion = null;
     }
-    const inlineThread = pressedInlineThread ?? activeInlineThread()?.dataset.thread;
-    pressedInlineThread = null;
-    if (inlineThread) showThread(inlineThread, { focus: "thread" });
-    else setPanel(true);
+    change();
+    if (!main || !before) {
+      scheduleShellRepaint();
+      return null;
+    }
+    const after = main.getBoundingClientRect();
+    const distance = before.left - after.left;
+    const moved = Math.abs(distance) >= 0.5;
+    const played = moved
+      ? motion(
+          main,
+          [
+            { "--lf-shell-motion-x": `${distance}px` },
+            { "--lf-shell-motion-x": "0px" },
+          ],
+          180,
+        )
+      : null;
+    shellMotion = played;
+    if (played) {
+      const settled = () => {
+        if (shellMotion === played) shellMotion = null;
+        // The carry changes position without another resize; the repaint's frames lay
+        // the margin's rows out along it and once more at rest (repaintMovingShell).
+        scheduleShellRepaint();
+      };
+      played.finished.then(settled, settled);
+    }
+    scheduleShellRepaint();
+    return played;
+  }
+  // Field sizing and every other chrome-size change feed the one layout pass.
+  // The document shell's size also feeds the page repaint door: content landing can move
+  // a target without emitting a pointer or scroll event.
+  const scheduleLayout = (shellChanged = false, chromeChanged = false) => {
+    if (shellChanged) repaintPage();
+    else if (chromeChanged) repaint();
   };
-  addEventListener("resize", () => {
-    closeReactions();
+  // Body's own box is the first of them, because a workspace lands its final shell width
+  // before the column finishes moving there. Width observation handles taking or
+  // returning room; moveShell's frames keep page-attached paint with the carried column.
+  //
+  // A height-only body resize is repaint-only. An image or font can move a later target
+  // without resizing that target or mutating the DOM, while sending that ordinary page
+  // growth through syncLayout would feed it into the writer that reserves flow content.
+  // A width change schedules syncLayout and its page repaint in the following animation
+  // frame, outside ResizeObserver delivery, so a reservation changing another watched
+  // chrome box cannot create an undelivered-notification loop. A height-only change calls
+  // pageShifted during delivery; its direct geometry write belongs to the unobserved aim
+  // box, while hover, legend, and action placement defer their work to frames.
+  let bodyContentWidth = 0;
+  let bodyContentHeight = 0;
+  const layoutSizes = new ResizeObserver((entries) => {
+    let layoutChanged = false;
+    let shellMoved = false;
+    let chromeMoved = false;
+    for (const { contentRect, target } of entries) {
+      if (target !== document.body) {
+        layoutChanged = true;
+        chromeMoved = true;
+        continue;
+      }
+      const widthChanged = contentRect.width !== bodyContentWidth;
+      const heightChanged = contentRect.height !== bodyContentHeight;
+      if (widthChanged) {
+        layoutChanged = true;
+      }
+      if (widthChanged || heightChanged) shellMoved = true;
+      bodyContentWidth = contentRect.width;
+      bodyContentHeight = contentRect.height;
+    }
+    if (layoutChanged) scheduleLayout(shellMoved, chromeMoved);
+    else if (shellMoved) pageShifted();
+  });
+  // Mount only after chrome is attached. Constructors perform no observation or
+  // listener installation, so importing the public widget API cannot start layout.
+  function mountLayoutObservers() {
+    commentsEdge.handle(panel, () => closeBtn);
+    addEventListener("resize", () => {
+      commentsEdge.state();
+      restateTrayEdge();
+      pageShifted();
+      syncLayout();
+    });
+    layoutSizes.observe(document.body);
+    layoutSizes.observe(panelFoot);
+    layoutSizes.observe(shortcutBarEl);
+    layoutSizes.observe(bottomStatusEl);
+  }
+  let shellFrame = 0;
+  function repaintMovingShell() {
+    shellFrame = 0;
     pageShifted();
-    syncLayout();
+    // The margin's rows are placed off the column's box, and the column's box is in
+    // flight: the body's width change laid them out on the carry's first frame, against
+    // a column a few pixels into its move, and nothing asked again once it had arrived —
+    // a resize observer hears a box change size, not place. So the rows stood where the
+    // column had been until the next poll or pointer move, over the prose the column had
+    // moved under them. Laid out on each carried frame, they ride with the column, and
+    // the last call here is the one taken at rest.
+    layoutMarginRows();
+    if (shellMotion?.playState === "running")
+      shellFrame = requestAnimationFrame(repaintMovingShell);
+  }
+  function scheduleShellRepaint() {
+    if (!shellFrame) shellFrame = requestAnimationFrame(repaintMovingShell);
+  }
+
+  // The thread panel's edge, on the right, and the tray panel's, on the left. Each keeps
+  // the reader's choice in their own store rather than the tab's, because where a reader
+  // keeps their conversations, and how much of the page they will give a tray, is the
+  // chrome they arrange and expect to find arranged wherever they are reading (see
+  // `readerStore`). Live activation keeps the edges themselves; document travel and reload
+  // restore the same choices, so no revision or visit asks the reader to draw them again.
+  // How the shell takes an edge's new width. A drag follows the hand exactly. An arrow is
+  // a discrete change whose page move the reader can follow through the same final-layout
+  // motion as opening a region.
+  function landEdge(state) {
+    const apply = () => {
+      state();
+      syncLayout();
+    };
+    if (document.body.hasAttribute("data-lf-sizing")) apply();
+    else moveShell(apply);
+  }
+  const commentsEdge = drawnEdge({
+    side: "right",
+    noun: "thread panel",
+    wide: PANEL_W,
+    min: PANEL_MIN,
+    prop: PANEL_PROP,
+    key: "lf-panel-width",
+    covering: COVERING,
+    land: landEdge,
   });
-  layoutSizes.observe(document.body);
-  layoutSizes.observe(panelFoot);
-  layoutSizes.observe(shortcutBarEl);
-  layoutSizes.observe(bottomStatusEl);
-}
 
-let shellFrame = 0;
-function repaintMovingShell() {
-  shellFrame = 0;
-  pageShifted();
-  // The margin's rows are placed off the column's box, and the column's box is in
-  // flight: the body's width change laid them out on the carry's first frame, against
-  // a column a few pixels into its move, and nothing asked again once it had arrived —
-  // a resize observer hears a box change size, not place. So the rows stood where the
-  // column had been until the next poll or pointer move, over the prose the column had
-  // moved under them. Laid out on each carried frame, they ride with the column, and
-  // the last call here is the one taken at rest.
-  layoutMarginRows();
-  if (shellMotion?.playState === "running")
-    shellFrame = requestAnimationFrame(repaintMovingShell);
-}
-function scheduleShellRepaint() {
-  if (!shellFrame) shellFrame = requestAnimationFrame(repaintMovingShell);
-}
-
-// The thread panel's edge, on the right, and the tray panel's, on the left. Each keeps
-// the reader's choice in their own store rather than the tab's, because where a reader
-// keeps their conversations, and how much of the page they will give a tray, is the
-// chrome they arrange and expect to find arranged wherever they are reading (see
-// `readerStore`). Live activation keeps the edges themselves; document travel and reload
-// restore the same choices, so no revision or visit asks the reader to draw them again.
-// How the shell takes an edge's new width. A drag follows the hand exactly. An arrow is
-// a discrete change whose page move the reader can follow through the same final-layout
-// motion as opening a region.
-export function landEdge(state) {
-  const apply = () => {
-    state();
-    syncLayout();
+  return {
+    syncLayout,
+    mountLayoutObservers,
+    moveShell,
+    landEdge,
+    commentsEdge,
+    panelCovers,
   };
-  if (document.body.hasAttribute("data-lf-sizing")) apply();
-  else moveShell(apply);
 }
-export const commentsEdge = drawnEdge({
-  side: "right",
-  noun: "thread panel",
-  wide: PANEL_W,
-  min: PANEL_MIN,
-  prop: PANEL_PROP,
-  key: "lf-panel-width",
-  covering: COVERING,
-  land: landEdge,
-});

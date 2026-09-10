@@ -12,7 +12,7 @@
    its own element so the rest of the page and Threads remain usable, but it does not
    convert a partial state read into a committed one. The window error listener, module
    load failures, and render gate all report through the same page-level evidence. Do not
-   catch an error merely to stamp readiness or continue accounting for outbox attempts. */
+   catch an error merely to stamp readiness or continue accounting for pending attempts. */
 
 import { countTraffic } from "./traffic.js";
 import { runtime } from "./context.js";

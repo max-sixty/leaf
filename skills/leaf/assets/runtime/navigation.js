@@ -1,19 +1,20 @@
 /* This module owns reader travel. */
 import { clampedRow } from "./keyboard/bindings.js";
-import { scrollToThread } from "./anchors.js";
-import { inPanel, panelCovers, panelIsOpen } from "./chrome-layout.js";
+import {
+  inPanel as panelFocusIsInside,
+  panelWouldCover,
+} from "./conversation/panel-elements.js";
 import { openThreads } from "./conversation/thread-list.js";
 import { narrowed } from "./conversation/narrowing.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
-import { threadsBox } from "./conversation/panel.js";
+import { threadsBox } from "./conversation/panel-elements.js";
 import { pageScroller } from "./scrolling.js";
 import { effectiveScroller, readingRegionFor } from "./reading-regions.js";
 import { closestAcross } from "./passages.js";
-import { activeInlineThread, openPageThread } from "./living-margin.js";
 import { announce } from "./notifications.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
-const threadPosition = () => {
+const threadPosition = (activeInlineThread, panelIsOpen) => {
   const threads = openThreads({ visibleOnly: panelIsOpen() });
   const current = panelIsOpen()
     ? closestAcross(document.activeElement, ".lf-thread[data-id]")
@@ -30,7 +31,11 @@ const threadPosition = () => {
 // inline address: a declared widget outlet first, then the thread margin element's card. A thread
 // with no page address is indexed only by Threads, so that destination opens the panel.
 // Once the panel is open, the walk stays in its list. Both paths are clamped, not wrapped.
-export function stepThread(dir) {
+function stepThread(
+  dir,
+  { openPageThread, scrollToThread, activeInlineThread },
+  panelIsOpen,
+) {
   const threads = openThreads({ visibleOnly: panelIsOpen() });
   const inline = activeInlineThread();
   const current = panelIsOpen()
@@ -41,8 +46,9 @@ export function stepThread(dir) {
   if (!panelIsOpen()) {
     openPageThread(next.dataset.id, { focus: "thread" });
     announce(
-      beginWalk("thread", "Thread", threadPosition) ??
-        walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
+      beginWalk("thread", "Thread", () =>
+        threadPosition(activeInlineThread, panelIsOpen),
+      ) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
     );
     return;
   }
@@ -55,8 +61,9 @@ export function stepThread(dir) {
   if (standing) next.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
   scrollToThread(next.dataset.id);
   announce(
-    beginWalk("thread", "Thread", threadPosition) ??
-      walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
+    beginWalk("thread", "Thread", () =>
+      threadPosition(activeInlineThread, panelIsOpen),
+    ) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
   );
 }
 
@@ -110,17 +117,17 @@ const holding = (box) =>
   glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1;
 // The visible box used by page-edge navigation. A covering panel replaces the page;
 // beside it, the document keeps its own top and bottom.
-export const seenScroller = () => (panelCovers() ? threadsBox : pageScroller);
+const seenScroller = (panelCovers) => (panelCovers() ? threadsBox : pageScroller);
 // Reading-page keys follow the region the reader is working in. Focus can put them in a
 // panel beside the page; a covering panel remains the only visible region even when
 // focus is still on the banner control that opened it.
-const stepScroller = () => {
+const stepScroller = (panelCovers, inPanel) => {
   if (panelCovers()) return threadsBox;
   const region = readingRegionFor(document.activeElement);
   return region ? effectiveScroller(region) : inPanel() ? threadsBox : pageScroller;
 };
-export function stepReading(amount, unit) {
-  const box = stepScroller();
+function stepReading(amount, unit, panelCovers, inPanel) {
+  const box = stepScroller(panelCovers, inPanel);
   if (unit === "page") {
     const clear = parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
     amount *= box.clientHeight - clear;
@@ -173,4 +180,15 @@ export function stopGlide(box) {
   if (glide?.box !== box) return;
   cancelAnimationFrame(glide.raf);
   glide = null;
+}
+
+export function createNavigation({ panelIsOpen }) {
+  const panelCovers = () => panelIsOpen() && panelWouldCover();
+  const inPanel = () => panelFocusIsInside(panelIsOpen);
+  return {
+    panelCovers,
+    seenScroller: () => seenScroller(panelCovers),
+    stepReading: (amount, unit) => stepReading(amount, unit, panelCovers, inPanel),
+    stepThread: (dir, commands) => stepThread(dir, commands, panelIsOpen),
+  };
 }

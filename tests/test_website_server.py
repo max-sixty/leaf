@@ -1322,6 +1322,31 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
     }
 
 
+def test_a_failed_verifier_page_reports_its_browser_errors(browser):
+    page = browser.new_page()
+    try:
+        failures = verify_site.observe_startup(page)
+        url = "https://site-verifier.test/broken"
+        page.route(
+            url,
+            lambda route: route.fulfill(
+                content_type="text/html",
+                body="""<!doctype html><body><script>
+                  console.error('widget resource unavailable');
+                  throw new Error('runtime initialization failed');
+                </script></body>""",
+            ),
+        )
+        page.goto(url)
+        with pytest.raises(RuntimeError) as caught:
+            verify_site.await_presentation(page, url, failures, timeout=100)
+        assert "widget resource unavailable" in str(caught.value)
+        assert "runtime initialization failed" in str(caught.value)
+        assert "no startup milestone" in str(caught.value)
+    finally:
+        page.close()
+
+
 def test_a_page_that_never_presents_names_itself_and_how_far_it_got():
     """The site gate's own timeout says nothing; the message it raises has to.
 

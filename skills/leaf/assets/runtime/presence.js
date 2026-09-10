@@ -22,14 +22,16 @@ export function clockValue(read) {
 
 export function clocked(owner, paint) {
   let args;
+  let painted = false;
   let reads = [];
   const entry = {
     owner,
     changed: () => reads.some(({ read, value }) => read(serverNow()) !== value),
-    refresh: () => render(...args),
+    refresh: () => (painted ? render(...args) : undefined),
   };
   function render(...next) {
     args = next;
+    painted = true;
     const outer = clockReads;
     clockReads = [];
     try {
@@ -42,6 +44,7 @@ export function clocked(owner, paint) {
     }
   }
   render.stop = () => clockPaints.delete(entry);
+  render.refresh = entry.refresh;
   return render;
 }
 

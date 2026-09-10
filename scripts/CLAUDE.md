@@ -59,10 +59,10 @@ imports it, except `mcp-app`, which no widget imports and which lands in
 `skills/leaf/mcp-app/` for an MCP host to read from the install.
 
 A bundle reproduces its tracked bytes exactly when every input it fetches is pinned,
-which holds for `marked`, `sortable`, `beautiful-mermaid`, and `highlight`, so a clean
-`git status` after a run is the check that the bundle still matches the script. `plot`
-and `pierre` reach npm's resolver for transitive dependencies and inherit its ranges,
-so a diff from either can be an upstream patch rather than drift.
+which holds for `marked`, `sortable`, `beautiful-mermaid`, `highlight`, and `jsdiff`,
+so a clean `git status` after a run is the check that the bundle still matches the
+script. `plot` and `pierre` reach npm's resolver for transitive dependencies and inherit
+its ranges, so a diff from either can be an upstream patch rather than drift.
 
 Rerun a bundle after changing its pin or the registry input it reads; do not patch a
 generated bundle or `examples/corpus.html` directly.

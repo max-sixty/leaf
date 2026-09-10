@@ -1803,13 +1803,15 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
           selection.addRange(range);
         }"""
     )
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
+    expect(bar).to_be_visible()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
     page.evaluate(
         "() => { document.activeElement.blur(); getSelection().removeAllRanges(); }"
     )
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(bar).to_be_hidden()
     assert errors == []
     page.close()
 

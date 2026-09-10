@@ -63,9 +63,14 @@ rules a new or changed example has to meet.
   run the same HTTP and browser checks. `local` only provisions the canonical Python
   adapter and explicitly starts its turn; it does not emulate Cloudflare's Worker,
   Workflow, or container routing.
+  `deploy-site-dev.sh` publishes the current checkout to the one standing
+  `leaf-website-dev` Cloudflare environment and runs that benchmark against its
+  `workers.dev` origin. The command always selects the `dev` Wrangler environment;
+  production deployment stays in `publish-site.yaml`.
   `query-site-agent-logs.py` reads one canonical event id or visible session reference
-  from production Workers Observability and emits only Leaf's declared timing fields,
-  excluding Cloudflare's surrounding request metadata.
+  from each configured Analytics Engine event index, then emits its unsampled timing
+  window from Workers Observability. It excludes Cloudflare's surrounding request
+  metadata, and the same lookup covers production and dev.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws it and the three
   photographs of the same staged scene beside it — the landing page's light and dark
   session stills, and `session-card.png` at the 1.91:1 an unfurler draws a card at.

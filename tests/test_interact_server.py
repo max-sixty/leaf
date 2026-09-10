@@ -2270,6 +2270,8 @@ def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
             str(page_dir),
             "--to",
             "c1",
+            "--for",
+            "c1",
             "--text",
             "Pick one:",
             "--markup",
@@ -2374,6 +2376,8 @@ def test_server_refuses_a_stale_action_after_a_selection_facet_is_answered(
                 "reply",
                 str(page_dir),
                 "--to",
+                "c-eligibility",
+                "--for",
                 "c-eligibility",
                 "--text",
                 "Here it is:",
@@ -4467,11 +4471,13 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         {
             "id": "orphan-decision",
             "tag": "lf-ask",
-            "thread": "c-lost",
+            "conversation": "c-lost",
         }
     ]
     orphan_elements = [
-        element for element in open_reading["elements"] if element["thread"] == "c-lost"
+        element
+        for element in open_reading["elements"]
+        if element["conversation"] == "c-lost"
     ]
     assert [element["id"] for element in orphan_elements] == [
         "orphan-decision",
@@ -4489,16 +4495,16 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert state.exit_code == 0, state.output
     closed_reading = json.loads(state.output)
-    [thread] = closed_reading["threads"]
+    [thread] = closed_reading["conversations"]
     assert thread == {"id": "c-lost", "anchor": None, "resolved": "user"}
     assert closed_reading["asks"] == []
     assert [
         element["id"]
         for element in closed_reading["elements"]
-        if element["thread"] == "c-lost"
+        if element["conversation"] == "c-lost"
     ] == [element["id"] for element in orphan_elements]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", "c-lost"]
+        cli_model.cli, ["events", str(page_dir), "--conversation", "c-lost"]
     )
     assert history.exit_code == 0, history.output
     records = [json.loads(line) for line in history.output.splitlines()]

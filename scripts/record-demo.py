@@ -22,6 +22,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from leaf.delivery import DELIVERY_FORMAT
 from leaf.render_gate.browser import launch_browser
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
@@ -282,14 +283,27 @@ class DemoWaiter:
         restart twice — so the empty result is the symptom and that line is the
         reason."""
         stdout, stderr = self.process.communicate(timeout=10)
-        events = [json.loads(line) for line in stdout.splitlines() if line.strip()]
+        payload = json.loads(stdout) if stdout.strip() else None
+        if payload is not None and payload.get("format") != DELIVERY_FORMAT:
+            raise RuntimeError(
+                f"the demo waiter received an unknown delivery format "
+                f"{payload.get('format')!r}"
+            )
+        batches = payload.get("batches", []) if payload is not None else []
+        if len(batches) != 1:
+            raise RuntimeError(
+                f"the demo waiter exited {self.process.returncode} with "
+                f"{len(batches)} page batches instead of one\n{stderr}".rstrip()
+            )
+        [batch] = batches
+        events = batch["events"]
         if not events:
             raise RuntimeError(
                 f"the demo waiter exited {self.process.returncode} with no user events\n"
                 f"{stderr}".rstrip()
             )
         self.process = subprocess.Popen(
-            [str(LEAF), "ack", str(self.page_dir), str(events[-1]["seq"])],
+            [str(LEAF), "ack", str(self.page_dir), str(batch["through_seq"])],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -369,6 +383,8 @@ def record(
         "reply",
         str(page_dir),
         "--to",
+        comment_id,
+        "--for",
         comment_id,
         "--text",
         "Yes. The fixed rate limit keeps the backfill online.",

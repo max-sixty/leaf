@@ -159,11 +159,12 @@ id when present and `matches_active`; the target file is inherited from
 `content_source.edit_file`. Source locations apply to that mutable file only when
 it matches the active revision. Reconcile a rejected candidate by id and content
 before editing. Generated children name their originating event and the widget in
-which their markup can be authored. `leaf page state <page> --thread <id>` selects
-one thread's current messages and frozen markup under `content`. Its
-`content_source` names the conversation, thread, and vocabulary file; message
-identities locate the frozen source. Edits continue that conversation instead of
-rewriting events or restating page state. Default thread entries stay compact.
+which their markup can be authored. `leaf conversation read <page> <id>` reads
+one conversation's current messages and frozen markup under `content`, with
+bounded history selected by `--after` and `--limit`. Its `content_source` names
+the conversation and vocabulary file; message identities locate the frozen
+source. Edits continue that conversation instead of rewriting events or
+restating page state. Default `page state` conversation entries stay compact.
 
 Widget `inputs` join each binding to its selected value or captured snapshot,
 contract, source id, data revision, and mutation route. Fragmented contracts expose
@@ -171,6 +172,15 @@ the manifest plus the exact `data.json` file, path, and revision for their paylo
 Live inputs declare `edit.operation: "data set"`; pinned inputs declare
 `"capture-and-rebind"`, since the source update alone leaves the selected capture
 unchanged. A pinned input in frozen markup declares `"capture-and-reply"` and its
-thread: a new message presents the replacement capture. The compact `elements`, `state`,
-and lifecycle indexes remain available for machine queries. Exact thread history
-belongs to `leaf events --thread`, and the page's `registry.json` owns the vocabulary.
+conversation: a new message presents the replacement capture. The compact
+`elements`, `state`, and lifecycle indexes remain available for machine queries.
+Raw diagnostic history belongs to `leaf events --conversation`, and the page's
+`registry.json` owns the vocabulary.
+
+Immutable deliveries live outside page directories at
+`<state-home>/deliveries/<id>.json`, because one envelope can contain complete
+batches from several pages and must resolve identically in every host. The file's
+`leaf-delivery-v1` format, id, capture time, and batches never change. Adapter
+queue records are separate mutable transport state; acknowledgement can archive
+those records without moving or rewriting the delivery addressed by `leaf
+delivery read <id>`.

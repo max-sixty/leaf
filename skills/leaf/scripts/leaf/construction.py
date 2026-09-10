@@ -105,7 +105,7 @@ def constructed_content(
     *,
     editable: bool,
     retired: set,
-    thread: str | None = None,
+    conversation: str | None = None,
 ) -> list:
     """Read structure, effective values, and mutation owners from one snapshot.
 
@@ -128,8 +128,11 @@ def constructed_content(
             if identity:
                 by_id[identity] = node
                 containers[identity] = items
-            if thread is not None:
-                node["edit"] = {"kind": "conversation", "thread": thread}
+            if conversation is not None:
+                node["edit"] = {
+                    "kind": "conversation",
+                    "conversation": conversation,
+                }
             else:
                 node["edit"] = {
                     "kind": "source",
@@ -142,11 +145,11 @@ def constructed_content(
                 node["vocabulary"] = node["tag"]
             inputs = input_readings(node["attrs"], entry, stored, page_dir, registry)
             if inputs:
-                if thread is not None:
+                if conversation is not None:
                     for reading in inputs.values():
                         if reading["edit"]["pinned"]:
                             reading["edit"]["operation"] = "capture-and-reply"
-                            reading["edit"]["thread"] = thread
+                            reading["edit"]["conversation"] = conversation
                 node["inputs"] = inputs
             prepare(node["content"])
 
@@ -169,8 +172,11 @@ def constructed_content(
                     "operation": "author-in-owner",
                 },
             }
-            if thread is not None:
-                child["edit"] = {"kind": "conversation", "thread": thread}
+            if conversation is not None:
+                child["edit"] = {
+                    "kind": "conversation",
+                    "conversation": conversation,
+                }
             owner["content"].append(child)
             by_id[identity] = child
             containers[identity] = owner["content"]
@@ -189,7 +195,7 @@ def constructed_content(
         if record := spec.get("record"):
             reading["construction"] = record
         owner.setdefault("state", []).append(reading)
-        if thread is None:
+        if conversation is None:
             owner["edit"]["override_requires"] = (
                 "restate" if event["kind"] == "action" else "absorb-or-overrule"
             )
@@ -267,7 +273,7 @@ def constructed_content(
             result.append(node)
         return result
 
-    if thread is None:
+    if conversation is None:
         main = next((node for node in by_id.values() if node["tag"] == "main"), None)
 
         # Main need not carry an id; find it in the already parsed tree.

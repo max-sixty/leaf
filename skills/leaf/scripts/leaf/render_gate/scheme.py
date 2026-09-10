@@ -5,7 +5,6 @@ from urllib.parse import urljoin, urlsplit
 
 from leaf.files import version_num
 from leaf.render_checks import (
-    RENDER_VIEWPORT,
     SERVED_TIMEOUT_MS,
     evaluate_probe,
     install_window_errors,
@@ -68,12 +67,12 @@ def console_problem(message) -> str | None:
     return None
 
 
-def _render_scheme(browser, url, scheme, served_timeout_ms, opened_pages):
-    """Read and report the browser gate for one color scheme."""
+def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pages):
+    """Read and report the browser gate for one color scheme and viewport."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme=scheme)
+    page = browser.new_page(viewport=viewport, color_scheme=scheme)
     opened_pages.append(page)
     page._leaf_probe_timeout_ms = served_timeout_ms
     errors = []

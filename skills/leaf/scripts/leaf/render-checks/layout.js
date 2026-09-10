@@ -107,6 +107,13 @@ export function misplacedBoxes() {
   // formatting context keeps in.)
   const main = document.querySelector("main");
   if (!main) return [];
+  // The column belongs to the page. Visible Leaf chrome still has to fit it, but chrome
+  // hidden with opacity or visibility has no box a reader can lose. checkVisibility()
+  // ignores both properties unless they are requested, which made a hidden margin label
+  // look like compact-width overflow.
+  const pageBox = (el) =>
+    !uiInside(el, main) ||
+    el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   const { isResident, left, residents, right } = marginReading(main);
   // A widget the registry declares wide is answered for out here, the way an
   // absolutely-positioned resident is: standing past the column is what it was
@@ -180,7 +187,7 @@ export function misplacedBoxes() {
     // against the box that frames it, and a board scrolls, so every card on every
     // board was excused from the only reading that applies to it. A diagram in a card
     // was drawn across the neighbouring column and this said the page was clean.
-    if (!el.checkVisibility() || (!wide && answeredFor(el))) continue;
+    if (!pageBox(el) || !el.checkVisibility() || (!wide && answeredFor(el))) continue;
     const b = el.getBoundingClientRect();
     if (b.width < 1) continue;
     const frame = wide ? framing(el) : null;
@@ -300,7 +307,7 @@ export function misplacedBoxes() {
         : el.parentElement;
   };
   for (const el of main.querySelectorAll("*")) {
-    if (!el.checkVisibility()) continue;
+    if (!pageBox(el) || !el.checkVisibility()) continue;
     // Nothing inside an <svg> is the page's flow: a foreignObject clips by its
     // nature, and diagram label boxes run an even 8px outside theirs on an
     // ordinary graph — the drawing's own accounting, not the page losing words.
@@ -526,15 +533,18 @@ export function silentCuts() {
 // A cell in a hidden or collapsed row has no height. Read from `main`, where geometry
 // is real.
 //
-// `squeezedTables` reports a table that scrolls sideways with a cell in it wrapped. A
-// scrolling table's columns are all at their longest unbreakable run, so a cell wrapping
-// there wraps at a word a line — beside a name that could not break (an identifier
-// written outside `<code>`, a bare URL), or because the table has more columns than the
-// measure holds. A column wraps when it stands wider with wrapping turned off — its
-// content asked for more than its longest run — which hidden content, laid out on demand
-// but size-contained, cannot change. The finding lists the wrapping columns with their
-// widths, names the widest, and leaves the diagnosis to the author. A table that scrolls
-// with nothing left to wrap is the theme's honest third case.
+// `squeezedTables` reports a table whose visible words stand outside its inner box with
+// a cell in it wrapped. `scrollWidth` is the first reading, then the words decide it:
+// Chromium can count a broken inline box a few pixels past the table even while every
+// glyph fits, and that rounding artifact moves with the viewport and font metrics. In a
+// genuinely scrolling table the columns are all at their longest unbreakable run, so a
+// cell wrapping there wraps at a word a line — beside a name that could not break (an
+// identifier written outside `<code>`, a bare URL), or because the table has more
+// columns than the measure holds. A column wraps when it stands wider with wrapping
+// turned off — its content asked for more than its longest run — which hidden content,
+// laid out on demand but size-contained, cannot change. The finding lists the wrapping
+// columns with their widths, names the widest, and leaves the diagnosis to the author.
+// A table that scrolls with nothing left to wrap is the theme's honest third case.
 export function squeezedTables() {
   const main = document.querySelector("main");
   if (!main) return [];
@@ -546,8 +556,28 @@ export function squeezedTables() {
       if (!uiInside(node.parentElement, cell)) text += node.data;
     return text.trim().replace(/\s+/g, " ");
   };
+  const wordsOutside = (table) => {
+    const box = table.getBoundingClientRect();
+    const left = box.left + table.clientLeft;
+    const right = left + table.clientWidth;
+    const range = document.createRange();
+    for (const root of openRoots(table)) {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      for (let node; (node = walker.nextNode());) {
+        const el = node.parentElement ?? node.parentNode.host;
+        if (!node.data.trim() || uiInside(el, table)) continue;
+        if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
+          continue;
+        range.selectNodeContents(node);
+        for (const drawn of range.getClientRects())
+          if (drawn.width > 1 && (drawn.left < left - 1 || drawn.right > right + 1))
+            return true;
+      }
+    }
+    return false;
+  };
   const tables = [...main.querySelectorAll("table")].filter(
-    (t) => t.checkVisibility() && t.scrollWidth - t.clientWidth > 1,
+    (t) => t.checkVisibility() && t.scrollWidth - t.clientWidth > 1 && wordsOutside(t),
   );
   // Each table's columns by left edge, each with its cells, before the probe.
   const read = new Map();

@@ -95,6 +95,57 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 )
 
 
+def test_the_render_gate_exercises_both_schemes_at_both_viewports(browser, serve):
+    seen = []
+
+    def record_page(page):
+        viewport = page.viewport_size
+        dark = page.evaluate("() => matchMedia('(prefers-color-scheme: dark)').matches")
+        seen.append(
+            (viewport["width"], viewport["height"], "dark" if dark else "light")
+        )
+
+    assert (
+        render_gate_model.render_version(
+            primed(browser, record_page), serve(BOUNDED_WORKSPACE_PAGE, packages=())
+        )
+        == []
+    )
+    assert seen == [
+        (1200, 900, "light"),
+        (1200, 900, "dark"),
+        (540, 720, "light"),
+        (540, 720, "dark"),
+    ]
+
+
+def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
+    browser, serve
+):
+    source = leaf_page(
+        "compact-only overflow",
+        """
+<style>
+@media (max-width: 600px) {
+  #compact-overflow { width: 700px; }
+}
+</style>
+<h1>Compact route</h1>
+<p id="compact-overflow">This row fits the wide viewport and spills from the compact one.</p>
+""",
+    )
+
+    failures = render_gate_model.render_version(browser, serve(source, packages=()))
+
+    overflow = [failure for failure in failures if "page scrolls sideways" in failure]
+    assert len(overflow) == 2, failures
+    assert all("(at 540x720)" in failure for failure in overflow), overflow
+    assert {failure.split("]", 1)[0] + "]" for failure in overflow} == {
+        "[light]",
+        "[dark]",
+    }
+
+
 def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):
     """Pane bounds are real scroll bounds, so content past a pane's first fold remains
     reachable without being exempted from the ordinary geometry checks."""
@@ -633,11 +684,11 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
 def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
     """The notice can arrive on the rendering turn after the gate's last probe. A
     navigation-only confirmation would call the attempt clean, and an immediate close
-    would never hear it; the confirmation is the whole two-scheme gate."""
+    would never hear it; the confirmation is the whole four-render gate."""
     pages = []
 
     def prepare(page):
-        if len(pages) < 2:  # both pages in the first light-and-dark attempt
+        if len(pages) < 4:  # every page in the first complete attempt
             resize_notice_after_last_probe(page)
         pages.append(page)
 
@@ -646,7 +697,7 @@ def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
     )
 
     assert failures == []
-    assert len(pages) == 4, "the complete gate was not confirmed once"
+    assert len(pages) == 8, "the complete gate was not confirmed once"
 
 
 def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, serve):
@@ -658,7 +709,7 @@ def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, se
                 "addEventListener('DOMContentLoaded', () => "
                 "console.error('ordinary error from first attempt'), {once: true});"
             )
-        if len(pages) < 2:
+        if len(pages) < 4:
             resize_notice_after_last_probe(page)
         pages.append(page)
 
@@ -666,7 +717,7 @@ def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, se
         primed(browser, prepare), serve(LONG_PAGE)
     )
 
-    assert len(pages) == 4
+    assert len(pages) == 8
     assert sum("ordinary error from first attempt" in f for f in failures) == 1
 
 
@@ -698,10 +749,15 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
         primed(browser, prepare), serve(LONG_PAGE)
     )
 
-    assert len(pages) == 4
-    assert (
-        render_gate_scheme.recurring_resize_observer_error("render attempt") in failures
-    )
+    assert len(pages) == 8
+    recurring = [
+        failure
+        for failure in failures
+        if "recurred on the confirming render attempt" in failure
+    ]
+    assert len(recurring) == 1, failures
+    assert recurring[0].startswith("[light]"), recurring
+    assert all("ResizeObserver loop" in failure for failure in recurring)
 
 
 def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, serve):
@@ -715,7 +771,7 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
                 "console.error('ordinary error from first attempt'), {once: true});"
             )
             resize_notice_after_last_probe(page)
-        elif number >= 2:  # the arrival page, then the confirming attempt's two
+        elif number >= 4:  # the first attempt, then every confirming page
             page.set_default_timeout(500)
             page.route("**/leaf.js", lambda route: route.abort())
         pages.append(page)
@@ -1750,6 +1806,14 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
     assert measured["broke"], "every name fitted whole, so the rule was never asked"
     assert measured["sideways"] == 0
     assert errors == []
+    compact = []
+    for width in range(520, 601, 4):
+        resized(page, width, 720)
+        scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
+        if scrolls > 1:
+            compact.append((width, scrolls))
+            assert render_checks_model.evaluate_probe(page, "squeezedTables") == []
+    assert compact, "no compact width exposed the inline-box scroll artifact"
     page.close()
     assert render_gate_model.render_version(browser, url) == []
 
@@ -1779,6 +1843,61 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
         assert {"Mechanism", "Held by"} <= widths.keys(), finding
         assert int(widths["Held by"]) > 3 * int(widths["Mechanism"]), finding
     assert not [f for f in failures if "<table id=held> scrolls" not in f], failures
+
+
+def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A widget's visible words still decide whether the table genuinely overflows.
+    The host's light tree is empty after upgrade, so a reading that stops at the shadow
+    boundary mistakes this for Chromium's empty inline-box rounding artifact."""
+    monkeypatch.chdir(tmp_path)
+    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-callout"].pop("x-verbatim")
+    entries["lf-callout"]["x-shadow"] = True
+    registry_path.write_text(json.dumps(entries, indent=2))
+    module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
+    module.write_text(
+        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-callout", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        "    const text = this.textContent;\n"
+        '    this.textContent = "";\n'
+        '    const span = document.createElement("span");\n'
+        "    span.textContent = text;\n"
+        "    shadowStage(this, [span]);\n"
+        "  }\n"
+        "});\n"
+    )
+    serial = itertools.count(1)
+    source = re.sub(
+        r"<code>(test_[^<]+)</code>",
+        lambda match: (
+            f'<lf-callout id="shadow-name-{next(serial)}">{match.group(1)}</lf-callout>'
+        ),
+        IDENTIFIERS_IN_CODE_PAGE,
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 540, 720)
+    host = page.locator("lf-callout").first
+    host.evaluate(
+        """(el) => {
+        const text = el.shadowRoot.lastChild.textContent;
+        el.shadowRoot.lastChild.replaceWith(document.createTextNode(text));
+    }"""
+    )
+    assert host.evaluate("(el) => el.textContent") == ""
+    assert host.evaluate("(el) => el.shadowRoot.lastChild.nodeType") == 3
+    table = page.locator("#held")
+    assert table.evaluate("(el) => el.scrollWidth - el.clientWidth") > 1
+    assert errors == []
+
+    squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
+
+    assert any("<table id=held> scrolls" in finding for finding in squeezed), squeezed
 
 
 def test_the_squeeze_reading_sees_a_wrap_between_two_links(browser, serve):
@@ -2021,6 +2140,68 @@ def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
     )
 
 
+def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve):
+    """The column is the page's boundary, even though Leaf seats its margin controls
+    inside ``main``. At compact width an Edit label extends left of that column; it is
+    Leaf chrome, not a box the page misplaced. Content inside an authored horizontal
+    scroller is likewise reachable, while an otherwise identical page box remains a
+    real spill and keeps both the column and root-scrollport checks live."""
+    source = leaf_page(
+        "compact geometry boundaries",
+        """
+<h1>Migration plan</h1>
+<lf-draft id="draft"><pre>Move the readers first.</pre></lf-draft>
+<div id="scroller" style="overflow-x: auto; width: 100%">
+  <span id="reachable" style="display: block; width: 700px">Reach by scrolling.</span>
+</div>
+<div id="root-spill" style="width: 700px">This box leaves the page.</div>
+""",
+    )
+    page, errors = open_page(browser, serve(source, packages=()))
+    resized(page, 540, 720)
+    measured = page.evaluate(
+        """() => {
+          const main = document.querySelector('main');
+          const style = getComputedStyle(main), box = main.getBoundingClientRect();
+          const columnLeft = box.left + parseFloat(style.paddingLeft);
+          const label = document.querySelector('.lf-margin-element-label');
+          const scroller = document.querySelector('#scroller');
+          return {
+            labelPast: Math.round(columnLeft - label.getBoundingClientRect().left),
+            scrollerShort: scroller.scrollWidth - scroller.clientWidth,
+          };
+        }"""
+    )
+    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    overflow = render_checks_model.evaluate_probe(page, "rootOverflow")
+    page.locator(".lf-margin-cluster").evaluate(
+        """cluster => {
+          cluster.id = 'visible-leaf-chrome';
+          Object.assign(cluster.style, {
+            left: '700px', opacity: '1', position: 'relative', visibility: 'visible'
+          });
+        }"""
+    )
+    visible_chrome = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    assert errors == []
+    page.close()
+
+    assert measured["labelPast"] > 1, "the Leaf label stayed inside the column"
+    assert measured["scrollerShort"] > 1, (
+        "the authored scroller fits, so it proves nothing"
+    )
+    assert not [finding for finding in misplaced if "<span" in finding], misplaced
+    assert [finding for finding in misplaced if "<div id=root-spill>" in finding], (
+        misplaced
+    )
+    assert [
+        finding
+        for finding in visible_chrome
+        if "<div id=visible-leaf-chrome>" in finding
+    ], visible_chrome
+    assert overflow > 1, "the true page spill did not reach the root scrollport"
+
+
 def test_the_render_gate_reports_words_no_mark_can_be_shown_on(browser, serve):
     """An element the reader can see and no mark can be drawn on, which the gate reads
     without pressing a key.
@@ -2090,16 +2271,20 @@ def test_the_render_gate_tells_a_float_in_the_margin_from_one_spilling_out_of_it
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):
     """A narrow authored body is not the page's viewport. Its child can be wider than
     that body while still fitting on screen, so measuring body would invent sideways
-    document overflow where the canonical root scrollport has none."""
+    document overflow where the canonical root scrollport has none. The compact rule
+    preserves that same body-versus-scrollport contrast within its smaller viewport."""
     source = leaf_page(
         "root scrollport width",
         """
 <style>
 body { width: 400px; }
 #wide-inside-window { width: 700px; }
+@media (max-width: 600px) {
+  #wide-inside-window { width: 500px; }
+}
 </style>
 <h1>Capacity plan</h1>
-<div id="wide-inside-window">Seven hundred pixels still fit in this viewport.</div>
+<div id="wide-inside-window">This box still fits in the viewport.</div>
 """,
     )
 
@@ -2130,13 +2315,17 @@ def test_the_render_gate_tells_a_fixed_margin_resident_from_a_fixed_spill(
     The first shape is the roomy sidebar posture: it starts in the outer gutter and never
     moves beneath the pointer. The second differs only in its horizontal position and
     straddles the readable column, so exempting fixed boxes outright would make the gate
-    blind to the same spill it catches in flow and in floats."""
+    blind to the same spill it catches in flow and in floats. The compact posture has no
+    outer gutter, so neither synthetic resident applies there."""
     source = leaf_page(
         "fixed margin residents",
         """
 <style>
 #fixed-margin { position: fixed; top: 80px; left: 24px; width: 180px; }
 #fixed-half { position: fixed; top: 500px; left: 180px; width: 180px; }
+@media (max-width: 600px) {
+  #fixed-margin, #fixed-half { display: none; }
+}
 </style>
 <h1>Migration plan</h1>
 <div id="fixed-margin">A stable route in the margin.</div>

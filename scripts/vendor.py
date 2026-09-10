@@ -308,7 +308,7 @@ def build_floating_ui(work: Path) -> list[Path]:
     Floating UI's DOM package publishes browser ESM, but leaves its core and utility
     packages as bare imports. Leaf pages run under a self-only CSP and have no package
     resolver, so the three exact packages become one browser-native module. Only the
-    positioning and lifecycle middleware used by the response surface are exported;
+    positioning and lifecycle middleware used by Leaf's floating chrome are exported;
     esbuild drops the rest.
     """
     out = ASSETS / "vendor/floating-ui.esm.js"
@@ -325,7 +325,7 @@ def build_floating_ui(work: Path) -> list[Path]:
         cwd=work,
     )
     (work / "entry.mjs").write_text(
-        "export { autoUpdate, computePosition, flip, offset, shift, size } "
+        "export { autoUpdate, computePosition, flip, hide, offset, shift, size } "
         'from "@floating-ui/dom";\n',
         encoding="utf-8",
     )

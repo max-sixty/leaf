@@ -723,8 +723,9 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
 
     with pytest.raises(SystemExit) as stopped:
         site_build.build(tmp_path / "invalid-site", verify_links=False)
-    assert "expected exactly one external <script src> tag, found 0" in str(
-        stopped.value
+    assert (
+        "expected exactly one external <script src> tag for /leaf.js, found 0"
+        in str(stopped.value)
     )
 
 

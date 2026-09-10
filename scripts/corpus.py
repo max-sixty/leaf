@@ -16,6 +16,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from example_data import regression_sources
+from leaf.structure import parse_structure
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
@@ -160,11 +161,22 @@ def build() -> str:
     _, capture_revisions = composed_data()
     owner = {"corpus": CORPUS.name, "corpus-lede": CORPUS.name}
     tabs = []
+    authored_assets = []
     for source, label in TABS:
         stem = source.stem
         text = source.read_text(encoding="utf-8")
         scan = _Scan()
         scan.feed(text)
+        parsed = parse_structure(text)
+        if parsed.css.strip():
+            authored_assets.append(
+                f"<!-- {source.name} authored styles -->\n<style>{parsed.css}</style>"
+            )
+        authored_assets.extend(
+            f'<!-- {source.name} authored module -->\n<script type="module">'
+            f"{script['body']}</script>"
+            for script in parsed.inline_scripts
+        )
         for i in ["corpus-" + stem] + scan.ids:
             if i in owner:
                 sys.exit(
@@ -188,7 +200,8 @@ def build() -> str:
         body = CONTENTS_SIDEBAR.sub("", body)
         tabs.append(f'<lf-tab id="corpus-{stem}" label="{label}">\n{body}\n</lf-tab>\n')
 
-    return HEAD + "\n" + "\n".join(tabs) + "\n" + FOOT
+    head = HEAD.replace("</head>", "\n".join(authored_assets) + "\n</head>")
+    return head + "\n" + "\n".join(tabs) + "\n" + FOOT
 
 
 def build_data() -> dict:

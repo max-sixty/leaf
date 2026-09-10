@@ -73,7 +73,7 @@ initialized /home/you/review
 # the agent writes ./review/index.html — an ordinary file write
 
 $ leaf version check ./review
-✓ index.html: parses, widgets validate, one module script + theme link, protected ids and decisions carried over, nothing overflows the 720px column
+✓ index.html: parses, widgets and authored modules validate, theme linked, protected ids and decisions carried over, nothing overflows the 720px column
 
 $ leaf version stamp ./review --text "Two ways to shed load — which?"
 stamped v1 — Two ways to shed load — which?
@@ -380,7 +380,8 @@ $ leaf ack ./review 3</code></pre>
           Mermaid, <code>diff</code> for a unified patch, and <code>swipe</code> for
           rapid pass-or-keep triage. The <code>playground</code> package provides
           declarative controls, presets, live previews, and one typed configuration
-          decision without allowing page-authored scripts. The <code>targeting</code>
+          decision. Page-specific behavior lives with the page in inline module scripts;
+          reusable behavior remains a package concern. The <code>targeting</code>
           package lets a reader select preview elements and submit structured,
           reversible change proposals. An explicit package may contain one widget, while
           another contains only theme rules. Package size and provenance do not change

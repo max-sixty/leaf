@@ -645,6 +645,7 @@ def test_server_round_trip(server, page_dir):
     body = arrived.read()
     assert arrived.status == 200 and arrived.getheader("Location") is None
     assert arrived.getheader("Content-Security-Policy") == "frame-ancestors 'none'"
+    assert arrived.getheader("X-Content-Type-Options") == "nosniff"
     peer.close()
     status = arrived.status
     assert status == 200 and b"lf-options" in body

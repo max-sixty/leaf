@@ -115,7 +115,10 @@ def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
   <button type="submit">Send page state</button>
 </form>
 """,
-        head='<base href="https://outside.invalid/rebased/">',
+        head=(
+            '<base href="https://outside.invalid/rebased/">'
+            '<script type="module">window.authoredModuleRan = true;</script>'
+        ),
     )
     url = live_url(serve(source))
     page, errors = open_page(
@@ -137,6 +140,7 @@ def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
         ),
     )
     try:
+        page.wait_for_function("() => window.authoredModuleRan === true")
         page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
         served = urlparse(page.url)
         assert (

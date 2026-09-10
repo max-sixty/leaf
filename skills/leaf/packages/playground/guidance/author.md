@@ -88,17 +88,16 @@ task with an object, destination, and requested evidence. Use `lf-playground-val
 where a selected value makes that task more precise. The action still includes every
 control in `detail.values`, including controls the prose does not repeat.
 
-## Stateful companion widgets
+## Stateful previews
 
-A preview that needs JavaScript uses one companion package widget around the real
-candidates. Create it with `leaf package init ./PACKAGE --widget TAG`, then include both
-packages with `leaf page init --package playground --package ./PACKAGE PAGE`. Follow
-`references/packages.md` for the behavior-module contract. Page authors add no scripts;
-the companion widget owns the behavior.
+A preview that needs JavaScript keeps its page-specific behavior in an inline
+`<script type="module">` block. Put the real candidates in an ordinary element or a
+page-specific custom element. Use a package widget only when that behavior or
+vocabulary is reused across pages.
 
 Wait for `customElements.whenDefined("lf-playground")` before reading
 `closest("lf-playground").values`. Later control snapshots arrive in the bubbling
-`lf-playground-change` event's `detail.values`. The companion widget owns its preview
+`lf-playground-change` event's `detail.values`. The page module owns its preview
 state and gestures; the playground owns the submitted configuration.
 
 Keep one interaction state and render both candidates from it. Dynamic-row explorers

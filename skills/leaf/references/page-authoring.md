@@ -8,6 +8,7 @@ references.
 - [Document scaffold](#document-scaffold)
 - [Document or workspace](#document-or-workspace)
 - [Theme and vocabulary](#theme-and-vocabulary)
+- [Page behavior](#page-behavior)
 - [Stable anchors](#stable-anchors)
 - [Reading cost](#reading-cost)
 - [Pre-handover review](#pre-handover-review)
@@ -52,7 +53,8 @@ other role.
 ## Document scaffold
 
 Write a complete HTML document. The head contains exactly one `/theme.css` link
-and one external `/leaf.js` module. Every `lf-*` element has an explicit end tag.
+and one external `/leaf.js` module. Page-specific JavaScript uses inline module
+blocks. Every `lf-*` element has an explicit end tag.
 
 The title and description are what the page says it is anywhere outside itself: a
 tab, a search result, a link someone pastes into a chat. Write a description that
@@ -129,6 +131,23 @@ it holds its column and squeezes the prose beside it, and keep the columns to
 what the measure holds. Widgets whose registry entry declares a wide shape size
 themselves; fix a diagram that is too wide in its source rather than pinning a
 page width.
+
+## Page behavior
+
+Write page-specific behavior in one or more `<script type="module">` blocks. Leaf
+hashes their exact contents into the served policy, so the code is part of the same
+immutable revision as the markup it controls. Standard browser APIs are available;
+code that integrates with Leaf may import the public `/runtime/widget-api.js` module
+and listen to public widget events such as `lf-playground-change`.
+
+Use a package when behavior, styling, or vocabulary is reused across pages. A one-page
+explorer or playground keeps its code in the page. The one external script element
+remains `/leaf.js`; import any vendored dependencies from an inline module. Leaf
+refuses classic scripts, event-handler attributes, and `javascript:` URLs so every
+executable source remains an explicit module block.
+
+Typed data and media remain inert inputs. Read them through their Leaf/browser APIs;
+do not turn their contents into source code or markup.
 
 ## Stable anchors
 

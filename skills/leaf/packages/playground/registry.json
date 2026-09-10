@@ -1,6 +1,6 @@
 {
   "lf-playground": {
-    "description": "A reusable interactive playground that turns declarative controls into one local value set, reflects it into one operable preview and authored instruction, and sends the final configuration as one `choose` action. Put it inside lf-ask when the configuration is a question for the reader. Direct children are controls, presets, one preview, and one output. An A/B preview keeps both candidates together so one control edit or companion-widget gesture can drive both from the same input. Control edits, preview gestures, and presets stay in this browser tab; Use these settings records the complete typed value map. CSS previews read `--playground-NAME` and `data-playground-NAME` on this element. A companion widget can read the public `values` property and listen for `lf-playground-change` when behavior or computation requires JavaScript.",
+    "description": "A reusable interactive playground that turns declarative controls into one local value set, reflects it into one operable preview and authored instruction, and sends the final configuration as one `choose` action. Put it inside lf-ask when the configuration is a question for the reader. Direct children are controls, presets, one preview, and one output. An A/B preview keeps both candidates together so one control edit or preview gesture can drive both from the same input. Control edits, preview gestures, and presets stay in this browser tab; Use these settings records the complete typed value map. CSS previews read `--playground-NAME` and `data-playground-NAME` on this element. Page modules can read the public `values` property and listen for `lf-playground-change` when behavior or computation requires JavaScript.",
     "type": "object",
     "properties": {
       "id": {
@@ -19,7 +19,7 @@
     "additionalProperties": false,
     "x-content": "items",
     "x-guidance": {
-      "author": "Use controls for candidates and parameters the reader should vary together. Keep A/B candidates in the same preview and apply each control edit or custom gesture to both from one shared state; show live measurements when they affect the choice. Wrap the real artifact and load its vendored or page-media assets from the page's origin. Bind simple changes with `--playground-NAME` or `data-playground-NAME`, and use a companion package for behavior or computation. Write a self-contained task in `lf-playground-output`; `choose` sends every typed control value whether or not the prose repeats it."
+      "author": "Use controls for candidates and parameters the reader should vary together. Keep A/B candidates in the same preview and apply each control edit or custom gesture to both from one shared state; show live measurements when they affect the choice. Wrap the real artifact and load its vendored or page-media assets from the page's origin. Bind simple changes with `--playground-NAME` or `data-playground-NAME`, and use an inline page module for behavior or computation. Write a self-contained task in `lf-playground-output`; `choose` sends every typed control value whether or not the prose repeats it."
     },
     "x-upgrade": true,
     "x-awaits": {
@@ -166,7 +166,7 @@
     "x-upgrade": false
   },
   "lf-playground-preview": {
-    "description": "The real, operable artifact a playground previews. An A/B comparison keeps both candidates here and drives them from one shared input state. Page CSS may bind reflected values from the enclosing lf-playground. A companion widget may consume the playground's public values and change event, own gestures and computed state, and load vendored or page-media assets from the page's origin.",
+    "description": "The real, operable artifact a playground previews. An A/B comparison keeps both candidates here and drives them from one shared input state. Page CSS may bind reflected values from the enclosing lf-playground. An inline page module may consume the playground's public values and change event, own gestures and computed state, and load vendored or page-media assets from the page's origin.",
     "type": "object",
     "properties": {
       "id": {

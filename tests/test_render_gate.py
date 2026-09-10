@@ -2530,9 +2530,9 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
     reports as lost out of a box showing it perfectly — a handover refused over a page
     that is exactly as its author left it.
 
-    The scroll is put on from outside, through the stand-in `primed` supplies, because
-    the page's own CSP takes no inline script and the gate opens its own page. It is
-    re-applied each frame so it stands for the whole of the gate's read."""
+    The stand-in `primed` supplies this setup because the scroll is test state rather
+    than page behavior. It is re-applied each frame so it stands for the whole of the
+    gate's read."""
 
     def scroll_it(page):
         page.add_init_script(

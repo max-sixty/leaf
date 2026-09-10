@@ -109,6 +109,11 @@ _STYLE_ELEMENT = re.compile(
     rb"(?P<value>.*?)(?P<close></style\s*>)",
     re.IGNORECASE | re.DOTALL,
 )
+_SCRIPT_ELEMENT = re.compile(
+    rb"(?P<open><script\b(?:[^<>\"']|\"[^\"]*\"|'[^']*')*>)"
+    rb"(?P<value>.*?)(?P<close></script\s*>)",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 def scope_page_routes(
@@ -179,7 +184,15 @@ def scope_document_routes(
         )
 
     scoped = _HTML_START_TAG.sub(scope_start_tag, body)
-    return _STYLE_ELEMENT.sub(
+    scoped = _STYLE_ELEMENT.sub(
+        lambda match: (
+            match.group("open")
+            + scope_routes(match.group("value"))
+            + match.group("close")
+        ),
+        scoped,
+    )
+    return _SCRIPT_ELEMENT.sub(
         lambda match: (
             match.group("open")
             + scope_routes(match.group("value"))
@@ -253,6 +266,12 @@ def canonical_script_offset(source: str, page_root: str = "") -> int:
     return source_offset(source, scripts[0]["position"])
 
 
+def script_hash(body: str) -> str:
+    """One CSP source expression for the exact text an inline script executes."""
+    digest = base64.b64encode(hashlib.sha256(body.encode()).digest()).decode()
+    return f"'sha256-{digest}'"
+
+
 def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
     """Inject immutable document identity, including non-HTTP delivery surfaces."""
     offset = canonical_script_offset(source)
@@ -282,11 +301,17 @@ def supervised_document(
     probe, so historical sources inherit the current delivery boundary.
     """
     source = runtime_document(source, revision, version).decode()
+    # The MCP complete-page transport scopes root routes under its bearer path. Do
+    # that before hashing: CSP authorizes the bytes the browser receives, not the
+    # unscoped immutable source. `_send` applies the same idempotent rewrite later.
+    source = scope_document_routes(source.encode(), page_root).decode()
+    bootstrap = scope_page_routes(bootstrap.encode(), page_root).decode()
     parsed = parse_structure(source)
     policy = _declared_policy(parsed)
     policy_offset = source_offset(source, policy["position"])
-    digest = base64.b64encode(hashlib.sha256(bootstrap.encode()).digest()).decode()
-    csp = PAGE_CSP + f"; script-src 'self' 'sha256-{digest}'"
+    hashes = [script_hash(bootstrap)]
+    hashes.extend(script_hash(script["body"]) for script in parsed.inline_scripts)
+    csp = PAGE_CSP + "; script-src 'self' " + " ".join(dict.fromkeys(hashes))
     release = (
         f' data-lf-release="{html.escape(release_id, quote=True)}"'
         if release_id is not None
@@ -526,6 +551,10 @@ class Handler(BaseHTTPRequestHandler):
                 f"{KEY_COOKIE}={self.token}; Path=/; HttpOnly; SameSite=Strict",
             )
             self.set_cookie = False
+        # Data and media are distinct from executable page source. Strict MIME
+        # handling keeps a response from becoming code merely because authored
+        # JavaScript tries to import it.
+        self.send_header("X-Content-Type-Options", "nosniff")
         super().end_headers()
 
     def _send(self, status: int, ctype: str, body: bytes) -> None:

@@ -2,6 +2,7 @@
 
 import json
 import shutil
+from urllib.parse import urlsplit
 
 from interact_support import ROOT
 from leaf.anchor_capture import capture_anchor
@@ -325,6 +326,17 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
 
 
 def test_adaptive_app_renders_the_complete_page_payload(browser, page_dir):
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "</head>",
+            """<script type="module">
+window.authoredModulePath = "/api/state";
+</script></head>""",
+        )
+    )
+    activated = activate_source(page_dir, read_events(page_dir))
+    assert activated.error is None and activated.revision == 2
     pages = ProcessPageServer()
     page = browser.new_page(viewport={"width": 1100, "height": 900})
     errors = []
@@ -376,6 +388,10 @@ def test_adaptive_app_renders_the_complete_page_payload(browser, page_dir):
         assert nested.url == private["inline_url"]
         assert nested.title() == "t"
         assert "Ship dark" in nested.locator("body").text_content()
+        expected_root = urlsplit(private["inline_url"]).path.rstrip("/")
+        assert (
+            nested.evaluate("window.authoredModulePath") == f"{expected_root}/api/state"
+        )
         assert "Leaf page loaded" not in app.locator("#status").text_content()
         expect(app.locator("#status")).to_contain_text("Complete Leaf page ready")
         assert not [
@@ -713,16 +729,15 @@ def test_mcp_app_keeps_authored_css_without_running_authored_code(browser, page_
         source.read_text().replace(
             "</head>",
             "<style>#plan h2 { color: rgb(12, 34, 56); "
-            "background-image: url(/media/0123456789abcdef.png); }</style></head>",
+            "background-image: url(/media/0123456789abcdef.png); }</style>"
+            '<script type="module">window.authoredCodeRan = true;</script></head>',
         )
     )
+    activated = activate_source(page_dir, read_events(page_dir))
+    assert activated.error is None and activated.revision == 2
     _, private = app_snapshot(str(page_dir))
     assert "#plan h2 { color: rgb(12, 34, 56);" in private["authoredCss"]
     assert "url(data:image/png;base64," in private["authoredCss"]
-    private["document"] = private["document"].replace(
-        "<h2>Plan</h2>",
-        "<h2>Plan</h2><script>window.authoredCodeRan = true</script>",
-    )
     page = browser.new_page(viewport={"width": 1100, "height": 900})
     try:
         page.set_content(HOST)

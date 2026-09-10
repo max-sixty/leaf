@@ -87,21 +87,41 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
     errors.extend(structure_errors(parser))
     errors.extend(page_boundary_errors(parser))
 
-    scripts = parser.external_scripts
-    if len(scripts) != 1:
+    external_scripts = parser.external_scripts
+    if len(external_scripts) != 1:
         errors.append(
-            f"expected exactly one external <script src> tag, found {len(scripts)}"
-            + (f": {[script['attrs']['src'] for script in scripts]}" if scripts else "")
+            "expected exactly one external <script src> tag for /leaf.js, found "
+            f"{len(external_scripts)}"
+            + (
+                f": {[script['attrs']['src'] for script in external_scripts]}"
+                if external_scripts
+                else ""
+            )
         )
-    elif scripts[0]["attrs"] != {"src": "/leaf.js", "type": "module"}:
+    elif external_scripts[0]["attrs"] != {"src": "/leaf.js", "type": "module"}:
         errors.append(
-            'the only external script must be exactly <script type="module" '
-            f'src="/leaf.js">, found attributes {scripts[0]["attrs"]}'
+            'the external runtime script must be exactly <script type="module" '
+            f'src="/leaf.js">, found attributes {external_scripts[0]["attrs"]}'
         )
-    elif scripts[0]["parent"] != "head" or not scripts[0]["early_head"]:
+    elif (
+        external_scripts[0]["parent"] != "head" or not external_scripts[0]["early_head"]
+    ):
         errors.append(
             "the /leaf.js module must be in <head> before <body> can paint; "
             "its <head> must be the document's direct, initial head"
+        )
+
+    for script in parser.inline_scripts:
+        if script["attrs"] != {"type": "module"}:
+            errors.append(
+                f"<script> (line {script['line']}) must be an authored module "
+                f'with exactly type="module"; found attributes {script["attrs"]}'
+            )
+    for executable in parser.executable_attributes:
+        errors.append(
+            f"<{executable['tag']}> (line {executable['line']}) uses executable "
+            f"attribute {executable['name']}; put authored behavior in a "
+            '<script type="module"> block'
         )
 
     stylesheets = parser.stylesheets

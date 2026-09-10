@@ -5923,6 +5923,71 @@ def test_ask_action_addresses_stay_aligned_when_focus_enters_a_card(browser, ser
     page.close()
 
 
+def test_ask_actions_replace_unusable_package_address_faces(browser, serve):
+    """Disconnected, shared, and covered faces fall back to core-owned addresses."""
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    resized(page, 900, 900)
+
+    page.evaluate(
+        """async () => {
+          const {commands} = await import('/runtime/widget-api.js');
+          const source = document.getElementById('sug');
+          const face = (id, top) => {
+            const address = document.createElement('span');
+            address.id = id;
+            address.className = 'lf-address';
+            address.style.cssText = `position: fixed; left: 90px; top: ${top}px;`;
+            return address;
+          };
+          const add = (id, top, address) => {
+            const control = document.createElement('button');
+            control.id = id;
+            control.textContent = id;
+            control.style.cssText = `position: fixed; left: 560px; top: ${top}px;`;
+            source.append(control);
+            commands(control, id, [{
+              id: `test.${id}`, keys: [], control, address,
+              decision: id, does: `Activate ${id}`, line: id,
+              run: () => control.click(),
+            }]);
+          };
+
+          add('disconnected-face', 220, face('detached-address', 100));
+          const shared = face('shared-address', 120);
+          source.append(shared);
+          add('shared-face-one', 300, shared);
+          add('shared-face-two', 380, shared);
+          const covered = face('covered-address', 200);
+          source.append(covered);
+          const cover = document.createElement('span');
+          cover.id = 'address-cover';
+          cover.style.cssText =
+            'position: fixed; left: 90px; top: 200px; width: 24px; height: 24px;' +
+            ' z-index: 2; background: black;';
+          source.append(cover);
+          add('covered-face', 460, covered);
+        }"""
+    )
+
+    page.keyboard.press("a")
+    controls = page.locator(
+        "#disconnected-face, #shared-face-one, #shared-face-two, #covered-face"
+    )
+    expect(controls).to_have_count(4)
+    assert controls.evaluate_all(
+        "nodes => nodes.map(node => node.getAttribute('aria-keyshortcuts'))"
+    ) == ["3", "4", "5", "6"]
+    expect(page.locator("#shared-address[data-lf-ask-address]")).to_have_count(0)
+    expect(page.locator("#covered-address[data-lf-ask-address]")).to_have_count(0)
+    for binding in ("3", "4", "5", "6"):
+        expect(
+            page.locator(".lf-ask-addresses > .lf-ask-address", has_text=binding)
+        ).to_have_count(1)
+
+    assert errors == []
+    page.close()
+
+
 def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
     """A row address that reaches the shortcut bar yields to the legend naming its digit."""
     page, errors = open_page(browser, serve(ADDRESS_PAGE))
@@ -7095,12 +7160,19 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
         """() => getComputedStyle(document.body).marginLeft === '0px'"""
     )
 
-    page.locator(".lf-asks").click()
+    # Leaves is a modal covering workspace, so its scrim correctly makes the page and
+    # banner inert. The global destination remains the route from one tray to the other.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
     expect(decisions).to_be_visible()
     expect(leaves).to_be_hidden()
 
+    # The destination captured the covering tray it replaced, so the first Escape
+    # returns there; the second closes that one standing tray.
     page.keyboard.press("Escape")
     expect(decisions).to_be_hidden()
+    expect(leaves).to_be_visible()
+    page.keyboard.press("Escape")
     expect(leaves).to_be_hidden()
     assert errors == []
     page.close()

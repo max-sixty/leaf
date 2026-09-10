@@ -10,7 +10,11 @@ A page directory holds:
                          the first 16 hexadecimal characters of the source digest.
                          A changed valid source becomes the next revision; identical
                          bytes reuse the existing one. The live root follows the
-                         active revision.
+                         active revision, and each revision is also served at its
+                         own address under the same delivery boundary as the root.
+                         All three addresses a page answers name the page root as
+                         their canonical, so a reader sent to any of them, and a
+                         crawler that finds all of them, are looking at one page.
     /versions/v1.html…   virtual public addresses. Each `note` event maps a version to
                          its immutable revision, and the server renders that revision
                          at the stable version URL. No second HTML copy is stored in the

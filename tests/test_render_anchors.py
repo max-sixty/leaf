@@ -16,6 +16,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf.registry import storage as registry_storage
 from PIL import Image
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
     ADDRESSED_PAGE,
@@ -2351,6 +2352,25 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     page.close()
 
 
+FOCUSED_CONVERSATION = "document.activeElement?.closest('.lf-conversation-thread')"
+
+
+def conversation_a_press_opened(page):
+    """The conversation a press on a mark landed in, or None if none ever took focus.
+
+    The preview card the press opens places itself and only then hands over focus, from
+    the placement promise `deferThreadPreviewFocus` waits on — so the thread arrives a
+    frame after the press rather than inside it. This states that ordering rather than
+    reading across it. The wait's own timeout is short, and it answers None so a caller
+    still reports which conversation opened instead of raising over the reading.
+    """
+    try:
+        page.wait_for_function(f"() => {FOCUSED_CONVERSATION} != null", timeout=5000)
+    except PlaywrightTimeout:
+        return None
+    return page.evaluate(f"() => {FOCUSED_CONVERSATION}.innerText")
+
+
 def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     """The card the pointer lights and the card a press opens are one reading of one point.
 
@@ -2394,9 +2414,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     expect(promised).to_contain_text(f"About {seam['at']}.")
 
     page.mouse.click(seam["x"], seam["y"])
-    opened = page.evaluate(
-        "() => document.activeElement?.closest('.lf-conversation-thread')?.innerText ?? null"
-    )
+    opened = conversation_a_press_opened(page)
     assert opened and f"About {seam['at']}." in opened, (
         f"the hover promised the thread on {seam['at']}, and the press at the same point "
         f"opened: {opened}"
@@ -2407,7 +2425,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
 
 def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     """A pointer press briefly moves focus from an open thread to the page before its
-    click restores the reply field. The mark must not look deselected during that gap.
+    click lands back in the conversation. The mark must not look deselected in that gap.
 
     A reaction shares this target with the comment because that was the visible failure:
     losing the current-thread paint exposed the passive reaction contour underneath.
@@ -2453,7 +2471,9 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.move(*point)
     page.mouse.click(*point)
-    page.wait_for_function("() => document.activeElement?.matches('textarea.lf-ui')")
+    # The compact preview card reveals its reply box on request, so what a press lands on
+    # is the conversation itself; the paint under test is the same either way.
+    assert conversation_a_press_opened(page) is not None, "the press opened no thread"
     selected = mark.evaluate(look)
 
     page.mouse.move(*point)
@@ -2517,9 +2537,7 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
     )
 
     page.touchscreen.tap(seam["x"], seam["y"])
-    opened = page.evaluate(
-        "() => document.activeElement?.closest('.lf-conversation-thread')?.innerText ?? null"
-    )
+    opened = conversation_a_press_opened(page)
     assert opened and f"About {seam['at']}." in opened, (
         f"a tap on the quote for {seam['at']} opened: {opened}"
     )
@@ -2638,6 +2656,8 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
             "--json",
             str(d),
             "--to",
+            root["id"],
+            "--for",
             root["id"],
             "--section",
             "drift",

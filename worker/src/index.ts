@@ -9,8 +9,8 @@
  * During an image rollout, a layer mismatch pins that reader briefly to the container's
  * complete shell so a static document never reloads against an older API in a loop.
  * Accepted browser events start their agent task in the already-selected reader
- * container without holding the browser acknowledgement open, and emit content-free
- * canonical metadata to Analytics Engine.
+ * container without holding the browser acknowledgement open. Analytics Engine records
+ * accepted product events; Workers Observability records the content-free execution path.
  */
 
 import {
@@ -100,6 +100,14 @@ interface AcceptedEvent {
   needsReply: boolean;
 }
 
+interface ModelRequestFields {
+  containerId: string;
+  modelRequestId: string;
+  requestKind?: string;
+  threadId?: string;
+  turnId?: string;
+}
+
 interface LeafStateAnswer {
   state?: {
     events?: LeafEvent[];
@@ -125,6 +133,144 @@ export class LeafWebsiteSession extends Container<Env> {
   }
 }
 
+function metadataString(
+  metadata: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = metadata[key];
+  return typeof value === "string" && value.length > 0 && value.length <= 128
+    ? value
+    : undefined;
+}
+
+function modelRequestFields(
+  request: Request,
+  context: OutboundHandlerContext,
+): ModelRequestFields {
+  let metadata: Record<string, unknown> = {};
+  const encoded = request.headers.get("x-codex-turn-metadata");
+  if (encoded !== null) {
+    try {
+      const parsed: unknown = JSON.parse(encoded);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        metadata = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Invalid optional diagnostics must not block the model request.
+    }
+  }
+  return {
+    containerId: context.containerId,
+    modelRequestId: crypto.randomUUID(),
+    requestKind: metadataString(metadata, "request_kind"),
+    threadId: metadataString(metadata, "thread_id"),
+    turnId: metadataString(metadata, "turn_id"),
+  };
+}
+
+function modelLog(
+  event: string,
+  request: ModelRequestFields,
+  fields: Record<string, unknown> = {},
+): void {
+  console.log({
+    component: "leaf-agent",
+    event,
+    ...request,
+    ...fields,
+  });
+}
+
+function observeModelBody(
+  body: ReadableStream<Uint8Array>,
+  request: ModelRequestFields,
+  started: number,
+  status: number,
+  upstreamRequestId: string | null,
+): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let bytes = 0;
+  let firstByte = true;
+  let firstOutput = true;
+
+  const observeFrames = (text: string): void => {
+    buffer += text;
+    const frames = buffer.replaceAll("\r\n", "\n").split("\n\n");
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      const data = frame
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trimStart())
+        .join("\n");
+      if (!data || data === "[DONE]") continue;
+      let event: unknown;
+      try {
+        event = JSON.parse(data);
+      } catch {
+        continue;
+      }
+      if (typeof event !== "object" || event === null || Array.isArray(event)) {
+        continue;
+      }
+      const record = event as Record<string, unknown>;
+      const eventType = metadataString(record, "type");
+      if (
+        firstOutput &&
+        eventType !== undefined &&
+        !["response.created", "response.in_progress", "response.queued"].includes(
+          eventType,
+        )
+      ) {
+        const item = record.item;
+        const outputType =
+          typeof item === "object" && item !== null && !Array.isArray(item)
+            ? metadataString(item as Record<string, unknown>, "type")
+            : undefined;
+        modelLog("model_response_first_output", request, {
+          durationMs: Date.now() - started,
+          responseEvent: eventType,
+          outputType,
+          upstreamRequestId,
+        });
+        firstOutput = false;
+      }
+    }
+  };
+
+  return body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        bytes += chunk.byteLength;
+        if (firstByte) {
+          modelLog("model_response_first_byte", request, {
+            durationMs: Date.now() - started,
+            status,
+            upstreamRequestId,
+          });
+          firstByte = false;
+        }
+        if (firstOutput) {
+          observeFrames(decoder.decode(chunk, { stream: true }));
+        }
+        controller.enqueue(chunk);
+      },
+      flush() {
+        if (firstOutput) {
+          observeFrames(decoder.decode() + "\n\n");
+        }
+        modelLog("model_response_completed", request, {
+          durationMs: Date.now() - started,
+          status,
+          bytes,
+          upstreamRequestId,
+        });
+      },
+    }),
+  );
+}
+
 // Assignment invokes Container's inherited setter, which registers the handler for
 // ContainerProxy. A static class field would shadow that setter.
 LeafWebsiteSession.outboundByHost = {
@@ -144,9 +290,46 @@ LeafWebsiteSession.outboundByHost = {
     if (!capacity.success) {
       return new Response("website agent model limit reached", { status: 429 });
     }
+    const started = Date.now();
+    const modelRequest = modelRequestFields(request, ctx);
+    modelLog("model_request_started", modelRequest);
     const headers = new Headers(request.headers);
     headers.set("Authorization", `Bearer ${env.OPENAI_API_KEY}`);
-    return fetch(new Request(request, { headers }));
+    let response: Response;
+    try {
+      response = await fetch(new Request(request, { headers }));
+    } catch (error) {
+      modelLog("model_request_failed", modelRequest, {
+        durationMs: Date.now() - started,
+        error: error instanceof Error ? error.name : "unknown",
+      });
+      throw error;
+    }
+    const upstreamRequestId = response.headers.get("x-request-id");
+    modelLog("model_response_headers", modelRequest, {
+      durationMs: Date.now() - started,
+      status: response.status,
+      upstreamRequestId,
+    });
+    if (response.body === null) {
+      modelLog("model_response_completed", modelRequest, {
+        durationMs: Date.now() - started,
+        status: response.status,
+        bytes: 0,
+        upstreamRequestId,
+      });
+      return response;
+    }
+    return new Response(
+      observeModelBody(
+        response.body,
+        modelRequest,
+        started,
+        response.status,
+        upstreamRequestId,
+      ),
+      response,
+    );
   },
 };
 

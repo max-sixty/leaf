@@ -146,7 +146,12 @@ import {
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
 import { activeRowLabel, availableCommands } from "./runtime/keyboard/dispatch.js";
-import { focused, paintKeys, reflectFirstScopes } from "./runtime/keyboard/scopes.js";
+import {
+  focused,
+  keys,
+  paintKeys,
+  reflectFirstScopes,
+} from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { createStanding } from "./runtime/standing.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
@@ -278,8 +283,11 @@ const anchorControls = createAnchorControls({
   invalidatePageGeometry: pageGeometry.invalidate,
   messageReferenceRoot: panel,
   draftQuote: composerQuote,
-  presentedControl: (control) => app.margin.presentedControl(control),
+  presentedControl: (control) =>
+    pageMapDialog?.presentedControl(control) ?? app.margin.presentedControl(control),
   focused,
+  keys,
+  paintKeys,
 });
 
 const version = createVersionController({

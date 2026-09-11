@@ -39,6 +39,8 @@ export function createAnchorControls({
   draftQuote,
   presentedControl,
   focused,
+  keys,
+  paintKeys,
 }) {
   const visualActionHolders = new WeakMap();
   const reactionSeats = new Map();
@@ -66,6 +68,7 @@ export function createAnchorControls({
     record.expanded = eventId;
     syncReactionRemoval(record);
     record.margin?.update({ immediate: true });
+    paintKeys();
     if (focus && eventId)
       requestAnimationFrame(() => {
         const remove = record.seat.querySelector(
@@ -218,6 +221,30 @@ export function createAnchorControls({
         const seat = el("span", `lf-ui ${SEAT}`);
         seat.dataset.lfGen = "1";
         record = { seat, roots, expanded: null, margin: null };
+        keys(
+          seat,
+          "On a standing reaction",
+          [
+            {
+              id: "reaction.removal.close",
+              keys: ["Escape"],
+              does: "Hide the remove action",
+              line: "hide remove",
+              when: () => Boolean(record.expanded),
+              run: () => {
+                const eventId = record.expanded;
+                const mark = eventId
+                  ? record.seat.querySelector(
+                      `:scope > .lf-react-mark[data-event="${CSS.escape(eventId)}"]`,
+                    )
+                  : null;
+                setReactionRemoval(record, null);
+                presentedControl(mark)?.focus({ preventScroll: true });
+              },
+            },
+          ],
+          { escape: "inner" },
+        );
         reactionSeats.set(at, record);
       }
       const { seat } = record;
@@ -365,30 +392,12 @@ export function createAnchorControls({
         setReactionRemoval(record, null);
   };
 
-  const onReactionKeydown = (event) => {
-    if (event.key !== "Escape") return;
-    const standing = focused();
-    const active = standing?.lfForwardedControl ?? standing;
-    for (const record of reactionSeats.values()) {
-      if (!record.expanded || !record.seat.contains(active)) continue;
-      const mark = record.seat.querySelector(
-        `:scope > .lf-react-mark[data-event="${CSS.escape(record.expanded)}"]`,
-      );
-      setReactionRemoval(record, null);
-      presentedControl(mark)?.focus({ preventScroll: true });
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
-  };
-
   function mount() {
     if (mounted) return;
     mounted = true;
     document.addEventListener("lf-projection", queueInvalidation);
     document.addEventListener("lf-layout", onLayoutInvalidated);
     document.addEventListener("pointerdown", onOutsideReaction, { capture: true });
-    document.addEventListener("keydown", onReactionKeydown, { capture: true });
     messageReferenceRoot.addEventListener("click", onMessageReference);
   }
 
@@ -397,7 +406,6 @@ export function createAnchorControls({
       document.removeEventListener("lf-projection", queueInvalidation);
       document.removeEventListener("lf-layout", onLayoutInvalidated);
       document.removeEventListener("pointerdown", onOutsideReaction, { capture: true });
-      document.removeEventListener("keydown", onReactionKeydown, { capture: true });
       messageReferenceRoot.removeEventListener("click", onMessageReference);
     }
     mounted = false;

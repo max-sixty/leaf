@@ -55,7 +55,6 @@ module-name = "leaf"
 
 [dependency-groups]
 dev = [
-  "tomli>=2; python_version < '3.11'",
   "pytest>=9.1",
   "pytest-xdist>=3",
   "axe-playwright-python>=0.1.4",

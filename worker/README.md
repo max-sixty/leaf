@@ -119,7 +119,9 @@ jq -n \
 ```
 
 Require `result.statistics.abr_level` to be `1`; narrow the timeframe if Cloudflare
-reports a sampled result.
+reports a sampled result. From a session reference, the Analytics Engine support query
+above returns the accepted event's `timestamp` and `index1`. A window from one minute
+before that timestamp through twenty minutes after keeps the scan unsampled.
 
 Historical Worker and Container logs are available in Workers Observability because
 `wrangler.toml` enables it. The query requires `Workers Observability Write`. A trusted

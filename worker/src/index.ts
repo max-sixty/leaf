@@ -251,11 +251,15 @@ function observeModelBody(
           });
           firstByte = false;
         }
-        observeFrames(decoder.decode(chunk, { stream: true }));
+        if (firstOutput) {
+          observeFrames(decoder.decode(chunk, { stream: true }));
+        }
         controller.enqueue(chunk);
       },
       flush() {
-        observeFrames(decoder.decode() + "\n\n");
+        if (firstOutput) {
+          observeFrames(decoder.decode() + "\n\n");
+        }
         modelLog("model_response_completed", request, {
           durationMs: Date.now() - started,
           status,

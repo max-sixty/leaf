@@ -3,7 +3,7 @@
 lf-swipe-deck {
   --lf-block-frame: 1;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
   gap: var(--sp-3);
   width: min(100%, 44rem);
   margin: var(--sp-4) auto;
@@ -164,11 +164,6 @@ lf-swipe-pile[verdict="unseen"] > lf-swipe-card:first-of-type:focus-visible {
   transform: none;
 }
 
-lf-swipe-deck.lf-swipe-quoted lf-swipe-pile[verdict="pass"],
-lf-swipe-deck.lf-swipe-quoted lf-swipe-pile[verdict="keep"] {
-  grid-row: 2;
-}
-
 lf-swipe-card.lf-swipe-dragging {
   cursor: grabbing;
   transform: translateX(var(--lf-swipe-drag-x));
@@ -248,7 +243,6 @@ lf-swipe-card.lf-swipe-dragging {
 
 lf-swipe-pile[verdict="pass"],
 lf-swipe-pile[verdict="keep"] {
-  grid-row: 3;
   min-height: 5rem;
   padding: var(--sp-3);
   border-top: 2px solid var(--rule);
@@ -284,26 +278,6 @@ lf-swipe-pile[verdict="keep"]
 }
 
 @container (max-width: 31rem) {
-  lf-swipe-deck {
-    grid-template-columns: 1fr;
-    gap: var(--sp-2);
-  }
-
-  lf-swipe-pile[verdict="unseen"],
-  .lf-swipe-controls {
-    grid-column: 1;
-  }
-
-  lf-swipe-pile[verdict="pass"],
-  lf-swipe-pile[verdict="keep"] {
-    grid-row: auto;
-  }
-
-  lf-swipe-deck.lf-swipe-quoted lf-swipe-pile[verdict="pass"],
-  lf-swipe-deck.lf-swipe-quoted lf-swipe-pile[verdict="keep"] {
-    grid-row: auto;
-  }
-
   .lf-swipe-controls {
     gap: var(--sp-2);
   }

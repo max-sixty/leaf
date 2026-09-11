@@ -270,6 +270,15 @@ Ask projection uses the same condition for standing state. Do not add a second
 completed attribute or trust the browser's optimistic item count. Re-vendoring must
 preserve the completion condition for every recorded action.
 
+A composition allocates a Leaf element's outer box. The package owns how the element's
+contents use that allocation, based on its available inline size rather than the page
+shell or a reading posture. Prefer intrinsic grid or flex layout. When the contents need
+a discrete breakpoint, make the element a query container and apply the conditional
+rules to its descendants. A host rule inside that block does not fail: an unnamed query
+answers from the nearest ancestor container, and `body` is a container, so the rule
+silently follows the page shell instead. Keep the host's own layout intrinsic, or put
+the properties that change on a descendant layout box.
+
 A package is for behavior, styling, or vocabulary reused across pages. Page-specific
 behavior belongs in an authored inline module and needs no package entry. A CSS-only
 widget is an entry and a theme rule. One with reusable behavior takes a module.

@@ -7,6 +7,14 @@ from pathlib import Path
 # claim the page before it closes. The external claim record is the ownership
 # source; a standing lifetime ignores it and remains enabled until `server stop`.
 ORPHAN_GRACE_SECS = 1
+# How long a page whose claim carries no liveness of its own (`activity`, for a
+# host that multiplexes every session into one process) stays owned after the
+# last thing touched it. Long enough that an agent composing a turn, or a reader
+# sitting on the page between comments, is never mistaken for a session that
+# left; short enough that a run of throwaway preview pages drains the same
+# afternoon rather than at the next app restart. A page the session still wants
+# is re-served by the next command that reaches it.
+ACTIVITY_GRACE_SECS = 30 * 60
 # The kinds a reader can take back. A message is not among them: a comment is
 # speech, and the agent may already have read it — what a reader regrets there
 # they say, rather than unsay. A reaction is the exception the message kinds

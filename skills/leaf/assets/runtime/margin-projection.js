@@ -824,6 +824,10 @@ export function createMarginProjection({
       bottomChromeBoxes()
         .filter((box) => left < box.right && box.left < left + width)
         .reduce((edge, box) => Math.min(edge, box.top - gap), baseBottom);
+    const adjacentLeft = ({ name, left, right }, width) =>
+      name === "right"
+        ? Math.min(Math.max(target.right + gap, left), right - width)
+        : Math.max(left, Math.min(target.left - gap - width, right - width));
     const side = (
       main
         ? [
@@ -831,18 +835,17 @@ export function createMarginProjection({
             { name: "left", left: firstLeft, right: main.left - gap },
           ]
         : []
-    ).find(({ name, left, right }) => {
+    ).find((candidate) => {
+      const { left, right } = candidate;
       const width = Math.min(preferredWidth, right - left);
-      const cardLeft = name === "right" ? right - width : left;
+      const cardLeft = adjacentLeft(candidate, width);
       return right - left >= minimumWidth && bottomFor(cardLeft, width) > firstTop;
     });
     const boundaryLeft = side?.left ?? firstLeft;
     const boundaryRight = side?.right ?? lastRight;
     const width = Math.min(preferredWidth, boundaryRight - boundaryLeft);
     const cardLeft = side
-      ? side.name === "right"
-        ? boundaryRight - width
-        : boundaryLeft
+      ? adjacentLeft(side, width)
       : Math.max(firstLeft, Math.min(target.right - width, lastRight - width));
     const boundary = new DOMRect(
       boundaryLeft,

@@ -1,7 +1,6 @@
-/* The interaction gallery frames page-global Leaf chrome inside a second document.
- * This adapter exposes the production controls and state transitions to the parent
- * gallery without posting their gestures. Content widgets stay in the parent page;
- * only chrome that is singleton by design needs this document boundary.
+/* The interaction gallery runs each demonstration inside a second Leaf document. This
+ * adapter exposes production controls and state transitions to the parent gallery
+ * without posting their gestures.
  *
  * The parent loads this adapter into a complete document before it loads Leaf. The
  * adapter can therefore hear Leaf's startup outcome without racing it, while Leaf does
@@ -58,9 +57,9 @@ window.leafInteractionGalleryFrame = {
     mountCommands();
   },
   ready: prepare(),
-  resetComment(text) {
+  resetComment(section, text) {
     neutralChrome();
-    commands.openComposer({ section: "bg-thread-text" }, text, { focus: false });
+    commands.openComposer({ section }, text, { focus: false });
   },
   commentInput() {
     return commands.fabInput;
@@ -71,7 +70,7 @@ window.leafInteractionGalleryFrame = {
       commands.fabInput.value,
     );
     commands.detachComposer();
-    return commands.openInlineThread(threadId, transition);
+    return () => commands.openInlineThread(threadId, transition);
   },
   resetThreads() {
     neutralChrome();

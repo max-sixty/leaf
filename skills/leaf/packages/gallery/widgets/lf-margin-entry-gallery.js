@@ -100,8 +100,8 @@ const GROUPS = [
         agentPhase: "active",
       },
       {
-        name: "Working alone",
-        detail: "Activity dot · no other control can carry it",
+        name: "Activity fallback",
+        detail: "Working · no target control available",
         icon: "activity",
         behavior: "disclosure",
         rank: "reading",

@@ -1,13 +1,13 @@
 /* The one helper surface behavior modules import. Every capability is reexported from
    its domain owner; owners import one another, and leaf.js only boots. */
-export { ARRANGEMENTS } from "./arrangements.js";
+export { READER_VIEW_RESTORE_CASES } from "./restore-state.js";
 export {
   arrangeReadingElement,
   defineReadingPaneElement,
   fitRootReadingElement,
-  registerArrangedElement,
+  registerReadingElement,
 } from "./reading-layout.js";
-export { itemWord } from "./anchor-resolution.js";
+export { addressableWord } from "./anchor-resolution.js";
 export { navigateToDatum } from "./application.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { inUi, uiInside } from "./shadow.js";
@@ -24,11 +24,11 @@ export { focused, keys as commands, paintKeys, saying } from "./keyboard/scopes.
 export { repaint } from "./repaint.js";
 export { beginWalk, listWalkPosition } from "./walk-position.js";
 export {
-  MARGIN_ELEMENT_SCHEMA,
-  marginElement,
-  marginElementState,
+  MARGIN_ENTRY_SCHEMA,
+  marginEntry,
+  setMarginEntryState,
   registerMarginContribution,
-} from "./margin-elements.js";
+} from "./margin-entries.js";
 export { loadMarkdown, renderMarkdown } from "./markdown.js";
 export { pageScroller } from "./scrolling.js";
 export {
@@ -39,7 +39,7 @@ export {
   readingRegion,
   readingRegionFor,
   readingRegions,
-  registerArrangement,
+  registerReadingArrangement,
   registerReadingRegion,
   scrollerFor,
   shownRegionBounds,
@@ -105,6 +105,7 @@ export {
   layoutChanged,
   measure,
   offer,
+  projectionChanged,
   quoted,
   reachedForWords,
   relabel,

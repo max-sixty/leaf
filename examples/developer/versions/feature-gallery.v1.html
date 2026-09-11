@@ -42,9 +42,10 @@
       </p>
 
       <section id="bg-core-surfaces">
-        <h2>Start with the main Asks panel</h2>
+        <h2>Start with the Asks tray</h2>
         <p id="bg-core-surfaces-guide">
-          The top bar is Leaf’s control surface, not part of this document. Open
+          The banner is Leaf’s persistent control surface, not part of this document.
+          Open
           <strong>Asks</strong>—or press <kbd>g</kbd>, then <kbd>Shift+A</kbd>—choose
           the row labeled <strong>Ask</strong>, and answer the question it returns to
           here. The suggestion rows in that panel exercise Accept, Reject, and Undo
@@ -62,7 +63,7 @@
           behind the page; <strong>Threads</strong> holds every conversation; the
           versions menu opens v1 and its diff; <strong>Map</strong> collects page
           locations (<kbd>g</kbd>, then <kbd>Shift+M</kbd>); and pressing
-          <strong>?</strong> twice opens the complete keyboard reference.
+          <strong>?</strong> twice opens the complete command reference.
           <strong>All leaves</strong> appears when another Leaf page is live.
         </p>
       </section>
@@ -74,7 +75,7 @@
           <h3>Approve a version</h3>
           <p id="bg-signoff-guide">
             This page declares sign-off, so <strong>Approve version</strong> is a real
-            Button in the top bar. Press it to record approval, then press
+            Button in the banner. Press it to record approval, then press
             <kbd>z</kbd> to take that approval back. The page stays live either way.
           </p>
         </section>
@@ -185,8 +186,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
         <p id="bg-resolved-text">
           <strong>A resolved conversation.</strong> The room has a projector. Its
-          earlier question is resolved. Open Threads in the top bar, select Resolved,
-          and try Reopen to bring its Button back to the page.
+          earlier question is resolved. Open Threads in the banner, select Resolved, and
+          try Reopen to bring its Button back to the page.
         </p>
         <p id="bg-new-thread">
           <strong>A clean passage.</strong> Select some of these words, or Alt-click
@@ -255,7 +256,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p id="bg-button-cluster-guide">
           The change below has a thread and all six reactions. At rest it stays compact.
           Press … to unfold it, or Tab into it. When the row cannot fit every Button,
-          More opens the remaining controls in the Page map. Escape returns to the row.
+          More opens the remaining controls in the Page Map. Escape returns to the row.
         </p>
         <lf-suggestion id="bg-crowded">
           <lf-old><p>Use the courtyard for the practice session.</p></lf-old>
@@ -312,7 +313,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </section>
 
         <section id="bg-source-captures">
-          <h3>Compare a live source with a frozen snapshot</h3>
+          <h3>Compare a live text document with a frozen snapshot</h3>
           <p id="bg-source-guide">
             Both views bind the same captured text document. The live view follows a
             later <code>leaf data set</code>; the snapshot stays on capture 1. Their
@@ -320,18 +321,18 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             visible with the text.
           </p>
           <p><strong>Live binding.</strong></p>
-          <lf-source
+          <lf-text-document
             id="bg-source-live"
             source="gallery-source"
             language="toml"
-          ></lf-source>
+          ></lf-text-document>
           <p><strong>Snapshot 1.</strong></p>
-          <lf-source
+          <lf-text-document
             id="bg-source-snapshot"
             source="gallery-source"
             snapshot="1"
             language="toml"
-          ></lf-source>
+          ></lf-text-document>
         </section>
 
         <section id="bg-measurement-lag">
@@ -427,7 +428,7 @@ gallery/
         </section>
 
         <section id="bg-plans-and-history">
-          <h3>Milestones and event timeline</h3>
+          <h3>Milestones and chronology</h3>
           <lf-milestones id="bg-milestones">
             <lf-milestone id="bg-milestone-survey" status="done" when="morning">
               <strong>Survey the route</strong> Marked the crossings.
@@ -444,21 +445,25 @@ gallery/
               <strong>Write the note</strong>
             </lf-milestone>
           </lf-milestones>
-          <lf-timeline id="bg-timeline">
-            <lf-event id="bg-event-alert" at="09:14" kind="warning">
+          <lf-chronology id="bg-chronology">
+            <lf-chronology-entry id="bg-chronology-alert" at="09:14" kind="warning">
               <strong>Rain started</strong> The open path became slippery.
-            </lf-event>
-            <lf-event id="bg-event-switch" at="09:20" kind="action">
+            </lf-chronology-entry>
+            <lf-chronology-entry
+              id="bg-chronology-switch"
+              at="09:20"
+              kind="intervention"
+            >
               <strong>Route changed</strong> The sample moved under cover.
-            </lf-event>
-            <lf-event id="bg-event-clear" at="09:42" kind="info">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="bg-chronology-clear" at="09:42" kind="observation">
               <strong>Walk resumed</strong>
-            </lf-event>
-          </lf-timeline>
+            </lf-chronology-entry>
+          </lf-chronology>
         </section>
 
-        <section id="bg-workstream-tabs">
-          <h3>Workstream tabs</h3>
+        <section id="bg-tab-set">
+          <h3>Tabbed views</h3>
           <p id="bg-tabs-guide">
             Switch panels, reload, and confirm that this browser tab remembers its view.
           </p>
@@ -500,7 +505,7 @@ gallery/
       <section id="bg-version-changes">
         <h2>Changed since the earlier version</h2>
         <p id="bg-version-guide">
-          Open the versions menu in the top bar and use Compare beside v1. The changed
+          Open the versions menu in the banner and use Compare beside v1. The changed
           passage below gets a Change marker; press it to find the changed passage.
           Choose v1 in the menu to read the earlier wording, then return to the latest
           version. Turn comparison off to clear the marker.

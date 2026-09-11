@@ -122,8 +122,14 @@ class StructParser:
         # placement belong to the asset record: parallel lists made one fact several
         # representations and let a later parser edit silently misalign them.
         self.external_scripts = []
-        self.stylesheets = []
-        self.lf_metas = []  # {name, content, line} per <meta name="lf-*">
+        # Every <link>, whatever relation it declares. Two checks read these — the one
+        # stylesheet a page dresses itself with, and the canonical address only
+        # delivery may name — and indexing the tag answers both from one parse.
+        self.links = []
+        # {name, content, line} per <meta name>, lf- declarations and ordinary
+        # document metadata alike: one index of what the head names, so a reader
+        # after a description does not need a second parse of the same head.
+        self.named_metas = []
         self.http_equivs = []  # {equiv, content, line, position, raw} per meta
         # The authored page lives under one direct body > main because that is the
         # element the first-replay presentation boundary withholds. Both assets that
@@ -334,16 +340,17 @@ class StructParser:
                     "early_head": in_head and before_body,
                 }
             )
-        if tag == "link" and "stylesheet" in (attrs.get("rel") or ""):
-            self.stylesheets.append(
+        if tag == "link":
+            self.links.append(
                 {
                     "attrs": attrs,
                     "parent": parent_tag,
                     "early_head": in_head and before_body,
+                    "line": line,
                 }
             )
-        if tag == "meta" and (attrs.get("name") or "").startswith("lf-"):
-            self.lf_metas.append(
+        if tag == "meta" and attrs.get("name"):
+            self.named_metas.append(
                 {"name": attrs["name"], "content": attrs.get("content"), "line": line}
             )
         if tag == "meta" and attrs.get("http-equiv"):
@@ -625,6 +632,16 @@ class StructParser:
         return sorted({i for i in self.all_ids if i.startswith("lf-")})
 
 
+def links_with_rel(links: list[dict], rel: str) -> list[dict]:
+    """The indexed links declaring one relation. `rel` carries a space-separated
+    token list, so a relation is a token in it rather than a substring of it."""
+    return [
+        link
+        for link in links
+        if rel in (link["attrs"].get("rel") or "").lower().split()
+    ]
+
+
 def parse_structure(markup: str) -> StructParser:
     """One structural reading of a document or fragment — fed and closed, so
     every reader gets the flushed parse rather than each restating the ritual."""
@@ -653,6 +670,6 @@ def revision_review_mode(page_dir: Path, revision: int):
     """The review decision declared by an exact working revision, or None."""
     parser = parse_revision(page_dir, revision)
     return next(
-        (meta["content"] for meta in parser.lf_metas if meta["name"] == "lf-review"),
+        (meta["content"] for meta in parser.named_metas if meta["name"] == "lf-review"),
         None,
     )

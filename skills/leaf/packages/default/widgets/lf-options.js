@@ -36,10 +36,11 @@
  * not a conversation: if the agent needs clarification after carrying the option into
  * the page, it can open a separate thread anchored to that option.
  *
- * The keyboard walk stops at options. Tab remains the platform's path through every
- * control and into the add field. There it follows Leaf's shared text-box contract:
- * Enter writes a newline and Mod+Enter adds the option. A generated option joins the
- * walk on replay just like an authored one.
+ * The keyboard walk stops at options. Ask digits choose each authored option, then enter
+ * the add field when a digit remains among the Ask's nine contextual bindings. Tab remains the
+ * platform's path through every control and into that field. There it follows Leaf's
+ * shared text-box contract: Enter writes a newline and Mod+Enter adds the option. A
+ * generated option joins the walk on replay just like an authored one.
  *
  * In a thread the existing reply box already owns those words, so Enter from a mark
  * continues into that box and a `multiple` group grows a Done press instead: every
@@ -189,7 +190,7 @@ customElements.define(
         // module put there: the mark is the pick's own control, and the digit stands in
         // the column beside it, so a press on either is aimed at this option after all.
         const inner = worksInside(e.target, option);
-        if (inner && !inner.matches(".lf-pick, .lf-address")) return;
+        if (inner && !inner.matches(".lf-pick, .lf-key-badge")) return;
         if (!actionAvailable(this, "choose")) return;
         const was = this.#picked();
         // Toggling is one gesture both ways, so a reader who picked by mistake needn't
@@ -245,11 +246,11 @@ customElements.define(
     // the pressed control's own line holds still.
     #doneRow() {
       this.#done = offer("button", "lf-btn lf-done", "Done");
-      // The Ask address's own slot, as each option row has one. Without it the projection
+      // The Ask binding badge's own slot, as each option row has one. Without it the projection
       // hung the chip at the button's corner, half outside the group's frame.
-      const address = offer("span", "lf-address");
-      address.setAttribute("aria-hidden", "true");
-      this.#done.prepend(address);
+      const bindingBadge = offer("span", "lf-key-badge");
+      bindingBadge.setAttribute("aria-hidden", "true");
+      this.#done.prepend(bindingBadge);
       this.#done.setAttribute("aria-label", "Done: my picks here are complete");
       this.#done.setAttribute("aria-pressed", "false");
       this.#done.onclick = () => this.#answer();
@@ -315,27 +316,26 @@ customElements.define(
     // The group contributes its ordered answer controls once, and core assigns their
     // contextual Ask bindings without the package maintaining a second digit map.
     #keys() {
-      for (const address of this.querySelectorAll(":scope > lf-option > .lf-address"))
-        address.remove();
+      for (const bindingBadge of this.querySelectorAll(
+        ":scope > lf-option > .lf-key-badge",
+      ))
+        bindingBadge.remove();
       const marks = this.#marks();
       const answerRows = [];
       for (const [index, mark] of marks.entries()) {
         const option = mark.parentElement;
-        let address = null;
-        if (index < 9) {
-          // The widget owns the card-local placement anchor; the Ask projection writes
-          // whichever binding this action receives and removes it when the action is not
-          // reachable. Keeping the face empty here keeps one keyboard map.
-          address = offer("span", "lf-address");
-          address.setAttribute("aria-hidden", "true");
-          option.prepend(address);
-        }
+        // The widget owns the card-local placement anchor; the Ask projection decides
+        // whether this action receives one of its finite bindings and writes that binding
+        // into the empty face. The package keeps no copy of core's capacity.
+        const bindingBadge = offer("span", "lf-key-badge");
+        bindingBadge.setAttribute("aria-hidden", "true");
+        option.prepend(bindingBadge);
         answerRows.push({
           id: `option.choose-${index + 1}`,
           keys: [],
           control: mark,
           decision: label(option) || option.id,
-          address,
+          bindingBadge,
           does: `Toggle option ${index + 1}`,
           line: label(option) || option.id,
           run: () => mark.click(),
@@ -420,13 +420,24 @@ customElements.define(
           },
         ]);
       }
+      if (this.#addition.input)
+        answerRows.push({
+          id: "option.write",
+          keys: [],
+          control: this.#addition.input,
+          decision: "Another option",
+          bindingBadge: this.#addition.bindingBadge,
+          does: "Write another option",
+          line: "write another option",
+          run: () => this.#addition.input.focus(),
+        });
       if (this.#done)
         answerRows.push({
           id: "option.done",
           keys: [],
           control: this.#done,
           decision: "Done",
-          address: this.#done.querySelector(":scope > .lf-address"),
+          bindingBadge: this.#done.querySelector(":scope > .lf-key-badge"),
           does: "Finish choosing options",
           line: "done",
           run: () => this.#done.click(),

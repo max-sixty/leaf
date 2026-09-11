@@ -2,22 +2,16 @@
 
 import base64
 import io
-import json
 import re
-import threading
-import time
 from copy import deepcopy
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command, record_claim
+from interact_support import append_command
 from leaf import cli as cli_model
-from leaf import codex as codex_model
 from leaf import conversation as conversation_model
 from leaf import event_log as events_model
-from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
-from leaf import service as service_model
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -59,236 +53,8 @@ from render_support import (
     told,
     undo,
 )
-from websockets.sync.server import serve as serve_websocket
 
 pytestmark = pytest.mark.nightly
-
-
-def test_a_leaf_started_codex_response_streams_into_the_live_thread(
-    browser, serve, monkeypatch, request
-):
-    url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Answer me here", {"section": "plan"})
-    claim = record_claim(
-        serve.page_dir,
-        id="codex-thread",
-        host="codex",
-        agent="Codex",
-    )
-    lease = leases_model.take_waiter_lease(
-        leases_model.waiter_lease_path(serve.page_dir, claim)
-    )
-    assert lease
-    request.addfinalizer(lease.close)
-    with service_model.PageTransaction(serve.page_dir) as transaction:
-        transaction.set_status("waiting", "Reader feedback")
-    monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
-
-    finish = threading.Event()
-    completed = threading.Event()
-    hold_server = threading.Event()
-
-    def handle(socket):
-        initialize = json.loads(socket.recv())
-        socket.send(json.dumps({"id": initialize["id"], "result": {}}))
-        socket.recv()
-        resume = json.loads(socket.recv())
-        socket.send(
-            json.dumps(
-                {
-                    "id": resume["id"],
-                    "result": {
-                        "thread": {
-                            "id": "codex-thread",
-                            "status": {"type": "idle"},
-                            "turns": [],
-                        }
-                    },
-                }
-            )
-        )
-        start = json.loads(socket.recv())
-        socket.send(
-            json.dumps(
-                {
-                    "method": "turn/started",
-                    "params": {
-                        "threadId": "codex-thread",
-                        "turn": {"id": "leaf-turn"},
-                    },
-                }
-            )
-        )
-        socket.send(
-            json.dumps(
-                {
-                    "id": start["id"],
-                    "result": {
-                        "turn": {
-                            "id": "leaf-turn",
-                            "status": "inProgress",
-                            "items": [],
-                        }
-                    },
-                }
-            )
-        )
-        socket.send(
-            json.dumps(
-                {
-                    "method": "item/started",
-                    "params": {
-                        "threadId": "codex-thread",
-                        "turnId": "leaf-turn",
-                        "item": {
-                            "id": "answer",
-                            "type": "agentMessage",
-                            "phase": "final_answer",
-                            "text": "",
-                        },
-                    },
-                }
-            )
-        )
-        socket.send(
-            json.dumps(
-                {
-                    "method": "item/agentMessage/delta",
-                    "params": {
-                        "threadId": "codex-thread",
-                        "turnId": "leaf-turn",
-                        "itemId": "answer",
-                        "delta": "First words",
-                    },
-                }
-            )
-        )
-        finish.wait(timeout=5)
-        answer = {
-            "id": "answer",
-            "type": "agentMessage",
-            "phase": "final_answer",
-            "text": "First words, then the complete answer.",
-        }
-        socket.send(
-            json.dumps(
-                {
-                    "method": "item/completed",
-                    "params": {
-                        "threadId": "codex-thread",
-                        "turnId": "leaf-turn",
-                        "completedAtMs": 1,
-                        "item": answer,
-                    },
-                }
-            )
-        )
-        socket.send(
-            json.dumps(
-                {
-                    "method": "turn/completed",
-                    "params": {
-                        "threadId": "codex-thread",
-                        "turn": {
-                            "id": "leaf-turn",
-                            "status": "completed",
-                            "items": [answer],
-                        },
-                    },
-                }
-            )
-        )
-        completed.set()
-        hold_server.wait(timeout=10)
-
-    app_server = serve_websocket(handle, "127.0.0.1", 0)
-    worker = threading.Thread(target=app_server.serve_forever, daemon=True)
-    worker.start()
-    request.addfinalizer(app_server.shutdown)
-    request.addfinalizer(hold_server.set)
-    endpoint = f"ws://127.0.0.1:{app_server.socket.getsockname()[1]}"
-    observer = codex_model.AppServerClient(endpoint, "codex-thread")
-    observer.start()
-    request.addfinalizer(observer.stop)
-    observer.start_delivery(
-        {
-            "id": "delivery-1",
-            "page": str(serve.page_dir),
-            "conversation": root,
-            "reply_to": root,
-        },
-        {"format": codex_model.DELIVERY_FORMAT, "id": "delivery-1"},
-    )
-
-    page, errors = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    live = page.locator(
-        f'.lf-thread[data-id="{root}"] .lf-msg[data-mid="codex-stream:leaf-turn"]'
-    )
-    expect(live.locator(".lf-msg-body")).to_have_text("First words")
-    expect(live).to_have_attribute("aria-busy", "true")
-    expect(live.locator(".lf-react-strip")).to_have_count(0)
-
-    finish.set()
-    assert completed.wait(timeout=5)
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        replies = [
-            event
-            for event in events_model.read_events(serve.page_dir)
-            if event["kind"] == "reply" and event["author"] == "claude"
-        ]
-        if replies:
-            break
-        time.sleep(0.01)
-    assert len(replies) == 1
-    expect(live).to_have_count(0)
-    reply = page.locator(f'.lf-thread[data-id="{root}"] .lf-msg.claude').last
-    expect(reply.locator(".lf-msg-body")).to_have_text(
-        "First words, then the complete answer."
-    )
-    expect(reply.locator(".lf-react-strip")).to_have_count(1)
-    assert not errors
-
-
-@pytest.mark.parametrize(
-    ("state", "label"),
-    [("interrupted", "Interrupted"), ("partial", "Partial")],
-)
-def test_an_incomplete_codex_response_is_labelled_in_its_thread(
-    browser, serve, state, label
-):
-    url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Answer me here", {"section": "plan"})
-    record_claim(
-        serve.page_dir,
-        id="codex-thread",
-        host="codex",
-        agent="Codex",
-    )
-    with service_model.PageTransaction(serve.page_dir) as transaction:
-        transaction.set_status("waiting", "Reader feedback")
-        transaction.set_stream_reply(
-            "codex-thread",
-            "leaf-turn",
-            root,
-            root,
-            "answer",
-            "I could not finish this response.",
-            state,
-        )
-
-    page, errors = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    draft = page.locator(
-        f'.lf-thread[data-id="{root}"] .lf-msg[data-mid="codex-stream:leaf-turn"]'
-    )
-    expect(draft).to_have_attribute("data-stream-state", state)
-    expect(draft.locator(".lf-stream-state")).to_have_text(label)
-    expect(draft).not_to_have_attribute("aria-busy", "true")
-    assert not errors
 
 
 @pytest.mark.parametrize("resolved", [False, True])
@@ -309,6 +75,7 @@ def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved)
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
+        for_event=root,
     )
     for i in range(8):
         events_model.append_event(
@@ -525,7 +292,9 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     ] == [root]
     expect(page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')).to_have_count(0)
     if view == "inline":
-        expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+        expect(page.locator(".lf-thread-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
+        )
     else:
         expect(page.locator(".lf-general textarea")).to_be_focused()
     assert errors == []
@@ -1360,7 +1129,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     page.locator("#how-store").click()
     page.keyboard.press("/")
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
-    expect(page.locator(".lf-panel")).not_to_be_visible()
+    expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
     page.keyboard.press("g")
@@ -1373,7 +1142,9 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     page.keyboard.type("megabytes")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{cap}"]')).to_have_count(1)
-    expect(page.locator(".lf-panel-title")).to_have_text("Showing 1 of 3")
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
+        "Showing 1 of 3"
+    )
     # The page's own count is the log's and says so throughout.
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (3)")
 
@@ -1414,7 +1185,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     page.locator("#lede").click()
     expect(page.locator(f'.lf-thread[data-id="{lede}"]')).to_have_count(1)
     expect(page.locator(".lf-find-box")).to_have_value("")
-    expect(page.locator(".lf-panel-title")).to_have_text("Threads")
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(3)
 
     # Escape spends one rung on the narrowing and the next on the box, rather than
@@ -1457,7 +1228,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     page.locator("#how-store").click()
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on you")
     page.keyboard.press("w")
-    expect(page.locator(".lf-panel")).not_to_be_visible()
+    expect(page.locator(".lf-thread-panel")).not_to_be_visible()
 
     # `g T` stands the reader on the list, where the key is live and the line says so.
     # The control names it, off the row, so the two cannot come to spell it differently.
@@ -1492,7 +1263,9 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(
         page.locator(f'.lf-threads > .lf-thread[hidden][data-id="{mine}"]')
     ).to_have_count(1)
-    expect(page.locator(".lf-panel-title")).to_have_text("Showing 1 of 2")
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
+        "Showing 1 of 2"
+    )
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
 
     # Closing the owning surface retires both its narrowing frame and the g T frame below
@@ -1503,7 +1276,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("show all")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page)
@@ -1531,7 +1304,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
     expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
-    expect(page.locator(".lf-panel-title")).to_have_text("Threads")
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-needs")).to_be_disabled()
     expect(page.locator(".lf-needs")).to_have_attribute(
         "title", "Nothing is waiting on you"
@@ -1627,7 +1400,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     page.locator(".lf-threads").focus()
     page.keyboard.press("Escape")
     expect(visible).to_have_count(4)
-    expect(page.locator(".lf-panel-title")).to_have_text("Threads")
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
     )
@@ -1662,12 +1435,14 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
         answered,
         "Forty is what the slowest supported device can hold.",
         None,
+        for_event=answered,
     )
     conversation_model.cmd_reply(
         serve.page_dir,
         asked,
         "One choice remains. Which store should own the result?",
         None,
+        for_event=asked,
         awaits=True,
     )
     page, errors = open_page(
@@ -1733,6 +1508,8 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
         '<lf-option id="backend-sqlite"><strong>SQLite</strong></lf-option>'
         '<lf-option id="backend-postgres"><strong>Postgres</strong></lf-option>'
         "</lf-options></lf-ask>",
+        for_event=None,
+        initiates=True,
     )
     told(page)
     expect(page.locator(".lf-needs")).to_have_text("On you (2)")
@@ -2392,6 +2169,7 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
         '<lf-option id="mounts">Mounts</lf-option>'
         '<lf-option id="camera">Camera</lf-option>'
         "</lf-options></lf-ask>",
+        for_event=root,
     )
     page, errors = open_page(browser, url, init_script=HOLD_MOTION)
     page.locator(".lf-threads-toggle").click()
@@ -2628,7 +2406,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
             c => !global_.has(c) && documentGlobal.has(c)));
         const probe = document.createElement("div"), plain = document.createElement("div");
         // Minus the shared vocabulary: a word document level dresses on purpose
-        // (lf-address, worn by the sequence's own layer and by an option's corner alike)
+        // (lf-key-badge, worn by the sequence's own layer and by an option's corner alike)
         // is named by the scoped rule that says when to paint it, and it would answer
         // this question with the reach it was given rather than with a leak.
         probe.className = [...scoped]
@@ -2660,7 +2438,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # state, and the widths that fold it away — is the authored theme's. The
         # runtime sheet names it only to say which plane it stands on, so the movement
         # the theme's rule causes is that deliberate face rather than a leaked one.
-        "lf-living-margin",
+        "lf-margin-projection",
         "lf-msg-head",
         "lf-react-open",
         "lf-react-palette",
@@ -2679,7 +2457,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "primary",
     }, "the authored-theme class surface changed: widen the exception on purpose"
     # Every one of these is worn by something the runtime puts inside the page rather than
-    # inside its own container — or, for lf-address, on both sides of that line at once,
+    # inside its own container — or, for lf-key-badge, on both sides of that line at once,
     # which is the same reason: a scoped rule cannot reach the copy in the page. Except the
     # first two, which document level names only to hold a rule off them and which are here
     # for the other half of the sentence. lf-copy is the medium `version export` marks on
@@ -2693,7 +2471,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # widget markup. Both deliberately cross the chrome scope so drawing can spare
         # the conversation's controls.
         "lf-conversation",
-        "lf-drawing",
         # The compact response field, named the same way: the general text box's rule
         # excludes it at document level because the field takes its whole geometry from
         # the response controls it shares a baseline with, inside the chrome's own scope.
@@ -2705,7 +2482,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-focus-visible",
         "lf-btn",
         "lf-chip",
-        "lf-address",
+        "lf-key-badge",
         "lf-over-mark",
         "lf-mark-el",
         "lf-projected-mark",  # an element mark projects above authored paint
@@ -2716,7 +2493,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-mark-note",
         "lf-skip",  # the keyboard entry point stands before the chrome container
         "lf-aiming",
-        "lf-design",  # design mode's arming, on body beside the aim's, for the cursor
         "lf-over-item",
         "lf-quiet",
         # Shared textual thread boxes render both in page-owned widget seats and in the
@@ -2745,15 +2521,15 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-margin-cluster",
         "lf-margin-contribution",
         "lf-margin-options",
-        "lf-margin-element",
-        "lf-margin-element-glyph",
-        "lf-margin-element-icon",
-        "lf-margin-element-space",
-        "lf-margin-element-label",
+        "lf-margin-entry",
+        "lf-margin-entry-glyph",
+        "lf-margin-entry-icon",
+        "lf-margin-entry-space",
+        "lf-margin-entry-label",
         # The label's two lines: the role's own word, and the context under it that says
         # which item the role is on. Both are inside the label the seam already names.
-        "lf-margin-element-label-word",
-        "lf-margin-element-context",
+        "lf-margin-entry-label-word",
+        "lf-margin-entry-context",
         "lf-margin-receipt",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.
@@ -3477,7 +3253,7 @@ def test_the_thread_list_ring_paints_above_its_scrolling_contents(
             "el => [getComputedStyle(el).backgroundColor, "
             "getComputedStyle(el).backgroundImage]"
         )
-        page.locator('.lf-panel [aria-label="Close threads"]').click()
+        page.locator('.lf-thread-panel [aria-label="Close threads"]').click()
         page.evaluate("() => document.activeElement?.blur()")
         page.keyboard.press("g")
         page.keyboard.press("Shift+t")
@@ -3810,7 +3586,7 @@ def test_go_page_returns_without_unwinding_the_panel(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body"), (
         "g p left the reader in the panel"
     )
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(find).to_have_value("capacity")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     assert errors == []
@@ -3836,9 +3612,9 @@ def test_go_page_is_inert_while_the_panel_covers_the_page(browser, serve):
         page.keyboard.press("g")
         page.keyboard.press("p")
         expect(thread).to_be_focused()
-        expect(page.locator(".lf-panel")).to_be_visible()
+        expect(page.locator(".lf-thread-panel")).to_be_visible()
         page.keyboard.press("Escape")
-        expect(page.locator(".lf-panel")).to_be_hidden()
+        expect(page.locator(".lf-thread-panel")).to_be_hidden()
         assert errors == []
         page.close()
     finally:
@@ -3875,7 +3651,7 @@ def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
         page.keyboard.press("g")
         expect(
             page.locator(
-                ".lf-shortcut-bar .lf-key:not([hidden])",
+                ".lf-shortcut-bar .lf-shortcut:not([hidden])",
                 has_text="thread top / bottom",
             )
         ).to_have_count(1)
@@ -4427,7 +4203,7 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     `TYPING` claims the letters, and outside the panel this scope is not standing. So an
     unrelated row in front of them here spends the slot the landing exists to fill.
 
-    Read off `:not([hidden])`, because `renderLine` leaves every live row in the DOM and
+    Read off `:not([hidden])`, because `renderShortcutBar` leaves every live row in the DOM and
     hides the ones it has no room to paint. `to_contain_text` on the line therefore
     answers about the register rather than about the reader, and passes just as well
     when the chip is one nobody can see — which is why the rest of the panel's tests
@@ -4456,7 +4232,7 @@ def test_the_line_offers_the_list_its_own_keys_rather_than_the_way_deeper_in(
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-threads")).to_be_focused()
 
-    shown = page.locator(".lf-shortcut-bar .lf-key:not([hidden])")
+    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
     expect(shown).to_have_count(2)
     # The entry's exact inverse leads, then the list's first local key.
     expect(shown.nth(0)).to_contain_text("back")
@@ -4491,14 +4267,16 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    question = page.locator(".lf-panel lf-options[choose]").first
+    question = page.locator(".lf-thread-panel lf-options[choose]").first
     question.locator("lf-option:not([chosen]) > .lf-pick").first.click()
     round_trip(page)
     question.locator(".lf-done").click()
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
     page.locator(".lf-needs").click()
-    expect(page.locator(".lf-panel-title")).to_have_text("Showing 1 of 2")
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
+        "Showing 1 of 2"
+    )
     expect(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
     ).to_have_count(1)
@@ -4593,7 +4371,7 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    question = page.locator(".lf-panel lf-options[choose]").first
+    question = page.locator(".lf-thread-panel lf-options[choose]").first
     card = question.locator("xpath=ancestor::*[contains(@class, 'lf-thread')][1]")
     page.fill(".lf-find-box", "stay blocked")
     expect(card).to_have_attribute("hidden", "")

@@ -5,8 +5,8 @@ from pathlib import Path
 from leaf import event_contracts
 from leaf.event_meaning import stored_meaning_error
 from leaf.files import read_json
-from leaf.registry.contract import RegistryError, read_registry_entries
-from leaf.registry.layer import merge_layer_entries
+from leaf.registry.contract import RegistryError, read_registry_declarations
+from leaf.registry.layer import merge_layer_declarations
 from leaf.registry.validation import validate_registry
 from leaf.requests import (
     declared_request_error,
@@ -36,7 +36,7 @@ def validate_registry_examples(registry: dict, source) -> dict:
 def incoming_registry(packages: list) -> dict:
     """The merged registry `page init` will vendor.
 
-    Packages are additive at the top level; merge_layer_entries holds the grain.
+    Packages are additive at the top level; merge_layer_declarations holds the grain.
     """
     merged = {}
     paths = []
@@ -45,7 +45,7 @@ def incoming_registry(packages: list) -> dict:
         if not path.is_file():
             continue
         paths.append(path)
-        merge_layer_entries(merged, read_registry_entries(path))
+        merge_layer_declarations(merged, read_registry_declarations(path))
     if not paths:
         raise RegistryError("the incoming layer has no registry.json")
     source = "merged registry (" + ", ".join(str(path) for path in paths) + ")"

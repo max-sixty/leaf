@@ -8,62 +8,114 @@
     />
     <title>Configure a deployment notification</title>
     <meta
+      name="description"
+      content="Configure an operational deployment update, compare its banner and status-strip formats, then send the result back to the agent."
+    />
+    <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     />
     <link rel="stylesheet" href="/theme.css" />
     <style>
-      #notification-card {
-        --lf-frame: 1;
-        max-width: 32rem;
+      #notification-playground {
+        --notification-accent: var(--ok);
+      }
+
+      #notification-playground[data-playground-state="latency-watch"] {
+        --notification-accent: var(--danger);
+      }
+
+      #notification-candidates {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sp-3);
+        margin: 0;
+      }
+
+      .notification-candidate {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: var(--sp-1);
+        min-width: 0;
+        margin: 0;
+      }
+
+      .notification-candidate > figcaption {
+        color: var(--ink-2);
+        font: 600 var(--t-6) / 1.4 var(--sans);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .notification-card {
+        --lf-block-frame: 1;
         padding: var(--sp-3);
         border: 1px solid var(--border-2);
-        border-left: 5px solid var(--ok);
         border-radius: var(--r);
         background: var(--card);
       }
 
-      #notification-playground[data-playground-state="latency-watch"]
+      #notification-card {
+        border-left: 5px solid var(--notification-accent);
+        outline: 2px solid var(--notification-accent);
+        outline-offset: 3px;
+      }
+
+      #notification-strip {
+        border-top: 5px solid var(--notification-accent);
+      }
+
+      #notification-playground[data-playground-format="status strip"]
         #notification-card {
-        border-left-color: var(--danger);
+        outline: 0;
+      }
+
+      #notification-playground[data-playground-format="status strip"]
+        #notification-strip {
+        outline: 2px solid var(--notification-accent);
+        outline-offset: 3px;
+      }
+
+      #notification-playground[data-playground-state="latency-watch"]
+        .notification-card {
         background: color-mix(in srgb, var(--danger) 8%, var(--card));
       }
 
-      #notification-watch,
-      #notification-slack,
-      #notification-owner {
+      .notification-watch,
+      .notification-slack,
+      .notification-owner {
         display: none;
       }
 
       #notification-playground[data-playground-state="latency-watch"]
-        #notification-healthy,
+        .notification-healthy,
       #notification-playground[data-playground-channel="slack"]
-        #notification-status-page {
+        .notification-status-page {
         display: none;
       }
 
       #notification-playground[data-playground-state="latency-watch"]
-        #notification-watch,
-      #notification-playground[data-playground-show-owner="true"] #notification-owner {
+        .notification-watch,
+      #notification-playground[data-playground-show-owner="true"] .notification-owner {
         display: block;
       }
 
-      #notification-playground[data-playground-channel="slack"] #notification-slack {
+      #notification-playground[data-playground-channel="slack"] .notification-slack {
         display: inline;
       }
 
-      #notification-title::before {
+      .notification-title::before {
         content: var(--playground-title, "Checkout 2.8.0 deployed");
       }
 
-      #notification-progress {
+      .notification-progress {
         height: 0.42rem;
         overflow: hidden;
         border-radius: 999px;
         background: var(--rule);
       }
 
-      #notification-progress::before {
+      .notification-progress::before {
         display: block;
         width: 100%;
         height: 100%;
@@ -72,8 +124,14 @@
       }
 
       #notification-playground[data-playground-state="latency-watch"]
-        #notification-progress::before {
+        .notification-progress::before {
         width: 25%;
+      }
+
+      @media screen and (max-width: 720px) {
+        #notification-candidates {
+          grid-template-columns: minmax(0, 1fr);
+        }
       }
     </style>
     <script type="module" src="/leaf.js"></script>
@@ -115,6 +173,21 @@
               <lf-playground-choice value="slack" label="Slack"></lf-playground-choice>
             </lf-playground-control>
             <lf-playground-control
+              name="format"
+              label="Format"
+              kind="choice"
+              value="banner"
+            >
+              <lf-playground-choice
+                value="banner"
+                label="Banner"
+              ></lf-playground-choice>
+              <lf-playground-choice
+                value="status strip"
+                label="Status strip"
+              ></lf-playground-choice>
+            </lf-playground-control>
+            <lf-playground-control
               name="show-owner"
               label="Show service owner"
               kind="toggle"
@@ -138,6 +211,10 @@
                 value="status-page"
               ></lf-playground-setting>
               <lf-playground-setting
+                for="format"
+                value="banner"
+              ></lf-playground-setting>
+              <lf-playground-setting
                 for="show-owner"
                 value="false"
               ></lf-playground-setting>
@@ -156,6 +233,10 @@
                 value="slack"
               ></lf-playground-setting>
               <lf-playground-setting
+                for="format"
+                value="status strip"
+              ></lf-playground-setting>
+              <lf-playground-setting
                 for="show-owner"
                 value="true"
               ></lf-playground-setting>
@@ -168,45 +249,94 @@
             <lf-playground-preview id="notification-preview">
               <aside class="callout" id="notification-brief">
                 <strong>Brief.</strong> Checkout p95 touched 286 ms against a 300 ms
-                rollback threshold. Write the completion or held-rollout update.
+                rollback threshold. Write the completion or held-rollout update and
+                choose its clearest format.
               </aside>
-              <article id="notification-card" aria-labelledby="notification-title">
-                <header>
-                  <p class="eyebrow">
-                    Deployment update ·
-                    <span id="notification-status-page">status page</span>
-                    <span id="notification-slack">Slack</span>
-                  </p>
-                  <h2 id="notification-title"></h2>
-                </header>
-                <p id="notification-healthy">
-                  Checkout 2.8.0 reached 100% at 14:32. All 18 checks passed; p95 is 184
-                  ms and errors are 0.08%.
-                </p>
-                <p id="notification-watch">
-                  Checkout 2.8.0 is held at 25%. p95 reached 286 ms against the 300 ms
-                  rollback threshold; errors remain at 0.11%.
-                </p>
-                <p id="notification-owner"><strong>Owner:</strong> Payments platform</p>
-                <div id="notification-progress" aria-hidden="true"></div>
-                <footer>Latest sample 14:32 · 18 checks completed</footer>
-              </article>
+              <div id="notification-candidates">
+                <figure
+                  class="notification-candidate"
+                  data-notification-format="banner"
+                >
+                  <figcaption>A · Banner</figcaption>
+                  <article
+                    class="notification-card"
+                    id="notification-card"
+                    aria-labelledby="notification-title"
+                  >
+                    <header>
+                      <p class="eyebrow">
+                        Deployment update ·
+                        <span class="notification-status-page">status page</span>
+                        <span class="notification-slack">Slack</span>
+                      </p>
+                      <h2 class="notification-title" id="notification-title"></h2>
+                    </header>
+                    <p class="notification-healthy" id="notification-healthy">
+                      Checkout 2.8.0 reached 100% at 14:32. All 18 checks passed; p95 is
+                      184 ms and errors are 0.08%.
+                    </p>
+                    <p class="notification-watch" id="notification-watch">
+                      Checkout 2.8.0 is held at 25%. p95 reached 286 ms against the 300
+                      ms rollback threshold; errors remain at 0.11%.
+                    </p>
+                    <p class="notification-owner" id="notification-owner">
+                      <strong>Owner:</strong> Payments platform
+                    </p>
+                    <div class="notification-progress" aria-hidden="true"></div>
+                    <footer>Latest sample 14:32 · 18 checks completed</footer>
+                  </article>
+                </figure>
+                <figure
+                  class="notification-candidate"
+                  data-notification-format="status strip"
+                >
+                  <figcaption>B · Status strip</figcaption>
+                  <article
+                    class="notification-card"
+                    id="notification-strip"
+                    aria-labelledby="notification-strip-title"
+                  >
+                    <header>
+                      <p class="eyebrow">
+                        Checkout ·
+                        <span class="notification-status-page">status page</span>
+                        <span class="notification-slack">Slack</span>
+                      </p>
+                      <h2 class="notification-title" id="notification-strip-title"></h2>
+                    </header>
+                    <p class="notification-healthy" id="notification-strip-healthy">
+                      100% rolled out · 18 of 18 checks passed · p95 184 ms · errors
+                      0.08%.
+                    </p>
+                    <p class="notification-watch" id="notification-strip-watch">
+                      Held at 25% · p95 286 ms of 300 ms rollback threshold · errors
+                      0.11%.
+                    </p>
+                    <p class="notification-owner">
+                      <strong>Owner:</strong> Payments platform
+                    </p>
+                    <div class="notification-progress" aria-hidden="true"></div>
+                  </article>
+                </figure>
+              </div>
               <section id="notification-artifact" hidden>
-                <lf-source
+                <lf-text-document
                   id="notification-artifact-source"
                   source="notification-artifact"
                   language="html"
-                ></lf-source>
+                ></lf-text-document>
               </section>
             </lf-playground-preview>
 
             <lf-playground-output id="notification-instruction">
-              Create <code>deployment-notification.html</code>. Use the
+              Build the
+              <lf-playground-value for="format"></lf-playground-value> deployment
+              notification as <code>deployment-notification.html</code>. Use the
               <lf-playground-value for="state"></lf-playground-value> state for
               <lf-playground-value for="channel"></lf-playground-value>; healthy means
               100% rollout and latency-watch means held at 25%. Set owner visibility to
-              <lf-playground-value for="show-owner"></lf-playground-value> and the title
-              to <lf-playground-value for="title"></lf-playground-value>. Show me the
+              <lf-playground-value for="show-owner"></lf-playground-value> and title it
+              <lf-playground-value for="title"></lf-playground-value>. Show me the
               generated source here for review.
             </lf-playground-output>
           </lf-playground>

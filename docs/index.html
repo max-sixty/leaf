@@ -13,18 +13,9 @@
     <title>leaf · generative UI for your agent</title>
     <meta
       name="description"
-      content="Generative UI for agents: the agent builds the page your task needs, writes new widgets when the project calls for them, and answers your comments and edits over a messaging and collaboration bus. A plugin for Claude Code and Codex."
+      content="Your agent builds the page your task needs, writes the widgets it lacks, and answers your comments and edits. A plugin for Claude Code and Codex."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="leaf · generative UI for your agent" />
-    <meta
-      property="og:description"
-      content="Generative UI for agents: the agent builds the page your task needs and answers your comments and edits over a messaging and collaboration bus."
-    />
-    <meta property="og:url" content="https://leaf.page/" />
-    <meta property="og:image" content="https://leaf.page/media/f3883f5c8f6d6f19.png" />
-    <meta name="twitter:card" content="summary_large_image" />
     <link rel="stylesheet" href="/theme.css" />
     <style>
       .hosts {
@@ -87,10 +78,10 @@
         <picture>
           <source
             media="(prefers-color-scheme: dark)"
-            srcset="/media/441bbbdb8abba87b.png"
+            srcset="/media/e52f0072f87eb069.png"
           />
           <img
-            src="/media/f3883f5c8f6d6f19.png"
+            src="/media/e5d9c6d6ea8f360b.png"
             alt="A live leaf in the browser: a migration plan with a comment anchored
 to a highlighted passage, Claude's reply in the thread, a Versions menu control reading
 v3 (latest), and a banner reading 'Claude awaits'."
@@ -167,7 +158,7 @@ v3 (latest), and a banner reading 'Claude awaits'."
             <strong>Mark it up.</strong> Select any passage and comment; the passage
             stays lit while you write, and the comment anchors to it and stays anchored
             as versions change — to the passage you picked, even where the page says the
-            same thing twice. Press <code>s</code> and its item hint, or Alt-click the
+            same thing twice. Press <code>s</code> and its target hint, or Alt-click the
             item, to open and focus the same compact Comment field beside it. The field
             grows in place, Enter adds a line, Command/Ctrl-Enter sends, and Tab reveals
             the other response options. Plain clicks on unadorned diagrams and images
@@ -206,7 +197,7 @@ v3 (latest), and a banner reading 'Claude awaits'."
 
       <figure class="shot" id="loop-demo">
         <img
-          src="/media/45d6ed3b0b5889b0.gif"
+          src="/media/85dbb14d235ee3e1.gif"
           alt="A live leaf page. The user selects Backfill history and writes a
 comment while the passage stays highlighted. The agent replies, saves a new revision
 whose rehearsal count advances, and the user drags an on-call task to During."
@@ -267,23 +258,23 @@ whose rehearsal count advances, and the user drags an on-call task to During."
           decide. Run it like any other example:
         </p>
         <pre id="progress-command"><code>scripts/preview.py live-progress</code></pre>
-        <lf-timeline id="track-versions">
-          <lf-event id="track-v4" at="v4" kind="info">
+        <lf-chronology id="track-versions">
+          <lf-chronology-entry id="track-v4" at="v4" kind="observation">
             <strong>11 of 18 checks are done.</strong> Traffic has just moved to the new
             checkout service.
-          </lf-event>
-          <lf-event id="track-v5" at="v5" kind="action">
+          </lf-chronology-entry>
+          <lf-chronology-entry id="track-v5" at="v5" kind="intervention">
             <strong>14 checks are done.</strong> Rollback is running, so that milestone
-            becomes active and the event timeline gains the cutover result.
-          </lf-event>
-          <lf-event id="track-v6" at="v6" kind="info">
+            becomes active and the chronology gains the cutover result.
+          </lf-chronology-entry>
+          <lf-chronology-entry id="track-v6" at="v6" kind="observation">
             <strong>Rollback is done.</strong> The report becomes active and the browser
             follows the version without a reload.
-          </lf-event>
-        </lf-timeline>
+          </lf-chronology-entry>
+        </lf-chronology>
         <p id="track-source">
           The published example is the middle state, with metrics, milestones, a
-          blocker, and an event log for the next version to update in place.
+          blocker, and a chronology for the next version to update in place.
         </p>
       </section>
 

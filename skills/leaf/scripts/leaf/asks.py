@@ -14,7 +14,7 @@ from leaf.schema import MESSAGE_KINDS
 
 
 def local_ask_entry(entry: dict) -> bool:
-    """Whether one widget entry originates an ask rather than aggregating it."""
+    """Whether one widget declaration originates an ask rather than aggregating it."""
     awaits = entry.get("x-awaits")
     return (awaits is not None and not awaits.get("rollup")) or entry.get(
         "x-request", {}
@@ -162,7 +162,7 @@ def projected_action_holders(
         unit_rec = byid.get(unit)
         if target and unit_rec:
             holder = target if target["tag"] in registry else target.get("holder")
-            permitted = (registry.get(unit_rec["tag"]) or {}).get("x-parent", [])
+            permitted = (registry.get(unit_rec["tag"]) or {}).get("x-owners", [])
             if holder and holder["tag"] in permitted:
                 holders[unit] = holder
     return holders

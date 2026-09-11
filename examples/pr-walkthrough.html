@@ -8,6 +8,10 @@
     />
     <title>PR walkthrough: Worktrunk unified diff</title>
     <meta
+      name="description"
+      content="Review a merged Worktrunk pull request as if the decision were still open, with its 46-file patch, diagrams, and review evidence on the page."
+    />
+    <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     />
@@ -28,7 +32,7 @@
       }
 
       .pr-review-gesture {
-        --lf-frame: 1;
+        --lf-block-frame: 1;
         margin: var(--sp-3) 0;
         padding: var(--sp-3);
         border-inline-start: 3px solid var(--accent);
@@ -431,32 +435,52 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
         <summary>Review history · four fixes in review</summary>
         <section id="pr-history">
           <h2>Review history</h2>
-          <lf-timeline id="pr-review-timeline">
-            <lf-event id="pr-event-open" at="03:32 UTC" kind="info">
+          <lf-chronology id="pr-review-chronology">
+            <lf-chronology-entry
+              id="pr-chronology-open"
+              at="03:32 UTC"
+              kind="observation"
+            >
               <strong>PR opened</strong> The first revision introduced the unified
               picker tab, shared diff preparation, and broad integration coverage.
-            </lf-event>
-            <lf-event id="pr-event-first-review" at="03:43 UTC" kind="warning">
+            </lf-chronology-entry>
+            <lf-chronology-entry
+              id="pr-chronology-first-review"
+              at="03:43 UTC"
+              kind="warning"
+            >
               <strong>First review withheld approval</strong> It found divergent sparse
               handling, a predictable shared temp directory, startup-cost uncertainty,
               and documentation drift.
-            </lf-event>
-            <lf-event id="pr-event-temp-fix" at="04:13 UTC" kind="action">
+            </lf-chronology-entry>
+            <lf-chronology-entry
+              id="pr-chronology-temp-fix"
+              at="04:13 UTC"
+              kind="intervention"
+            >
               <strong>Temp indexes became random, exclusive files</strong> Sparse
               registration and worktree-local temp-directory exclusion gained focused
               tests.
-            </lf-event>
-            <lf-event id="pr-event-race-fix" at="04:32 UTC" kind="action">
+            </lf-chronology-entry>
+            <lf-chronology-entry
+              id="pr-chronology-race-fix"
+              at="04:32 UTC"
+              kind="intervention"
+            >
               <strong>The index copy kept ownership of its pathname</strong> Writing
               through the still-open file closed the symlink race, and off-screen
               worktrees moved out of eager prewarm.
-            </lf-event>
-            <lf-event id="pr-event-final-review" at="04:57 UTC" kind="info">
+            </lf-chronology-entry>
+            <lf-chronology-entry
+              id="pr-chronology-final-review"
+              at="04:57 UTC"
+              kind="observation"
+            >
               <strong>Agent review recommends approval with follow-ups</strong> The
               shared <code>TempIndex</code> path and orchestration prose converged;
               selected-row latency and dry-run temp artifacts remained visible notes.
-            </lf-event>
-          </lf-timeline>
+            </lf-chronology-entry>
+          </lf-chronology>
         </section>
       </details>
 
@@ -581,12 +605,12 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
               This 169-line repository slice contains the source-owning abstraction and
               all three preparation entry points.
             </p>
-            <lf-source
+            <lf-text-document
               id="pr-prepared-diff-source"
               source="pr-prepared-diff-source"
               snapshot="3"
               language="rust"
-            ></lf-source>
+            ></lf-text-document>
           </details>
         </section>
       </details>

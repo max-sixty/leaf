@@ -241,7 +241,7 @@
   color: var(--ok-ink);
 }
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="active"] {
-  --lf-agent-tint: var(--ok-tint);
+  --lf-agent-tint: var(--ok-wash);
   background: var(--lf-agent-tint);
 }
 .lf-margin-entry[data-lf-agent-phase="active"][data-lf-behavior="action"] {

@@ -1227,7 +1227,7 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
             "border-top-color",
             not_held.evaluate("node => getComputedStyle(node).borderTopColor"),
         )
-        expect(control).to_have_css("background-color", token_colour(page, "--ok-tint"))
+        expect(control).to_have_css("background-color", token_colour(page, "--ok-wash"))
         expect(control).to_have_css("box-shadow", "none")
     expect(working.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "comment"
@@ -2738,7 +2738,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
       const probe = document.createElement('span');
       document.body.append(probe);
       const result = {};
-      for (const name of ['--ok-ink', '--ok-tint']) {
+      for (const name of ['--ok-ink', '--ok-wash']) {
         probe.style.color = `var(${name})`;
         result[name] = getComputedStyle(probe).color;
       }
@@ -2795,7 +2795,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     }""")
     assert working == {
         **initial,
-        "background": colors["--ok-tint"],
+        "background": colors["--ok-wash"],
     }, "work did not color only the Thread control interior green"
     expect(marker).to_have_attribute("data-identity-probe", "retained")
     expect(marker.locator(".lf-margin-entry-icon")).to_have_attribute(
@@ -2864,7 +2864,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(active.locator(".lf-margin-kind")).to_have_attribute(
         "data-lf-icon", "comment"
     )
-    expect(active).to_have_css("background-color", colors["--ok-tint"])
+    expect(active).to_have_css("background-color", colors["--ok-wash"])
     picked_up_row = dialog.locator('[data-lf-agent-phase="picked_up"]')
     expect(picked_up_row).to_have_count(1)
     expect(picked_up_row.locator(".lf-margin-kind")).to_have_css(
@@ -2897,7 +2897,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(carrier).to_have_attribute(
         "aria-description", f"Edit the proposed bracket · Working · {detail}"
     )
-    expect(carrier).to_have_css("background-color", colors["--ok-tint"])
+    expect(carrier).to_have_css("background-color", colors["--ok-wash"])
     expect(carrier).to_have_css("box-shadow", "none")
     expect(carrier).to_have_attribute("title", f"Edit · Working · {detail}")
     assert page.evaluate("window.agentArrivals.length") == expected_arrivals, (

@@ -47,8 +47,8 @@ Existing-page inspection now joins authored content, standing decisions, and
 declared data inputs in `leaf page state`'s `content` tree. Its construction origins
 identify how to change each part. Reader decisions survive without being copied
 into source. Invalid mutable source remains distinct from the live revision, and
-large fragmented inputs expose a manifest with an exact payload location. The
-owning contract is `skills/leaf/references/internals/page-storage.md`.
+large fragmented inputs expose a manifest with an exact payload location. The owning
+contract is `skills/leaf/scripts/leaf/page-storage.md`.
 
 These changes have boundary tests, but their effect on agent comprehension and
 editing still needs the paired reading and resume evaluations below. Opaque

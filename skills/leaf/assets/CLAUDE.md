@@ -588,12 +588,13 @@ underline or ring on the same selected control; the second edge reads as a stray
 In a segmented group, keep one-pixel shared seams and let fill, ink, or one outline make
 the selection distinct without adding another line inside it.
 
-Agent ownership colors the existing semantic margin control: pickup is blue, working
-is green with an inset double ring and one arrival pulse. A separate Activity control
-appears only when no semantic carrier exists. Conversation receipts carry the local
-claim beside its triggering message; thread cards do not repeat that ownership as a
-colored edge. Quiet or ended claims release ownership. Reduced motion suppresses arrival,
-and repainting or replacing a carrier cannot replay it.
+Agent ownership decorates the existing semantic margin control: pickup uses a green icon,
+moving any positive or negative tone to the existing contour; working colors its
+interior green and pulses once on arrival. A separate Activity control appears only when
+no semantic carrier exists. Conversation receipts carry the local claim beside its
+triggering message; thread cards do not repeat that ownership as a colored edge. Quiet
+or ended claims release ownership. Reduced motion suppresses arrival, and repainting or
+replacing a carrier cannot replay it.
 
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for

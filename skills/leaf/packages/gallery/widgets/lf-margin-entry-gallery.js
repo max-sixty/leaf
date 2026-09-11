@@ -85,7 +85,7 @@ const GROUPS = [
       },
       {
         name: "Picked up",
-        detail: "Thread · single blue ring",
+        detail: "Thread · green icon",
         icon: "comment",
         behavior: "disclosure",
         rank: "reading",
@@ -93,7 +93,7 @@ const GROUPS = [
       },
       {
         name: "Working",
-        detail: "Thread · green double ring",
+        detail: "Thread · green interior",
         icon: "comment",
         behavior: "disclosure",
         rank: "reading",
@@ -106,6 +106,30 @@ const GROUPS = [
         behavior: "disclosure",
         rank: "reading",
         agentPhase: "active",
+      },
+    ],
+  },
+  {
+    heading: "Ownership with tone",
+    summary: "Pickup keeps the control's positive or negative meaning",
+    specimens: [
+      {
+        name: "Positive pickup",
+        detail: "green icon · positive contour",
+        icon: "check",
+        behavior: "action",
+        tone: "positive",
+        rank: "primary",
+        agentPhase: "picked_up",
+      },
+      {
+        name: "Negative pickup",
+        detail: "green icon · negative contour",
+        icon: "cross",
+        behavior: "action",
+        tone: "negative",
+        rank: "secondary",
+        agentPhase: "picked_up",
       },
     ],
   },

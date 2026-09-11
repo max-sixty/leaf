@@ -9,12 +9,22 @@ from pathlib import Path
 ORPHAN_GRACE_SECS = 1
 # How long a page whose claim carries no liveness of its own (`activity`, for a
 # host that multiplexes every session into one process) stays owned after the
-# last thing touched it. Long enough that an agent composing a turn, or a reader
-# sitting on the page between comments, is never mistaken for a session that
-# left; short enough that a run of throwaway preview pages drains the same
-# afternoon rather than at the next app restart. A page the session still wants
-# is re-served by the next command that reaches it.
-ACTIVITY_GRACE_SECS = 30 * 60
+# last thing touched it.
+#
+# Sized by the longest ordinary gap between touches, which is the reader's, not
+# the agent's. A visible tab renews the page every thirty seconds, but only a
+# visible one: `state-feed.js` closes the news stream on `visibilitychange`, so a
+# reader who opens the handover link and switches away stops touching the page
+# until they come back. The gap to survive is therefore however long a page sits
+# in a background tab during a working session, and minutes is the wrong unit for
+# that — half an hour would take the page down under the ordinary handover.
+#
+# Four hours covers that and still drains: the run of stale pages this was found
+# on had gone 6 to 28 hours untouched, so the throwaway previews of an afternoon
+# clear overnight rather than surviving to the next app restart. A page that does
+# expire is re-served by the next command that reaches it, and one meant to
+# outlive its session is `--standing`.
+ACTIVITY_GRACE_SECS = 4 * 60 * 60
 # The kinds a reader can take back. A message is not among them: a comment is
 # speech, and the agent may already have read it — what a reader regrets there
 # they say, rather than unsay. A reaction is the exception the message kinds

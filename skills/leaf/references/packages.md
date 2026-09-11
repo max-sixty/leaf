@@ -70,10 +70,10 @@ previews, and one typed configuration action; `targeting` lets readers select pr
 elements and submit structured, reversible change proposals; `command-hub` adds multi-agent
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
 description and compact checks table, plus a data-backed unified call diff; `monitoring`
-adds an asymmetric overview, evidence, and exception workspace; `visual-review` adds an
-ordered website run, aligned before-and-after evidence, local flip, side-by-side,
-opacity, fit, and actual-size inspection, exact preview links, and case dispositions.
-`gallery`
+adds a release workspace with current state, checks, a run log, and a bound rollback
+request; `visual-review` adds an ordered website run, aligned before-and-after evidence,
+local flip, side-by-side, opacity, fit, and actual-size inspection, exact preview links,
+and case dispositions. `gallery`
 adds the static gallery of page-edge action controls, disclosure controls, and status
 indicators used only by the developer feature gallery, so ordinary pages do not select it:
 
@@ -519,21 +519,36 @@ do not need package-specific request bookkeeping.
 }
 ```
 
-The module imports `sendRequest`, `requestAvailable`, and
-`watchRequestLifecycle` from `/runtime/widget-api.js`. The watcher receives the
-server-projected seat, ordered `{request, receipt}` attempts, latest attempt, and
-`ready`, `pending`, or `completed` phase. A failed receipt makes the seat ready again;
-a successful receipt completes it. A page holder gets a new seat in a new authored
-revision, while a holder in frozen thread markup keeps one seat for that document's
-whole lifetime. Requests are not replayable state and are not undoable; project them
-through that watcher instead of joining raw history or inventing a pending store.
-`watchHistory` remains the audit-log surface for widgets that intentionally render
-events themselves.
+The module imports `defineRequestElement` from `/runtime/widget-api.js` for the ordinary
+request-row shape. The package supplies its control, command, and status words while the
+shared element wires each offered child into the server-projected request seat, registers
+its answer, and paints its lifecycle. A package that needs another control shape uses
+`requestAvailable`, `sendRequest`, and `watchRequestLifecycle` directly. A failed receipt
+makes the seat ready again; a successful receipt completes it. A page holder gets a new
+seat in a new authored revision, while a holder in frozen thread markup keeps one seat
+for that document's whole lifetime. Requests are not replayable state and are not
+undoable. `watchHistory` remains the audit-log surface for widgets that intentionally
+render events themselves.
 
 ```js
-const stop = watchRequestLifecycle(this, (lifecycle) => render(lifecycle));
-if (requestAvailable(this, "restart"))
-  await sendRequest(this, "restart", { target: this.getAttribute("target") });
+defineRequestElement("lf-operations", {
+  itemTag: "lf-operation",
+  controlText: "Do this",
+  commandContext: "On a host operation",
+  commandPrefix: "operation",
+  commandText: (label) => ({
+    decision: label,
+    does: `Request ${label.toLowerCase()}`,
+    line: `request ${label.toLowerCase()}`,
+  }),
+  detail: (holder) => ({ target: holder.getAttribute("target") }),
+  statusText: (request, receipt) => {
+    const operation = request.action.replaceAll("-", " ");
+    return receipt
+      ? `${operation} ${receipt.status} · ${receipt.text}`
+      : `${operation} requested · waiting for the host`;
+  },
+});
 ```
 
 The host uses the durable request id as its idempotency and recovery key, then records

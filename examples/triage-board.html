@@ -46,10 +46,11 @@
             downstream import.</lf-card
           >
         </lf-column>
-        <lf-column id="col-fixed" label="Fixed">
+        <lf-column id="col-defer" label="Defer from 2.4">
           <lf-card id="card-logout"
-            ><strong>Logout fails with an expired session</strong> The double-delete
-            guard is merged and covered by the release build.</lf-card
+            ><strong>Logout fails with an expired session</strong> The user can retry
+            safely, and the shared-session cleanup is not ready for this
+            release.</lf-card
           >
         </lf-column>
       </lf-board>

@@ -880,7 +880,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     """
     expected = {source.stem for source in catalog_sources()}
     authored = {source.stem for source in authored_examples()}
-    assert authored == expected | {"command-hub"}
+    assert authored == expected | {"command-hub", "security-boundary"}
     previews = site_build.example_previews()
     assert {path.name for path in previews.glob("example-*.jpg")} >= {
         f"example-{stem}.jpg" for stem in expected
@@ -935,7 +935,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
         }
         assert published == authored | {source.stem for source in DEVELOPER_PAGES}
         expect(page.locator("#pages .example-link")).to_have_count(6)
-        expect(page.locator("#specialized .example-link")).to_have_count(3)
+        expect(page.locator("#specialized .example-link")).to_have_count(2)
         assert page.evaluate(
             "() => Boolean(document.querySelector('#pages')"
             ".compareDocumentPosition(document.querySelector('#developer-galleries'))"

@@ -487,17 +487,14 @@ def test_quotes_cross_preserving_containers_and_remain_attached(
 
 
 def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
-    """Independent monitoring regions still contribute one Threads and Asks reading.
+    """Independent release regions still contribute one Threads reading.
 
-    The shipped example gives moving evidence its own scroll and keeps the actionable
-    exception beside it. A comment and the decision still stand in the page's global
-    surfaces, whose arrivals point back into the owning region without creating events."""
+    The shipped example gives moving evidence its own scroll and keeps current release
+    state ahead of it. A check comment still returns to its region without creating an
+    event merely because the reader navigated there."""
     example = next(p for p in EXAMPLES if p.stem == "live-progress")
-    quote = (
-        "Checkout traffic is healthy, but order co_18427 appears in the ledger and not "
-        "in the finance file."
-    )
-    url = serve(example, anchored=[("lp-finance-note", quote)])
+    quote = "1,998 / 1,999 rows"
+    url = serve(example, anchored=[("lp-check-finance", quote)])
     page, errors = open_page(browser, live_url(url))
 
     before = events_model.read_events(serve.page_dir)
@@ -508,24 +505,14 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
     expect(page.locator(".lf-thread")).to_have_count(
         len([e for e in before if e["kind"] == "comment"])
     )
-    comment = page.locator(
-        ".lf-thread .lf-quote", has_text="Checkout traffic is healthy"
-    )
+    comment = page.locator(".lf-thread .lf-quote", has_text="1,998 / 1,999 rows")
     expect(comment).to_contain_text(quote)
     comment.click()
-    expect(page.locator("#lp-finance-note")).to_be_in_viewport()
+    expect(page.locator("#lp-check-finance")).to_be_in_viewport()
 
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
-    decisions = page.locator(".lf-asks")
-    expect(decisions).to_have_text("Asks 0/1")
-    decisions.click()
-    decision = page.locator('.lf-asks-row[data-lf-at="lp-finance-decision"]')
-    expect(decision).to_have_count(1)
-    expect(decision).to_contain_text("Which safeguards should stay active")
-    decision.click()
-    expect(page.locator("#lp-finance-decision")).to_be_focused()
-    expect(page.locator("#lp-finance-decision #lp-finance-cases")).to_have_count(1)
+    expect(page.locator(".lf-asks-row")).to_have_count(0)
 
     assert _traffic(page).sends == sent
     assert events_model.read_events(serve.page_dir) == before

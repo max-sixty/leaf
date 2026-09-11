@@ -82,7 +82,13 @@ customElements.define(
 
     #structure() {
       this.setAttribute("role", "group");
-      this.setAttribute("aria-label", "Technical design triage");
+      const heading = this.closest("lf-ask")?.querySelector(
+        ":scope > :is(h1, h2, h3, h4, h5, h6)",
+      );
+      this.setAttribute(
+        "aria-label",
+        heading?.textContent.trim() || "Card classification",
+      );
       for (const pile of this.#piles()) {
         const verdict = pile.getAttribute("verdict");
         const label = VERDICTS[verdict] ?? verdict;

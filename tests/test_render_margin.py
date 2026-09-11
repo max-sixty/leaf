@@ -5017,7 +5017,7 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
     round_trip(page)
-    expect(page.locator("#col-fixed #card-export")).to_have_count(1)
+    expect(page.locator("#col-defer #card-export")).to_have_count(1)
     margins_laid_out(page)
     # Without a status in the margin the readings below would agree for the wrong reason.
     expect(page.locator(".lf-margin-cluster")).to_have_count(1)

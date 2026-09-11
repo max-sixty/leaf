@@ -85,7 +85,13 @@ def _query_int(raw, name: str, minimum: int) -> int:
     return value
 
 
-_ROOTED_PAGE_ROUTE = re.compile(
+_ROOTED_SCRIPT_ROUTE = re.compile(
+    rb'(?P<before>["\'`])/(?P<path>'
+    rb"(?:api|runtime|widgets|vendor|media)/|"
+    rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
+    rb")"
+)
+_ROOTED_STYLESHEET_ROUTE = re.compile(
     rb'(?P<before>["\'`(])/(?P<path>'
     rb"(?:api|runtime|widgets|vendor|media)/|"
     rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
@@ -116,21 +122,18 @@ _SCRIPT_ELEMENT = re.compile(
 )
 
 
-def scope_page_routes(
-    body: bytes, page_root: str, *, asset_root: str | None = None
+def _scope_routes(
+    pattern: re.Pattern[bytes],
+    body: bytes,
+    page_root: str,
+    *,
+    asset_root: str | None = None,
 ) -> bytes:
-    """Put Leaf's canonical root routes below one delivery capability path.
-
-    Package modules intentionally speak the same root-relative browser contract as
-    the kernel. The process-scoped MCP server multiplexes pages on one origin, so it
-    adapts those known routes at its HTTP boundary instead of making packages learn a
-    second addressing convention.
-    """
     if not page_root and not asset_root:
         return body
     page = page_root.rstrip("/").encode()
     assets = (asset_root if asset_root is not None else page_root).rstrip("/").encode()
-    return _ROOTED_PAGE_ROUTE.sub(
+    return pattern.sub(
         lambda match: (
             match.group("before")
             + (page if match.group("path").startswith(b"api/") else assets)
@@ -138,6 +141,22 @@ def scope_page_routes(
             + match.group("path")
         ),
         body,
+    )
+
+
+def scope_script_routes(
+    body: bytes, page_root: str, *, asset_root: str | None = None
+) -> bytes:
+    """Scope Leaf routes at the start of JavaScript string literals."""
+    return _scope_routes(_ROOTED_SCRIPT_ROUTE, body, page_root, asset_root=asset_root)
+
+
+def scope_stylesheet_routes(
+    body: bytes, page_root: str, *, asset_root: str | None = None
+) -> bytes:
+    """Scope Leaf routes in quoted CSS values and unquoted url() values."""
+    return _scope_routes(
+        _ROOTED_STYLESHEET_ROUTE, body, page_root, asset_root=asset_root
     )
 
 
@@ -158,14 +177,6 @@ def scope_document_routes(
     def route_root(match: re.Match) -> bytes:
         return page if match.group("path").startswith(b"api/") else assets
 
-    def scope_routes(value: bytes) -> bytes:
-        return _ROOTED_PAGE_ROUTE.sub(
-            lambda match: (
-                match.group("before") + route_root(match) + b"/" + match.group("path")
-            ),
-            value,
-        )
-
     def scope_start_tag(tag_match: re.Match) -> bytes:
         tag = _ROOTED_PAGE_ATTRIBUTE.sub(
             lambda match: (
@@ -177,7 +188,9 @@ def scope_document_routes(
             lambda match: (
                 match.group("before")
                 + match.group("quote")
-                + scope_routes(match.group("value"))
+                + scope_stylesheet_routes(
+                    match.group("value"), page_root, asset_root=asset_root
+                )
                 + match.group("quote")
             ),
             tag,
@@ -187,7 +200,9 @@ def scope_document_routes(
     scoped = _STYLE_ELEMENT.sub(
         lambda match: (
             match.group("open")
-            + scope_routes(match.group("value"))
+            + scope_stylesheet_routes(
+                match.group("value"), page_root, asset_root=asset_root
+            )
             + match.group("close")
         ),
         scoped,
@@ -195,7 +210,9 @@ def scope_document_routes(
     return _SCRIPT_ELEMENT.sub(
         lambda match: (
             match.group("open")
-            + scope_routes(match.group("value"))
+            + scope_script_routes(
+                match.group("value"), page_root, asset_root=asset_root
+            )
             + match.group("close")
         ),
         scoped,
@@ -314,7 +331,7 @@ def supervised_document(
     source = scope_document_routes(
         source.encode(), page_root, asset_root=asset_root
     ).decode()
-    bootstrap = scope_page_routes(
+    bootstrap = scope_script_routes(
         bootstrap.encode(), page_root, asset_root=asset_root
     ).decode()
     parsed = parse_structure(source)
@@ -573,10 +590,10 @@ class Handler(BaseHTTPRequestHandler):
         is_html = ctype.startswith("text/html")
         if is_html:
             body = scope_document_routes(body, self.page_root)
-        elif ctype.startswith(
-            ("text/css", "text/javascript", "application/javascript")
-        ):
-            body = scope_page_routes(body, self.page_root)
+        elif ctype.startswith("text/css"):
+            body = scope_stylesheet_routes(body, self.page_root)
+        elif ctype.startswith(("text/javascript", "application/javascript")):
+            body = scope_script_routes(body, self.page_root)
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))

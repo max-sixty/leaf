@@ -740,17 +740,40 @@
         margin-top: 14px;
       }
 
-      /* Placement and density only. The runtime gives these ordinary actions the
-         shared lf-btn face; the gallery keeps their changing labels on one stable row. */
+      /* Placement and density only. The runtime gives the playback action the shared
+         lf-btn face; the gallery keeps its changing labels on one stable row. */
       .interaction-gallery .interaction-control {
         min-height: var(--aim-floor);
         padding: 6px 13px;
         font: 600 var(--t-6) / 1.2 var(--sans);
       }
 
-      /* Under the two presses rather than beside them, at every width. The runtime
-         rewrites this line as the demo runs, and prose that changes length on the line a
-         button stands on moves the row while the reader is aiming at it. */
+      .interaction-gallery .interaction-setting {
+        display: inline-flex;
+        min-height: var(--aim-floor);
+        align-items: center;
+        gap: 6px;
+        color: var(--ink-2);
+        font: var(--t-6) / 1.2 var(--sans);
+      }
+
+      .interaction-gallery .interaction-setting select {
+        min-height: var(--aim-floor);
+        padding: 5px 24px 5px 8px;
+        border: 1px solid var(--border-2);
+        border-radius: 6px;
+        background: var(--card);
+        color: var(--ink);
+        font: inherit;
+      }
+
+      .interaction-gallery .interaction-loop {
+        margin: 0;
+      }
+
+      /* Under the persistent controls rather than beside them, at every width. The
+         runtime rewrites this line as the demo runs, and changing prose on the button's
+         line would move the row while the reader is aiming at it. */
       .interaction-gallery .interaction-status {
         flex-basis: 100%;
         color: var(--muted);
@@ -777,35 +800,40 @@
           var(--paper);
       }
 
-      .interaction-stage-copy {
-        max-width: 42ch;
-        margin: 0;
-        font-size: var(--t-3);
-        line-height: 1.7;
-      }
-
-      .interaction-board-stage {
-        min-height: 22rem;
-        padding-inline: clamp(16px, 4vw, 40px);
-      }
-
-      .interaction-board-stage lf-board {
-        margin: 0;
-      }
-
       .interaction-frame-stage {
         height: 30rem;
         overflow: hidden;
         padding: 0;
       }
 
+      .interaction-suggestion-stage {
+        height: 24rem;
+      }
+
       .interaction-frame {
         display: none;
-        width: 100%;
-        height: 30rem;
+        width: var(--interaction-viewport-size, 200%);
+        height: var(--interaction-viewport-size, 200%);
         border: 0;
         opacity: 0;
         pointer-events: none;
+        transform: scale(var(--interaction-page-scale, 0.5));
+        transform-origin: top left;
+      }
+
+      .interaction-gallery[data-interaction-viewport="1"] {
+        --interaction-viewport-size: 100%;
+        --interaction-page-scale: 1;
+      }
+
+      .interaction-gallery[data-interaction-viewport="2"] {
+        --interaction-viewport-size: 200%;
+        --interaction-page-scale: 0.5;
+      }
+
+      .interaction-gallery[data-interaction-viewport="4"] {
+        --interaction-viewport-size: 400%;
+        --interaction-page-scale: 0.25;
       }
 
       .interaction-frame[data-interaction-ready] {
@@ -832,23 +860,9 @@
         display: none;
       }
 
-      .interaction-swipe-stage {
-        min-height: 25rem;
-        padding-inline: clamp(12px, 4vw, 40px);
-      }
-
-      .interaction-swipe-stage lf-ask {
-        display: block;
-        margin: 0;
-      }
-
-      .interaction-swipe-stage lf-ask > h3 {
-        margin-top: 0;
-      }
-
       .interaction-pointer {
         position: absolute;
-        z-index: 3;
+        z-index: 5;
         top: 0;
         left: 0;
         width: 22px;
@@ -876,31 +890,6 @@
       @container lf-shell (max-width: 1151px) {
         #bg-sidebar {
           display: none;
-        }
-      }
-
-      @media screen and (max-width: 600px) {
-        .interaction-gallery lf-tabs.lf-rendered > lf-tab:not([hidden]) {
-          padding: 12px;
-        }
-
-        .interaction-board-stage {
-          padding-inline: 12px;
-        }
-
-        .interaction-board-stage lf-board {
-          grid-auto-flow: row;
-          grid-template-columns: minmax(0, 1fr);
-          gap: 6px;
-        }
-
-        .interaction-board-stage lf-column {
-          padding: 6px;
-        }
-
-        .interaction-board-stage lf-card {
-          font-size: 13px;
-          line-height: 1.4;
         }
       }
 

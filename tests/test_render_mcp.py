@@ -332,6 +332,7 @@ def test_adaptive_app_renders_the_complete_page_payload(browser, page_dir):
             "</head>",
             """<script type="module">
 window.authoredModulePath = "/api/state";
+window.authoredModulePattern = (/api/);
 </script></head>""",
         )
     )
@@ -392,6 +393,7 @@ window.authoredModulePath = "/api/state";
         assert (
             nested.evaluate("window.authoredModulePath") == f"{expected_root}/api/state"
         )
+        assert nested.evaluate("window.authoredModulePattern.source") == "api"
         assert "Leaf page loaded" not in app.locator("#status").text_content()
         expect(app.locator("#status")).to_contain_text("Complete Leaf page ready")
         assert not [
@@ -1029,9 +1031,10 @@ def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
     try:
         for sent, (selector, quote, section) in enumerate(cases, 1):
             posted = send_selection(host, app, selector, f"on {quote}", sent)
-            assert posted["anchor"] == {"quote": quote, "section": section}, (
-                f"{selector} posted {posted['anchor']}"
-            )
+            assert posted["anchor"] == {
+                "quote": quote,
+                "section": section,
+            }, f"{selector} posted {posted['anchor']}"
             result = apply_event(str(page_dir), posted, posted["revision"])
             assert result.is_error is False, result.content[0].text
             stored = [
@@ -1076,9 +1079,11 @@ def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
               at(want, Range.START_TO_START), at(want, Range.END_TO_END),
             ]);
         }""")
-        assert landed == [[1, 1], [1, 1], [1, 1]], (
-            f"the marks did not land on the passages ({landed})"
-        )
+        assert landed == [
+            [1, 1],
+            [1, 1],
+            [1, 1],
+        ], f"the marks did not land on the passages ({landed})"
         assert errors == []
     finally:
         page.close()

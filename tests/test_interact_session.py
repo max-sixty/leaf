@@ -111,6 +111,10 @@ if arguments == ["queue", "--help"]:
 if arguments[:1] != ["queue"]:
     print("unsupported command", file=sys.stderr)
     sys.exit(2)
+expected_cwd = os.environ.get("FAKE_CODEX_EXPECT_CWD")
+if expected_cwd and os.getcwd() != expected_cwd:
+    print(f"unexpected cwd: {{os.getcwd()}}", file=sys.stderr)
+    sys.exit(1)
 waiting = os.environ.get("FAKE_CODEX_QUEUE_WAIT")
 if waiting:
     with open(waiting + ".started", "w", encoding="utf-8"):
@@ -4231,6 +4235,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
+        "FAKE_CODEX_EXPECT_CWD": str(host_model.state_home()),
     }
     if delivery_fault == "retry":
         environment["FAKE_CODEX_QUEUE_FAILURE_ONCE"] = str(
@@ -4244,7 +4249,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
                 "start",
                 str(page),
                 "--codex-path",
-                str(program),
+                os.path.relpath(program),
             ]
         ),
         environment,

@@ -1083,6 +1083,7 @@ def cmd_codex_start(
     executable = codex_path or shutil.which("codex")
     if executable is None:
         raise RuntimeError("cannot find the `codex` executable on PATH")
+    executable = str(Path(executable).absolute())
     session_id = identity["id"]
     app_server = app_server or os.environ.get(APP_SERVER_ENV)
     if app_server is not None:
@@ -1112,6 +1113,7 @@ def cmd_codex_start(
                     arguments.extend(["--app-server", app_server])
                 process = subprocess.Popen(
                     arguments,
+                    cwd=state_home(),
                     stdin=subprocess.DEVNULL,
                     stdout=log,
                     stderr=log,

@@ -22,6 +22,8 @@ const ICONS = {
   dot: '<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
   edit: '<path d="m3.25 10.75-.5 2.5 2.5-.5 6.9-6.9-2-2zM9.25 4.75l2 2"/>',
   more: '<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>',
+  next: '<path d="m6 3.5 4.5 4.5L6 12.5"/>',
+  previous: '<path d="m10 3.5-4.5 4.5 4.5 4.5"/>',
   all: '<path d="M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4"/>',
   pickup: '<path d="M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2"/>',
   question:

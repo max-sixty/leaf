@@ -1,11 +1,13 @@
 # Leaf website worker
 
 Cloudflare serves each product and example page's live shell and initial canonical
-projection from `.tmp/site-assets`. A read-only visit therefore paints and presents
-without allocating or waiting for a container. The document issues a secure, HTTP-only
-identity cookie without starting anything; that lets concurrent first interactions use
-one container. The first request that needs private, mutable state marks the identity
-active and reaches the canonical Python Leaf server in a Cloudflare Container. Its
+projection from `.tmp/site-assets`, so the document paints and presents without waiting
+for a container. The HTML response issues a secure, HTTP-only identity cookie. When
+`AGENT_PREWARM` is `true`, a browser document navigation also starts that identity's
+container through `waitUntil`. Asset fetches, API clients, and release probes do not
+prewarm. Setting the variable to `false` keeps read-only visits at the edge. The first
+request that needs private, mutable state marks the identity active and reaches the
+canonical Python Leaf server in that Cloudflare Container. Its
 copied page directories and append-only logs are private to that reader and disappear
 when Cloudflare replaces the container; no website-only projection or conversation
 store exists. A returning tab detects a new server incarnation and reloads before it
@@ -21,11 +23,12 @@ both halves compose into the head a crawler and a link preview read. Published m
 when one of those paths is absent from the release, the Worker asks the reader's
 active container so a newly created private revision can become the live document.
 
-The deployment admits up to 5,990 concurrent `basic` containers. After a session is
-active, a visible page holds it through Leaf's news stream; a passive page opens no
-stream. Hidden tabs close their streams, so the ten-minute application idle timer can
-begin after the browser session has no visible Leaf tab. This is resource lifetime, not
-a persistence guarantee: Cloudflare can replace an active instance during a rollout.
+The deployment admits up to 5,990 concurrent `basic` containers. A prewarmed container
+with no interaction sleeps after ten idle minutes. After a session is active, a visible
+page holds it through Leaf's news stream; a passive page opens no stream. Hidden tabs
+close their streams, so the idle timer can begin after the browser session has no
+visible Leaf tab. This is resource lifetime, not a persistence guarantee: Cloudflare
+can replace an active instance during a rollout.
 Deployments allow active instances a bounded ten-minute drain window, after which a
 replacement starts with fresh ephemeral state. Durable website sessions will require a
 durable page-directory store rather than another lifecycle promise.
@@ -76,17 +79,11 @@ ORDER BY timestamp
 
 Trusted agents use one Cloudflare token for the account that hosts Leaf. Its account
 permissions cover the Leaf runtime: `Account Analytics: Read`, `Workers Scripts:
-Edit`, `Workers Containers: Edit`, `Queues: Edit`, `Workers Tail: Read`, and `Workers
-Observability: Write`. Cloudflare scopes Workers permissions to an account rather than
-one script. If the agent also manages the custom domain, its zone permissions cover
-only `leaf.page` and include `Workers Routes: Edit`; the token has no DNS permission.
-Store the token in the agent host's credential store rather than in this repository.
-
-Wrangler does not create a Queue named in a producer or consumer binding. Before the
-first deployment, create the standing `leaf-website-agent` and
-`leaf-website-agent-dev` Queues with `wrangler queues create`; subsequent deploys bind
-the Worker to them. The `cloudflare-deploy` GitHub environment's token also needs
-`Queues: Edit` so Wrangler can attach the production consumer.
+Edit`, `Workers Containers: Edit`, `Workers Tail: Read`, and `Workers Observability:
+Write`. Cloudflare scopes Workers permissions to an account rather than one script. If
+the agent also manages the custom domain, its zone permissions cover only `leaf.page`
+and include `Workers Routes: Edit`; the token has no DNS permission. Store the token in
+the agent host's credential store rather than in this repository.
 
 Hosted turns also emit structured timing records under `component=leaf-agent`.
 Every request record carries the page's public session reference and canonical event
@@ -117,8 +114,8 @@ structured query is an output filter, not an access boundary.
 Workers Observability is the operational log store. Each structured record carries
 `component`, `event`, and the canonical `eventId`; Worker-side records also carry the
 public `reference` and `route`. The public reference finds every request from one
-reader session, and the event id follows one request across the Worker, Queue, and
-Container datasets. Analytics Engine holds aggregate product events rather than a
+reader session, and the event id follows one request across the Worker and Container
+datasets. Analytics Engine holds aggregate product events rather than a
 second debugging log. Live incidents use `wrangler tail`; historical incidents use the
 script above or Cloudflare's Observability query builder. An external OpenTelemetry
 destination is needed only if Cloudflare's retention ceases to cover the debugging
@@ -130,11 +127,12 @@ Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login
 website config, matching production without changing personal state.
 
 When Leaf accepts a reader message that its canonical activity projection says needs
-a response, the Worker writes one task to a batch-size-one Cloudflare Queue. The queue
-keeps the browser response independent of consumer scheduling while providing durable,
-retryable delivery. Its consumer reserves source capacity, then asks that reader's
-container to create or resume one Codex App Server task rooted at the actual page
-directory and deliver the event through Leaf's immutable delivery envelope, passed
+a response, the Worker returns the accepted state and starts the agent dispatch through
+`waitUntil`. The browser does not wait for Container or App Server startup, and there is
+no second scheduler between the request and its already-selected reader container. The
+dispatch reserves source capacity, then asks that container to create or resume one
+Codex App Server task rooted at the actual page directory and deliver the event through
+Leaf's immutable delivery envelope, passed
 inline as structured `leaf_delivery` when the task is idle or queued by its immutable
 `leaf-delivery` id while a turn is active. The website-specific App Server starts
 without the authoring plugin: its compact developer
@@ -143,10 +141,11 @@ cannot turn a small reader response into a full authoring workflow. The hosted t
 revise `index.html`, validate it, append thread replies, and leave the page waiting. The
 initiating App Server connection projects the turn's native activity notifications back
 through Leaf. For queued input it stays subscribed through the active turn, records the
-queued turn opening, and observes that turn to its terminal state. A repeated queue
-delivery sees the event's durable pickup and does not start the work twice. Task startup
-failure after three deliveries switches the remaining deliveries to appending a short
-failure reply through the same event log.
+queued turn opening, and observes that turn to its terminal state. The container's
+pickup is idempotent, so a repeated dispatch does not start the work twice. A task
+startup failure appends a short failure reply through the same event log. The accepted
+event and active turn are not yet mirrored into Durable Object storage, and no alarm
+recovers work that exceeds the Worker's 30-second `waitUntil` window.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
 Only explicit `leaf reply`, a page revision closed with `leaf resolve`, and `leaf
 receipt` settle accepted input; the turn's final assistant message remains in the
@@ -173,12 +172,18 @@ npm ci
 npm run dev
 ```
 
-The one standing remote development environment runs the same Worker, Queue,
-Container image, credential proxy, and browser benchmark at
+The one standing remote development environment runs the same Worker, Container image,
+credential proxy, and browser benchmark at
 `https://leaf-website-dev.maxsixty.workers.dev`. It is an ordinary Wrangler `dev`
-environment with its own Worker, container application, Durable Objects, Queue,
-and Analytics Engine dataset. The shared rate-limit namespace is the only bound
-resource it reuses from production.
+environment with its own Worker, container application, Durable Objects, and Analytics
+Engine dataset. The shared rate-limit namespace is the only bound resource it reuses
+from production.
+
+`AGENT_PREWARM` is repeated in the production and dev Wrangler environments because
+named environments do not inherit variables. Change it to `false` to compare cold
+startup without changing the request path. A single global warm container cannot be
+reassigned to these per-session Durable Object identities. A reusable warm pool would
+need leases, state cleanup, and recovery, so Leaf does not maintain one.
 
 Wrangler secrets do not carry across named environments. The first deployment reads
 both credentials from the process and creates the dev Worker with its OpenAI secret:

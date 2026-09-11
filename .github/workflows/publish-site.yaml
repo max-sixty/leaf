@@ -102,7 +102,12 @@ jobs:
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: npx wrangler deploy --containers-rollout=immediate
+        run: |
+          if npx wrangler queues consumer list leaf-website-agent --json |
+            jq -e '.[] | select(.script == "leaf-website")' >/dev/null; then
+            npx wrangler queues consumer remove leaf-website-agent leaf-website
+          fi
+          npx wrangler deploy --containers-rollout=immediate
 
       # Worker activation and container rollout are separate Cloudflare operations. A
       # real browser must see the requested build in the document, module graph, edge

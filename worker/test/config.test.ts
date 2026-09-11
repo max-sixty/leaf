@@ -18,15 +18,7 @@ interface DeploymentConfig {
   durable_objects: {
     bindings: Array<{ name: string; class_name: string }>;
   };
-  queues: {
-    producers: Array<{ binding: string; queue: string }>;
-    consumers: Array<{
-      queue: string;
-      max_batch_size: number;
-      max_batch_timeout: number;
-      max_retries: number;
-    }>;
-  };
+  vars: { AGENT_PREWARM: string };
   migrations: Array<{
     tag: string;
     new_sqlite_classes?: string[];
@@ -91,15 +83,7 @@ describe("deployment configuration", () => {
     expect(dev.migrations).toEqual(config.migrations);
     expect(dev.observability).toEqual(config.observability);
     expect(dev.ratelimits).toEqual(config.ratelimits);
-    expect(dev.queues).toEqual({
-      producers: [{ binding: "AGENT_QUEUE", queue: "leaf-website-agent-dev" }],
-      consumers: [
-        {
-          ...config.queues.consumers[0],
-          queue: "leaf-website-agent-dev",
-        },
-      ],
-    });
+    expect(dev.vars).toEqual(config.vars);
     expect(dev.analytics_engine_datasets).toEqual([
       { binding: "WEBSITE_EVENTS", dataset: "leaf_website_events_dev" },
     ]);
@@ -113,18 +97,8 @@ describe("deployment configuration", () => {
     expect(devContainer.instance_type).toBe("basic");
   });
 
-  it("bounds reader starts and per-container model calls", () => {
-    expect(config.queues).toEqual({
-      producers: [{ binding: "AGENT_QUEUE", queue: "leaf-website-agent" }],
-      consumers: [
-        {
-          queue: "leaf-website-agent",
-          max_batch_size: 1,
-          max_batch_timeout: 0,
-          max_retries: 6,
-        },
-      ],
-    });
+  it("prewarms readers and bounds their task starts and model calls", () => {
+    expect(config.vars.AGENT_PREWARM).toBe("true");
     expect(config.ratelimits).toEqual([
       {
         name: "SOURCE_AGENT_RATE_LIMITER",

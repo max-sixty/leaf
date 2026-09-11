@@ -207,15 +207,25 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
                         },
                     },
                     {
+                        "timestamp": 950,
+                        "dataset": "workers",
+                        "source": {
+                            "component": "leaf-agent",
+                            "event": "container_prewarm_completed",
+                            "reference": "123456789012",
+                            "route": "/examples/decision",
+                            "durationMs": 800,
+                        },
+                    },
+                    {
                         "timestamp": 1000,
                         "dataset": "workers",
                         "source": {
                             "component": "leaf-agent",
-                            "event": "queue_started",
+                            "event": "dispatch_started",
                             "eventId": "reader-event",
                             "reference": "123456789012",
                             "route": "/examples/decision",
-                            "attempts": 1,
                         },
                     },
                     {
@@ -223,7 +233,7 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
                         "dataset": "workers",
                         "source": {
                             "component": "leaf-agent",
-                            "event": "queue_started",
+                            "event": "dispatch_started",
                             "eventId": "another-event",
                         },
                     },
@@ -232,16 +242,26 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
         }
     }
 
-    assert query_site_agent_logs.safe_records([response], {"reader-event"}) == [
+    assert query_site_agent_logs.safe_records(
+        [response], {"reader-event"}, "123456789012"
+    ) == [
+        {
+            "timestamp": 950,
+            "dataset": "workers",
+            "event": "container_prewarm_completed",
+            "reference": "123456789012",
+            "route": "/examples/decision",
+            "durationMs": 800,
+            "elapsedMs": 0,
+        },
         {
             "timestamp": 1000,
             "dataset": "workers",
-            "event": "queue_started",
+            "event": "dispatch_started",
             "eventId": "reader-event",
             "reference": "123456789012",
             "route": "/examples/decision",
-            "attempts": 1,
-            "elapsedMs": 0,
+            "elapsedMs": 50,
         },
         {
             "timestamp": 1200,
@@ -250,7 +270,7 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
             "eventId": "reader-event",
             "durationMs": 125,
             "turnId": "app-turn",
-            "elapsedMs": 200,
+            "elapsedMs": 250,
         },
     ]
 
@@ -303,6 +323,7 @@ def test_the_agent_log_query_deduplicates_a_batched_turn(monkeypatch, capsys):
                 }
             }
         },
+        "123456789012": {"result": {"events": {"events": []}}},
     }
     monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "token")
     monkeypatch.setattr(

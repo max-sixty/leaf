@@ -3811,6 +3811,7 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
 
     page.keyboard.press("a")
     expect(decision).to_be_focused()
+    expect(page.locator(".lf-swipe-pass")).to_have_attribute("aria-keyshortcuts", "1")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
         ["1", "2"]
@@ -3818,6 +3819,9 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     assert "1–2\nPass / Keep" in shortcut_bar_text(page)
 
     page.keyboard.press("Tab")
+    expect(page.locator(".lf-swipe-pass")).to_have_attribute(
+        "aria-keyshortcuts", "ArrowLeft 1"
+    )
     assert "←\npass the active card" in shortcut_bar_text(page)
     assert "Pass\npass the active card" not in shortcut_bar_text(page)
     page.keyboard.press("a")
@@ -5752,27 +5756,23 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
         """async () => {
           const {commands} = await import('/runtime/widget-api.js');
           const suggestion = document.getElementById('sug');
+          const source = document.createElement('span');
           const inspect = document.createElement('button');
+          inspect.id = 'inspect-action';
           inspect.textContent = 'Inspect';
           inspect.onclick = () => { inspect.dataset.activated = '1'; };
-          suggestion.append(inspect);
-          commands(inspect, 'Explicit numeric action', [
+          source.append(inspect);
+          suggestion.append(source);
+          commands(source, 'Suggestion action', [
             {
               id: 'test.inspect',
-              keys: ['1'],
+              keys: ['x', 'y'],
               control: inspect,
               label: 'I',
               decision: 'Inspect',
               does: 'Inspect this suggestion',
               line: 'Inspect',
               run: () => inspect.click(),
-            },
-            {
-              id: 'test.local-three',
-              keys: ['3'],
-              does: 'Run the local third command',
-              line: 'local three',
-              run: () => { inspect.dataset.localThree = '1'; },
             },
           ]);
         }"""
@@ -5794,18 +5794,96 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     page.keyboard.press("a")
     expect(page.locator("#sug")).to_be_focused()
     assert "1–3\nAccept / Reject / Inspect" in shortcut_bar_text(page)
-    expect(inspect).to_have_attribute("aria-keyshortcuts", "1 3")
+    expect(inspect).to_have_attribute("aria-keyshortcuts", "3")
     expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
         ["1", "2", "3"]
     )
 
     # The Ask's third route invokes the original command. Once the command's own control
-    # is focused, its intrinsic 1 and local 3 both take precedence over Ask digits.
+    # is focused, both equivalent intrinsic bindings and the independent Ask digit remain
+    # reachable routes to that command.
     page.keyboard.press("3")
     expect(inspect).to_have_attribute("data-activated", "1")
     inspect.evaluate("control => delete control.dataset.activated")
     inspect.focus()
+    expect(inspect).to_have_attribute("aria-keyshortcuts", "x y 3")
     assert "I\nInspect" in shortcut_bar_text(page)
+    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
+        ["1", "2", "3"]
+    )
+    page.keyboard.press("y")
+    expect(inspect).to_have_attribute("data-activated", "1")
+    inspect.evaluate("control => delete control.dataset.activated")
+
+    # A nearer dead declaration removes only x. The route snapshot keeps y rather than
+    # collapsing the command's equivalent bindings into whichever one came first.
+    page.evaluate(
+        """async () => {
+          const {commands} = await import('/runtime/widget-api.js');
+          const inspect = document.getElementById('inspect-action');
+          commands(inspect, 'Inspect control', [{
+            id: 'test.dead-local-x', keys: ['x'],
+            does: 'Run an unavailable local command',
+            line: 'unavailable local command', when: () => false,
+            run: () => { inspect.dataset.deadLocalX = '1'; },
+          }]);
+        }"""
+    )
+    expect(inspect).to_have_attribute("aria-keyshortcuts", "y 3")
+    assert "y\nInspect" in shortcut_bar_text(page)
+    page.keyboard.press("x")
+    expect(inspect).not_to_have_attribute("data-dead-local-x", "1")
+    expect(inspect).not_to_have_attribute("data-activated", "1")
+    page.keyboard.press("y")
+    expect(inspect).to_have_attribute("data-activated", "1")
+    inspect.evaluate("control => delete control.dataset.activated")
+    page.keyboard.press("3")
+    expect(inspect).to_have_attribute("data-activated", "1")
+
+    # The complete reference keeps the Ask alias while it remains reachable; y is an
+    # equivalent intrinsic route rather than another command identity.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    focused_inspect = page.locator(
+        '.lf-command-reference tr[data-lf-command="test.inspect"]'
+    )
+    expect(focused_inspect.locator("kbd")).to_have_text("3")
+
+    assert errors == []
+    page.close()
+
+
+def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
+    """A focused widget digit suppresses its Ask alias without taking other digits."""
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    page.evaluate(
+        """async () => {
+          const {commands} = await import('/runtime/widget-api.js');
+          const suggestion = document.getElementById('sug');
+          const inspect = document.createElement('button');
+          inspect.textContent = 'Inspect';
+          inspect.onclick = () => { inspect.dataset.activated = '1'; };
+          suggestion.append(inspect);
+          commands(inspect, 'Inspect control', [
+            {
+              id: 'test.inspect', keys: ['1'], control: inspect, label: 'I',
+              decision: 'Inspect', does: 'Inspect this suggestion', line: 'Inspect',
+              run: () => inspect.click(),
+            },
+            {
+              id: 'test.local-three', keys: ['3'],
+              does: 'Run the local third command', line: 'local three',
+              run: () => { inspect.dataset.localThree = '1'; },
+            },
+          ]);
+        }"""
+    )
+
+    inspect = page.get_by_role("button", name="Inspect")
+    page.keyboard.press("a")
+    expect(inspect).to_have_attribute("aria-keyshortcuts", "3")
+    inspect.focus()
+    expect(inspect).to_have_attribute("aria-keyshortcuts", "1 3")
     expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
         ["2"]
     )
@@ -5815,15 +5893,6 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     page.keyboard.press("3")
     expect(inspect).to_have_attribute("data-local-three", "1")
     expect(inspect).not_to_have_attribute("data-activated", "1")
-
-    # The complete reference names the reachable intrinsic route, not the shadowed Ask
-    # alias that happens to share its command id.
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    focused_inspect = page.locator(
-        '.lf-command-reference tr[data-lf-command="test.inspect"]'
-    )
-    expect(focused_inspect.locator("kbd")).to_have_text("I")
 
     assert errors == []
     page.close()

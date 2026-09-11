@@ -4858,7 +4858,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     expect(save).to_be_focused()
     page.keyboard.press("?")
     assert "1–2\nSave / Cancel" in shortcut_bar_text(page)
-    expect(save).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter 1")
+    expect(save).to_have_attribute("aria-keyshortcuts", "1")
     page.keyboard.press("?")
     cancel = page.locator(
         '.lf-command-reference-command[data-lf-command="draft.cancel"]'
@@ -6821,6 +6821,41 @@ def test_a_focused_scope_owns_its_declared_key_while_the_command_is_unavailable(
 
     page.keyboard.press("F3")
     expect(page.locator("#outer-scope")).to_have_attribute("data-f3", "1")
+
+    assert errors == []
+    page.close()
+
+
+def test_an_unavailable_inner_escape_keeps_the_next_unwind_reachable(browser, serve):
+    """A dead local Escape cannot strand a live unwind in an outer scope."""
+    page, errors = open_page(browser, serve(NOTED_PAGE))
+    page.evaluate(
+        """async () => {
+          const { commands } = await import('/runtime/widget-api.js');
+          const outer = document.createElement('div');
+          outer.id = 'outer-escape-scope';
+          const inner = document.createElement('button');
+          inner.textContent = 'Inner escape scope';
+          outer.append(inner);
+          document.querySelector('main').prepend(outer);
+          commands(outer, 'Outer scope', [
+            { id: 'test.outer-escape', keys: ['Escape'], does: 'Leave outer scope',
+              line: 'leave outer scope', run: () => { outer.dataset.escaped = '1'; } },
+          ]);
+          commands(inner, 'Inner scope', [
+            { id: 'test.inner-escape', keys: ['Escape'], does: 'Leave inner scope',
+              line: 'leave inner scope', when: () => false,
+              run: () => { inner.dataset.escaped = '1'; } },
+          ]);
+          inner.focus();
+        }"""
+    )
+
+    page.keyboard.press("Escape")
+    expect(page.locator("#outer-escape-scope")).to_have_attribute("data-escaped", "1")
+    expect(page.get_by_role("button", name="Inner escape scope")).not_to_have_attribute(
+        "data-escaped", "1"
+    )
 
     assert errors == []
     page.close()

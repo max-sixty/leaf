@@ -68,10 +68,12 @@ widget-specific description to a shared outer Leaf handler, but it does not clai
 dispatch and therefore does not shadow that handler. Ownership below refers to a row that
 implements a Leaf invocation.
 
-An element declaration retains precedence while its command is unavailable. Liveness
-decides whether a command executes and appears in projections, not whether the same key
-suddenly acquires an ancestor's different meaning. An unavailable inner declaration
-therefore suppresses outer Leaf commands while leaving any browser default intact.
+An element declaration retains precedence for an ordinary binding while its command is
+unavailable. Liveness decides whether a command executes and appears in projections,
+not whether the same key suddenly acquires an ancestor's different meaning. An
+unavailable inner declaration therefore suppresses outer Leaf commands while leaving
+any browser default intact. Escape is the exception: because it means semantic unwind,
+a dead inner Escape cannot reserve the key and strand the next live return.
 
 This rule applies equally to character keys, digits, punctuation, named keys, and chords.
 Leaf's familiar page grammar remains the outer default: a widget changes a key only while
@@ -136,6 +138,7 @@ id while different focus scopes may make only one of their bindings reachable.
 | Focused widget declares `c` | `c` | Widget command |
 | Focused widget does not declare `c` | `c` | Leaf's page Comment command |
 | Focused widget implements dead `c` | `c` | No Leaf command; outer Comment remains suppressed |
+| Focused widget implements dead `Escape` | `Escape` | The next live semantic unwind |
 | Focused widget only describes an outer route | route | Outer implementation remains reachable |
 | Ask itself | `1` | First live Decision through its original command |
 | Swipe deck inside Ask | ArrowLeft | Swipe's intrinsic Pass route |

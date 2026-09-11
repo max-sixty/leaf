@@ -3,11 +3,12 @@
 
    Scopes nest by focus. `scopesFor` produces the active stack and element scopes are
    spliced where their elements stand. The dispatcher walks innermost first. A scope owns
-   every binding it declares while the reader stands in that scope, whether or not the
-   command is currently live. A live command runs and prevents the platform default; an
-   unavailable command suppresses outer Leaf meanings but leaves any browser default
-   intact. A `native` row runs and stops the scope walk but leaves that default intact.
-   Undeclared keys continue outward through ancestor scopes to the page.
+   every ordinary binding it declares while the reader stands in that scope, whether or
+   not the command is currently live. A live command runs and prevents the platform
+   default; an unavailable command suppresses outer Leaf meanings but leaves any browser
+   default intact. Escape instead continues to the next live semantic unwind. A `native`
+   row runs and stops the scope walk but leaves that default intact. Undeclared keys
+   continue outward through ancestor scopes to the page.
 
    Leaf must not block standard platform or browser shortcuts. A handler prevents a
    default only after a Leaf command owns the complete modified press; secondary clicks
@@ -239,10 +240,12 @@ export function stack(binding = null) {
 // binding for which it implements a Leaf invocation. Presentation-only rows have no `run`:
 // they name a native press or reword an outer core handler, so they do not shadow that
 // handler. Add ownership after examining the scope itself: declarations in one scope may
-// be mutually exclusive, while every implemented one keeps the same outer meaning from
-// appearing or firing when its local command is temporarily unavailable. Static page
-// scopes are ordered contributors at one outer level rather than DOM ancestors, so their
-// rows retain the existing live-command resolution instead of shadowing siblings.
+// be mutually exclusive, while every implemented ordinary binding keeps the same outer
+// meaning from appearing or firing when its local command is temporarily unavailable.
+// Escape is the semantic unwind, so a dead declaration cannot reserve it and strand the
+// next live return. Static page scopes are ordered contributors at one outer level rather
+// than DOM ancestors, so their rows retain the existing live-command resolution instead
+// of shadowing siblings.
 const ownsLeafInvocation = (row) =>
   Boolean(row.run) || commandRoutes(row).some((route) => routedCommand(route));
 export const shadow = () => {
@@ -252,7 +255,10 @@ export const shadow = () => {
     past: (scope) => {
       if (scope.claims) claims.push(scope.claims);
       const owned = scope.el
-        ? scope.rows.filter(ownsLeafInvocation).flatMap(bindings)
+        ? scope.rows
+            .filter(ownsLeafInvocation)
+            .flatMap(bindings)
+            .filter((binding) => binding !== "Escape")
         : [];
       if (owned.length) claims.push((binding) => owned.includes(binding));
     },
@@ -366,8 +372,8 @@ export function dispatchKey(ev, { beforeCommand, captureOrigin }) {
       // log folded (`a` asks what the page is still waiting on), and asking it of every row
       // the press is not for makes the cost of a keystroke the size of the table rather
       // than the size of the match. A dead matching row contributes no invocation here;
-      // `nearer.past(scope)` still records its declaration before the walk reaches an
-      // outer scope.
+      // `nearer.past(scope)` still records its ordinary declarations before the walk
+      // reaches an outer scope, while Escape continues to the next live unwind.
       const binding = bindings(row).find((b) => answers(b, ev));
       if (!binding || nearer.takes(binding) || !live(row)) continue;
       const entry = commandEntries(row, [binding])[0];
@@ -450,12 +456,13 @@ function availableRouteSnapshot() {
       const reachable = bindings(row).filter((binding) =>
         binding === "Escape" ? unclaimedEscape.has(scope) : !nearer.takes(binding),
       );
-      for (const command of commandEntries(row, reachable)) {
-        if (command.binding == null || !invocationFor(row, command.binding, command))
-          continue;
-        commands.add(command.id);
-        if (!routes.has(row)) routes.set(row, new Set());
-        routes.get(row).add(command.binding);
+      for (const binding of reachable) {
+        for (const command of commandEntries(row, [binding])) {
+          if (!invocationFor(row, binding, command)) continue;
+          commands.add(command.id);
+          if (!routes.has(row)) routes.set(row, new Set());
+          routes.get(row).add(binding);
+        }
       }
     }
     nearer.past(scope);
@@ -466,12 +473,6 @@ function availableRouteSnapshot() {
 // take this snapshot before that point.
 export const availableCommands = () => availableRouteSnapshot().commands;
 export const availableCommandRoutes = () => availableRouteSnapshot().routes;
-// Exact route reachability for projections that deliberately reuse an intrinsic command
-// identity. An Ask digit and the widget key it aliases have one id but different bindings;
-// only the binding can say which route a nearer scope shadows.
-export function reachableBindings(target) {
-  return availableRouteSnapshot().routes.get(target) ?? new Set();
-}
 export function executeCommand(id, origin, beforeCommand) {
   const command = commandFor(id);
   if (!command) return false;

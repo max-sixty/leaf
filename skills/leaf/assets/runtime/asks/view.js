@@ -105,6 +105,7 @@ import {
   contextualRoute,
   decisionControls,
   PRESS,
+  routedCommand,
   spell,
 } from "../keyboard/bindings.js";
 import {
@@ -140,7 +141,7 @@ import { addressableSays, addressableWord } from "../anchor-resolution.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
-import { reachableBindings } from "../keyboard/dispatch.js";
+import { availableCommandRoutes } from "../keyboard/dispatch.js";
 
 // Contextual actions for the Ask the reader is standing in. These share the binding-badge face
 // but not the g sequence's lifecycle: the ask view paints them whenever its semantic
@@ -625,9 +626,9 @@ export function createAskView({
         .join(" / "),
     when: () => actionRoutes().length > 0,
   };
-  const reachableActionRoutes = () => {
-    const available = reachableBindings(actionRow);
-    return actionRoutes().filter(({ binding }) => available.has(binding));
+  const reachableActionRoutes = (available = availableCommandRoutes()) => {
+    const reachable = available.get(actionRow) ?? new Set();
+    return actionRoutes().filter(({ binding }) => reachable.has(binding));
   };
 
   // The chips are an eye's projection of the same row, and aria-keyshortcuts is its
@@ -691,7 +692,8 @@ export function createAskView({
   }
   function paintActionProjections() {
     clearActionProjections();
-    const routes = reachableActionRoutes();
+    const available = availableCommandRoutes();
+    const routes = reachableActionRoutes(available);
     if (!routes.length) {
       askActionLayer.replaceChildren();
       return;
@@ -712,15 +714,29 @@ export function createAskView({
     // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
     // the fixed shortcut bar above it. One face belongs to one action, and every part of
     // it must be visible on top; otherwise the ordinary core chip carries the same route.
-    for (const { binding, intrinsicBindings, control, bindingBadge } of routes) {
+    for (const route of routes) {
+      const { binding, intrinsicBindings, control, bindingBadge } = route;
       const previousShortcut = control.getAttribute("aria-keyshortcuts");
+      const intrinsicAvailable = available.get(routedCommand(route).row) ?? new Set();
+      const intrinsicShortcuts = new Set(
+        ariaShortcuts([{ keys: intrinsicBindings }], false).split(/\s+/),
+      );
       const projected = ariaShortcuts(
-        [{ keys: [...intrinsicBindings, binding] }],
+        [
+          {
+            keys: [
+              ...intrinsicBindings.filter((key) => intrinsicAvailable.has(key)),
+              binding,
+            ],
+          },
+        ],
         false,
       ).split(/\s+/);
       const projectedShortcut = [
         ...new Set([
-          ...(previousShortcut ?? "").split(/\s+/).filter(Boolean),
+          ...(previousShortcut ?? "")
+            .split(/\s+/)
+            .filter((key) => key && !intrinsicShortcuts.has(key)),
           ...projected,
         ]),
       ].join(" ");

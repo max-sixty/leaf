@@ -714,10 +714,12 @@ contains every visible margin control and status indicator. A key spelling somet
 nothing on screen says is a key nobody reaches for twice.
 Approval spends no fixed page letter: its visible button stays in the Tab order and takes
 native Enter or Space, while the Ask-local list gives it a contextual binding. A nearer
-scope owns every key for which it implements a Leaf invocation while that scope stands,
-even when the matching command is unavailable, so a state change cannot make the same
-press fall through into an outer operation. A row without `run` is presentation-only: it
-may name a native press or reword a shared outer handler, and does not shadow that handler.
+scope owns every ordinary key for which it implements a Leaf invocation while that scope
+stands, even when the matching command is unavailable, so a state change cannot make the
+same press fall through into an outer operation. Escape remains the semantic unwind: a
+dead inner Escape declaration cannot strand the next live return. A row without `run` is
+presentation-only: it may name a native press or reword a shared outer handler, and does
+not shadow that handler.
 
 In Leaf's outer page grammar, `c` means commenting. A nearer focused scope may declare
 `c` for its own operation; an undeclared `c` continues outward to Comment. Enter keeps

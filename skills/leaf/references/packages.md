@@ -377,11 +377,13 @@ contextual digits in the package.
 Command scopes compose by focused ancestry. The exact control scope is nearest, followed
 by containing widget scopes and Leaf's outer page scopes. A scope owns only the bindings
 whose rows implement a Leaf invocation, so an undeclared key falls outward. An
-implemented declaration retains that precedence while its command is unavailable:
-liveness removes execution and projections, but does not expose an ancestor's different
-meaning. A row without `run` only presents native behavior or a shared outer handler and
-does not shadow it. Text fields and other native interactions retain their editing keys
-ahead of ancestor widget scopes.
+implemented declaration retains that precedence for an ordinary binding while its
+command is unavailable: liveness removes execution and projections, but does not expose
+an ancestor's different meaning. Escape is the semantic-unwind exception, so a dead inner
+Escape declaration cannot reserve the key and strand the next live return. A row without
+`run` only presents native behavior or a shared outer handler and does not shadow it. Text
+fields and other native interactions retain their editing keys ahead of ancestor widget
+scopes.
 
 Every visible press a widget builds with `offer()` or `selectableOffer()` also joins the
 generated target map after `g`. Packages do not declare another `g` binding or repeat

@@ -929,6 +929,50 @@ describe("website page agent", () => {
     expect(response.status).toBe(403);
   });
 
+  it("immediately directs Codex websocket probes to its HTTP fallback", async () => {
+    const env = environment();
+    const upstream = vi.fn(async () => new Response("ok"));
+    vi.stubGlobal("fetch", upstream);
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
+
+    try {
+      const response = await handler(
+        new Request("https://api.openai.com/v1/responses", {
+          headers: {
+            Upgrade: "websocket",
+            "x-codex-turn-metadata": JSON.stringify({
+              request_kind: "turn",
+              thread_id: "app-thread",
+              turn_id: "app-turn",
+              workspace: "private workspace",
+            }),
+          },
+        }),
+        env,
+        { containerId: "reader-container", className: "LeafWebsiteSession" },
+      );
+
+      expect(response.status).toBe(426);
+      expect(await response.text()).toBe("use the Responses HTTP transport");
+      expect(env.SOURCE_AGENT_RATE_LIMITER.limit).not.toHaveBeenCalled();
+      expect(upstream).not.toHaveBeenCalled();
+      expect(logged).toHaveBeenCalledOnce();
+      expect(logged.mock.calls[0][0]).toMatchObject({
+        component: "leaf-agent",
+        event: "model_transport_http_fallback",
+        containerId: "reader-container",
+        requestKind: "turn",
+        threadId: "app-thread",
+        turnId: "app-turn",
+      });
+      expect(JSON.stringify(logged.mock.calls)).not.toContain("private");
+    } finally {
+      logged.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("fails explicitly when the deployed OpenAI secret is absent", async () => {
     const env = environment();
     Object.defineProperty(env, "OPENAI_API_KEY", { value: undefined });

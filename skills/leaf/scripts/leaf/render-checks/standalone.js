@@ -336,8 +336,19 @@ export function bake() {
     [...container.querySelectorAll("label")].some(
       (label) => label.control && !label.control.matches("[data-lf-offer]"),
     );
+  // A generated label is the other half of a control this pass keeps. `offer` writes it
+  // the empty marker, and an explicit one — `for` pointing at the control rather than
+  // wrapping it — is a leaf with only words in it, which is the "mutable status word"
+  // shape the loop above removes. Removed, it leaves the native control it named with no
+  // accessible name at all, which is what the copy's own accessibility reading calls
+  // critical. A wrapping label never reached this, holding its control inside it, so the
+  // hole stayed closed for as long as every generated label wrapped; the first widget to
+  // write `for` opened it. Asked of the control rather than of the label, so a label
+  // whose control does leave goes with it and no word is orphaned.
+  const namesKeptControl = (el) =>
+    el instanceof HTMLLabelElement && el.control && !el.control.matches(scriptedOffer);
   for (const control of all(scriptedOffer).reverse()) {
-    if (keepsBrowserControl(control)) continue;
+    if (keepsBrowserControl(control) || namesKeptControl(control)) continue;
     let dead = control,
       box = dead.parentElement?.closest("[data-lf-offer]");
     dead.remove();

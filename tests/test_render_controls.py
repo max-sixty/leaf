@@ -278,12 +278,12 @@ CONTROL_ARCHETYPES = (
     },
     {
         # The visual inspector's view and size presses are joined groups whose selected
-        # treatment changes in place. Pressing Side by side exercises both states while
-        # its Flip and Opacity neighbours stay under the reader's pointer.
+        # treatment changes in place. Pressing Flip exercises both states while its
+        # Compare, Overlay, and size neighbours stay under the reader's pointer.
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
         "coverage": ".lf-vr-inspector-group > .lf-vr-inspector-button",
-        "target": '.lf-vr-mode-group > [data-mode="side"]',
+        "target": '.lf-vr-mode-group > [data-mode="flip"]',
     },
     {
         # A disposition changes both its selected paint and the case's durable review

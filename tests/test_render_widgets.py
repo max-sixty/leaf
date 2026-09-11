@@ -3783,6 +3783,53 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     page.close()
 
 
+def test_a_swipe_deck_reflows_with_its_parent_allocation(browser, serve):
+    page, errors = open_page(browser, serve(SWIPE_PAGE))
+    decision = page.locator("#session-triage-decision")
+    deck = page.locator("#session-triage")
+
+    def layout(width):
+        decision.evaluate("(element, value) => element.style.width = value", width)
+        return deck.evaluate(
+            """element => {
+              const box = node => {
+                const rect = node.getBoundingClientRect();
+                return {
+                  left: rect.left,
+                  right: rect.right,
+                  top: rect.top,
+                  bottom: rect.bottom,
+                  width: rect.width,
+                };
+              };
+              return {
+                deck: box(element),
+                columns: getComputedStyle(element).gridTemplateColumns.split(" "),
+                queue: box(element.querySelector('[verdict="unseen"]')),
+                controls: box(element.querySelector('.lf-swipe-controls')),
+                passed: box(element.querySelector('[verdict="pass"]')),
+                kept: box(element.querySelector('[verdict="keep"]')),
+              };
+            }"""
+        )
+
+    narrow = layout("20rem")
+    assert len(narrow["columns"]) == 1, narrow
+    for name in ("queue", "controls", "passed", "kept"):
+        assert narrow[name]["width"] == pytest.approx(narrow["deck"]["width"]), narrow
+    assert narrow["queue"]["bottom"] < narrow["controls"]["top"], narrow
+    assert narrow["controls"]["bottom"] < narrow["passed"]["top"], narrow
+    assert narrow["passed"]["bottom"] < narrow["kept"]["top"], narrow
+
+    wide = layout("44rem")
+    assert len(wide["columns"]) == 2, wide
+    assert wide["passed"]["top"] == pytest.approx(wide["kept"]["top"]), wide
+    assert wide["passed"]["right"] < wide["kept"]["left"], wide
+
+    assert errors == []
+    page.close()
+
+
 def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     """The Ask supplies digits; focus inside the deck exposes its directional keys.
 

@@ -380,20 +380,23 @@ def preview_files(page: Path) -> tuple[Path, Path, Path]:
 
 def source_manifest(source: Path) -> Path | None:
     """Find the layer manifest explicitly associated with an authored source."""
-    adjacent = source.parent / "layer.json"
-    if adjacent.is_file():
-        return adjacent
+    return next(
+        (path for path in source_manifest_candidates(source) if path.is_file()), None
+    )
+
+
+def source_manifest_candidates(source: Path) -> list[Path]:
+    """Manifest paths whose appearance can change a source's selected layer."""
+    candidates = [source.parent / "layer.json"]
     examples = source.parent.parent
     checkout = examples.parent
-    inherited = examples / "layer.json"
     if (
         source.parent.name == "developer"
         and examples.name == "examples"
         and (checkout / "bin" / "leaf").is_file()
-        and inherited.is_file()
     ):
-        return inherited
-    return None
+        candidates.append(examples / "layer.json")
+    return candidates
 
 
 def source_packages(source: Path) -> list[str]:
@@ -511,31 +514,44 @@ def refresh_preview(
 
 def watch_paths(
     source: Path, runtime: Path, roots: list[Path], seed: dict
-) -> list[Path]:
+) -> tuple[list[Path], list[Path]]:
     from leaf.layer import input_paths
 
-    paths = input_paths(roots)
+    inputs = input_paths(roots)
+    resolved_roots = {root.resolve() for root in roots}
+    directories = [*roots]
+    directories.extend(
+        path for path in inputs if path in resolved_roots or path.is_dir()
+    )
+    paths = [
+        path for path in inputs if path not in resolved_roots and not path.is_dir()
+    ]
     manifest = source_manifest(source)
-    paths.extend((source, source.parent / "layer.json", manifest or DEFAULT_PACKAGES))
+    paths.append(source)
+    paths.extend(source_manifest_candidates(source))
+    paths.append(manifest or DEFAULT_PACKAGES)
     paths.extend(Path(path) for path in seed)
-    paths.extend((source.parent / "versions").glob(f"{source.stem}.v*.html"))
-    paths.extend((runtime / "skills" / "leaf" / "scripts").rglob("*.py"))
+    versions = source.parent / "versions"
+    directories.append(versions)
+    paths.extend(versions.glob(f"{source.stem}.v*.html"))
+    scripts = runtime / "skills" / "leaf" / "scripts"
+    directories.append(scripts)
+    for path in scripts.rglob("*"):
+        if path.is_dir():
+            directories.append(path)
+        elif path.suffix == ".py":
+            paths.append(path)
     paths.extend((runtime / "pyproject.toml", runtime / "uv.lock"))
-    paths.append(media_source(source))
-    paths.extend(media_source(source).rglob("*"))
-    return paths
-
-
-# How many passes a watch set is reused before it is expanded again. Expanding it
-# walks the runtime's script tree, the page's media and the layer roots, which is
-# most of what an idle preview costs: measured on a shipped example, 3.9ms of a
-# 4.6ms pass, or 1.85% of a core held by a preview nobody is editing. The files in
-# the set are what authoring changes, and the *set* changes only when one is added
-# or removed — a new version or a new media file — so expanding it four times a
-# second buys nothing. Eight passes bounds a new file's latency at two seconds,
-# leaves an edit to a file already watched detected on the next pass as before,
-# and takes the idle cost to around 0.3% of a core.
-REEXPAND_PASSES = 8
+    media = media_source(source)
+    directories.append(source.parent / "media")
+    if manifest is not None:
+        directories.append(manifest.parent / "media")
+    for path in media.rglob("*"):
+        if path.is_dir():
+            directories.append(path)
+        else:
+            paths.append(path)
+    return paths, list(dict.fromkeys(directories))
 
 
 def snapshot(paths: list[Path]) -> dict:
@@ -548,6 +564,61 @@ def snapshot(paths: list[Path]) -> dict:
             continue  # an editor's atomic replace is observed on the next pass
         result[str(path)] = (stat.st_mtime_ns, stat.st_size)
     return result
+
+
+class WatchedInputs:
+    """Cache expansion until directory membership can have changed."""
+
+    def __init__(
+        self, source: Path, runtime: Path, roots: list[Path], seed: dict
+    ) -> None:
+        self.source = source
+        self.runtime = runtime
+        self.roots = roots
+        self.seed = seed
+        self.paths: list[Path] = []
+        self.directories: list[Path] = []
+        self.all_paths: list[Path] = []
+        self.directory_state = {}
+
+    def expand(self) -> dict:
+        while True:
+            known_directories = {str(path) for path in self.directories}
+            directory_state = snapshot(self.directories)
+            paths, directories = watch_paths(
+                self.source, self.runtime, self.roots, self.seed
+            )
+            if any(str(path) not in known_directories for path in directories):
+                self.directories = directories
+                continue
+            self.paths, self.directories = paths, directories
+            break
+        self.all_paths = list(dict.fromkeys((*self.paths, *self.directories)))
+        state = snapshot(self.all_paths)
+        current = {
+            str(path): state[str(path)] for path in self.paths if str(path) in state
+        }
+        self.directory_state = {
+            str(path): directory_state[str(path)]
+            for path in self.directories
+            if str(path) in directory_state
+        }
+        return current
+
+    def read(self) -> dict:
+        if not self.all_paths:
+            return self.expand()
+        current = snapshot(self.all_paths)
+        directory_state = {
+            str(path): current[str(path)]
+            for path in self.directories
+            if str(path) in current
+        }
+        if directory_state != self.directory_state:
+            return self.expand()
+        return {
+            str(path): current[str(path)] for path in self.paths if str(path) in current
+        }
 
 
 def start_preview_server(
@@ -748,15 +819,14 @@ def watch_preview(
             roots = layer_inputs(
                 tuple(read_json(page / "registry.json")["$layer"]["packages"])
             )
-            previous = snapshot(watch_paths(source, runtime, roots, identity["seed"]))
+            watched_inputs = WatchedInputs(source, runtime, roots, identity["seed"])
+            previous = watched_inputs.read()
             candidate = previous
             preview_ready({"prepared": prepared, "url": url, "note": note}, ready_fd)
             print(
                 f"Watching {source} and {runtime}; feedback stays in {page}", flush=True
             )
             serving = True
-            watched = watch_paths(source, runtime, roots, identity["seed"])
-            passes = 0
             while read_json(metadata)["enabled"]:
                 time.sleep(0.25)
                 live = temporary.running if automation else running_server(page)
@@ -768,10 +838,7 @@ def watch_preview(
                     with PageTransaction(page) as state:
                         if not state.owned_by(host_identity()):
                             return
-                passes += 1
-                if passes % REEXPAND_PASSES == 0:
-                    watched = watch_paths(source, runtime, roots, identity["seed"])
-                current = snapshot(watched)
+                current = watched_inputs.read()
                 if current == previous:
                     candidate = current
                     continue
@@ -792,10 +859,9 @@ def watch_preview(
                     roots = layer_inputs(
                         tuple(read_json(page / "registry.json")["$layer"]["packages"])
                     )
-                    # A rebuild can re-vendor, so the set these roots expand to is
-                    # stale now rather than in REEXPAND_PASSES' time.
-                    watched = watch_paths(source, runtime, roots, identity["seed"])
-                    passes = 0
+                    watched_inputs = WatchedInputs(
+                        source, runtime, roots, identity["seed"]
+                    )
                 except (SystemExit, ValueError, OSError) as error:
                     print(
                         f"Preview update refused: {error}. Feedback is preserved; edit the inputs to retry.",

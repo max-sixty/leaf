@@ -421,13 +421,14 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p id="bg-margin-controls-guide">
           <strong>Everything visible at once.</strong> The first row holds every rank,
           behavior, and tone. The second compares agent ownership: whether the agent has
-          the item. No ownership treatment means not held; a single blue ring means
-          picked up; a green double ring and tint mean working. Ownership decorates the
-          item's existing control. The Activity dot remains only when there is no other
-          control to carry that treatment. These inert specimens use the same
-          constructors and stylesheet as the live controls and status indicators. Reload
-          to see the one-time pulse as Working arrives. A control dims only while its
-          reader action is waiting for the log to confirm it.
+          the item. No ownership treatment means not held; pickup uses a green icon; a
+          green interior means working. If the icon already carries positive or negative
+          tone, pickup keeps that tone on the control's existing contour. Ownership
+          decorates the item's existing control. The Activity dot remains only when
+          there is no other control to carry that treatment. These inert specimens use
+          the same constructors and stylesheet as the live controls and status
+          indicators. Reload to see the one-time pulse as Working arrives. A control
+          dims only while its reader action is waiting for the log to confirm it.
         </p>
         <lf-margin-entry-gallery
           id="bg-margin-controls-specimens"
@@ -461,9 +462,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p id="bg-button-status-guide">
           <strong>Edit and hand off.</strong> Opening the draft above replaces Edit with
           Save and Cancel controls; Save dims while it sends. The saved draft arrives
-          with a Waiting for pickup status. Its existing control turns blue when picked
-          up and green, with one arrival pulse, while the agent works on it. Hover for
-          the control's action and current work description.
+          with a Waiting for pickup status. Its icon turns green when picked up; its
+          interior turns green, with one arrival pulse, while the agent works on it.
+          Hover for the control's action and current work description.
         </p>
         <p id="bg-buttons-line">
           <strong>Combine roles.</strong> Use the
@@ -854,8 +855,8 @@ gallery/
             <strong>Specimen</strong> and <strong>Shot</strong
             ><span class="bg-feature-detail">: fiction and before/after images</span>
           </h3>
-          <lf-specimen id="bg-specimen" label="an inert sample decision">
-            <lf-options id="bg-specimen-options" choose>
+          <lf-specimen id="bg-specimen" label="an inert multiple-pick decision">
+            <lf-options id="bg-specimen-options" choose multiple>
               <lf-option id="bg-specimen-paper">
                 <strong>Paper signs</strong> Nothing to charge.
               </lf-option>

@@ -10,7 +10,7 @@ Resolve the repository root three directories above this `SKILL.md`, then resolv
 continue only when it prints the same repository root. Use the absolute launcher
 throughout; a bare `leaf` command may resolve to the installed plugin instead.
 
-Read `references/glossary.md` before naming or revising reader-facing elements,
+Read this skill's `references/glossary.md` before naming or revising reader-facing elements,
 interaction contexts, navigation, chrome, view state, or an identifier governed by
 those concepts. It is Leaf's canonical implementation vocabulary.
 

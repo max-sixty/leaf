@@ -131,6 +131,7 @@ export function createSelectionComposer({
   fabAnchorAt,
   fabPositioned,
   beginFabFocus,
+  endFabFocus,
   refreshFab,
   showFab,
   formatGoToAddress,
@@ -442,6 +443,7 @@ export function createSelectionComposer({
     // focus event. Mark the handoff before showing the surface so that an intermediate
     // selectionchange cannot dismiss the durable passage this composer is opening on.
     if (focus) beginFabFocus();
+    else endFabFocus();
     showComposer(true);
     showFab(anchor);
     syncComposer();
@@ -516,7 +518,10 @@ export function createSelectionComposer({
   // dropped it: the words are somewhere else now, or on their way back.
   function settleComposer() {
     leaveComposer(false);
-    showFab(null, null, { returnFocus: "none" });
+    // Settlement may arrive after Escape has already started another keyboard gesture.
+    // Move focus only when it still belongs to the field this settlement hid; showFab's
+    // page return makes that distinction from a later focus elsewhere.
+    showFab(null, null, { returnFocus: "page" });
   }
 
   // The response bar's Comment action returns to this same compact field on the anchor
@@ -629,13 +634,14 @@ export function createSelectionComposer({
         // passage just as the reader's comment moves across it to a new floating card.
         const inlineThread =
           shouldLand && !panelIsOpen()
-            ? openInlineThread(sent.id, transition, (thread) => {
-                const reply = thread.querySelector("textarea");
-                reply?.lfRevealReply?.();
-                landTyping(reply, composerInput);
-              })
+            ? openInlineThread(sent.id, transition, (thread) =>
+                landTyping(thread.querySelector("textarea"), composerInput),
+              )
             : null;
         const inlineReply = inlineThread?.querySelector("textarea") ?? null;
+        // Expand the destination before placement so Floating UI measures the final card.
+        // Focus still waits for that placement; it must not change the measured shape.
+        inlineReply?.lfRevealReply?.();
         reply = inlineReply ?? reply;
         if (!inlineReply && (shouldLand || panelIsOpen())) {
           showThread(sent.id, { focus: shouldLand ? "reply" : false });

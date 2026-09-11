@@ -201,6 +201,10 @@
         }
       }
 
+      .lf-copy notification-simulator .notification-demo-pressure {
+        display: none;
+      }
+
       @media print {
         notification-simulator .notification-demo-pressure {
           display: none;
@@ -432,6 +436,47 @@
         },
       );
     </script>
+<!-- live-progress.html authored styles -->
+<style>
+      #lp-current-state > strong {
+        display: block;
+        margin-bottom: var(--sp-1);
+        font: 650 var(--t-3) / 1.2 var(--sans);
+      }
+
+      #lp-release-facts {
+        margin-block: var(--sp-3);
+      }
+
+      #lp-checks-table {
+        margin-top: var(--sp-2);
+        font-size: var(--t-5);
+      }
+
+      .release-check-result {
+        font: 650 var(--t-6) / 1.2 var(--sans);
+      }
+
+      .release-check-result[data-status="pass"] {
+        color: var(--ok-ink);
+      }
+
+      .release-check-result[data-status="fail"] {
+        color: var(--danger-ink);
+      }
+
+      #lp-log-note,
+      #lp-checks-note {
+        margin-top: 0;
+        color: var(--muted);
+        font-family: var(--sans);
+        font-size: var(--t-5);
+      }
+
+      #lp-code-changes {
+        margin-top: var(--sp-3);
+      }
+    </style>
 <!-- pr-walkthrough.html authored styles -->
 <style>
       .pr-agent-brief {
@@ -754,6 +799,7 @@
         gap: var(--sp-3);
       }
       .target-card {
+        --lf-block-frame: 1;
         padding: var(--sp-4);
         border: 1px solid var(--rule);
         border-radius: var(--r);
@@ -804,10 +850,11 @@ catalog.</p>
             downstream import.</lf-card
           >
         </lf-column>
-        <lf-column id="col-fixed" label="Fixed">
+        <lf-column id="col-defer" label="Defer from 2.4">
           <lf-card id="card-logout"
-            ><strong>Logout fails with an expired session</strong> The double-delete
-            guard is merged and covered by the release build.</lf-card
+            ><strong>Logout fails with an expired session</strong> The user can retry
+            safely, and the shared-session cleanup is not ready for this
+            release.</lf-card
           >
         </lf-column>
       </lf-board>
@@ -862,10 +909,10 @@ catalog.</p>
 </lf-tab>
 
 <lf-tab id="corpus-release-notes" label="Notes">
-<h1>Review the four user-visible notes</h1>
+<h1>Review the 3.2 release packet</h1>
       <p class="lede" id="rn-lede">
-        Edit any draft that needs different wording, accept or reject the proposed
-        changes, then approve the finished set.
+        Review four notes for users and operators. Edit any draft that needs different
+        wording, accept or reject the proposed changes, then approve the finished set.
       </p>
 
       <section id="rn-cli-section">
@@ -944,8 +991,8 @@ Run the online schema migration before deploying.
 <h1 id="ret-title">Keep most raw request logs for 45 days</h1>
       <p class="lede" id="ret-lede">
         Ordinary raw logs fall from 400 days to 45; 5xx logs keep 120 days. Aggregates
-        stay at 400 days. The change returns about 18 TB of hot storage and £3,100 a
-        month.
+        stay at 400 days. The change returns about 18 TB of hot storage and £3,000 a
+        month after the 5xx carve-out.
       </p>
 
       <section id="ret-what">
@@ -1004,8 +1051,9 @@ Run the online schema migration before deploying.
 <h1>Finish the ship review</h1>
       <p class="lede" id="off-lede">
         The resend is accepted for the first patch: it recovered all 500 forced stalls,
-        and beta saw no data loss. One decision remains. Finish choosing the follow-up
-        work in the reconnect thread, then approve the release.
+        and a six-week beta across 96 workspaces saw no data loss. One decision remains.
+        Finish choosing the follow-up work in the reconnect thread, then approve version
+        1 of this review.
       </p>
 
       <section id="off-readiness-section">
@@ -1094,6 +1142,11 @@ chimney with no cap, 120
 
       <lf-ask id="heat-first-decision">
         <h2>Which measure should be booked first?</h2>
+        <p id="heat-decision-basis">
+          The three jobs below have current installer access and quotes. Rank their
+          estimated loss against cost, lead time, and disruption — not as promised
+          savings.
+        </p>
         <lf-options id="heat-first" choose>
           <lf-option id="heat-opt-hatch">
             <strong>Seal and insulate the loft hatch</strong>
@@ -1277,99 +1330,191 @@ outside average, before, after
 <lf-tab id="corpus-live-progress" label="Live">
 <lf-monitor id="lp-monitor">
         <header>
-          <p class="eyebrow">live operations · rehearsal 4 of 5</p>
-          <h1>Checkout cutover rehearsal</h1>
+          <h1>Checkout v2 release</h1>
           <p class="lede" id="lp-lede">
-            Checkout is stable on the old service and rollback is proved. The next step
-            waits while one finance-export exception needs a containment decision.
+            The production canary is paused at 25%. Customer checkout is healthy, but
+            finance export is one row short and must reconcile before traffic expands.
           </p>
         </header>
 
         <lf-monitor-grid id="lp-regions">
-          <lf-monitor-region id="lp-overview" label="Overview" zone="overview">
-            <header><h2>Overview</h2></header>
-            <aside class="callout" id="lp-active">
-              <strong>Rollback proved.</strong> The old checkout service is handling all
-              traffic; finance export remains isolated from the customer path.
+          <lf-monitor-region id="lp-release" label="Release" zone="release">
+            <header><h2>Release</h2></header>
+            <aside class="callout" id="lp-current-state">
+              <strong>Paused at 25%</strong>
+              Automatic promotion stopped when the finance-parity check failed. The
+              candidate remains live for canary traffic while Ledger traces a
+              partial-refund fixture mismatch; the exact failing producer is not yet
+              established.
             </aside>
             <lf-metrics id="lp-metrics">
-              <lf-metric id="lp-k-done" value="17 of 18">checks complete</lf-metric>
-              <lf-metric id="lp-k-running" value="0">running now</lf-metric>
-              <lf-metric id="lp-k-blocked" value="1">needs decision</lf-metric>
+              <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
+              <lf-metric id="lp-k-checks" value="4 of 5">checks passing</lf-metric>
             </lf-metrics>
-            <h3 id="lp-crew-heading">On the rehearsal</h3>
-            <lf-roster id="lp-roster">
-              <lf-agent id="lp-agent-router" state="done">
-                <strong>router</strong> Matched order counts after rollback.
-              </lf-agent>
-              <lf-agent id="lp-agent-ledger" state="blocked">
-                <strong>ledger</strong> Waiting on the finance containment choice.
-              </lf-agent>
-              <lf-agent id="lp-agent-observer" state="waiting">
-                <strong>observer</strong> Guardrails are green; watching the old
-                service.
-              </lf-agent>
-              <lf-agent id="lp-agent-scribe" state="idle">
-                <strong>scribe</strong> Ready to record the containment decision.
-              </lf-agent>
-            </lf-roster>
-          </lf-monitor-region>
-
-          <lf-monitor-region id="lp-evidence" label="Run log" zone="evidence">
-            <header><h2>Captured run log</h2></header>
-            <p id="lp-evidence-note">
-              This snapshot ends at 14:24:44. During a rehearsal, new samples appear
-              here while the overview and containment choice stay in place.
+            <dl class="facts" id="lp-release-facts">
+              <dt>Environment</dt>
+              <dd>Production</dd>
+              <dt>Candidate</dt>
+              <dd><code>checkout-v2</code></dd>
+              <dt>Stable</dt>
+              <dd><code>checkout-v1</code></dd>
+              <dt>Observed</dt>
+              <dd>14:24:44</dd>
+            </dl>
+            <p id="lp-hold-policy">
+              <strong>Hold until 14:32.</strong> Escalate to Finance at 14:30; roll back
+              sooner if a customer guardrail fails.
             </p>
-            <lf-text-document
-              id="lp-live-log"
-              source="rehearsal-log"
-            ></lf-text-document>
-            <footer>Newest samples appear at the end.</footer>
-          </lf-monitor-region>
 
-          <lf-monitor-region id="lp-exception" label="Exception" zone="exception">
-            <header><h2>Exception</h2></header>
-            <aside class="callout" id="lp-finance-note">
-              <strong>Partially refunded order missing from export.</strong> Checkout
-              traffic is healthy, but order <code>co_18427</code> appears in the ledger
-              and not in the finance file. The export stays isolated until this choice
-              is recorded.
-            </aside>
-            <lf-milestones id="lp-exception-status">
-              <lf-milestone id="lp-finance-gate" status="blocked" when="now">
-                <strong>Resume the finance export</strong> Waiting on safeguards for the
-                missing partial refund.
+            <lf-release-actions
+              id="lp-release-actions"
+              candidate="checkout-v2"
+              stable="checkout-v1"
+            >
+              <lf-release-action verb="rollback">
+                <strong>Request rollback to checkout-v1</strong>
+                <p>
+                  Ready; returns traffic to the stable release without repairing the
+                  missing finance row.
+                </p>
+              </lf-release-action>
+            </lf-release-actions>
+
+            <h3 id="lp-steps-heading">Release steps</h3>
+            <lf-milestones id="lp-release-steps">
+              <lf-milestone id="lp-step-build" status="done" when="14:18">
+                <strong>Build and verify the candidate</strong> Image signed and
+                provenance recorded.
+              </lf-milestone>
+              <lf-milestone id="lp-step-canary" status="done" when="14:22">
+                <strong>Deploy the 25% canary</strong> Candidate serving production
+                checkout traffic.
+              </lf-milestone>
+              <lf-milestone id="lp-step-checks" status="blocked" when="now">
+                <strong>Pass release checks</strong> Finance export has 1,998 of 1,999
+                expected rows.
+              </lf-milestone>
+              <lf-milestone id="lp-step-promote" status="planned">
+                <strong>Expand to 100%</strong>
+              </lf-milestone>
+              <lf-milestone id="lp-step-observe" status="planned">
+                <strong>Observe and complete</strong>
               </lf-milestone>
             </lf-milestones>
-            <lf-ask id="lp-finance-decision">
-              <h3>
-                Which safeguards should stay active while Ledger rebuilds the fixture?
-              </h3>
-              <p>
-                Choose every safeguard Finance should keep until the partial-refund case
-                passes.
-              </p>
-              <lf-options id="lp-finance-cases" choose multiple>
-                <lf-option id="lp-hold-exports">
-                  <strong>Hold partial-refund exports</strong> Keep the affected export
-                  path paused until the rebuilt fixture passes.
-                </lf-option>
-                <lf-option id="lp-quarantine-order">
-                  <strong>Quarantine this order</strong> Continue ordinary exports and
-                  reconcile <code>co_18427</code> by hand.
-                </lf-option>
-                <lf-option id="lp-finance-signoff">
-                  <strong>Require finance sign-off</strong> Keep the export closed until
-                  Finance reviews the repaired row.
-                </lf-option>
-              </lf-options>
-            </lf-ask>
+
+            <details id="lp-release-notes">
+              <summary>Release notes · 3 changes</summary>
+              <ul>
+                <li>Keep partial-refund state through checkout retries.</li>
+                <li>Write refund adjustments to the finance export.</li>
+                <li>Add parity checks before production promotion.</li>
+              </ul>
+            </details>
+            <details id="lp-release-owners">
+              <summary>Release owners · 5</summary>
+              <lf-roster id="lp-owners">
+                <lf-agent id="lp-agent-deployer" state="waiting">
+                  <strong>deployer</strong> Holding promotion at 25% while finance
+                  parity is red.
+                </lf-agent>
+                <lf-agent id="lp-agent-ledger" state="working">
+                  <strong>ledger</strong> Reconciling <code>co_18427</code> against the
+                  candidate export.
+                </lf-agent>
+                <lf-agent id="lp-agent-finance" state="blocked">
+                  <strong>finance</strong> Waiting for the missing export row before
+                  signing off.
+                </lf-agent>
+                <lf-agent id="lp-agent-observer" state="idle">
+                  <strong>observer</strong> Ready to watch the release after promotion.
+                </lf-agent>
+                <lf-agent id="lp-agent-builder" state="done">
+                  <strong>builder</strong> Signed the candidate and recorded its
+                  provenance.
+                </lf-agent>
+              </lf-roster>
+            </details>
+            <details id="lp-rollback-procedure">
+              <summary>Rollback procedure · 3 steps</summary>
+              <ol class="steps">
+                <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
+                <li>Drain the candidate after active sessions finish.</li>
+                <li>Verify order counts and finance-export isolation.</li>
+              </ol>
+            </details>
+          </lf-monitor-region>
+
+          <lf-monitor-region id="lp-checks" label="Checks" zone="checks">
+            <header><h2>Checks</h2></header>
+            <p id="lp-checks-note">Four checks pass. One blocks promotion.</p>
+            <table id="lp-checks-table">
+              <thead>
+                <tr>
+                  <th>Check</th>
+                  <th>Result</th>
+                  <th>Observed / required</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="lp-check-errors">
+                  <th scope="row">Error rate</th>
+                  <td>
+                    <span class="release-check-result" data-status="pass">Pass</span>
+                  </td>
+                  <td><code>0.11%</code> / below <code>0.50%</code></td>
+                </tr>
+                <tr id="lp-check-latency">
+                  <th scope="row">p95 latency</th>
+                  <td>
+                    <span class="release-check-result" data-status="pass">Pass</span>
+                  </td>
+                  <td><code>184 ms</code> / below <code>300 ms</code></td>
+                </tr>
+                <tr id="lp-check-orders">
+                  <th scope="row">Order parity</th>
+                  <td>
+                    <span class="release-check-result" data-status="pass">Pass</span>
+                  </td>
+                  <td><code>2,000</code> / <code>2,000</code></td>
+                </tr>
+                <tr id="lp-check-finance">
+                  <th scope="row">Finance export</th>
+                  <td>
+                    <span class="release-check-result" data-status="fail">Fail</span>
+                  </td>
+                  <td><code>1,998</code> / <code>1,999</code> rows</td>
+                </tr>
+                <tr id="lp-check-rollback">
+                  <th scope="row">Rollback target</th>
+                  <td>
+                    <span class="release-check-result" data-status="pass">Pass</span>
+                  </td>
+                  <td>3 batches / zero delta</td>
+                </tr>
+              </tbody>
+            </table>
+          </lf-monitor-region>
+
+          <lf-monitor-region id="lp-log" label="Run log" zone="log">
+            <header><h2>Run log</h2></header>
+            <p id="lp-log-note">
+              Example snapshot ending at 14:24:44. New events append without moving a
+              reader who has scrolled back.
+            </p>
+            <lf-text-document id="lp-live-log" source="release-log"></lf-text-document>
+            <details id="lp-code-changes">
+              <summary>Code changes · 2 files, +18 −4</summary>
+              <lf-diff id="lp-release-diff" source="release-patch" snapshot="1">
+                <pre></pre>
+              </lf-diff>
+            </details>
+            <footer>Newest events appear at the end.</footer>
           </lf-monitor-region>
         </lf-monitor-grid>
 
         <footer>
-          Checkout can remain on the old service while Finance contains the export gap.
+          Traffic stays at 25% until finance export parity passes or the 14:32 rollback
+          deadline arrives.
         </footer>
       </lf-monitor>
 </lf-tab>
@@ -1590,7 +1735,7 @@ flowchart LR
             <lf-call-diff
               id="pr-call-diagram"
               source="pr-call-diff"
-              snapshot="2"
+              snapshot="3"
               diff="pr-exact-patch"
             ></lf-call-diff>
           </lf-tab>
@@ -1724,7 +1869,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             line, and quote—even when the file disclosure is closed.
           </p>
         </aside>
-        <lf-diff id="pr-exact-patch" source="pr-review-patch" snapshot="1" collapsed>
+        <lf-diff id="pr-exact-patch" source="pr-review-patch" snapshot="2" collapsed>
           <pre></pre>
         </lf-diff>
       </section>
@@ -1834,39 +1979,12 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             <lf-text-document
               id="pr-prepared-diff-source"
               source="pr-prepared-diff-source"
-              snapshot="3"
+              snapshot="4"
               language="rust"
             ></lf-text-document>
           </details>
         </section>
       </details>
-
-      <section id="pr-outcome">
-        <lf-ask id="pr-outcome-decision">
-          <h2>Should this revision merge?</h2>
-          <p id="pr-outcome-context">
-            Choose the review judgment best supported by the captured revision and
-            evidence.
-          </p>
-          <lf-options id="pr-outcome-choice" choose>
-            <lf-option id="pr-outcome-follow-up">
-              <strong>Merge with two follow-ups.</strong> Add a selected-row latency
-              benchmark and a dry-run artifact regression in subsequent work.
-              <em>My take: this best matches the evidence and review trail.</em>
-            </lf-option>
-            <lf-option id="pr-outcome-approve">
-              <strong>Merge without follow-ups.</strong> Close the two remaining gaps as
-              non-actionable.
-            </lf-option>
-            <lf-option id="pr-outcome-request-changes">
-              <strong>Hold the merge for two changes.</strong> Add a selected-row
-              latency budget, and prevent <code>wt step commit --dry-run</code> from
-              staging temporary-index artifacts when <code>TMPDIR</code> is inside the
-              worktree.
-            </lf-option>
-          </lf-options>
-        </lf-ask>
-      </section>
 </lf-tab>
 
 <lf-tab id="corpus-security-boundary" label="Security">
@@ -3631,13 +3749,14 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p id="bg-margin-controls-guide">
           <strong>Everything visible at once.</strong> The first row holds every rank,
           behavior, and tone. The second compares agent ownership: whether the agent has
-          the item. No ownership treatment means not held; a single blue ring means
-          picked up; a green double ring and tint mean working. Ownership decorates the
-          item's existing control. The Activity dot remains only when there is no other
-          control to carry that treatment. These inert specimens use the same
-          constructors and stylesheet as the live controls and status indicators. Reload
-          to see the one-time pulse as Working arrives. A control dims only while its
-          reader action is waiting for the log to confirm it.
+          the item. No ownership treatment means not held; pickup uses a green icon; a
+          green interior means working. If the icon already carries positive or negative
+          tone, pickup keeps that tone on the control's existing contour. Ownership
+          decorates the item's existing control. The Activity dot remains only when
+          there is no other control to carry that treatment. These inert specimens use
+          the same constructors and stylesheet as the live controls and status
+          indicators. Reload to see the one-time pulse as Working arrives. A control
+          dims only while its reader action is waiting for the log to confirm it.
         </p>
         <lf-margin-entry-gallery
           id="bg-margin-controls-specimens"
@@ -3671,9 +3790,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p id="bg-button-status-guide">
           <strong>Edit and hand off.</strong> Opening the draft above replaces Edit with
           Save and Cancel controls; Save dims while it sends. The saved draft arrives
-          with a Waiting for pickup status. Its existing control turns blue when picked
-          up and green, with one arrival pulse, while the agent works on it. Hover for
-          the control's action and current work description.
+          with a Waiting for pickup status. Its icon turns green when picked up; its
+          interior turns green, with one arrival pulse, while the agent works on it.
+          Hover for the control's action and current work description.
         </p>
         <p id="bg-buttons-line">
           <strong>Combine roles.</strong> Use the
@@ -3804,7 +3923,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           <lf-text-document
             id="bg-source-snapshot"
             source="gallery-source"
-            snapshot="4"
+            snapshot="5"
             language="toml"
           ></lf-text-document>
         </section>
@@ -4064,8 +4183,8 @@ gallery/
             <strong>Specimen</strong> and <strong>Shot</strong
             ><span class="bg-feature-detail">: fiction and before/after images</span>
           </h3>
-          <lf-specimen id="bg-specimen" label="an inert sample decision">
-            <lf-options id="bg-specimen-options" choose>
+          <lf-specimen id="bg-specimen" label="an inert multiple-pick decision">
+            <lf-options id="bg-specimen-options" choose multiple>
               <lf-option id="bg-specimen-paper">
                 <strong>Paper signs</strong> Nothing to charge.
               </lf-option>

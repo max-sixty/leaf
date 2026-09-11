@@ -16,7 +16,7 @@ import { clippedRect, shownBand, shownBox, shownRect } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { scrollerFor } from "./reading-regions.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
-import { under } from "./shadow.js";
+import { upFrom } from "./shadow.js";
 import { closestAcross } from "./passages.js";
 import { reveal } from "./widget-elements.js";
 
@@ -103,6 +103,18 @@ export function createAnchorTravel({
     return rect.top - view.top - place;
   }
 
+  // Reading-region membership also covers fixed chrome, but its viewport position does
+  // not move with that region. Stop at a fixed boundary before applying scroll arithmetic
+  // to it; a scroller inside that boundary still owns its ordinary descendants.
+  function scrollingBoxFor(element) {
+    const box = scrollerFor(element);
+    for (let node = element; node; node = upFrom(node)) {
+      if (node === box) return box;
+      if (getComputedStyle(node).position === "fixed") return null;
+    }
+    return null;
+  }
+
   function scrollRevealedElement(
     element,
     behavior = scrollBehavior(),
@@ -114,10 +126,10 @@ export function createAnchorTravel({
       behavior: block === "nearest" ? behavior : "instant",
     });
     if (block === "nearest") return;
-    const box = scrollerFor(element);
+    const box = scrollingBoxFor(element);
     // The document and nested reading regions share this path. Only the scroller that
     // actually owns the element receives the final centring move.
-    if (!under(element, box)) return;
+    if (!box) return;
     moveScrollerBy(box, centreBy(element, block, box), behavior);
   }
 
@@ -141,11 +153,11 @@ export function createAnchorTravel({
         ? clippedRect(destination, holder, new Map())
         : shownRect(where, new Map());
     if (!seen) return false;
-    const box = scrollerFor(holder);
-    const view = shownBox(box);
-    const style = getComputedStyle(box);
-    const clearAbove = parseFloat(style.scrollPaddingTop) || 0;
-    const clearBelow = parseFloat(style.scrollPaddingBottom) || 0;
+    const box = scrollingBoxFor(holder);
+    const view = shownBox(box ?? pageScroller);
+    const style = box && getComputedStyle(box);
+    const clearAbove = parseFloat(style?.scrollPaddingTop) || 0;
+    const clearBelow = parseFloat(style?.scrollPaddingBottom) || 0;
     const close = (a, b) => Math.abs(a - b) <= 0.5;
     return (
       destination.top >= view.top + clearAbove - 0.5 &&
@@ -163,7 +175,8 @@ export function createAnchorTravel({
         ? where.startContainer
         : where.startContainer.parentElement;
     if (!holder) return;
-    const targetScroller = scrollerFor(holder);
+    const targetScroller = scrollingBoxFor(holder);
+    if (!targetScroller) return;
     // Reveal nested scrollports without writing the document position, then glide the
     // owning reading region once. A wide pre or diagram needs both axes settled first.
     for (

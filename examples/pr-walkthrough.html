@@ -614,33 +614,6 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
           </details>
         </section>
       </details>
-
-      <section id="pr-outcome">
-        <lf-ask id="pr-outcome-decision">
-          <h2>Should this revision merge?</h2>
-          <p id="pr-outcome-context">
-            Choose the review judgment best supported by the captured revision and
-            evidence.
-          </p>
-          <lf-options id="pr-outcome-choice" choose>
-            <lf-option id="pr-outcome-follow-up">
-              <strong>Merge with two follow-ups.</strong> Add a selected-row latency
-              benchmark and a dry-run artifact regression in subsequent work.
-              <em>My take: this best matches the evidence and review trail.</em>
-            </lf-option>
-            <lf-option id="pr-outcome-approve">
-              <strong>Merge without follow-ups.</strong> Close the two remaining gaps as
-              non-actionable.
-            </lf-option>
-            <lf-option id="pr-outcome-request-changes">
-              <strong>Hold the merge for two changes.</strong> Add a selected-row
-              latency budget, and prevent <code>wt step commit --dry-run</code> from
-              staging temporary-index artifacts when <code>TMPDIR</code> is inside the
-              worktree.
-            </lf-option>
-          </lf-options>
-        </lf-ask>
-      </section>
     </main>
   </body>
 </html>

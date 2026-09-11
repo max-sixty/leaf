@@ -71,16 +71,23 @@ while `format` identifies the candidate to build:
 </lf-ask>
 ```
 
-Bind shared parameter changes with page CSS. Each value is reflected on the playground
-as both `--playground-NAME` and `data-playground-NAME`. A text control's custom property
-is a quoted CSS string; its data attribute contains the unquoted text:
+Bind shared parameter changes with page CSS. For every control value the preview reads
+through `--playground-NAME`, author that property on the playground with the control's
+initial value. Base rules carry the initial attribute-selected state. This gives the
+preview the same first paint before Leaf upgrades it. Each value is then reflected on
+the playground as both `--playground-NAME` and `data-playground-NAME`. A text control's
+custom property is a quoted CSS string; its data attribute contains the unquoted text:
 
 ```css
+#notification-playground { --playground-radius: 10px; }
 .notification-candidates > article { border-radius: var(--playground-radius); }
 #notification-playground[data-playground-compact="true"]
   .notification-candidates > article { padding: var(--sp-2); }
-#notification-playground[data-playground-format="banner"]
-  [data-candidate="banner"] { outline: 2px solid var(--accent); }
+[data-candidate="banner"] { outline: 2px solid var(--accent); }
+#notification-playground[data-playground-format="status strip"]
+  [data-candidate="banner"] { outline: 0; }
+#notification-playground[data-playground-format="status strip"]
+  [data-candidate="status strip"] { outline: 2px solid var(--accent); }
 ```
 
 The output is the instruction the reader copies and the host receives. Write a complete

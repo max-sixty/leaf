@@ -743,7 +743,7 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
     return Math.min(r.bottom, band.bottom) - Math.max(r.top, band.top) > 1;
   }};
   window.__lfOnScreen = {ON_SCREEN};
-  const cluster = el.closest('.lf-margin-cluster');
+  const cluster = el.closest('.lf-margin-cluster, .lf-diff-file');
   const candidates = cluster ? [...cluster.querySelectorAll(sel)]
       : [...el.parentElement.children]
           .filter((n) => n !== el && !n.contains(el))

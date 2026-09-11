@@ -4,7 +4,7 @@ Each top-level authored HTML file is both a complete user page and an integratio
 fixture. The website publishes those pages with the same vendored layer.
 `docs/examples.html` curates seven core examples and a specialized section; its active
 cards are the source of truth for catalog membership and generated previews. An
-unlisted page can remain published, as Command Hub does while its TODO is open.
+unlisted page can remain published, as Command Hub and Security Boundary do.
 
 A published page says what it is in its own head: a `<title>` and a
 `<meta name="description">`, distinct from every other page's. Those two are what a
@@ -17,6 +17,10 @@ reader tasks; the core gallery and focused package pages own exhaustive vocabula
 coverage. Add a
 contents sidebar when the rendered document needs navigation; judge that in the
 browser review.
+
+Every catalog entry must both stand as a coherent artifact for a real reader task and
+make a distinct Leaf capability apparent on the first visit. Subject novelty, length,
+or vocabulary coverage alone does not qualify a page for the catalog.
 
 Full-page regression journeys whose story no longer belongs in the showcase live
 under `tests/fixtures/pages/`, with their companion logs and `versions/` beside them.

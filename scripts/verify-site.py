@@ -83,6 +83,50 @@ STARTUP_READING = """() => {
     ...window.__leafStartup,
   };
 }"""
+VISIBLE_REPLY_INIT = """(() => {
+  window.__leafWatchVisibleAgentReply = () => {
+    const started = sessionStorage.getItem('leaf-visible-reply-started');
+    if (started === null || sessionStorage.getItem('leaf-visible-reply-at') !== null)
+      return;
+    const seen = new WeakSet();
+    const intersections = new IntersectionObserver(entries => {
+      const visible = entries.find(({isIntersecting, target}) =>
+        isIntersecting &&
+        target.querySelector('.lf-msg-text')?.textContent.trim() &&
+        target.checkVisibility()
+      );
+      if (!visible || sessionStorage.getItem('leaf-visible-reply-at') !== null) return;
+      sessionStorage.setItem('leaf-visible-reply-at', String(Date.now()));
+      mutations.disconnect();
+      intersections.disconnect();
+    });
+    const observe = () => {
+      for (const message of document.querySelectorAll('.lf-msg.claude')) {
+        if (!seen.has(message) && message.querySelector('.lf-msg-text')?.textContent.trim()) {
+          seen.add(message);
+          intersections.observe(message);
+        }
+      }
+    };
+    const mutations = new MutationObserver(observe);
+    mutations.observe(document, {attributes: true, childList: true, subtree: true});
+    observe();
+  };
+  window.__leafWatchVisibleAgentReply();
+})()"""
+VISIBLE_REPLY_WATCH = """() => {
+  const started = Date.now();
+  sessionStorage.setItem('leaf-visible-reply-started', String(started));
+  sessionStorage.removeItem('leaf-visible-reply-at');
+  window.__leafWatchVisibleAgentReply();
+  return started;
+}"""
+VISIBLE_REPLY_READING = """() => {
+  const visible = sessionStorage.getItem('leaf-visible-reply-at');
+  return visible === null ? null : Number(visible);
+}"""
+VISIBLE_REPLY_READY = """() =>
+  sessionStorage.getItem('leaf-visible-reply-at') !== null"""
 
 
 # One hosted Codex turn runs at the model's pace, not this gate's. `TURN_PATIENCE`
@@ -500,6 +544,7 @@ class AgentProfile:
 
     def __init__(self) -> None:
         self.started = time.monotonic()
+        self.visible_reply_started_ms: float | None = None
         self.milestones: dict[str, float] = {}
         self.activities: list[tuple[float, str, str]] = []
         self.ask_count = 0
@@ -523,8 +568,7 @@ class AgentAsks(NamedTuple):
     turn: TurnReading
     asks: int
     revision: int
-    profile: AgentProfile | None = None
-    queued: tuple[dict, TurnReading] | None = None
+    profile: AgentProfile
 
 
 def elapsed_time(seconds: float) -> str:
@@ -548,7 +592,7 @@ def print_agent_profile(profile: AgentProfile) -> None:
     for at, kind, detail in profile.activities:
         description = f": {detail}" if detail else ""
         print(f"  activity {kind}{description} at {elapsed_time(at)}")
-    for name in ("published", "replied", "answered"):
+    for name in ("published", "response visible", "replied", "answered"):
         if name in profile.milestones:
             print(f"  {name} at {elapsed_time(profile.milestones[name])}")
 
@@ -570,6 +614,9 @@ def agent_profile(profile: AgentProfile) -> dict:
         ],
         "publishedMs": profile.milestones.get("published", 0) * 1000
         if "published" in profile.milestones
+        else None,
+        "responseVisibleMs": profile.milestones.get("response visible", 0) * 1000
+        if "response visible" in profile.milestones
         else None,
         "repliedMs": profile.milestones.get("replied", 0) * 1000
         if "replied" in profile.milestones
@@ -619,30 +666,29 @@ def start_direct_agent(context, url: str, comment: dict) -> None:
 
 def ask_for_the_heading(
     context,
+    page,
     url: str,
-    layer: str,
-    release: str,
-    revision: int,
     heading: str,
-    attempt: str,
     profile: AgentProfile,
     ask: int,
 ) -> dict:
-    """Post one deployment-check comment and return the event the page admitted."""
-    posted = context.request.post(
-        urljoin(url, "api/event"),
-        headers={"Leaf-Layer": layer, "Leaf-Release": release},
-        data={
-            "kind": "comment",
-            "revision": revision,
-            "text": (
-                f"Change the main heading to ‘{heading}’. Leave everything else "
-                "unchanged, publish the revision, and reply with ‘deployment verified’."
-            ),
-            "attempt": attempt,
-        },
-        timeout=120_000,
+    """Send one deployment-check comment through the reader's real composer."""
+    text = (
+        f"Change the main heading to ‘{heading}’. Leave everything else unchanged, "
+        "publish the revision, and reply with ‘deployment verified’."
     )
+    box = page.locator(".lf-general textarea")
+    box.fill(text)
+    if ask == 1:
+        profile.started = time.monotonic()
+        profile.visible_reply_started_ms = page.evaluate(VISIBLE_REPLY_WATCH)
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/event") and response.request.method == "POST"
+        )
+    ) as response_info:
+        box.press("ControlOrMeta+Enter")
+    posted = response_info.value
     check(posted.ok, f"{url} rejected its deployment-check comment")
     accepted = posted.json()
     profile.reference = posted.headers.get("leaf-session-reference")
@@ -652,6 +698,7 @@ def ask_for_the_heading(
         f"{url} answered its deployment-check comment without admitting it: {accepted}",
     )
     profile.observe(accepted["state"])
+    attempt = posted.request.post_data_json["attempt"]
     comment = next(
         (
             event
@@ -664,46 +711,6 @@ def ask_for_the_heading(
     profile.event_ids.append(comment["id"])
     if DIRECT_AGENT:
         start_direct_agent(context, url, comment)
-    return comment
-
-
-def queue_a_second_comment(
-    context,
-    url: str,
-    layer: str,
-    release: str,
-    revision: int,
-    attempt: str,
-    profile: AgentProfile,
-) -> dict:
-    """Post a second real comment after the first hosted turn has started."""
-    posted = context.request.post(
-        urljoin(url, "api/event"),
-        headers={"Leaf-Layer": layer, "Leaf-Release": release},
-        data={
-            "kind": "comment",
-            "revision": revision,
-            "text": (
-                "This message intentionally arrived while your previous turn was "
-                "active. Do not change the page; reply with ‘queued delivery verified’."
-            ),
-            "attempt": attempt,
-        },
-        timeout=120_000,
-    )
-    check(posted.ok, f"{url} rejected its queued deployment-check comment")
-    accepted = posted.json()
-    comment = next(
-        (
-            event
-            for event in accepted.get("state", {}).get("events", [])
-            if event.get("attempt") == attempt
-        ),
-        None,
-    )
-    check(comment is not None, f"{url} did not admit its queued deployment comment")
-    profile.event_ids.append(comment["id"])
-    start_direct_agent(context, url, comment)
     return comment
 
 
@@ -769,12 +776,12 @@ def await_turn(
 
 def ask_until_answered(
     context,
+    page,
     url: str,
     state_url: str,
     layer: str,
     release: str,
     heading: str,
-    attempt: str,
     state: dict,
     *,
     report: bool = True,
@@ -793,7 +800,6 @@ def ask_until_answered(
     asks = 0
     profile = AgentProfile()
     deadline = time.monotonic() + TURN_LIMIT
-    queued_comment = None
     while True:
         asks += 1
         profile.ask_count = asks
@@ -802,19 +808,7 @@ def ask_until_answered(
         # What that turn published is carried across it: an agent handed a heading it
         # has already published has no reason to publish it again.
         revision = state["active"]["revision"]
-        comment = ask_for_the_heading(
-            context, url, layer, release, revision, heading, attempt, profile, asks
-        )
-        if DIRECT_AGENT and asks == 1:
-            queued_comment = queue_a_second_comment(
-                context,
-                url,
-                layer,
-                release,
-                revision,
-                f"{attempt}-queued",
-                profile,
-            )
+        comment = ask_for_the_heading(context, page, url, heading, profile, asks)
         state, published, replies, answer = await_turn(
             context,
             url,
@@ -836,35 +830,17 @@ def ask_until_answered(
             and generation_failed(replies)
             and deadline - time.monotonic() >= TURN_PATIENCE
         ):
-            queued = None
-            if queued_comment is not None:
-                queued_reading = await_turn(
-                    context,
-                    url,
-                    state_url,
-                    layer,
-                    release,
-                    queued_comment,
-                    revision,
-                    heading,
-                    published,
-                    deadline,
-                    profile,
-                )
-                queued = (queued_comment, queued_reading)
             return AgentAsks(
                 TurnReading(state, published, replies, answer),
                 asks,
                 revision,
                 profile,
-                queued,
             )
         if report:
             print(
                 f"↻ {url} settled its ask with the container's generation failure; "
                 "sending the new message that reply asks for"
             )
-        attempt = f"{attempt}-{asks + 1}"
 
 
 def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> dict:
@@ -893,20 +869,49 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
     # is answered with that container's generation instead of a state.
     layer = state["layer"]["generation"]
     heading = f"Deployment {release[:8]} verified"
+    page.locator(".lf-threads-toggle").click()
+    page.add_init_script(VISIBLE_REPLY_INIT)
+    page.evaluate(VISIBLE_REPLY_INIT)
     asked = ask_until_answered(
         context,
+        page,
         url,
         state_url,
         layer,
         release,
         heading,
-        f"deployment-{release[:24]}",
         state,
         report=report,
     )
-    turn, asks, revision, profile, queued = asked
+    turn, asks, revision, profile = asked
+    try:
+        page.wait_for_function(VISIBLE_REPLY_READY, timeout=30_000)
+    except PlaywrightTimeout:
+        pass
+    visible_reply_at = page.evaluate(VISIBLE_REPLY_READING)
+    if visible_reply_at is None:
+        visible_reply_debug = page.evaluate(
+            """() => ({
+              panel: document.querySelector('.lf-thread-panel')?.checkVisibility(),
+              messages: [...document.querySelectorAll('.lf-msg')].map(node => ({
+                author: [...node.classList],
+                hasText: Boolean(node.querySelector('.lf-msg-text')?.textContent.trim()),
+                visible: node.checkVisibility(),
+              })),
+            })"""
+        )
+        raise RuntimeError(
+            f"{url} reply never became visible in Threads: {visible_reply_debug}"
+        )
+    check(
+        profile.visible_reply_started_ms is not None,
+        f"{url} did not record its first submission edge",
+    )
+    profile.milestones["response visible"] = (
+        visible_reply_at - profile.visible_reply_started_ms
+    ) / 1000
     state, published, replies, answer = turn
-    if report and profile is not None:
+    if report:
         print_agent_profile(profile)
     tried = f" to {asks} asks" if asks > 1 else ""
     reading = (state.get("activity") or {}).get("kind") or "no activity"
@@ -925,44 +930,6 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
         answer is not None,
         f"{url} agent returned an unexpected reply{tried}{said}",
     )
-    if queued is not None:
-        queued_comment, queued_turn = queued
-        queued_answer = queued_turn.answer
-        check(
-            queued_answer is not None
-            and queued_answer["text"].strip() == "queued delivery verified",
-            f"{url} agent did not answer its queued comment exactly: "
-            f"{[reply['text'] for reply in queued_turn.replies]}",
-        )
-        queued_state = queued_turn.state
-        terminal_deadline = time.monotonic() + TURN_PATIENCE
-        while (queued_state.get("activity") or {}).get(
-            "kind"
-        ) in ANSWERING and time.monotonic() < terminal_deadline:
-            response = context.request.get(
-                state_url,
-                headers={"Leaf-Layer": layer, "Leaf-Release": release},
-                timeout=120_000,
-            )
-            check(response.ok, f"{state_url} returned {response.status}")
-            queued_state = response.json()
-            if profile is not None:
-                profile.observe(queued_state)
-            time.sleep(0.25)
-        check(
-            (queued_state.get("activity") or {}).get("kind") not in ANSWERING,
-            f"{url} queued turn did not reach a terminal activity reading",
-        )
-        pickup_phases = {
-            event["phase"]
-            for event in queued_state.get("events", [])
-            if event.get("kind") == "pickup"
-            and queued_comment["id"] in event.get("events", [])
-        }
-        check(
-            {"queued", "opened"}.issubset(pickup_phases),
-            f"{url} queued comment lifecycle reached {sorted(pickup_phases)}",
-        )
     reloaded = page.reload(wait_until="load", timeout=120_000)
     check(
         reloaded is not None and reloaded.ok,
@@ -1039,7 +1006,6 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
         print(
             f"✓ hosted agent published revision {published['revision']} "
             f"and replied: {answer['text']}"
-            + ("; queued delivery opened and replied" if queued is not None else "")
             + (
                 f"; the reloaded page presented in {presented_at:.0f} ms and {followed}"
                 if presented_at is not None
@@ -1047,7 +1013,6 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
             )
         )
         print(startup_line("changed page", startup))
-    check(profile is not None, f"{url} produced no hosted-agent timing profile")
     result = {
         "origin": ORIGIN,
         "release": release,

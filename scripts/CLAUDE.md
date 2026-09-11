@@ -58,11 +58,12 @@ rules a new or changed example has to meet.
   Cloudflare Worker, container resources, and outbound credential proxy, so
   it checks agent behavior without measuring production infrastructure.
   `benchmark-site.py local|ORIGIN` emits that complete journey as one JSON sample:
-  browser presentation, comment acknowledgement and activity, requested publication
-  and reply, then the changed page's presentation and revision follow. Both targets
-  run the same HTTP and browser checks. `local` only provisions the canonical Python
-  adapter and explicitly starts its turn; it does not emulate Cloudflare's Worker,
-  container allocation, or routing.
+  browser presentation, a comment sent through the real Threads composer,
+  acknowledgement and activity, the first agent reply text visible in the open thread,
+  requested publication and durable reply, then the changed page's presentation and
+  revision follow. Both targets run the same HTTP and browser checks. `local` only
+  provisions the canonical Python adapter and explicitly starts its turn; it does not
+  emulate Cloudflare's Worker, container allocation, or routing.
   `deploy-site-dev.sh` publishes the current checkout to the one standing
   `leaf-website-dev` Cloudflare environment and runs that benchmark against its
   `workers.dev` origin. The command always selects the `dev` Wrangler environment;

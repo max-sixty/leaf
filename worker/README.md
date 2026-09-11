@@ -93,10 +93,11 @@ model activity, first native model message, and turn completion. Item records ca
 the App Server timestamp, item type, duration, and command outcome where available;
 they never carry item content. Leaf's record omits message text, prompts, source IP
 keys, cookies, and private session ids. Cloudflare wraps it in invocation metadata.
-The trusted outbound handler adds
-content-free model request, response-header, first-byte, first-output, and completion
-records. Those records carry Codex's thread and turn ids, a per-request id, status and
-byte count, but never copy a prompt, output, or unrecognized Codex metadata.
+The trusted outbound handler adds a content-free record when Codex falls back from its
+WebSocket probe to the supported HTTP transport, then model request, response-header,
+first-byte, first-output, and completion records. Those records carry Codex's thread
+and turn ids, a per-request id, status and byte count, but never copy a prompt, output,
+or unrecognized Codex metadata.
 
 Query Workers Observability through Cloudflare's REST API. Set `from_ms` and `to_ms` to
 the incident window in Unix milliseconds and use either the canonical event id or the

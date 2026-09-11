@@ -553,6 +553,26 @@ def test_the_published_notification_example_runs_its_authored_module(
         page.close()
 
 
+def test_published_visual_evidence_loads_from_its_page(served_example, browser):
+    """Typed media paths resolve under the same page as authored media."""
+    _, url = served_example("feature-gallery")
+    page, errors = open_page(browser, url)
+    try:
+        review = page.locator("#bg-visual-run")
+        for index in (0, 1):
+            review.locator(".lf-vr-case-tab").nth(index).click()
+            comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
+            expect(comparison).to_be_visible()
+            images = comparison.locator("img")
+            expect(images).to_have_count(2)
+            for image in images.all():
+                expect(image).to_have_js_property("complete", True)
+                assert image.evaluate("image => image.naturalWidth") > 0
+        assert errors == []
+    finally:
+        page.close()
+
+
 def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, browser):
     """A lower sequence from a replacement cannot be applied over vanished state."""
     _, url = served_example("triage-board")

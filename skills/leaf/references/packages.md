@@ -274,7 +274,10 @@ behavior belongs in an authored inline module and needs no package entry. A CSS-
 widget is an entry and a theme rule. One with reusable behavior takes a module.
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
-query private chrome, or duplicate a runtime helper inside itself. What the module owes:
+query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
+`/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
+generated images or links. It uses the page's public root across ordinary, MCP, and
+published pages while the source retains its canonical path. What the module owes:
 a total, idempotent `renderState(state)`; `sendAction` for recorded user state, with a
 detail matching the declared browser schema; `says()` over `textContent`; `offer()` and
 `relabel()` on anything injected, with its room reserved from inside `measure` and

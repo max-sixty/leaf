@@ -19,6 +19,7 @@ import {
   registerReadingElement,
   registerThreadSurface,
   relabel,
+  scopedMediaUrl,
   sendAction,
   standingState,
   watchActions,
@@ -447,16 +448,18 @@ customElements.define(
 
       const current = entry.shotHost.querySelector("lf-shot");
       const alt = `${record.title}. ${record.result}`;
+      const before = scopedMediaUrl(record.before);
+      const after = scopedMediaUrl(record.after);
       if (
         !current ||
-        current.getAttribute("before") !== record.before ||
-        current.getAttribute("after") !== record.after ||
+        current.getAttribute("before") !== before ||
+        current.getAttribute("after") !== after ||
         current.getAttribute("alt") !== alt
       ) {
         const shot = document.createElement("lf-shot");
         shot.id = `lf-${this.id}-${record.id}-comparison`;
-        shot.setAttribute("before", record.before);
-        shot.setAttribute("after", record.after);
+        shot.setAttribute("before", before);
+        shot.setAttribute("after", after);
         shot.setAttribute("alt", alt);
         entry.shotHost.replaceChildren(shot);
       }

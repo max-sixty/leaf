@@ -5837,7 +5837,7 @@ def test_command_hub_quotes_host_operations_without_offering_a_request(browser, 
     )
     page, errors = open_page(browser, serve(html))
 
-    expect(page.locator("#example-commands .lf-operation-press")).to_have_count(0)
+    expect(page.locator("#example-commands .lf-request-press")).to_have_count(0)
     expect(page.locator(".lf-asks")).to_be_hidden()
     assert not [
         event

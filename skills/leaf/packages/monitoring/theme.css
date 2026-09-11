@@ -82,7 +82,7 @@ lf-release-action > p {
   grid-column: 1;
   margin: 2px 0 0;
 }
-lf-release-action > .lf-release-action-press {
+lf-release-action > .lf-request-press {
   grid-column: 2;
   grid-row: 1 / span 2;
   align-self: center;
@@ -90,12 +90,12 @@ lf-release-action > .lf-release-action-press {
 lf-release-action[data-lf-requested] {
   border-color: var(--accent);
 }
-.lf-release-action-status {
+lf-release-actions > .lf-request-status {
   margin-top: 6px;
   color: var(--muted);
   font-size: var(--t-6);
 }
-.lf-release-action-status[data-status="failed"] {
+lf-release-actions > .lf-request-status[data-status="failed"] {
   color: var(--danger-ink);
 }
 

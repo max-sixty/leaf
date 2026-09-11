@@ -588,7 +588,7 @@ def test_release_rollback_is_a_bound_host_request_not_local_page_state(browser, 
         "candidate": "checkout-v2",
         "stable": "checkout-v1",
     }
-    expect(holder).to_contain_text("Rollback requested · waiting for the host")
+    expect(holder).to_contain_text("rollback requested · waiting for the host")
     expect(button).to_have_attribute("aria-disabled", "true")
     expect(page.locator(".lf-asks-row")).to_have_count(0)
     assert errors == []

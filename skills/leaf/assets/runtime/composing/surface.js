@@ -6,13 +6,14 @@
    Comment gestures. They pass a stable target from `aimTargetAt` or the visual provider
    into this surface. A whole item or picture names its authored id, while a visual part
    adds its declared token. Comment opens the compact field; Tab or its ellipsis extends
-   that field with the other response margin elements. Tab, Shift-Tab, and the arrow keys then
-   wrap through the visible margin elements. Escape folds the extension; Escape from the field
+   that field with the other response margin entries. Tab, Shift-Tab, and the arrow keys then
+   wrap through the visible margin entries. Escape folds the extension; Escape from the field
    hides the draft.
    The same anchor resolves both states against the target's geometry.
 
-   The bar a selection or keyboard-selected item raises is `.lf-fab-bar`: the durable,
-   compact `.lf-fab-input` followed by one response ellipsis. An explicit item target
+   The bar a selection or keyboard-selected addressable raises is `.lf-fab-bar`: the
+   durable, compact `.lf-fab-input` followed by one response ellipsis. An explicit
+   addressable target
    opens and focuses that field. Selecting a passage leaves the field open but unfocused
    without collapsing the browser selection; the reader can still copy
    the selection or use its native context menu, then enter the field with Comment. The
@@ -58,7 +59,10 @@ import {
 } from "../resolved-target.js";
 import { composerOpen, fab, fabBar, fabInput } from "./selection.js";
 
-import { closeReference, referenceOpen } from "../keyboard/reference.js";
+import {
+  closeCommandReference,
+  commandReferenceOpen,
+} from "../keyboard/command-reference.js";
 
 import { paintReactionStanding } from "../reaction-standing.js";
 import { panel, threadsBox } from "../conversation/panel-elements.js";
@@ -72,6 +76,7 @@ import {
 } from "./capture.js";
 import { repaint } from "../repaint.js";
 import { letGo, takesLetters } from "../focus.js";
+import { focused } from "../keyboard/scopes.js";
 
 import { pointerAt } from "../pointer.js";
 import { anchorLabel } from "../conversation/messages.js";
@@ -96,7 +101,7 @@ export function createResponseSurface({
   responseOptionsAvailable,
   setResponseOptions,
   syncResponseOptions,
-  designIsOn,
+  designModeActive,
   designTarget,
   openOnDesign,
   isReactArmed,
@@ -105,19 +110,20 @@ export function createResponseSurface({
   setReact,
   banner,
   bottomChromeBoxes,
-  less,
+  closeShortcutShelf,
   closeVersionMenu,
   versionMenuIsOpen,
   openPageThread,
-  isDrawing,
+  drawModeActive,
   refreshConversation,
+  responseHome,
 }) {
-  const hideReference = () => closeReference(false);
+  const hideReference = () => closeCommandReference(false);
   const hasOtherResponses = (anchor) =>
-    reactionTokens().length > 0 || Boolean(anchor?.quote && !designIsOn());
+    reactionTokens().length > 0 || Boolean(anchor?.quote && !designModeActive());
 
   // ---------- selection → comment ----------
-  // Floating UI stays inside the document layout shell. Body already ends at a standing
+  // Floating UI stays inside the document page shell. Body already ends at a standing
   // right panel's edge through its margin, while the root scrollport owns the browser's
   // gutter. A covering sheet is the one strip body does not yield, so its width comes off
   // here.
@@ -158,6 +164,7 @@ export function createResponseSurface({
   let fabAnchor = null;
   let fabOrigin = null;
   let fabFloating = true;
+  let fabInlineOutlet = null;
   let fabPlacement = null;
   let fabInlineConnection = null;
   let fabPlacementInput = null;
@@ -168,6 +175,7 @@ export function createResponseSurface({
   let fabPositionCleanup = null;
   let fabPositionTarget = null;
   let fabPositionWaiters = [];
+  const fabFocused = () => (fabInlineOutlet ? focused() : document.activeElement);
 
   // Measure the compact response once per anchor/state. Expanded choices are designed to
   // wrap and therefore cannot redefine whether the response surface fits at all.
@@ -226,9 +234,59 @@ export function createResponseSurface({
   }
 
   const fabPositioned = () =>
-    fabBar.hasAttribute("data-lf-placement") && fabBar.style.visibility !== "hidden"
+    ((fabInlineOutlet?.isConnected && fabBar.parentElement === fabInlineOutlet) ||
+      fabBar.hasAttribute("data-lf-placement")) &&
+    fabBar.style.visibility !== "hidden"
       ? Promise.resolve(true)
       : new Promise((resolve) => fabPositionWaiters.push(resolve));
+
+  // Reparenting the canonical response bar is presentation, not a composer transition.
+  // Preserve the exact typing position across light/shadow DOM moves; Chromium may put
+  // focus on the shadow host while a focused textarea is adopted into its tree.
+  function moveFab(parent) {
+    if (fabBar.parentElement === parent) return;
+    const held = focused();
+    const holdsFocus = held instanceof HTMLElement && fabBar.contains(held);
+    const selection =
+      holdsFocus && held === fabInput
+        ? {
+            start: held.selectionStart,
+            end: held.selectionEnd,
+            direction: held.selectionDirection,
+          }
+        : null;
+    parent.append(fabBar);
+    if (!holdsFocus || focused() === held) return;
+    held.focus({ preventScroll: true });
+    if (selection)
+      held.setSelectionRange(selection.start, selection.end, selection.direction);
+  }
+
+  function seatFab(outlet) {
+    if (!(outlet instanceof Element) || !fabAnchor || !composerOpen) return false;
+    if (fabInlineOutlet !== outlet || fabBar.parentElement !== outlet) {
+      stopFabPositioning({ reset: true });
+      fabInlineOutlet = outlet;
+      fabFloating = false;
+      moveFab(outlet);
+    }
+    fabBar.dataset.lfPresentation = "inline";
+    fabBar.style.display = "inline-flex";
+    fabBar.style.removeProperty("visibility");
+    answerFabPosition(true);
+    return true;
+  }
+
+  function restoreFab({ place = true } = {}) {
+    if (!fabInlineOutlet && fabBar.parentElement === responseHome) return false;
+    stopFabPositioning({ reset: true });
+    fabInlineOutlet = null;
+    fabFloating = true;
+    delete fabBar.dataset.lfPresentation;
+    moveFab(responseHome);
+    if (place && fabAnchor && !placeFab()) showFab(null);
+    return true;
+  }
 
   function scheduleFabPosition() {
     if (fabPositionFrame || !fabAnchor || !fabFloating) return;
@@ -507,7 +565,7 @@ export function createResponseSurface({
     const previous = fabAnchor;
     const previousOrigin = fabOrigin;
     const previousFloating = fabFloating;
-    const leavingBar = !anchor && fabBar.contains(document.activeElement);
+    const leavingBar = !anchor && fabBar.contains(fabFocused());
     const returnToPanel = leavingBar && panelCovers() && !fabFits();
     const returnTarget =
       leavingBar && previous && !previous.quote
@@ -517,6 +575,13 @@ export function createResponseSurface({
             ? visualActionAnchor(previous)
             : null
         : null;
+    const keptInline = Boolean(
+      fabInlineOutlet?.isConnected &&
+      anchor &&
+      previous &&
+      sameAnchor(previous, anchor),
+    );
+    if (!anchor || (fabInlineOutlet && !keptInline)) restoreFab({ place: false });
     if (!anchor) fabInputTakingFocus = false;
     if (!anchor || (previous && !sameAnchor(previous, anchor))) resetResponseOptions();
     if (!anchor && composerOpen) hideComposer();
@@ -525,11 +590,11 @@ export function createResponseSurface({
       !previous ||
       !sameAnchor(previous, anchor) ||
       !place ||
-      !previousFloating
+      (!previousFloating && !keptInline)
     )
       stopFabPositioning({ reset: true });
     fabAnchor = anchor;
-    fabFloating = !fabAnchor || place;
+    fabFloating = !fabAnchor || (place && !keptInline);
     fabOrigin = fabAnchor && origin?.isConnected ? origin : null;
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
     fabBar.style.display = fabAnchor ? "inline-flex" : "none";
@@ -549,7 +614,7 @@ export function createResponseSurface({
       // screen. `e` still needs the durable anchor so it can extend that existing item;
       // in that route the floating bar is never painted and placement is deliberately
       // skipped. Every route that actually shows the bar keeps the geometry gate.
-      if (place && !placeFab(target ?? anchorBox(fabAnchor))) {
+      if (place && fabFloating && !placeFab(target ?? anchorBox(fabAnchor))) {
         fabAnchor = null;
         fabOrigin = null;
         stopFabPositioning({ reset: true });
@@ -660,20 +725,20 @@ export function createResponseSurface({
   // opens on it where it is, rather than springing it open and reflowing the page under
   // the reader who was looking at it.
   //
-  // Instant, and before the box is measured. Placing reads the item's box, so that has to
-  // be the box the item keeps; and opening focuses the textarea, whose scroll-into-view
-  // cancels a glide already under way — which is what left the item flush against an edge
+  // Instant, and before the box is measured. Placing reads the addressable's box, so that has
+  // to be the box the addressable keeps; and opening focuses the textarea, whose
+  // scroll-into-view cancels a glide already under way — which is what left the addressable flush against an edge
   // rather than framed, and is not `openComposer`'s to give up, three other presses opening
   // that box against a passage they have not moved.
-  function bringForward(item) {
-    if (!item) return;
-    const seen = shownRect(item, new Map());
-    if (!seen || seen.bottom <= BANNER_CLEAR) scrollToElement(item, "instant");
+  function bringForward(addressable) {
+    if (!addressable) return;
+    const seen = shownRect(addressable, new Map());
+    if (!seen || seen.bottom <= BANNER_CLEAR) scrollToElement(addressable, "instant");
   }
 
-  function commentOnItem(item) {
-    bringForward(item);
-    commentOnTarget({ anchor: { section: item.id }, element: item });
+  function commentOnAddressable(addressable) {
+    bringForward(addressable);
+    commentOnTarget({ anchor: { section: addressable.id }, element: addressable });
   }
 
   // Every explicit target gesture ends here. The gesture has already resolved its stable
@@ -810,8 +875,8 @@ export function createResponseSurface({
   function fabHoldsCapturedPassage() {
     return (
       fabInputTakingFocus ||
-      fabBar.contains(document.activeElement) ||
-      reactionContextContains(document.activeElement)
+      fabBar.contains(fabFocused()) ||
+      reactionContextContains(fabFocused())
     );
   }
   // Wired once the chrome is mounted (leaf.js): the box is selection.js's, an owner that
@@ -850,7 +915,7 @@ export function createResponseSurface({
   };
 
   const finishPointerSelection = (ev) => {
-    if (isDrawing()) return;
+    if (drawModeActive()) return;
     // A mouse pointer is followed by the compatibility mouseup below, which performs the
     // sentence snap before opening the field. Opening from pointerup first would focus the
     // textarea and collapse the still-unsnapped Selection before mouseup can finish it.
@@ -885,11 +950,11 @@ export function createResponseSurface({
 
   // Floating chrome getting out of the way of a press somewhere else, which is a fact about
   // the press rather than about who receives it: the aim takes a press away from the page
-  // (see claimPress) and must not take this with it, or the keyboard reference stays up over
+  // (see claimPress) and must not take this with it, or the command reference stays up over
   // the composer that press just opened. Hence one function, called from both.
   // The two side panels are absent from it on purpose. A float answers the press in front
   // of it and stands down behind it; the thread panel and the leaves tray are
-  // workspaces the reader stood up, kept through a reload (PANEL_KEY, TRAY_KEY) and so
+  // auxiliary surfaces the reader stood up, kept through a reload (THREAD_PANEL_KEY, TRAY_SLOT_KEY) and so
   // through a click all the more — a tray any press removes cannot be watched while
   // working, which is the tray's point. Each closes by its own button, its key, or Esc.
   function standDown(target) {
@@ -909,8 +974,10 @@ export function createResponseSurface({
       // The armed react press goes with the bar it was armed on.
       setReact(false);
     }
-    if (referenceOpen() && !target.closest?.(".lf-shortcut-reference")) hideReference();
-    if (!target.closest?.(".lf-shortcut-reference, .lf-shortcut-bar")) less();
+    if (commandReferenceOpen() && !target.closest?.(".lf-command-reference"))
+      hideReference();
+    if (!target.closest?.(".lf-command-reference, .lf-shortcut-bar"))
+      closeShortcutShelf();
     // The press on the button itself is its own toggle, so it is not an outside click;
     // without that the open and this close would both run and the menu could never open.
     if (versionMenuIsOpen() && !target.closest?.(".lf-version-menu, .lf-version"))
@@ -939,7 +1006,7 @@ export function createResponseSurface({
     document.addEventListener(
       "pointerdown",
       (ev) => {
-        if (isDrawing()) return;
+        if (drawModeActive()) return;
         primaryPointerPressed = ev.isPrimary && ev.button === 0;
         if (primaryPointerPressed) pressesBegun++;
         pointerSelecting = primaryPointerPressed && pageWords(ev.target);
@@ -960,7 +1027,7 @@ export function createResponseSurface({
       true,
     );
     document.addEventListener("pointermove", (ev) => {
-      if (isDrawing()) return;
+      if (drawModeActive()) return;
       if (!pointerSelecting || !selectionPressPoint) return;
       if (ev.defaultPrevented) {
         selectionGestureClaimed = true;
@@ -994,7 +1061,7 @@ export function createResponseSurface({
       scheduleSelectionUpdate();
     });
     document.addEventListener("mouseup", (ev) => {
-      if (isDrawing()) return;
+      if (drawModeActive()) return;
       primaryPointerPressed = false;
       pointerSelecting = false;
       const gestureClaimed = selectionGestureClaimed;
@@ -1050,15 +1117,15 @@ export function createResponseSurface({
       scheduleSelectionUpdate();
     });
     document.addEventListener("mousedown", (ev) => {
-      if (!isDrawing()) standDown(ev.composedPath()[0]);
+      if (!drawModeActive()) standDown(ev.composedPath()[0]);
     });
     document.addEventListener("click", (ev) => {
-      if (isDrawing()) return;
+      if (drawModeActive()) return;
       if (!pageWords(ev.target)) return;
       // A press design mode did not take at the press is a press on prose: a drag that
       // selected words has the 💬 (updateFab, on the mouseup) and is not a click on the
       // block; a plain click comments on the block it landed in.
-      if (designIsOn()) {
+      if (designModeActive()) {
         if (pageSelection()) return;
         const target = designTarget(ev.target);
         if (target) openOnDesign(target);
@@ -1076,7 +1143,10 @@ export function createResponseSurface({
       // for wherever the pointer is parked, so that one keeps reading the event.
       const point = ev.detail ? pointerAt() : { x: ev.clientX, y: ev.clientY };
       const threadId = markAt(point.x, point.y);
-      if (threadId) return openPageThread(threadId);
+      if (threadId)
+        return openPageThread(threadId, {
+          focus: panel.classList.contains("open") ? "reply" : "thread",
+        });
     });
     wireFabInput();
   }
@@ -1091,7 +1161,7 @@ export function createResponseSurface({
     fabTargetAt,
     fabReturnTo,
     bringForward,
-    commentOnItem,
+    commentOnAddressable,
     commentOnTarget,
     focusFabComment,
     fabOptionsAvailable,
@@ -1100,6 +1170,9 @@ export function createResponseSurface({
     updateFab,
     standDown,
     fabAnchorAt,
+    seatFab,
+    restoreFab,
+    fabInlineOutlet: () => fabInlineOutlet,
     mount,
   };
 }

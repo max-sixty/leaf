@@ -7,10 +7,10 @@ import {
 } from "/runtime/widget-api.js";
 import { openRoots } from "./open-roots.js";
 
-const compositionalWords = (owner, widgets) => {
+const compositionalWords = (owner, declarations) => {
   const boundaries = [];
   const segments = textNodesUnder(owner, undefined, (child, at) => {
-    if (!widgets[child.localName]?.["x-upgrade"]) return false;
+    if (!declarations[child.localName]?.["x-upgrade"]) return false;
     boundaries.push({ at, child });
     return true;
   });
@@ -37,8 +37,8 @@ const compositionalWords = (owner, widgets) => {
   return reading;
 };
 
-export const shownVerbatim = (widgets) =>
-  Object.entries(widgets)
+export const shownVerbatim = (declarations) =>
+  Object.entries(declarations)
     .filter(([, entry]) => entry["x-verbatim"])
     .flatMap(([tag]) =>
       [...document.querySelectorAll(tag)].map((el) => ({
@@ -46,7 +46,7 @@ export const shownVerbatim = (widgets) =>
         id: el.id,
         provenance: verbatimOwnerIdentity.get(el) ?? null,
         says: says(el),
-        compositional: compositionalWords(el, widgets),
+        compositional: compositionalWords(el, declarations),
       })),
     );
 
@@ -233,7 +233,9 @@ export function paperVoids() {
 // asked of what the browser painted, so where it painted is too, and a root a widget
 // attached without declaring one still holds code the reader has to read.
 export function unreadSyntax() {
-  const cx = document.createElement("canvas").getContext("2d");
+  const cx = document
+    .createElement("canvas")
+    .getContext("2d", { willReadFrequently: true });
   const paint = (...layers) => {
     cx.clearRect(0, 0, 1, 1);
     for (const c of ["white", ...layers]) {
@@ -325,12 +327,12 @@ export function unreadSyntax() {
 // can open. Splitting them that way is what retired the [hidden] exemption this carried:
 // `hidden` and `hidden="until-found"` are two of the ways an element stops rendering, and
 // asking whether it renders covers both and the panel besides.
-export function silentWords(widgets) {
+export function silentWords(declarations) {
   const found = [];
   const all = openRoots(document);
   const at = (el) => `<${el.localName}${el.id ? " id=" + el.id : ""}>`;
   const every = (tag) => all.flatMap((r) => [...r.querySelectorAll(tag)]);
-  for (const [tag, entry] of Object.entries(widgets)) {
+  for (const [tag, entry] of Object.entries(declarations)) {
     for (const attr of Object.keys(entry["x-says"] ?? {}))
       for (const el of every(tag)) {
         const value = el.getAttribute(attr);

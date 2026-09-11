@@ -117,12 +117,10 @@ export function threadNode(t, grow, commands) {
       },
     ]);
     threadHead.append(quote);
-  } else if (!t.resolved) {
-    threadHead.append(el("span", "lf-thread-label", "Thread"));
   }
   let resolve = null;
   if (!t.resolved) {
-    // Resolve belongs to the whole thread. Keep it beside the thread's quoted address,
+    // Resolve belongs to the whole thread. Keep it beside the thread's quoted target,
     // before any message controls in the keyboard order; a message head says only who
     // wrote that message and when.
     resolve = settlementControl(t, {
@@ -195,8 +193,8 @@ export function paintThreadQuotes({ placedAt, isMarked }) {
   const outline = pageOutline();
   for (const div of threadsBox.querySelectorAll(".lf-thread")) {
     // The words too, for the same reason the class below is repainted here rather than
-    // written where the node was built. An element anchor is labelled with its item's
-    // own opening words, and the item may be a widget an agent sent — built by this
+    // written where the node was built. An element anchor is labelled with its element's
+    // own opening words, and the element may be a widget an agent sent — built by this
     // same reconcile and not yet in the document when the node wearing the label was
     // made, so the reading came back empty and the label fell to the bare id. The
     // reconcile keeps a node it has already built, so nothing else ever asked again:
@@ -211,8 +209,6 @@ export function paintThreadQuotes({ placedAt, isMarked }) {
     if (thread && !said) {
       const head = quote?.closest(".lf-thread-head");
       quote?.remove();
-      if (head?.querySelector(":scope > .lf-resolve"))
-        head.prepend(el("span", "lf-thread-label", "Thread"));
       if (head && !head.childElementCount) head.remove();
       continue;
     }

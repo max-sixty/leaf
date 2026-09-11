@@ -1,0 +1,303 @@
+/* A visual run is a finite review queue beside one stable evidence frame. The narrow
+ * posture returns those regions to reading order; copy and print expose every case. */
+lf-visual-review {
+  --lf-frame: 1;
+  display: block;
+  box-sizing: border-box;
+  width: min(100%, 64rem);
+  margin: var(--sp-4) auto;
+  overflow: hidden;
+  border: 1px solid var(--border-2);
+  border-radius: calc(var(--r) * 1.25);
+  background: var(--paper);
+  container-type: inline-size;
+}
+
+lf-visual-review > .lf-reading-before,
+lf-visual-review > .lf-reading-after {
+  --lf-frame: 1;
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+}
+
+lf-visual-review > .lf-reading-before {
+  border-bottom: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--paper) 94%, var(--accent));
+}
+
+lf-visual-review > .lf-reading-after {
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  font: var(--t-6) var(--sans);
+}
+
+.lf-vr-eyebrow,
+.lf-vr-title,
+.lf-vr-case-position,
+.lf-vr-provenance,
+.lf-vr-foot,
+.lf-vr-region-title {
+  margin: 0;
+}
+
+.lf-vr-eyebrow,
+.lf-vr-region-title,
+.lf-vr-case-position {
+  color: var(--muted);
+  font: 600 var(--t-6) / 1.35 var(--sans);
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+
+.lf-vr-title {
+  margin-top: 2px;
+  font-size: var(--t-3);
+}
+
+.lf-vr-partition > .lf-partition-content {
+  display: grid;
+  grid-template-columns: minmax(12rem, .72fr) minmax(0, 2fr);
+  gap: 1px;
+  background: var(--rule);
+}
+
+.lf-vr-queue-region,
+.lf-vr-evidence-region {
+  min-width: 0;
+  background: var(--paper);
+}
+
+.lf-vr-queue-region > .lf-pane-content > .lf-pane-body,
+.lf-vr-evidence-region > .lf-pane-content > .lf-pane-body {
+  padding: 0;
+}
+
+.lf-vr-queue-region > .lf-reading-before {
+  margin: 0;
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.lf-vr-queue {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lf-vr-queue-item + .lf-vr-queue-item {
+  border-top: 1px solid var(--rule);
+}
+
+.lf-vr-case-tab {
+  display: grid;
+  grid-template-columns: .6rem minmax(0, 1fr);
+  gap: 2px var(--sp-2);
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font: var(--t-6) / 1.35 var(--sans);
+  text-align: start;
+}
+
+.lf-vr-case-tab:is(:hover, :focus-visible),
+.lf-vr-case-tab[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  color: var(--ink);
+}
+
+.lf-vr-case-marker {
+  grid-row: 1 / span 2;
+  align-self: start;
+  width: .5rem;
+  height: .5rem;
+  margin-top: .25rem;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.lf-vr-case-tab:not([data-classification="clean"]) .lf-vr-case-marker {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.lf-vr-case-label {
+  min-width: 0;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.lf-vr-case-classification {
+  grid-column: 2;
+  color: var(--ink-2);
+  font-size: .72rem;
+}
+
+.lf-vr-cases {
+  min-width: 0;
+}
+
+.lf-vr-case {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding: var(--sp-4);
+}
+
+.lf-vr-case[hidden] {
+  display: none;
+}
+
+.lf-vr-case-head {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.lf-vr-case-title {
+  margin: 0;
+  font-size: var(--t-3);
+  line-height: 1.18;
+}
+
+.lf-vr-path {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.lf-vr-claim {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0;
+}
+
+.lf-vr-claim dt {
+  color: var(--muted);
+  font: 600 var(--t-6) / 1.4 var(--sans);
+}
+
+.lf-vr-claim dd {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.lf-vr-links,
+.lf-vr-dispositions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.lf-vr-candidate-link {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-2));
+  color: var(--accent);
+}
+
+.lf-vr-provenance {
+  color: var(--muted);
+  font: var(--t-6) / 1.45 var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.lf-vr-shot-host lf-shot {
+  margin: 0;
+}
+
+.lf-vr-review {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--rule);
+}
+
+.lf-vr-review-label {
+  color: var(--muted);
+  font: var(--t-6) var(--sans);
+}
+
+.lf-vr-case[data-disposition="looks-right"] .lf-vr-looks-right,
+.lf-vr-case[data-disposition="needs-work"] .lf-vr-needs-work {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.lf-vr-thread-outlet:empty {
+  display: none;
+}
+
+.lf-vr-empty {
+  margin: 0;
+  padding: var(--sp-5);
+  color: var(--muted);
+  font: var(--t-5) var(--sans);
+  text-align: center;
+}
+
+@container (max-width: 28rem) {
+  .lf-vr-partition > .lf-partition-content {
+    display: block;
+  }
+
+  .lf-vr-queue-region > .lf-pane-content,
+  .lf-vr-evidence-region > .lf-pane-content {
+    height: auto;
+  }
+
+  .lf-vr-claim {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lf-vr-review {
+    align-items: start;
+    flex-direction: column;
+  }
+}
+
+html.lf-copy .lf-vr-dispositions {
+  display: none !important;
+}
+
+html.lf-copy .lf-vr-partition > .lf-partition-content {
+  display: block !important;
+}
+
+html.lf-copy .lf-vr-case[hidden] {
+  display: grid !important;
+}
+
+html.lf-copy .lf-vr-case + .lf-vr-case {
+  border-top: 1px solid var(--rule);
+}
+
+@media print {
+  .lf-vr-dispositions {
+    display: none !important;
+  }
+
+  .lf-vr-partition > .lf-partition-content {
+    display: block !important;
+  }
+
+  .lf-vr-case[hidden] {
+    display: grid !important;
+  }
+
+  .lf-vr-case + .lf-vr-case {
+    border-top: 1px solid var(--rule);
+    break-before: page;
+  }
+
+  lf-visual-review,
+  lf-visual-review > .lf-reading-before {
+    background: transparent;
+  }
+}

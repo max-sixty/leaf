@@ -101,7 +101,7 @@ GENERIC_VISUAL_LAYER = {
         },
         "required": ["id", "parts"],
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-upgrade": True,
         "x-visual": {"parts": "parts"},
         "x-example": '<lf-test-visual id="visual" parts="outer inner html"></lf-test-visual>',
@@ -168,7 +168,7 @@ SHADOW_VISUAL_LAYER = {
         },
         "required": ["id", "parts"],
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-upgrade": True,
         "x-shadow": True,
         "x-visual": {"parts": "parts"},
@@ -688,7 +688,7 @@ LONG_LINE_DIFF_PAGE = leaf_page(
     "patch",
     "<h1 id='t'>Review</h1>"
     + _filler("lead", 30)
-    + '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
+    + '<lf-diff id="patch" source="review-patch" review><pre></pre></lf-diff>'
     + _filler("tail", 30),
 )
 
@@ -791,7 +791,7 @@ ROOM_GEOMETRY = """() => {
                  centre: (b.left + b.right) / 2 };
     };
     // The CSS shell's box. It is not the window: the root owns document scrolling and
-    // reserves a stable gutter, while body margins yield room to standing workspaces.
+    // reserves a stable gutter, while body margins yield room to auxiliary surfaces.
     // `room` above is the body's content box; this reading includes the full shell so
     // the test can tell which edge that room came out of.
     const page = () => {
@@ -898,7 +898,7 @@ graph LR
 </pre></lf-diagram>
   </lf-note>
 </lf-code>
-<div id="own-box" style="border: 1px solid #999; padding: 10px; --lf-frame: 1">
+<div id="own-box" style="border: 1px solid #999; padding: 10px; --lf-block-frame: 1">
   <lf-diagram id="in-own-box"><pre>
 graph LR
   A[request] --> B[queue]
@@ -1205,7 +1205,7 @@ def _painted_line(page):
     """
     page.evaluate(RENDERED)
     return page.eval_on_selector_all(
-        ".lf-shortcut-bar .lf-key",
+        ".lf-shortcut-bar .lf-shortcut",
         "els => els.map(e => [...e.children].map(c => c.textContent).join(' '))",
     )
 

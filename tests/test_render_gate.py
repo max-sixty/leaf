@@ -60,7 +60,7 @@ from render_support import (
     Traffic,
     _traffic,
     _until,
-    arrange_return,
+    apply_restore_case,
     arrival_findings,
     author_test_widget,
     draw_edge,
@@ -73,7 +73,7 @@ from render_support import (
     page_at_rest,
     panel_settled,
     primed,
-    reader_arrangements,
+    reader_view_restore_cases,
     resize_notice_after_last_probe,
     resized,
 )
@@ -85,14 +85,65 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
     """
 <lf-workspace id="gate-workspace">
   <header><h1>Queue</h1></header>
-  <lf-split id="gate-split" direction="columns">
+  <lf-partition id="gate-split" direction="columns">
     <lf-pane id="gate-list" label="Items"><p>First</p><div style="height:900px"></div><p>Last</p></lf-pane>
     <lf-pane id="gate-detail" label="Detail"><p>Subject</p><div style="height:900px"></div><button>Finish</button></lf-pane>
-  </lf-split>
+  </lf-partition>
   <footer>End of queue</footer>
 </lf-workspace>
 """,
 )
+
+
+def test_the_render_gate_exercises_both_schemes_at_both_viewports(browser, serve):
+    seen = []
+
+    def record_page(page):
+        viewport = page.viewport_size
+        dark = page.evaluate("() => matchMedia('(prefers-color-scheme: dark)').matches")
+        seen.append(
+            (viewport["width"], viewport["height"], "dark" if dark else "light")
+        )
+
+    assert (
+        render_gate_model.render_version(
+            primed(browser, record_page), serve(BOUNDED_WORKSPACE_PAGE, packages=())
+        )
+        == []
+    )
+    assert seen == [
+        (1200, 900, "light"),
+        (1200, 900, "dark"),
+        (540, 720, "light"),
+        (540, 720, "dark"),
+    ]
+
+
+def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
+    browser, serve
+):
+    source = leaf_page(
+        "compact-only overflow",
+        """
+<style>
+@media (max-width: 600px) {
+  #compact-overflow { width: 700px; }
+}
+</style>
+<h1>Compact route</h1>
+<p id="compact-overflow">This row fits the wide viewport and spills from the compact one.</p>
+""",
+    )
+
+    failures = render_gate_model.render_version(browser, serve(source, packages=()))
+
+    overflow = [failure for failure in failures if "page scrolls sideways" in failure]
+    assert len(overflow) == 2, failures
+    assert all("(at 540x720)" in failure for failure in overflow), overflow
+    assert {failure.split("]", 1)[0] + "]" for failure in overflow} == {
+        "[light]",
+        "[dark]",
+    }
 
 
 def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):
@@ -107,13 +158,13 @@ RECURSIVE_ROWS_PAGE = leaf_page(
     "recursive row fit",
     """
 <lf-workspace id="rows-workspace">
-  <lf-split id="rows" direction="rows">
+  <lf-partition id="rows" direction="rows">
     <lf-pane id="upper" label="Upper"><p>Upper body</p><footer style="height:120px">Tall actions</footer></lf-pane>
-    <lf-split id="lower" direction="columns">
+    <lf-partition id="lower" direction="columns">
       <lf-pane id="lower-left" label="Lower left"><p>Left body</p></lf-pane>
       <lf-pane id="lower-right" label="Lower right"><p>Right body</p></lf-pane>
-    </lf-split>
-  </lf-split>
+    </lf-partition>
+  </lf-partition>
 </lf-workspace>
 """,
 )
@@ -122,12 +173,12 @@ RECURSIVE_ROWS_PAGE = leaf_page(
 def test_recursive_rows_flow_before_short_height_hides_pane_furniture(browser, serve):
     page, errors = open_page(browser, serve(RECURSIVE_ROWS_PAGE))
     workspace = page.locator("#rows-workspace")
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
     # The children's summed minima fit here, but equal rows cannot each give the
     # taller upper pane its minimum. The workspace must therefore choose flow.
     page.set_viewport_size({"width": 1200, "height": 700})
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     rows = page.evaluate(
         """() => {
           const upper = document.querySelector('#upper').getBoundingClientRect();
@@ -379,13 +430,13 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     _until(page, first_trip_home, "heard back the new document's first answer")
 
 
-def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
-    """Every arrangement the layer restores is exercised on one representative page.
+def test_every_restore_case_a_reader_can_return_to_is_arrived_in(browser, serve):
+    """Every restore case the layer restores is exercised on one representative page.
 
     Restoring reader furniture is layer-owned and identical under every authored
     version, so multiplying this reading across the corpus repeats the mechanism rather
     than adding an input. The probe speaks only to a returning reader, and every finding
-    here is the arrival pass's. It is held to the arrangements the runtime declares —
+    here is the arrival pass's. It is held to the restore cases the runtime declares —
     all of them, in order, because a pass that stopped at the first would leave every
     surface after it exactly as unwatched as it was before.
     """
@@ -420,30 +471,30 @@ def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
     declared = browser.new_page()
     declared.goto(url, wait_until="load")
     render_checks_model.wait_for_probe(declared, "presented")
-    arrangements = reader_arrangements(declared)
+    restore_cases = reader_view_restore_cases(declared)
     suggestion_state = declared.locator("#sug-rewrite").get_attribute("data-lf-state")
     option_transition = declared.locator("#wait-day").evaluate(
         "element => getComputedStyle(element).transitionProperty"
     )
     declared.close()
-    assert len(arrangements) > 1, "the runtime declares nothing to arrive in"
+    assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
     assert suggestion_state == "accept"
     assert option_transition == "box-shadow, transform"
 
     arrived = [f for f in arrival_findings(primed(browser, prepare), url)]
     assert [f.split("]")[0].lstrip("[") for f in arrived] == [
-        a["name"] for a in arrangements
+        a["name"] for a in restore_cases
     ]
-    # And each was the arrangement it names rather than that one plus everything the
+    # And each was the restore case it names rather than that one plus everything the
     # reloads before it left standing — a difference no finding could show on its own,
     # since all of them would still be reported, each under a name that had stopped
-    # being true. Only the other arrangements' keys are held against an arrival: the
+    # being true. Only the other restore cases' keys are held against an arrival: the
     # page writes its own reading position on the way out of every load, so a store
-    # holding that too is a page that departed, not an arrangement that leaked.
-    arranged = {a["key"] for a in arrangements}
-    for finding, arrangement in zip(arrived, arrangements):
+    # holding that too is a page that departed, not a restore case that leaked.
+    arranged = {a["key"] for a in restore_cases}
+    for finding, restore_case in zip(arrived, restore_cases):
         held = set(finding.split("returned holding ")[1].split(","))
-        assert held & arranged == {arrangement["key"]}, finding
+        assert held & arranged == {restore_case["key"]}, finding
 
 
 def test_arrival_reading_reports_a_deterministic_transition(browser, serve):
@@ -550,7 +601,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     page's own. The window that opens is also the one this test is about: it is where a
     restore is put back, and standing in it is strictly more than catching it.
 
-    What the reader left standing is the arrangement the runtime declares, all of them
+    What the reader left standing is the restore case the runtime declares, all of them
     in turn, so a fourth remembered surface is covered the day it starts remembering.
     """
     url = serve(CHANGE_SHAPES_PAGE)
@@ -601,8 +652,8 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
         page.unroute("**/api/state*")
         return moved()
 
-    arrangements = reader_arrangements(page)
-    assert len(arrangements) > 1, "the runtime declares nothing to arrive in"
+    restore_cases = reader_view_restore_cases(page)
+    assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
 
     # The control, and the whole reason the silences below say anything: standing the
     # tray up by hand is the gesture whose motion the arrivals must not have. What it
@@ -617,11 +668,11 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
     first_visit = arrive()
 
-    for arrangement in arrangements:
-        arrange_return(page, arrangement)
+    for restore_case in restore_cases:
+        apply_restore_case(page, restore_case)
         extra = {k: v for k, v in arrive().items() if k not in first_visit}
         assert not extra, (
-            f"returning to {arrangement['name']} moved what a first visit does not: "
+            f"returning to {restore_case['name']} moved what a first visit does not: "
             + "; ".join(f"{k} at {moved_at(cdp, node)}" for k, node in extra.items())
         )
     # A ResizeObserver notice is the render gate's to adjudicate over two attempts on
@@ -633,11 +684,11 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
 def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
     """The notice can arrive on the rendering turn after the gate's last probe. A
     navigation-only confirmation would call the attempt clean, and an immediate close
-    would never hear it; the confirmation is the whole two-scheme gate."""
+    would never hear it; the confirmation is the whole four-render gate."""
     pages = []
 
     def prepare(page):
-        if len(pages) < 2:  # both pages in the first light-and-dark attempt
+        if len(pages) < 4:  # every page in the first complete attempt
             resize_notice_after_last_probe(page)
         pages.append(page)
 
@@ -646,7 +697,7 @@ def test_a_transient_resize_notice_gets_a_complete_confirmation(browser, serve):
     )
 
     assert failures == []
-    assert len(pages) == 4, "the complete gate was not confirmed once"
+    assert len(pages) == 8, "the complete gate was not confirmed once"
 
 
 def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, serve):
@@ -658,7 +709,7 @@ def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, se
                 "addEventListener('DOMContentLoaded', () => "
                 "console.error('ordinary error from first attempt'), {once: true});"
             )
-        if len(pages) < 2:
+        if len(pages) < 4:
             resize_notice_after_last_probe(page)
         pages.append(page)
 
@@ -666,8 +717,25 @@ def test_an_ordinary_error_survives_a_successful_resize_confirmation(browser, se
         primed(browser, prepare), serve(LONG_PAGE)
     )
 
-    assert len(pages) == 4
+    assert len(pages) == 8
     assert sum("ordinary error from first attempt" in f for f in failures) == 1
+
+
+def test_a_console_warning_fails_the_render_gate(browser, serve):
+    def prepare(page):
+        page.add_init_script(
+            "addEventListener('DOMContentLoaded', () => "
+            "console.warn('authored warning'), {once: true});"
+        )
+
+    failures = render_gate_model.render_version(
+        primed(browser, prepare), serve(LONG_PAGE)
+    )
+
+    warnings = [
+        failure for failure in failures if "warning: authored warning" in failure
+    ]
+    assert len(warnings) == 2, failures
 
 
 def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
@@ -681,10 +749,15 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
         primed(browser, prepare), serve(LONG_PAGE)
     )
 
-    assert len(pages) == 4
-    assert (
-        render_gate_scheme.recurring_resize_observer_error("render attempt") in failures
-    )
+    assert len(pages) == 8
+    recurring = [
+        failure
+        for failure in failures
+        if "recurred on the confirming render attempt" in failure
+    ]
+    assert len(recurring) == 1, failures
+    assert recurring[0].startswith("[light]"), recurring
+    assert all("ResizeObserver loop" in failure for failure in recurring)
 
 
 def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, serve):
@@ -698,7 +771,7 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
                 "console.error('ordinary error from first attempt'), {once: true});"
             )
             resize_notice_after_last_probe(page)
-        elif number >= 2:  # the arrival page, then the confirming attempt's two
+        elif number >= 4:  # the first attempt, then every confirming page
             page.set_default_timeout(500)
             page.route("**/leaf.js", lambda route: route.abort())
         pages.append(page)
@@ -813,13 +886,13 @@ def test_the_render_gate_requires_a_visual_parts_provider(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-callout"]["properties"]["parts"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-callout"]["properties"]["parts"] = {
         "type": "string",
         "minLength": 1,
     }
-    entries["lf-callout"]["x-visual"] = {"parts": "parts"}
-    registry_path.write_text(json.dumps(entries, indent=2))
+    declarations["lf-callout"]["x-visual"] = {"parts": "parts"}
+    registry_path.write_text(json.dumps(declarations, indent=2))
 
     failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
 
@@ -977,10 +1050,10 @@ flowchart LR
 def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     browser, serve, tmp_path, monkeypatch
 ):
-    """Bug-back for two module contracts the gate enforces: an entry that says
+    """Bug-back for two module contracts the gate enforces: a declaration that says
     x-verbatim while the module renders other words in the body's stead (quotes
     would strand on words the screen no longer shows), and a module attaching a
-    shadow root its entry doesn't declare (the passage walk crosses only the
+    shadow root its declaration doesn't declare (the passage walk crosses only the
     declared ones, so an undeclared root's words anchor astray)."""
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
@@ -1039,13 +1112,13 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-shell", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-shell"]["properties"]["mode"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-shell"]["properties"]["mode"] = {
         "type": "string",
         "enum": ["replace"],
     }
-    entries["lf-shell"]["required"] = []
-    registry_path.write_text(json.dumps(entries, indent=2))
+    declarations["lf-shell"]["required"] = []
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
         'import { once } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-shell", class extends HTMLElement {\n'
@@ -1106,8 +1179,8 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
 def _author_stateful_verbatim_widget(tmp_path):
     author_test_widget(tmp_path, "lf-stateful", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    stateful = entries["lf-stateful"]
+    declarations = json.loads(registry_path.read_text())
+    stateful = declarations["lf-stateful"]
     stateful["properties"].update(
         {
             "reader": {"type": "string"},
@@ -1142,7 +1215,7 @@ def _author_stateful_verbatim_widget(tmp_path):
             "record": {"kind": "value", "attr": "agent", "value": "value"},
         }
     }
-    registry_path.write_text(json.dumps(entries, indent=2))
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
         'import { once } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-stateful", class extends HTMLElement {\n'
@@ -1362,19 +1435,19 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
     monkeypatch.chdir(tmp_path)
     _author_stateful_verbatim_widget(tmp_path)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-shell"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-shell"] = {
         "description": "A preserving wrapper around a stateful child.",
         "type": "object",
         "properties": {"id": {"type": "string"}},
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-upgrade": True,
         "x-verbatim": True,
         "x-example": '<lf-shell id="shell-example">Example</lf-shell>',
     }
-    registry_path.write_text(json.dumps(entries, indent=2))
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
         'import { once } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-shell", class extends HTMLElement {\n'
@@ -1426,21 +1499,21 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-shell", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-shell"]["properties"]["mode"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-shell"]["properties"]["mode"] = {
         "type": "string",
         "enum": ["prose", "order"],
     }
-    entries["lf-piece"] = {
+    declarations["lf-piece"] = {
         "description": "An anonymous nested upgraded piece.",
         "type": "object",
         "properties": {},
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-upgrade": True,
         "x-example": "<lf-piece>Example</lf-piece>",
     }
-    registry_path.write_text(json.dumps(entries, indent=2))
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
         'import { once } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-piece", class extends HTMLElement {\n'
@@ -1527,7 +1600,7 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     the document's question — so an element a module stages into its own tree keeps its
     declarations and gets neither pass, and the failure is silence: no error, no missing
     box, nothing a reading of the drawn page can tell from an attribute with nothing to
-    say. Here a project widget stages an <lf-event>, whose entry declares both keys, and
+    say. Here a project widget stages an <lf-chronology-entry>, whose declaration names both keys, and
     the gate is asked for each.
 
     A staged element rather than a module that wipes its own body after the passes have
@@ -1537,13 +1610,13 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
+    declarations = json.loads(registry_path.read_text())
     # The fixture's x-verbatim claim is about a body this module no longer shows, and
     # the gate says so on its own; declaring the root keeps this test's finding the
     # only one about the tree.
-    entries["lf-callout"].pop("x-verbatim")
-    entries["lf-callout"]["x-shadow"] = True
-    registry_path.write_text(json.dumps(entries, indent=2))
+    declarations["lf-callout"].pop("x-verbatim")
+    declarations["lf-callout"]["x-shadow"] = True
+    registry_path.write_text(json.dumps(declarations, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
         'import { once, shadowStage } from "/runtime/widget-api.js";\n'
@@ -1552,8 +1625,8 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
         "  class extends HTMLElement {\n"
         "    connectedCallback() {\n"
         "      if (!once(this)) return;\n"
-        '      const staged = document.createElement("lf-event");\n'
-        '      staged.id = "staged-event";\n'
+        '      const staged = document.createElement("lf-chronology-entry");\n'
+        '      staged.id = "staged-chronology-entry";\n'
         '      staged.setAttribute("at", "09:00");\n'
         '      staged.setAttribute("kind", "failure");\n'
         '      staged.textContent = "The feeder stopped.";\n'
@@ -1583,15 +1656,15 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entry = entries["lf-callout"]
-    entry.pop("x-verbatim")  # the module shows a tree of its own, not the body
-    entry["x-shadow"] = True
-    entry["properties"]["label"] = {"type": "string"}
-    entry["properties"]["urgent"] = {"type": "boolean"}
-    entry["x-says"] = {"label": "before"}
-    entry["x-paints"] = ["urgent"]
-    registry_path.write_text(json.dumps(entries, indent=2))
+    declarations = json.loads(registry_path.read_text())
+    declaration = declarations["lf-callout"]
+    declaration.pop("x-verbatim")  # the module shows a tree of its own, not the body
+    declaration["x-shadow"] = True
+    declaration["properties"]["label"] = {"type": "string"}
+    declaration["properties"]["urgent"] = {"type": "boolean"}
+    declaration["x-says"] = {"label": "before"}
+    declaration["x-paints"] = ["urgent"]
+    registry_path.write_text(json.dumps(declarations, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
         'import { once, shadowStage } from "/runtime/widget-api.js";\n'
@@ -1617,7 +1690,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
 @pytest.mark.parametrize("page_fixture", PAGE_FIXTURES, ids=lambda p: p.stem)
 def test_page_fixture_renders(browser, serve, page_fixture):
     """Every shipped example and the developer gallery lay out in both color schemes: no
-    fail-soft error box, no console error, every visible widget occupies real
+    fail-soft error box, no console warning or error, every visible widget occupies real
     space, no sideways scroll, no words on screen a selection can't reach. A
     widget that upgrades into a 1x1 box, or a heading painted by a pseudo-element,
     is the shape of failure a static lint cannot see. The invariants live in
@@ -1733,6 +1806,14 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
     assert measured["broke"], "every name fitted whole, so the rule was never asked"
     assert measured["sideways"] == 0
     assert errors == []
+    compact = []
+    for width in range(520, 601, 4):
+        resized(page, width, 720)
+        scrolls = page.locator("#held").evaluate("(t) => t.scrollWidth - t.clientWidth")
+        if scrolls > 1:
+            compact.append((width, scrolls))
+            assert render_checks_model.evaluate_probe(page, "squeezedTables") == []
+    assert compact, "no compact width exposed the inline-box scroll artifact"
     page.close()
     assert render_gate_model.render_version(browser, url) == []
 
@@ -1762,6 +1843,61 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
         assert {"Mechanism", "Held by"} <= widths.keys(), finding
         assert int(widths["Held by"]) > 3 * int(widths["Mechanism"]), finding
     assert not [f for f in failures if "<table id=held> scrolls" not in f], failures
+
+
+def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
+    browser, serve, tmp_path, monkeypatch
+):
+    """A widget's visible words still decide whether the table genuinely overflows.
+    The host's light tree is empty after upgrade, so a reading that stops at the shadow
+    boundary mistakes this for Chromium's empty inline-box rounding artifact."""
+    monkeypatch.chdir(tmp_path)
+    author_test_widget(tmp_path, "lf-callout", upgrade=True)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-callout"].pop("x-verbatim")
+    entries["lf-callout"]["x-shadow"] = True
+    registry_path.write_text(json.dumps(entries, indent=2))
+    module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
+    module.write_text(
+        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-callout", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        "    const text = this.textContent;\n"
+        '    this.textContent = "";\n'
+        '    const span = document.createElement("span");\n'
+        "    span.textContent = text;\n"
+        "    shadowStage(this, [span]);\n"
+        "  }\n"
+        "});\n"
+    )
+    serial = itertools.count(1)
+    source = re.sub(
+        r"<code>(test_[^<]+)</code>",
+        lambda match: (
+            f'<lf-callout id="shadow-name-{next(serial)}">{match.group(1)}</lf-callout>'
+        ),
+        IDENTIFIERS_IN_CODE_PAGE,
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 540, 720)
+    host = page.locator("lf-callout").first
+    host.evaluate(
+        """(el) => {
+        const text = el.shadowRoot.lastChild.textContent;
+        el.shadowRoot.lastChild.replaceWith(document.createTextNode(text));
+    }"""
+    )
+    assert host.evaluate("(el) => el.textContent") == ""
+    assert host.evaluate("(el) => el.shadowRoot.lastChild.nodeType") == 3
+    table = page.locator("#held")
+    assert table.evaluate("(el) => el.scrollWidth - el.clientWidth") > 1
+    assert errors == []
+
+    squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
+
+    assert any("<table id=held> scrolls" in finding for finding in squeezed), squeezed
 
 
 def test_the_squeeze_reading_sees_a_wrap_between_two_links(browser, serve):
@@ -2004,6 +2140,68 @@ def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
     )
 
 
+def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve):
+    """The column is the page's boundary, even though Leaf seats its margin controls
+    inside ``main``. At compact width an Edit label extends left of that column; it is
+    Leaf chrome, not a box the page misplaced. Content inside an authored horizontal
+    scroller is likewise reachable, while an otherwise identical page box remains a
+    real spill and keeps both the column and root-scrollport checks live."""
+    source = leaf_page(
+        "compact geometry boundaries",
+        """
+<h1>Migration plan</h1>
+<lf-draft id="draft"><pre>Move the readers first.</pre></lf-draft>
+<div id="scroller" style="overflow-x: auto; width: 100%">
+  <span id="reachable" style="display: block; width: 700px">Reach by scrolling.</span>
+</div>
+<div id="root-spill" style="width: 700px">This box leaves the page.</div>
+""",
+    )
+    page, errors = open_page(browser, serve(source, packages=()))
+    resized(page, 540, 720)
+    measured = page.evaluate(
+        """() => {
+          const main = document.querySelector('main');
+          const style = getComputedStyle(main), box = main.getBoundingClientRect();
+          const columnLeft = box.left + parseFloat(style.paddingLeft);
+          const label = document.querySelector('.lf-margin-entry-label');
+          const scroller = document.querySelector('#scroller');
+          return {
+            labelPast: Math.round(columnLeft - label.getBoundingClientRect().left),
+            scrollerShort: scroller.scrollWidth - scroller.clientWidth,
+          };
+        }"""
+    )
+    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    overflow = render_checks_model.evaluate_probe(page, "rootOverflow")
+    page.locator(".lf-margin-cluster").evaluate(
+        """cluster => {
+          cluster.id = 'visible-leaf-chrome';
+          Object.assign(cluster.style, {
+            left: '700px', opacity: '1', position: 'relative', visibility: 'visible'
+          });
+        }"""
+    )
+    visible_chrome = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    assert errors == []
+    page.close()
+
+    assert measured["labelPast"] > 1, "the Leaf label stayed inside the column"
+    assert measured["scrollerShort"] > 1, (
+        "the authored scroller fits, so it proves nothing"
+    )
+    assert not [finding for finding in misplaced if "<span" in finding], misplaced
+    assert [finding for finding in misplaced if "<div id=root-spill>" in finding], (
+        misplaced
+    )
+    assert [
+        finding
+        for finding in visible_chrome
+        if "<div id=visible-leaf-chrome>" in finding
+    ], visible_chrome
+    assert overflow > 1, "the true page spill did not reach the root scrollport"
+
+
 def test_the_render_gate_reports_words_no_mark_can_be_shown_on(browser, serve):
     """An element the reader can see and no mark can be drawn on, which the gate reads
     without pressing a key.
@@ -2073,16 +2271,20 @@ def test_the_render_gate_tells_a_float_in_the_margin_from_one_spilling_out_of_it
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):
     """A narrow authored body is not the page's viewport. Its child can be wider than
     that body while still fitting on screen, so measuring body would invent sideways
-    document overflow where the canonical root scrollport has none."""
+    document overflow where the canonical root scrollport has none. The compact rule
+    preserves that same body-versus-scrollport contrast within its smaller viewport."""
     source = leaf_page(
         "root scrollport width",
         """
 <style>
 body { width: 400px; }
 #wide-inside-window { width: 700px; }
+@media (max-width: 600px) {
+  #wide-inside-window { width: 500px; }
+}
 </style>
 <h1>Capacity plan</h1>
-<div id="wide-inside-window">Seven hundred pixels still fit in this viewport.</div>
+<div id="wide-inside-window">This box still fits in the viewport.</div>
 """,
     )
 
@@ -2113,13 +2315,17 @@ def test_the_render_gate_tells_a_fixed_margin_resident_from_a_fixed_spill(
     The first shape is the roomy sidebar posture: it starts in the outer gutter and never
     moves beneath the pointer. The second differs only in its horizontal position and
     straddles the readable column, so exempting fixed boxes outright would make the gate
-    blind to the same spill it catches in flow and in floats."""
+    blind to the same spill it catches in flow and in floats. The compact posture has no
+    outer gutter, so neither synthetic resident applies there."""
     source = leaf_page(
         "fixed margin residents",
         """
 <style>
 #fixed-margin { position: fixed; top: 80px; left: 24px; width: 180px; }
 #fixed-half { position: fixed; top: 500px; left: 180px; width: 180px; }
+@media (max-width: 600px) {
+  #fixed-margin, #fixed-half { display: none; }
+}
 </style>
 <h1>Migration plan</h1>
 <div id="fixed-margin">A stable route in the margin.</div>
@@ -2144,7 +2350,7 @@ def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, ser
     """Both residents of the right margin are pinned by the flow — the controls level
     with the change they decide, the note level with the block it annotates — so on a
     page that writes one beside the other, neither can step aside and the controls are
-    drawn over the note's first line. That is the arrangement leaf ships, so the gate
+    drawn over the note's first line. That is the restore case Leaf ships, so the gate
     that reads words drawn on words has to let it through, or every page composing the
     two idioms is refused at handover.
 
@@ -2324,9 +2530,9 @@ def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, se
     reports as lost out of a box showing it perfectly — a handover refused over a page
     that is exactly as its author left it.
 
-    The scroll is put on from outside, through the stand-in `primed` supplies, because
-    the page's own CSP takes no inline script and the gate opens its own page. It is
-    re-applied each frame so it stands for the whole of the gate's read."""
+    The stand-in `primed` supplies this setup because the scroll is test state rather
+    than page behavior. It is re-applied each frame so it stands for the whole of the
+    gate's read."""
 
     def scroll_it(page):
         page.add_init_script(
@@ -2750,7 +2956,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     bare fixture because the panel has to be holding something for its boxes to exist,
     and a seeded example is the corpus's own conversation. The log has to hold an
     anchored comment, not merely exist: the planted rule traps its margin against a
-    thread's quoted address, so a page whose log carries only widget events opens the
+    thread's quoted target, so a page whose log carries only widget events opens the
     panel on nothing and reports the control as missing."""
     seeded = [
         path

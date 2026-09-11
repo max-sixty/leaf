@@ -1,4 +1,4 @@
-/* This module owns keyboard item hints and whole-page text search. */
+/* This module owns the target chooser and whole-page text search. */
 import { aimTargets, anchoringIsReady } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { bindings } from "../keyboard/bindings.js";
@@ -22,31 +22,31 @@ import { keySequence, progressStates } from "../keyboard/presentation.js";
 import { announce } from "../notifications.js";
 import { beginWalk, listWalkPosition, walkPosition } from "../walk-position.js";
 
-import { allButTheReference } from "../keyboard/register.js";
+import { allButCommandReference } from "../keyboard/register.js";
 
-// The selection chooser's two faces. Hints and the active search result are paint only;
+// The target chooser and page search have separate faces. Hints and the active search result are paint only;
 // the search box is a real control, kept beside them so its focus and accessible name are
-// the platform's rather than a keyboard mode's imitation of one.
-export const selectionLayer = el("div", "lf-ui lf-targets");
-selectionLayer.setAttribute("aria-hidden", "true");
-export const selectionSearch = el("div", "lf-ui lf-target-search");
-selectionSearch.setAttribute("role", "search");
-selectionSearch.hidden = true;
-const selectionInput = document.createElement("input");
-selectionInput.className = "lf-target-search-box";
-selectionInput.type = "search";
-selectionInput.name = "page-search";
-selectionInput.autocomplete = "off";
-selectionInput.spellcheck = false;
-selectionInput.maxLength = 160;
-selectionInput.placeholder = "Search page text";
-selectionInput.setAttribute("aria-label", "Search page text");
-const selectionStatus = el("span", "lf-target-search-status");
-selectionStatus.setAttribute("role", "status");
-selectionSearch.append(selectionInput, selectionStatus);
+// the platform's rather than a keyboard interaction's imitation of one.
+export const targetChooserHintLayer = el("div", "lf-ui lf-target-chooser-hints");
+targetChooserHintLayer.setAttribute("aria-hidden", "true");
+export const pageSearchSurface = el("div", "lf-ui lf-page-search");
+pageSearchSurface.setAttribute("role", "search");
+pageSearchSurface.hidden = true;
+const pageSearchInput = document.createElement("input");
+pageSearchInput.className = "lf-page-search-box";
+pageSearchInput.type = "search";
+pageSearchInput.name = "page-search";
+pageSearchInput.autocomplete = "off";
+pageSearchInput.spellcheck = false;
+pageSearchInput.maxLength = 160;
+pageSearchInput.placeholder = "Search page text";
+pageSearchInput.setAttribute("aria-label", "Search page text");
+const pageSearchStatus = el("span", "lf-page-search-status");
+pageSearchStatus.setAttribute("role", "status");
+pageSearchSurface.append(pageSearchInput, pageSearchStatus);
 
-// Keyboard item selection and whole-page text search. `s` opens a viewport-local map of
-// the same stable items and visual parts Alt-click reaches, then opens Comment on the
+// Target choosing and whole-page text search. `s` opens a viewport-local map of
+// the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
 // chosen target; `/` opens the page's text search directly or from that map.
 //
 // The short, viewport-local hints form a prefix-free tree over one alphabet. Most
@@ -64,18 +64,18 @@ selectionSearch.append(selectionInput, selectionStatus);
 // length of a scroll and re-read once it settles, so a target arriving mid-scroll is
 // named at rest rather than on the frame it appears.
 //
-// Tab and Shift-Tab walk the visible target map and announce each item. Enter chooses
+// Tab and Shift-Tab walk the visible target map and announce each target. Enter chooses
 // the last one announced. A viewport change that removes or renames that target clears
 // the announced choice before Enter can act on it.
 //
 // `/` opens a real search input over the whole page reading, either directly from the
-// page or from the visible item hints. Tab walks repeated occurrences and Enter makes a
+// page or from the visible target hints. Tab walks repeated occurrences and Enter makes a
 // native browser Selection from the active match. Once the prompt closes, n repeats that
 // accepted search and N reverses it. Escape returns to the surface that opened search:
-// the page after a direct `/`, or the visible hints after `s` then `/`. The mode keeps
+// the page after a direct `/`, or the visible hints after `s` then `/`. The interaction keeps
 // `?` available and claims the rest of the page's keyboard while it stands.
 
-export function createTargetSelection({
+export function createTargetChooser({
   scrollToRange,
   banner,
   bottomChromeBoxes,
@@ -87,8 +87,8 @@ export function createTargetSelection({
 }) {
   const HINT_INDENT = 10;
 
-  let open = false;
-  let searching = false;
+  let chooserOpen = false;
+  let pageSearchOpen = false;
   let prefix = "";
   let candidates = [];
   let matches = [];
@@ -142,8 +142,8 @@ export function createTargetSelection({
       bottom: innerHeight,
     }));
     const candidates = blockers.reduce(
-      (open, box) => {
-        return open.flatMap((candidate) =>
+      (available, box) => {
+        return available.flatMap((candidate) =>
           overlaps(candidate, box)
             ? [
                 rect(
@@ -196,7 +196,7 @@ export function createTargetSelection({
   };
   // Chromium retains geometry for descendants suppressed by a closed disclosure. Ask
   // visibility before geometry so those descendants cost no box reads. A display: contents
-  // item has no box of its own and stays eligible through a visible child.
+  // addressable has no box of its own and stays eligible through a visible child.
   const targetShown = ({ element }) =>
     element.checkVisibility() ||
     (getComputedStyle(element).display === "contents" &&
@@ -237,7 +237,7 @@ export function createTargetSelection({
       }))
       .filter(({ rect }) => exposed(rect))
       .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
-    // Direct aiming chooses the innermost stable item under the pointer. When an
+    // Direct aiming chooses the innermost stable addressable under the pointer. When an
     // ancestor and descendant paint the same visible box, naming both would offer two
     // keys for that one choice. Keep distinct nested extents and unrelated overlaps.
     const unique = targets.filter(
@@ -267,32 +267,34 @@ export function createTargetSelection({
     }));
   }
 
-  function setOpen(on, restore = false, withHints = true) {
+  function setTargetChooser(on, restore = false, withHints = true) {
     if (on && !anchoringIsReady()) return;
     if (on) opener = focused();
     const returnTo = !on && restore ? opener : null;
-    open = on;
-    searching = false;
+    chooserOpen = on;
+    pageSearchOpen = false;
     searchReturnsToHints = false;
     prefix = "";
     matches = [];
     active = -1;
     hintActive = -1;
     scrolling = false;
-    selectionInput.value = "";
-    selectionSearch.hidden = true;
+    pageSearchInput.value = "";
+    pageSearchSurface.hidden = true;
     if (on && withHints) {
       candidates = visibleTargets();
       if (!candidates.length) {
-        announce("There is no visible item to select. Press slash to search the page.");
+        announce(
+          "There is no visible target to choose. Press slash to search the page.",
+        );
       } else {
         announce(
-          `Select an item — type one of ${candidates.length} hints, press Tab to hear them, or slash to search the page.`,
+          `Choose a target — type one of ${candidates.length} hints, press Tab to hear them, or slash to search the page.`,
         );
       }
     } else if (!on) {
       candidates = [];
-      selectionLayer.replaceChildren();
+      targetChooserHintLayer.replaceChildren();
       opener = null;
     } else {
       candidates = [];
@@ -301,30 +303,30 @@ export function createTargetSelection({
     if (returnTo?.isConnected) returnTo.focus({ preventScroll: true });
   }
 
-  function setSearching(on) {
-    searching = on;
+  function setPageSearch(on) {
+    pageSearchOpen = on;
     prefix = "";
     hintActive = -1;
-    selectionSearch.hidden = !on;
+    pageSearchSurface.hidden = !on;
     if (on) {
-      selectionInput.focus({ preventScroll: true });
-      selectionStatus.textContent = "";
+      pageSearchInput.focus({ preventScroll: true });
+      pageSearchStatus.textContent = "";
       announce("Search the page.");
     } else {
-      selectionInput.value = "";
+      pageSearchInput.value = "";
       matches = [];
       active = -1;
       document.body.focus({ preventScroll: true });
-      announce("Select an item — type a hint, or slash to search the page.");
+      announce("Choose a target — type a hint, or slash to search the page.");
     }
     repaint();
   }
 
-  function startSearching() {
-    const fromHints = open;
-    if (!open) setOpen(true, false, false);
+  function openPageSearch() {
+    const fromHints = chooserOpen;
+    if (!chooserOpen) setTargetChooser(true, false, false);
     searchReturnsToHints = fromHints;
-    setSearching(true);
+    setPageSearch(true);
   }
 
   function matchOwner(segments) {
@@ -346,9 +348,9 @@ export function createTargetSelection({
   }
 
   function syncStatus() {
-    if (!selectionInput.value.trim()) selectionStatus.textContent = "";
-    else if (!matches.length) selectionStatus.textContent = "No matches";
-    else selectionStatus.textContent = `${active + 1} of ${matches.length}`;
+    if (!pageSearchInput.value.trim()) pageSearchStatus.textContent = "";
+    else if (!matches.length) pageSearchStatus.textContent = "No matches";
+    else pageSearchStatus.textContent = `${active + 1} of ${matches.length}`;
   }
 
   function sameMatch(left, right) {
@@ -404,7 +406,7 @@ export function createTargetSelection({
     if (!matchIsRangeable(matches[active])) return null;
     // An open search owns its highlighted match. A repeated n/N search owns a native
     // selection instead; leaving that selection retires both its readout and refresh.
-    if (!searching && !selectionIs(matches[active])) return null;
+    if (!pageSearchOpen && !selectionIs(matches[active])) return null;
     return {
       target: matchIdentity(query, matches[active]),
       position: active + 1,
@@ -418,20 +420,20 @@ export function createTargetSelection({
   // owner is standing; the read handed to the shared walk remains a cheap cached lookup.
   function refreshMatchWalk() {
     if (walkPosition()?.kind !== "page-search") return;
-    const query = searching ? selectionInput.value.trim() : repeatedSearch?.query;
+    const query = pageSearchOpen ? pageSearchInput.value.trim() : repeatedSearch?.query;
     const current = matches[active];
     if (!query || !current) return;
     const found = findText(pageText(), query);
     const same = found.findIndex((candidate) => sameMatch(candidate, current));
     active = same >= 0 ? same : found.length ? Math.min(active, found.length - 1) : -1;
     matches = found;
-    if (repeatedSearch && !searching && active >= 0) repeatedSearch.index = active;
-    if (searching) syncStatus();
+    if (repeatedSearch && !pageSearchOpen && active >= 0) repeatedSearch.index = active;
+    if (pageSearchOpen) syncStatus();
     repaint();
   }
 
   function search() {
-    const query = selectionInput.value.trim();
+    const query = pageSearchInput.value.trim();
     matches = query ? findText(pageText(), query) : [];
     active = matches.length ? startingMatch(matches) : -1;
     syncStatus();
@@ -450,7 +452,7 @@ export function createTargetSelection({
     active = (active + direction + matches.length) % matches.length;
     syncStatus();
     showMatch();
-    const query = selectionInput.value.trim();
+    const query = pageSearchInput.value.trim();
     beginWalk("page-search", "Match", () => matchWalkPosition(query));
     announce(
       `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
@@ -468,11 +470,11 @@ export function createTargetSelection({
     );
   }
 
-  function choose(target) {
-    setOpen(false);
+  function chooseTarget(target) {
+    setTargetChooser(false);
     document.body.focus({ preventScroll: true });
     commentOnTarget(target);
-    announce(`Selected ${target.label}.`);
+    announce(`Chosen ${target.label}.`);
   }
 
   function typeHint(key) {
@@ -480,11 +482,11 @@ export function createTargetSelection({
     prefix += key;
     const left = candidates.filter(({ code }) => code.startsWith(prefix));
     const target = left.find(({ code }) => code === prefix);
-    if (target) return choose(target);
+    if (target) return chooseTarget(target);
     if (!left.length) {
       prefix = "";
       announce("That hint is not on screen. The hints are reset.");
-    } else announce(`${left.length} items remain.`);
+    } else announce(`${left.length} targets remain.`);
     repaint();
   }
 
@@ -495,28 +497,28 @@ export function createTargetSelection({
     if (!targets.length) return;
     hintActive = (hintActive + direction + targets.length) % targets.length;
     const target = targets[hintActive];
-    beginWalk("selection-target", "Target", () =>
+    beginWalk("target-chooser", "Target", () =>
       listWalkPosition(hinted(), hinted()[hintActive], {
         identity: (candidate) => candidate.element,
       }),
     );
     announce(
-      `Hint ${target.code}: ${cut(target.label, 0, 72)}. Press Enter to select.`,
+      `Hint ${target.code}: ${cut(target.label, 0, 72)}. Press Enter to choose.`,
     );
     repaint();
   }
 
   function chooseHint() {
     const target = hinted()[hintActive];
-    if (target) choose(target);
+    if (target) chooseTarget(target);
   }
 
   function chooseMatch() {
     const segments = matches[active];
     if (!segments) return;
     const quote = quoteFrom(matches[active]);
-    repeatedSearch = { query: selectionInput.value.trim(), index: active };
-    setOpen(false);
+    repeatedSearch = { query: pageSearchInput.value.trim(), index: active };
+    setTargetChooser(false);
     selectMatch(segments);
     announce(
       `Selected match: ${cut(quote, 0, 72)}. Press n for next, Shift+n for previous, or c to comment.`,
@@ -552,38 +554,39 @@ export function createTargetSelection({
   }
 
   function back() {
-    if (searching) {
-      if (searchReturnsToHints) return setSearching(false);
-      setOpen(false, true);
+    if (pageSearchOpen) {
+      if (searchReturnsToHints) return setPageSearch(false);
+      setTargetChooser(false, true);
       announce("Page search closed.");
       return;
     }
     if (prefix) {
       prefix = prefix.slice(0, -1);
       hintActive = -1;
-      announce(prefix ? `Hint ${prefix}.` : "All item hints.");
+      announce(prefix ? `Hint ${prefix}.` : "All target hints.");
       return repaint();
     }
-    setOpen(false, true);
-    announce("Selection cancelled.");
+    setTargetChooser(false, true);
+    announce("Target chooser closed.");
   }
 
   function hintChip(target) {
-    const chip = el("span", "lf-address lf-target-hint");
-    chip.dataset.lfTarget = target.code;
+    const chip = el("span", "lf-key-badge lf-key-hint lf-target-chooser-hint");
+    chip.dataset.lfHintCode = target.code;
     if (hinted()[hintActive] === target) chip.classList.add("lf-current");
     const steps = [...target.code];
     chip.append(keySequence(steps, progressStates(steps, [...prefix])));
     return chip;
   }
 
-  function paintTargets() {
-    if (!open) {
-      if (selectionLayer.childElementCount) selectionLayer.replaceChildren();
+  function paintTargetChooserHints() {
+    if (!chooserOpen) {
+      if (targetChooserHintLayer.childElementCount)
+        targetChooserHintLayer.replaceChildren();
       return;
     }
     const wasActive = hintActive >= 0;
-    const refreshed = !searching && !prefix && !scrolling;
+    const refreshed = !pageSearchOpen && !prefix && !scrolling;
     const heard = hinted()[hintActive];
     if (refreshed) {
       candidates = visibleTargets();
@@ -598,7 +601,7 @@ export function createTargetSelection({
     const drawn = [];
     const hints = [];
     const drawnTargets = new Set();
-    if (!searching) {
+    if (!pageSearchOpen) {
       const cache = clips();
       for (const target of candidates) {
         if (!target.code.startsWith(prefix)) continue;
@@ -622,7 +625,7 @@ export function createTargetSelection({
         for (const box of rangeOf(matches[active]).getClientRects()) {
           const rect = clippedRect(box, clip);
           if (!exposed(rect)) continue;
-          const mark = el("span", "lf-target-match");
+          const mark = el("span", "lf-page-search-match");
           mark.style.left = `${rect.left}px`;
           mark.style.top = `${rect.top}px`;
           mark.style.width = `${rect.width}px`;
@@ -633,8 +636,8 @@ export function createTargetSelection({
     if (!refreshed && heard && !drawnTargets.has(heard)) hintActive = -1;
     // The shortcut bar was painted before geometry retired the browsed hint.
     if (wasActive && hintActive < 0) repaint();
-    selectionLayer.replaceChildren(...drawn);
-    if (!searching)
+    targetChooserHintLayer.replaceChildren(...drawn);
+    if (!pageSearchOpen)
       spreadHints(hints, {
         barriers: standingStatusBoxes(),
         lineBox: shortcutBarEl.getBoundingClientRect(),
@@ -650,8 +653,8 @@ export function createTargetSelection({
     // Once a target is in hand, its actions own the two short-line slots. Search stays
     // live to replace that target and remains in the complete reference.
     lineWhen: () => !Boolean(fabAnchorAt()),
-    when: () => anchoringIsReady() && !searching,
-    run: startSearching,
+    when: () => anchoringIsReady() && !pageSearchOpen,
+    run: openPageSearch,
   };
 
   const REPEAT_PAGE_SEARCH = {
@@ -676,73 +679,110 @@ export function createTargetSelection({
     run: (binding) => repeatSearch(binding === "n" ? 1 : -1),
   };
 
-  const SELECT = {
-    title: "Selecting an item",
+  const TARGETING_BACK = {
+    id: "targeting.back",
+    keys: ["Escape"],
+    // Search keeps its two unfamiliar operations on the shortcut bar; Escape remains
+    // available in the complete reference.
+    promoteEscape: () => !pageSearchOpen,
+    does: () =>
+      pageSearchOpen
+        ? searchReturnsToHints
+          ? "Return to the visible target hints"
+          : "Close page search"
+        : prefix
+          ? "Remove the last hint letter"
+          : "Close the target chooser",
+    line: () =>
+      pageSearchOpen
+        ? searchReturnsToHints
+          ? "back to hints"
+          : "close search"
+        : prefix
+          ? "back one letter"
+          : "close chooser",
+    run: back,
+  };
+
+  const targetingClaims = (binding) =>
+    allButCommandReference(binding) && !bindings(PAGE_SEARCH).includes(binding);
+
+  const TARGET_CHOOSER_SCOPE = {
+    title: "In the target chooser",
     escape: "inner",
-    at: () => open,
-    // The page owns search, even when item hints are standing over it. Exempt the
+    at: () => chooserOpen && !pageSearchOpen,
+    // The page owns search, even when target hints are standing over it. Exempt the
     // binding read from that row so one declaration drives both entry routes and every
     // keyboard projection.
-    claims: (binding) =>
-      allButTheReference(binding) && !bindings(PAGE_SEARCH).includes(binding),
+    claims: targetingClaims,
     rows: [
       {
-        id: "selection.hint.choose",
+        id: "target.chooser.hint.type",
         keys: HINT_KEYS,
         label: "a–z",
-        does: "Choose the item wearing that hint",
-        line: "choose hint",
-        when: () => !searching && candidates.length > 0,
+        does: "Type the hint for a target",
+        line: "type hint",
+        when: () => candidates.length > 0,
         run: typeHint,
       },
       {
-        id: "selection.hint.walk",
+        id: "target.chooser.hint.walk",
         keys: ["Tab", "Shift+Tab"],
         routes: [
           {
-            id: "selection.hint.next",
+            id: "target.chooser.hint.next",
             binding: "Tab",
-            does: "Hear the next visible item",
+            does: "Hear the next visible target",
           },
           {
-            id: "selection.hint.previous",
+            id: "target.chooser.hint.previous",
             binding: "Shift+Tab",
-            does: "Hear the previous visible item",
+            does: "Hear the previous visible target",
           },
         ],
-        does: "Hear the next / previous visible item",
+        does: "Hear the next / previous visible target",
         line: "browse hints",
         repeat: true,
-        when: () => !searching && candidates.length > 0,
+        when: () => candidates.length > 0,
         run: (binding) => moveHint(binding === "Tab" ? 1 : -1),
       },
       {
-        id: "selection.hint.select",
+        id: "target.chooser.target.choose",
         keys: ["Enter"],
-        does: "Select the target just announced",
-        line: "select target",
-        when: () => !searching && hintActive >= 0,
+        does: "Choose the target just announced",
+        line: "choose target",
+        when: () => hintActive >= 0,
         run: chooseHint,
       },
+      TARGETING_BACK,
+    ],
+  };
+
+  const PAGE_SEARCH_SCOPE = {
+    title: "In page search",
+    escape: "inner",
+    at: () => pageSearchOpen,
+    claims: targetingClaims,
+    rows: [
       {
-        id: "selection.match.select",
+        id: "page.search.match.select",
         keys: ["Enter"],
         does: "Select the current search match",
         line: "select match",
-        when: () => searching && matches.length > 0,
+        when: () => matches.length > 0,
         run: chooseMatch,
       },
       {
-        id: "selection.match.walk",
+        id: "page.search.match.walk",
         keys: ["Tab", "Shift+Tab"],
         routes: [
           {
-            id: "selection.match.next",
+            id: "page.search.match.next",
             binding: "Tab",
             does: "Go to the next search match",
           },
           {
-            id: "selection.match.previous",
+            id: "page.search.match.previous",
             binding: "Shift+Tab",
             does: "Go to the previous search match",
           },
@@ -750,46 +790,23 @@ export function createTargetSelection({
         does: "Next / previous search match",
         line: "matches",
         repeat: true,
-        when: () => searching && matches.length > 0,
+        when: () => matches.length > 0,
         run: (binding) => moveMatch(binding === "Tab" ? 1 : -1),
       },
-      {
-        id: "selection.back",
-        keys: ["Escape"],
-        // Search keeps its two unfamiliar operations on the compact line; Escape is the
-        // platform-standard way out and remains named by the expanded reference.
-        promoteEscape: () => !searching,
-        does: () =>
-          searching
-            ? searchReturnsToHints
-              ? "Return to the visible item hints"
-              : "Close page search"
-            : prefix
-              ? "Remove the last hint letter"
-              : "Cancel item selection",
-        line: () =>
-          searching
-            ? searchReturnsToHints
-              ? "back to hints"
-              : "close search"
-            : prefix
-              ? "back one letter"
-              : "cancel",
-        run: back,
-      },
+      TARGETING_BACK,
     ],
   };
 
-  const isSelecting = () => open;
-  const startSelecting = () => setOpen(true);
-  const stopSelecting = () => setOpen(false);
+  const targetChooserOpen = () => chooserOpen;
+  const openTargetChooser = () => setTargetChooser(true);
+  const closeTargetChooser = () => setTargetChooser(false);
 
   function mount() {
-    selectionInput.addEventListener("input", search);
+    pageSearchInput.addEventListener("input", search);
     addEventListener(
       "scroll",
       () => {
-        if (!open) return;
+        if (!chooserOpen) return;
         scrolling = true;
         repaint();
       },
@@ -798,14 +815,14 @@ export function createTargetSelection({
     addEventListener(
       "scrollend",
       () => {
-        if (!open || !scrolling) return;
+        if (!chooserOpen || !scrolling) return;
         scrolling = false;
         repaint();
       },
       { capture: true, passive: true },
     );
     addEventListener("resize", () => {
-      if (!open) return;
+      if (!chooserOpen) return;
       scrolling = false;
       repaint();
     });
@@ -813,13 +830,14 @@ export function createTargetSelection({
   }
   return {
     visibleTargets,
-    paintTargets,
+    paintTargetChooserHints,
     PAGE_SEARCH,
     REPEAT_PAGE_SEARCH,
-    SELECT,
-    isSelecting,
-    startSelecting,
-    stopSelecting,
+    TARGET_CHOOSER_SCOPE,
+    PAGE_SEARCH_SCOPE,
+    targetChooserOpen,
+    openTargetChooser,
+    closeTargetChooser,
     mount,
   };
 }

@@ -9,6 +9,7 @@ site_root="$run_root/site"
 host_codex_home=${CODEX_HOME:-$HOME/.codex}
 clean_codex_home="$run_root/codex-home"
 log="$repo_root/.tmp/website-agent-local.log"
+runner=${LEAF_SITE_AGENT_RUNNER:-$repo_root/scripts/verify-site.py}
 server=
 
 cleanup() {
@@ -28,7 +29,7 @@ cp "$repo_root/worker/codex-config.toml" "$clean_codex_home/config.toml"
 cp "$host_codex_home/auth.json" "$clean_codex_home/auth.json"
 chmod 600 "$clean_codex_home/auth.json"
 
-CODEX_HOME="$clean_codex_home" LEAF_SITE_ROOT="$site_root" LEAF_AGENT_EPHEMERAL=1 \
+CODEX_HOME="$clean_codex_home" LEAF_SITE_ROOT="$site_root" \
   uv run --project "$repo_root" \
   python "$repo_root/worker/server.py" >"$log" 2>&1 &
 server=$!
@@ -45,9 +46,11 @@ done
 if ! LEAF_SITE_ORIGIN=http://127.0.0.1:8080 \
   LEAF_VERIFY_AGENT=1 \
   LEAF_VERIFY_DIRECT_AGENT=1 \
-  uv run --project "$repo_root" "$repo_root/scripts/verify-site.py" "$release"; then
+  uv run --project "$repo_root" "$runner" "$release"; then
   cat "$log"
   exit 1
 fi
 
-grep --fixed-strings '"component":"leaf-agent"' "$log"
+if [[ -z ${LEAF_SITE_AGENT_RUNNER:-} ]]; then
+  grep --fixed-strings '"component":"leaf-agent"' "$log"
+fi

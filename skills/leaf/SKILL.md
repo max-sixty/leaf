@@ -1,24 +1,23 @@
 ---
 name: leaf
-description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes reader input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” work whose progress or review belongs in a shared page, a `leaf_feedback` tool output, or a `leaf-delivery` message.
+description: Presents designs, decisions, findings, or live work as an HTML page the user can comment on and manipulate, and processes reader input delivered from an existing Leaf page. Use for “explain this in HTML,” “write up the findings,” “show me the options,” work whose progress or review belongs in a shared page, a `leaf_delivery` tool output, or a `leaf-delivery` message.
 allowed-tools:
   - Bash(leaf:*)
   - Bash(jq:*)
 ---
 
-If the input is a named `leaf_feedback` tool output, continue the existing page
-from its inline payload. When its top-level `reply` is an address, answer normally:
-the Codex adapter appends the final answer there, so do not repeat it with `leaf
-reply`. When `reply` is null, process each batch's handling rules and use `leaf
-reply` to answer every event that needs a response. Run other Leaf commands only
-when an event requires a page change or another explicit operation.
-
-If the input is a `leaf-delivery` element, continue the existing page. Read its
-payload, then read
-`references/host-codex.md`, `references/event-batches.md`, and, for reader
-messages, `references/conversation-threads.md`. Process every delivered event
-through the page and its Leaf CLI. Do not call `leaf_present`, initialize a page,
-or hand the page over again in response to the delivery pointer.
+If the input is a named `leaf_delivery` tool output, continue the existing page
+from its delivery envelope. If it is a `leaf-delivery` element, run `leaf delivery
+read <id>` to read that same envelope. Then read
+`references/event-batches.md`, the current host contract, and, for reader
+messages, `references/conversation-threads.md`. Process every batch and every
+event. Each event's `obligation.response`, when present, names the explicit Leaf
+operation it required when captured: `leaf reply`, a page revision closed with
+`leaf resolve`, or `leaf receipt`. Recheck current page or conversation state
+before writing because a
+later event may already have settled it. A normal assistant final message never
+settles a Leaf obligation. Do not initialize or hand the page over again in
+response to an existing delivery.
 
 Otherwise, present the session's subject as a live HTML page. The user comments
 on exact passages, acts through the page's widgets, and follows revisions in
@@ -53,7 +52,9 @@ checkout keeps the launcher at `bin/leaf`.
 
 1. Run `leaf page init <page>`. Optional shapes need their packages named here:
    `diagram` for Mermaid, `diff` for a unified diff, `swipe` for rapid
-   pass-or-keep triage, and `playground` for declarative interactive explorers, as in
+   pass-or-keep triage, `playground` for declarative interactive explorers,
+   `visual-review` for an ordered website run with aligned before-and-after evidence,
+   and `targeting` for selecting and proposing changes to preview elements, as in
    `leaf page init --package diagram --package diff <page>`. Re-running `page init`
    with the selection adds it to a page already written.
 2. Read `references/page-authoring.md`, then the authoring reference each part of
@@ -88,9 +89,10 @@ checkout keeps the launcher at `bin/leaf`.
    or that rendering remains unverified.
 
 When input arrives, read `references/event-batches.md` before processing it and
-`references/conversation-threads.md` when a thread needs work; in Codex the
-delivery arrives as a `leaf-delivery` element, which `references/host-codex.md`
-owns. Read `references/page-checkpoints.md` before stamping or ending. Edit only
+`references/conversation-threads.md` when a conversation needs work. Every host
+delivers the same `leaf-delivery-v1` envelope: direct waits and App Server carry
+it inline, while queued Codex carries its immutable id. Read
+`references/page-checkpoints.md` before stamping or ending. Edit only
 `index.html`; Leaf alone writes immutable revisions and public version mappings.
 
 ## Page contract
@@ -104,6 +106,9 @@ shared premise and alternatives it needs. A record or system page may expose the
 whole state and put each Ask where that state makes it answerable. The visible
 page follows the subject's shape, whether a scrolling document or a workspace;
 `references/page-authoring.md` owns the concrete choices.
+
+The page contract and widget capabilities are choices, not a checklist. Include
+only controls and gestures whose results advance the reader's task.
 
 A page states what is true now, not how it got there. Correct a wrong figure in
 place and drop a superseded claim rather than narrating its withdrawal; the
@@ -158,8 +163,8 @@ so a phase does not depend on discovering a chain of references.
 - `references/serving-pages.md`: for the first handoff, `--export`, an unreachable
   URL, `--host`, a standing page, re-vendoring a served page, or resuming another
   session's page.
-- `references/packages.md`: for a package-design request or an event with
-  `"about": "layer"`.
+- `references/packages.md`: for a package-design request, a page-authored module, or
+  an event with `"about": "layer"`.
 
 ### Change Leaf itself
 

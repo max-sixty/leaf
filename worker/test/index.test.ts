@@ -22,10 +22,8 @@ vi.mock("@cloudflare/containers", () => ({
 
 import { getContainer } from "@cloudflare/containers";
 import worker, {
-  LeafWebsiteAgentWorkflow,
   LeafWebsiteSession,
   type Env,
-  runAgentWorkflow,
 } from "../src/index";
 
 const RELEASE = "a".repeat(64);
@@ -35,23 +33,31 @@ const MANIFEST = {
   pages: {
     "/": {
       assets: `/_leaf-release/${RELEASE}/root`,
+      description: "The leaf page.",
       directory: "_leaf/pages/index",
+      image: "/media/0000000000000001.png",
       kind: "product",
       layer: LAYER,
       state: "/_leaf/state/root.json",
       states: { "1": "/_leaf/state/root.json" },
+      title: "leaf",
     },
     "/examples": {
       assets: `/_leaf-release/${RELEASE}/examples`,
+      description: "The leaf examples page.",
       directory: "_leaf/pages/examples",
+      image: "/media/0000000000000002.png",
       kind: "product",
       layer: LAYER,
       state: "/_leaf/state/examples.json",
       states: { "1": "/_leaf/state/examples.json" },
+      title: "leaf examples",
     },
     "/examples/triage-board": {
       assets: `/_leaf-release/${RELEASE}/examples--triage-board`,
+      description: "The Release triage page.",
       directory: "examples/triage-board",
+      image: "/examples/media/0000000000000003.jpg",
       kind: "example",
       layer: LAYER,
       state: "/_leaf/state/examples--triage-board--r2.json",
@@ -59,30 +65,40 @@ const MANIFEST = {
         "1": "/_leaf/state/examples--triage-board--r1.json",
         "2": "/_leaf/state/examples--triage-board--r2.json",
       },
+      title: "Release triage",
     },
     "/how-it-works": {
       assets: `/_leaf-release/${RELEASE}/how-it-works`,
+      description: "The how leaf works page.",
       directory: "_leaf/pages/how-it-works",
+      image: "/media/0000000000000004.png",
       kind: "product",
       layer: LAYER,
       state: "/_leaf/state/how-it-works.json",
       states: { "1": "/_leaf/state/how-it-works.json" },
+      title: "how leaf works",
     },
     "/packages": {
       assets: `/_leaf-release/${RELEASE}/packages`,
+      description: "The leaf packages page.",
       directory: "_leaf/pages/packages",
+      image: "/media/0000000000000005.png",
       kind: "product",
       layer: LAYER,
       state: "/_leaf/state/packages.json",
       states: { "1": "/_leaf/state/packages.json" },
+      title: "leaf packages",
     },
     "/registry": {
       assets: `/_leaf-release/${RELEASE}/registry`,
+      description: "The leaf registry keys page.",
       directory: "_leaf/pages/registry",
+      image: "/media/0000000000000006.png",
       kind: "product",
       layer: LAYER,
       state: "/_leaf/state/registry.json",
       states: { "1": "/_leaf/state/registry.json" },
+      title: "leaf registry keys",
     },
   },
 };
@@ -110,7 +126,7 @@ function environment(overrides: Partial<Env> = {}): Env {
   return {
     ASSETS: { fetch } as unknown as Fetcher,
     PAGES: {} as DurableObjectNamespace<LeafWebsiteSession>,
-    AGENT_WORKFLOW: { create: vi.fn() } as unknown as Workflow,
+    AGENT_PREWARM: "false",
     WEBSITE_EVENTS: { writeDataPoint: vi.fn() },
     SOURCE_AGENT_RATE_LIMITER: allow,
     OPENAI_API_KEY: "test-key",
@@ -271,13 +287,13 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
-  it("prewarms an active reader's container while returning the edge document", async () => {
-    const sessionId = "07".repeat(16);
+  it("prewarms a fresh reader's container while returning the edge document", async () => {
     const started = Promise.resolve();
     const start = vi.fn(() => started);
     vi.mocked(getContainer).mockReturnValue({ start } as never);
     const waitUntil = vi.fn();
     const env = environment({
+      AGENT_PREWARM: "true",
       ASSETS: {
         fetch: async () =>
           new Response("<!doctype html><title>Leaf</title>", {
@@ -289,7 +305,8 @@ describe("product-site delivery", () => {
     const response = await worker.fetch(
       new Request("https://leaf.page/examples/triage-board/", {
         headers: {
-          Cookie: `__Host-leaf-page=${sessionId}; __Host-leaf-active=1`,
+          "CF-Connecting-IP": "203.0.113.8",
+          "Sec-Fetch-Dest": "document",
         },
       }),
       env,
@@ -297,9 +314,72 @@ describe("product-site delivery", () => {
     );
 
     expect(await response.text()).toContain("<title>Leaf</title>");
+    const sessionId = response.headers
+      .get("Set-Cookie")
+      ?.match(/^__Host-leaf-page=([0-9a-f]{32});/)?.[1];
+    expect(sessionId).toBeDefined();
+    expect(waitUntil).toHaveBeenCalledOnce();
+    await waitUntil.mock.calls[0][0];
+
+    expect(env.SOURCE_AGENT_RATE_LIMITER.limit).toHaveBeenCalledWith({
+      key: "prewarm:203.0.113.8",
+    });
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, sessionId);
     expect(start).toHaveBeenCalledOnce();
-    expect(waitUntil).toHaveBeenCalledWith(started);
+  });
+
+  it("does not prewarm an HTML probe that is not a browser navigation", async () => {
+    const env = environment({
+      AGENT_PREWARM: "true",
+      ASSETS: {
+        fetch: async () =>
+          new Response("<!doctype html><title>Leaf</title>", {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          }),
+      } as unknown as Fetcher,
+    });
+    const waitUntil = vi.fn();
+
+    const response = await worker.fetch(
+      new Request("https://leaf.page/"),
+      env,
+      { waitUntil } as unknown as ExecutionContext,
+    );
+
+    expect(response.status).toBe(200);
+    expect(getContainer).not.toHaveBeenCalled();
+    expect(waitUntil).not.toHaveBeenCalled();
+  });
+
+  it("does not allocate a container when a source exhausts its prewarm limit", async () => {
+    const deny = vi.fn(async () => ({ success: false }));
+    const env = environment({
+      AGENT_PREWARM: "true",
+      ASSETS: {
+        fetch: async () =>
+          new Response("<!doctype html><title>Leaf</title>", {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          }),
+      } as unknown as Fetcher,
+      SOURCE_AGENT_RATE_LIMITER: { limit: deny } as RateLimit,
+    });
+    const waitUntil = vi.fn();
+
+    const response = await worker.fetch(
+      new Request("https://leaf.page/", {
+        headers: {
+          "CF-Connecting-IP": "203.0.113.9",
+          "Sec-Fetch-Dest": "document",
+        },
+      }),
+      env,
+      { waitUntil } as unknown as ExecutionContext,
+    );
+    await waitUntil.mock.calls[0][0];
+
+    expect(response.status).toBe(200);
+    expect(deny).toHaveBeenCalledWith({ key: "prewarm:203.0.113.9" });
+    expect(getContainer).not.toHaveBeenCalled();
   });
 
   it.each(["/media/upload.png", "/examples/triage-board/media/upload.png"])(
@@ -836,30 +916,31 @@ describe("website page agent", () => {
     ["product", "/api/event", "/"],
     ["example", "/examples/triage-board/api/event", "/examples/triage-board"],
   ])(
-    "starts one durable workflow for an accepted %s-page event that needs a reply",
+    "acknowledges an accepted %s-page event before its direct dispatch completes",
     async (_kind, pathname, route) => {
       const sessionId = "01".repeat(16);
       const sessionReference = "911497130241";
       const eventId = "02".repeat(16);
       const attempt = "reader-attempt-01";
-      const containerFetch = vi.fn(async () =>
-        Response.json({
-          ok: true,
-          state: {
-            events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
-            activity: { obligations: [{ event: eventId }] },
-          },
-        }),
-      );
-      vi.mocked(getContainer).mockReturnValue({
-        fetch: containerFetch,
-      } as never);
-      const create = vi.fn(async () => ({
-        id: `reply-${sessionReference}-${eventId}`,
-      }));
-      const env = environment({
-        AGENT_WORKFLOW: { create } as unknown as Workflow,
+      let resolveAgentStart: (response: Response) => void = () => undefined;
+      const agentStart = new Promise<Response>((resolve) => {
+        resolveAgentStart = resolve;
       });
+      const containerFetch = vi.fn(async (request: Request) => {
+        if (new URL(request.url).pathname.endsWith("/api/event")) {
+          return Response.json({
+            ok: true,
+            state: {
+              events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
+              activity: { obligations: [{ event: eventId }] },
+            },
+          });
+        }
+        return agentStart;
+      });
+      vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+      const waitUntil = vi.fn();
+      const env = environment();
 
       const response = await worker.fetch(
         new Request(`https://leaf.page${pathname}`, {
@@ -872,28 +953,27 @@ describe("website page agent", () => {
           body: JSON.stringify({ kind: "comment", attempt }),
         }),
         env,
+        { waitUntil } as unknown as ExecutionContext,
       );
 
       expect(response.status).toBe(200);
+      expect(waitUntil).toHaveBeenCalledOnce();
       expect(env.WEBSITE_EVENTS.writeDataPoint).toHaveBeenCalledWith({
         indexes: [eventId],
         blobs: [route, _kind, "comment", null, RELEASE, sessionReference],
         doubles: [1, 1],
       });
-      expect(create).toHaveBeenCalledWith({
-        id: `reply-${sessionReference}-${eventId}`,
-        params: {
-          sessionId,
-          reference: sessionReference,
-          route,
-          eventId,
-          sourceId: "203.0.113.1",
-        },
-      });
+
+      resolveAgentStart(Response.json({ status: "started", thread: "codex-thread" }));
+      await waitUntil.mock.calls[0][0];
+
+      const startRequest = containerFetch.mock.calls[1][0];
+      expect(await startRequest.json()).toEqual({ event: eventId });
+      expect(JSON.stringify([...startRequest.headers])).not.toContain("test-key");
     },
   );
 
-  it("does not restart work after Leaf says the accepted event is settled", async () => {
+  it("does not dispatch work after Leaf says the accepted event is settled", async () => {
     const sessionId = "06".repeat(16);
     const attempt = "settled-attempt-1";
     vi.mocked(getContainer).mockReturnValue({
@@ -906,10 +986,7 @@ describe("website page agent", () => {
           },
         }),
     } as never);
-    const create = vi.fn();
-    const env = environment({
-      AGENT_WORKFLOW: { create } as unknown as Workflow,
-    });
+    const waitUntil = vi.fn();
 
     await worker.fetch(
       new Request("https://leaf.page/examples/triage-board/api/event", {
@@ -920,344 +997,96 @@ describe("website page agent", () => {
         },
         body: JSON.stringify({ kind: "comment", attempt }),
       }),
-      env,
+      environment(),
+      { waitUntil } as unknown as ExecutionContext,
     );
 
-    expect(create).not.toHaveBeenCalled();
+    expect(waitUntil).not.toHaveBeenCalled();
   });
 
-  it("keeps the accepted response when a duplicate workflow already exists", async () => {
-    const sessionId = "11".repeat(16);
-    const eventId = "12".repeat(16);
-    const attempt = "retried-reader-attempt";
-    vi.mocked(getContainer).mockReturnValue({
-      fetch: async () =>
-        Response.json({
-          ok: true,
-          state: {
-            events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
-            activity: { obligations: [{ event: eventId }] },
-          },
-        }),
-    } as never);
-    const env = environment({
-      AGENT_WORKFLOW: {
-        create: vi.fn(async () => {
-          throw new Error("workflow already exists");
-        }),
-        get: vi.fn(async () => ({
-          id: `reply-${sessionId}-${eventId}`,
-          status: vi.fn(async () => ({ status: "running" })),
-        })),
-      } as unknown as Workflow,
-    });
-
-    const response = await worker.fetch(
-      new Request("https://leaf.page/examples/triage-board/api/event", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: `__Host-leaf-page=${sessionId}`,
-        },
-        body: JSON.stringify({ kind: "comment", attempt }),
-      }),
-      env,
-    );
-
-    expect(response.status).toBe(200);
-    expect((await response.json()).ok).toBe(true);
-  });
-
-  it("keeps the retry signal when workflow admission failed", async () => {
-    const sessionId = "16".repeat(16);
-    const eventId = "17".repeat(16);
-    const attempt = "unadmitted-reader-attempt";
-    vi.mocked(getContainer).mockReturnValue({
-      fetch: async () =>
-        Response.json({
-          ok: true,
-          state: {
-            events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
-            activity: { obligations: [{ event: eventId }] },
-          },
-        }),
-    } as never);
-    const env = environment({
-      AGENT_WORKFLOW: {
-        create: vi.fn(async () => {
-          throw new Error("workflow admission unavailable");
-        }),
-        get: vi.fn(async () => {
-          throw new Error("workflow does not exist");
-        }),
-      } as unknown as Workflow,
-    });
-
-    await expect(
-      worker.fetch(
-        new Request("https://leaf.page/examples/triage-board/api/event", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Cookie: `__Host-leaf-page=${sessionId}`,
-          },
-          body: JSON.stringify({ kind: "comment", attempt }),
-        }),
-        env,
-      ),
-    ).rejects.toThrow("workflow admission unavailable");
-  });
-
-  it("restarts an existing workflow that failed before answering", async () => {
-    const sessionId = "18".repeat(16);
-    const eventId = "19".repeat(16);
-    const attempt = "failed-workflow-attempt";
-    vi.mocked(getContainer).mockReturnValue({
-      fetch: async () =>
-        Response.json({
-          ok: true,
-          state: {
-            events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
-            activity: { obligations: [{ event: eventId }] },
-          },
-        }),
-    } as never);
-    const restart = vi.fn(async () => undefined);
-    const env = environment({
-      AGENT_WORKFLOW: {
-        create: vi.fn(async () => {
-          throw new Error("workflow already exists");
-        }),
-        get: vi.fn(async () => ({
-          id: `reply-${sessionId}-${eventId}`,
-          status: vi.fn(async () => ({ status: "errored" })),
-          restart,
-        })),
-      } as unknown as Workflow,
-    });
-
-    const response = await worker.fetch(
-      new Request("https://leaf.page/examples/triage-board/api/event", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: `__Host-leaf-page=${sessionId}`,
-        },
-        body: JSON.stringify({ kind: "comment", attempt }),
-      }),
-      env,
-    );
-
-    expect(response.status).toBe(200);
-    expect(restart).toHaveBeenCalledOnce();
-  });
-
-  it("starts the page's hosted Codex task inside its container", async () => {
-    const params = {
-      sessionId: "03".repeat(16),
-      reference: "123456789012",
-      route: "/examples/triage-board",
-      eventId: "04".repeat(16),
-      sourceId: "203.0.113.1",
-    };
+  it("settles an over-limit direct dispatch visibly", async () => {
+    const sessionId = "13".repeat(16);
+    const eventId = "14".repeat(16);
+    const attempt = "over-limit-attempt";
     const containerFetch = vi
       .fn()
       .mockResolvedValueOnce(
-        Response.json({ status: "started", thread: "codex-thread" }),
-      );
-    vi.mocked(getContainer).mockReturnValue({
-      fetch: containerFetch,
-    } as never);
-    const step = {
-      do: vi.fn(async (_name, _config, callback) => callback()),
-    };
-    const result = await runAgentWorkflow(environment(), params, step as never);
-
-    expect(result).toEqual({ status: "started", thread: "codex-thread" });
-    expect(step.do.mock.calls.map(([name]) => name)).toEqual([
-      "reserve model capacity",
-      "start Codex task",
-    ]);
-    expect(await containerFetch.mock.calls[0][0].json()).toEqual({
-      event: params.eventId,
-    });
-    expect(
-      containerFetch.mock.calls.some(([request]) =>
-        JSON.stringify([...request.headers]).includes("test-key"),
-      ),
-    ).toBe(false);
-  });
-
-  it("rejects invalid workflow parameters before starting work", async () => {
-    const env = environment();
-    const workflow = new LeafWebsiteAgentWorkflow({}, env);
-    const step = { do: vi.fn() };
-
-    await expect(
-      workflow.run(
-        {
-          payload: {
-            sessionId: "not-a-session",
-            reference: "123456789012",
-            route: "/examples/triage-board",
-            eventId: "04".repeat(16),
-            sourceId: "203.0.113.1",
+        Response.json({
+          ok: true,
+          state: {
+            events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
+            activity: { obligations: [{ event: eventId }] },
           },
-        } as never,
-        step as never,
-      ),
-    ).rejects.toThrow("invalid website agent workflow parameters");
-    expect(step.do).not.toHaveBeenCalled();
-  });
-
-  it("accepts a task that the container already settled", async () => {
-    const params = {
-      sessionId: "21".repeat(16),
-      reference: "210000000000",
-      route: "/examples/triage-board",
-      eventId: "22".repeat(16),
-      sourceId: "203.0.113.4",
-    };
-    const containerFetch = vi.fn(async () => Response.json({ status: "settled" }));
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
-    const env = environment();
-    const step = {
-      do: vi.fn(async (_name, _config, callback) => callback()),
-    };
-
-    const result = await runAgentWorkflow(env, params, step as never);
-
-    expect(result).toEqual({ status: "settled" });
-    expect(step.do.mock.calls.map(([name]) => name)).toEqual([
-      "reserve model capacity",
-      "start Codex task",
-    ]);
-  });
-
-  it("settles an over-limit task start visibly", async () => {
-    const params = {
-      sessionId: "13".repeat(16),
-      reference: "130000000000",
-      route: "/examples/triage-board",
-      eventId: "14".repeat(16),
-      sourceId: "203.0.113.2",
-    };
-    const containerFetch = vi
-      .fn()
+        }),
+      )
       .mockResolvedValueOnce(
         Response.json({ status: "appended", event: "15".repeat(16) }),
       );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
     const deny = vi.fn(async () => ({ success: false }));
-    const env = environment({
-      SOURCE_AGENT_RATE_LIMITER: { limit: deny } as RateLimit,
-    });
-    const step = {
-      do: vi.fn(async (_name, _config, callback) => callback()),
-    };
+    const waitUntil = vi.fn();
 
-    const result = await runAgentWorkflow(env, params, step as never);
+    await worker.fetch(
+      new Request("https://leaf.page/examples/triage-board/api/event", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "CF-Connecting-IP": "203.0.113.2",
+          Cookie: `__Host-leaf-page=${sessionId}`,
+        },
+        body: JSON.stringify({ kind: "comment", attempt }),
+      }),
+      environment({ SOURCE_AGENT_RATE_LIMITER: { limit: deny } as RateLimit }),
+      { waitUntil } as unknown as ExecutionContext,
+    );
+    await waitUntil.mock.calls[0][0];
 
-    expect(result).toEqual({ status: "appended", event: "15".repeat(16) });
-    expect(deny).toHaveBeenCalledOnce();
-    expect(deny).toHaveBeenCalledWith({ key: params.sourceId });
-    expect(step.do.mock.calls.map(([name]) => name)).toEqual([
-      "reserve model capacity",
-      "append rate limit",
-    ]);
-    expect(await containerFetch.mock.calls[0][0].json()).toEqual({
-      event: params.eventId,
+    expect(deny).toHaveBeenCalledWith({ key: "203.0.113.2" });
+    expect(await containerFetch.mock.calls[1][0].json()).toEqual({
+      event: eventId,
       text: "This public demo is busy right now. Please wait a minute, then send a new message.",
     });
   });
 
-  it("rejects a container result that belongs to the other action", async () => {
-    const params = {
-      sessionId: "13".repeat(16),
-      reference: "130000000000",
-      route: "/examples/triage-board",
-      eventId: "14".repeat(16),
-      sourceId: "203.0.113.2",
-    };
-    vi.mocked(getContainer).mockReturnValue({
-      fetch: vi.fn(async () =>
-        Response.json({ status: "started", thread: "codex-thread" }),
-      ),
-    } as never);
-    const env = environment({
-      SOURCE_AGENT_RATE_LIMITER: {
-        limit: vi.fn(async () => ({ success: false })),
-      } as RateLimit,
-    });
-    const step = {
-      do: vi.fn(async (_name, _config, callback) => callback()),
-    };
-
-    await expect(runAgentWorkflow(env, params, step as never)).rejects.toThrow(
-      "invalid website agent reply response",
-    );
-  });
-
-  it("accepts an atomic fallback that the container declines after task pickup", async () => {
-    const params = {
-      sessionId: "23".repeat(16),
-      reference: "230000000000",
-      route: "/examples/triage-board",
-      eventId: "24".repeat(16),
-      sourceId: "203.0.113.5",
-    };
-    const containerFetch = vi.fn(async () => Response.json({ status: "settled" }));
-    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
-    const env = environment({
-      SOURCE_AGENT_RATE_LIMITER: {
-        limit: vi.fn(async () => ({ success: false })),
-      } as RateLimit,
-    });
-    const step = {
-      do: vi.fn(async (_name, _config, callback) => callback()),
-    };
-
-    const result = await runAgentWorkflow(env, params, step as never);
-
-    expect(result).toEqual({ status: "settled" });
-    expect(step.do.mock.calls.map(([name]) => name)).toEqual([
-      "reserve model capacity",
-      "append rate limit",
-    ]);
-    expect(containerFetch).toHaveBeenCalledOnce();
-  });
-
-  it("settles a turn visibly after Codex startup exhausts its retries", async () => {
-    const params = {
-      sessionId: "08".repeat(16),
-      reference: "080000000000",
-      route: "/examples/triage-board",
-      eventId: "09".repeat(16),
-      sourceId: "203.0.113.3",
-    };
+  it("settles a failed direct startup with a visible failure reply", async () => {
+    const sessionId = "08".repeat(16);
+    const eventId = "09".repeat(16);
+    const attempt = "failed-start-attempt";
     const containerFetch = vi
       .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          ok: true,
+          state: {
+            events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
+            activity: { obligations: [{ event: eventId }] },
+          },
+        }),
+      )
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
       .mockResolvedValueOnce(
         Response.json({ status: "appended", event: "10".repeat(16) }),
       );
     vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
-    const step = {
-      do: vi.fn(async (name, _config, callback) => {
-        if (name === "start Codex task") throw new Error("Codex unavailable");
-        return callback();
+    const waitUntil = vi.fn();
+
+    const response = await worker.fetch(
+      new Request("https://leaf.page/examples/triage-board/api/event", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `__Host-leaf-page=${sessionId}`,
+        },
+        body: JSON.stringify({ kind: "comment", attempt }),
       }),
-    };
+      environment(),
+      { waitUntil } as unknown as ExecutionContext,
+    );
+    await waitUntil.mock.calls[0][0];
 
-    const result = await runAgentWorkflow(environment(), params, step as never);
-
-    expect(result).toEqual({ status: "appended", event: "10".repeat(16) });
-    expect(step.do.mock.calls.map(([name]) => name)).toEqual([
-      "reserve model capacity",
-      "start Codex task",
-      "append startup failure",
-    ]);
-    expect(await containerFetch.mock.calls[0][0].json()).toEqual({
-      event: params.eventId,
+    expect(response.status).toBe(200);
+    expect(await containerFetch.mock.calls[2][0].json()).toEqual({
+      event: eventId,
       text: "I couldn’t generate a reply just now. Please send a new message to try again.",
     });
   });

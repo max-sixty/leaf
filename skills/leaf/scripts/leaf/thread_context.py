@@ -169,7 +169,7 @@ MESSAGE_FIELDS = (
 
 # How much of one conversation a wait digest carries: the message that opened it,
 # because it holds the question the thread is about, and the most recent, being
-# what a new one answers. `leaf events --thread` selects the exchange whole when
+# what a new one answers. `leaf events --conversation` selects the exchange whole when
 # a reader needs the middle.
 #
 # The bound is the point. A delivery reprints the entire thread every time,
@@ -211,7 +211,7 @@ def thread_digest(
     exchange its own events land in without printing them twice. `pin` keeps a
     message the bound would otherwise drop. `elided` says how many went, so a
     reader can tell a short conversation from a shortened one and knows to
-    read the exact records with `leaf events --thread`."""
+    read the exact records with `leaf events --conversation`."""
     kept = [m for m in thread["msgs"] if m["seq"] not in omit]
     shown = ends_kept(kept, pin)
     return {

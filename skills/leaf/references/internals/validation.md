@@ -5,11 +5,16 @@
 `version check` is a deterministic check of the exact mutable `index.html` (no
 browser, near-free; activation and `version stamp` run the same boundary): the HTML parses with balanced
 tags; one direct `<body><main>` contains all authored content; the page carries
-exactly one external script
-(<script type="module" src="/leaf.js">) and one stylesheet link
-(/theme.css), both directly in `<head>` so the presentation boundary exists before
-body paint; its exact CSP keeps fetches local and refuses document-base changes and
-form submissions; every lf-* element validates against the vendored registry
+exactly one external script (`<script type="module" src="/leaf.js">`) and one
+stylesheet link (`/theme.css`), both directly in `<head>` so the presentation
+boundary exists before body paint; page-authored behavior appears only in inline
+module blocks, never classic scripts, event-handler attributes, or `javascript:`
+URLs; its exact source CSP keeps fetches local and refuses document-base changes and
+form submissions, while the HTTP projection adds exact hashes for the runtime
+bootstrap and each authored module; the head declares no `<link rel="canonical">`,
+because the served document names the page root itself and a second address in the
+head leaves a crawler choosing between them; every lf-* element validates against the
+vendored registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
@@ -18,7 +23,7 @@ actions, or effective standing reports survive from the previous revision. A
 declared retirement protects its holder and slots until its outcome licenses
 their removal. Other dropped ids are reported as advice. No fixed-pixel-width
 element is wider than the readable column (the rule that draws that column claims
-it with `--lf-column: 1`, so the width and the claim come from one block). Near-free
+it with `--lf-reading-column: 1`, so the width and the claim come from one block). Near-free
 and deterministic is what makes running it on every save affordable, so keep a new
 check that way; anything needing a browser belongs in `--render`.
 
@@ -30,7 +35,9 @@ version routes receive the current document policy and the same header. A standa
 file has no response header and cannot make this framing guarantee. The process-scoped
 MCP page server omits the header because its exact, ephemeral origin is intentionally
 framed by the host that approved it; the unguessable page path remains that transport's
-access boundary.
+access boundary. Every response carries `X-Content-Type-Options: nosniff`; typed data
+is available only through its JSON API, and media routes serve only admitted image
+types, so neither input surface can become a script module.
 
 ## Browser validation
 
@@ -39,10 +46,10 @@ handed over: the exact current source loads in the host's browser (whichever
 executable `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN` names, else
 Playwright's `channel="chrome"`, else the first browser `PATH` answers with — the
 caller supplies playwright, which
-`bin/leaf` does on seeing `--render`) and the render invariants the static lint cannot reach run
-against it — no console or page errors, no fail-soft error box, every visible
-widget occupies real space, code that reads against the block it is set on, no
-sideways scroll, in both color schemes.
+`bin/leaf` does on seeing `--render`) and the render invariants the static lint cannot
+reach run against it — no console warnings or errors, no page errors, no fail-soft
+error box, every visible widget occupies real space, code that reads against the block
+it is set on, no sideways scroll, in both color schemes.
 The invariants live in render_version, which the tests/test_render_*.py modules drive over
 the shipped examples. The suite uses Chromium's headless shell, while its
 end-to-end render-check tests run the launches used here — the installed Chrome

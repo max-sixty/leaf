@@ -373,7 +373,7 @@ export function renderThreads(all, commands) {
 function reconcileThreads(all, commands) {
   const removeNode = (node) => removeConversationNode(node, commands.closeReactionMode);
   // The conversations. A bare reaction is paint on the page and a chip on the page
-  // row, and counts for nothing here: no card, no address, no place in the walk.
+  // row, and counts for nothing here: no card, no destination, no place in the walk.
   const threads = all.filter(conversational);
   const open = threads.filter((t) => !t.resolved);
   // The page's outline, read once for the whole reconcile: every thread asks it where it

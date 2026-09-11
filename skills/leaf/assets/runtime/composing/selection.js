@@ -122,7 +122,7 @@ export let composerOpen = false;
 export function createSelectionComposer({
   panelIsOpen,
   setReact,
-  designIsOn,
+  designModeActive,
   marginOpenInlineThread,
   threadTransitionOrigin,
   anchorStands,
@@ -133,7 +133,7 @@ export function createSelectionComposer({
   beginFabFocus,
   refreshFab,
   showFab,
-  goAddress,
+  formatGoToAddress,
   createComment,
   focusSurface,
   showThread,
@@ -294,7 +294,7 @@ export function createSelectionComposer({
 
   // More has the same contract as a target's margin disclosure: replace the ellipsis
   // with the remaining local actions and keep the group's primary control in place.
-  // The composer supplies a field instead of a primary margin element, so it owns this layout
+  // The composer supplies a field instead of a primary margin entry, so it owns this layout
   // adapter rather than borrowing the margin's target aggregation and spill machinery.
   const focusResponseOption = (focus) => {
     void fabPositioned().then((positioned) => {
@@ -336,7 +336,7 @@ export function createSelectionComposer({
   function syncResponseOptions(anchor = fabAnchorAt()) {
     fabSuggest.hidden = !(
       anchor?.quote &&
-      !designIsOn() &&
+      !designModeActive() &&
       (!composerOpen || (!pendingAbout && !pendingDrawing))
     );
     fabMore.hidden = !anchor || !responseOptionsAvailable();
@@ -365,7 +365,7 @@ export function createSelectionComposer({
     if (composerOpen && !open && composerHolds())
       notice(
         anchorStands(pendingAnchor)
-          ? `Draft kept — ${goAddress(KEPT_DRAFT)} returns to it`
+          ? `Draft kept — ${formatGoToAddress(KEPT_DRAFT)} returns to it`
           : "Draft kept — it returns when its passage does",
       );
     composerOpen = open;
@@ -391,7 +391,7 @@ export function createSelectionComposer({
     text,
     {
       suggest = false,
-      about = designIsOn() ? "layer" : null,
+      about = designModeActive() ? "layer" : null,
       drawing = undefined,
       carry = false,
       focus = true,
@@ -541,7 +541,7 @@ export function createSelectionComposer({
   // and unreachable, which is the same as lost for a reader who does not know where the
   // words went. A destination rather than a page letter: the page's alphabet is small, and
   // what this press does is travel to a passage and open the box standing on it, which is
-  // what every other uppercase mnemonic in the sequence does with its own workspace.
+  // what every other uppercase mnemonic in the sequence does with its own auxiliary surface.
   //
   // Dead while the composer is up, because then the draft is already in front of the
   // reader and `c` is the press that enters it. Live off the stored record rather than
@@ -628,7 +628,13 @@ export function createSelectionComposer({
         // Continue in the surface already in use. Closing an open panel here reflows the
         // passage just as the reader's comment moves across it to a new floating card.
         const inlineThread =
-          shouldLand && !panelIsOpen() ? openInlineThread(sent.id, transition) : null;
+          shouldLand && !panelIsOpen()
+            ? openInlineThread(sent.id, transition, (thread) => {
+                const reply = thread.querySelector("textarea");
+                reply?.lfRevealReply?.();
+                landTyping(reply, composerInput);
+              })
+            : null;
         const inlineReply = inlineThread?.querySelector("textarea") ?? null;
         reply = inlineReply ?? reply;
         if (!inlineReply && (shouldLand || panelIsOpen())) {
@@ -639,7 +645,7 @@ export function createSelectionComposer({
         }
         // The composer this was sent from is gone with the send; the thread it became
         // carries the same conversation, so its reply box is where typing continues.
-        if (shouldLand) {
+        if (shouldLand && !inlineReply) {
           landTyping(reply, composerInput);
         }
       },

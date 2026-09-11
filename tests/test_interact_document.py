@@ -62,6 +62,54 @@ def test_check_accepts_a_valid_page(page_dir):
     assert result.exit_code == 0, result.output
 
 
+def test_check_accepts_authored_module_scripts(page_dir):
+    version = page_dir / ".fixture-versions" / "v1.html"
+    version.write_text(
+        PAGE.replace(
+            "</head>",
+            '<script type="module">window.authoredModuleRan = true;</script></head>',
+        )
+    )
+
+    result = check(page_dir)
+
+    assert result.exit_code == 0, result.output
+
+
+@pytest.mark.parametrize(
+    "authored, expected",
+    [
+        ("<script>window.hiddenPath = true;</script>", "must be an authored module"),
+        (
+            '<button onclick="window.hiddenPath = true">Run</button>',
+            "uses executable attribute onclick",
+        ),
+        (
+            '<a href="javascript:window.hiddenPath=true">Run</a>',
+            "uses executable attribute href",
+        ),
+        (
+            '<a href="jav&#9;ascript:window.hiddenPath=true">Run</a>',
+            "uses executable attribute href",
+        ),
+    ],
+    ids=[
+        "classic-script",
+        "event-handler",
+        "javascript-url",
+        "encoded-javascript-url",
+    ],
+)
+def test_check_keeps_authored_code_in_module_blocks(page_dir, authored, expected):
+    version = page_dir / ".fixture-versions" / "v1.html"
+    version.write_text(PAGE.replace("</main>", f"{authored}</main>"))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert expected in result.output
+
+
 def test_a_quote_crosses_an_upgraded_verbatim_wrapper(page_dir):
     quote = "jobs/backfill.py:88. Which plan should lead?"
 
@@ -336,18 +384,21 @@ def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
     )
     runner = CliRunner()
     result = runner.invoke(
-        cli_model.cli, ["page", "state", str(page_dir), "--thread", root["id"]]
+        cli_model.cli, ["conversation", "read", str(page_dir), root["id"]]
     )
     assert result.exit_code == 0, result.output
     reading = json.loads(result.output)
-    assert reading["selection"] == {"kind": "thread", "id": root["id"]}
+    assert reading["conversation"]["id"] == root["id"]
     [message] = reading["content"]
     assert message["text"] == "Choose a route."
     assert message["content"][0] == "Before "
     assert message["content"][-1] == " after."
     frozen = construction_nodes(message["content"])
     assert "chosen" in frozen["second"]["attrs"]
-    assert frozen["frozen"]["edit"] == {"kind": "conversation", "thread": root["id"]}
+    assert frozen["frozen"]["edit"] == {
+        "kind": "conversation",
+        "conversation": root["id"],
+    }
     assert message["source"]["event"] == root["id"]
     drawing = {
         "format": "leaf-drawing/1",
@@ -364,16 +415,16 @@ def test_page_inspection_retires_idless_slots_and_reads_frozen_construction(
         },
     )
     result = runner.invoke(
-        cli_model.cli, ["page", "state", str(page_dir), "--thread", drawn["id"]]
+        cli_model.cli, ["conversation", "read", str(page_dir), drawn["id"]]
     )
     assert result.exit_code == 0, result.output
     [drawn_message] = json.loads(result.output)["content"]
     assert "text" not in drawn_message
     assert drawn_message["drawing"] == drawing
     refused = runner.invoke(
-        cli_model.cli, ["page", "state", str(page_dir), "--thread", "missing"]
+        cli_model.cli, ["conversation", "read", str(page_dir), "missing"]
     )
-    assert refused.exit_code != 0 and "unknown thread" in refused.output
+    assert refused.exit_code != 0 and "unknown conversation" in refused.output
 
 
 def test_page_inspection_routes_frozen_captures_to_a_new_reply(page_dir):
@@ -385,14 +436,14 @@ def test_page_inspection_routes_frozen_captures_to_a_new_reply(page_dir):
             "author": "claude",
             "revision": 1,
             "text": "The reviewed instructions and their current replacement.",
-            "markup": '<lf-source id="reviewed" source="instructions" snapshot="1"></lf-source>'
-            '<lf-source id="current" source="instructions"></lf-source>',
+            "markup": '<lf-text-document id="reviewed" source="instructions" snapshot="1"></lf-text-document>'
+            '<lf-text-document id="current" source="instructions"></lf-text-document>',
         },
     )
     data_model.cmd_data_set(page_dir, "instructions", "Reviewed wording.", "reviewed")
     data_model.cmd_data_set(page_dir, "instructions", "Current wording.")
     result = CliRunner().invoke(
-        cli_model.cli, ["page", "state", str(page_dir), "--thread", root["id"]]
+        cli_model.cli, ["conversation", "read", str(page_dir), root["id"]]
     )
     assert result.exit_code == 0, result.output
     [message] = json.loads(result.output)["content"]
@@ -401,7 +452,7 @@ def test_page_inspection_routes_frozen_captures_to_a_new_reply(page_dir):
     current = nodes["current"]["inputs"]["document"]
     assert pinned["value"] == "Reviewed wording."
     assert pinned["edit"]["operation"] == "capture-and-reply"
-    assert pinned["edit"]["thread"] == root["id"]
+    assert pinned["edit"]["conversation"] == root["id"]
     assert current["value"] == "Current wording."
     assert current["edit"]["operation"] == "data set"
 
@@ -473,8 +524,8 @@ def test_check_rejects_widget_violations(page_dir):
             '<lf-metric id="bad-metric" value="1"/>'
             "<figure/>"
             "<lf-bogus></lf-bogus>"
-            '<lf-timeline id="bad-timeline">'
-            '<lf-event id="stray-event" kind="medium">S</lf-event></lf-timeline>'
+            '<lf-chronology id="bad-chronology">'
+            '<lf-chronology-entry id="stray-chronology-entry" kind="medium">S</lf-chronology-entry></lf-chronology>'
             '<lf-option id="stray"><strong>S</strong></lf-option>'
             '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
             '<lf-diagram id="bare-body">graph LR</lf-diagram>',
@@ -488,7 +539,7 @@ def test_check_rejects_widget_violations(page_dir):
     assert out.count("self-closing") == 2
     assert "unknown widget" in out
     assert "'medium' is not one of" in out
-    assert "must be a direct child of <lf-options>" in out
+    assert "must be a direct member of <lf-options>" in out
     assert "'id' is a required property" in out
     assert "does not match" in out  # id pattern
     # A stray element beside the <pre>, and a body that never opened one: both are
@@ -555,7 +606,7 @@ def test_check_rejects_a_language_nothing_will_color(page_dir):
 
 def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     """The list is the layer's fact, not one widget's, so nothing in the lint knows
-    which widget takes a language: a tag whose entry declares x-language is held to
+    which widget takes a language: a tag whose declaration carries x-language is held to
     $languages on the strength of the declaration. A thirteenth widget that colors
     something — a terminal transcript, a diff — is covered without the lint moving."""
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -863,10 +914,13 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
                 used.setdefault(rec["tag"], {}).setdefault(attr, set()).add(value)
     # An example pins a snapshot by writing the data revision a capture retained, and
     # a source that only ever takes `data set` retains none: examples/*.data.json can
-    # attach a capture label to a `$captures` file and not to a set value, so
-    # pr-review-facts has no revision for lf-pull-request to name. The manifest, not
-    # this floor, is where that is fixed.
-    unreachable = {("lf-pull-request", "snapshot")}
+    # attach a capture label to a `$captures` file and not to a typed set value, so the
+    # pull-request and visual-run records have no retained revision for their widgets
+    # to name. The manifest, not this floor, is where that is fixed.
+    unreachable = {
+        ("lf-pull-request", "snapshot"),
+        ("lf-visual-review", "snapshot"),
+    }
     missing = []
     for tag, entry in sorted(registry.items()):
         if not tag.startswith("lf-"):
@@ -916,8 +970,8 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     assert check(page_dir).exit_code == 0
 
 
-def test_a_chip_is_admissible_in_both_its_holders(page_dir):
-    """x-parent is a list because one element can belong to two holders, and a chip
+def test_a_chip_is_admissible_in_both_its_owners(page_dir):
+    """x-owners is a list because one element can belong to two owners, and a chip
     is written in a lf-option and in a lf-variant — the same shape either side of the
     decision. Neither is special-cased anywhere: the nesting check reads the list."""
     (page_dir / ".fixture-versions" / "v1.html").write_text(
@@ -935,7 +989,7 @@ def test_a_chip_is_admissible_in_both_its_holders(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "must be a direct child of <lf-option> or <lf-variant>" in result.output
+    assert "must be a direct member of <lf-option> or <lf-variant>" in result.output
 
 
 def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
@@ -943,7 +997,7 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-deck"] = {
-        "description": "A project package's differently named split.",
+        "description": "A project package's differently named partition.",
         "type": "object",
         "properties": {
             "id": {"type": "string"},
@@ -951,8 +1005,8 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
         },
         "required": ["id", "direction"],
         "additionalProperties": False,
-        "x-content": "prose",
-        "x-layout": "split",
+        "x-content": "markup",
+        "x-reading-role": "partition",
         "x-upgrade": False,
     }
     registry["lf-zone"] = {
@@ -964,8 +1018,8 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
         },
         "required": ["id", "label"],
         "additionalProperties": False,
-        "x-content": "prose",
-        "x-layout": "pane",
+        "x-content": "markup",
+        "x-reading-role": "pane",
         "x-upgrade": False,
     }
     registry_path.write_text(json.dumps(registry))
@@ -992,11 +1046,11 @@ def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
             "<h2>Plan</h2>",
             """<lf-workspace id="review-space">
   <p>Before the misplaced header.</p><header><h2>Plan</h2></header>
-  <lf-split id="regions" direction="columns">
+  <lf-partition id="regions" direction="columns">
     <lf-pane id="queue" label="Queue"><p>First</p></lf-pane>
     <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
     <p>Loose</p>
-  </lf-split>
+  </lf-partition>
 </lf-workspace>""",
         )
     )
@@ -1004,7 +1058,8 @@ def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
     assert result.exit_code == 1
     assert "direct <header> must be first" in result.output
     assert (
-        "exactly two direct pane or split widgets and no loose content" in result.output
+        "exactly two direct pane or partition widgets and no loose content"
+        in result.output
     )
 
 
@@ -1025,8 +1080,9 @@ def test_workspace_requires_one_element_body(page_dir):
         )
         result = check(page_dir)
         assert result.exit_code == 1, f"{name} passed workspace validation"
-        assert "x-layout workspace must contain exactly one direct body element" in (
-            result.output
+        assert (
+            "x-reading-role workspace must contain exactly one direct body element"
+            in (result.output)
         )
 
 
@@ -1060,14 +1116,16 @@ def test_check_rejects_loose_content_in_items_container(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "admits only ['lf-option'] children" in result.output
+    assert "admits only ['lf-option'] members" in result.output
     assert "'br'" in result.output  # self-closed strays count as children too
     assert "loose text" in result.output
 
 
 def test_check_requires_one_child_for_each_declared_role(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-milestones"]["x-children"] = {"lf-milestone": {"one-each": "status"}}
+    registry["lf-milestones"]["x-required-members"] = {
+        "lf-milestone": {"one-each": "status"}
+    }
     (page_dir / "registry.json").write_text(json.dumps(registry))
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -1139,7 +1197,7 @@ def test_milestones_compose(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "must be a direct child of <lf-milestones>" in result.output
+    assert "must be a direct member of <lf-milestones>" in result.output
 
 
 def test_tabs_validate_and_compose(page_dir):
@@ -1172,7 +1230,7 @@ def test_tabs_reject_structural_violations(page_dir):
     result = check(page_dir)
     assert result.exit_code == 1
     assert "'label' is a required property" in result.output
-    assert "must be a direct child of <lf-tabs>" in result.output
+    assert "must be a direct member of <lf-tabs>" in result.output
     assert "loose text" in result.output
 
 
@@ -1201,7 +1259,7 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
         ),
         (
             "<lf-old><p>orphan</p></lf-old><lf-options>",
-            "must be a direct child of <lf-suggestion>",
+            "must be a direct member of <lf-suggestion>",
         ),
         (
             (
@@ -1397,6 +1455,8 @@ def test_reply_refuses_a_suggestion(page_dir):
             str(page_dir),
             "--to",
             "c1",
+            "--for",
+            "c1",
             "--text",
             "Fixed:",
             "--markup",
@@ -1414,7 +1474,7 @@ def test_check_rejects_wrong_scaffold(page_dir):
     (page_dir / ".fixture-versions" / "v1.html").write_text(html)
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "exactly one external <script src>" in result.output
+    assert "exactly one external <script src> tag for /leaf.js" in result.output
     assert "exactly one stylesheet" in result.output
 
 
@@ -1568,6 +1628,25 @@ def test_check_owns_the_lf_meta_vocabulary(page_dir):
     assert result.exit_code == 1
     assert "unknown lf- meta" in result.output
     assert "lf-review" in result.output  # the error names the known vocabulary
+
+
+def test_check_leaves_the_pages_own_address_to_delivery(page_dir):
+    """An authored canonical is not an extra hint; it is a competing answer.
+
+    The served document names the page root at every address the page answers, so a
+    second one in the head leaves a crawler choosing, and the usual outcome is that it
+    honours neither. The words a page owes a search result are its title and
+    description, which it writes; the address is the server's.
+    """
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
+        PAGE.replace(
+            "<title>t</title>",
+            '<title>t</title>\n<link rel="canonical" href="https://example.com/p">',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "the served document names the page root itself" in result.output
 
 
 def test_check_rejects_duplicate_ids(page_dir):
@@ -2833,7 +2912,9 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     }
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`.
-    assert state["asks"] == [{"id": "g1-decision", "tag": "lf-ask", "thread": None}]
+    assert state["asks"] == [
+        {"id": "g1-decision", "tag": "lf-ask", "conversation": None}
+    ]
     assert {"g1", "o-shim", "o-stage"} <= {el["id"] for el in state["elements"]}
     assert state["state"] == []
 
@@ -2862,7 +2943,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             # On every entry, and null for a page widget: the key names which of the
             # page's two documents the decision was made in, and `asks` above has
             # carried it exactly this way all along.
-            "thread": None,
+            "conversation": None,
         }
     ]
     assert state["pending"] == 1 and state["unacked"] == 1
@@ -3500,6 +3581,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
         "data-question",
         "Here it is.",
         '<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
+        for_event="data-question",
     )
 
     data_model.cmd_data_set(page_dir, "reply-feed", [])
@@ -3547,6 +3629,7 @@ def test_thread_markup_cannot_rebind_a_page_source(page_dir):
             "data-question",
             "Here it is.",
             '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
+            for_event="data-question",
         )
 
 
@@ -3598,6 +3681,7 @@ def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
             "draft-data-question",
             "Here it is.",
             '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
+            for_event="draft-data-question",
         )
 
 
@@ -3731,7 +3815,9 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
     publish(page_dir)
 
     state = state_json(page_dir)
-    assert state["asks"] == [{"id": "plan-decision", "tag": "lf-ask", "thread": None}]
+    assert state["asks"] == [
+        {"id": "plan-decision", "tag": "lf-ask", "conversation": None}
+    ]
 
     append_command(
         page_dir,
@@ -3834,7 +3920,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         },
     )
 
-    assert state_json(page_dir)["threads"] == [
+    assert state_json(page_dir)["conversations"] == [
         {
             "id": opened["id"],
             "anchor": {"section": "s-1", "quote": "Ship dark"},
@@ -3842,7 +3928,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         }
     ]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", opened["id"]]
+        cli_model.cli, ["events", str(page_dir), "--conversation", opened["id"]]
     )
     assert history.exit_code == 0, history.output
     assert [json.loads(line)["id"] for line in history.output.splitlines()] == [
@@ -3859,7 +3945,7 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         [
             "events",
             str(page_dir),
-            "--thread",
+            "--conversation",
             opened["id"],
             "--after",
             str(opening_seq),
@@ -3870,10 +3956,10 @@ def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
         answered["id"]
     ]
     unknown = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", "not-a-thread"]
+        cli_model.cli, ["events", str(page_dir), "--conversation", "not-a-thread"]
     )
     assert unknown.exit_code != 0
-    assert "unknown thread id 'not-a-thread'" in unknown.output
+    assert "unknown conversation id 'not-a-thread'" in unknown.output
 
 
 def test_page_state_points_to_a_readers_suggestion_record(page_dir):
@@ -3895,9 +3981,9 @@ def test_page_state_points_to_a_readers_suggestion_record(page_dir):
         },
     )
 
-    [thread] = state_json(page_dir)["threads"]
+    [thread] = state_json(page_dir)["conversations"]
     history = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", thread["id"]]
+        cli_model.cli, ["events", str(page_dir), "--conversation", thread["id"]]
     )
     assert history.exit_code == 0, history.output
     records = [json.loads(line) for line in history.output.splitlines()]
@@ -3925,7 +4011,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "gm-decision", "tag": "lf-ask", "thread": root["id"]}
+        {"id": "gm-decision", "tag": "lf-ask", "conversation": root["id"]}
     ]
     append_command(
         page_dir,
@@ -3939,7 +4025,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
         },
     )
     assert state_json(page_dir)["asks"] == [
-        {"id": "gm-decision", "tag": "lf-ask", "thread": root["id"]}
+        {"id": "gm-decision", "tag": "lf-ask", "conversation": root["id"]}
     ]
     append_command(
         page_dir,
@@ -3983,8 +4069,8 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
     publish(page_dir)
 
     assert state_json(page_dir)["asks"] == [
-        {"id": "future-decision", "tag": "lf-ask", "thread": None},
-        {"id": "decision-decision", "tag": "lf-ask", "thread": None},
+        {"id": "future-decision", "tag": "lf-ask", "conversation": None},
+        {"id": "decision-decision", "tag": "lf-ask", "conversation": None},
     ]
 
 
@@ -4139,7 +4225,7 @@ def test_page_state_before_first_stamp(page_dir):
 
 def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     """A block a user points at whole needs an id, or the aim falls through to
-    the enclosing section — the failure item anchoring's own page shipped. Advice
+    the enclosing section — the failure addressable-element anchoring's own page shipped. Advice
     on a passing run, not a gate, and quiet where a tight wrapper (a figure around
     a table) already gives the aim something to hold."""
     blocks = (
@@ -4239,7 +4325,7 @@ def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
     )
     publish(page_dir)
     assert state_json(page_dir)["asks"] == [
-        {"id": "real-decision", "tag": "lf-ask", "thread": None}
+        {"id": "real-decision", "tag": "lf-ask", "conversation": None}
     ]
 
 
@@ -4262,7 +4348,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
     )
     publish(page_dir)
     assert state_json(page_dir)["asks"] == [
-        {"id": "cargo", "tag": "lf-draft", "thread": None}
+        {"id": "cargo", "tag": "lf-draft", "conversation": None}
     ]
 
     append_command(
@@ -4395,7 +4481,7 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     """A layer can add idless column content without changing card indexes."""
     registry_file = page_dir / "registry.json"
     registry = json.loads(registry_file.read_text())
-    registry["lf-chip"]["x-parent"].append("lf-column")
+    registry["lf-chip"]["x-owners"].append("lf-column")
     registry_file.write_text(json.dumps(registry))
     board = (
         '<lf-board id="reading-board">'

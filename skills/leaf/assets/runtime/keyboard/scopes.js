@@ -37,7 +37,7 @@ import { repaint } from "../repaint.js";
 const unpainted = new Set();
 
 // The scopes declared against an element — a WeakMap, so a scope leaves with the element
-// that owns it — and, for the shortcut reference dialog, their rows gathered under each title. A section is
+// that owns it — and, for the command reference dialog, their rows gathered under each title. A section is
 // its sentences: the tenth grip on a page says what the first one says, so it is one
 // section, while a widget whose keys are declared in two places (a draft's way in, and the
 // editor it opens) contributes to one section from both.
@@ -74,7 +74,7 @@ export const byCommand = (rows) => rows.map((row) => [row.id, row]);
 // core's scopes and the widgets' are gathered into one list of sections. The rules above are
 // this function — rows keyed by command id, `when` and `at` joined by or — and a near-copy of a
 // merge is a merge that drifts on the day one of the three learns something.
-export function merge(sections, { title, when, at, liveInReference, rows }) {
+export function merge(sections, { title, when, at, liveInCommandReference, rows }) {
   // A contributor the page hasn't got brings nothing. A section's `when` is the OR of its
   // contributors, so a live one otherwise carried a dead one's keys into the reference
   // under the shared title — the versions menu named a walk on a page with one version,
@@ -85,7 +85,7 @@ export function merge(sections, { title, when, at, liveInReference, rows }) {
   // is what a layer's way out has to hold wherever the layer does.
   //
   // Asked here rather than at the reader, because the section is built once per open —
-  // declaredStack has one caller, showShortcutReference — where a `when` may be the whole event log
+  // declaredStack has one caller, showCommandReference — where a `when` may be the whole event log
   // folded and the line's own walk avoids it for exactly that reason.
   if (when && !when()) return;
   const seen = sections.get(title);
@@ -94,7 +94,7 @@ export function merge(sections, { title, when, at, liveInReference, rows }) {
       title,
       when,
       at,
-      liveInReference,
+      liveInCommandReference,
       rows: new Map(rows),
     });
     return;
@@ -102,12 +102,12 @@ export function merge(sections, { title, when, at, liveInReference, rows }) {
   for (const [key, row] of rows) seen.rows.set(key, row);
   seen.when = either(seen.when, when);
   seen.at = either(seen.at, at);
-  seen.liveInReference ||= liveInReference;
+  seen.liveInCommandReference ||= liveInCommandReference;
 }
 
 /** Declare a scope's keys where the code implementing them is.
  *
- * `where` is the element focus must be inside, `title` names the scope in the shortcut reference dialog
+ * `where` is the element focus must be inside, `title` names the scope in the command reference dialog
  * (null for one the reference has no room to name), `rows` are its bindings, and the
  * optional configuration carries `when` (whether the page has this scope at all),
  * `answer` (the concise current answer when this scope belongs to an Ask), and

@@ -1,16 +1,43 @@
 """Whole-version render attempts and retry policy."""
 
-from leaf.render_checks import SERVED_TIMEOUT_MS
+from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
-from .scheme import _render_scheme, recurring_resize_observer_error
+from .scheme import _render_scheme
+
+RENDER_VIEWPORTS = (
+    RENDER_VIEWPORT,
+    {"width": 540, "height": 720},
+)
+
+
+def _viewport_label(viewport: dict) -> str:
+    return f"{viewport['width']}x{viewport['height']}"
+
+
+def _findings_with_viewports(findings: list[tuple[str, str]]) -> list[str]:
+    """Identify viewport-specific findings without duplicating universal ones."""
+    viewports_by_finding = {}
+    for finding, viewport in findings:
+        viewports = viewports_by_finding.setdefault(finding, [])
+        if viewport not in viewports:
+            viewports.append(viewport)
+    every_viewport = [_viewport_label(viewport) for viewport in RENDER_VIEWPORTS]
+    return [
+        (
+            finding
+            if viewports == every_viewport
+            else f"{finding} (at {', '.join(viewports)})"
+        )
+        for finding, viewports in viewports_by_finding.items()
+    ]
 
 
 def _render_version_attempt(
     browser, url: str, served_timeout_ms: int | None = None
 ) -> tuple[list, list, bool]:
     """Everything wrong with a served version that only a browser can see: a
-    console or page error, a request that 404s, a fail-soft error box, an upgrade
-    module that never defines its declared element, an x-conversation whose module
+    console warning or error, a page error, a request that 404s, a fail-soft error box,
+    an upgrade module that never defines its declared element, an x-conversation whose module
     placed no matching page host, a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored
     there would outline nothing and the Ask walk would travel to the top of the page,
@@ -19,8 +46,9 @@ def _render_version_attempt(
     a table that scrolls sideways with a cell in it wrapped,
     words the user can read and can't select, words drawn on top of other words, code
     coloured in an ink the reader cannot tell from the code around it — each
-    in both color schemes, because the dark theme is real CSS nobody otherwise
-    renders — plus, in one scheme, a word the registry promised that never reached
+    in both color schemes at wide and compact viewports, because the dark theme and
+    responsive layout are real CSS nobody otherwise renders — plus, in one scheme at
+    each viewport, a word the registry promised that never reached
     the page (a declaration is scheme-blind), an attribute a module left standing on a
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
@@ -45,23 +73,34 @@ def _render_version_attempt(
         SERVED_TIMEOUT_MS if served_timeout_ms is None else served_timeout_ms
     )
     opened_pages = []
+    failures = []
+    notices = []
+    completed = []
 
     try:
-        light, light_notices, light_complete = _render_scheme(
-            browser, url, "light", served_timeout_ms, opened_pages
-        )
-        dark, dark_notices, dark_complete = _render_scheme(
-            browser, url, "dark", served_timeout_ms, opened_pages
-        )
+        for viewport in RENDER_VIEWPORTS:
+            viewport_label = _viewport_label(viewport)
+            for scheme in ("light", "dark"):
+                found, found_notices, complete = _render_scheme(
+                    browser,
+                    url,
+                    scheme,
+                    viewport,
+                    served_timeout_ms,
+                    opened_pages,
+                )
+                failures.extend((finding, viewport_label) for finding in found)
+                notices.extend((notice, viewport_label) for notice in found_notices)
+                completed.append(complete)
     except PlaywrightError:
         for page in opened_pages:
             if not page.is_closed():
                 page.close()
         raise
     return (
-        [*light, *dark],
-        [*light_notices, *dark_notices],
-        light_complete and dark_complete,
+        _findings_with_viewports(failures),
+        _findings_with_viewports(notices),
+        all(completed),
     )
 
 
@@ -70,10 +109,10 @@ def render_version(browser, url: str, served_timeout_ms: int | None = None) -> l
     loop notice.
 
     Chrome can emit the notice once under load, while a layout feedback loop emits it
-    on every rendering. The unit here is the whole light-and-dark gate, including its
-    print and replay probes: a notice is ignored only when a later complete attempt is
-    clean. Ordinary failures from both attempts are retained, and an incomplete
-    confirmation cannot pardon the notice that prompted it.
+    on every rendering. The unit here is the whole color-scheme and viewport gate,
+    including its print and replay probes: a notice is ignored only when a later
+    complete attempt is clean. Ordinary failures from both attempts are retained, and
+    an incomplete confirmation cannot pardon the notice that prompted it.
     """
     served_timeout_ms = (
         SERVED_TIMEOUT_MS if served_timeout_ms is None else served_timeout_ms
@@ -115,5 +154,8 @@ def render_version(browser, url: str, served_timeout_ms: int | None = None) -> l
             retain([f"{notice} (the confirming render attempt did not complete)"])
         return failures
     if confirming_notices:
-        failures.append(recurring_resize_observer_error("render attempt"))
+        failures.extend(
+            f"{notice} (recurred on the confirming render attempt)"
+            for notice in confirming_notices
+        )
     return failures

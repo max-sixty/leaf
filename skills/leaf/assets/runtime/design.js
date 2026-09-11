@@ -2,17 +2,17 @@
 import { documentPoint, shownRect } from "./geometry.js";
 import { el, WORKS } from "./widget-elements.js";
 import { tabStore } from "./storage.js";
-import { isItem, ITEM, itemAt } from "./anchor-resolution.js";
+import { isAddressable, ADDRESSABLE, addressableAt } from "./anchor-resolution.js";
 import { closestAcross, containsAcross, cut, inChrome } from "./passages.js";
 import { tagsDeclaring } from "./registry.js";
-import { CONTROL_WORD_CAP, designName, DESIGN_KEY } from "./design-readings.js";
+import { CONTROL_WORD_CAP, designName, DESIGN_MODE_KEY } from "./design-readings.js";
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
 // writer (paintInspect), beside the box it names.
 export const inspectEl = el("div", "lf-ui lf-inspect lf-target-paint");
 inspectEl.setAttribute("aria-hidden", "true");
-// Design mode's legend: a box for every item on the page while the mode stands, drawn
+// Design mode's legend: a box for every addressable element on the page while the mode stands, drawn
 // here in the chrome's layer (paintLegend, its one writer). Paint about the page, so it
 // says nothing to a screen reader — the mode's announcement and the names under the
 // pointer are the spoken copy.
@@ -25,14 +25,14 @@ legendRoot.setAttribute("aria-hidden", "true");
  * comments on what it lands on and does nothing else, so a card can be pointed at
  * without moving it and a pick mark without picking. Prose keeps the browser's
  * selection — words are still the way to point at words — and a plain click on prose
- * comments on the block it is in. `designOn` is the state; the body class, the banner's
+ * comments on the block it is in. `designModeOn` is the state; the body marker, the banner's
  * wash, the toggle's pressed face and the name under the pointer are its renderings,
  * written by the one setter, and every comment opened while it stands carries
  * `about: "layer"`, which is how the agent tells a remark about the layer from one about
- * the page's words. The controller owns that state and supplies `isOn` to every
+ * the page's words. The mode owns that state and supplies `active` to every
  * renderer or command that needs the reading. */
 
-export function createDesignController({
+export function createDesignMode({
   pageGeometry,
   syncGeneral,
   composer,
@@ -43,18 +43,18 @@ export function createDesignController({
   repaint,
 }) {
   // Live activation belongs to this controller. Historical travel restores it through
-  // DESIGN_KEY; commands and renderers receive isOn rather than sharing mutable state.
-  let designOn = false;
+  // DESIGN_MODE_KEY; commands and renderers receive `active` rather than sharing mutable state.
+  let designModeOn = false;
 
-  function setDesign(on, { spoken = true } = {}) {
+  function setDesignMode(on, { spoken = true } = {}) {
     // A popover is in the browser's top layer, above every ordinary z-index. Design mode
     // targets ordinary page and chrome paint, so retire that transient preview rather
     // than promise an aim and composer that the platform must paint underneath it.
     if (on) closePreview();
-    designOn = on;
-    document.body.classList.toggle("lf-design", on);
-    banner.classList.toggle("lf-designing", on);
-    tabStore.set(DESIGN_KEY, on ? "1" : null);
+    designModeOn = on;
+    document.body.toggleAttribute("data-lf-design-mode", on);
+    banner.toggleAttribute("data-lf-design-mode", on);
+    tabStore.set(DESIGN_MODE_KEY, on ? "1" : null);
     // The renderings above are the eye's copy; the mode change is spoken, or it is silent
     // to exactly the reader who can't see them. Restoring after a reload changes nothing
     // the reader did, so it says nothing.
@@ -71,9 +71,10 @@ export function createDesignController({
   }
 
   // The legend: what is on the page, shown while the mode stands rather than found by
-  // hovering. One box per item in the chrome's layer (the stylesheet's .lf-legend-box
-  // says what it looks like and why), and on every item but a widget's parts the
-  // item's name — the words a design comment on it will carry (designName). The parts
+  // hovering. One box per addressable element in the chrome's layer (the stylesheet's
+  // .lf-legend-box says what it looks like and why), and on every addressable but a
+  // widget's parts the element's name — the words a design comment on it will carry
+  // (designName). The parts
   // keep the hairline alone: a board's cards each have an id and each is a target, but a
   // tag on every card names nothing a reader can't see and hides what they can.
   //
@@ -82,17 +83,17 @@ export function createDesignController({
   // that has since moved. What moves it: a scroll (a board's sideways one included), a
   // replay (paintAnchors), a resize, the page's markup changing under it (legendMoves —
   // a diagram finishing its draw, a details opening, a card dragged), and a size
-  // changing with no mutation to say so (legendSizes — an image landing inside an item,
+  // changing with no mutation to say so (legendSizes — an image landing inside an element,
   // a font swapping in). The shell observer in chrome-layout hears the body's own size
-  // and workspace-margin motion and sends them through pageShifted too.
+  // and auxiliary-surface or margin motion and sends them through pageShifted too.
   // Coalesced to a frame off those doors; the mode change paints in place, so the class
   // and the legend land together.
   //
-  // Reads before writes, in two passes: a box's geometry is a DOM write, and an item's
-  // rect read after one is a layout forced per item — the thrash a legend of a few
+  // Reads before writes, in two passes: a box's geometry is a DOM write, and an element's
+  // rect read after one is a layout forced per element — the thrash a legend of a few
   // hundred boxes cannot afford on every scroll frame. So the box set is settled first,
   // every rect is read, and only then is anything placed.
-  const legendBoxes = new Map(); // item → { box, radius, tagW }
+  const legendBoxes = new Map(); // addressable → { box, radius, tagW }
   const legendSizes = new ResizeObserver(() => pageGeometry.pageShifted());
   const legendMoves = new MutationObserver((records) => {
     // The legend's own writes are mutations too, inside the chrome; a repaint that heard
@@ -104,14 +105,14 @@ export function createDesignController({
   // the tag sits inside.
   let legendTagH = 0;
   function queueLegend() {
-    if (!designOn || legendFrame) return;
+    if (!designModeOn || legendFrame) return;
     legendFrame = requestAnimationFrame(() => {
       legendFrame = 0;
       paintLegend();
     });
   }
   function paintLegend() {
-    if (!designOn) {
+    if (!designModeOn) {
       legendRoot.replaceChildren();
       legendBoxes.clear();
       legendSizes.disconnect();
@@ -124,37 +125,39 @@ export function createDesignController({
       attributes: true,
       characterData: true,
     });
-    const items = [...document.querySelectorAll(ITEM)].filter(isItem);
-    // The set: a box for every item, in document order so a part's box paints over its
-    // widget's, and no box for an item the page no longer holds.
-    const present = new Set(items);
-    for (const [item, { box }] of legendBoxes)
-      if (!present.has(item)) {
+    const addressables = [...document.querySelectorAll(ADDRESSABLE)].filter(
+      isAddressable,
+    );
+    // The set: a box for every addressable, in document order so a part's box paints over
+    // its widget's, and no box for an element the page no longer holds.
+    const present = new Set(addressables);
+    for (const [addressable, { box }] of legendBoxes)
+      if (!present.has(addressable)) {
         box.remove();
-        legendBoxes.delete(item);
-        legendSizes.unobserve(item);
+        legendBoxes.delete(addressable);
+        legendSizes.unobserve(addressable);
       }
-    // A widget's part is what its entry says it is — a tag declaring x-parent has a
-    // holder, and is what the holder is made of — rather than what stands inside a
+    // A widget's part is what its declaration says it is — a tag declaring x-owners has a
+    // compound owner, and is what the owner is made of — rather than what stands inside a
     // widget: a tab holds a whole page, and every heading and paragraph of that page is
     // the author's, and named.
-    const parts = new Set(tagsDeclaring((e) => e["x-parent"]));
-    for (const item of items) {
-      if (legendBoxes.has(item)) continue;
+    const parts = new Set(tagsDeclaring((e) => e["x-owners"]));
+    for (const addressable of addressables) {
+      if (legendBoxes.has(addressable)) continue;
       const box = el("div", "lf-legend-box lf-page-paint");
-      box.dataset.for = item.id; // which item, stated where a test can read it (as .lf-aim's)
-      if (!parts.has(item.tagName.toLowerCase()))
-        box.append(el("span", "lf-legend-tag", designName(item)));
-      legendBoxes.set(item, { box });
+      box.dataset.for = addressable.id; // which element, stated where a test can read it (as .lf-aim's)
+      if (!parts.has(addressable.tagName.toLowerCase()))
+        box.append(el("span", "lf-legend-tag", designName(addressable)));
+      legendBoxes.set(addressable, { box });
       legendRoot.append(box);
-      legendSizes.observe(item);
+      legendSizes.observe(addressable);
     }
     // The reads.
     const clips = new Map();
     const under = banner.getBoundingClientRect().bottom;
-    const placed = items.map((item) => {
-      const entry = legendBoxes.get(item);
-      entry.radius ??= getComputedStyle(item).borderRadius;
+    const placed = addressables.map((addressable) => {
+      const entry = legendBoxes.get(addressable);
+      entry.radius ??= getComputedStyle(addressable).borderRadius;
       if (!legendTagH && entry.box.firstChild)
         legendTagH = entry.box.firstChild.getBoundingClientRect().height;
       // A tag's width is its text's (nowrap) under a viewport-relative cap (40vw), so
@@ -164,7 +167,7 @@ export function createDesignController({
       // so it keeps its last answer until the pass after it shows again.
       if (entry.box.style.display !== "none")
         entry.tagW = entry.box.firstChild ? entry.box.firstChild.offsetWidth : 0;
-      return [entry, shownRect(item, clips)];
+      return [entry, shownRect(addressable, clips)];
     });
     // The writes. Names that would land on one spot step apart: a suggestion and the
     // block it wraps share a top-left corner, and two tags written there garble both —
@@ -210,7 +213,7 @@ export function createDesignController({
     }
   }
 
-  // What a design press is about: the nearest thing with an id — a page item, the same
+  // What a design press is about: the nearest thing with an id — an addressable element, the same
   // answer the ⌥ aim gives, or inside the chrome the part the runtime named — and the
   // control the press landed on where it landed on one, since "the grip" and "the card"
   // are different remarks. Nothing where the press is the mode's own machinery: the
@@ -226,14 +229,14 @@ export function createDesignController({
     // In the layer, the nearest id — but the author's before the runtime's. The runtime's
     // own parts wear its namespace and are the target themselves; a widget an agent sent
     // wears an authored id and its module's generated parts wear the runtime's, so passing
-    // over those lands on the widget, which is where `itemAt` lands out on the page. Taking
+    // over those lands on the widget, which is where `addressableAt` lands out on the page. Taking
     // the nearest of any kind anchored a design comment on `lf-diagram-3` — a number that
     // changes with draw order — and `layerPart` then read it back as a part of the layer.
     const el =
       marginTarget ??
       (inChrome(at)
         ? (closestAcross(at, '[id]:not([id^="lf-"])') ?? closestAcross(at, "[id]"))
-        : itemAt(at));
+        : addressableAt(at));
     if (!el) return null;
     const control = closestAcross(at, controls());
     const part =
@@ -267,7 +270,7 @@ export function createDesignController({
   function designPress(target) {
     const at = target?.nodeType === 1 ? target : target?.parentElement;
     return Boolean(
-      designOn &&
+      designModeOn &&
       at &&
       !closestAcross(at, DESIGN_OWN) &&
       (inChrome(at) || closestAcross(at, PRESSED())),
@@ -288,15 +291,15 @@ export function createDesignController({
     legendMoves.disconnect();
     legendBoxes.clear();
     legendRoot.replaceChildren();
-    document.body.classList.remove("lf-design");
-    banner.classList.remove("lf-designing");
-    designOn = false;
+    document.body.removeAttribute("data-lf-design-mode");
+    banner.removeAttribute("data-lf-design-mode");
+    designModeOn = false;
   }
 
   return {
     destroy,
-    isOn: () => designOn,
-    set: setDesign,
+    active: () => designModeOn,
+    setActive: setDesignMode,
     queueLegend,
     paintLegend,
     target: designTarget,

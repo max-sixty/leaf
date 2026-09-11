@@ -17,7 +17,7 @@ import {
   visualPart,
   visualSelector,
 } from "./anchor-resolution.js";
-import { marginElement, registerMarginContribution } from "./margin-elements.js";
+import { marginEntry, registerMarginContribution } from "./margin-entries.js";
 import { scheduleMarginLayout } from "./margin-layout.js";
 import { pageQueryAll, pageText } from "./passages.js";
 import { registry } from "./registry.js";
@@ -259,12 +259,12 @@ export function createAnchorControls({
         );
         if (!mark) {
           const entry = registry.$reactions.tokens[root.token];
-          mark = marginElement(offer("button", "lf-react-mark"), {
+          mark = marginEntry(offer("button", "lf-react-mark"), {
             key: `reaction:${root.id}:open`,
             glyph: entry?.glyph ?? root.token,
             label: `${root.token} reaction actions`,
             behavior: "disclosure",
-            role: "secondary",
+            rank: "secondary",
           });
           mark.dataset.event = root.id;
           mark.dataset.token = root.token;
@@ -273,12 +273,12 @@ export function createAnchorControls({
           `:scope > .lf-react-remove[data-event="${CSS.escape(root.id)}"]`,
         );
         if (!remove) {
-          remove = marginElement(offer("button", "lf-react-remove"), {
+          remove = marginEntry(offer("button", "lf-react-remove"), {
             key: `reaction:${root.id}:remove`,
             icon: "cross",
             label: `Remove ${root.token} reaction`,
             tone: "negative",
-            role: "secondary",
+            rank: "secondary",
           });
           remove.dataset.event = root.id;
           remove.hidden = true;

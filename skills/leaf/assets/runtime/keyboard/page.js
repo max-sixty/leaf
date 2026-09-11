@@ -3,12 +3,12 @@ import { takesLetters, letGo } from "../focus.js";
 import { EVERYTHING, TEXT_ENTRY } from "./text-entry.js";
 import { ELEMENTS } from "./register.js";
 import { DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
-import { REFERENCE, LESS_SHORTCUTS } from "./shortcut-bar.js";
+import { SHORTCUT_HELP, CLOSE_SHORTCUT_SHELF } from "./shortcut-bar.js";
 import { containsAcross, elementById, inChrome, pageQueryAll } from "../passages.js";
 import { threadList } from "../conversation/state.js";
 import { openThreads } from "../conversation/thread-list.js";
 import { documentFocused, focused, keys } from "./scopes.js";
-import { anchoringIsReady, itemWord } from "../anchor-resolution.js";
+import { anchoringIsReady, addressableWord } from "../anchor-resolution.js";
 import { currentTray } from "../trays.js";
 import {
   findInput,
@@ -38,15 +38,15 @@ import {
   word,
 } from "./bindings.js";
 import {
-  shortcutReferenceDialog,
-  shortcutReferenceClose,
-  moveReference,
-  moveCommand,
-  onCommandRail,
-  referenceOpen,
-  runSelected,
-} from "./reference.js";
-import { shortcutBarExpanded } from "./shortcut-bar.js";
+  commandReferenceDialog,
+  commandReferenceClose,
+  moveCommandReferenceFocus,
+  moveCommandReferenceSelection,
+  commandReferenceCommandActive,
+  commandReferenceOpen,
+  activateSelectedCommand,
+} from "./command-reference.js";
+import { shortcutShelfOpen } from "./shortcut-bar.js";
 import { pagePresented } from "../presentation.js";
 import { runtime } from "../context.js";
 import { DISCLOSE } from "./disclosure.js";
@@ -57,18 +57,18 @@ import { keeps } from "../widget-elements.js";
 
 export function createPageKeys({
   panelIsOpen,
-  coveringWorkspaceSurface,
+  coveringAuxiliarySurface,
   stepReading,
   openAsks,
-  GO,
-  GOTO,
+  GO_TO_SCOPE,
+  OPEN_GO_TO,
   undoable,
   undoLast,
   unaccountedGesture,
   setPanel,
-  showTray,
-  workspaceState,
-  restoreWorkspace,
+  setOpenTray,
+  captureAuxiliaryChromeState,
+  restoreAuxiliaryChromeState,
   widen,
   landIn,
   stepAsk,
@@ -82,7 +82,7 @@ export function createPageKeys({
   dismissFab,
   fabAnchorAt,
   fabOptionsAvailable,
-  commentOnItem,
+  commentOnAddressable,
   focusFabComment,
   showFabOptions,
   updateFab,
@@ -91,27 +91,28 @@ export function createPageKeys({
   reactionTokens,
   setReact,
   undoSentence,
-  designIsOn,
-  setDesign,
+  designModeActive,
+  setDesignMode,
   PAGE_SEARCH,
   REPEAT_PAGE_SEARCH,
-  SELECT,
-  startSelecting,
+  TARGET_CHOOSER_SCOPE,
+  PAGE_SEARCH_SCOPE,
+  openTargetChooser,
   AIM,
-  isDrawing,
-  setDrawing,
+  drawModeActive,
+  setDrawMode,
   generalHint,
   CHOOSER,
   NEWEST,
   VERSIONS,
   activeInlineThread,
   keyboardRung,
-  standingItem,
+  standingElement,
   actionRow,
 }) {
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   /* The page's own keys: the scopes core declares — the reference, the shortcut bar's shelf, the
-   page map, the composer, a text box, the thread panel, a focused thread, a link, a
+   Page Map, the composer, a text box, the thread panel, a focused thread, a link, a
    disclosure, design mode, and the page itself — and what a press from each of them
    does. A row's fields are stated once, in bindings.js; a scope's `at`/`when` pair in
    scopes.js. Widgets never see this list: they declare their own scopes through the
@@ -141,7 +142,7 @@ export function createPageKeys({
   // and answers a container that is merely collapsed the same honest way: no box, so this is
   // not where the press goes.
   //
-  // `focused()` here where standingItem takes the host: this asks whether the reader is
+  // `focused()` here where standingElement takes the host: this asks whether the reader is
   // inside a conversation, and a widget an agent sent stages its controls in a shadow tree
   // of its own, so the innermost focus is where they actually are. The climb out is
   // closestAcross's.
@@ -153,7 +154,8 @@ export function createPageKeys({
   //
   // One aim and then one climb, rather than four cases. The pointer's aim outranks position,
   // being the more recent thing the reader said; below it the answer walks outward from where
-  // they are standing — the nearest conversation's box, then the nearest item, then the page,
+  // they are standing — the nearest conversation's box, then the nearest addressable element,
+  // then the page,
   // which is what is left when they are standing nowhere in it. An element anchor answers in
   // its own word (a figure, a card), the way the panel names one.
   //
@@ -190,7 +192,9 @@ export function createPageKeys({
     if (anchor)
       return {
         ...commenting(
-          anchor.quote ? "selection" : itemWord(elementById(anchor.section)) || "item",
+          anchor.quote
+            ? "selection"
+            : addressableWord(elementById(anchor.section)) || "element",
         ),
         box: fabInput,
         go: focusFabComment,
@@ -207,12 +211,12 @@ export function createPageKeys({
         go: () => landIn(said),
         returnFrame: () => boxReturnFrame(said.held, said.box),
       };
-    const here = standingItem();
+    const here = standingElement();
     if (here)
       return {
-        ...commenting(itemWord(here)),
+        ...commenting(addressableWord(here)),
         box: fabInput,
-        go: () => commentOnItem(here),
+        go: () => commentOnAddressable(here),
         returnFrame: composerReturnFrame,
       };
     return {
@@ -223,10 +227,10 @@ export function createPageKeys({
         generalInput.focus({ preventScroll: true });
       },
       returnFrame: () => {
-        const workspace = workspaceState();
+        const previousAuxiliaryChrome = captureAuxiliaryChromeState();
         return {
           active: () => panelIsOpen() && generalRow.contains(documentFocused()),
-          close: () => restoreWorkspace(workspace),
+          close: () => restoreAuxiliaryChromeState(previousAuxiliaryChrome),
           does: "Return to where you were",
           line: "back",
         };
@@ -250,7 +254,7 @@ export function createPageKeys({
     commentDestination().go();
   }
 
-  // The destination's box is the identity chrome uses to place a contextual address.
+  // The destination's box is the identity chrome uses to place a contextual binding badge.
   // Dispatch still decides whether either Comment row can be reached from the current scope.
   const commentBox = () => commentDestination().box;
 
@@ -287,7 +291,7 @@ export function createPageKeys({
   // the version chooser had. A bare or unknown type resolves to "text", so the default lands
   // on the typed side.
   // The fallback Escape reading for state reached without a registered keyboard entry:
-  // pointer-opened workspaces, captured targets, and ordinary focus traversal. Commanded
+  // pointer-opened auxiliary surfaces, captured targets, and ordinary focus traversal. Commanded
   // entries use the return stack and never infer their inverse from this resulting scene.
   //
   // So the first rung is theirs: out on the page, the innermost thing they are in is the Ask
@@ -296,7 +300,7 @@ export function createPageKeys({
   // ring stayed on it, the one place in the runtime a key put the reader somewhere with no
   // key to take them out again.
   //
-  // Inside the chrome it is the open workspace first. Trays and Threads replace one
+  // Inside the chrome it is the open auxiliary surface first. Trays and Threads replace one
   // another, so a standing tray is the one auxiliary layer Escape can unwind.
   //
   // Then the last rung leaves the chrome, because closing the panel does not put the reader
@@ -323,7 +327,7 @@ export function createPageKeys({
       return {
         says: `close ${tray}`,
         does: `Close the ${tray} tray`,
-        out: () => showTray(null),
+        out: () => setOpenTray(null),
       };
     }
     // A narrowing is a layer of the panel the way a tray is a layer of the page: the
@@ -447,81 +451,81 @@ export function createPageKeys({
         ":scope > .lf-conversation-resolved .lf-reopen",
     ) ?? null;
 
-  const SHORTCUT_REFERENCE = {
-    title: "In this reference",
+  const COMMAND_REFERENCE_SCOPE = {
+    title: "In the command reference",
     escape: "inner",
-    root: () => shortcutReferenceDialog,
-    at: () => referenceOpen(),
+    root: () => commandReferenceDialog,
+    at: () => commandReferenceOpen(),
     claims: EVERYTHING,
     rows: [
       {
-        id: "reference.focus.walk",
+        id: "command.reference.focus.walk",
         keys: ["Tab", "Shift+Tab"],
-        does: "Move through this reference",
+        does: "Move through the command reference",
         line: "move",
         repeat: true,
-        runFromReference: false,
-        run: (binding) => moveReference(binding === "Tab" ? 1 : -1),
+        runFromCommandReference: false,
+        run: (binding) => moveCommandReferenceFocus(binding === "Tab" ? 1 : -1),
       },
       {
-        id: "reference.command.next",
+        id: "command.reference.command.next",
         keys: ["ArrowDown"],
         does: "Choose the next command",
         line: "choose next",
         repeat: true,
-        runFromReference: false,
+        runFromCommandReference: false,
         // The list is built before search receives focus, so physical liveness is false at
         // that instant even though this is one of the reference's standing instructions.
-        referenceWhen: () => true,
-        when: () => onCommandRail(),
-        run: () => moveCommand(1),
+        commandReferenceWhen: () => true,
+        when: () => commandReferenceCommandActive(),
+        run: () => moveCommandReferenceSelection(1),
       },
       {
-        id: "reference.command.previous",
+        id: "command.reference.command.previous",
         keys: ["ArrowUp"],
         does: "Choose the previous command",
         line: "choose previous",
         repeat: true,
-        runFromReference: false,
-        referenceWhen: () => true,
-        when: () => onCommandRail(),
-        run: () => moveCommand(-1),
+        runFromCommandReference: false,
+        commandReferenceWhen: () => true,
+        when: () => commandReferenceCommandActive(),
+        run: () => moveCommandReferenceSelection(-1),
       },
       {
-        id: "reference.command.run",
+        id: "command.reference.command.activate",
         keys: ["Enter"],
-        does: "Run the chosen command",
-        line: "run",
-        runFromReference: false,
-        referenceWhen: () => true,
-        when: () => onCommandRail(),
-        run: () => runSelected(),
+        does: "Activate the chosen command",
+        line: "activate",
+        runFromCommandReference: false,
+        commandReferenceWhen: () => true,
+        when: () => commandReferenceCommandActive(),
+        run: () => activateSelectedCommand(),
       },
       {
-        id: "reference.close",
+        id: "command.reference.close",
         keys: ["Escape"],
         does: () =>
-          shortcutBarExpanded()
+          shortcutShelfOpen()
             ? "Back to more keyboard shortcuts"
-            : "Close this reference",
+            : "Close the command reference",
         line: () =>
-          shortcutBarExpanded() ? "back to more shortcuts" : "close shortcut reference",
-        control: () => shortcutReferenceClose,
-        runFromReference: false,
-        run: () => shortcutReferenceClose.click(),
+          shortcutShelfOpen() ? "back to more shortcuts" : "close command reference",
+        control: () => commandReferenceClose,
+        runFromCommandReference: false,
+        run: () => commandReferenceClose.click(),
       },
     ],
   };
 
-  const SHORTCUT_SHELF = {
-    title: "With more keyboard shortcuts",
+  const SHORTCUT_SHELF_SCOPE = {
+    title: "In the shortcut shelf",
     escape: "inner",
-    root: () => shortcutReferenceDialog,
-    at: () => Boolean(shortcutBarExpanded()),
-    rows: [LESS_SHORTCUTS],
+    root: () => commandReferenceDialog,
+    at: () => Boolean(shortcutShelfOpen()),
+    rows: [CLOSE_SHORTCUT_SHELF],
   };
 
-  // A thread card and the unfolded margin element cluster that owns it are one page-map stack,
+  // A thread card and the unfolded margin entry cluster that owns it are one page-map stack,
   // though the card itself is hoisted into the chrome. This is a scene-derived fallback:
   // a later keyboard entry returns through its captured frame before this rung. Without
   // one, the registered rung precedes the reaction and navigation fallbacks just as the
@@ -532,7 +536,7 @@ export function createPageKeys({
   }
 
   const PAGE_MAP = {
-    title: "In the page map",
+    title: "In the Page Map",
     root: () => pageMapRung()?.root ?? document,
     when: () => Boolean(pageMapRung(false)),
     at: () => Boolean(pageMapRung()),
@@ -542,7 +546,7 @@ export function createPageKeys({
         keys: ["Escape"],
         does: () => pageMapRung(false)?.does,
         line: () => pageMapRung()?.says,
-        referenceWhen: () => Boolean(pageMapRung(false)),
+        commandReferenceWhen: () => Boolean(pageMapRung(false)),
         when: () => Boolean(pageMapRung()),
         run: () => pageMapRung()?.out(),
       },
@@ -882,12 +886,12 @@ export function createPageKeys({
   // first (COMPOSER is nearer), then the mode, then the panels — and the press it is made
   // of is not a key at all, so that row binds nothing and says nothing on the line, the
   // way the ⌥ aim's row does.
-  const DESIGN = {
-    title: "In design mode",
-    at: designIsOn,
+  const DESIGN_MODE_SCOPE = {
+    title: "In Design mode",
+    at: designModeActive,
     rows: [
       {
-        id: "design.comment",
+        id: "design.mode.comment",
         keys: [],
         label: "click",
         does: "Comment on what the click lands on — a widget, a control, the chrome; prose still selects",
@@ -895,11 +899,11 @@ export function createPageKeys({
       {
         // Both keys, on one row: l is the toggle and Escape the mode's own rung, and two
         // chips reading "leave design" said one thing twice on the line.
-        id: "design.leave",
+        id: "design.mode.exit",
         keys: ["Escape", "l"],
-        does: "Leave design mode",
-        line: "leave design",
-        run: () => setDesign(false),
+        does: "Exit Design mode",
+        line: "exit Design mode",
+        run: () => setDesignMode(false),
       },
     ],
   };
@@ -907,22 +911,22 @@ export function createPageKeys({
   // Draw mode claims one pointer stroke before handing its mark to an ordinary comment.
   // Its own scope keeps the toggle and Escape as the two ways out while the page underneath
   // remains the drawing surface rather than receiving the drag.
-  const DRAW = {
-    title: "In draw mode",
-    at: isDrawing,
+  const DRAW_MODE_SCOPE = {
+    title: "In Draw mode",
+    at: drawModeActive,
     rows: [
       {
-        id: "drawing.stroke",
+        id: "draw.mode.stroke",
         keys: [],
         label: "drag",
         does: "Draw anywhere on the page, then send or add words",
       },
       {
-        id: "drawing.leave",
+        id: "draw.mode.exit",
         keys: ["Escape", "w"],
-        does: "Leave draw mode",
-        line: "leave draw",
-        run: () => setDrawing(false),
+        does: "Exit Draw mode",
+        line: "exit Draw mode",
+        run: () => setDrawMode(false),
       },
     ],
   };
@@ -933,10 +937,10 @@ export function createPageKeys({
   // must survive beside its way in. A row can waive only that promotion when two local actions
   // on the current state belong together; the binding remains live and stays in the reference.
   // Named for the same kind of reason: a mode standing over the page suspends the page's keys
-  // and keeps this one (`allButTheReference`), and the claim reads the binding off the row
+  // and keeps this one (`allButCommandReference`), and the claim reads the binding off the row
   // rather than spelling "?" beside it — a fact about a binding written where the binding
   // cannot correct it is the register's own oldest bug. Its place in the table is nominal:
-  // renderLine gives it the permanent More control instead of spending a hint slot on it.
+  // renderShortcutBar gives it the permanent More control instead of spending a hint slot on it.
 
   // The stack, innermost first, and the whole of what the runtime says about ordinary-key
   // order. Element scopes splice in where ELEMENTS stands. For Escape, the dispatcher reads
@@ -1063,15 +1067,15 @@ export function createPageKeys({
         // particular one; either route opens Comment, while reactions wait for a target.
         COMMENT_CREATE,
         {
-          id: "selection.open",
+          id: "target.chooser.open",
           keys: ["s"],
-          does: "Comment on a visible item by hint",
-          line: "comment on item",
+          does: "Comment on a visible target by hint",
+          line: "comment on target",
           // Once the field is open, its typing scope owns character keys. This gate also
           // keeps the route off the short line while a target is in hand.
           lineWhen: () => !Boolean(fabAnchorAt()),
           when: anchoringIsReady,
-          run: (...args) => startSelecting(...args),
+          run: (...args) => openTargetChooser(...args),
         },
         {
           // `e` opens the list on the target the reader has already named: the current
@@ -1143,7 +1147,7 @@ export function createPageKeys({
           repeat: true,
           run: (binding) => stepAsk(binding === "a" ? 1 : -1),
         },
-        // Scrolling is available in the page and in a covering workspace. The latter
+        // Scrolling is available in the page and in a covering auxiliary surface. The latter
         // reuses these rows while the modal floor suspends the rest of page scope.
         PAGE_MOVE,
         SCROLL_MOVE,
@@ -1178,25 +1182,25 @@ export function createPageKeys({
         // door to three lists the walks above already reach one at a time, so a narrow window
         // hides a second way to somewhere; the press it was crowding out is the only way back
         // from where a press had just put the reader.
-        GOTO,
+        OPEN_GO_TO,
         {
-          id: "drawing.enter",
+          id: "draw.mode.enter",
           keys: ["w"],
           does: "Draw on the page and attach the mark to a comment",
           line: "draw",
           when: () => anchoringIsReady(),
-          run: () => setDrawing(true),
+          run: () => setDrawMode(true),
         },
         {
-          // The way in; the mode's own scope takes the letter back out (DESIGN), nearer
+          // The way in; the mode's own scope takes the letter back out (DESIGN_MODE_SCOPE), nearer
           // than this row, so while it stands this one is shadowed off the line.
-          id: "design.enter",
+          id: "design.mode.enter",
           keys: ["l"],
-          does: "Design mode: comment on the layer — a widget, a control, the chrome — rather than the page",
+          does: "Enter Design mode: comment on the layer — a widget, a control, the chrome — rather than the page",
           line: "design mode",
-          run: () => setDesign(true),
+          run: () => setDesignMode(true),
         },
-        REFERENCE,
+        SHORTCUT_HELP,
         // Reference: a real key the browser owns, and one gesture that is not a key at all.
         // Neither says a word for the line, so neither is ever promised as the next press —
         // one rule where the three exemptions this replaced were three.
@@ -1209,27 +1213,28 @@ export function createPageKeys({
       ],
     };
     const COVERING_WORKSPACE = {
-      title: "In the covering workspace",
-      root: coveringWorkspaceSurface,
-      when: () => Boolean(coveringWorkspaceSurface()),
-      at: () => Boolean(coveringWorkspaceSurface()),
-      // The global address vocabulary is still a route out of this workspace. Reuse its
-      // one entry row here; GO moves its own root to the same modal surface while armed.
+      title: "In the covering auxiliary surface",
+      root: coveringAuxiliarySurface,
+      when: () => Boolean(coveringAuxiliarySurface()),
+      at: () => Boolean(coveringAuxiliarySurface()),
+      // The global Go-to vocabulary is still a route out of this auxiliary surface. Reuse its
+      // one entry row here; GO_TO_SCOPE moves its own root to the same modal surface while armed.
       rows: [
         PAGE_MOVE,
         SCROLL_MOVE,
-        GOTO,
+        OPEN_GO_TO,
         { ...BACK_OUT, when: () => Boolean(rung()) },
       ],
     };
     const scopes = [
-      SHORTCUT_REFERENCE,
-      SHORTCUT_SHELF,
+      COMMAND_REFERENCE_SCOPE,
+      SHORTCUT_SHELF_SCOPE,
       PAGE_MAP,
-      GO,
+      GO_TO_SCOPE,
       RESPONSE_OPTIONS,
       REACT,
-      SELECT,
+      PAGE_SEARCH_SCOPE,
+      TARGET_CHOOSER_SCOPE,
       ELEMENTS,
       RETURN,
       VERSIONS,
@@ -1240,8 +1245,8 @@ export function createPageKeys({
       COVERING_WORKSPACE,
       LINK,
       DISCLOSURE,
-      DRAW,
-      DESIGN,
+      DRAW_MODE_SCOPE,
+      DESIGN_MODE_SCOPE,
       PAGE,
     ];
     // Core's scopes are checked as the list is built by the rule every widget's are checked
@@ -1258,27 +1263,27 @@ export function createPageKeys({
   // A control the keyboard reaches names its shortcut from the row. `control` is where a
   // row says which control it duplicates; its projection follows liveness too, so a disabled
   // Ask does not advertise a shortcut the dispatcher has withdrawn. The latest-version
-  // chip's route spans two rows, so it is composed from both. The address owner paints
-  // sequential sequence overlays while its mode stands; this projection keeps the complete
+  // chip's route spans two rows, so it is composed from both. The Go-to owner paints
+  // sequential steps while its interaction stands; this projection keeps the complete
   // route in the tooltip at rest.
   //
   // The pass runs in the standing chrome's frame, which the `lf-actions` heartbeat asks for
   // every two seconds on a page nobody has touched, so every name it writes goes through
   // `keeps` and says nothing where the control already says it. Restated title or shortcut
   // metadata is news to whatever is reading the page — the mutation stream a screen reader
-  // rebuilds its buffer from — and these controls stand on the banner the living margin
+  // rebuilds its buffer from — and these controls stand on the banner the margin projection
   // watches.
   function paintCoreControls() {
-    const returningToMore = Boolean(shortcutBarExpanded());
+    const returningToMore = Boolean(shortcutShelfOpen());
     const closeSays = returningToMore ? "Back to more shortcuts" : "Close";
     const closeTitle = returningToMore
       ? "Back to more shortcuts"
-      : "Close the shortcuts";
-    if (shortcutReferenceClose.textContent !== closeSays)
-      shortcutReferenceClose.textContent = closeSays;
-    if (shortcutReferenceClose.dataset.lfKeyTitle !== closeTitle)
-      shortcutReferenceClose.dataset.lfKeyTitle = closeTitle;
-    keeps(shortcutReferenceClose, "aria-label", closeTitle);
+      : "Close the command reference";
+    if (commandReferenceClose.textContent !== closeSays)
+      commandReferenceClose.textContent = closeSays;
+    if (commandReferenceClose.dataset.lfKeyTitle !== closeTitle)
+      commandReferenceClose.dataset.lfKeyTitle = closeTitle;
+    keeps(commandReferenceClose, "aria-label", closeTitle);
     const controlShortcut = (scope, row) =>
       [...(word(scope.sequencePrefix ?? scope.sequence) ?? []), labelOf(row)]
         .filter(Boolean)
@@ -1287,7 +1292,7 @@ export function createPageKeys({
       for (const row of scope.rows) {
         // The shortcut bar owns the permanent More control because its binding must first pass
         // through the same contextual shadowing as the line's ordinary rows.
-        if (row === REFERENCE) continue;
+        if (row === SHORTCUT_HELP) continue;
         const control = word(row.control);
         if (control) {
           if (!("lfKeyTitle" in control.dataset))
@@ -1301,7 +1306,7 @@ export function createPageKeys({
           );
           // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
           // alternatives. The complete sequence remains in the overlay, tooltip, and
-          // accessible keyboard reference instead of claiming its final press works alone.
+          // accessible command reference instead of claiming its final press works alone.
           if (active && !scope.sequence)
             keeps(control, "aria-keyshortcuts", ariaShortcuts([row], false));
           else control.removeAttribute("aria-keyshortcuts");
@@ -1312,7 +1317,9 @@ export function createPageKeys({
       latestChip,
       "title",
       latestChip.dataset.lfKeyTitle +
-        (latestBound ? ` (${controlShortcut(GO, CHOOSER)} ${labelOf(NEWEST)})` : ""),
+        (latestBound
+          ? ` (${controlShortcut(GO_TO_SCOPE, CHOOSER)} ${labelOf(NEWEST)})`
+          : ""),
     );
   }
 

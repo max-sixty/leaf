@@ -1,15 +1,17 @@
 """Everyday browser contracts for shared chrome."""
 
+import io
 import re
 
 import pytest
+from PIL import Image
 from playwright.sync_api import expect
 from render_support import (
     BANNER_ORDER,
     LONG_PAGE,
     SUGGESTION_PAGE,
     _publish,
-    banner_address,
+    banner_control,
     button_radius,
     compare_with,
     open_page,
@@ -25,11 +27,11 @@ from render_support import (
 def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
     browser, serve, width, scheme
 ):
-    """Submit belongs to the field while Resolve stands beside the quoted address.
+    """Submit belongs to the field while Resolve stands beside the quoted target.
 
     Growing the field carries Submit with it and leaves Resolve fixed. The textarea
     reserves the icon's whole horizontal band, so words and a scrollbar do not run
-    underneath it. Resolve aligns with the quoted address instead of either message's
+    underneath it. Resolve aligns with the quoted target instead of either message's
     metadata. The same geometry holds in the panel's narrowest useful window and with
     room beside the page, in both palettes."""
     context = browser.new_context(
@@ -68,7 +70,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
                   const padding = parseFloat(getComputedStyle(
                     thread.querySelector('textarea')).paddingInlineEnd);
                   const radius = (selector, pseudo = null) => getComputedStyle(
-                    selector.startsWith('.lf-panel')
+                    selector.startsWith('.lf-thread-panel')
                       ? document.querySelector(selector)
                       : thread.querySelector(selector), pseudo).borderRadius;
                   return {thread: {x: own.x, y: own.y, width: own.width,
@@ -78,7 +80,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
                           quote: rect('.lf-quote'),
                           send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
                           closeBorder: getComputedStyle(document.querySelector(
-                            '.lf-panel-head [aria-label="Close threads"]')).borderTopWidth,
+                            '.lf-thread-panel-head [aria-label="Close threads"]')).borderTopWidth,
                           resolveBorder: getComputedStyle(thread.querySelector(
                             '.lf-resolve'), '::before').borderTopWidth,
                           sendBorder: getComputedStyle(thread.querySelector(
@@ -88,7 +90,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote(
                             sendFill: radius('.lf-thread-send', '::before'),
                             resolve: radius('.lf-resolve'),
                             resolveFill: radius('.lf-resolve', '::before'),
-                            close: radius('.lf-panel-head [aria-label="Close threads"]'),
+                            close: radius('.lf-thread-panel-head [aria-label="Close threads"]'),
                           },
                           padding,
                           overflow: thread.scrollWidth - thread.clientWidth};
@@ -143,22 +145,20 @@ STATE_PAINT = """el => {
 }"""
 
 
-def test_a_folded_address_keeps_the_paint_that_says_it_is_doing_something(
-    browser, serve
-):
+def test_a_folded_banner_control_keeps_its_active_paint(browser, serve):
     """A comparison standing behind the overflow menu is the same comparison, and has
     to go on looking like one.
 
     Both places clear the border and the fill `.lf-btn.on` states, each for its own
-    reason: the row so that an address cannot resize it and displace the addresses
-    before it, the menu so that an address reads as a row rather than as a chip. Left
+    reason: the row so that a control cannot resize it and displace the controls
+    before it, the menu so that a control reads as a row rather than as a chip. Left
     at that, the class is ink alone in either — two characters at 2.16:1 against the
     control's own resting ink. The row was answered first and the menu was not, which
     put the banner's two active states on opposite sides of one fold: an open
-    workspace's own selector outranks the menu's resting rule and keeps its face
+    auxiliary surface's own selector outranks the menu's resting rule and keeps its face
     across it, and a standing comparison did not. So this reads the one control in
     both places rather than a number in either, because what the fold promises is that
-    nothing about an address changes except where it stands.
+    nothing about a control changes except where it stands.
     """
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
@@ -182,7 +182,7 @@ def test_a_folded_address_keeps_the_paint_that_says_it_is_doing_something(
 
     resized(page, 320, 844)
     expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
-    banner_address(page, ".lf-version")
+    banner_control(page, ".lf-version")
     folded = chooser.evaluate(STATE_PAINT)
 
     assert folded == on_the_row, (
@@ -200,14 +200,14 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
 
     It used to turn round at the covering breakpoint: Threads went from the far right of
     the banner to the far left, and approval — the page's one committing press — swapped
-    ends with it, so a reader narrowing the window found every address somewhere else.
-    What a narrow window may change is how many addresses stand on the row at once; the
+    ends with it, so a reader narrowing the window found every control somewhere else.
+    What a narrow window may change is how many controls stand on the row at once; the
     rest fold into the row's own menu, in this same order.
 
-    Two things legitimately differ with width and neither is an order: the page map is a
+    Two things legitimately differ with width and neither is an order: the Page Map is a
     narrow window's stand-in for the margin's own markers, and a reserved news slot is not
-    an address until it has news. So each width is held to being this one order with the
-    addresses that width does not have taken out of it, rather than to a fixed list — a
+    a banner control until it has news. So each width is held to being this one order with
+    the controls that width does not have taken out of it, rather than to a fixed list — a
     reversal fails that just as loudly, and a control appearing at the wrong seat fails it
     where a fixed list would only have said the list was different.
     """
@@ -235,9 +235,9 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         resized(page, width, 900)
         orders[width] = page.evaluate(BANNER_ORDER)
 
-    # One order, put as the thing it is: no two addresses ever swap. Held pair by pair
+    # One order, put as the thing it is: no two controls ever swap. Held pair by pair
     # rather than against a list taken at one width, because the widths do not all show
-    # the same addresses and a fixed list would then be failing about the page map rather
+    # the same controls and a fixed list would then be failing about the Page Map rather
     # than about the order. A reversal breaks this on its first pair.
     first = {}
     for width, order in orders.items():
@@ -250,10 +250,10 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
                 )
                 first.setdefault((before, after), width)
     assert len(first) >= 15, (
-        f"too few addresses stood at these widths to have an order at all: {orders}"
+        f"too few controls stood at these widths to have an order at all: {orders}"
     )
 
-    # And the order it settled on: every address the page offers, with the reading loop
+    # And the order it settled on: every banner control the page offers, with the reading loop
     # finishing the row beside the panel it opens.
     widest = max(orders.values(), key=len)
     for wanted in ("All leaves", "Asks", "Accept all", "v1", "Approve version"):
@@ -265,10 +265,63 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
             f"the conversation no longer finishes the row at {width}px: {order}"
         )
     resized(page, 500, 900)
-    workspace = banner_address(page, ".lf-others")
-    workspace.click()
+    control = banner_control(page, ".lf-others")
+    control.click()
     page.mouse.move(0, page.viewport_size["height"] - 1)
-    expect(workspace).to_have_attribute("aria-expanded", "true")
-    expect(workspace).to_have_css("background-color", token_colour(page, "--chip"))
+    expect(control).to_have_attribute("aria-expanded", "true")
+    expect(control).to_have_css("background-color", token_colour(page, "--chip"))
+    assert errors == []
+    page.close()
+
+
+def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
+    """A notice keeps the page's right corner through panel and viewport changes."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    notice = page.locator(".lf-notice")
+    for width, panel_open in [
+        (1200, False),
+        (1200, True),
+        (390, True),
+        (320, True),
+        (390, False),
+    ]:
+        resized(page, width, 800)
+        if panel_open != page.locator(".lf-thread-panel").is_visible():
+            if panel_open:
+                page.locator(".lf-threads-toggle").click()
+            else:
+                page.get_by_role("button", name="Close threads", exact=True).click()
+            panel_settled(page, open=panel_open)
+        page.evaluate("""async () => {
+          const {notice} = await import('/runtime/notifications.js');
+          notice('Update recorded');
+        }""")
+        expect(notice).to_be_visible()
+        geometry = page.locator(".lf-bottom-status").evaluate("""status => {
+          const box = status.getBoundingClientRect();
+          const panel = document.querySelector('.lf-thread-panel').getBoundingClientRect();
+          const beside = panel.width > 0 && innerWidth > 840;
+          return {right: box.right, left: box.left, bottom: box.bottom, top: box.top,
+            availableRight: beside ? panel.left : innerWidth};
+        }""")
+        assert geometry["right"] == pytest.approx(
+            geometry["availableRight"] - 18, abs=1
+        ), (width, panel_open, geometry)
+        assert geometry["left"] >= 0, (width, panel_open, geometry)
+        assert geometry["bottom"] <= 800 - 14, (width, panel_open, geometry)
+        if panel_open and width <= 840:
+            foot = page.locator(".lf-thread-panel-foot").bounding_box()
+            assert geometry["bottom"] == pytest.approx(foot["y"] - 14, abs=1)
+        pixels = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+        accent = tuple(map(int, re.findall(r"\d+", token_colour(page, "--accent"))))
+        assert (
+            pixels.getpixel(
+                (
+                    round(geometry["left"] + 5),
+                    round((geometry["top"] + geometry["bottom"]) / 2),
+                )
+            )
+            == accent
+        ), (width, panel_open, "the notice is covered by the panel or its scrim")
     assert errors == []
     page.close()

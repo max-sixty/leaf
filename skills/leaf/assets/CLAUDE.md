@@ -589,7 +589,7 @@ In a segmented group, keep one-pixel shared seams and let fill, ink, or one outl
 the selection distinct without adding another line inside it.
 
 Agent ownership decorates the existing semantic margin control: pickup colors its icon
-blue; working colors its interior green and pulses once on arrival. A separate Activity
+green; working colors its interior green and pulses once on arrival. A separate Activity
 control appears only when no semantic carrier exists. Conversation receipts carry the
 local claim beside its triggering message; thread cards do not repeat that ownership as
 a colored edge. Quiet or ended claims release ownership. Reduced motion suppresses

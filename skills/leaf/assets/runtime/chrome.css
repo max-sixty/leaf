@@ -238,7 +238,7 @@
    contour continues to communicate the entry's behavior. */
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="picked_up"]
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
-  color: var(--accent);
+  color: var(--ok-ink);
 }
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="active"] {
   --lf-agent-tint: var(--ok-tint);

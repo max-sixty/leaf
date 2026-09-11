@@ -1220,7 +1220,7 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
     expect(picked_up).to_have_css("box-shadow", "none")
     picked_up_icon = picked_up.locator(".lf-margin-entry-icon")
     expect(picked_up_icon).to_have_attribute("data-lf-icon", "comment")
-    expect(picked_up_icon).to_have_css("color", token_colour(page, "--accent"))
+    expect(picked_up_icon).to_have_css("color", token_colour(page, "--ok-ink"))
     for control in (working, fallback):
         expect(control).to_have_attribute("data-lf-agent-phase", "active")
         expect(control).to_have_css(
@@ -2738,7 +2738,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
       const probe = document.createElement('span');
       document.body.append(probe);
       const result = {};
-      for (const name of ['--accent', '--ok-ink', '--ok-tint']) {
+      for (const name of ['--ok-ink', '--ok-tint']) {
         probe.style.color = `var(${name})`;
         result[name] = getComputedStyle(probe).color;
       }
@@ -2757,8 +2757,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     }""")
     assert picked_up == {
         **initial,
-        "icon": colors["--accent"],
-    }, "pickup did not color only the Thread icon blue"
+        "icon": colors["--ok-ink"],
+    }, "pickup did not color only the Thread icon green"
     page.evaluate("""() => {
       window.agentArrivals = [];
       window.agentArrivalEnds = 0;
@@ -2868,7 +2868,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     picked_up_row = dialog.locator('[data-lf-agent-phase="picked_up"]')
     expect(picked_up_row).to_have_count(1)
     expect(picked_up_row.locator(".lf-margin-kind")).to_have_css(
-        "color", colors["--accent"]
+        "color", colors["--ok-ink"]
     )
     page.keyboard.press("Escape")
     # Two contributed actions fold the Thread control behind More. The visible
@@ -3151,7 +3151,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         words_still()
         current = face(control)
         expect(control).to_have_attribute("data-lf-state", "idle")
-        pickup_ink = resolved_color("--accent")
+        pickup_ink = resolved_color("--ok-ink")
         assert current == {
             "tag": "SPAN",
             "offer": "",

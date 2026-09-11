@@ -85,7 +85,7 @@ const GROUPS = [
       },
       {
         name: "Picked up",
-        detail: "Thread · blue icon",
+        detail: "Thread · green icon",
         icon: "comment",
         behavior: "disclosure",
         rank: "reading",

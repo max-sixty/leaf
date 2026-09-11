@@ -6,26 +6,33 @@ fixture. The website publishes those pages with the same vendored layer.
 cards are the source of truth for catalog membership and generated previews. An
 unlisted page can remain published, as Command Hub does while its TODO is open.
 
+A published page says what it is in its own head: a `<title>` and a
+`<meta name="description">`, distinct from every other page's. Those two are what a
+search result and a shared link show, and the site build composes the rest of the
+card from them and refuses a page missing either.
+
 Keep core examples focused and include small pages: a board, a short proposal, or a
 draft can demonstrate Leaf without becoming a product tour. Choose examples for
-reader tasks; the developer gallery owns exhaustive vocabulary coverage. Add a
+reader tasks; the core gallery and focused package pages own exhaustive vocabulary
+coverage. Add a
 contents sidebar when the rendered document needs navigation; judge that in the
 browser review.
 
 Full-page regression journeys whose story no longer belongs in the showcase live
 under `tests/fixtures/pages/`, with their companion logs and `versions/` beside them.
 They join the generated corpus and page checks but are not website routes. Synthetic
-feature scenarios have one home: `developer/feature-gallery.html`. Extend that
-omnibus page instead of adding another developer page. Every core Leaf feature must
-be directly exercisable there. A change that adds or materially changes a core
-feature adds or updates its focused specimen in the same change; coverage in a
-public example does not substitute for the developer surface. A focused specimen
+core feature scenarios have one home: `developer/feature-gallery.html`. Every core Leaf
+feature must be directly exercisable there. Optional package specimens belong on a
+focused package page, reusing a worked example when one already tells that package's
+story. A change that adds or materially changes a core feature adds or updates its
+focused specimen in the core gallery; coverage in a public example does not substitute
+for that developer surface. A focused specimen
 names the real control or gesture, seeds the state it needs, and tells the
 developer what result to inspect. For injected chrome whose state comes from
 outside one document, name that condition and exercise it in the gallery's browser
-test. The gallery uses the same companion version, log, and data conventions as an
-example. The website publishes it as a developer reference linked outside the visual
-examples catalog. `corpus.html` and `corpus.data.json` are generated from these sources;
+test. The developer pages use the same companion version, log, and data conventions as
+an example. The website publishes them as references linked outside the visual examples
+catalog. `corpus.html` and `corpus.data.json` are generated from these sources;
 edit the source page and regenerate the corpus instead of patching either output
 (`test_corpus_is_generated_from_the_examples` holds the two to their sources).
 

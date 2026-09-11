@@ -14,6 +14,7 @@ from render_support import (
     FEATURE_GALLERY,
     RENDERED,
     TARGETS_PAGE,
+    leaf_page,
     live_url,
     nudge,
     open_page,
@@ -39,7 +40,7 @@ def draw_over(
     ]
     page.mouse.move(*start)
     page.keyboard.press("w")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     assert locator.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
     expect(page.locator(".lf-aim")).to_be_hidden()
     page.mouse.down()
@@ -52,6 +53,28 @@ READ_BOX = """selector => {
   const box = document.querySelector(selector).getBoundingClientRect();
   return {x: box.x, y: box.y, width: box.width, height: box.height, scrollY};
 }"""
+
+DATA_REVISION_DIFF_PAGE = leaf_page(
+    "data revision drawing",
+    '<h1 id="title">Review</h1><lf-diff id="drawing-diff" source="drawing-patch">'
+    "<pre></pre></lf-diff>",
+)
+DATA_REVISION_DIFF = """diff --git a/review.py b/review.py
+--- a/review.py
++++ b/review.py
+@@ -1,2 +1,2 @@
+ def route():
+-    return "courtyard"
++    return "terrace"
+"""
+UPDATED_DATA_REVISION_DIFF = DATA_REVISION_DIFF.replace("terrace", "garden room")
+
+
+def open_data_revision_diff(browser, serve):
+    """Open one live data-backed diff at the first source revision."""
+    url = serve(DATA_REVISION_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "drawing-patch", DATA_REVISION_DIFF)
+    return open_page(browser, url)
 
 
 def mark_box(page, selector):
@@ -98,7 +121,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
         points=((0.22, 0.62), (0.75, -1), (1.7, 1.8)),
     )
 
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     expect(target).not_to_have_class(re.compile(r"\blf-mark-el\b|\blf-pending\b"))
     assert target.get_attribute("chosen") is None
@@ -166,8 +189,8 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
         relation, abs=0.02
     )
     expect(target).not_to_have_class(re.compile(r"\blf-mark-el\b"))
-    expect(page.locator(".lf-panel .lf-drawing-preview")).to_have_count(0)
-    expect(page.locator(".lf-panel .lf-drawing-reference")).to_have_text(
+    expect(page.locator(".lf-thread-panel .lf-drawing-preview")).to_have_count(0)
+    expect(page.locator(".lf-thread-panel .lf-drawing-reference")).to_have_text(
         "Drawing comment"
     )
 
@@ -183,7 +206,7 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
 
 
 def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
-    """Whitespace is part of the drawable page plane. With no semantic item under the
+    """Whitespace is part of the drawable page plane. With no addressable element under the
     starting point, the stroke opens a page comment and keeps document coordinates."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     page.evaluate("document.body.style.minHeight = '180000px'")
@@ -412,7 +435,9 @@ def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
     page.close()
 
 
-def test_a_margin_start_uses_the_item_alongside_it_as_context(browser, serve):
+def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
+    browser, serve
+):
     """Starting beside content keeps that horizontal item's semantic anchor, so opening
     its composer or reflowing the page cannot separate the ink from what it marks."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
@@ -487,7 +512,7 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     assert page.evaluate("getComputedStyle(document.body).touchAction") == "none"
     page.mouse.click(*point)
 
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     expect(page.locator(".lf-fab-input")).to_be_hidden()
     assert target.get_attribute("data-activated") is None
@@ -496,7 +521,7 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     page.mouse.down()
     page.keyboard.press("Escape")
     page.mouse.up()
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
     assert target.get_attribute("data-activated") is None
     assert errors == []
@@ -512,8 +537,8 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     assert errors == []
     page.close()
@@ -524,10 +549,10 @@ def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
     page, errors = open_page(browser, serve(TARGETS_PAGE))
 
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-design\b"))
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-draw-mode", "")
     page.keyboard.press("l")
-    expect(page.locator("body")).not_to_have_class(re.compile(r"\blf-design\b"))
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
     assert errors == []
     page.close()
@@ -552,12 +577,12 @@ def test_draw_mode_leaves_inline_conversation_controls_usable(browser, serve):
     reply.scroll_into_view_if_needed()
 
     page.keyboard.press("w")
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     assert reply.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     reply.click()
 
     expect(reply).to_be_focused()
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     assert errors == []
     page.close()
@@ -578,19 +603,17 @@ def test_draw_mode_cursor_matches_the_widget_controls_it_captures(browser, serve
     assert control.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
     page.mouse.click(*point)
 
-    expect(page.locator("body")).to_have_class(re.compile(r"\blf-drawing\b"))
+    expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     assert option.get_attribute("chosen") is None
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
-    shadow_line = page.locator("#bg-review-diff [data-line]").first
-    shadow_line.scroll_into_view_if_needed()
-    assert shadow_line.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
+    assert control.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
     page.evaluate(
-        """() => document.querySelector('.lf-panel').append(
-          document.querySelector('#bg-review-diff')
+        """() => document.querySelector('.lf-thread-panel').append(
+          document.querySelector('#bg-choice-trail')
         )"""
     )
-    assert shadow_line.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+    assert control.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     assert errors == []
     page.close()
 
@@ -770,7 +793,7 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     assert event["kind"] == "comment"
     assert "text" not in event
     assert event["drawing"]["format"] == "leaf-drawing/1"
-    thread = page.get_by_role("dialog", name=re.compile("Thread for"))
+    thread = page.get_by_role("dialog", name=re.compile("Conversation for"))
     expect(thread).to_be_visible()
     expect(page.locator(".lf-drawing-preview")).to_have_count(0)
     expect(thread.locator(".lf-drawing-reference")).to_have_text("Drawing comment")
@@ -811,8 +834,8 @@ def test_an_inline_conversation_keeps_drawing_context_on_the_page(browser, serve
 
 def test_an_unsent_drawing_stands_down_when_its_data_revision_changes(browser, serve):
     """Draft ink consumes the anchor pass's outdated reading instead of stretching
-    itself over the source widget after its original datum version disappears."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    itself over the text-document widget after its original datum version disappears."""
+    page, errors = open_data_revision_diff(browser, serve)
     target = page.locator(
         "lf-diff [data-line-type='change-deletion'][data-lf-datum]"
     ).first
@@ -821,15 +844,8 @@ def test_an_unsent_drawing_stands_down_when_its_data_revision_changes(browser, s
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     data_model.cmd_data_set(
         serve.page_dir,
-        "gallery-patch",
-        """diff --git a/gallery/review.py b/gallery/review.py
---- a/gallery/review.py
-+++ b/gallery/review.py
-@@ -1,2 +1,2 @@
- def route():
--    return "courtyard"
-+    return "garden room"
-""",
+        "drawing-patch",
+        UPDATED_DATA_REVISION_DIFF,
     )
     told(page)
 
@@ -842,7 +858,7 @@ def test_an_unsent_drawing_stands_down_when_its_data_revision_changes(browser, s
 def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, serve):
     """When a data revision detaches a drawing target, its thread still names the
     drawing without claiming that the suppressed stroke is visible on the page."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page, errors = open_data_revision_diff(browser, serve)
     target = page.locator(
         "lf-diff [data-line-type='change-deletion'][data-lf-datum]"
     ).first
@@ -854,15 +870,8 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
 
     data_model.cmd_data_set(
         serve.page_dir,
-        "gallery-patch",
-        """diff --git a/gallery/review.py b/gallery/review.py
---- a/gallery/review.py
-+++ b/gallery/review.py
-@@ -1,2 +1,2 @@
- def route():
--    return "courtyard"
-+    return "garden room"
-""",
+        "drawing-patch",
+        UPDATED_DATA_REVISION_DIFF,
     )
     told(page)
 

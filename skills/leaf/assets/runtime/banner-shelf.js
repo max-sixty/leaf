@@ -4,15 +4,13 @@ import { repaint } from "./repaint.js";
 // while retaining their cells. A status item that can appear later reserves its place for
 // the page's life. When a row runs out of room it gives up whole controls before it gives
 // up any control's words, and it gives them up to somewhere a reader can still reach: the
-// banner's row folds the addresses it cannot hold into one menu (`foldShelf`) rather than
-// clipping them or scrolling them off its own edge, and its status sentence keeps a floor
-// measured from the lines the page can say so a crowded row can never cut it. That floor
-// is the sentence's own room and is spelled once, as --lf-status-floor on .lf-banner
-// (banner.js, reserveStatusRoom); the cap this fold reads is the row's share of what is
-// left after it. The row reads in one order at every width, and a control the fold has
-// taken is still at its place in that order.
+// banner's row folds the controls it cannot hold into one menu (`foldShelf`) rather than
+// clipping them or scrolling them off its own edge. The status sentence keeps a stable
+// floor stated by --lf-status-floor in chrome.css and ellipsizes beyond it. The cap
+// this fold reads is the row's share of what is left. The row reads in one order at
+// every width, and a folded control keeps its place in that order.
 
-// How many addresses stay on the row whatever the width. The last two are the page's
+// How many controls stay on the row whatever the width. The last two are the page's
 // reading loop — approval and the conversation — and a reader must never open a menu to
 // find them. Everything before them is a destination, and a destination is what a menu
 // is for.
@@ -20,8 +18,8 @@ const KEPT = 2;
 
 export const bannerActions = el("div", "lf-banner-actions");
 
-// The addresses that do not fit, in one menu, behind one press. They are the row's own
-// nodes moved rather than copied, so a folded address keeps its accessible name, its
+// The controls that do not fit, in one menu, behind one press. They are the row's own
+// nodes moved rather than copied, so a folded control keeps its accessible name, its
 // state paint, its title, its press and its own page key: nothing about it changes
 // except where it stands. That is also why there is no second order to keep in step —
 // the menu's contents followed by the row's are the row's one order, read straight
@@ -32,12 +30,12 @@ export const bannerActions = el("div", "lf-banner-actions");
 // rows that are a list to read down — and says so in its roles. Claiming those roles
 // here would mean giving these controls menuitem semantics for as long as the fold
 // holds them and taking them away again when the window widens, which is the same
-// address describing itself two ways.
+// control describing itself two ways.
 export const overflowBtn = el("button", "lf-btn lf-banner-more", "⋯");
 overflowBtn.type = "button";
 overflowBtn.setAttribute("aria-expanded", "false");
-overflowBtn.setAttribute("aria-label", "More page addresses");
-overflowBtn.title = "More page addresses";
+overflowBtn.setAttribute("aria-label", "More page controls");
+overflowBtn.title = "More page controls";
 // The row's first child for the page's whole life, shown only once there is something
 // behind it. Standing there rather than being added and removed is what lets a fold
 // hand the reader the door without the door itself having just left the document.
@@ -46,7 +44,7 @@ bannerActions.append(overflowBtn);
 export const overflowMenu = el("div", "lf-ui lf-banner-menu");
 overflowMenu.setAttribute("popover", "auto");
 overflowMenu.setAttribute("role", "group");
-overflowMenu.setAttribute("aria-label", "More page addresses");
+overflowMenu.setAttribute("aria-label", "More page controls");
 // The press is the popover's declared invoker rather than a click handler reading the
 // state, for the reason the version chooser states: a press on a standing auto
 // popover's invoker is a light dismissal *and* a press, so a handler that asks whether
@@ -56,7 +54,7 @@ overflowMenu.lfInvoker = overflowBtn;
 overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   overflowBtn.setAttribute("aria-expanded", String(open));
-  // A keyboard opener lands on the first address rather than on the menu's box, and a
+  // A keyboard opener lands on the first control rather than on the menu's box, and a
   // reader already standing inside is left where they are.
   if (open && !overflowMenu.contains(document.activeElement))
     folded()
@@ -77,7 +75,7 @@ overflowMenu.addEventListener("toggle", (event) => {
 // before publication can move approval or Threads under a reaching pointer.
 //
 // A menu row has no neighbours to hold still for and no width to hold open, so an
-// address with nothing to say is simply not in the menu. That is not a second rule: it
+// control with nothing to say is simply not in the menu. That is not a second rule: it
 // is the same rule asked of a place where taking room costs nothing to give back.
 const newsControls = new Set();
 let newsFoldQueued = false;
@@ -119,7 +117,7 @@ export function showNews(control, on) {
   on = Boolean(on);
   // Most calls are a poll restating the news the row already carries — a page whose
   // asks are all answered says so on every refresh, once per widget that repaints in
-  // it. Folding on that reading measures the row against a set of addresses nothing
+  // it. Folding on that reading measures the row against a set of controls nothing
   // moved, and a measurement after a write is a forced layout, so the heartbeat's cost
   // grew with the page rather than with what changed on it. A reading that moves
   // nothing therefore stops here; every fact the fold reads is either written below or
@@ -128,9 +126,9 @@ export function showNews(control, on) {
   newsControls.add(control);
   // News can arrive while a deferred activation leaves the reader working in this live
   // banner, and a control that settles its own decisions goes away while it still owns
-  // focus. Hand the reader to the next standing address rather than dropping them on
+  // focus. Hand the reader to the next standing control rather than dropping them on
   // body. The row packs against its end, so a control arriving or leaving moves only
-  // what stands before it: an address the reader is holding keeps its coordinate
+  // what stands before it: a control the reader is holding keeps its coordinate
   // without anyone spending a scroll to put it back.
   const focused = bannerActions.contains(document.activeElement)
     ? document.activeElement
@@ -157,7 +155,7 @@ export function showNews(control, on) {
   paintPresence(control);
   // One state application can refresh Asks, blanket answers, Requests, and live
   // leaves in succession. They all change the same row; fold it once after that write
-  // batch, against the final words and presence of every address.
+  // batch, against the final words and presence of every control.
   queueNewsFold();
   if (focusTransfer) focusTransfer.focus({ preventScroll: true });
 }
@@ -167,7 +165,7 @@ export function reserveNewsSlot(control) {
 }
 
 const folded = () => [...overflowMenu.children];
-// Every address back on the row, for a caller that needs one to have a box. A control
+// Every control back on the row, for a caller that needs one to have a box. A control
 // measures its own words in its own live face (`reserve`), and inside a shut popover
 // every word measures zero — so the banner's reservations are taken with the whole run
 // standing, and the fold is asked again once they are.
@@ -178,28 +176,29 @@ export function unfoldShelf() {
   for (const control of back) if (newsControls.has(control)) paintPresence(control);
   overflowBtn.hidden = true;
 }
-// The addresses this row may fold, in the row's own order: everything before the
+
+// An auxiliary surface can close while its banner destination is folded into a popover
+// that light dismissal has just hidden. Restore that destination's own surface before returning focus.
+export function focusBannerControl(control) {
+  const menu = control.closest("[popover]");
+  if (menu && !menu.matches(":popover-open")) menu.showPopover();
+  control.focus({ preventScroll: true });
+}
+
+export function dismissBannerControls() {
+  if (overflowMenu.matches(":popover-open")) overflowMenu.hidePopover();
+}
+// The controls this row may fold, in the row's own order: everything before the
 // reading loop at its end.
 function foldable() {
   const run = [...bannerActions.children].filter((control) => control !== overflowBtn);
-  // Passive orientation has no press to recover inside the menu and therefore stays
-  // on the row. Folding a disabled label would make visible state unreachable to a
-  // keyboard reader.
-  return run
-    .slice(0, Math.max(0, run.length - KEPT))
-    .filter((control) => !control.classList.contains("lf-passive"));
+  return run.slice(0, Math.max(0, run.length - KEPT));
 }
-const passive = () =>
-  [...bannerActions.children].filter((control) =>
-    control.classList.contains("lf-passive"),
-  );
-const yielded = () =>
-  [...bannerActions.children].filter((control) => control.dataset.lfYielded);
 
-// A low-priority diagnostic can belong to this address order without spending the
+// A low-priority diagnostic can belong to this control order without spending the
 // banner's resting row. It is still moved, not copied, and unfoldShelf still seats it
 // temporarily when the banner measures its widest label. The attribute states the
-// address's priority; the shelf remains the one owner of where that priority puts it.
+// control's priority; the shelf remains the one owner of where that priority puts it.
 const alwaysFolded = () =>
   [...bannerActions.children].filter((control) => control.dataset.lfAlwaysFold);
 
@@ -208,18 +207,16 @@ const alwaysFolded = () =>
 // status sentence's floor leaves; anything past that cap overflows, and overflowing is
 // the whole of the question this asks. So the two facts this rests on are ones the
 // banner already keeps true: everything that rewrites its own words holds room for the
-// widest it may say — the `reserve` calls where the banner is built, and the sentence's
-// own floor, measured from every line the page can reach rather than the one in it
-// (reserveStatusRoom) — and the cap is a share of the row rather than of the sentence
-// currently in it. A count turning over, or a status ageing from "is working" to "last
-// checked in", therefore moves nothing at all.
+// widest it may say — the `reserve` calls where the banner is built — and the
+// sentence keeps a fixed floor independent of its current words. A count turning over,
+// or a status ageing from "is working" to "last checked in", therefore moves nothing.
 //
-// It moves the one address whose place has changed and no others. Emptying the menu and
+// It moves the one control whose place has changed and no others. Emptying the menu and
 // refilling it on every layout pass answers the same question, and takes every node out
 // of the document and puts it back to do it — which blurs whatever the reader was
 // standing on, replays every animation those nodes wear, and re-announces anything live
 // inside them. Room is handed back before it is taken, newest fold first, so a window
-// widening returns addresses in the order a window narrowing took them.
+// widening returns controls in the order a window narrowing took them.
 //
 // Nothing is refolded while the menu stands open. It is a transient reading of the row,
 // and re-deciding its contents under the hands of a reader walking it is a list that
@@ -235,11 +232,11 @@ export function foldShelf() {
   }
 }
 // The row is an open layer. A registry-declared blanket answer joins it when the
-// registry lands, and a project's own address can join it later still; neither knows
+// registry lands, and a project's own control can join it later still; neither knows
 // about the fold, and a row that refolded only when the window moved would seat a new
-// address in a row that no longer has room for it. The fold's own moves are what this
+// control in a row that no longer has room for it. The fold's own moves are what this
 // must not answer, and it does not try to tell one mutation from another: it compares
-// which addresses are on the row with which ones the last fold decided about, and a
+// which controls are on the row with which ones the last fold decided about, and a
 // fold moving them between the row and the menu leaves that answer alone.
 let seats = 0;
 const runKey = () =>
@@ -265,15 +262,8 @@ function refold() {
     overflowBtn.hidden = overflowMenu.children.length === 0;
     return bannerActions.scrollWidth <= bannerActions.clientWidth;
   };
-  // Restore quiet orientation before each measurement. Remember the controls the
-  // previous fold yielded independently of whether they are still passive: a version
-  // can become a chooser while hidden, and its new capability must bring it back.
-  for (const control of yielded()) {
-    control.style.removeProperty("display");
-    delete control.dataset.lfYielded;
-  }
-  // Permanent overflow keeps the same front-to-back order as the complete address
-  // run. Put it at the menu's front before considering which other addresses fit.
+  // Permanent overflow keeps the same front-to-back order as the complete control
+  // run. Put it at the menu's front before considering which other controls fit.
   overflowMenu.prepend(...alwaysFolded());
   for (let back = overflowMenu.lastElementChild; back;) {
     if (back.dataset.lfAlwaysFold) break;
@@ -291,18 +281,11 @@ function refold() {
   while (!fits()) {
     const [first] = foldable();
     // A row whose reading loop alone outgrows it has nothing left to fold. It keeps what
-    // it has and clips, which is the honest end of a row two addresses wide in a window
-    // narrower than two addresses.
+    // it has and clips, which is the honest end of a row two controls wide in a window
+    // narrower than two controls.
     if (!first) break;
     overflowMenu.append(first);
     if (newsControls.has(first)) paintPresence(first);
-  }
-  if (!fits()) {
-    for (const control of passive()) {
-      control.style.display = "none";
-      control.dataset.lfYielded = "1";
-      if (fits()) break;
-    }
   }
   paintDoor();
   lastRun = runKey();
@@ -312,16 +295,16 @@ function refold() {
     });
 }
 
-// News behind the door. An address the fold has taken is an address whose arrival the
+// News behind the door. A control the fold has taken is one whose arrival the
 // reader cannot see, and the page they are reading having been replaced is exactly the
 // arrival they are owed — so the door says there is something, in ink and in its own
-// name, and the address behind it goes on saying what. State is paint here as it is
+// name, and the control behind it goes on saying what. State is paint here as it is
 // everywhere else on this row: no metric changes, so nothing beside the door moves for
 // news arriving behind it.
 //
-// Which news is worth a door saying so is the address's own claim (data-lf-urgent), not
-// this module's guess. Every folded address has something to say — that is what a
-// banner address is — and a door lit whenever it holds one is a light that is always
+// Which news is worth a door saying so is the control's own claim (data-lf-urgent), not
+// this module's guess. Every folded control has something to say — that is what a
+// banner control is — and a door lit whenever it holds one is a light that is always
 // on, which says nothing at all.
 function paintDoor() {
   const news = folded().some(
@@ -329,7 +312,7 @@ function paintDoor() {
       control.dataset.lfUrgent && control.classList.contains("lf-news-shown"),
   );
   overflowBtn.toggleAttribute("data-lf-news", news);
-  const name = news ? "More page addresses, new" : "More page addresses";
+  const name = news ? "More page controls, new" : "More page controls";
   overflowBtn.setAttribute("aria-label", name);
   overflowBtn.title = name;
 }

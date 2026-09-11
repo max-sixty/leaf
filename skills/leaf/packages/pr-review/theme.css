@@ -8,7 +8,7 @@ lf-pull-request {
 }
 
 .lf-pr-card {
-  --lf-frame: 1;
+  --lf-block-frame: 1;
   display: grid;
   gap: var(--sp-3);
   padding: var(--sp-4);
@@ -240,7 +240,7 @@ lf-pull-request {
  * unchanged rows hold the mental map still while additions and removals carry the
  * same semantic washes as the source diff. */
 lf-call-diff {
-  --lf-frame: 1;
+  --lf-block-frame: 1;
   display: block;
   max-width: 100%;
   margin: var(--sp-3) 0;
@@ -382,11 +382,17 @@ lf-call-diff {
 }
 
 .lf-call-line[data-meta] {
+  grid-template-columns: 2rem minmax(0, 1fr);
   min-width: 0;
-  overflow-x: auto;
   padding-block: var(--sp-1);
   background: var(--code-chrome);
   color: var(--code-muted);
+  white-space: normal;
+}
+
+.lf-call-line[data-meta] .lf-call-body {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .lf-call-marker {

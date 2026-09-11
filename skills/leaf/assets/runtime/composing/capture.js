@@ -17,8 +17,8 @@ import {
 } from "../passages.js";
 import { textUnits } from "../text-alignment.js";
 import { focused } from "../keyboard/scopes.js";
-import { takesLetters } from "../keyboard/page.js";
-import { anchoringIsReady } from "../anchors.js";
+import { takesLetters } from "../focus.js";
+import { anchorForDatum, anchoringIsReady } from "../anchor-resolution.js";
 
 // How much of a passage's surroundings an anchor writes down. Only the capture decides
 // this; the search asks for whatever a given anchor happens to hold.
@@ -63,20 +63,7 @@ export function selectionAnchor(sel) {
   // Identity is the context for projected data. Neighbouring display values may reorder
   // or repeat, so storing their words as prefix/suffix would make incidental layout a
   // second, conflicting answer to which datum the reader selected.
-  if (datum) {
-    const dataRevision = Number(datum.dataset.lfSourceRevision);
-    return {
-      section,
-      datum: datum.dataset.lfDatum,
-      quote,
-      ...(datum.dataset.lfSource && Number.isInteger(dataRevision)
-        ? {
-            source: datum.dataset.lfSource,
-            data_revision: dataRevision,
-          }
-        : {}),
-    };
-  }
+  if (datum) return anchorForDatum(datum, { quote });
   const reading = pageText();
   const [start, stop] = spanIn(reading, segments);
   const prefix = cut(

@@ -8,6 +8,765 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
+<!-- notification-playground.html authored styles -->
+<style>
+      notification-simulator {
+        display: block;
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        container-type: inline-size;
+      }
+
+      notification-simulator .notification-demo-pressure {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: var(--sp-1) var(--sp-3);
+        align-items: center;
+        margin: var(--sp-3) 0;
+        padding: var(--sp-3);
+        border-block: 1px solid var(--border-2);
+      }
+
+      notification-simulator .notification-demo-pressure-label {
+        color: var(--ink-2);
+        font: 600 var(--t-5) / 1.3 var(--sans);
+      }
+
+      notification-simulator .notification-demo-pressure-reading {
+        min-width: 4.5rem;
+        color: var(--ink);
+        font: 650 var(--t-5) / 1.3 var(--sans);
+        text-align: end;
+      }
+
+      notification-simulator .notification-demo-pressure-input {
+        grid-column: 1 / -1;
+        width: 100%;
+        margin: 0;
+        accent-color: var(--notification-accent);
+      }
+
+      notification-simulator .notification-demo-pressure-scale {
+        display: flex;
+        grid-column: 1 / -1;
+        justify-content: space-between;
+        color: var(--ink-3);
+        font: var(--t-6) / 1.2 var(--sans);
+      }
+
+      notification-simulator .notification-demo-candidates {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sp-3);
+      }
+
+      notification-simulator .notification-demo-candidate {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: var(--sp-2);
+        min-width: 0;
+        margin: 0;
+        padding: var(--sp-2);
+        border: 1px solid transparent;
+        border-radius: calc(var(--notification-radius) + var(--sp-1));
+      }
+
+      notification-simulator .notification-demo-candidate[data-selected] {
+        border-color: var(--notification-accent);
+        box-shadow: inset 0 0 0 1px var(--notification-accent);
+      }
+
+      notification-simulator .notification-demo-caption {
+        display: flex;
+        gap: var(--sp-2);
+        align-items: baseline;
+        justify-content: space-between;
+        color: var(--ink-2);
+        font: var(--t-6) / 1.3 var(--sans);
+      }
+
+      notification-simulator .notification-demo-name {
+        color: var(--ink);
+        font-weight: 680;
+      }
+
+      notification-simulator .notification-demo-metric {
+        text-align: end;
+      }
+
+      notification-simulator .notification-demo-feed {
+        display: grid;
+        align-content: start;
+        gap: var(--sp-2);
+        min-width: 0;
+      }
+
+      notification-simulator .notification-demo-card {
+        --lf-block-frame: 1;
+        min-width: 0;
+        border: 1px solid var(--border-2);
+        border-radius: var(--notification-radius);
+        background: var(--card);
+      }
+
+      notification-simulator[data-tone="urgent"] .notification-demo-card {
+        background: color-mix(in srgb, var(--notification-accent) 10%, var(--card));
+      }
+
+      notification-simulator .notification-demo-card-banner {
+        padding: var(--sp-3);
+        border-inline-start: 4px solid var(--notification-accent);
+      }
+
+      notification-simulator[data-compact="true"] .notification-demo-card-banner {
+        padding: var(--sp-2) var(--sp-3);
+      }
+
+      notification-simulator[data-compact="true"] .notification-demo-card-status-strip {
+        gap: 0 var(--sp-2);
+        padding: var(--sp-1) var(--sp-2);
+      }
+
+      notification-simulator[data-compact="true"] .notification-demo-feed {
+        gap: var(--sp-1);
+      }
+
+      notification-simulator .notification-demo-card-head,
+      notification-simulator .notification-demo-card-status-strip {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: var(--sp-1) var(--sp-2);
+        align-items: baseline;
+      }
+
+      notification-simulator .notification-demo-card-head {
+        color: var(--ink-2);
+        font: var(--t-6) / 1.3 var(--sans);
+      }
+
+      notification-simulator .notification-demo-card-status-strip {
+        grid-template-columns: minmax(4.5rem, 0.55fr) minmax(0, 1.45fr) auto;
+        padding: var(--sp-2);
+        border-block-start: 3px solid var(--notification-accent);
+      }
+
+      notification-simulator .notification-demo-title {
+        min-width: 0;
+        margin: var(--sp-1) 0;
+        font: 650 var(--t-4) / 1.18 var(--sans);
+        overflow-wrap: anywhere;
+      }
+
+      notification-simulator
+        .notification-demo-card-status-strip
+        .notification-demo-title {
+        margin: 0;
+        font-size: var(--t-5);
+      }
+
+      notification-simulator .notification-demo-state {
+        color: var(--ink-2);
+        font: 600 var(--t-6) / 1.2 var(--sans);
+      }
+
+      notification-simulator .notification-demo-strip-owner {
+        grid-column: 2 / -1;
+        color: var(--ink-2);
+        font: var(--t-6) / 1.2 var(--sans);
+      }
+
+      notification-simulator .notification-demo-detail,
+      notification-simulator .notification-demo-owner {
+        margin: var(--sp-1) 0 0;
+      }
+
+      notification-simulator .notification-demo-owner,
+      notification-simulator .notification-demo-time {
+        color: var(--ink-2);
+        font-size: var(--t-6);
+      }
+
+      notification-simulator .notification-demo-card[data-level="warn"] {
+        border-color: color-mix(in srgb, var(--warn) 55%, var(--border-2));
+      }
+
+      notification-simulator .notification-demo-card[data-level="bad"] {
+        border-color: color-mix(in srgb, var(--bad) 55%, var(--border-2));
+      }
+
+      @container (max-width: 42rem) {
+        notification-simulator .notification-demo-candidates {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
+      @media print {
+        notification-simulator .notification-demo-pressure {
+          display: none;
+        }
+      }
+    </style>
+<!-- notification-playground.html authored module -->
+<script type="module">
+      import {
+        keeps,
+        layoutChanged,
+        once,
+        offer,
+        quoted,
+      } from "/runtime/widget-api.js";
+
+      const EVENTS = [
+        {
+          service: "Checkout",
+          title: "Checkout deployed",
+          detail: "Version 2.8.0 passed all 18 release checks.",
+          owner: "Payments platform",
+          time: "14:32",
+          level: "ok",
+        },
+        {
+          service: "Search",
+          title: "Index promotion delayed",
+          detail: "The new catalog index is 90 seconds behind the release.",
+          owner: "Discovery systems",
+          time: "14:34",
+          level: "warn",
+        },
+        {
+          service: "Payments",
+          title: "Authorization latency recovered",
+          detail: "P95 latency returned below 200 ms after the rollout.",
+          owner: "Payments platform",
+          time: "14:36",
+          level: "ok",
+        },
+        {
+          service: "Fraud",
+          title: "Rule synchronization blocked",
+          detail: "The eu-west ruleset needs an operator before traffic moves.",
+          owner: "Risk engineering",
+          time: "14:38",
+          level: "bad",
+        },
+      ];
+
+      function element(tag, className, text) {
+        const node = document.createElement(tag);
+        node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+
+      function metric(label) {
+        const node = element("span", "notification-demo-metric", label);
+        node.setAttribute("aria-live", "polite");
+        return node;
+      }
+
+      function candidate(name, format) {
+        const figure = element("figure", "notification-demo-candidate");
+        figure.dataset.notificationFormat = format;
+        const caption = element("figcaption", "notification-demo-caption");
+        caption.append(element("strong", "notification-demo-name", name), metric(""));
+        const feed = element(
+          "div",
+          `notification-demo-feed notification-demo-${format.replace(" ", "-")}`,
+        );
+        feed.setAttribute("aria-label", `${name} candidate`);
+        figure.append(caption, feed);
+        return { figure, feed, metric: caption.lastElementChild };
+      }
+
+      function notification(event, format, index, values) {
+        const formatClass = format.replace(" ", "-");
+        const article = element(
+          "article",
+          `notification-demo-card notification-demo-card-${formatClass}`,
+        );
+        article.dataset.level = event.level;
+        const title = index === 0 ? values.title : event.title;
+        const heading = element("h2", "notification-demo-title", title);
+        heading.id = `notification-${formatClass}-${index + 1}-title`;
+        article.setAttribute("aria-labelledby", heading.id);
+
+        if (format === "banner") {
+          const header = element("header", "notification-demo-card-head");
+          header.append(
+            element("span", "notification-demo-service", `${event.service} update`),
+            element("time", "notification-demo-time", event.time),
+          );
+          article.append(
+            header,
+            heading,
+            element("p", "notification-demo-detail", event.detail),
+          );
+          if (values["show-owner"])
+            article.append(
+              element("p", "notification-demo-owner", `Owner: ${event.owner}`),
+            );
+          return article;
+        }
+
+        article.append(
+          element("span", "notification-demo-state", event.service),
+          heading,
+          element("time", "notification-demo-time", event.time),
+        );
+        if (values["show-owner"])
+          article.append(
+            element("span", "notification-demo-strip-owner", `Owner · ${event.owner}`),
+          );
+        return article;
+      }
+
+      customElements.define(
+        "notification-simulator",
+        class extends HTMLElement {
+          #count = 2;
+          #slider = null;
+          #reading = null;
+          #banner = null;
+          #strip = null;
+          #playground = null;
+          #change = null;
+          #values = null;
+
+          connectedCallback() {
+            if (once(this)) this.#build();
+            this.#connect();
+          }
+
+          disconnectedCallback() {
+            this.#playground?.removeEventListener("lf-playground-change", this.#change);
+            this.#playground = null;
+          }
+
+          #build() {
+            const pressure = offer("section", "notification-demo-pressure");
+            const label = offer(
+              "label",
+              "notification-demo-pressure-label",
+              "Concurrent release events",
+            );
+            label.htmlFor = `${this.id}-pressure`;
+            this.#slider = offer(
+              "input",
+              "notification-demo-pressure-input",
+              undefined,
+              "range",
+            );
+            this.#slider.id = label.htmlFor;
+            this.#slider.min = "1";
+            this.#slider.max = String(EVENTS.length);
+            this.#slider.step = "1";
+            this.#slider.value = String(this.#count);
+            this.#slider.disabled = quoted(this);
+            this.#reading = offer("output", "notification-demo-pressure-reading");
+            this.#reading.htmlFor = this.#slider.id;
+            const scale = offer("div", "notification-demo-pressure-scale");
+            scale.append(offer("span", "", "Routine"), offer("span", "", "Burst"));
+            pressure.append(label, this.#slider, this.#reading, scale);
+
+            this.#banner = candidate("A · Banner stack", "banner");
+            this.#strip = candidate("B · Status stream", "status strip");
+            const candidates = element("div", "notification-demo-candidates");
+            candidates.append(this.#banner.figure, this.#strip.figure);
+            this.append(pressure, candidates);
+
+            this.#slider.addEventListener("input", () => {
+              this.#count = Number(this.#slider.value);
+              this.#render();
+            });
+          }
+
+          async #connect() {
+            await customElements.whenDefined("lf-playground");
+            if (!this.isConnected) return;
+            this.#playground?.removeEventListener("lf-playground-change", this.#change);
+            this.#playground = this.closest("lf-playground");
+            if (!this.#playground) return;
+            this.#change = (event) => {
+              if (event.target !== this.#playground) return;
+              this.#values = event.detail.values;
+              this.#render();
+            };
+            this.#playground.addEventListener("lf-playground-change", this.#change);
+            this.#values = this.#playground.values;
+            this.#render();
+          }
+
+          #render() {
+            if (!this.#values) return;
+            const events = EVENTS.slice(0, this.#count);
+            keeps(this, "data-tone", this.#values.tone);
+            keeps(this, "data-compact", this.#values.compact);
+            this.style.setProperty("--notification-accent", this.#values.accent);
+            this.style.setProperty("--notification-radius", `${this.#values.radius}px`);
+            this.#reading.value = `${this.#count} ${
+              this.#count === 1 ? "event" : "events"
+            }`;
+            this.#banner.figure.toggleAttribute(
+              "data-selected",
+              this.#values.format === "banner",
+            );
+            this.#strip.figure.toggleAttribute(
+              "data-selected",
+              this.#values.format === "status strip",
+            );
+            this.#banner.feed.replaceChildren(
+              ...events.map((event, index) =>
+                notification(event, "banner", index, this.#values),
+              ),
+            );
+            this.#strip.feed.replaceChildren(
+              ...events.map((event, index) =>
+                notification(event, "status strip", index, this.#values),
+              ),
+            );
+            this.#banner.metric.textContent = `${this.#count} cards · full detail`;
+            this.#strip.metric.textContent = `${this.#count} rows · compact summary`;
+            layoutChanged(this);
+          }
+        },
+      );
+    </script>
+<!-- pr-walkthrough.html authored styles -->
+<style>
+      .pr-agent-brief {
+        margin: var(--sp-3) 0;
+      }
+
+      .pr-agent-brief > :first-child,
+      .pr-review-gesture > :first-child {
+        margin-top: 0;
+      }
+
+      .pr-agent-brief > :last-child,
+      .pr-review-gesture > :last-child {
+        margin-bottom: 0;
+      }
+
+      .pr-review-gesture {
+        --lf-block-frame: 1;
+        margin: var(--sp-3) 0;
+        padding: var(--sp-3);
+        border-inline-start: 3px solid var(--accent);
+        background: color-mix(in srgb, var(--accent) 5%, transparent);
+      }
+
+      .pr-evidence-status {
+        white-space: nowrap;
+      }
+
+      .pr-evidence-status > span {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: var(--chip-r);
+        font: var(--t-6) var(--sans);
+      }
+
+      .pr-status-passed {
+        background: var(--ok-tint);
+        color: var(--ok-ink);
+      }
+
+      .pr-status-gap {
+        background: var(--warn-tint);
+        color: var(--warn-ink);
+      }
+
+      .pr-change-key {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        margin: var(--sp-2) 0;
+        color: var(--muted);
+        font: var(--t-6) var(--sans);
+      }
+
+      .pr-change-key span {
+        padding: 2px 8px;
+        border: 1px solid var(--rule);
+        border-radius: var(--chip-r);
+      }
+
+      .pr-change-key .pr-added {
+        background: var(--ok-tint);
+        color: var(--ok-ink);
+      }
+
+      .pr-change-key .pr-removed {
+        background: var(--danger-tint);
+        color: var(--danger-ink);
+      }
+
+      .pr-scale-facts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin: var(--sp-3) 0;
+        border-block: 1px solid var(--rule);
+      }
+
+      .pr-scale-facts > div {
+        min-width: 0;
+        padding: var(--sp-2);
+        border-inline-start: 1px solid var(--rule);
+      }
+
+      .pr-scale-facts > div:nth-child(3n + 1) {
+        border-inline-start: 0;
+      }
+
+      .pr-scale-facts > div:nth-child(n + 4) {
+        border-top: 1px solid var(--rule);
+      }
+
+      .pr-scale-facts dt {
+        color: var(--muted);
+        font: var(--t-7) var(--sans);
+        letter-spacing: 0.045em;
+        text-transform: uppercase;
+      }
+
+      .pr-scale-facts dd {
+        margin: 2px 0 0;
+        color: var(--ink);
+        font: var(--t-3) var(--mono);
+      }
+
+      @media (max-width: 680px) {
+        .pr-scale-facts {
+          grid-template-columns: 1fr;
+        }
+
+        .pr-scale-facts > div {
+          border-inline-start: 0;
+          border-top: 1px solid var(--rule);
+        }
+
+        .pr-scale-facts > div:first-child {
+          border-top: 0;
+        }
+      }
+
+      @media print {
+        .pr-review-gesture {
+          background: transparent;
+        }
+      }
+    </style>
+<!-- feature-gallery.html authored styles -->
+<style>
+      .bg-feature-detail {
+        color: var(--ink-2);
+        font-weight: 400;
+      }
+
+      .bg-feature-elements {
+        margin-bottom: 4px;
+      }
+
+      .interaction-gallery lf-tabs {
+        margin-top: 14px;
+        margin-bottom: 0;
+        box-shadow: 0 18px 46px color-mix(in srgb, var(--ink) 11%, transparent);
+      }
+
+      .interaction-gallery .interaction-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      /* Placement and density only. The runtime gives the playback action the shared
+         lf-btn face; the gallery keeps its changing labels on one stable row. */
+      .interaction-gallery .interaction-control {
+        min-height: var(--aim-floor);
+        padding: 6px 13px;
+        font: 600 var(--t-6) / 1.2 var(--sans);
+      }
+
+      .interaction-gallery .interaction-setting {
+        display: inline-flex;
+        min-height: var(--aim-floor);
+        align-items: center;
+        gap: 6px;
+        color: var(--ink-2);
+        font: var(--t-6) / 1.2 var(--sans);
+      }
+
+      .interaction-gallery .interaction-setting select {
+        min-height: var(--aim-floor);
+        padding: 5px 24px 5px 8px;
+        border: 1px solid var(--border-2);
+        border-radius: 6px;
+        background: var(--card);
+        color: var(--ink);
+        font: inherit;
+      }
+
+      .interaction-gallery .interaction-loop {
+        margin: 0;
+      }
+
+      /* Under the persistent controls rather than beside them, at every width. The
+         runtime rewrites this line as the demo runs, and changing prose on the button's
+         line would move the row while the reader is aiming at it. */
+      .interaction-gallery .interaction-status {
+        flex-basis: 100%;
+        color: var(--muted);
+        font: var(--t-6) / 1.4 var(--sans);
+      }
+
+      .interaction-demo {
+        margin: 0;
+      }
+
+      .interaction-stage {
+        position: relative;
+        min-height: 18rem;
+        overflow: visible;
+        padding: clamp(28px, 6vw, 64px);
+        border: 1px solid var(--border-2);
+        border-radius: calc(var(--r) - 2px);
+        background:
+          linear-gradient(
+            120deg,
+            color-mix(in srgb, var(--field) 72%, transparent),
+            transparent 58%
+          ),
+          var(--paper);
+      }
+
+      .interaction-frame-stage {
+        height: 30rem;
+        overflow: hidden;
+        padding: 0;
+      }
+
+      .interaction-suggestion-stage {
+        height: 24rem;
+      }
+
+      .interaction-frame {
+        display: none;
+        width: var(--interaction-viewport-size, 200%);
+        height: var(--interaction-viewport-size, 200%);
+        border: 0;
+        opacity: 0;
+        pointer-events: none;
+        transform: scale(var(--interaction-page-scale, 0.5));
+        transform-origin: top left;
+      }
+
+      .interaction-gallery[data-interaction-viewport="1"] {
+        --interaction-viewport-size: 100%;
+        --interaction-page-scale: 1;
+      }
+
+      .interaction-gallery[data-interaction-viewport="2"] {
+        --interaction-viewport-size: 200%;
+        --interaction-page-scale: 0.5;
+      }
+
+      .interaction-gallery[data-interaction-viewport="4"] {
+        --interaction-viewport-size: 400%;
+        --interaction-page-scale: 0.25;
+      }
+
+      .interaction-frame[data-interaction-ready] {
+        display: block;
+        opacity: 1;
+      }
+
+      .interaction-keypress {
+        position: absolute;
+        z-index: 4;
+        right: 18px;
+        bottom: 18px;
+        padding: 7px 10px;
+        border: 1px solid var(--border-2);
+        border-radius: 8px;
+        background: var(--card);
+        box-shadow: 0 4px 14px var(--shade);
+        color: var(--ink);
+        font: 650 var(--t-6) / 1 var(--sans);
+        pointer-events: none;
+      }
+
+      .interaction-keypress[hidden] {
+        display: none;
+      }
+
+      .interaction-pointer {
+        position: absolute;
+        z-index: 5;
+        top: 0;
+        left: 0;
+        width: 22px;
+        height: 28px;
+        background: var(--ink);
+        clip-path: polygon(0 0, 78% 71%, 47% 73%, 63% 100%, 49% 100%, 34% 76%, 0 100%);
+        filter: drop-shadow(0 1px 0 var(--paper)) drop-shadow(0 2px 3px var(--shade));
+        pointer-events: none;
+        transform-origin: 2px 2px;
+        will-change: transform, opacity;
+      }
+
+      .interaction-pointer[hidden] {
+        display: none;
+      }
+
+      .interaction-demo figcaption {
+        max-width: 66ch;
+        margin-top: 13px;
+        color: var(--ink-2);
+        font-size: var(--t-5);
+        line-height: 1.55;
+      }
+
+      @container lf-shell (max-width: 1151px) {
+        #bg-sidebar {
+          display: none;
+        }
+      }
+
+      @media print {
+        .interaction-controls,
+        .interaction-pointer {
+          display: none !important;
+        }
+
+        .interaction-gallery lf-tabs {
+          box-shadow: none;
+        }
+      }
+    </style>
+<!-- targeting-gallery.html authored styles -->
+<style>
+      .target-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sp-3);
+      }
+      .target-card {
+        padding: var(--sp-4);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+      }
+      .target-card h3 {
+        margin-top: 0;
+      }
+      @media (max-width: 560px) {
+        .target-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
 </head>
 <body>
 <main>
@@ -338,7 +1097,7 @@ outside average, before, after
 <lf-tab id="corpus-notification-playground" label="Notification">
 <lf-workspace id="notification-workspace">
         <lf-ask id="notification-ask">
-          <h1>Create the deployment notification</h1>
+          <h1>Stress-test the deployment notification</h1>
           <lf-playground
             id="notification-playground"
             submit-label="Create notification"
@@ -359,6 +1118,21 @@ outside average, before, after
               kind="toggle"
               value="false"
             ></lf-playground-control>
+            <lf-playground-control
+              name="format"
+              label="Format"
+              kind="choice"
+              value="banner"
+            >
+              <lf-playground-choice
+                value="banner"
+                label="Banner"
+              ></lf-playground-choice>
+              <lf-playground-choice
+                value="status strip"
+                label="Status strip"
+              ></lf-playground-choice>
+            </lf-playground-control>
             <lf-playground-control name="tone" label="Tone" kind="choice" value="calm">
               <lf-playground-choice value="calm" label="Calm"></lf-playground-choice>
               <lf-playground-choice
@@ -393,6 +1167,10 @@ outside average, before, after
                 value="false"
               ></lf-playground-setting>
               <lf-playground-setting
+                for="format"
+                value="banner"
+              ></lf-playground-setting>
+              <lf-playground-setting
                 for="accent"
                 value="#4f766f"
               ></lf-playground-setting>
@@ -401,36 +1179,47 @@ outside average, before, after
               <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
               <lf-playground-setting for="compact" value="true"></lf-playground-setting>
               <lf-playground-setting
+                for="format"
+                value="status strip"
+              ></lf-playground-setting>
+              <lf-playground-setting
                 for="accent"
                 value="#b6533c"
               ></lf-playground-setting>
             </lf-playground-preset>
 
             <lf-playground-preview id="notification-preview">
-              <article id="notification-card" aria-labelledby="notification-title">
-                <header>
-                  <p class="eyebrow">Deployment update</p>
-                  <h2 id="notification-title"></h2>
-                </header>
-                <p>
-                  Version 2.8.0 changed the checkout service. Review the deployment run
-                  and current service health.
-                </p>
-                <p id="notification-owner"><strong>Owner:</strong> Payments platform</p>
-                <footer>Recorded at 14:32 · 18 checks completed</footer>
-              </article>
+              <p>
+                Drag event pressure from a routine release to a burst. Both formats
+                receive the same updates, so their scan cost stays comparable. The
+                Format control selects the requested output while leaving both
+                candidates visible for comparison.
+              </p>
+              <notification-simulator
+                id="notification-simulator"
+              ></notification-simulator>
               <section id="notification-artifact" hidden>
-                <lf-source
+                <lf-text-document
                   id="notification-artifact-source"
                   source="notification-artifact"
                   language="html"
-                ></lf-source>
+                ></lf-text-document>
               </section>
             </lf-playground-preview>
 
             <lf-playground-output id="notification-instruction">
-              Create this notification as <code>deployment-notification.html</code>.
-              When it is ready, show me the generated source here for review.
+              Build the
+              <lf-playground-value for="format"></lf-playground-value> deployment
+              notification as <code>deployment-notification.html</code>. Use
+              <lf-playground-value for="tone"></lf-playground-value> styling,
+              <lf-playground-value for="radius"></lf-playground-value> corners,
+              <lf-playground-value for="accent"></lf-playground-value> accents, compact
+              spacing set to <lf-playground-value for="compact"></lf-playground-value>,
+              owner visibility set to
+              <lf-playground-value for="show-owner"></lf-playground-value>, and title it
+              <lf-playground-value for="title"></lf-playground-value>. Preserve the
+              shared event-pressure scenario in its browser test, then show me the
+              generated source here for review.
             </lf-playground-output>
           </lf-playground>
         </lf-ask>
@@ -484,7 +1273,10 @@ outside average, before, after
               This snapshot ends at 14:24:44. During a rehearsal, new samples appear
               here while the overview and containment choice stay in place.
             </p>
-            <lf-source id="lp-live-log" source="rehearsal-log"></lf-source>
+            <lf-text-document
+              id="lp-live-log"
+              source="rehearsal-log"
+            ></lf-text-document>
             <footer>Newest samples appear at the end.</footer>
           </lf-monitor-region>
 
@@ -540,9 +1332,8 @@ outside average, before, after
         <a href="https://github.com/max-sixty/worktrunk/pull/3865"
           >Worktrunk PR #3865</a
         >
-        shipped a unified-diff preview for the switch picker. Review the merged revision
-        as if it were still awaiting a final decision; the exact 46-file patch remains
-        available below.
+        adds a unified-diff preview for the switch picker. The captured revision is
+        awaiting a merge decision; its exact 46-file patch remains available below.
       </p>
 
       <details id="pr-request-context">
@@ -557,7 +1348,9 @@ outside average, before, after
         <h2>Review finding</h2>
         <div class="pr-agent-brief" id="pr-agent-summary">
           <p>
-            <strong>The final revision is safe to approve with two follow-ups.</strong>
+            <strong
+              >The current revision is safe to approve with two follow-ups.</strong
+            >
             <code>PreparedDiff</code> owns each complete Git diff invocation;
             <code>TempIndex</code> includes untracked files without changing the real
             index; and the picker loads off-screen worktrees only when selected.
@@ -565,9 +1358,9 @@ outside average, before, after
           <p>
             Review found sparse-checkout divergence, a shared temporary directory, a
             symlink race while copying the index, and stale prewarming claims. The
-            merged revision corrects all four. Two follow-ups remain: selected-row
-            demand latency has no benchmark, and
-            <code>wt step commit --dry-run</code> can still stage its own
+            current revision corrects all four. Two follow-ups remain: selected-row
+            demand latency has no benchmark, and a pre-existing
+            <code>wt step commit --dry-run</code> gap can still stage its own
             temporary-index artifact when <code>TMPDIR</code> sits inside the worktree.
           </p>
         </div>
@@ -760,7 +1553,7 @@ flowchart LR
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk">
+          <lf-diff id="pr-key-hunk" review>
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
 --- a/src/summary.rs
@@ -817,39 +1610,55 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
       </section>
 
       <details id="pr-history-disclosure">
-        <summary>Review history · four fixes before merge</summary>
+        <summary>Review history · four fixes in review</summary>
         <section id="pr-history">
           <h2>Review history</h2>
-          <lf-timeline id="pr-review-timeline">
-            <lf-event id="pr-event-open" at="03:32 UTC" kind="info">
+          <lf-chronology id="pr-review-chronology">
+            <lf-chronology-entry
+              id="pr-chronology-open"
+              at="03:32 UTC"
+              kind="observation"
+            >
               <strong>PR opened</strong> The first revision introduced the unified
               picker tab, shared diff preparation, and broad integration coverage.
-            </lf-event>
-            <lf-event id="pr-event-first-review" at="03:43 UTC" kind="warning">
+            </lf-chronology-entry>
+            <lf-chronology-entry
+              id="pr-chronology-first-review"
+              at="03:43 UTC"
+              kind="warning"
+            >
               <strong>First review withheld approval</strong> It found divergent sparse
               handling, a predictable shared temp directory, startup-cost uncertainty,
               and documentation drift.
-            </lf-event>
-            <lf-event id="pr-event-temp-fix" at="04:13 UTC" kind="action">
+            </lf-chronology-entry>
+            <lf-chronology-entry
+              id="pr-chronology-temp-fix"
+              at="04:13 UTC"
+              kind="intervention"
+            >
               <strong>Temp indexes became random, exclusive files</strong> Sparse
               registration and worktree-local temp-directory exclusion gained focused
               tests.
-            </lf-event>
-            <lf-event id="pr-event-race-fix" at="04:32 UTC" kind="action">
+            </lf-chronology-entry>
+            <lf-chronology-entry
+              id="pr-chronology-race-fix"
+              at="04:32 UTC"
+              kind="intervention"
+            >
               <strong>The index copy kept ownership of its pathname</strong> Writing
               through the still-open file closed the symlink race, and off-screen
               worktrees moved out of eager prewarm.
-            </lf-event>
-            <lf-event id="pr-event-final-review" at="04:57 UTC" kind="info">
-              <strong>Final review approved with follow-ups</strong> The shared
-              <code>TempIndex</code> path and orchestration prose converged;
+            </lf-chronology-entry>
+            <lf-chronology-entry
+              id="pr-chronology-final-review"
+              at="04:57 UTC"
+              kind="observation"
+            >
+              <strong>Agent review recommends approval with follow-ups</strong> The
+              shared <code>TempIndex</code> path and orchestration prose converged;
               selected-row latency and dry-run temp artifacts remained visible notes.
-            </lf-event>
-            <lf-event id="pr-event-merged" at="05:18 UTC" kind="info">
-              <strong>Merged</strong> Six commits landed after all reported checks
-              passed.
-            </lf-event>
-          </lf-timeline>
+            </lf-chronology-entry>
+          </lf-chronology>
         </section>
       </details>
 
@@ -861,9 +1670,10 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
         </p>
         <aside class="pr-review-gesture" id="pr-comment-help">
           <p>
-            <strong>Review in place.</strong> Alt-click a source line to comment on the
-            whole line, or drag across an exact expression to quote it. Comments retain
-            the file, side, line, and quote even when the file disclosure is closed.
+            <strong>Review in place.</strong> Alt-click a file header or source line to
+            comment on that whole target, or drag across an exact expression to quote
+            it. Comments retain their file coordinate—and, for line comments, side,
+            line, and quote—even when the file disclosure is closed.
           </p>
         </aside>
         <lf-diff id="pr-exact-patch" source="pr-review-patch" snapshot="1" collapsed>
@@ -959,47 +1769,49 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
                   <span class="pr-status-gap">gap</span>
                 </td>
                 <td>
-                  A reviewer reproduced the extra index and lock entries with plain Git.
+                  The captured hunk moves the existing staging path onto
+                  <code>TempIndex</code> without changing its <code>git add</code>
+                  semantics; a reviewer reproduced the extra index and lock entries with
+                  plain Git.
                 </td>
               </tr>
             </tbody>
           </table>
           <details id="pr-prepared-diff-evidence">
-            <summary>Exact PreparedDiff source at the merged revision</summary>
+            <summary>Exact PreparedDiff source at the current revision</summary>
             <p id="pr-prepared-diff-note">
               This 169-line repository slice contains the source-owning abstraction and
               all three preparation entry points.
             </p>
-            <lf-source
+            <lf-text-document
               id="pr-prepared-diff-source"
               source="pr-prepared-diff-source"
               snapshot="3"
               language="rust"
-            ></lf-source>
+            ></lf-text-document>
           </details>
         </section>
       </details>
 
       <section id="pr-outcome">
         <lf-ask id="pr-outcome-decision">
-          <h2>How would you have reviewed the final revision?</h2>
+          <h2>Should this revision merge?</h2>
           <p id="pr-outcome-context">
-            The pull request is already merged. Choose the review judgment best
-            supported by the captured revision and evidence.
+            Choose the review judgment best supported by the captured revision and
+            evidence.
           </p>
           <lf-options id="pr-outcome-choice" choose>
             <lf-option id="pr-outcome-follow-up">
-              <strong>Approve with two follow-ups.</strong> This revision was ready; add
-              a selected-row latency benchmark and a dry-run artifact regression in
-              subsequent work.
-              <em>My take: this best matches the final evidence and review trail.</em>
+              <strong>Merge with two follow-ups.</strong> Add a selected-row latency
+              benchmark and a dry-run artifact regression in subsequent work.
+              <em>My take: this best matches the evidence and review trail.</em>
             </lf-option>
             <lf-option id="pr-outcome-approve">
-              <strong>Approve without follow-ups.</strong> This revision was ready;
-              close the two remaining gaps as non-actionable.
+              <strong>Merge without follow-ups.</strong> Close the two remaining gaps as
+              non-actionable.
             </lf-option>
             <lf-option id="pr-outcome-request-changes">
-              <strong>Would have requested two changes.</strong> Add a selected-row
+              <strong>Hold the merge for two changes.</strong> Add a selected-row
               latency budget, and prevent <code>wt step commit --dry-run</code> from
               staging temporary-index artifacts when <code>TMPDIR</code> is inside the
               worktree.
@@ -2209,7 +3021,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           </p>
         </header>
 
-        <lf-split id="comparison-regions" direction="columns">
+        <lf-partition id="comparison-regions" direction="columns">
           <lf-pane id="comparison-current" label="Current policy">
             <header>
               <p class="eyebrow">current result</p>
@@ -2300,7 +3112,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               </p>
             </section>
           </lf-pane>
-        </lf-split>
+        </lf-partition>
 
         <footer>
           <lf-ask id="comparison-policy-decision">
@@ -2329,7 +3141,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           <h1>Review the 2.8 release</h1>
         </header>
 
-        <lf-split id="review-regions" direction="columns">
+        <lf-partition id="review-regions" direction="columns">
           <lf-pane id="review-queue" label="Items">
             <header><h2>Queue</h2></header>
             <nav aria-label="Review items">
@@ -2558,20 +3370,20 @@ expire old keys</code></pre>
               </p>
             </footer>
           </lf-pane>
-        </lf-split>
+        </lf-partition>
       </lf-workspace>
 </lf-tab>
 
-<lf-tab id="corpus-feature-gallery" label="Features">
-<h1 id="bg-title">Leaf product gallery</h1>
+<lf-tab id="corpus-feature-gallery" label="Core features">
+<h1 id="bg-title">Leaf core product gallery</h1>
       <p class="lede" id="bg-lede">
-        Try Leaf’s working features on one synthetic page. Each section names a feature
-        and provides a live example, including focused replays of its motion.
+        Try Leaf chrome and the default package on one synthetic page. Optional widgets
+        have focused working pages in the package catalog.
       </p>
       <p id="bg-start">
-        Use the contents spine or Map to find a feature; each eyebrow lists its element
-        names. Leaf puts circular controls and status indicators at page edges. Hover
-        over one for its label, or Tab into a group and use ← / → and Enter. Press
+        Use the contents spine or Page Map to find a feature; each eyebrow lists its
+        element names. Leaf puts circular controls and status indicators at page edges.
+        Hover over one for its label, or Tab into a group and use ← / → and Enter. Press
         <kbd>a</kbd> to move through Asks. Changes persist on reload.
       </p>
 
@@ -2599,13 +3411,12 @@ expire old keys</code></pre>
           </lf-options>
         </lf-ask>
         <p id="bg-core-controls-guide">
-          The top bar also shows <strong>Threads</strong>, the
-          <strong>Versions</strong> menu, <strong>Map</strong> (<kbd>g</kbd> then
-          <kbd>Shift+M</kbd>), <strong>All keyboard shortcuts</strong> (<kbd>?</kbd>
-          twice), and <strong>All leaves</strong> when another Leaf page is live. A
-          quiet status line at the bottom right reports the current keyboard walk or a
-          useful command result. It moves above the bottom-left shortcuts when room is
-          tight.
+          The banner also shows <strong>Threads</strong>, the
+          <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd> then
+          <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd> twice),
+          and <strong>All leaves</strong> when another Leaf page is live. A quiet status
+          line at the bottom right reports the current keyboard walk or a useful command
+          result. It moves above the bottom-left shortcuts when room is tight.
         </p>
       </section>
 
@@ -2676,7 +3487,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-draft>
         <p id="bg-history-guide">
           <strong>Picked up</strong> means the saved edit entered an agent turn. The
-          receipt and top bar derive their words from the same delivery, turn, and work
+          receipt and banner derive their words from the same delivery, turn, and work
           evidence.
         </p>
         <lf-draft id="bg-history">
@@ -2712,8 +3523,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
         <p id="bg-resolved-text">
           <strong>A resolved conversation.</strong> The room has a projector. Its
-          earlier question is resolved. Open Threads in the top bar, select Resolved,
-          and try Reopen to bring its Thread control back to the page.
+          earlier question is resolved. Open Threads in the banner, select Resolved, and
+          try Reopen to bring its Thread control back to the page.
         </p>
         <p id="bg-new-thread">
           <strong>A clean passage.</strong> Select some of these words, or Alt-click
@@ -2734,8 +3545,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </h2>
         <p id="bg-reactions-guide">
           Select words and press E, or hover an agent reply and use its corner control.
-          The picker is feedback for the agent, not chat decoration. A saved reaction
-          leaves only its emoji; press that emoji to remove it.
+          The picker is feedback for the agent, not chat decoration. A saved passage
+          reaction leaves only its emoji; press it to reveal the separate Remove
+          control, then press that control to take the reaction back.
         </p>
         <p id="bg-react-ok">
           <strong>1 · 👍 · keep.</strong> The spare key is with reception.
@@ -2759,31 +3571,31 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-margin-controls">
         <p class="eyebrow bg-feature-elements">
-          lf-margin-element-gallery · Action control · Disclosure control · Status
+          lf-margin-entry-gallery · Action control · Disclosure control · Status
           indicator · Agent ownership · lf-suggestion
         </p>
         <h2>
-          <strong>Margin controls and status indicators</strong
+          <strong>Margin entries</strong
           ><span class="bg-feature-detail"
-            >: every role, tone, and ownership stage</span
+            >: every rank, tone, and ownership stage</span
           >
         </h2>
         <p id="bg-margin-controls-guide">
-          <strong>Everything visible at once.</strong> The first row holds every role,
+          <strong>Everything visible at once.</strong> The first row holds every rank,
           behavior, and tone. The second compares agent ownership: whether the agent has
           the item. No ownership treatment means not held; a single blue ring means
           picked up; a green double ring and tint mean working. Ownership decorates the
-          item’s existing control. The Activity dot remains only when there is no other
+          item's existing control. The Activity dot remains only when there is no other
           control to carry that treatment. These inert specimens use the same
-          constructor and stylesheet as the live controls and status indicators; reload
-          to see the one-time pulse on Working. A control dims only while its reader
-          action is waiting for the log to confirm it.
+          constructors and stylesheet as the live controls and status indicators. Reload
+          to see the one-time pulse as Working arrives. A control dims only while its
+          reader action is waiting for the log to confirm it.
         </p>
-        <lf-margin-element-gallery
+        <lf-margin-entry-gallery
           id="bg-margin-controls-specimens"
-        ></lf-margin-element-gallery>
+        ></lf-margin-entry-gallery>
         <h3>
-          <strong>Margin control lifecycle</strong
+          <strong>Margin entry lifecycle</strong
           ><span class="bg-feature-detail">: act, fail, settle, and hand off</span>
         </h3>
         <p id="bg-margin-control-workflow-guide">
@@ -2811,8 +3623,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p id="bg-button-status-guide">
           <strong>Edit and hand off.</strong> Opening the draft above replaces Edit with
           Save and Cancel controls; Save dims while it sends. The saved draft arrives
-          with a Waiting for pickup status. When an agent claims that unsettled edit,
-          its control gains the green double ring and tint, with one arrival pulse.
+          with a Waiting for pickup status. Its existing control turns blue when picked
+          up and green, with one arrival pulse, while the agent works on it. Hover for
+          the control's action and current work description.
         </p>
         <p id="bg-buttons-line">
           <strong>Combine roles.</strong> Use the
@@ -2832,7 +3645,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           ><span class="bg-feature-detail">: answers in context</span>
         </h2>
         <p id="bg-readings-guide">
-          A recorded answer stays visible in the widget that owns it; the page map adds
+          A recorded answer stays visible in the widget that owns it; the Page Map adds
           no second status.
         </p>
         <lf-ask id="bg-outcome-ask">
@@ -2846,13 +3659,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-reader-workflows">
         <p class="eyebrow bg-feature-elements">
-          Approve version · Design mode · Draw mode · Kept draft · Requests
+          Approve version · Design mode · Draw mode · Kept draft
         </p>
         <h2>
           <strong>Reader workflows</strong
-          ><span class="bg-feature-detail"
-            >: approval, interface comments, and requests</span
-          >
+          ><span class="bg-feature-detail">: approval and interface comments</span>
         </h2>
 
         <section id="bg-signoff">
@@ -2888,9 +3699,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </h3>
           <p id="bg-drawing-comments-guide">
             Press <kbd>w</kbd> and draw anywhere across the page. Start over this guide
-            or in its margin to anchor the comment here; empty space with no item
-            alongside comments on the page whole. Send the drawing alone or add words
-            first.
+            or in its margin to anchor the comment here; empty space with no addressable
+            element alongside comments on the page whole. Send the drawing alone or add
+            words first.
           </p>
         </section>
 
@@ -2905,64 +3716,17 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           <p id="bg-kept-draft-guide">
             Select a few words here, press <kbd>c</kbd>, and type a sentence without
             sending it. Press <kbd>Escape</kbd>: the box goes, the words stay, and a
-            notice names the address that returns to them. Scroll somewhere else, then
-            press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels back to this
-            passage and reopens the box on the sentence. That destination stands in the
-            sequence only while a kept draft does, so pressing <kbd>g</kbd> with nothing
-            written offers no such place to go.
+            notice names the destination that returns to them. Scroll somewhere else,
+            then press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels back to
+            this passage and reopens the box on the sentence. That destination stands in
+            the sequence only while a kept draft does, so pressing <kbd>g</kbd> with
+            nothing written offers no such place to go.
           </p>
-        </section>
-
-        <section id="bg-request-lifecycle">
-          <p class="eyebrow bg-feature-elements">
-            lf-command · lf-task · lf-agent · lf-worktree · lf-operations · lf-operation
-          </p>
-          <h3>
-            <strong>Requests</strong
-            ><span class="bg-feature-detail">: send instructions to the host</span>
-          </h3>
-          <p id="bg-request-guide">
-            <code>lf-operations</code> is the answer widget inside an
-            <code>lf-ask</code> when its answer should make the host act. Leaf records
-            one typed, one-shot instruction; the host carries it out and returns a
-            receipt. Failure reopens the Ask, while success closes it. A refused send
-            shows <strong>Retry</strong> and <strong>Cancel</strong>.
-          </p>
-          <lf-command id="bg-request-command" label="Synthetic request lifecycle">
-            <lf-task id="bg-request-live-task" status="blocked">
-              <strong>Ready request</strong> No request has left this seat yet.
-              <lf-agent id="bg-request-live-worker" state="waiting">
-                <strong>gallery-ready</strong> Owns the disposable sample branch.
-                <lf-worktree
-                  id="bg-request-live-tree"
-                  source="gallery-worktrees"
-                ></lf-worktree>
-              </lf-agent>
-              <lf-ask id="bg-request-live-decision">
-                <h4>What should the sample host do?</h4>
-                <lf-operations
-                  id="bg-request-live"
-                  target="bg-request-live-task"
-                  worker="bg-request-live-worker"
-                  worktree="bg-request-live-tree"
-                >
-                  <lf-operation verb="restart">
-                    <strong>Restart the sample worker</strong> Preserve its fictional
-                    branch and begin a fresh attempt.
-                  </lf-operation>
-                  <lf-operation verb="drop">
-                    <strong>Drop the sample worker</strong> Archive the fictional
-                    branch.
-                  </lf-operation>
-                </lf-operations>
-              </lf-ask>
-            </lf-task>
-          </lf-command>
         </section>
       </section>
 
       <section id="bg-external-data">
-        <p class="eyebrow bg-feature-elements">lf-diff · lf-source · lf-num</p>
+        <p class="eyebrow bg-feature-elements">lf-text-document · lf-num</p>
         <h2>
           <strong>External data</strong
           ><span class="bg-feature-detail"
@@ -2970,24 +3734,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           >
         </h2>
 
-        <section id="bg-inline-diff-threads">
-          <p class="eyebrow bg-feature-elements">lf-diff · inline Thread</p>
-          <h3>
-            <strong>Inline diff threads</strong
-            ><span class="bg-feature-detail">: line comments in review context</span>
-          </h3>
-          <p id="bg-inline-diff-guide">
-            The seeded Thread follows its added line. Reply or resolve in place. Close
-            the file to move the Thread to the page margin, then reopen it to return the
-            conversation to the diff.
-          </p>
-          <lf-diff id="bg-review-diff" source="gallery-patch"><pre></pre></lf-diff>
-        </section>
-
         <section id="bg-source-captures">
-          <p class="eyebrow bg-feature-elements">lf-source</p>
+          <p class="eyebrow bg-feature-elements">lf-text-document</p>
           <h3>
-            <strong>Source</strong
+            <strong>Text document</strong
             ><span class="bg-feature-detail">: live and captured data</span>
           </h3>
           <p id="bg-source-guide">
@@ -2995,18 +3745,18 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             capture. Their captions show the file, capture label, and line range.
           </p>
           <p><strong>Live binding.</strong></p>
-          <lf-source
+          <lf-text-document
             id="bg-source-live"
             source="gallery-source"
             language="toml"
-          ></lf-source>
+          ></lf-text-document>
           <p><strong>Captured snapshot.</strong></p>
-          <lf-source
+          <lf-text-document
             id="bg-source-snapshot"
             source="gallery-source"
             snapshot="4"
             language="toml"
-          ></lf-source>
+          ></lf-text-document>
         </section>
 
         <section id="bg-measurement-lag">
@@ -3034,9 +3784,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p class="eyebrow bg-feature-elements">Default package</p>
         <h2>
           <strong>Evidence widgets</strong
-          ><span class="bg-feature-detail"
-            >: charts, diagrams, and structured views</span
-          >
+          ><span class="bg-feature-detail">: charts and structured views</span>
         </h2>
         <p id="bg-default-guide">
           These shipped widgets use synthetic data so each feature has a focused
@@ -3085,35 +3833,6 @@ second, 9, 2
 third, 12, 0
 </pre>
           </lf-chart>
-        </section>
-
-        <section id="bg-diagrams">
-          <p class="eyebrow bg-feature-elements">lf-diagram · diagram package</p>
-          <h3>
-            <strong>Diagram</strong
-            ><span class="bg-feature-detail">: structure, shape, and state</span>
-          </h3>
-          <p id="bg-diagrams-guide">
-            Diagram nodes keep their authored shapes and can use Leaf’s semantic color
-            tokens. A plain click leaves the drawing alone. Alt-click a declared node to
-            comment on that box alone, or press <kbd>s</kbd> to choose the same target.
-          </p>
-          <lf-diagram
-            id="bg-diagram"
-            parts="node:Request node:Choice node:Success node:Retry"
-          >
-            <pre>
-flowchart LR
-  Request([Request]) --> Choice{Valid?}
-  Choice -->|yes| Success[(Stored)]
-  Choice -->|no| Retry([Retry])
-  Retry -.-> Request
-  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
-  classDef warning fill:var(--warn-tint),stroke:var(--warn),color:var(--warn-ink)
-  class Success done
-  class Retry warning
-</pre>
-          </lf-diagram>
         </section>
 
         <section id="bg-code-and-tree">
@@ -3222,16 +3941,15 @@ gallery/
 
         <section id="bg-plans-and-history">
           <p class="eyebrow bg-feature-elements">
-            lf-milestones · lf-milestone · lf-timeline · lf-event
+            lf-milestones · lf-milestone · lf-chronology · lf-chronology-entry
           </p>
           <h3>
-            <strong>Milestones</strong>, <strong>Timeline</strong>, and
-            <strong>Events</strong
+            <strong>Milestones</strong> and <strong>Chronology</strong
             ><span class="bg-feature-detail">: state and history</span>
           </h3>
           <p id="bg-plans-guide">
-            Milestones show planned, active, and completed work. A Timeline orders
-            Events by time.
+            Milestones show planned, active, and completed work. A Chronology orders
+            entries by time.
           </p>
           <lf-milestones id="bg-milestones">
             <lf-milestone id="bg-milestone-survey" status="done" when="morning">
@@ -3249,23 +3967,27 @@ gallery/
               <strong>Write the note</strong>
             </lf-milestone>
           </lf-milestones>
-          <lf-timeline id="bg-timeline">
-            <lf-event id="bg-event-alert" at="09:14" kind="warning">
+          <lf-chronology id="bg-chronology">
+            <lf-chronology-entry id="bg-chronology-alert" at="09:14" kind="warning">
               <strong>Rain started</strong> The open path became slippery.
-            </lf-event>
-            <lf-event id="bg-event-closed" at="09:18" kind="failure">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="bg-chronology-closed" at="09:18" kind="failure">
               <strong>Path closed</strong> Standing water blocked the crossing.
-            </lf-event>
-            <lf-event id="bg-event-switch" at="09:20" kind="action">
+            </lf-chronology-entry>
+            <lf-chronology-entry
+              id="bg-chronology-switch"
+              at="09:20"
+              kind="intervention"
+            >
               <strong>Route changed</strong> The sample moved under cover.
-            </lf-event>
-            <lf-event id="bg-event-clear" at="09:42" kind="info">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="bg-chronology-clear" at="09:42" kind="observation">
               <strong>Walk resumed</strong>
-            </lf-event>
-          </lf-timeline>
+            </lf-chronology-entry>
+          </lf-chronology>
         </section>
 
-        <section id="bg-workstream-tabs">
+        <section id="bg-tab-set">
           <p class="eyebrow bg-feature-elements">lf-tabs · lf-tab</p>
           <h3>
             <strong>Tabs</strong
@@ -3284,223 +4006,9 @@ gallery/
           </lf-tabs>
         </section>
 
-        <section id="bg-playground">
-          <p class="eyebrow bg-feature-elements">
-            lf-playground · lf-playground-control · lf-playground-choice ·
-            lf-playground-preset · lf-playground-setting · lf-playground-preview ·
-            lf-playground-output · lf-playground-value
-          </p>
-          <h3>
-            <strong>Playground</strong
-            ><span class="bg-feature-detail">: configure, preview, and choose</span>
-          </h3>
-          <p id="bg-playground-guide">
-            Start with one of the agent’s three recommendations, then tune the controls.
-            The card and instruction update at once while the event log stays unchanged;
-            Apply card sends the complete configuration as one decision.
-          </p>
-          <lf-ask id="bg-card-playground-ask">
-            <h4 id="bg-card-playground-question">How should the sample card look?</h4>
-            <lf-playground id="bg-card-playground" submit-label="Apply card">
-              <lf-playground-control
-                name="radius"
-                label="Corner radius"
-                kind="range"
-                value="12"
-                min="0"
-                max="28"
-                step="1"
-                unit="px"
-              ></lf-playground-control>
-              <lf-playground-control
-                name="compact"
-                label="Compact spacing"
-                kind="toggle"
-                value="false"
-              ></lf-playground-control>
-              <lf-playground-control
-                name="tone"
-                label="Tone"
-                kind="choice"
-                value="quiet"
-              >
-                <lf-playground-choice
-                  value="quiet"
-                  label="Quiet"
-                ></lf-playground-choice>
-                <lf-playground-choice
-                  value="tinted"
-                  label="Tinted"
-                ></lf-playground-choice>
-                <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
-              </lf-playground-control>
-              <lf-playground-control
-                name="alignment"
-                label="Alignment"
-                kind="choice"
-                value="left"
-              >
-                <lf-playground-choice value="left" label="Left"></lf-playground-choice>
-                <lf-playground-choice
-                  value="center"
-                  label="Center"
-                ></lf-playground-choice>
-              </lf-playground-control>
-              <lf-playground-control
-                name="elevated"
-                label="Lift from page"
-                kind="toggle"
-                value="false"
-              ></lf-playground-control>
-              <lf-playground-control
-                name="accent"
-                label="Accent"
-                kind="color"
-                value="#4f766f"
-              ></lf-playground-control>
-              <lf-playground-control
-                name="title"
-                label="Card title"
-                kind="text"
-                value="Field note"
-                placeholder="Card title"
-              ></lf-playground-control>
-              <lf-playground-preset label="Field note">
-                <lf-playground-setting for="radius" value="12"></lf-playground-setting>
-                <lf-playground-setting
-                  for="compact"
-                  value="false"
-                ></lf-playground-setting>
-                <lf-playground-setting for="tone" value="quiet"></lf-playground-setting>
-                <lf-playground-setting
-                  for="alignment"
-                  value="left"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="elevated"
-                  value="false"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="accent"
-                  value="#4f766f"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="title"
-                  value="Field note"
-                ></lf-playground-setting>
-              </lf-playground-preset>
-              <lf-playground-preset label="Trail alert">
-                <lf-playground-setting for="radius" value="4"></lf-playground-setting>
-                <lf-playground-setting
-                  for="compact"
-                  value="true"
-                ></lf-playground-setting>
-                <lf-playground-setting for="tone" value="bold"></lf-playground-setting>
-                <lf-playground-setting
-                  for="alignment"
-                  value="left"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="elevated"
-                  value="true"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="accent"
-                  value="#b6533c"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="title"
-                  value="Trail alert"
-                ></lf-playground-setting>
-              </lf-playground-preset>
-              <lf-playground-preset label="Evening invite">
-                <lf-playground-setting for="radius" value="24"></lf-playground-setting>
-                <lf-playground-setting
-                  for="compact"
-                  value="false"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="tone"
-                  value="tinted"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="alignment"
-                  value="center"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="elevated"
-                  value="true"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="accent"
-                  value="#8b4a5f"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="title"
-                  value="Evening walk"
-                ></lf-playground-setting>
-              </lf-playground-preset>
-
-              <lf-playground-preview id="bg-card-preview">
-                <article
-                  id="bg-playground-card"
-                  aria-labelledby="bg-playground-card-title"
-                >
-                  <header class="bg-playground-card-head">
-                    <span>North ridge</span>
-                    <span class="bg-playground-card-distance">4.8 km</span>
-                  </header>
-                  <svg
-                    class="bg-playground-route"
-                    viewBox="0 0 320 96"
-                    aria-hidden="true"
-                    focusable="false"
-                  >
-                    <path
-                      class="bg-playground-contour"
-                      d="M-8 73 C35 36 76 36 111 58 S179 89 217 54 S282 10 330 32"
-                    ></path>
-                    <path
-                      class="bg-playground-contour"
-                      d="M-12 90 C30 56 74 55 112 75 S182 104 220 72 S284 30 333 48"
-                    ></path>
-                    <path
-                      class="bg-playground-path"
-                      d="M10 75 C54 69 61 28 104 33 S156 78 195 59 S239 19 303 24"
-                    ></path>
-                    <circle class="bg-playground-point" cx="10" cy="75" r="5"></circle>
-                    <circle class="bg-playground-point" cx="303" cy="24" r="5"></circle>
-                  </svg>
-                  <div class="bg-playground-card-copy">
-                    <h5 id="bg-playground-card-title"></h5>
-                    <p>Follow the alder trail to the dusk overlook.</p>
-                  </div>
-                  <footer class="bg-playground-card-foot">
-                    <span>Depart 18:40</span>
-                    <span>11 °C · light rain</span>
-                  </footer>
-                </article>
-              </lf-playground-preview>
-              <lf-playground-output id="bg-card-instruction">
-                Style the card with a corner radius of
-                <lf-playground-value for="radius"></lf-playground-value>, compact
-                spacing set to
-                <lf-playground-value for="compact"></lf-playground-value>, a
-                <lf-playground-value for="tone"></lf-playground-value> tone,
-                <lf-playground-value for="alignment"></lf-playground-value> alignment,
-                elevation set to
-                <lf-playground-value for="elevated"></lf-playground-value>, and
-                <lf-playground-value for="accent"></lf-playground-value> accents. Keep
-                the title “<lf-playground-value for="title"></lf-playground-value>.”
-              </lf-playground-output>
-            </lf-playground>
-          </lf-ask>
-        </section>
-
         <section id="bg-quoted-and-visual">
           <p class="eyebrow bg-feature-elements">
-            lf-specimen · lf-shot · lf-options · lf-option · lf-swipe-deck ·
-            lf-swipe-pile · lf-swipe-card
+            lf-specimen · lf-shot · lf-options · lf-option
           </p>
           <h3>
             <strong>Specimen</strong> and <strong>Shot</strong
@@ -3515,20 +4023,6 @@ gallery/
                 <strong>Display signs</strong> Easy to update.
               </lf-option>
             </lf-options>
-          </lf-specimen>
-          <lf-specimen id="bg-swipe-specimen" label="a classified swipe deck">
-            <lf-swipe-deck id="bg-swipe-completed">
-              <lf-swipe-pile id="bg-swipe-completed-queue" verdict="unseen">
-              </lf-swipe-pile>
-              <lf-swipe-pile id="bg-swipe-completed-pass" verdict="pass">
-              </lf-swipe-pile>
-              <lf-swipe-pile id="bg-swipe-completed-keep" verdict="keep">
-                <lf-swipe-card id="bg-swipe-completed-card">
-                  <strong>Keep the explicit expiry bound</strong>
-                  <p>The card's pile carries its recorded classification.</p>
-                </lf-swipe-card>
-              </lf-swipe-pile>
-            </lf-swipe-deck>
           </lf-specimen>
           <p id="bg-shot-guide">
             Specimen labels invented content. Choose Before or After above the image, or
@@ -3548,11 +4042,11 @@ gallery/
         id="bg-interactions"
         aria-labelledby="bg-interactions-title"
         data-interaction-gallery
+        data-interaction-viewport="2"
       >
         <p class="eyebrow bg-feature-elements">
           Core · lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board ·
-          lf-column · lf-card · Thread control · Threads panel · Swipe package ·
-          lf-swipe-deck · lf-swipe-pile · lf-swipe-card
+          lf-column · lf-card · Thread control · Threads panel
         </p>
         <h2 id="bg-interactions-title">
           <strong>Interactions</strong
@@ -3560,17 +4054,19 @@ gallery/
         </h2>
         <p id="bg-interactions-guide">
           Selecting a tab starts its focused sequence against Leaf’s production
-          component and transition code. Page-wide controls run inside the preview box,
-          so the gallery around it stays still. Pause while it plays, or replay from the
-          beginning; neither action writes to the page’s event log.
+          component and transition code. Each replay runs in a Leaf page inside the
+          preview box, so page-wide controls keep their real margin placement while the
+          gallery stays still. Viewport compares the same page at 1×, 2×, or 4× its
+          displayed size. Pause, replay, or loop the sequence; none writes to the page’s
+          event log.
         </p>
 
         <lf-tabs id="bg-interaction-tabs">
           <lf-tab id="bg-interaction-accept" label="Accept a suggestion">
             <figure class="interaction-demo" data-interaction-demo="accept">
-              <div class="interaction-stage">
+              <template data-interaction-page>
                 <p class="eyebrow">proposed release note</p>
-                <p class="interaction-stage-copy" id="bg-motion-accept-copy">
+                <p id="bg-motion-accept-copy">
                   The importer now
                   <lf-suggestion id="bg-motion-accept"
                     ><lf-old>usually finishes</lf-old
@@ -3578,6 +4074,18 @@ gallery/
                   >
                   before the next run begins.
                 </p>
+              </template>
+              <div
+                class="interaction-stage interaction-frame-stage interaction-suggestion-stage"
+              >
+                <iframe
+                  class="interaction-frame"
+                  data-interaction-frame
+                  name="interaction-accept"
+                  title="Contained Leaf suggestion animation"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></iframe>
                 <span class="interaction-pointer" hidden aria-hidden="true"></span>
               </div>
               <figcaption>
@@ -3589,16 +4097,27 @@ gallery/
 
           <lf-tab id="bg-interaction-move" label="Move a card">
             <figure class="interaction-demo" data-interaction-demo="move-card">
-              <div class="interaction-stage interaction-board-stage">
+              <template data-interaction-page>
+                <p class="eyebrow">migration checklist</p>
+                <h1>Schema migration</h1>
                 <lf-board id="bg-motion-board">
                   <lf-column id="bg-motion-ready" label="Ready">
-                    <lf-card id="bg-motion-card">
-                      <strong>Verify migration</strong>
-                      Run the schema sample.
-                    </lf-card>
+                    <lf-card id="bg-motion-card"
+                      ><strong>Verify migration</strong> Run the schema sample.</lf-card
+                    >
                   </lf-column>
                   <lf-column id="bg-motion-tried" label="Tried"></lf-column>
                 </lf-board>
+              </template>
+              <div class="interaction-stage interaction-frame-stage">
+                <iframe
+                  class="interaction-frame"
+                  data-interaction-frame
+                  name="interaction-move-card"
+                  title="Contained Leaf board animation"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></iframe>
                 <span class="interaction-pointer" hidden aria-hidden="true"></span>
               </div>
               <figcaption>
@@ -3612,16 +4131,21 @@ gallery/
             <figure
               class="interaction-demo"
               data-interaction-demo="send-comment"
+              data-interaction-target="bg-motion-comment-text"
               data-interaction-thread-id="2be2443f0bb6cc49fc86b52f340e6073"
             >
+              <template data-interaction-page>
+                <p class="eyebrow">review note</p>
+                <h1>Agenda draft</h1>
+                <p id="bg-motion-comment-text">
+                  The sample agenda has room for one more topic.
+                </p>
+              </template>
               <div class="interaction-stage interaction-frame-stage">
                 <iframe
                   class="interaction-frame"
                   data-interaction-frame
-                  data-interaction-eyebrow="review note"
-                  data-interaction-target="bg-thread-text"
-                  data-interaction-title="Agenda draft"
-                  data-interaction-copy="The sample agenda has room for one more topic."
+                  name="interaction-send-comment"
                   title="Contained Leaf comment animation"
                   tabindex="-1"
                   aria-hidden="true"
@@ -3643,14 +4167,18 @@ gallery/
 
           <lf-tab id="bg-interaction-threads" label="Open and close Threads">
             <figure class="interaction-demo" data-interaction-demo="open-threads">
+              <template data-interaction-page>
+                <p class="eyebrow">review workspace</p>
+                <h1>Release notes</h1>
+                <p id="bg-motion-threads-text">
+                  The sample agenda has room for one more topic.
+                </p>
+              </template>
               <div class="interaction-stage interaction-frame-stage">
                 <iframe
                   class="interaction-frame"
                   data-interaction-frame
-                  data-interaction-eyebrow="review workspace"
-                  data-interaction-title="Release notes"
-                  data-interaction-target="bg-thread-text"
-                  data-interaction-copy="The sample agenda has room for one more topic."
+                  name="interaction-open-threads"
                   title="Contained Leaf Threads animation"
                   tabindex="-1"
                   aria-hidden="true"
@@ -3658,45 +4186,9 @@ gallery/
                 <span class="interaction-pointer" hidden aria-hidden="true"></span>
               </div>
               <figcaption>
-                The pointer presses the real top-bar control inside a compact Leaf page;
-                the production Threads workspace opens and closes without changing this
-                gallery page.
-              </figcaption>
-            </figure>
-          </lf-tab>
-
-          <lf-tab id="bg-interaction-swipe" label="Swipe a card">
-            <figure
-              class="interaction-demo"
-              data-interaction-demo="swipe-card"
-              data-interaction-module="/widgets/lf-swipe-deck.js"
-            >
-              <div class="interaction-stage interaction-swipe-stage">
-                <lf-ask id="bg-motion-swipe-ask">
-                  <h3>Keep this follow-up?</h3>
-                  <lf-swipe-deck id="bg-motion-swipe">
-                    <lf-swipe-pile id="bg-motion-swipe-queue" verdict="unseen">
-                      <lf-swipe-card id="bg-motion-swipe-card">
-                        <strong>Document the keyboard route</strong>
-                        <p>Keep the interaction reachable without a pointer.</p>
-                      </lf-swipe-card>
-                    </lf-swipe-pile>
-                    <lf-swipe-pile
-                      id="bg-motion-swipe-pass"
-                      verdict="pass"
-                    ></lf-swipe-pile>
-                    <lf-swipe-pile
-                      id="bg-motion-swipe-keep"
-                      verdict="keep"
-                    ></lf-swipe-pile>
-                  </lf-swipe-deck>
-                </lf-ask>
-                <span class="interaction-pointer" hidden aria-hidden="true"></span>
-              </div>
-              <figcaption>
-                The pointer presses Keep; the swipe package plays its real exit motion
-                while the projected placement moves the card into Kept. Return to queue
-                on that row reverses the classification.
+                The pointer presses the real top-bar control inside a zoomed-out Leaf
+                page; the production Threads panel opens and closes without changing
+                this gallery page.
               </figcaption>
             </figure>
           </lf-tab>
@@ -3704,19 +4196,19 @@ gallery/
       </section>
 
       <section id="bg-layout-family">
-        <p class="eyebrow bg-feature-elements">lf-workspace · lf-pane · lf-split</p>
+        <p class="eyebrow bg-feature-elements">lf-workspace · lf-pane · lf-partition</p>
         <h2>
           <strong>Workspace regions</strong
           ><span class="bg-feature-detail">: nested reading areas</span>
         </h2>
         <p id="bg-layout-guide">
           This workspace is embedded in a document, so its list, detail regions, and
-          action footer stay in document flow. The same pane and split markup can divide
-          a root workspace into columns and rows when the window has room.
+          action footer stay in document flow. The same pane and partition markup can
+          divide a root workspace into columns and rows when the window has room.
         </p>
         <lf-workspace id="bg-layout-workspace">
           <header><h3>Release candidate review</h3></header>
-          <lf-split id="bg-layout-columns" direction="columns">
+          <lf-partition id="bg-layout-columns" direction="columns">
             <lf-pane id="bg-layout-list" label="Changes">
               <header><h4>Changes</h4></header>
               <lf-tabs id="bg-layout-tabs">
@@ -3738,7 +4230,7 @@ gallery/
               </lf-tabs>
             </lf-pane>
 
-            <lf-split id="bg-layout-rows" direction="rows">
+            <lf-partition id="bg-layout-rows" direction="rows">
               <lf-pane id="bg-layout-evidence" label="Evidence">
                 <header><h4>Evidence</h4></header>
                 <article id="bg-layout-article">
@@ -3784,8 +4276,8 @@ switch --readers checkout-api,orders-api</code></pre>
                   </lf-ask>
                 </footer>
               </lf-pane>
-            </lf-split>
-          </lf-split>
+            </lf-partition>
+          </lf-partition>
         </lf-workspace>
       </section>
 
@@ -3804,7 +4296,7 @@ switch --readers checkout-api,orders-api</code></pre>
 
       <section id="bg-delivery">
         <p class="eyebrow bg-feature-elements">
-          lf-board · lf-column · lf-card · delivery indicators · cut mark
+          lf-board · lf-column · lf-card · delivery indicators · continuation fade
         </p>
         <h2>
           <strong>Board</strong> and <strong>delivery state</strong
@@ -3817,18 +4309,18 @@ switch --readers checkout-api,orders-api</code></pre>
         </p>
         <p id="bg-cut-guide">
           This board carries more columns than the page has room for, so it scrolls
-          sideways and wears the cut mark: <code>data-lf-cut</code>, drawn as the soft
-          shade inside its right edge, says the box is showing less than it holds
-          across. The layer writes it on any box in that state, because the platform’s
-          own scrollbar draws nothing until something scrolls it. Boxes holding
-          everything they have — the code block and the diagram above — wear none.
+          sideways. Its content fades at each edge with more beyond it: the right edge
+          at first, both edges while crossing, and the left edge at the end. The layer
+          writes these marks on any box in that state, because the platform’s own
+          scrollbar draws nothing until something scrolls it. Boxes holding everything
+          they have — the code block and the diagram above — wear none.
         </p>
         <lf-board id="bg-work-board">
           <lf-column id="bg-work-ready" label="Ready">
             <lf-card id="bg-work"
               ><strong>Check the sample route</strong>
-              A live work claim puts the standalone Activity control here because this
-              card has no other margin control.
+              A live work claim puts an Active indicator here because this card has no
+              other margin control to carry its activity dot.
             </lf-card>
           </lf-column>
           <lf-column id="bg-work-tried" label="Tried"></lf-column>
@@ -3837,8 +4329,8 @@ switch --readers checkout-api,orders-api</code></pre>
           <lf-column id="bg-work-handed" label="Handed back">
             <lf-card id="bg-work-handed-card"
               ><strong>Redraw the sample legend</strong>
-              One of the cards the shade stands for: scroll the board across to reach
-              it.
+              One of the cards the edge fade stands for: scroll the board across to
+              reach it.
             </lf-card>
           </lf-column>
           <lf-column id="bg-work-done" label="Done"></lf-column>
@@ -3860,6 +4352,86 @@ switch --readers checkout-api,orders-api</code></pre>
           </p>
         </details>
       </section>
+</lf-tab>
+
+<lf-tab id="corpus-swipe-gallery" label="Swipe package">
+<h1 id="swipe-title">Classify a queue without losing context</h1>
+      <p class="lede" id="swipe-lede">
+        Swipe presents one card at a time, keeps the two outcomes visible, and records
+        each classification through the ordinary Leaf action log.
+      </p>
+      <lf-ask id="swipe-ask">
+        <h2>Which follow-ups should stay?</h2>
+        <lf-swipe-deck id="swipe-deck">
+          <lf-swipe-pile id="swipe-queue" verdict="unseen">
+            <lf-swipe-card id="swipe-keyboard-card">
+              <strong>Document the keyboard route</strong>
+              <p>Keep the interaction reachable without a pointer.</p>
+            </lf-swipe-card>
+            <lf-swipe-card id="swipe-animation-card">
+              <strong>Record the exit animation</strong>
+              <p>Keep motion evidence only when timing changes the judgment.</p>
+            </lf-swipe-card>
+          </lf-swipe-pile>
+          <lf-swipe-pile id="swipe-pass" verdict="pass"></lf-swipe-pile>
+          <lf-swipe-pile id="swipe-keep" verdict="keep"></lf-swipe-pile>
+        </lf-swipe-deck>
+      </lf-ask>
+      <section id="swipe-recorded">
+        <h2>A completed classification remains inspectable</h2>
+        <lf-specimen id="swipe-recorded-specimen" label="a recorded swipe result">
+          <lf-swipe-deck id="swipe-completed">
+            <lf-swipe-pile id="swipe-completed-queue" verdict="unseen"></lf-swipe-pile>
+            <lf-swipe-pile id="swipe-completed-pass" verdict="pass"></lf-swipe-pile>
+            <lf-swipe-pile id="swipe-completed-keep" verdict="keep">
+              <lf-swipe-card id="swipe-completed-card">
+                <strong>Keep the explicit expiry bound</strong>
+                <p>
+                  The card stays in the pile that carries its recorded classification.
+                </p>
+              </lf-swipe-card>
+            </lf-swipe-pile>
+          </lf-swipe-deck>
+        </lf-specimen>
+      </section>
+</lf-tab>
+
+<lf-tab id="corpus-targeting-gallery" label="Targeting package">
+<h1 id="targeting-title">Point at the interface change</h1>
+      <p class="lede" id="targeting-lede">
+        Targeting turns a visual selection into a structured set of exact element,
+        scope, attribute, style, and instruction changes.
+      </p>
+      <lf-ask id="targeting-ask">
+        <h2>Which exact changes should be made?</h2>
+        <lf-targeting id="targeting-workbench" submit-label="Submit changes">
+          <lf-target-preview id="targeting-preview">
+            <div class="target-grid">
+              <article id="target-release" class="target-card">
+                <h3 class="target-heading">Release readiness</h3>
+                <p>Keep the owner and remaining checks visible.</p>
+              </article>
+              <article id="target-evidence" class="target-card">
+                <h3 class="target-heading">Evidence trail</h3>
+                <p>Link each claim to the exact run that supports it.</p>
+              </article>
+            </div>
+          </lf-target-preview>
+        </lf-targeting>
+      </lf-ask>
+</lf-tab>
+
+<lf-tab id="corpus-visual-review-gallery" label="Visual review package">
+<h1 id="visual-review-title">Review one guided run</h1>
+      <p class="lede" id="visual-review-lede">
+        Each case keeps its action, observed result, exact preview path, aligned
+        captures, and browser provenance together with the reader’s disposition and
+        comments.
+      </p>
+      <lf-visual-review
+        id="visual-review-run"
+        source="gallery-visual-run"
+      ></lf-visual-review>
 </lf-tab>
 
 </lf-tabs>

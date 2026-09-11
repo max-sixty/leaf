@@ -16,15 +16,6 @@
       content="The mechanism behind leaf: one local process, an append-only event log, host-specific wait loops, and a vendored theme-and-widget layer."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="how leaf works" />
-    <meta
-      property="og:description"
-      content="One local process, an append-only event log, host-specific wait loops, and a vendored theme-and-widget layer."
-    />
-    <meta property="og:url" content="https://leaf.page/how-it-works/" />
-    <meta property="og:image" content="https://leaf.page/media/f3883f5c8f6d6f19.png" />
-    <meta name="twitter:card" content="summary_large_image" />
     <link rel="stylesheet" href="/theme.css" />
     <script type="module" src="/leaf.js"></script>
   </head>
@@ -82,16 +73,14 @@ initialized /home/you/review
 # the agent writes ./review/index.html — an ordinary file write
 
 $ leaf version check ./review
-✓ index.html: parses, widgets validate, one module script + theme link, protected ids and decisions carried over, nothing overflows the 720px column
+✓ index.html: parses, widgets and authored modules validate, theme linked, protected ids and decisions carried over, nothing overflows the 720px column
 
 $ leaf version stamp ./review --text "Two ways to shed load — which?"
 stamped v1 — Two ways to shed load — which?
 
 $ leaf wait ./review
 # … held here, for as long as the reader takes …
-{"page": "/home/you/review", "threads": []}
-{"kind": "action", "author": "user", "revision": 1, "widget": "shed", "action": "choose", "detail": {"options": ["opt-drop"]}, "generated": [], "id": "a0a372ca", "ts": "2026-08-16T02:35:07-07:00", "seq": 2}
-{"kind": "comment", "author": "user", "revision": 1, "text": "Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.", "anchor": {"section": "shed", "quote": "Callers get a 429 immediately"}, "id": "a56486d1", "ts": "2026-08-16T02:35:07-07:00", "seq": 3}
+{"format":"leaf-delivery-v1","id":"d-301","created_at":1786853707,"batches":[{"page":"/home/you/review","through_seq":3,"conversations":[],"handling":{"action":"Honor the reader's choice.","comment":"Answer the reader explicitly."},"events":[{"kind":"action","author":"user","revision":1,"widget":"shed","action":"choose","detail":{"options":["opt-drop"]},"generated":[],"id":"a0a372ca","ts":"2026-08-16T02:35:07-07:00","seq":2,"subject":{"kind":"widget","id":"shed"},"conversations":[]},{"kind":"comment","author":"user","revision":1,"text":"Rejecting at the door is right for the API, but the batch importer retries blindly — it would hammer us. Drop oldest there.","anchor":{"section":"shed","quote":"Callers get a 429 immediately"},"id":"a56486d1","ts":"2026-08-16T02:35:07-07:00","seq":3,"subject":{"kind":"conversation","id":"a56486d1"},"conversations":["a56486d1"],"obligation":{"as_of_seq":3,"response":{"kind":"reply","to":"a56486d1","for":"a56486d1"}}}]}]}
 
 $ leaf ack ./review 3</code></pre>
         </lf-specimen>
@@ -102,7 +91,7 @@ $ leaf ack ./review 3</code></pre>
           <em>Callers get a 429 immediately</em> and wrote against it — so the objection
           reaches the agent attached to the sentence that prompted it, rather than as a
           paraphrase of where they were looking. The pick belongs to no conversation and
-          the comment opens its own, so the first line's <code>threads</code> is empty;
+          the comment opens its own, so the batch's <code>conversations</code> is empty;
           a later reply in that thread names only the message it answers, and the
           exchange behind it comes along there. The agent answers by updating
           <code>index.html</code>; the valid save goes live, and a meaningful checkpoint
@@ -355,8 +344,9 @@ $ leaf ack ./review 3</code></pre>
           Command/Ctrl-Enter sends. Tab or its ellipsis extends it in place with six
           agent-feedback reaction controls: 👍 keep, ❌ change, 🤔 clarify, ✂️ shorten,
           🔎 support, and 🎯 prioritize; digits are optional shortcuts. The token paints
-          as an emoji in the margin and a faint wash on the words, opens no thread, and
-          comes off with a press on the emoji. A 👍 on the agent's latest reply request
+          as an emoji in the margin and a faint wash on the words, and opens no thread.
+          Press the standing emoji to reveal its separate Remove control, then press
+          Remove to take the reaction back. A 👍 on the agent's latest reply request
           takes the thread out of "On you" without a word typed. The tokens are the
           layer's, not the machine's: a project's <code>.leaf/</code> can rename, add,
           or remove them.
@@ -390,14 +380,20 @@ $ leaf ack ./review 3</code></pre>
           Mermaid, <code>diff</code> for a unified patch, and <code>swipe</code> for
           rapid pass-or-keep triage. The <code>playground</code> package provides
           declarative controls, presets, live previews, and one typed configuration
-          decision without allowing page-authored scripts. An explicit package may
-          contain one widget, while another contains only theme rules. Package size and
-          provenance do not change the format. Packages are composed rather than added
-          as runtime branches, so a default widget reaches the page through the same
-          door as a project widget. You or the agent can restyle or replace an entry or
-          file and add new ones beside it; the checked result must still satisfy the
-          kernel's generic event and runtime contracts. The
-          <a href="/packages/">package tutorial</a> builds the smallest useful example.
+          decision. Page-specific behavior lives with the page in inline module scripts;
+          reusable behavior remains a package concern. The
+          <code>targeting</code> package lets a reader select preview elements and
+          submit structured, reversible change proposals. The
+          <code>visual-review</code> package presents an ordered website run with
+          aligned stills, exact preview links, and a disposition for each case. An
+          explicit package may contain one widget, while another contains only theme
+          rules. Package size and provenance do not change the format. Packages are
+          composed rather than added as runtime branches, so a default widget reaches
+          the page through the same door as a project widget. You or the agent can
+          restyle or replace an entry or file and add new ones beside it; the checked
+          result must still satisfy the kernel's generic event and runtime contracts.
+          The <a href="/packages/">package tutorial</a> builds the smallest useful
+          example.
         </p>
       </section>
 

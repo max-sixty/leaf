@@ -16,8 +16,8 @@ When `edit.matches_active` is false, the candidate in `index.html` differs from
 the live revision. Its source locations still refer to the active file; reconcile
 the candidate by stable id and content before editing. `inputs` names external
 values and their mutation route: `data set` for live inputs, `capture-and-rebind`
-for pinned inputs. Inspect frozen thread content with
-`leaf page state <page> --thread <id>`; change it through its conversation.
+for pinned inputs. Inspect frozen conversation content with
+`leaf conversation read <page> <id>`; change it through that conversation.
 
 ## Revisions and reader-owned words
 
@@ -82,8 +82,8 @@ nor `restated`. Keep an Ask live while it is being applied, and settle it
 only after the work no longer revisits it. Keep a section live while the reader
 is still commenting there.
 
-When several workstreams are live at once, use one `lf-tabs`. Keep the shared
-title and lede before it, and put the current workstream first: ordering makes it
+When one page needs several views, use one `lf-tabs` tab set. Keep the shared
+title and lede before it, and put the primary current view first: ordering makes it
 the default for a reader with no saved panel or reading position, and a saved
 panel or restored position takes precedence. Context an earlier run still owes
 the current one goes in a collapsed `<details>` inside the relevant tab, with any

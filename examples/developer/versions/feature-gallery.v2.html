@@ -73,10 +73,10 @@
           </lf-options>
         </lf-ask>
         <p id="bg-core-controls-guide">
-          The top bar also shows the status line, <strong>Threads</strong>, the version
+          The banner also shows the status line, <strong>Threads</strong>, the version
           <strong>Versions</strong> menu, <strong>Map</strong> (<kbd>g</kbd> then
-          <kbd>Shift+M</kbd>), <strong>All keyboard shortcuts</strong> (<kbd>?</kbd>
-          twice), and <strong>All leaves</strong> when another Leaf page is live.
+          <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd> twice),
+          and <strong>All leaves</strong> when another Leaf page is live.
         </p>
       </section>
 
@@ -147,7 +147,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-draft>
         <p id="bg-history-guide">
           <strong>Picked up</strong> means the saved edit entered an agent turn. The
-          receipt and top bar derive their words from the same delivery, turn, and work
+          receipt and banner derive their words from the same delivery, turn, and work
           evidence.
         </p>
         <lf-draft id="bg-history">
@@ -183,8 +183,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
         <p id="bg-resolved-text">
           <strong>A resolved conversation.</strong> The room has a projector. Its
-          earlier question is resolved. Open Threads in the top bar, select Resolved,
-          and try Reopen to bring its Button back to the page.
+          earlier question is resolved. Open Threads in the banner, select Resolved, and
+          try Reopen to bring its Button back to the page.
         </p>
         <p id="bg-new-thread">
           <strong>A clean passage.</strong> Select some of these words, or Alt-click
@@ -249,7 +249,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           ><span class="bg-feature-detail">: answers in context</span>
         </h2>
         <p id="bg-readings-guide">
-          A recorded answer stays visible in the widget that owns it; the page map adds
+          A recorded answer stays visible in the widget that owns it; the Page Map adds
           no second status.
         </p>
         <lf-ask id="bg-outcome-ask">
@@ -310,57 +310,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             first.
           </p>
         </section>
-
-        <section id="bg-request-lifecycle">
-          <p class="eyebrow bg-feature-elements">
-            lf-command · lf-task · lf-agent · lf-worktree · lf-operations · lf-operation
-          </p>
-          <h3>
-            <strong>Requests</strong
-            ><span class="bg-feature-detail">: send instructions to the host</span>
-          </h3>
-          <p id="bg-request-guide">
-            <code>lf-operations</code> is the answer widget inside an
-            <code>lf-ask</code> when its answer should make the host act. Leaf records
-            one typed, one-shot instruction; the host carries it out and returns a
-            receipt. Failure reopens the Ask, while success closes it. A refused send
-            shows <strong>Retry</strong> and <strong>Cancel</strong>.
-          </p>
-          <lf-command id="bg-request-command" label="Synthetic request lifecycle">
-            <lf-task id="bg-request-live-task" status="blocked">
-              <strong>Ready request</strong> No request has left this seat yet.
-              <lf-agent id="bg-request-live-worker" state="waiting">
-                <strong>gallery-ready</strong> Owns the disposable sample branch.
-                <lf-worktree
-                  id="bg-request-live-tree"
-                  source="gallery-worktrees"
-                ></lf-worktree>
-              </lf-agent>
-              <lf-ask id="bg-request-live-decision">
-                <h4>What should the sample host do?</h4>
-                <lf-operations
-                  id="bg-request-live"
-                  target="bg-request-live-task"
-                  worker="bg-request-live-worker"
-                  worktree="bg-request-live-tree"
-                >
-                  <lf-operation verb="restart">
-                    <strong>Restart the sample worker</strong> Preserve its fictional
-                    branch and begin a fresh attempt.
-                  </lf-operation>
-                  <lf-operation verb="drop">
-                    <strong>Drop the sample worker</strong> Archive the fictional
-                    branch.
-                  </lf-operation>
-                </lf-operations>
-              </lf-ask>
-            </lf-task>
-          </lf-command>
-        </section>
       </section>
 
       <section id="bg-external-data">
-        <p class="eyebrow bg-feature-elements">lf-diff · lf-source · lf-num</p>
+        <p class="eyebrow bg-feature-elements">lf-text-document · lf-num</p>
         <h2>
           <strong>External data</strong
           ><span class="bg-feature-detail"
@@ -368,24 +321,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           >
         </h2>
 
-        <section id="bg-inline-diff-threads">
-          <p class="eyebrow bg-feature-elements">lf-diff · inline Thread</p>
-          <h3>
-            <strong>Inline diff threads</strong
-            ><span class="bg-feature-detail">: line comments in review context</span>
-          </h3>
-          <p id="bg-inline-diff-guide">
-            The seeded Thread follows its added line. Reply or resolve in place. Close
-            the file to move the Thread to the page margin, then reopen it to return the
-            conversation to the diff.
-          </p>
-          <lf-diff id="bg-review-diff" source="gallery-patch"><pre></pre></lf-diff>
-        </section>
-
         <section id="bg-source-captures">
-          <p class="eyebrow bg-feature-elements">lf-source</p>
+          <p class="eyebrow bg-feature-elements">lf-text-document</p>
           <h3>
-            <strong>Source</strong
+            <strong>Text document</strong
             ><span class="bg-feature-detail">: live and captured data</span>
           </h3>
           <p id="bg-source-guide">
@@ -393,18 +332,18 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             capture. Their captions show the file, capture label, and line range.
           </p>
           <p><strong>Live binding.</strong></p>
-          <lf-source
+          <lf-text-document
             id="bg-source-live"
             source="gallery-source"
             language="toml"
-          ></lf-source>
+          ></lf-text-document>
           <p><strong>Captured snapshot.</strong></p>
-          <lf-source
+          <lf-text-document
             id="bg-source-snapshot"
             source="gallery-source"
             snapshot="1"
             language="toml"
-          ></lf-source>
+          ></lf-text-document>
         </section>
 
         <section id="bg-measurement-lag">
@@ -465,35 +404,6 @@ run, baseline, candidate
 3, 9, 12
 </pre>
           </lf-chart>
-        </section>
-
-        <section id="bg-diagrams">
-          <p class="eyebrow bg-feature-elements">lf-diagram · diagram package</p>
-          <h3>
-            <strong>Diagram</strong
-            ><span class="bg-feature-detail">: structure, shape, and state</span>
-          </h3>
-          <p id="bg-diagrams-guide">
-            Diagram nodes keep their authored shapes and can use Leaf’s semantic color
-            tokens. A plain click leaves the drawing alone. Alt-click a declared node to
-            comment on that box alone, or press <kbd>s</kbd> to choose the same target.
-          </p>
-          <lf-diagram
-            id="bg-diagram"
-            parts="node:Request node:Choice node:Success node:Retry"
-          >
-            <pre>
-flowchart LR
-  Request([Request]) --> Choice{Valid?}
-  Choice -->|yes| Success[(Stored)]
-  Choice -->|no| Retry([Retry])
-  Retry -.-> Request
-  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
-  classDef warning fill:var(--warn-tint),stroke:var(--warn),color:var(--warn-ink)
-  class Success done
-  class Retry warning
-</pre>
-          </lf-diagram>
         </section>
 
         <section id="bg-code-and-tree">
@@ -560,16 +470,15 @@ gallery/
 
         <section id="bg-plans-and-history">
           <p class="eyebrow bg-feature-elements">
-            lf-milestones · lf-milestone · lf-timeline · lf-event
+            lf-milestones · lf-milestone · lf-chronology · lf-chronology-entry
           </p>
           <h3>
-            <strong>Milestones</strong>, <strong>Timeline</strong>, and
-            <strong>Events</strong
+            <strong>Milestones</strong> and <strong>Chronology</strong
             ><span class="bg-feature-detail">: state and history</span>
           </h3>
           <p id="bg-plans-guide">
-            Milestones show planned, active, and completed work. A Timeline orders
-            Events by time.
+            Milestones show planned, active, and completed work. A Chronology orders
+            entries by time.
           </p>
           <lf-milestones id="bg-milestones">
             <lf-milestone id="bg-milestone-survey" status="done" when="morning">
@@ -587,20 +496,24 @@ gallery/
               <strong>Write the note</strong>
             </lf-milestone>
           </lf-milestones>
-          <lf-timeline id="bg-timeline">
-            <lf-event id="bg-event-alert" at="09:14" kind="warning">
+          <lf-chronology id="bg-chronology">
+            <lf-chronology-entry id="bg-chronology-alert" at="09:14" kind="warning">
               <strong>Rain started</strong> The open path became slippery.
-            </lf-event>
-            <lf-event id="bg-event-switch" at="09:20" kind="action">
+            </lf-chronology-entry>
+            <lf-chronology-entry
+              id="bg-chronology-switch"
+              at="09:20"
+              kind="intervention"
+            >
               <strong>Route changed</strong> The sample moved under cover.
-            </lf-event>
-            <lf-event id="bg-event-clear" at="09:42" kind="info">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="bg-chronology-clear" at="09:42" kind="observation">
               <strong>Walk resumed</strong>
-            </lf-event>
-          </lf-timeline>
+            </lf-chronology-entry>
+          </lf-chronology>
         </section>
 
-        <section id="bg-workstream-tabs">
+        <section id="bg-tab-set">
           <p class="eyebrow bg-feature-elements">lf-tabs · lf-tab</p>
           <h3>
             <strong>Tabs</strong
@@ -621,8 +534,7 @@ gallery/
 
         <section id="bg-quoted-and-visual">
           <p class="eyebrow bg-feature-elements">
-            lf-specimen · lf-shot · lf-options · lf-option · lf-swipe-deck ·
-            lf-swipe-pile · lf-swipe-card
+            lf-specimen · lf-shot · lf-options · lf-option
           </p>
           <h3>
             <strong>Specimen</strong> and <strong>Shot</strong
@@ -637,20 +549,6 @@ gallery/
                 <strong>Display signs</strong> Easy to update.
               </lf-option>
             </lf-options>
-          </lf-specimen>
-          <lf-specimen id="bg-swipe-specimen" label="a classified swipe deck">
-            <lf-swipe-deck id="bg-swipe-completed">
-              <lf-swipe-pile id="bg-swipe-completed-queue" verdict="unseen">
-              </lf-swipe-pile>
-              <lf-swipe-pile id="bg-swipe-completed-pass" verdict="pass">
-              </lf-swipe-pile>
-              <lf-swipe-pile id="bg-swipe-completed-keep" verdict="keep">
-                <lf-swipe-card id="bg-swipe-completed-card">
-                  <strong>Keep the explicit expiry bound</strong>
-                  <p>The card's pile carries its recorded classification.</p>
-                </lf-swipe-card>
-              </lf-swipe-pile>
-            </lf-swipe-deck>
           </lf-specimen>
           <p id="bg-shot-guide">
             Specimen labels invented content. Press the Shot Button or image to switch

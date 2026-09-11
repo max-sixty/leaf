@@ -8,7 +8,7 @@ from leaf.data_contracts import data_binding_errors, measurement_lag
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry
 from leaf.schema import VENDORED_FILES
-from leaf.structure import LF_META, PAGE_CSP, parse_structure
+from leaf.structure import LF_META, PAGE_CSP, links_with_rel, parse_structure
 from leaf.styles import (
     _column_width,
     _overwide_elements,
@@ -87,24 +87,44 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
     errors.extend(structure_errors(parser))
     errors.extend(page_boundary_errors(parser))
 
-    scripts = parser.external_scripts
-    if len(scripts) != 1:
+    external_scripts = parser.external_scripts
+    if len(external_scripts) != 1:
         errors.append(
-            f"expected exactly one external <script src> tag, found {len(scripts)}"
-            + (f": {[script['attrs']['src'] for script in scripts]}" if scripts else "")
+            "expected exactly one external <script src> tag for /leaf.js, found "
+            f"{len(external_scripts)}"
+            + (
+                f": {[script['attrs']['src'] for script in external_scripts]}"
+                if external_scripts
+                else ""
+            )
         )
-    elif scripts[0]["attrs"] != {"src": "/leaf.js", "type": "module"}:
+    elif external_scripts[0]["attrs"] != {"src": "/leaf.js", "type": "module"}:
         errors.append(
-            'the only external script must be exactly <script type="module" '
-            f'src="/leaf.js">, found attributes {scripts[0]["attrs"]}'
+            'the external runtime script must be exactly <script type="module" '
+            f'src="/leaf.js">, found attributes {external_scripts[0]["attrs"]}'
         )
-    elif scripts[0]["parent"] != "head" or not scripts[0]["early_head"]:
+    elif (
+        external_scripts[0]["parent"] != "head" or not external_scripts[0]["early_head"]
+    ):
         errors.append(
             "the /leaf.js module must be in <head> before <body> can paint; "
             "its <head> must be the document's direct, initial head"
         )
 
-    stylesheets = parser.stylesheets
+    for script in parser.inline_scripts:
+        if script["attrs"] != {"type": "module"}:
+            errors.append(
+                f"<script> (line {script['line']}) must be an authored module "
+                f'with exactly type="module"; found attributes {script["attrs"]}'
+            )
+    for executable in parser.executable_attributes:
+        errors.append(
+            f"<{executable['tag']}> (line {executable['line']}) uses executable "
+            f"attribute {executable['name']}; put authored behavior in a "
+            '<script type="module"> block'
+        )
+
+    stylesheets = links_with_rel(parser.links, "stylesheet")
     if len(stylesheets) != 1 or stylesheets[0]["attrs"] != {
         "rel": "stylesheet",
         "href": "/theme.css",
@@ -120,6 +140,14 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
             "its <head> must be the document's direct, initial head"
         )
 
+    for link in links_with_rel(parser.links, "canonical"):
+        errors.append(
+            f'<link rel="canonical"> (line {link["line"]}): the served document names '
+            "the page root itself, and a page whose head declares a second address "
+            "leaves a crawler to choose between them. Write the title and description; "
+            "the address is delivery's."
+        )
+
     declared_csp = [
         meta["content"]
         for meta in parser.http_equivs
@@ -132,7 +160,9 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
             + (f"; found {declared_csp}" if declared_csp else "")
         )
 
-    for meta in parser.lf_metas:
+    for meta in parser.named_metas:
+        if not meta["name"].startswith("lf-"):
+            continue  # ordinary document metadata: a title, a description, a card
         where = f'<meta name="{meta["name"]}"> (line {meta["line"]})'
         if meta["name"] not in LF_META:
             errors.append(f"{where}: unknown lf- meta; known: {sorted(LF_META)}")

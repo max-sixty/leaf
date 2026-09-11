@@ -1,6 +1,6 @@
 /* Document-order placement and grouping for conversation threads. */
-import { itemSays, itemWord, placedAt, sectionOf } from "../anchors.js";
-import { pageParts } from "../keyboard/page.js";
+import { addressableSays, addressableWord, sectionOf } from "../anchor-resolution.js";
+import { pageParts } from "../passages.js";
 import { inChrome, layerPart } from "../passages.js";
 import { readingRegionFor } from "../reading-regions.js";
 // ---------- where the panel puts a thread ----------
@@ -39,7 +39,7 @@ const inPage = (el) => {
   return at;
 };
 
-const threadPlace = (t) =>
+const threadPlace = (t, placedAt) =>
   inPage(placedAt(t.root.id)?.element ?? (t.anchor ? sectionOf(t.anchor) : null));
 
 // Which of two elements the reader reaches first. `compareDocumentPosition` answers for
@@ -55,9 +55,9 @@ const pageOrder = (a, b) =>
 
 // The log's order is the tiebreak, so two threads on one paragraph read in the order they
 // were opened, and a page that gave nothing an id keeps exactly the list it had.
-export function inPageOrder(threads) {
+export function inPageOrder(threads, placedAt) {
   const seat = new Map(threads.map((t, i) => [t, i]));
-  const place = new Map(threads.map((t) => [t, threadPlace(t)]));
+  const place = new Map(threads.map((t) => [t, threadPlace(t, placedAt)]));
   return [...threads].sort((a, b) => {
     const pa = place.get(a);
     const pb = place.get(b);
@@ -74,7 +74,7 @@ export function inPageOrder(threads) {
 // of the page's outline.
 export const pageOutline = () => pageParts("h1, h2, h3, h4, h5, h6");
 
-const subjectLabel = (target) => itemSays(target) || itemWord(target);
+const subjectLabel = (target) => addressableSays(target) || addressableWord(target);
 
 // A repeated outline subject needs the nearest named reading region to remain
 // distinguishable after a route leaves the page. Unique subjects keep the author's own
@@ -117,8 +117,8 @@ function headingFor(place, outline) {
 // for; none of them ever carries a target, so a group's node keeps its kind — a button
 // where there is somewhere to go, a plain line where there is not — across every
 // reconcile.
-export function groupFor(t, outline) {
-  const place = threadPlace(t);
+export function groupFor(t, outline, placedAt) {
+  const place = threadPlace(t, placedAt);
   if (!place)
     return t.anchor
       ? { key: "gone", label: "No longer in this version" }
@@ -143,8 +143,10 @@ export function groupFor(t, outline) {
 // Ambiguity belongs to the rendered set: one thread under a repeated page heading still
 // has a unique destination name, while two such runs need their regions. Group the whole
 // list once so every thread in a run receives the same answer.
-export function threadGroups(threads, outline = pageOutline()) {
-  const groups = new Map(threads.map((thread) => [thread, groupFor(thread, outline)]));
+export function threadGroups(threads, outline, placedAt) {
+  const groups = new Map(
+    threads.map((thread) => [thread, groupFor(thread, outline, placedAt)]),
+  );
   const subjects = [
     ...new Set([...groups.values()].map((group) => group.target).filter(Boolean)),
   ];

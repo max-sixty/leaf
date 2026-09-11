@@ -53,7 +53,7 @@ export const FOCUSABLE =
 // The declaration picks the candidates and the measurement decides. A rule saying a box
 // may scroll is not the same fact as a box with something out of sight: the theme sets
 // `table { display: block; overflow-x: auto }` on every table there is, so the declaration
-// alone gave all fourteen tables in the keyboard reference a tab stop, none of which
+// alone gave all fourteen tables in the command reference a tab stop, none of which
 // overflows — and leaving that reference by Tab went from one press to fifteen, each stop
 // wearing the browser's own ring rather than the layer's.
 //
@@ -74,11 +74,10 @@ const mayScroll = new Set();
 // width from 1200 to 1920, with nothing on the page saying so. A reader can guess that a
 // line of code continues; nobody can guess a graph does.
 //
-// So the box says it is a window, and this is where it is said, because this is where the
-// layer already knows: `paintReach` is asked whether something is out of sight on every
-// layout that moves a candidate, and until now spent the answer on the keyboard alone.
-// Off the composed box like the stop above, so a page author's scroller and a package's
-// are marked on the same terms as the theme's own and nobody declares anything.
+// `paintReach` already asks whether each candidate has something out of sight whenever
+// layout moves it. The scroll listener adds which side still has content beyond it. The
+// marks sit on the composed box like the stop above, so authored, package, and theme
+// scrollers follow the same rule without separate declarations.
 //
 // Across the box and not down it, which is the axis every reading of a cut takes: a box
 // cut off below its container is usually cut on purpose — a collapsed disclosure, a
@@ -86,26 +85,28 @@ const mayScroll = new Set();
 // the side never is. The page itself is the down direction and the window's own bar
 // answers for it.
 //
-// The mark is paint (theme.css, [data-lf-cut]), so writing it inside a resize observation
-// moves nothing and cannot feed itself. Its candidate set is every box whose computed
-// `overflow-x` is `auto` or `scroll`, and not `mayScroll`, which stops at boxes holding a
-// control of their own: a board is reached through its grips and needs no stop, and is cut
-// exactly as silently as anything else. Computed, not declared, is wider than it sounds
-// and is the set on purpose: `overflow-x: visible` computes to `auto` whenever
-// `overflow-y` is not visible, so a box that only ever meant to scroll down — the panel's
-// list, a tray, the sidebar — is in here too. It earns the mark on the same terms as the
-// rest, by actually holding more across than it shows; a box that scrolls only downwards
-// never does, and the ones that do were cutting a word off with nothing to say so.
+// The marks are paint (theme.css, [data-lf-more-before/after]). Writing them from a
+// resize observation moves nothing and cannot feed itself. Its candidate set is every
+// box whose computed `overflow-x` is `auto` or `scroll`, and not `mayScroll`, which stops
+// at boxes holding a control of their own: a board is reached through its grips and needs
+// no stop, and is cut exactly as silently as anything else. Computed, not declared, is
+// wider than it sounds and is the set on purpose: `overflow-x: visible` computes to
+// `auto` whenever `overflow-y` is not visible, so a box that only ever meant to scroll
+// down — the panel's list, a tray, the sidebar — is in here too. It earns the mark on the
+// same terms as the rest, by actually holding more across than it shows; a box that
+// scrolls only downwards never does, and the ones that do were cutting a word off with
+// nothing to say so.
 const sideways = new Set();
 // A reading region is the narrower vertical case. Ordinary vertical overflow is often
 // intentional and self-explanatory (a textarea, disclosure, or the document itself),
 // so `reachScrollers` must not infer this mark from overflow-y. Reading-region owners
-// opt their bounded body in when they register it. The cue follows *remaining* content:
-// unlike the across mark, reaching the end must take it away because the pane's fixed
-// lower edge otherwise keeps promising another part of the reading.
+// opt their bounded body in when they register it. The cue follows remaining content,
+// because the pane's fixed lower edge would otherwise keep promising another part of
+// the reading after the reader reaches the end.
 const downwards = new Set();
 export const runtimeOwnsScrollerStop = (el) => mayScroll.has(el);
 const readingScrolled = (event) => paintReadingReach(event.currentTarget);
+const sidewaysScrolled = (event) => paintSidewaysReach(event.currentTarget);
 export function reachReadingScroller(el) {
   downwards.add(el);
   reachSizes.observe(el);
@@ -153,11 +154,16 @@ export function reachScrollers(root) {
         !el.hasAttribute(PAGE_PAINT_ATTRIBUTE.holds)
       )
         el.setAttribute(PAGE_PAINT_ATTRIBUTE.holds, "1");
-      // A textarea is out of the cut mark for its own reason: it scrolls its value, which
-      // the reader is writing and already knows continues.
-      if (/^(auto|scroll)$/.test(style.overflowX) && !el.matches("textarea")) {
+      // A textarea is out of the continuation marks for its own reason: it scrolls a
+      // value its reader is writing and already knows continues.
+      if (
+        /^(auto|scroll)$/.test(style.overflowX) &&
+        !el.matches("textarea") &&
+        !sideways.has(el)
+      ) {
         sideways.add(el);
         reachSizes.observe(el);
+        el.addEventListener("scroll", sidewaysScrolled, { passive: true });
       }
       // A box that already carries a stop of its own is somewhere the reader can be put,
       // whoever put it there; this sweep neither adds to it nor takes it away.
@@ -173,22 +179,33 @@ export function reachScrollers(root) {
     }
   paintReach();
 }
-// Which of the candidates has something out of sight right now, asked once for both
-// answers. Both directions for the stop, because a reader who widens the window is owed
-// its removal as much as its arrival: a box that fits carries nothing to scroll to, and a
-// tab stop on it is a press that goes nowhere. Cheap enough for chrome-layout.js — the
-// sets are what declared they may scroll, which on the corpus is a couple of dozen boxes
-// — and it writes `tabIndex` and one attribute the theme spends on a shadow, neither of
-// which moves a box (the rule syncLayout keeps).
+// Re-read each candidate after layout moves it. A reader who widens the window is owed
+// the stop's removal as much as its arrival: a box that fits carries nothing to scroll
+// to, and a tab stop on it is a press that goes nowhere. The candidate sets keep the
+// pass to a couple of dozen boxes in the corpus. `tabIndex` and the paint attributes move
+// no box, which keeps the pass safe inside syncLayout.
 const reachSizes = new ResizeObserver(() => paintReach());
 // A pixel of tolerance, where the stop takes any overflow at all: the stop is owed
-// wherever the keyboard cannot reach something, and a shadow drawn for a sub-pixel
-// rounding is a promise of more with nothing behind it.
-const cutAcross = (el) => el.scrollWidth > el.clientWidth + 1;
+// wherever the keyboard cannot reach something, and a fade drawn for sub-pixel rounding
+// is a promise of more with nothing behind it. scrollLeft follows the inline direction:
+// it starts at zero and becomes negative in a right-to-left scroller.
+function paintSidewaysReach(el) {
+  if (!sideways.has(el)) return;
+  const style = getComputedStyle(el);
+  const scrolls =
+    /^(auto|scroll)$/.test(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
+  const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
+  const raw = Math.abs(el.scrollLeft);
+  const position = Math.min(maximum, Math.max(0, raw));
+  if (scrolls) el.setAttribute(PAGE_PAINT_ATTRIBUTE.scrollDirection, style.direction);
+  else el.removeAttribute(PAGE_PAINT_ATTRIBUTE.scrollDirection);
+  el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBefore, scrolls && position > 1);
+  el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreAfter, scrolls && position < maximum - 1);
+}
 function gone(el) {
   if (el.isConnected) return false;
   mayScroll.delete(el);
-  sideways.delete(el);
+  if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
   downwards.delete(el);
   reachSizes.unobserve(el);
   return true;
@@ -201,10 +218,7 @@ function paintReach() {
   }
   for (const el of sideways) {
     if (gone(el)) continue;
-    const cut = cutAcross(el);
-    if (cut === el.hasAttribute(PAGE_PAINT_ATTRIBUTE.cut)) continue;
-    if (cut) el.setAttribute(PAGE_PAINT_ATTRIBUTE.cut, "1");
-    else el.removeAttribute(PAGE_PAINT_ATTRIBUTE.cut);
+    paintSidewaysReach(el);
   }
   for (const el of downwards) {
     if (gone(el)) continue;

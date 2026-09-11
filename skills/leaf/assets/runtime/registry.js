@@ -1,6 +1,6 @@
 /* The vocabulary's query doors, which is how the layer stays open.
 
-   `widgetEntries` and `tagsDeclaring` are the general iteration doors. `stateSpecs` is
+   `elementDeclarations` and `tagsDeclaring` are the general iteration doors. `stateSpecs` is
    the one traversal of both `x-state` and `x-report`. New code that loops over tag names
    or repeats those channel traversals is a closed list in another form. CSS selectors
    follow the same rule: a list of framed widget tags is still a closed consumer. */
@@ -14,12 +14,13 @@ import { runtime } from "./context.js";
 export const registry = runtime.registry;
 export const tokenEntry = (name) => registry.$reactions.tokens[name];
 
-// The vocabulary's widgets: every entry under a tag, and never a `$` entry. Those are
+// The vocabulary's element declarations: every declaration under a tag, and never a `$`
+// declaration. Those are
 // the layer's own facts, and one of them ($keys) is spelled in the x- keys' own names —
 // so a sweep that picked widgets by "declares x-says" without asking the tag took it
 // for a widget called $keys, and querySelectorAll refused the name. Every walk over the
-// registry that means widgets goes through here.
-export const widgetEntries = () =>
+// registry that means element declarations goes through here.
+export const elementDeclarations = () =>
   Object.entries(registry).filter(([tag]) => tag.startsWith("lf-"));
 
 let stateIndex;
@@ -30,7 +31,7 @@ function indexedState() {
   if (stateIndex?.generation === generation) return stateIndex;
 
   const specs = [];
-  for (const [tag, entry] of widgetEntries())
+  for (const [tag, entry] of elementDeclarations())
     for (const channel of ["x-state", "x-report"])
       for (const [verb, spec] of Object.entries(entry[channel] ?? {}))
         specs.push({ tag, channel, verb, spec });
@@ -47,11 +48,11 @@ function indexedState() {
 export const stateSpecs = () => indexedState().specs;
 export const recordedWidgetSelector = () => indexedState().recordedWidgetSelector;
 
-// Shared `$` entries belong to the layer rather than to one widget. Return a copy so
+// Shared `$` declarations belong to the layer rather than to one widget. Return a copy so
 // a package module can read its cross-widget vocabulary without a registry write path.
 export function layerFact(name) {
   if (!name?.startsWith("$"))
-    throw new Error(`leaf: layerFact expects a $ entry, got ${String(name)}`);
+    throw new Error(`leaf: layerFact expects a $ declaration, got ${String(name)}`);
   const value = registry[name];
   return value === undefined ? undefined : structuredClone(value);
 }
@@ -65,11 +66,11 @@ export const elementsDeclaring = (root, key, { direct = false } = {}) => {
 
 // Which widgets answer a question the way the caller means it, read from what they
 // declare. Nothing out here names a widget: a behaviour some widgets want is an x- key
-// they carry, so the twelfth widget is covered by its entry alone — the alternative
+// they carry, so the twelfth widget is covered by its declaration alone — the alternative
 // keeps working perfectly on the widget it was taught and silently does nothing for the
 // next one.
 export const tagsDeclaring = (holds) =>
-  widgetEntries()
+  elementDeclarations()
     .filter(([, entry]) => holds(entry))
     .map(([tag]) => tag);
 

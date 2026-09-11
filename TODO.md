@@ -10,9 +10,9 @@ the relevant design note or in git history.
   [the evaluation plan](notes/agent-usability-evals.md#first-executable-slice), then use
   their failures to choose any new reading interface.
 
-- **Prototype short conversations in the Living Margin.** Compare a pinned marker card
+- **Prototype short conversations in the margin projection.** Compare a pinned marker card
   with a sparse left-comment layout on wide pages. Keep complete history and search in
-  Threads, use the existing Map sheet on narrow pages, and never leave both margin
+  Threads, use the existing Page Map dialog on narrow pages, and never leave both margin
   presentations visible at once.
 
 ## General reader continuity
@@ -22,11 +22,6 @@ the relevant design note or in git history.
   an old reading capture from overwriting input made during revision activation. The
   race belongs to version travel generally; independent pane scrollports only exposed
   more instances of it.
-
-- **#24 — Make covering workspaces modal.** When Threads or a tray covers the document,
-  keep focus and scrolling inside that workspace instead of leaving covered document
-  controls keyboard-reachable. Preserve the subject, draft, and reading landmark when
-  crossing the responsive threshold.
 
 ## Workspace follow-ups
 
@@ -66,6 +61,28 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
   choose and participate in real recurring tasks.
 
 ## Later
+
+- **Review the guided-still workflow across repeated website changes.** The initial
+  visual-review package passed one end-to-end five-case run. Use it on changes with
+  different navigation, responsive states, and authentication boundaries before
+  treating its authoring choices as settled.
+
+- **Add fast inspection modes to visual reviews.** Extend each existing case with
+  side-by-side and opacity views, disclosed masks, fit and actual-size zoom, and
+  changed-region navigation. Keep the current visual-run contract and case ids.
+
+- **Open visual-review targets beside Leaf through the host.** Coordinate the exact
+  case URL in a real browser pane and report mutable-preview staleness without treating
+  arbitrary iframes as live evidence.
+
+- **Add typed motion evidence after the media boundary supports it.** Define durable
+  video, poster, caption, transcript, and chapter handling in Leaf core; then let visual
+  runs attach motion only to cases whose timing or continuity is under review.
+
+- **Name the keyboard's visible carriers once the command-route model settles.** Add
+  *key badge* and *binding badge* to the developer glossary, then cut code, docs, and
+  tests over. A key badge carries a binding or transient hint code; a binding badge is
+  a key badge showing a currently resolved command binding.
 
 - **Add a foreground path for other agent hosts.** Document a blocking `leaf wait` flow
   for any host that can run a command, then use that experience to define a shared host

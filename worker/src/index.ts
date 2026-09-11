@@ -8,7 +8,9 @@
  * so one reader can exercise the real event log without changing another reader's page.
  * During an image rollout, a layer mismatch pins that reader briefly to the container's
  * complete shell so a static document never reloads against an older API in a loop.
- * Accepted browser events also emit content-free canonical metadata to Analytics Engine.
+ * Accepted browser events start their agent task in the already-selected reader
+ * container without holding the browser acknowledgement open. Analytics Engine records
+ * accepted product events; Workers Observability records the content-free execution path.
  */
 
 import {
@@ -17,13 +19,8 @@ import {
   type OutboundHandlerContext,
 } from "@cloudflare/containers";
 export { ContainerProxy } from "@cloudflare/containers";
-import {
-  type DurableObject,
-  WorkflowEntrypoint,
-  type WorkflowEvent,
-  type WorkflowStep,
-} from "cloudflare:workers";
-import { NonRetryableError } from "cloudflare:workflows";
+import { type DurableObject } from "cloudflare:workers";
+import * as z from "zod/mini";
 
 import {
   activeCookie,
@@ -48,33 +45,48 @@ import {
 export interface Env {
   ASSETS: Fetcher;
   PAGES: DurableObjectNamespace<LeafWebsiteSession>;
-  AGENT_WORKFLOW: Workflow<AgentWorkflowParams>;
+  AGENT_PREWARM: "true" | "false";
   WEBSITE_EVENTS: AnalyticsEngineDataset;
   SOURCE_AGENT_RATE_LIMITER: RateLimit;
   OPENAI_API_KEY: string;
 }
 
-export interface AgentWorkflowParams {
+interface AgentTaskParams {
   sessionId: string;
+  reference: string;
   route: string;
   eventId: string;
   sourceId: string;
 }
 
-type AgentResult =
-  | { status: "ready" }
-  | { status: "connected"; thread: string }
-  | { status: "started"; thread: string }
-  | { status: "settled" }
-  | { status: "appended"; event: string };
+const settledAgentResultSchema = z.object({ status: z.literal("settled") });
+const agentResultSchemas = {
+  start: z.discriminatedUnion("status", [
+    settledAgentResultSchema,
+    z.object({
+      status: z.literal("started"),
+      thread: z.string().check(z.minLength(1)),
+    }),
+  ]),
+  reply: z.discriminatedUnion("status", [
+    settledAgentResultSchema,
+    z.object({
+      status: z.literal("appended"),
+      event: z.string().check(z.minLength(1)),
+    }),
+  ]),
+};
+
+type AgentResult = z.infer<
+  (typeof agentResultSchemas)[keyof typeof agentResultSchemas]
+>;
 
 const GENERATION_FAILURE_REPLY =
   "I couldn’t generate a reply just now. Please send a new message to try again.";
 const RATE_LIMIT_REPLY =
   "This public demo is busy right now. Please wait a minute, then send a new message.";
 const CODEX_PROXY_CREDENTIAL = "leaf-outbound-proxy";
-const CLOUDFLARE_CONTAINER_CA =
-  "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
+const CLOUDFLARE_CONTAINER_CA = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
 interface LeafEvent {
   id: string;
   attempt?: string;
@@ -86,6 +98,14 @@ interface LeafEvent {
 interface AcceptedEvent {
   event: LeafEvent;
   needsReply: boolean;
+}
+
+interface ModelRequestFields {
+  containerId: string;
+  modelRequestId: string;
+  requestKind?: string;
+  threadId?: string;
+  turnId?: string;
 }
 
 interface LeafStateAnswer {
@@ -113,14 +133,148 @@ export class LeafWebsiteSession extends Container<Env> {
   }
 }
 
+function metadataString(
+  metadata: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = metadata[key];
+  return typeof value === "string" && value.length > 0 && value.length <= 128
+    ? value
+    : undefined;
+}
+
+function modelRequestFields(
+  request: Request,
+  context: OutboundHandlerContext,
+): ModelRequestFields {
+  let metadata: Record<string, unknown> = {};
+  const encoded = request.headers.get("x-codex-turn-metadata");
+  if (encoded !== null) {
+    try {
+      const parsed: unknown = JSON.parse(encoded);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        metadata = parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Invalid optional diagnostics must not block the model request.
+    }
+  }
+  return {
+    containerId: context.containerId,
+    modelRequestId: crypto.randomUUID(),
+    requestKind: metadataString(metadata, "request_kind"),
+    threadId: metadataString(metadata, "thread_id"),
+    turnId: metadataString(metadata, "turn_id"),
+  };
+}
+
+function modelLog(
+  event: string,
+  request: ModelRequestFields,
+  fields: Record<string, unknown> = {},
+): void {
+  console.log({
+    component: "leaf-agent",
+    event,
+    ...request,
+    ...fields,
+  });
+}
+
+function observeModelBody(
+  body: ReadableStream<Uint8Array>,
+  request: ModelRequestFields,
+  started: number,
+  status: number,
+  upstreamRequestId: string | null,
+): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let bytes = 0;
+  let firstByte = true;
+  let firstOutput = true;
+
+  const observeFrames = (text: string): void => {
+    buffer += text;
+    const frames = buffer.replaceAll("\r\n", "\n").split("\n\n");
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      const data = frame
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trimStart())
+        .join("\n");
+      if (!data || data === "[DONE]") continue;
+      let event: unknown;
+      try {
+        event = JSON.parse(data);
+      } catch {
+        continue;
+      }
+      if (typeof event !== "object" || event === null || Array.isArray(event)) {
+        continue;
+      }
+      const record = event as Record<string, unknown>;
+      const eventType = metadataString(record, "type");
+      if (
+        firstOutput &&
+        eventType !== undefined &&
+        !["response.created", "response.in_progress", "response.queued"].includes(
+          eventType,
+        )
+      ) {
+        const item = record.item;
+        const outputType =
+          typeof item === "object" && item !== null && !Array.isArray(item)
+            ? metadataString(item as Record<string, unknown>, "type")
+            : undefined;
+        modelLog("model_response_first_output", request, {
+          durationMs: Date.now() - started,
+          responseEvent: eventType,
+          outputType,
+          upstreamRequestId,
+        });
+        firstOutput = false;
+      }
+    }
+  };
+
+  return body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        bytes += chunk.byteLength;
+        if (firstByte) {
+          modelLog("model_response_first_byte", request, {
+            durationMs: Date.now() - started,
+            status,
+            upstreamRequestId,
+          });
+          firstByte = false;
+        }
+        if (firstOutput) {
+          observeFrames(decoder.decode(chunk, { stream: true }));
+        }
+        controller.enqueue(chunk);
+      },
+      flush() {
+        if (firstOutput) {
+          observeFrames(decoder.decode() + "\n\n");
+        }
+        modelLog("model_response_completed", request, {
+          durationMs: Date.now() - started,
+          status,
+          bytes,
+          upstreamRequestId,
+        });
+      },
+    }),
+  );
+}
+
 // Assignment invokes Container's inherited setter, which registers the handler for
 // ContainerProxy. A static class field would shadow that setter.
 LeafWebsiteSession.outboundByHost = {
-  "api.openai.com": async (
-    request: Request,
-    env: Env,
-    ctx: OutboundHandlerContext,
-  ) => {
+  "api.openai.com": async (request: Request, env: Env, ctx: OutboundHandlerContext) => {
     const url = new URL(request.url);
     if (request.method !== "POST" || url.pathname !== "/v1/responses") {
       return new Response("blocked website agent request", { status: 403 });
@@ -136,9 +290,46 @@ LeafWebsiteSession.outboundByHost = {
     if (!capacity.success) {
       return new Response("website agent model limit reached", { status: 429 });
     }
+    const started = Date.now();
+    const modelRequest = modelRequestFields(request, ctx);
+    modelLog("model_request_started", modelRequest);
     const headers = new Headers(request.headers);
     headers.set("Authorization", `Bearer ${env.OPENAI_API_KEY}`);
-    return fetch(new Request(request, { headers }));
+    let response: Response;
+    try {
+      response = await fetch(new Request(request, { headers }));
+    } catch (error) {
+      modelLog("model_request_failed", modelRequest, {
+        durationMs: Date.now() - started,
+        error: error instanceof Error ? error.name : "unknown",
+      });
+      throw error;
+    }
+    const upstreamRequestId = response.headers.get("x-request-id");
+    modelLog("model_response_headers", modelRequest, {
+      durationMs: Date.now() - started,
+      status: response.status,
+      upstreamRequestId,
+    });
+    if (response.body === null) {
+      modelLog("model_response_completed", modelRequest, {
+        durationMs: Date.now() - started,
+        status: response.status,
+        bytes: 0,
+        upstreamRequestId,
+      });
+      return response;
+    }
+    return new Response(
+      observeModelBody(
+        response.body,
+        modelRequest,
+        started,
+        response.status,
+        upstreamRequestId,
+      ),
+      response,
+    );
   },
 };
 
@@ -149,38 +340,62 @@ function randomSessionId(): string {
 // A support handle, not a credential: it projects the whole random cookie into a short
 // numeric space while leaving 88 bits unknown, and no server door accepts it as identity.
 function sessionReference(sessionId: string): string {
-  return (BigInt(`0x${sessionId}`) % 1_000_000_000_000n)
-    .toString()
-    .padStart(12, "0");
+  return (BigInt(`0x${sessionId}`) % 1_000_000_000_000n).toString().padStart(12, "0");
 }
 
-function agentWorkflowId(reference: string, eventId: string): string {
-  return `reply-${reference}-${eventId}`;
+function agentLog(
+  event: string,
+  params: Pick<AgentTaskParams, "reference" | "route" | "eventId">,
+  fields: Record<string, unknown> = {},
+): void {
+  console.log({
+    component: "leaf-agent",
+    event,
+    reference: params.reference,
+    route: params.route,
+    eventId: params.eventId,
+    ...fields,
+  });
 }
 
-function validatedAgentParams(value: unknown): AgentWorkflowParams {
-  const params = value as Partial<AgentWorkflowParams> | null;
-  if (
-    params === null ||
-    typeof params !== "object" ||
-    typeof params.sessionId !== "string" ||
-    !/^[0-9a-f]{32}$/.test(params.sessionId) ||
-    typeof params.route !== "string" ||
-    !/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/.test(params.route) ||
-    typeof params.eventId !== "string" ||
-    !/^[A-Za-z0-9_-]{1,128}$/.test(params.eventId) ||
-    typeof params.sourceId !== "string" ||
-    params.sourceId.length === 0 ||
-    params.sourceId.length > 64
-  ) {
-    throw new NonRetryableError("invalid website agent workflow parameters");
+function prewarmLog(
+  event: string,
+  reference: string,
+  route: string,
+  fields: Record<string, unknown> = {},
+): void {
+  console.log({
+    component: "leaf-agent",
+    event,
+    reference,
+    route,
+    ...fields,
+  });
+}
+
+async function measuredAgentOperation<T>(
+  event: string,
+  params: AgentTaskParams,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const started = Date.now();
+  agentLog(`${event}_started`, params);
+  try {
+    const result = await operation();
+    agentLog(`${event}_completed`, params, { durationMs: Date.now() - started });
+    return result;
+  } catch (error) {
+    agentLog(`${event}_failed`, params, {
+      durationMs: Date.now() - started,
+      error: error instanceof Error ? error.name : "unknown",
+    });
+    throw error;
   }
-  return params as AgentWorkflowParams;
 }
 
 function agentRequest(
-  params: AgentWorkflowParams,
-  action: "turn" | "start" | "reply",
+  params: AgentTaskParams,
+  action: "start" | "reply",
   body: object,
 ): Request {
   const root = params.route === "/" ? "" : params.route;
@@ -193,8 +408,8 @@ function agentRequest(
 
 async function askContainer(
   env: Env,
-  params: AgentWorkflowParams,
-  action: "turn" | "start" | "reply",
+  params: AgentTaskParams,
+  action: "start" | "reply",
   body: object,
 ): Promise<AgentResult> {
   const response = await getContainer(env.PAGES, params.sessionId).fetch(
@@ -202,103 +417,108 @@ async function askContainer(
   );
   const raw = await response.text();
   if (!response.ok) {
-    const message = `website agent ${action} failed (${response.status}): ${raw}`;
-    if (response.status < 500) throw new NonRetryableError(message);
-    throw new Error(message);
+    throw new Error(`website agent ${action} failed (${response.status}): ${raw}`);
   }
-  let answer: Partial<AgentResult>;
+  let value: unknown;
   try {
-    answer = JSON.parse(raw) as Partial<AgentResult>;
+    value = JSON.parse(raw);
   } catch {
-    throw new NonRetryableError(`invalid website agent ${action} response`);
+    throw new Error(`invalid website agent ${action} response`);
   }
-  const valid =
-    answer.status === "settled" ||
-    (action === "turn" && answer.status === "ready") ||
-    (action === "turn" &&
-      answer.status === "connected" &&
-      typeof answer.thread === "string" &&
-      Boolean(answer.thread)) ||
-    (action === "start" &&
-      answer.status === "started" &&
-      typeof answer.thread === "string" &&
-      Boolean(answer.thread)) ||
-    (action === "reply" &&
-      answer.status === "appended" &&
-      typeof answer.event === "string" &&
-      Boolean(answer.event));
-  if (!valid) {
-    throw new NonRetryableError(`invalid website agent ${action} response`);
+  const result = agentResultSchemas[action].safeParse(value);
+  if (!result.success) {
+    throw new Error(`invalid website agent ${action} response`);
   }
-  return answer as AgentResult;
+  return result.data;
 }
 
-export async function runAgentWorkflow(
+async function runAgentTask(
   env: Env,
-  params: AgentWorkflowParams,
-  step: WorkflowStep,
+  params: AgentTaskParams,
 ): Promise<AgentResult> {
-  let fallback = GENERATION_FAILURE_REPLY;
-  let appendStep = "append startup failure";
-  try {
-    const turn = await step.do(
-      "read turn",
-      {
-        retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-        timeout: "1 minute",
-      },
-      () => askContainer(env, params, "turn", { event: params.eventId }),
+  const allowed = await measuredAgentOperation(
+    "capacity_reservation",
+    params,
+    async () =>
+      (
+        await env.SOURCE_AGENT_RATE_LIMITER.limit({
+          key: params.sourceId,
+        })
+      ).success,
+  );
+  if (allowed) {
+    return measuredAgentOperation("container_start", params, () =>
+      askContainer(env, params, "start", { event: params.eventId }),
     );
-    if (turn.status !== "ready") return turn;
-    const allowed = await step.do(
-      "reserve model capacity",
-      {
-        retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-        timeout: "1 minute",
-      },
-      async () =>
-        (
-          await env.SOURCE_AGENT_RATE_LIMITER.limit({
-            key: params.sourceId,
-          })
-        ).success,
-    );
-    if (allowed) {
-      return await step.do(
-        "start Codex task",
-        {
-          retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-          timeout: "2 minutes",
-        },
-        () => askContainer(env, params, "start", { event: params.eventId }),
-      );
-    } else {
-      fallback = RATE_LIMIT_REPLY;
-      appendStep = "append rate limit";
-    }
-  } catch {
-    // The deterministic fallback closes the exact event after startup retries.
   }
-  return step.do(
-    appendStep,
-    {
-      retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-      timeout: "1 minute",
-    },
-    () =>
-      askContainer(env, params, "reply", {
-        event: params.eventId,
-        text: fallback,
-      }),
+  return measuredAgentOperation("fallback_reply", params, () =>
+    askContainer(env, params, "reply", {
+      event: params.eventId,
+      text: RATE_LIMIT_REPLY,
+    }),
   );
 }
 
-export class LeafWebsiteAgentWorkflow extends WorkflowEntrypoint<
-  Env,
-  AgentWorkflowParams
-> {
-  async run(event: WorkflowEvent<AgentWorkflowParams>, step: WorkflowStep) {
-    return runAgentWorkflow(this.env, validatedAgentParams(event.payload), step);
+async function dispatchAgentTask(
+  env: Env,
+  params: AgentTaskParams,
+): Promise<void> {
+  const started = Date.now();
+  agentLog("dispatch_started", params);
+  try {
+    const result = await runAgentTask(env, params);
+    agentLog("dispatch_completed", params, {
+      durationMs: Date.now() - started,
+      status: result.status,
+    });
+  } catch (error) {
+    agentLog("dispatch_failed", params, {
+      durationMs: Date.now() - started,
+      error: error instanceof Error ? error.name : "unknown",
+    });
+    try {
+      await measuredAgentOperation("fallback_reply", params, () =>
+        askContainer(env, params, "reply", {
+          event: params.eventId,
+          text: GENERATION_FAILURE_REPLY,
+        }),
+      );
+    } catch (fallbackError) {
+      agentLog("dispatch_abandoned", params, {
+        error: fallbackError instanceof Error ? fallbackError.name : "unknown",
+      });
+    }
+  }
+}
+
+async function prewarmContainer(
+  env: Env,
+  sessionId: string,
+  reference: string,
+  route: string,
+  sourceId: string,
+): Promise<void> {
+  const started = Date.now();
+  prewarmLog("container_prewarm_started", reference, route);
+  try {
+    const allowed = await env.SOURCE_AGENT_RATE_LIMITER.limit({
+      key: `prewarm:${sourceId}`,
+    });
+    if (!allowed.success) {
+      prewarmLog("container_prewarm_denied", reference, route, {
+        durationMs: Date.now() - started,
+      });
+      return;
+    }
+    await getContainer(env.PAGES, sessionId).start();
+    prewarmLog("container_prewarm_completed", reference, route, {
+      durationMs: Date.now() - started,
+    });
+  } catch (error) {
+    prewarmLog("container_prewarm_failed", reference, route, {
+      durationMs: Date.now() - started,
+      error: error instanceof Error ? error.name : "unknown",
+    });
   }
 }
 
@@ -346,33 +566,6 @@ function recordAcceptedEvent(
     ],
     doubles: [accepted.event.revision ?? 0, accepted.needsReply ? 1 : 0],
   });
-}
-
-async function resumeFailedWorkflow(env: Env, workflowId: string): Promise<void> {
-  const instance = await env.AGENT_WORKFLOW.get(workflowId);
-  const state = await instance.status();
-  if (state.status === "errored" || state.status === "terminated") {
-    await instance.restart();
-  }
-}
-
-async function startAgentWorkflow(
-  env: Env,
-  params: AgentWorkflowParams,
-  reference: string,
-): Promise<void> {
-  const workflowId = agentWorkflowId(reference, params.eventId);
-  try {
-    await env.AGENT_WORKFLOW.create({ id: workflowId, params });
-  } catch (error) {
-    // Treat a duplicate id as success and revive a failed prior attempt. Preserve
-    // the outbox's retry signal when no workflow exists to answer the durable event.
-    try {
-      await resumeFailedWorkflow(env, workflowId);
-    } catch {
-      throw error;
-    }
-  }
 }
 
 function staticAssetResponse(response: Response): Response {
@@ -452,6 +645,7 @@ async function staticState(
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const requestStarted = Date.now();
     const url = new URL(request.url);
     const pathname = url.pathname;
     if (isPrivatePageRequest(pathname)) {
@@ -523,8 +717,16 @@ export default {
         headers.set("Leaf-Session-Reference", reference);
         if (existing === null) {
           headers.append("Set-Cookie", sessionCookie(sessionId, secure));
-        } else if (active) {
-          ctx.waitUntil(getContainer(env.PAGES, sessionId).start());
+        }
+        if (
+          env.AGENT_PREWARM === "true" &&
+          request.method === "GET" &&
+          request.headers.get("Sec-Fetch-Dest") === "document"
+        ) {
+          const sourceId = request.headers.get("CF-Connecting-IP") ?? "unknown";
+          ctx.waitUntil(
+            prewarmContainer(env, sessionId, reference, route.root, sourceId),
+          );
         }
         return new Response(response.body, {
           status: response.status,
@@ -547,11 +749,19 @@ export default {
         const sourceId = request.headers.get("CF-Connecting-IP") ?? sessionId;
         const params = {
           sessionId,
+          reference,
           route: route.root,
           eventId: accepted.event.id,
           sourceId,
         };
-        await startAgentWorkflow(env, params, reference);
+        agentLog("event_accepted", params, {
+          durationMs: Date.now() - requestStarted,
+        });
+        // TODO(2026-09-10): Persist the accepted event and active Codex turn identity
+        // in this container's Durable Object before returning the acknowledgement.
+        // TODO(2026-09-10): Add an alarm/status hook that recovers a dispatch when
+        // its container disappears or it exceeds the Worker's waitUntil window.
+        ctx.waitUntil(dispatchAgentTask(env, params));
       }
     }
     const requestLayer = request.headers.get("Leaf-Layer");

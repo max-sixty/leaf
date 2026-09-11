@@ -47,7 +47,8 @@ PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
 )
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
-CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), FEATURE_GALLERY)
+DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html")))
+CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
 
 
 def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
@@ -402,7 +403,7 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
     root = Path(__file__).parent.parent / "examples"
     packages = json.loads((root / "layer.json").read_text(encoding="utf-8"))
     examples = [*CORPUS_SOURCES, root / "corpus.html"]
-    assert FEATURE_GALLERY.is_file()
+    assert FEATURE_GALLERY in DEVELOPER_PAGES
     selection_args = [arg for package in packages for arg in ("--package", package)]
 
     def initialize(target):
@@ -660,6 +661,8 @@ def test_reply_validates_widget_markup(page_dir):
                 str(page_dir),
                 "--to",
                 "c1",
+                "--for",
+                "c1",
                 "--text",
                 "See:",
                 "--markup",
@@ -710,6 +713,8 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
                 "reply",
                 str(page_dir),
                 "--to",
+                "c1",
+                "--for",
                 "c1",
                 "--text",
                 "Choose:",
@@ -780,6 +785,8 @@ def test_a_version_response_cannot_take_an_agent_reply(page_dir):
             "reply",
             str(page_dir),
             "--to",
+            follow_up["id"],
+            "--for",
             follow_up["id"],
             "--text",
             "I will add it.",
@@ -1015,14 +1022,16 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
 
-    def reply(markup):
+    def reply(markup, *, for_event=None, to="c1"):
+        response = ["--for", for_event] if for_event else ["--initiates"]
         return CliRunner().invoke(
             cli_model.cli,
             [
                 "reply",
                 str(page_dir),
                 "--to",
-                "c1",
+                to,
+                *response,
                 "--text",
                 "Pick:",
                 "--markup",
@@ -1038,14 +1047,16 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
         question(
             "flow-decision",
             '<lf-options id="flow" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
-        )
+        ),
+        for_event="c1",
     )
     assert clash.exit_code != 0 and "flow" in clash.output
     fresh = reply(
         question(
             "q1-decision",
             '<lf-options id="q1" choose><lf-option id="q1-a"><strong>A</strong></lf-option></lf-options>',
-        )
+        ),
+        for_event="c1",
     )
     assert fresh.exit_code == 0, fresh.output
     # A second reply can't reuse the first reply's ids either, nor its own within itself.
@@ -1066,7 +1077,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     # Text claims no ids however it quotes a tag — only the `markup` field does, and
     # a user's message never carries one (the log is append-only; a false claim
     # would deadlock every future version).
-    events_model.append_event(
+    follow_up = events_model.append_event(
         page_dir,
         {
             "kind": "reply",
@@ -1079,7 +1090,9 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
         question(
             "quoted-decision",
             '<lf-options id="quoted" choose><lf-option id="quoted-a"><strong>A</strong></lf-option></lf-options>',
-        )
+        ),
+        for_event=follow_up["id"],
+        to=follow_up["id"],
     )
     assert ok.exit_code == 0, ok.output
     # And a new version taking the reply's id fails check.
@@ -1117,6 +1130,8 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             str(page_dir),
             "--to",
             "c1",
+            "--for",
+            "c1",
             "--text",
             "Pick:",
             "--markup",
@@ -1149,7 +1164,16 @@ def test_agent_messages_preserve_a_single_space(page_dir):
 
     replied = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--to", root["id"], "--text", " ", "--json"],
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--text",
+            " ",
+            "--json",
+        ],
     )
     assert replied.exit_code == 0, replied.output
     messages = [
@@ -1180,6 +1204,8 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
             "reply",
             str(page_dir),
             "--to",
+            "c1",
+            "--for",
             "c1",
             "--text",
             "Fixed in `poll()`.",
@@ -1212,7 +1238,17 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 
     def reply(text):
         return CliRunner().invoke(
-            cli_model.cli, ["reply", str(page_dir), "--to", "c1", "--text", text]
+            cli_model.cli,
+            [
+                "reply",
+                str(page_dir),
+                "--to",
+                "c1",
+                "--for" if text == "indexing done" else "--initiates",
+                *(["c1"] if text == "indexing done" else []),
+                "--text",
+                text,
+            ],
         )
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
@@ -1261,7 +1297,16 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
 
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["reply", str(page_dir), "--to", root["id"], "--text", "Complete."],
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--for",
+            root["id"],
+            "--text",
+            "Complete.",
+        ],
     )
     asking = CliRunner().invoke(
         cli_model.cli,
@@ -1270,6 +1315,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
             str(page_dir),
             "--to",
             root["id"],
+            "--initiates",
             "--text",
             "Which store?",
             "--awaits",
@@ -1282,6 +1328,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
             str(page_dir),
             "--to",
             root["id"],
+            "--initiates",
             "--text",
             "Pick one.",
             "--markup",
@@ -1301,6 +1348,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
             str(page_dir),
             "--to",
             root["id"],
+            "--initiates",
             "--text",
             "Should I continue?",
             "--markup",
@@ -1318,6 +1366,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_reader(page_d
             str(page_dir),
             "--to",
             root["id"],
+            "--initiates",
             "--text",
             "Restart it?",
             "--markup",
@@ -1385,6 +1434,8 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
             str(page_dir),
             "--to",
             reader["id"],
+            "--for",
+            reader["id"],
             "--text",
             "The crawl is paused.",
         ],
@@ -1423,7 +1474,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     assert state_result.exit_code == 0, state_result.output
     state = json.loads(state_result.output)
     assert all(
-        set(thread) == {"id", "anchor", "resolved"} for thread in state["threads"]
+        set(thread) == {"id", "anchor", "resolved"} for thread in state["conversations"]
     )
     expected = {
         root["id"]: [root["id"], revisions[0]["id"], revisions[1]["id"]],
@@ -1431,7 +1482,7 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     }
     for thread, ids in expected.items():
         selected = CliRunner().invoke(
-            cli_model.cli, ["events", str(page_dir), "--thread", thread]
+            cli_model.cli, ["events", str(page_dir), "--conversation", thread]
         )
         assert selected.exit_code == 0, selected.output
         assert [json.loads(line)["id"] for line in selected.output.splitlines()] == ids
@@ -1677,6 +1728,8 @@ def test_markup_needs_the_registry_and_text_does_not(page_dir):
             str(page_dir),
             "--to",
             "c1",
+            "--for",
+            "c1",
             "--text",
             "plain answer, x < y",
         ],
@@ -1689,6 +1742,7 @@ def test_markup_needs_the_registry_and_text_does_not(page_dir):
             str(page_dir),
             "--to",
             "c1",
+            "--initiates",
             "--text",
             "See:",
             "--markup",
@@ -1826,6 +1880,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
                     str(d),
                     "--to",
                     root,
+                    "--initiates",
                     "--text",
                     "carrying it",
                     "--markup",
@@ -1863,18 +1918,25 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "change"},
     )
-    reply = conversation_model.cmd_reply(page_dir, answered["id"], "Which part?", None)
+    reply = conversation_model.cmd_reply(
+        page_dir,
+        answered["id"],
+        "Which part?",
+        None,
+        for_event=None,
+        initiates=True,
+    )
     state = state_json(page_dir)
-    assert [t["id"] for t in state["threads"]] == [answered["id"]]
+    assert [t["id"] for t in state["conversations"]] == [answered["id"]]
     selected = CliRunner().invoke(
-        cli_model.cli, ["events", str(page_dir), "--thread", answered["id"]]
+        cli_model.cli, ["events", str(page_dir), "--conversation", answered["id"]]
     )
     assert selected.exit_code == 0, selected.output
     assert [json.loads(line)["id"] for line in selected.output.splitlines()] == [
         answered["id"],
         reply["id"],
     ]
-    assert [(r["token"], r["thread"]) for r in state["reactions"]] == [
+    assert [(r["token"], r["conversation"]) for r in state["reactions"]] == [
         ("shorten", bare["id"]),
         ("change", answered["id"]),
     ]

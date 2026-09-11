@@ -6,9 +6,9 @@ from pathlib import Path
 from leaf.schema import MEDIA_DIR
 from leaf.structure import (
     HEADING_TAGS,
-    OPTIONAL_END,
     SECTIONING_TAGS,
     StructParser,
+    links_with_rel,
 )
 from leaf.styles import inline_presentation_override_errors
 
@@ -80,7 +80,7 @@ def unpointable_blocks(parser: StructParser) -> list:
     """Blocks a user will aim at whole that no anchor can name. Advice, never a
     gate:
     references/page-authoring.md's "Stable anchors" states the id rule, and this
-    is its feedback loop. The page that introduced item anchoring hit this
+    is its feedback loop. The page that introduced addressable-element anchoring hit this
     failure itself — its code blocks carried no ids, so a comment aimed at one fell
     through to the enclosing section and read as the gesture being broken rather
     than the page being bare, and nothing anywhere said so.
@@ -139,7 +139,7 @@ def missing_outline(parser: StructParser, registry: dict) -> list:
         if (
             len(roots) == 1
             and isinstance(roots[0], dict)
-            and registry.get(roots[0]["tag"], {}).get("x-layout") == "workspace"
+            and registry.get(roots[0]["tag"], {}).get("x-reading-role") == "workspace"
         ):
             return []
     outline = sorted(
@@ -164,13 +164,12 @@ def missing_outline(parser: StructParser, registry: dict) -> list:
 
 
 def structure_errors(parser: StructParser) -> list:
-    """A fed parser's structural complaints, plus the tags it was left holding
-    open at the end of its input."""
+    """Structural complaints and source elements missing a required end tag."""
     errors = list(parser.errors)
-    leftover = [(t, ln) for t, ln, *_ in parser.stack if t not in OPTIONAL_END]
-    if leftover:
+    if parser.unclosed:
         errors.append(
-            "unclosed tags: " + ", ".join(f"<{t}> (line {ln})" for t, ln in leftover)
+            "unclosed tags: "
+            + ", ".join(f"<{tag}> (line {line})" for tag, line in parser.unclosed)
         )
     return errors
 
@@ -211,7 +210,7 @@ def fragment_style_errors(parser: StructParser) -> list:
     property outranked the theme's first cascade layer the same way.
 
     Nothing is lost by refusing them. The layer already dresses a widget an agent
-    sends — that is what a registry entry and its theme rules are for — and a rule
+    sends — that is what an element declaration and its theme rules are for — and a rule
     of a message's own has nowhere honest to sit, because the message is not the
     page and its markup is frozen in the log where no version can revise it."""
     errors = []
@@ -219,9 +218,9 @@ def fragment_style_errors(parser: StructParser) -> list:
         errors.append(
             "<style> in message markup becomes a stylesheet of the whole document it "
             "is put into; a widget's look belongs in the layer's theme, beside its "
-            "registry entry"
+            "element declaration"
         )
-    if parser.stylesheets:
+    if links_with_rel(parser.links, "stylesheet"):
         errors.append(
             "<link rel=stylesheet> in message markup dresses the whole document it is "
             "put into; the page serves the one vendored theme it was reviewed with"

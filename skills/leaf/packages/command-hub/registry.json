@@ -139,7 +139,7 @@
       }
     },
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-upgrade": false,
     "x-wide": "box",
     "x-example": "<lf-roster id=\"aviary-crew\">\n  <lf-agent id=\"ag-wren\" state=\"working\" on=\"t-feeders\">\n    <strong>wren</strong> Holds the feeder rebuild end to end.\n  </lf-agent>\n  <lf-agent id=\"ag-finch\" state=\"waiting\" on=\"t-baffles\">\n    <strong>finch</strong> Baffles are fitted and green; the work is yours to read.\n  </lf-agent>\n  <lf-agent id=\"ag-junco\" state=\"idle\">\n    <strong>junco</strong> Free — nothing assigned since the corpus snapshot.\n  </lf-agent>\n</lf-roster>"
@@ -175,12 +175,12 @@
       "state"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-roster",
       "lf-command",
       "lf-task"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-refers": {
       "on": {
         "via": "$command.widgets",
@@ -237,7 +237,7 @@
       }
     },
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-upgrade": false,
     "x-example": "<lf-tasks id=\"aviary-plan\">\n  <lf-task id=\"t-feeders\" status=\"active\" owner=\"wren\">\n    <strong>Rebuild the feeders</strong> Two of four mounted.\n    <lf-task id=\"t-mounts\" status=\"done\" owner=\"wren\"><strong>Replace the mounts</strong></lf-task>\n    <lf-task id=\"t-baffles\" status=\"review\" owner=\"finch\" when=\"aug 4\">\n      <strong>Fit squirrel baffles</strong> Ready for review.\n      <lf-ask id=\"t-baffles-decision\"><h3>Are the baffles ready?</h3>\n        <lf-options id=\"t-baffles-review\" choose>\n          <lf-option id=\"t-baffles-approve\"><strong>Approve</strong></lf-option>\n          <lf-option id=\"t-baffles-revise\"><strong>Request changes</strong></lf-option>\n        </lf-options>\n      </lf-ask>\n    </lf-task>\n  </lf-task>\n  <lf-task id=\"t-bath\" status=\"blocked\">\n    <strong>Heat the bird bath</strong> Waiting on a transformer delivery.\n  </lf-task>\n</lf-tasks>"
   },
@@ -260,7 +260,7 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-upgrade": true,
     "x-example": "<lf-command id=\"aviary-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n  <lf-agent id=\"lead\" state=\"working\"><strong>lead</strong> Coordinates the whole garden.</lf-agent>\n  <lf-task id=\"goal-feeders\" status=\"active\">\n    <strong>Rebuild the feeders</strong>\n    <lf-agent id=\"w-1\" state=\"working\" on=\"goal-feeders\"><strong>w-1</strong> Fitting the baffles.</lf-agent>\n  </lf-task>\n</lf-command>"
   },
@@ -312,12 +312,12 @@
       "status"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-tasks",
       "lf-command",
       "lf-task"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-paints": [
       "status"
     ],
@@ -382,10 +382,10 @@
       "source"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-agent"
     ],
-    "x-content": "none",
+    "x-content": "empty",
     "x-data": {
       "worktrees": {
         "contract": "lf-worktree",
@@ -427,7 +427,7 @@
       "worktree"
     ],
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-guidance": {
       "author": "Use `<lf-operations>` when pressing a choice should ask the host to do something irreversible or externally observable. Set `target`, `worker`, and `worktree` to the stable page ids for the goal and exact disposable host objects the operation acts on, then place one `<lf-operation verb=\"…\">` per offered command inside it. The package owns the allowed verbs; do not encode a command in an lf-option id or prose and ask the coordinator to guess it.",
       "coordinator": "A `request` event from this widget is an instruction to act, not replayable page state. Dispatch on its declared `action` and typed `detail.target`, `detail.worker`, and `detail.worktree`; verify those exact objects and current host state, and use the request id as the operation's idempotency and reconciliation key. On first delivery, perform the operation once using the host's native task/worktree tools. When recovering a pending request after interruption, inspect the host for that key and the requested result before acting; resume or record the existing outcome instead of starting, merging, or removing twice. Then always append the one terminal outcome:\n\n```bash\nleaf receipt \"$PAGE\" <request-id> succeeded --text \"Started w-9 on the preserved branch\"\n# or\nleaf receipt \"$PAGE\" <request-id> failed --text \"Branch no longer exists\"\n```\n\nNever acknowledge the wait batch until the request has reached the durable executor that owns the host task handle. `restart` preserves the named worktree, reaps the named worker, and launches a fresh worker for `target`; `park` removes the target from the active plan without discarding the named worktree; `drop` reaps the named worker and archives its worktree; `land` merges the named worktree; `hold` keeps it unmerged; `request-changes` retains the review request and starts a fresh revision worker from that worktree; `land-as-is` lands the named worktree and retires the named reviser. After success, refresh bound external data and save the plan revision the operation produced; stamp it when the result is a useful checkpoint. Leaf validates and records this protocol but does not call host APIs itself."
@@ -694,10 +694,10 @@
       "verb"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-operations"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-upgrade": false
   },
   "lf-record": {
@@ -713,7 +713,7 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-content": "none",
+    "x-content": "empty",
     "x-upgrade": true
   }
 }

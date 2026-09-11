@@ -47,8 +47,8 @@ PAINTED = """() => ({
     .map(el => el.id || el.dataset.id),
 })"""
 
-# Interaction state never adds a second mark to a margin element; durable agent
-# ownership paints the whole control instead.
+# Interaction state never adds a second mark to a margin entry; durable agent ownership
+# paints the whole control instead.
 PAINTS_STATE_MARK = """el => {
   const mark = getComputedStyle(el, '::after');
   return mark.content === '\"\"' && parseFloat(mark.width) > 0
@@ -69,25 +69,25 @@ def select_paragraph(page, selector):
 
 NEAREST_HINT = """(selector) => {
   const target = document.querySelector(selector).getBoundingClientRect();
-  return [...document.querySelectorAll('.lf-target-hint')]
+  return [...document.querySelectorAll('.lf-target-chooser-hint')]
     .sort((a, b) => {
       const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
       return Math.hypot(ar.left - target.left, ar.top - target.top)
            - Math.hypot(br.left - target.left, br.top - target.top);
-    })[0].dataset.lfTarget;
+    })[0].dataset.lfHintCode;
 }"""
 
 
 def hint_code(page, selector, hints):
-    """Press `s` and hand back the code the hint nearest one item carries.
+    """Press `s` and hand back the code the hint nearest one target carries.
 
-    The codes are the layer's to hand out, so a test naming one names whichever item
+    The codes are the layer's to hand out, so a test naming one names whichever target
     the run gave it to. `hints` is the count the page offers, asserted before the codes
     are read: the overlay paints on a frame of its own, and a read before it lands finds
     no hint to be nearest to.
     """
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-hint")).to_have_count(hints)
+    expect(page.locator(".lf-target-chooser-hint")).to_have_count(hints)
     return page.evaluate(NEAREST_HINT, selector)
 
 
@@ -146,7 +146,7 @@ def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, ser
     page.close()
 
 
-def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
+def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     browser, serve
 ):
     """The cheapest legal answer to a passage: select, press one token. What the log
@@ -155,8 +155,9 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     meets a comment. What the page gets is paint and nothing else: the words washed
     through the highlight registry, a glyph in the margin level with the paragraph,
     no card in the panel and nothing in its count, because a reaction is a mark and not
-    a conversation. The glyph is its own eraser: pressing it sends the ordinary undo
-    naming the event, and the paint goes with the gesture."""
+    a conversation. Pressing the glyph reveals a separately named remove control;
+    pressing that sends the ordinary undo naming the event, and the paint goes with the
+    gesture."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
@@ -259,7 +260,7 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     expect(page.locator(".lf-thread")).to_have_count(0)
     # The bar raised on the same passage again says the token stands. Its general
     # response disclosure keeps those choices with the field, while the standing glyph
-    # remains the margin receipt and eraser.
+    # remains the margin receipt and removal disclosure.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
     receipt_item = page.locator('.lf-margin-cluster[data-lf-margin-for="how-store"]')
@@ -279,14 +280,44 @@ def test_a_token_press_marks_the_passage_and_a_second_press_takes_it_back(
     expect(surface.locator('.lf-react[data-token="keep"]')).to_have_attribute(
         "aria-pressed", "false"
     )
-    page.mouse.click(40, 300)  # the bar down, the glyph is the eraser
+    page.mouse.click(40, 300)  # the bar down, the standing glyph remains
     expect(bar).to_be_hidden()
     expect(receipt_item.locator(":scope > .lf-reacts")).to_have_count(1)
-    # The glyph's own take-back in the wire before the log is read: behind a bare trip
-    # the read answers with the comment this press is taking back, which is the shape
-    # run 33845381848 failed in.
+    mark = page.locator('.lf-reacts .lf-react-mark[data-token="shorten"]')
+    remove = page.locator('[aria-label="Remove shorten reaction"]:visible')
+    face = """button => {
+      const style = getComputedStyle(button);
+      return [style.color, style.backgroundColor, style.borderTopColor, style.boxShadow];
+    }"""
+    mark.hover()
+    resting_face = mark.evaluate(face)
+    before_reveal = events_model.read_events(serve.page_dir)[-1]
+    mark.click()
+    expect(mark).to_have_attribute("aria-expanded", "true")
+    expect(remove).to_be_visible()
+    expect(receipt_item.locator(":scope > .lf-reacts")).to_have_attribute(
+        "aria-keyshortcuts", "Escape"
+    )
+    assert mark.evaluate(face) == resting_face
+    assert events_model.read_events(serve.page_dir)[-1] == before_reveal
+    page.locator("h1").click()
+    expect(mark).to_have_attribute("aria-expanded", "false")
+    expect(remove).to_be_hidden()
+    mark.focus()
+    mark.press("Enter")
+    expect(remove).to_be_focused()
+    remove.press("Escape")
+    expect(mark).to_be_focused()
+    expect(remove).to_be_hidden()
+    expect(receipt_item.locator(":scope > .lf-reacts")).not_to_have_attribute(
+        "aria-keyshortcuts", re.compile(r".+")
+    )
+    mark.click()
+    # The dedicated remove press is in the wire before the log is read: behind a bare
+    # trip the read answers with the comment this press is taking back, which is the
+    # shape run 33845381848 failed in.
     with sending(page, "the take-back the glyph makes"):
-        page.locator('.lf-reacts .lf-react-mark[data-token="shorten"]').click()
+        remove.click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
     assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
@@ -302,9 +333,10 @@ def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     )
     with sending(page, "the withdrawal the gallery opens on"):
         settled.click()
+        page.locator('[aria-label="Remove keep reaction"]:visible').click()
     # The withdrawal applied, and not merely delivered, before the raise below stands its
-    # choices inside the target's margin elements. A state that lands after that fold is open
-    # re-renders the cluster, and the margin says so on `lf-margin-element-options-closed`, which
+    # choices inside the target's margin entries. A state that lands after that fold is open
+    # re-renders the cluster, and the margin says so on `lf-margin-entry-options-closed`, which
     # is exactly what disarms the response mode the digit below is pressed into: the
     # press then reaches nothing, and the read finds the withdrawal still last in the log.
     told(page)
@@ -381,7 +413,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     # The press applied, and not merely delivered, before the reopen below asks for the row
     # again. `round_trip` ends on what the page has heard back, and the margin renders that
     # state after it; a render taken over an open options row says so on
-    # `lf-margin-element-options-closed`, which is what takes the row away. A reopen placed in that
+    # `lf-margin-entry-options-closed`, which is what takes the row away. A reopen placed in that
     # gap presses `e` at a cluster the arriving state is about to rebuild, so the row either
     # never opens or is closed under the press. The wait on the wire comes first because a
     # post the browser has not reported yet is not pending, and a trip that ends before the
@@ -440,7 +472,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
 def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     """Tab adds reactions after the compact field without moving or replacing it.
 
-    Each declared emoji is its own margin element, with its token in the accessible name.
+    Each declared emoji is its own margin entry, with its token in the accessible name.
     Digits remain optional accelerators in declaration order. Once the surface has been
     dismissed, `e` is no longer a live page command; page-wide reactions remain explicit
     in Threads.
@@ -481,7 +513,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
         )
         == 1
     )
-    expect(surface.locator(".lf-address")).to_have_count(0)
+    expect(surface.locator(".lf-key-badge")).to_have_count(0)
     with sending(page, "the shorten reaction"):
         page.keyboard.press("4")
     sent = events_model.read_events(serve.page_dir)[-1]
@@ -496,11 +528,11 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     # token and the passage it stands on, where it promised a generic take-back before.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
-    rows = page.locator(".lf-shortcut-reference").inner_text()
+    expect(page.locator(".lf-command-reference")).to_be_visible()
+    rows = page.locator(".lf-command-reference").inner_text()
     assert "Take back: shorten on “The store is capped" in rows, rows
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
+    expect(page.locator(".lf-command-reference")).to_be_hidden()
 
     # Nothing selected: React is not a command, so the key opens no surface or notice.
     page.keyboard.press("Escape")
@@ -508,24 +540,24 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     page.mouse.move(0, 0)
     page.evaluate("() => document.body.focus()")
     expect(
-        page.locator('.lf-shortcut-bar [data-lf-commands~="reaction.open"]')
+        page.locator('.lf-shortcut-bar [data-lf-command-ids~="reaction.open"]')
     ).to_have_count(0)
     page.keyboard.press("e")
     expect(page.locator(".lf-notice")).not_to_have_text("Select something to react to")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
     # Opening Threads does not add an unanchored reaction target.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-panel-foot .lf-react-strip")).to_have_count(0)
+    expect(page.locator(".lf-thread-panel-foot .lf-react-strip")).to_have_count(0)
     assert errors == []
     page.close()
 
 
-def test_an_item_hint_opens_comment_and_a_token_outlines_the_item(browser, serve):
-    """Keyboard item selection opens Comment. Choosing a token puts an
-    element anchor in the log, which paints as a solid hairline on the item's boxes
+def test_a_target_hint_opens_comment_and_a_token_outlines_the_element(browser, serve):
+    """Keyboard target choosing opens Comment. Choosing a token puts an
+    element anchor in the log, which paints as a solid hairline on the element's boxes
     and a glyph seated at its first line."""
     page, errors = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.type(hint_code(page, "#prose", 3))
@@ -549,9 +581,9 @@ def test_an_item_hint_opens_comment_and_a_token_outlines_the_item(browser, serve
 def test_reactions_keep_all_six_buttons_on_an_occupied_target(
     browser, serve, width, opener
 ):
-    """Explicit reaction mode spends every margin element on feedback, at either posture.
+    """Explicit reaction mode spends every margin entry on feedback, at either posture.
 
-    Existing suggestion actions stay in the complete Page-map inventory instead of
+    Existing suggestion actions stay in the complete Page Map inventory instead of
     displacing tokens or adding an overflow detour. Pointer and keyboard activation
     still press the original reaction with its target intact.
     """
@@ -600,13 +632,13 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(
     item.locator(".lf-sug-accept").focus()
     page.keyboard.press("e")
     expect(item.locator(".lf-margin-reactions")).to_be_visible()
-    # The full inventory remains available to Page map while the focused rail view
+    # The full inventory remains available to Page Map while the focused rail view
     # shows reactions alone. Invoke its standing control directly here: this test is
     # about reconciliation when another owner settles the target, not banner overflow.
     page.locator(".lf-page-map-toggle").evaluate("button => button.click()")
-    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     decision = sheet.locator(
-        f'[data-lf-map-margin-element="id:{target}:suggestion:{target}:{action}"]'
+        f'[data-lf-map-margin-entry="id:{target}:suggestion:{target}:{action}"]'
     )
     decision.focus()
     expect(decision).to_be_focused()
@@ -664,7 +696,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(item).to_have_attribute("data-lf-options-open", "")
 
     # Nor does the raise that finds the fold already open: standing the choices in a
-    # cluster the reader unfolded for themselves borrows it, and `openMarginElementOptions` is
+    # cluster the reader unfolded for themselves borrows it, and `openMarginEntryOptions` is
     # a no-op there, so putting them down leaves the fold where the press found it.
     item.locator(".lf-sug-accept").focus()
     page.keyboard.press("e")
@@ -675,7 +707,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(item).to_have_attribute("data-lf-options-open", "")
 
     # The raise that does unfold a cluster to stand its choices in still folds it back.
-    option = item.locator(".lf-margin-options .lf-margin-element:visible").first
+    option = item.locator(".lf-margin-options .lf-margin-entry:visible").first
     option.focus()
     expect(option).to_be_focused()
     page.keyboard.press("Escape")
@@ -736,7 +768,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
 @pytest.mark.parametrize("width", [390, 1280])
 @pytest.mark.parametrize("opener", ["click", "keyboard"])
 def test_comment_response_choices_expand_in_place(browser, serve, opener, width):
-    """The ellipsis and Tab extend the comment without moving its left edge."""
+    """The ellipsis and Tab extend one placed rectangle without moving its left edge."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     resized(page, width, 900)
     select_paragraph(page, "#how-cap")
@@ -788,6 +820,13 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     assert all(abs(x - before["x"]) <= 1 for x in route), route
     assert abs(after["x"] - before["x"]) <= 1, (before, after)
     assert after["x"] + after["width"] <= width - 8, after
+    target = page.locator("#how-cap").bounding_box()
+    assert (
+        after["x"] + after["width"] <= target["x"]
+        or after["x"] >= target["x"] + target["width"]
+        or after["y"] + after["height"] <= target["y"]
+        or after["y"] >= target["y"] + target["height"]
+    ), (target, after)
     field_box = field.bounding_box()
     choice_boxes = [choice.bounding_box() for choice in choices.all()]
     assert all(abs(choice_box["height"] - 32) <= 1 for choice_box in choice_boxes)
@@ -839,6 +878,13 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
         expect(field).to_have_value("Keep this draft, still anchored 3 lines")
         narrowed = bar.bounding_box()
         assert narrowed["x"] + narrowed["width"] <= 492, narrowed
+        narrowed_target = page.locator("#how-cap").bounding_box()
+        assert (
+            narrowed["x"] + narrowed["width"] <= narrowed_target["x"]
+            or narrowed["x"] >= narrowed_target["x"] + narrowed_target["width"]
+            or narrowed["y"] + narrowed["height"] <= narrowed_target["y"]
+            or narrowed["y"] >= narrowed_target["y"] + narrowed_target["height"]
+        ), (narrowed_target, narrowed)
     page.keyboard.press("Tab")
     expect(suggest).to_be_focused()
     page.keyboard.press("Escape")
@@ -910,12 +956,12 @@ FLOAT_ROOM = """() => {
 def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     browser, serve
 ):
-    """A one-line note uses the shared action corner. A longer one widens before it
-    wraps, grows down as far as the room the placement states — a note of a dozen lines
-    shows them all, and only one taller than the band below the banner scrolls, standing
-    inside that band — and the corner stays fixed through all of that. On a narrow screen
-    the same room caps the bar and the field is what gives, so the ellipsis beside it
-    keeps its room."""
+    """A one-line note uses the shared action corner. A longer one uses the width of
+    its chosen rail and then wraps, growing through the room placement states — a dozen
+    lines shows them all, and only one taller than the band below the banner scrolls,
+    standing inside that band — and the corner stays fixed through all of that. On a
+    narrow screen the same room caps the bar and the field is what gives, so the
+    ellipsis beside it keeps its room."""
     page, errors = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
@@ -953,10 +999,10 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     )
     page.evaluate(RENDERED)
     wide = field.evaluate(FIELD_BOX)
-    assert wide["w"] > rest["w"] and wide["h"] > rest["h"], (
+    assert wide["w"] >= rest["w"] and wide["h"] > rest["h"], (
         rest,
         wide,
-    )  # wider, wrapped
+    )  # a rail already at its compact minimum wraps without moving or widening
     assert wide["over"] < 0 and wide["r"] == rest["r"], (rest, wide)
     bounds = bar.bounding_box()
     assert bounds and bounds["x"] + bounds["width"] <= room["right"], (room, bounds)
@@ -973,12 +1019,13 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     page.evaluate(RENDERED)  # placeFab answers the input a frame later
     bounds = bar.bounding_box()
     trigger = bar.locator(".lf-response-more").bounding_box()
+    narrow_field = field.bounding_box()
     assert bounds and 8 <= bounds["x"] and bounds["x"] + bounds["width"] <= 382, bounds
     assert trigger and trigger["x"] + trigger["width"] <= 382, (bounds, trigger)
-    assert field.evaluate(FIELD_BOX)["w"] < wide["w"], (
-        wide,
-        bounds,
-    )  # the field gave the room
+    assert narrow_field["x"] + narrow_field["width"] <= trigger["x"], (
+        narrow_field,
+        trigger,
+    )
     assert errors == []
     page.close()
 
@@ -991,11 +1038,11 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
 
     The panel can leave usable room beside it or cover the response controls at narrower
     widths. Resizing between those postures preserves the draft, withdraws its unavailable
-    surface, and hands the keyboard to the visible conversation workspace.
+    surface, and hands the keyboard to the visible Thread panel.
     """
     page, errors = open_page(browser, serve(PANEL_PAGE))
     initial_events = events_model.read_events(serve.page_dir)
-    resized(page, 700, 900)
+    resized(page, 1000, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     field = page.locator(".lf-fab-input")
@@ -1016,7 +1063,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     draft = "Keep this unsent review attached to the capped store."
     field.fill(draft)
     bounds = bar.bounding_box()
-    panel = page.locator(".lf-panel").bounding_box()
+    panel = page.locator(".lf-thread-panel").bounding_box()
     assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
 
     # Retiring a background draft must not interrupt an unrelated typing surface.
@@ -1025,7 +1072,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     resized(page, covered_width, 900)
     expect(bar).to_be_hidden()
     expect(search).to_be_focused()
-    resized(page, 700, 900)
+    resized(page, 1000, 900)
     enter_passage()
     expect(field).to_have_value(draft)
 
@@ -1038,18 +1085,18 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
 
     # A fresh reading proves the text survived in the draft store, rather than merely
     # remaining in the hidden textarea. The same passage regains it when room returns.
-    resized(page, 700, 900)
+    resized(page, 1000, 900)
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
     expect(field).to_be_visible()
     expect(field).to_have_value(draft)
     page.keyboard.press("Escape")
     expect(bar).to_be_hidden()
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     enter_passage()
     expect(field).to_have_value(draft)
     bounds = bar.bounding_box()
-    panel = page.locator(".lf-panel").bounding_box()
+    panel = page.locator(".lf-thread-panel").bounding_box()
     assert bounds["x"] + bounds["width"] <= panel["x"], (bounds, panel)
     # End alone is the end of a visual line, while ControlOrMeta+End is not a document-
     # end gesture on macOS. Select the whole draft and collapse the selection after it:
@@ -1788,13 +1835,15 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
           selection.addRange(range);
         }"""
     )
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
+    expect(bar).to_be_visible()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
     page.evaluate(
         "() => { document.activeElement.blur(); getSelection().removeAllRanges(); }"
     )
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(bar).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -2099,7 +2148,12 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
 
     conversation_model.cmd_reply(
-        serve.page_dir, reaction["id"], "Which part — the case, or the answer?", ""
+        serve.page_dir,
+        reaction["id"],
+        "Which part — the case, or the answer?",
+        "",
+        for_event=None,
+        initiates=True,
     )
     told(page)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
@@ -2169,12 +2223,14 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
             '.lf-margin-cluster[data-lf-margin-for="how-store"] .lf-react-mark'
           )]
             .map(m => [m.innerText, m.getAttribute('role'),
-                       m.getAttribute('aria-label'), m.getAttribute('tabindex')]),
+                       m.getAttribute('aria-label'), m.getAttribute('tabindex'),
+                       m.getAttribute('aria-expanded'),
+                       m.getAttribute('aria-controls')]),
         })"""
     )
     assert copy == {
         "washed": ["every edit"],
-        "glyph": [["✂️", "img", "shorten", None]],
+        "glyph": [["✂️", "img", "shorten", None, None, None]],
     }, copy
     # The other half of the same promise, and the half no gate can see: the copy's
     # `offering` reads the cursor and nothing else, so paint that arrives with the

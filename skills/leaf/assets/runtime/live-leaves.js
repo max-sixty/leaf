@@ -1,7 +1,7 @@
 /* This module owns the machine-leaves tray's rows, presence words, and walk. */
 import { ago, clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
-import { leavesList, openTray, othersBtn, othersPanel } from "./trays.js";
+import { leavesList, trayIsOpen, othersBtn, othersPanel } from "./trays.js";
 import { showNews } from "./banner-shelf.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { walkRows } from "./keyboard/bindings.js";
@@ -17,7 +17,7 @@ let others = [];
 // disagree about whether there is a tray to open. A leaves tray of one — the page the
 // reader is already on — is not worth a control.
 export const leavesOffered = () =>
-  pagePresented() && (others.length > 0 || openTray("leaves"));
+  pagePresented() && (others.length > 0 || trayIsOpen("leaves"));
 export const paintLeavesOffer = () => showNews(othersBtn, leavesOffered());
 
 // The tray's own scope. The walk is the tray's rather than the page's, because ArrowUp
@@ -138,19 +138,26 @@ const othersRows = new Map(); // keyed by URL; the self row under its own key
 function renderOthersNow(state) {
   const offeredBefore = leavesOffered();
   const walkOfferedBefore = othersLinks().length > 0;
-  // An older server ships no list, which is an empty one. A closed leaf is not
-  // one of the machine's live pages and drops out of the tray on the poll that says
+  // Null is the explicit pre-read state. It has no self presence to draw, and recovery
+  // from a refused first reading must remove every row that candidate introduced.
+  // A closed leaf is not one of the machine's live pages and drops out of the tray on
+  // the poll that says
   // so: its server stays up so the page stays readable — a standing one for good —
   // so nothing else would ever take the row off, and a count the reader glances at
   // to find who needs them would silently become a tally of everything that has run
   // here. Judged by the same canonical `activity` the rows read, never by a second
   // reading of the status the server ships. This page's own row is not in the list and so is
   // never dropped: a reader looking at a closed page is still looking at it.
-  others = (state.others ?? []).filter((entry) => entry.activity.kind !== "closed");
-  const wanted = [
-    { key: "self", title: document.title, entry: state },
-    ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),
-  ];
+  others =
+    state === null
+      ? []
+      : state.others.filter((entry) => entry.activity.kind !== "closed");
+  const wanted = state
+    ? [
+        { key: "self", title: document.title, entry: state },
+        ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),
+      ]
+    : [];
   // The button names the tray it opens, so the count is these rows — the list the
   // press will show, headed by this page's own row — and never arithmetic beside
   // them. "Other leaves" counted the neighbours alone, one off the list it

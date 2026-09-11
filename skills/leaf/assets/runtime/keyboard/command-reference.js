@@ -1,0 +1,748 @@
+/* The command reference: the complete command catalog behind `?` and its modal search context.
+
+   A true mode may own the keyboard. An armed Go-to sequence and the open reference claim
+   the relevant keys through their scope. A longer-lived menu keeps the reference
+   available through `allButCommandReference`. Closing the reference restores the shared
+   captured `commandReferenceOrigin`, so the reader returns to the control or reading place that
+   opened it. A modal dialog clears the top layer's auto popovers on its way in, so the
+   reference notes the ones it was opened over and stands them back up before that restore
+   — the dialog that says what a menu's keys are cannot be what takes the menu away. If a
+   covering auxiliary surface began while the reference stood, its owner declines a pre-boundary
+   layer outside that auxiliary surface and supplies the new return place instead. Otherwise the
+   reference stands each layer back up from its own invoker — `lfInvoker`, the link a layer
+   declares because the platform's own runs one way only — so the layer's way out survives
+   the round trip too.
+
+   The reference lists every live capability the page has, grouped by scope, and searches
+   those rows by key, action, line word, and scope text. Every declared binding alternative
+   remains searchable even when its cell compacts several alternatives into one face.
+   Binding-prefix matches form one leading result group across scopes; exact case leads
+   case-insensitive matches, so a shifted key remains distinguishable. Search is a
+   projection of the same gathered rows rather than another binding index. Computed ranges
+   count current members.
+   A declaration must survive `merge` with its `when`, `at`,
+   `liveInCommandReference`, and rows intact so the reference does not advertise a scope the
+   current page cannot enter.
+
+   The reference is a complete keyboard layer. Its registered Tab row cycles through the
+   close control, search field, and actual overflow regions without letting focus enter
+   the page behind it. Escape and the close control share one registered row. Closing
+   restores the element that opened it and keeps an already expanded shortcut bar open.
+   Restoration waits one frame only when that element is the temporarily removed More
+   control.
+
+   The dialog may become stale while open. If a row goes dead, its dispatch no longer
+   runs. A newly live row may wait until the reference is reopened. Do not rebuild a
+   focused command reference dialog under the reader merely to keep it live to the latest poll. */
+import {
+  bindings,
+  clampedRow,
+  commandPresentations,
+  declaredBindings,
+  live,
+  routedCommand,
+  spell,
+  spokenBinding,
+  word,
+} from "./bindings.js";
+import { beginWalk, listWalkPosition } from "../walk-position.js";
+import { completeRowSteps, keySequence, neutralStates } from "./presentation.js";
+import { restoreReturnPlace } from "./return-stack.js";
+import { el } from "../widget-elements.js";
+import {
+  coveringAuxiliaryFocus,
+  coveringAuxiliarySurface,
+  ELEMENTS,
+  pageScopes,
+  auxiliaryAllowsNativeLayer,
+} from "./register.js";
+import {
+  byCommand,
+  elementScopes,
+  focused,
+  merge,
+  pruneScopedElements,
+  scopeRefs,
+  scopesFor,
+} from "./scopes.js";
+import { repaint } from "../repaint.js";
+import { pageSelection } from "../composing/capture.js";
+import { availableCommandRoutes, readerIn } from "./dispatch.js";
+import { reachScrollers } from "../reach.js";
+
+export const commandReferenceDialog = document.createElement("dialog");
+commandReferenceDialog.id = "lf-command-reference";
+commandReferenceDialog.className = "lf-ui lf-command-reference";
+commandReferenceDialog.setAttribute("aria-label", "Command reference");
+commandReferenceDialog.setAttribute("aria-modal", "true");
+commandReferenceDialog.tabIndex = -1; // focused on open, so the dialog isn't silent to a screen reader
+export const commandReferenceClose = el(
+  "button",
+  "lf-btn lf-command-reference-close",
+  "Close",
+);
+commandReferenceClose.type = "button";
+commandReferenceClose.title = "Close the command reference";
+commandReferenceClose.setAttribute("aria-label", "Close the command reference");
+
+// Every scope the page has, gathered by title, for the reference. Not the stack: the
+// reference answers "what could I do here", so it names a card grip's keys whether or not
+// a grip has focus. What it does not name is a key that would refuse the press, which is
+// the rows' own liveness.
+//
+// The runtime's own modes come through the same door as a widget's, and the reference was
+// blind to them while they did not: the sharpest case was the dialog never saying how to
+// close the dialog, and a quiet page naming no Escape at all. So a section is its title
+// wherever the title comes from — the box a reply is typed into declares its send key from
+// wireInput and its way out from the typing mode, and they are one heading.
+//
+// The stack backwards, so a reader learning the keyboard starts from the page in front of them
+// and reads inward, and the widgets' sections land where their scopes stand in it rather than
+// wherever a second list happened to put them.
+function declaredStack(origin) {
+  pruneScopedElements();
+  const sections = new Map();
+  // Capture this before the dialog takes focus. Repeated widgets share command ids, but
+  // their words can name the particular thing in front of the reader; the active
+  // contributors therefore get the last word in their section.
+  const activeScopes = scopesFor(origin);
+  const named = (section) => activeScopes.some((s) => s.title === section.title);
+  // Carry a scope's sequence down to each of its rows before sections with the same title
+  // merge. The prefix belongs only to the rows that scope contributed; putting it on the
+  // merged section would also put it in front of an unrelated widget that chose the same
+  // heading.
+  const referenceRows = (scope) =>
+    byCommand(scope.rows).map(([id, row]) => [
+      id,
+      scope.sequence
+        ? { ...row, sequence: scope.sequencePrefix ?? scope.sequence }
+        : row,
+    ]);
+  for (const scope of pageScopes().toReversed()) {
+    if (scope !== ELEMENTS) {
+      merge(sections, { ...scope, rows: referenceRows(scope) });
+      continue;
+    }
+    // Where the reader is, for a widget's section, is whether the focused element declares it
+    // — the one thing core's own scopes state for themselves and an element scope cannot,
+    // since it is gathered here by title and the elements wearing that title are many.
+    const declared = new Map();
+    // In the order the page holds them, not the order they registered. `scopeRefs` is
+    // insertion-ordered and a widget registers at upgrade, so the sections came out in
+    // whatever order the modules happened to finish in — the same build read twice put
+    // "On a tab" above "On a card grip" once and below it the next time. A reference whose
+    // headings move between loads is one a reader cannot learn the shape of, and any
+    // assertion on it flakes rather than fails.
+    const held = [...scopeRefs]
+      .map((ref) => ref.deref())
+      .filter((el) => el?.isConnected && elementScopes.get(el)?.title);
+    held.sort((a, b) =>
+      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+    );
+    for (const el of held) {
+      const section = elementScopes.get(el);
+      merge(declared, { ...section, rows: referenceRows(section) });
+    }
+    // DOM order makes the reference stable. Re-applying the active path from outside in
+    // keeps that stability while letting the innermost live instance supply dynamic
+    // labels and actions for command ids shared by several instances.
+    for (const section of activeScopes.toReversed())
+      if (section.title) merge(declared, { ...section, rows: referenceRows(section) });
+    for (const section of declared.values())
+      merge(sections, { ...section, at: () => named(section) });
+  }
+  // The way out reads last, after what the scope is for. A section gathers its rows from
+  // wherever they were declared, and a mode contributing only its Escape would otherwise
+  // put the exit above the walk it exits from.
+  const exit = (row) => (bindings(row).includes("Escape") ? 1 : 0);
+  return [...sections.values()].map((s) => ({
+    ...s,
+    rows: [...s.rows.values()].sort((a, b) => exit(a) - exit(b)),
+  }));
+}
+
+// ---------- the reference ----------
+// Every scope the page has, live rows only, so nothing on screen is a key that does
+// nothing. It renders at open and can go stale while it stands, and the two directions
+// cost differently, both acceptably: a row going dead under it cannot be pressed, since
+// the overlay claims the keyboard and the page stands down beneath it, and a key going live under it
+// is merely unlisted until the next open, one press away.
+let commandRoutesAtOpen = new Map();
+let commandReferenceIsOpen = false;
+// Where the reference was opened from, so closing it hands the reader back. Any dialog that
+// takes focus owes that; what makes it structural here is that a scope is *where focus is*,
+// so the overlay explaining a walk was also the way out of it — open the reference from a
+// version row or a held card and the row's keys, which it had just listed, reached nothing
+// afterwards. A mode over the page keeps this one key (`allButCommandReference`), and a kept key
+// that costs the reader their place is not much of an exemption.
+//
+// A reader working from the page is standing on `body` by design — `letGo` puts them
+// there so Space and PageDown reach the document's own scroll box — so `?` from the page
+// recorded `body` and closing handed focus back to it. That is worse than handing back
+// nothing: focusing `body` resets the browser's sequential focus navigation starting
+// point, so the reader's next Tab began at the top of the document rather than beside
+// the words they had been reading.
+let commandReferenceOrigin = null;
+// The shared return-place primitive records a control or the current reading block. A
+// block is focused and then let go of, moving the browser's sequential starting point
+// without turning prose into a standing addressable element.
+// The layers the reference was opened over. A modal dialog clears every auto popover on
+// its way into the top layer — the platform's rule, not Leaf's — so the overlay that
+// exists to say what the versions menu's keys are was also what took the menu away, and
+// the stored control then pointed into a layer that was no longer painted: the restore reached a
+// row in a hidden popover and focus fell to the body. Note what stood, put it back before
+// the restore, and the exemption costs the reader nothing again.
+let commandReferenceLayers = [];
+let commandReferenceBoundary = null;
+const commandReferenceWords = (value) =>
+  String(value ?? "")
+    .toLocaleLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+// A binding query retains a trailing separator: `g ` means the routes below the `g`
+// prefix, while prose matching still treats it as the word `g`. Case is retained for the
+// first rank so `g t` and `g T` can put the actual requested face first.
+const commandReferenceBinding = (value) =>
+  String(value ?? "")
+    .replace(/^\s+/, "")
+    .replace(/\s+/g, " ");
+commandReferenceDialog.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeCommandReference();
+});
+// A modal dialog's backdrop reports the dialog itself as the click target. Compare
+// the pointer with the painted box so the backdrop remains a light-dismiss surface
+// without turning the dialog's own padding into one.
+commandReferenceDialog.addEventListener("mousedown", (event) => {
+  if (event.target !== commandReferenceDialog) return;
+  const box = commandReferenceDialog.getBoundingClientRect();
+  if (
+    event.clientX < box.left ||
+    event.clientX > box.right ||
+    event.clientY < box.top ||
+    event.clientY > box.bottom
+  ) {
+    // Closing returns focus to the door. Consume the backdrop press so the dialog's
+    // default mousedown focus does not immediately replace that deliberate return.
+    event.preventDefault();
+    closeCommandReference();
+  }
+});
+function showCommandReference(open, restoreFocus, invokeCommand, captureOrigin) {
+  // Focusing a text input replaces the document selection. Keep a passage the reader has
+  // in hand when `?` opens the reference, while an ordinary open lands directly in search.
+  // The dialog itself remains a focus stop, so either route keeps the page suspended.
+  const preserveSelection = open && Boolean(pageSelection());
+  const handBack = !open && restoreFocus && commandReferenceDialog.contains(focused());
+  let origin = handBack ? commandReferenceOrigin : null;
+  const restore = origin?.control ?? null;
+  const closing = !open && commandReferenceDialog.open;
+  if (open && !commandReferenceIsOpen) {
+    commandReferenceOrigin = captureOrigin();
+    commandReferenceLayers = [...document.querySelectorAll(":popover-open")];
+    commandReferenceBoundary = coveringAuxiliarySurface();
+    commandRoutesAtOpen = availableCommandRoutes();
+  }
+  commandReferenceIsOpen = open;
+  if (open) {
+    commandReferenceDialog.textContent = "";
+    const head = el("div", "lf-command-reference-head");
+    head.append(
+      el("div", "lf-command-reference-title", "Command reference"),
+      commandReferenceClose,
+    );
+    commandReferenceDialog.append(head);
+    const search = document.createElement("input");
+    search.type = "search";
+    search.name = "shortcut-search";
+    search.className = "lf-command-reference-search";
+    search.placeholder = "Find a key or action";
+    search.setAttribute("aria-label", "Search commands");
+    search.setAttribute("role", "combobox");
+    search.setAttribute("aria-autocomplete", "list");
+    search.setAttribute("aria-expanded", "true");
+    search.setAttribute("aria-haspopup", "grid");
+    search.autocomplete = "off";
+    search.spellcheck = false;
+    const meta = el("div", "lf-command-reference-meta");
+    meta.setAttribute("aria-live", "polite");
+    const results = el("div", "lf-command-reference-results");
+    results.id = "lf-command-reference-results";
+    results.setAttribute("role", "grid");
+    results.setAttribute("aria-label", "Command reference");
+    search.setAttribute("aria-controls", results.id);
+    const emptyRow = document.createElement("div");
+    emptyRow.setAttribute("role", "row");
+    const empty = el("div", "lf-command-reference-empty", "No matching commands");
+    empty.setAttribute("role", "gridcell");
+    emptyRow.append(empty);
+    emptyRow.hidden = true;
+    const sections = [];
+    let total = 0;
+    // A sequence row is reached from the standing page, so its cell shows the complete route.
+    // Each physical press keeps its own keycap; an ordinary row remains one compact step.
+    const referenceSteps = (row, route) => [
+      ...(word(row.sequence) ?? []),
+      ...completeRowSteps(row, route),
+    ];
+    const spokenReferenceSteps = (row, route, steps) => {
+      const declared = route ? [route.binding] : declaredBindings(row);
+      if (declared.length !== 1) return steps;
+      const binding = declared[0];
+      const visual = spell(binding);
+      const spoken = [...steps];
+      const index = spoken.lastIndexOf(visual);
+      if (index !== -1) spoken[index] = spokenBinding(binding);
+      return spoken;
+    };
+    const commandButtons = [];
+    // A scope the reader is standing in is filtered by each row's own liveness, because
+    // they can see which state they are in and a row that would refuse the press must not
+    // be on screen. A scope they are merely near is listed whole: a row's `when` asks
+    // whether the press moves *here*, and here is not where they are. A transient mode is
+    // the exception because the reader is either in it or it does not exist.
+    const referenceScopes = declaredStack(commandReferenceOrigin?.control)
+      .map((scope) => {
+        const inIt = readerIn(scope) || scope.liveInCommandReference;
+        const rows = scope.rows.filter(
+          (row) =>
+            row.does &&
+            (!inIt ||
+              (row.commandReferenceWhen ? row.commandReferenceWhen() : live(row))),
+        );
+        return { scope, rows };
+      })
+      .filter(({ rows }) => rows.length);
+    const presentationBindings = (row, route) =>
+      route ? [route.binding] : bindings(row);
+    const presentationAvailable = (row, route) => {
+      const available = commandRoutesAtOpen.get(row) ?? new Set();
+      return presentationBindings(row, route).some((binding) => available.has(binding));
+    };
+    // A command id is one capability even when several scopes project it. Prefer the
+    // first reachable presentation over an earlier unreachable one. Ask actions are the
+    // sharp case: while focus is on the Ask its digit is the reachable presentation;
+    // inside the widget, an intrinsic binding may replace a shadowed Ask digit.
+    const preferredCommands = new Map();
+    for (const { rows } of referenceScopes)
+      for (const row of rows)
+        for (const { id, route } of commandPresentations(row)) {
+          const candidate = {
+            row,
+            binding: route?.binding ?? null,
+            available: presentationAvailable(row, route),
+          };
+          const prior = preferredCommands.get(id);
+          if (!prior || (!prior.available && candidate.available))
+            preferredCommands.set(id, candidate);
+        }
+    const presentedCommands = new Set();
+    const availableWhere = (row, scopeTitle, scopeReach) => {
+      const place = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
+      return `Available ${place.charAt(0).toLocaleLowerCase()}${place.slice(1)}`;
+    };
+    const table = (rows, scopeTitle, scopeReach) => {
+      const t = document.createElement("table");
+      t.setAttribute("role", "presentation");
+      const entries = [];
+      for (const row of rows) {
+        for (const presentation of commandPresentations(row)) {
+          const { id, route } = presentation;
+          const preferred = preferredCommands.get(id);
+          if (
+            preferred?.row !== row ||
+            preferred.binding !== (route?.binding ?? null) ||
+            presentedCommands.has(id)
+          )
+            continue;
+          presentedCommands.add(id);
+          const does = route?.does ?? word(row.does);
+          const tr = document.createElement("tr");
+          tr.dataset.lfCommand = id;
+          tr.id = `lf-command-reference-row-${total + entries.length}`;
+          tr.setAttribute("role", "row");
+          if (row.sequenceControl) tr.classList.add("lf-sequence-command");
+          const steps = referenceSteps(row, route);
+          const label = steps.join(" ");
+          const sequence = keySequence(
+            steps,
+            neutralStates(steps),
+            spokenReferenceSteps(row, route, steps),
+          );
+          if (!declaredBindings(row).length && row.decision !== undefined)
+            sequence.classList.add("lf-key-label");
+          sequence.id = `lf-command-reference-key-${total + entries.length}`;
+          const keyCell = document.createElement("td");
+          keyCell.setAttribute("role", "gridcell");
+          keyCell.append(sequence);
+          const actionCell = document.createElement("td");
+          actionCell.setAttribute("role", "gridcell");
+          const action = el("div", "lf-command-reference-action");
+          const scopeLabel = el("span", "lf-command-reference-scope", scopeTitle);
+          const available = presentationAvailable(row, route);
+          if (
+            (row.run || routedCommand(route)) &&
+            row.runFromCommandReference !== false
+          ) {
+            const command = el("button", "lf-command-reference-command", word(does));
+            command.type = "button";
+            command.tabIndex = -1;
+            command.dataset.lfCommand = id;
+            command.dataset.lfAvailable = String(available);
+            command.dataset.lfSelected = "false";
+            command.setAttribute("aria-describedby", sequence.id);
+            command.title = available
+              ? "Run command"
+              : availableWhere(row, scopeTitle, scopeReach);
+            command.onclick = () => {
+              if (!available) {
+                meta.textContent = availableWhere(row, scopeTitle, scopeReach);
+                return;
+              }
+              // Closing a native modal may leave this soon-hidden button focused until
+              // the click finishes. The command's origin is the place the reference
+              // displaced, not that transient implementation node. Run after the close's
+              // focus restoration too, so the command's own destination wins the frame.
+              const origin = commandReferenceOrigin;
+              closeCommandReference();
+              requestAnimationFrame(() => {
+                if (!invokeCommand(id, origin)) {
+                  openCommandReference(invokeCommand, captureOrigin);
+                  commandReferenceDialog.querySelector(
+                    ".lf-command-reference-meta",
+                  ).textContent = "That command is no longer available";
+                }
+              });
+            };
+            action.append(command);
+            commandButtons.push(command);
+          } else action.textContent = word(does);
+          actionCell.append(action);
+          tr.append(keyCell, actionCell);
+          t.append(tr);
+          const prefix = word(row.sequence) ?? [];
+          const alternatives = route ? [route.binding] : bindings(row);
+          entries.push({
+            el: tr,
+            order: entries.length,
+            action,
+            scopeLabel,
+            bindingForms: alternatives.map((binding) => ({
+              display: [...prefix, spell(binding)].join(" "),
+              spoken: [...prefix, spokenBinding(binding)].join(" "),
+            })),
+            directWords: commandReferenceWords(
+              `${id} ${scopeTitle} ${label} ${word(does)} ${word(route?.line ?? row.line)}`,
+            ),
+            familyWords: commandReferenceWords(
+              `${row.id} ${referenceSteps(row).join(" ")} ${word(row.does)}`,
+            ),
+          });
+        }
+      }
+      total += entries.length;
+      return { el: t, entries };
+    };
+    for (const { scope, rows } of referenceScopes) {
+      const title = scope.title ?? "On this page";
+      const section = document.createElement("section");
+      section.className = "lf-command-reference-section";
+      section.setAttribute("role", "rowgroup");
+      const heading = el("h3", "", title);
+      heading.id = `lf-command-reference-section-${sections.length}`;
+      section.setAttribute("aria-labelledby", heading.id);
+      const headingRow = document.createElement("div");
+      headingRow.setAttribute("role", "row");
+      const headingCell = document.createElement("div");
+      headingCell.setAttribute("role", "gridcell");
+      headingCell.append(heading);
+      headingRow.append(headingCell);
+      const body = table(rows, title, scope.reach);
+      section.append(headingRow, body.el);
+      results.append(section);
+      sections.push({
+        el: section,
+        order: sections.length,
+        heading,
+        table: body.el,
+        words: commandReferenceWords(title),
+        entries: body.entries,
+      });
+    }
+    const bindingSection = document.createElement("section");
+    bindingSection.className =
+      "lf-command-reference-section lf-command-reference-binding-matches";
+    bindingSection.setAttribute("role", "rowgroup");
+    const bindingHeading = el("h3", "", "Binding matches");
+    bindingHeading.id = "lf-command-reference-binding-matches";
+    bindingSection.setAttribute("aria-labelledby", bindingHeading.id);
+    const bindingHeadingRow = document.createElement("div");
+    bindingHeadingRow.setAttribute("role", "row");
+    const bindingHeadingCell = document.createElement("div");
+    bindingHeadingCell.setAttribute("role", "gridcell");
+    bindingHeadingCell.append(bindingHeading);
+    bindingHeadingRow.append(bindingHeadingCell);
+    const bindingTable = document.createElement("table");
+    bindingTable.setAttribute("role", "presentation");
+    bindingSection.append(bindingHeadingRow, bindingTable);
+    bindingSection.hidden = true;
+    results.append(emptyRow);
+    const visibleCommands = () =>
+      [...results.querySelectorAll(".lf-command-reference-command")].filter(
+        (button) => !button.closest("tr").hidden && !button.closest("section").hidden,
+      );
+    const keepOneCommandReachable = () => {
+      const visible = visibleCommands();
+      const selected = visible.find((command) => command.dataset.lfSelected === "true");
+      const tabStop = selected ?? visible[0];
+      for (const command of commandButtons) {
+        const on = command === selected;
+        command.tabIndex = command === tabStop ? 0 : -1;
+        command.dataset.lfSelected = String(on);
+        command.closest("tr").setAttribute("aria-selected", String(on));
+      }
+      if (selected)
+        search.setAttribute("aria-activedescendant", selected.closest("tr").id);
+      else search.removeAttribute("aria-activedescendant");
+    };
+    const filter = () => {
+      const query = commandReferenceWords(search.value);
+      const bindingQuery = commandReferenceBinding(search.value);
+      const foldedBindingQuery = bindingQuery.toLocaleLowerCase();
+      const directMatch =
+        query &&
+        sections.some((section) =>
+          section.entries.some((entry) => entry.directWords.includes(query)),
+        );
+      const ranked = [];
+      for (const section of sections) {
+        section.table.append(
+          ...[...section.entries]
+            .sort((left, right) => left.order - right.order)
+            .map((entry) => entry.el),
+        );
+        for (const entry of section.entries) entry.scopeLabel.remove();
+        const sectionMatch = query && section.words.includes(query);
+        for (const entry of section.entries) {
+          const exactBinding =
+            bindingQuery &&
+            entry.bindingForms.some(({ display }) => display.startsWith(bindingQuery));
+          const foldedBinding =
+            foldedBindingQuery &&
+            entry.bindingForms.some(({ display }) =>
+              display.toLocaleLowerCase().startsWith(foldedBindingQuery),
+            );
+          const spokenPrefix =
+            foldedBindingQuery &&
+            entry.bindingForms.some(({ spoken }) =>
+              spoken.toLocaleLowerCase().startsWith(foldedBindingQuery),
+            );
+          const rank = !query
+            ? 0
+            : exactBinding
+              ? 0
+              : foldedBinding
+                ? 1
+                : spokenPrefix
+                  ? 2
+                  : sectionMatch || entry.directWords.includes(query)
+                    ? 3
+                    : !directMatch && entry.familyWords.includes(query)
+                      ? 4
+                      : Infinity;
+          const match = Number.isFinite(rank);
+          entry.el.hidden = !match;
+          ranked.push({ entry, rank, section });
+        }
+      }
+      const bindingMatches = query
+        ? ranked
+            .filter(({ rank }) => rank <= 2)
+            .sort(
+              (left, right) =>
+                left.rank - right.rank ||
+                left.section.order - right.section.order ||
+                left.entry.order - right.entry.order,
+            )
+        : [];
+      bindingTable.replaceChildren(
+        ...bindingMatches.map(({ entry }) => {
+          entry.action.append(entry.scopeLabel);
+          return entry.el;
+        }),
+      );
+      bindingSection.hidden = bindingMatches.length === 0;
+      for (const section of sections) {
+        const remaining = ranked
+          .filter(
+            (item) =>
+              item.section === section &&
+              Number.isFinite(item.rank) &&
+              !bindingMatches.includes(item),
+          )
+          .sort(
+            (left, right) =>
+              left.rank - right.rank || left.entry.order - right.entry.order,
+          );
+        section.table.append(...remaining.map(({ entry }) => entry.el));
+        section.el.hidden = remaining.length === 0;
+        section.heading.hidden = remaining.length === 0;
+        section.table.hidden = remaining.length === 0;
+        section.rank = remaining[0]?.rank ?? Infinity;
+      }
+      const shown = ranked.filter(({ rank }) => Number.isFinite(rank)).length;
+      const rankedSections = [...sections].sort(
+        (left, right) => left.rank - right.rank || left.order - right.order,
+      );
+      results.replaceChildren(
+        bindingSection,
+        ...rankedSections.map(({ el }) => el),
+        emptyRow,
+      );
+      emptyRow.hidden = shown !== 0;
+      // The hint's verbs are the rows' (COMMAND_REFERENCE_SCOPE in page.js: "choose next", "activate"), since the
+      // short shortcut bar has no slot for the arrow rows and this head is where a reader
+      // in the search box learns them. Two spellings of one press — "choose" here,
+      // "next command" on the line — were two registers.
+      meta.textContent = query
+        ? `${shown} of ${total} commands · ↑↓ choose · ⏎ activate`
+        : `${total} commands · ↑↓ choose · ⏎ activate`;
+      keepOneCommandReachable();
+    };
+    search.addEventListener("input", filter);
+    filter();
+    commandReferenceDialog.append(search, meta, results);
+  }
+  commandReferenceDialog.classList.toggle("open", open);
+  if (open && !commandReferenceDialog.open) commandReferenceDialog.showModal();
+  else if (!open && commandReferenceDialog.open) commandReferenceDialog.close();
+  // Back in the same order they were in: the dialog is out of the top layer by here, so a
+  // eligible popover that is still on the page can stand again, and the restore below
+  // then reaches a control that is painted.
+  if (closing) {
+    for (const layer of commandReferenceLayers) {
+      if (!layer.isConnected || layer.matches(":popover-open")) continue;
+      // A responsive change may have established a covering auxiliary surface while the native
+      // dialog stood above both surfaces. A popover captured before that boundary may
+      // return only when it belongs inside it. A layer captured over this same boundary
+      // was deliberately opened above it and keeps the ordinary reference round trip.
+      if (!auxiliaryAllowsNativeLayer(layer, commandReferenceBoundary)) continue;
+      // A popover hands focus back to whatever had it when it was shown, and what the
+      // closing dialog leaves focused is the body — so a layer stood back up from here
+      // would have no way out, and the reader's exit from the menu would be the one thing
+      // the round trip cost. Stand it up from its invoker (`lfInvoker`), and only where
+      // the restore below is going back inside it, so a reader whose focus is somewhere
+      // else entirely is not moved to say so.
+      if (restore && layer.contains(restore))
+        layer.lfInvoker?.focus({ preventScroll: true });
+      layer.showPopover();
+    }
+    const originNode = origin?.control ?? origin?.reading;
+    if (
+      originNode &&
+      !auxiliaryAllowsNativeLayer(originNode, commandReferenceBoundary)
+    ) {
+      const focus = coveringAuxiliaryFocus();
+      origin = focus ? { control: focus, reading: null } : null;
+    }
+    commandReferenceLayers = [];
+    commandReferenceBoundary = null;
+  }
+  // The reference is a list long enough to scroll, and anything a mouse can scroll a
+  // keyboard has to reach. `reachScrollers` is the runtime's one answer to that and had
+  // never been pointed at the chrome it builds after upgrade: its rows carry no control,
+  // so a reader working from the keyboard could read the first screenful of the key
+  // reference and had no way to the rest of it. Called with the overlay open, because the
+  // sweep reads computed overflow and a hidden box has none.
+  if (open) reachScrollers(commandReferenceDialog);
+  if (open)
+    commandReferenceDialog
+      .querySelector(
+        preserveSelection
+          ? ".lf-command-reference-close"
+          : ".lf-command-reference-search",
+      )
+      .focus({ preventScroll: true });
+  // Only from inside the overlay: a mousedown somewhere else closes it (standDown), and the
+  // press's own focus is the browser's default action, still to come — a restore made from
+  // out here would be putting focus back for the click to take again.
+  repaint();
+  if (!open && origin) restoreReturnPlace(origin);
+}
+
+const commandReferenceStops = () =>
+  [
+    ...commandReferenceDialog.querySelectorAll(
+      'button, input, [tabindex]:not([tabindex="-1"])',
+    ),
+  ].filter((node) => node.tabIndex >= 0 && node.checkVisibility());
+export function moveCommandReferenceFocus(dir) {
+  const stops = commandReferenceStops();
+  if (!stops.length) return commandReferenceDialog.focus({ preventScroll: true });
+  const at = stops.indexOf(focused());
+  const next =
+    at < 0
+      ? dir > 0
+        ? stops[0]
+        : stops.at(-1)
+      : stops[(at + dir + stops.length) % stops.length];
+  next.focus({ preventScroll: true });
+}
+const commandStops = () =>
+  [...commandReferenceDialog.querySelectorAll(".lf-command-reference-command")].filter(
+    (node) => node.checkVisibility(),
+  );
+export const commandReferenceCommandActive = () =>
+  commandStops().length > 0 &&
+  (focused()?.matches?.(
+    ".lf-command-reference-search, .lf-command-reference-command",
+  ) ??
+    false);
+export function moveCommandReferenceSelection(dir) {
+  const stops = commandStops();
+  if (!stops.length) return;
+  const focusedCommand = focused()?.matches?.(".lf-command-reference-command")
+    ? focused()
+    : null;
+  const selected =
+    focusedCommand ?? stops.find((stop) => stop.dataset.lfSelected === "true");
+  const next = clampedRow(stops, selected, dir);
+  for (const stop of stops) {
+    const on = stop === next;
+    stop.tabIndex = on ? 0 : -1;
+    stop.dataset.lfSelected = String(on);
+    stop.closest("tr").setAttribute("aria-selected", String(on));
+  }
+  const search = commandReferenceDialog.querySelector(".lf-command-reference-search");
+  search.setAttribute("aria-activedescendant", next.closest("tr").id);
+  if (focusedCommand) next.focus({ preventScroll: true });
+  next.closest("tr").scrollIntoView({ block: "nearest" });
+  beginWalk("shortcut-command", "Command", () => {
+    const current = focused()?.matches?.(".lf-command-reference-command")
+      ? focused()
+      : commandStops().find((stop) => stop.dataset.lfSelected === "true");
+    return listWalkPosition(commandStops(), current);
+  });
+  const key = next.closest("tr").querySelector("kbd").textContent;
+  commandReferenceDialog.querySelector(".lf-command-reference-meta").textContent =
+    `${next.textContent} · ${key} · ⏎ activate`;
+}
+export function activateSelectedCommand() {
+  if (!commandReferenceCommandActive()) return false;
+  const command = focused().matches(".lf-command-reference-command")
+    ? focused()
+    : (commandStops().find((stop) => stop.dataset.lfSelected === "true") ??
+      commandStops()[0]);
+  if (!command) return false;
+  command.click();
+  return true;
+}
+commandReferenceClose.onclick = () => closeCommandReference();
+
+export const commandReferenceOpen = () => commandReferenceIsOpen;
+// The opening command supplies the action chosen from this particular reference.
+// Each rendered row closes over it; no view imports its caller’s command policy.
+export const openCommandReference = (invokeCommand, captureOrigin) =>
+  showCommandReference(true, true, invokeCommand, captureOrigin);
+export const closeCommandReference = (restoreFocus = true) =>
+  showCommandReference(false, restoreFocus, null, null);

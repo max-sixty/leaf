@@ -30,6 +30,16 @@ rules a new or changed example has to meet.
   with the website's esbuild dependency. Run `npm ci --prefix worker` first. `--serve`
   opens the same Wrangler asset and container boundary the deployed site uses and also
   needs a running Docker.
+  It also writes what a crawler reads: `robots.txt`, a `sitemap.xml` of the clean
+  routes, and each page's card. A page's title and description are authored in its own
+  source, and the build refuses one that has neither. The rest of the card — the
+  Open Graph and Twitter declarations and the image — is composed by `with_site_head`
+  in `worker/server.py`, which the container server calls too, so the edge shell and
+  the served page stay one document. The canonical link is not the site's: every Leaf
+  document names its own page root, so the three addresses a page answers collapse
+  onto one wherever a page directory is published. Each page's image is named in the
+  manifest, `docs/session-card.png` for a product page and the catalog preview for an
+  example, and `check_links` resolves it the way it resolves an href.
   `verify-site-local.sh` checks that built output through that boundary and prints the
   document, widget-upgrade, and presentation milestones with the requests and bytes
   loaded by presentation. A failed check prints the Worker's log beside the browser's
@@ -45,11 +55,26 @@ rules a new or changed example has to meet.
   deployment on the first ask.
   `verify-site-agent-local.sh` runs the same delivery, App Server, edit, publication,
   reply, and browser-reload path against the host's Codex login. It bypasses the
-  Cloudflare Worker, Workflow, container resources, and outbound credential proxy, so
+  Cloudflare Worker, container resources, and outbound credential proxy, so
   it checks agent behavior without measuring production infrastructure.
-- `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws the Leaf
-  screenshots that demo uses. Keep the latter while the product can make those frames
-  stale.
+  `benchmark-site.py local|ORIGIN` emits that complete journey as one JSON sample:
+  browser presentation, comment acknowledgement and activity, requested publication
+  and reply, then the changed page's presentation and revision follow. Both targets
+  run the same HTTP and browser checks. `local` only provisions the canonical Python
+  adapter and explicitly starts its turn; it does not emulate Cloudflare's Worker,
+  container allocation, or routing.
+  `deploy-site-dev.sh` publishes the current checkout to the one standing
+  `leaf-website-dev` Cloudflare environment and runs that benchmark against its
+  `workers.dev` origin. The command always selects the `dev` Wrangler environment;
+  production deployment stays in `publish-site.yaml`.
+  Hosted-agent diagnostics live in Workers Observability. Query its REST API directly
+  with the canonical event id or visible session reference; once the Container starts
+  a Codex turn, its `turnId` also finds the model-request timings. Analytics Engine is
+  aggregate product telemetry, not a log index.
+- `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws it and the three
+  photographs of the same staged scene beside it — the landing page's light and dark
+  session stills, and `session-card.png` at the 1.91:1 an unfurler draws a card at.
+  Keep the latter while the product can make those frames stale.
 
 ## Vendored bundles
 
@@ -59,10 +84,11 @@ imports it, except `mcp-app`, which no widget imports and which lands in
 `skills/leaf/mcp-app/` for an MCP host to read from the install.
 
 A bundle reproduces its tracked bytes exactly when every input it fetches is pinned,
-which holds for `marked`, `sortable`, `beautiful-mermaid`, and `highlight`, so a clean
-`git status` after a run is the check that the bundle still matches the script. `plot`
-and `pierre` reach npm's resolver for transitive dependencies and inherit its ranges,
-so a diff from either can be an upstream patch rather than drift.
+which holds for `marked`, `sortable`, `beautiful-mermaid`, `floating-ui`, `highlight`,
+and `jsdiff`, so a clean `git status` after a run is the check that the bundle still
+matches the script. `plot`, `pierre`, and `mcp-app` reach npm's resolver for transitive
+dependencies and inherit its ranges, so a diff from one of those can be an upstream
+patch rather than drift.
 
 Rerun a bundle after changing its pin or the registry input it reads; do not patch a
 generated bundle or `examples/corpus.html` directly.

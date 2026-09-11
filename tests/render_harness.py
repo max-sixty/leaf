@@ -64,6 +64,7 @@ EXAMPLES = sorted((ROOT / "examples").glob("*.html"))
 assert EXAMPLES, "no examples found — parametrizing over an empty list tests nothing"
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
 assert FEATURE_GALLERY.is_file(), "the developer feature gallery is missing"
+DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html")))
 # The inputs scripts/corpus.py composes. The corpus is a generated presentation of
 # the public pages plus the feature gallery, not another author source. Every authored-
 # content sweep uses this source set, while public-site tests read the top-level glob.
@@ -71,8 +72,8 @@ PUBLIC_EXAMPLES = tuple(p for p in EXAMPLES if p.stem != "corpus")
 assert PUBLIC_EXAMPLES and len(PUBLIC_EXAMPLES) + 1 == len(EXAMPLES), (
     "expected exactly one generated corpus beside the public examples"
 )
-CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), FEATURE_GALLERY)
-PAGE_FIXTURES = (*EXAMPLES, *regression_sources(), FEATURE_GALLERY)
+CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
+PAGE_FIXTURES = (*EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
 # The bytes an example names but cannot hold: a lf-shot's pair, content-addressed
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
@@ -497,6 +498,12 @@ def serve(tmp_path, monkeypatch, initialized_page):
         # and media the page never shows costs it nothing.
         if seed and seed.exists():
             references |= set(MEDIA_REFERENCE.findall(seed.read_text(encoding="utf-8")))
+        if example:
+            for operation in data_operations(example):
+                if operation["kind"] == "set":
+                    references |= set(
+                        MEDIA_REFERENCE.findall(json.dumps(operation["value"]))
+                    )
         for reference in references:
             fixture_media = EXAMPLE_MEDIA / reference.removeprefix("/media/")
             if fixture_media.is_file():
@@ -884,7 +891,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
         "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-upgrade": upgrade,
         "x-example": f'<{tag} id="{tag.removeprefix("lf-")}-example">Example</{tag}>',
     }
@@ -901,7 +908,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
             "  border: 1px solid var(--rule);\n"
             "  border-radius: var(--r);\n"
             "  background: var(--card);\n"
-            "  --lf-frame: 1;\n"
+            "  --lf-block-frame: 1;\n"
             "}\n"
         )
     if upgrade:
@@ -936,7 +943,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
 # before the browser has reported the request is a wait on a page that has not started
 # moving.
 #
-# The line answers about room as well as about liveness: renderLine drops chips from the
+# The line answers about room as well as about liveness: renderShortcutBar drops chips from the
 # end when the window is too narrow to hold them, and the end is the outside of the
 # stack, where a page-level key like this one sits. So the wait needs the suite's
 # default 1200×900 or something near it; under a viewport set narrow on purpose it would
@@ -1043,14 +1050,14 @@ STORED_DRAFT_SETTLED = """ctx => {
 def watched(page):
     """Everything a page says went wrong, on every channel that carries it.
 
-    `pageerror` is an uncaught exception and the console is what the page itself wrote,
-    and between them a whole channel goes unread: an `error` event with no exception
-    behind it reaches neither. Chrome reports a ResizeObserver loop that way. A runtime
-    change that put the layout writer inside an observation of the box that writer
-    resizes made every load report one, and the suite called it clean — 754 tests, no
-    console output, nothing on `pageerror`. Routed into the console here, which is the
-    one channel every reader in this file already has, and only for the events with no
-    exception, since the rest arrive on `pageerror` already.
+    `pageerror` is an uncaught exception, while the console carries warnings and errors
+    from the page and browser. Between them a whole channel goes unread: an `error`
+    event with no exception behind it reaches neither. Chrome reports a ResizeObserver
+    loop that way. A runtime change that put the layout writer inside an observation of
+    the box that writer resizes made every load report one, and the suite called it
+    clean — 754 tests, no console output, nothing on `pageerror`. Routed into the
+    console here, which is the one channel every reader in this file already has, and
+    only for the events with no exception, since the rest arrive on `pageerror` already.
 
     The script is installed by `render_checks.install_window_errors`, which
     `render_version` lays in for the same
@@ -1060,7 +1067,12 @@ def watched(page):
 
     Must be called before the page navigates, the init script being what carries it."""
     errors = []
-    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+
+    def console_message(message):
+        if problem := render_gate_model.console_problem(message):
+            errors.append(problem)
+
+    page.on("console", console_message)
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
     return errors
@@ -1215,7 +1227,7 @@ def open_page(
     upgraded=True,
     color_scheme="light",
 ):
-    """A page with its console errors collected and its document and log state applied.
+    """A page with its browser problems collected and document and log state applied.
 
     `pin` asks for the version the URL names rather than the newest, and is a keyword
     because the URL a handover carries already has a query holding the page's key: a
@@ -1492,7 +1504,7 @@ def panel_settled(page, open=True):
     test has stopped. Finishing polls because the carry starts in the gesture's own
     task: one that has not been made yet is finished on the next turn."""
     page.wait_for_function(
-        "(open) => document.querySelector('.lf-panel').classList.contains('open') === open",
+        "(open) => document.querySelector('.lf-thread-panel').classList.contains('open') === open",
         arg=open,
     )
     page.wait_for_function(

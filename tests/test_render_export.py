@@ -26,6 +26,7 @@ from leaf import service as service_model
 from leaf.render_gate import browser as browser_model
 from playwright.sync_api import expect
 from render_support import (
+    CUT_BOXES_PAGE,
     LONG_PAGE,
     PAGE_FIXTURES,
     REPLAYED_PAGE,
@@ -1017,6 +1018,78 @@ def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):
         )
 
 
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_an_exported_scroll_cue_follows_its_native_scroller(
+    direction, browser, serve, tmp_path
+):
+    """A copy drops the runtime that updates live reach marks, but scrolling remains a
+    native browser action. Its cue follows that scroll instead of freezing the edge the
+    exporter's window happened to show."""
+    source = CUT_BOXES_PAGE
+    if direction == "rtl":
+        source = source.replace(
+            "</head>", "<style>html { direction: rtl; }</style></head>"
+        )
+    url = serve(source)
+    out = tmp_path / "scroll-cue.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.emulate_media(reduced_motion="reduce")
+    page.goto(out.as_uri(), wait_until="load")
+    flow = page.locator("#flow")
+    expect(flow).to_have_attribute("data-lf-copy-scroll", direction)
+    expect(flow).not_to_have_attribute("data-lf-more-before", "")
+    expect(flow).not_to_have_attribute("data-lf-more-after", "")
+
+    def reading():
+        return flow.evaluate(
+            """el => {
+            const style = getComputedStyle(el);
+            return {
+                position: Number(style.getPropertyValue('--lf-copy-scroll-position')),
+                left: Number(style.getPropertyValue('--lf-copy-left-opacity')),
+                right: Number(style.getPropertyValue('--lf-copy-right-opacity')),
+                mask: style.maskImage,
+            };
+        }"""
+        )
+
+    start = reading()
+    flow.evaluate(
+        """(el, direction) => {
+        const distance = (el.scrollWidth - el.clientWidth) / 2;
+        el.scrollLeft = direction === 'rtl' ? -distance : distance;
+    }""",
+        direction,
+    )
+    page.wait_for_function(
+        "el => Number(getComputedStyle(el).getPropertyValue('--lf-copy-scroll-position')) > .4",
+        arg=flow.element_handle(),
+    )
+    middle = reading()
+    flow.evaluate(
+        "(el, direction) => { el.scrollLeft = direction === 'rtl' ? -el.scrollWidth : el.scrollWidth; }",
+        direction,
+    )
+    page.wait_for_function(
+        "el => Number(getComputedStyle(el).getPropertyValue('--lf-copy-scroll-position')) > .99",
+        arg=flow.element_handle(),
+    )
+    end = reading()
+
+    start_edges = (1, 0) if direction == "ltr" else (0, 1)
+    end_edges = tuple(reversed(start_edges))
+    assert start["position"] == 0, start
+    assert (start["left"], start["right"]) == start_edges, start
+    assert 0.4 < middle["position"] < 0.6, middle
+    assert middle["left"] == 0 and middle["right"] == 0, middle
+    assert end["position"] > 0.99, end
+    assert (end["left"], end["right"]) == end_edges, end
+    assert len({start["mask"], middle["mask"], end["mask"]}) == 3
+    page.close()
+
+
 def test_a_browser_too_old_to_copy_a_page_is_refused_by_its_own_version(
     browser, tmp_path
 ):
@@ -1284,11 +1357,11 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     live = browser.new_page(viewport={"width": 1200, "height": 900})
     live.goto(url, wait_until="load")
     resized(live, 1200, 900)
+    # A handoff colors the target's surviving semantic control rather than standing up
+    # a second margin row of its own, so the live reading is the pencil's phase.
     expect(
-        live.locator(
-            "[data-lf-margin-for='d-open'] [data-lf-behavior='status']:visible"
-        )
-    ).to_have_attribute("data-lf-kinds", "pickup")
+        live.locator("[data-lf-margin-for='d-open'] [data-lf-agent-phase]:visible")
+    ).to_have_attribute("data-lf-agent-phase", "picked_up")
     expect(live.get_by_text("Outcome", exact=True)).to_have_count(0)
     live.close()
 
@@ -1299,6 +1372,9 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     page.goto(out.as_uri(), wait_until="load")
 
     expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
+    # Both seats a live handoff can speak from: the status row, and the phase on the
+    # control that carries it.
+    expect(page.locator("[data-lf-agent-phase]")).to_have_count(0)
     expect(page.get_by_text("Outcome", exact=True)).to_have_count(0)
     expect(page.locator("#d-open")).to_contain_text(
         "The sample workshop is in the red room."
@@ -1313,7 +1389,7 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
     """A standalone copy keeps the decision's origin after removing live chrome.
 
     Structural state such as a card move still differs from the authored version after
-    export, so the retained origin attribute needs a local spoken word when Page map is
+    export, so the retained origin attribute needs a local spoken word when Page Map is
     no longer present.
     """
     url = serve(REPLAYED_PAGE)
@@ -1397,7 +1473,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
 
     A copy over-promising is the other half of that, and it went unread for as long as
     there was nothing here asking. Tab into an exported decision page landed on a pick
-    mark, which summoned the keyboard address for a key that answers nothing, into a row
+    mark, which summoned the binding badge for a key that answers nothing, into a row
     holding no column for it; a board's ten grips each opened a grab cursor; twenty
     options lit under a pointer that could not pick one. So the copy is asked what it
     still offers, in the three registers an offer is made in — a widget's chrome still
@@ -1422,7 +1498,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
         links: document.querySelectorAll('link[rel="stylesheet"]').length,
         presented: document.body.dataset.lfPresented,
         themeMarker: getComputedStyle(document.querySelector('main'))
-            .getPropertyValue('--lf-column').trim(),
+            .getPropertyValue('--lf-reading-column').trim(),
         // A page gives up a CSS shell claim for what it hangs in the margin, and
         // a copy keeps only the strips whose residents came with it: a suggestion's
         // controls are gone from a file that can decide nothing, and its rail with them,
@@ -1445,7 +1521,7 @@ def test_an_exported_page_fixture_stands_on_its_own(
         // copies that hold a strip: the strip could have been held open for nothing and
         // the band still read as occupied. The claimants are the ones the cascade names
         // — aside.sidebar writes --strip-l, while aside.sidenote and the living
-        // margin's items write --claim-note, --claim-rail, and --claim-map. A copy
+        // margin's items write --claim-note and --claim-rail. A copy
         // carries no .lf-chrome, read above, and a project layer's own --lf-claim-right
         // furniture is outside the corpus this runs over.
         empty: ((main) => {
@@ -1691,7 +1767,11 @@ def test_a_copy_carries_none_of_the_exporters_own_window(browser, serve, tmp_pat
                 found[inline[i]] = inline.getPropertyValue(inline[i]);
         return found;
     }"""
-    session = ("--lf-panel-w", "--lf-tray-w", "--lf-bottom-chrome-clear")
+    session = (
+        "--lf-thread-panel-width",
+        "--lf-tray-slot-width",
+        "--lf-bottom-chrome-clear",
+    )
 
     live = browser.new_page(viewport={"width": 1200, "height": 900})
     live.goto(url, wait_until="load")

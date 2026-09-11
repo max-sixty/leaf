@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from ..acknowledgments import canonical_acknowledgments
-from ..activity import canonical_activity, canonical_stream_reply
+from ..activity import canonical_activity
 from ..data import browser_data
 from ..event_log import now_iso
 from ..events import build_threads
@@ -41,9 +41,8 @@ def project_activity(
         None,
         events=events,
     )
-    reply = canonical_stream_reply(present, now, (live_stream or {}).get("reply"))
     return canonical_activity(
-        present, evidence, now, (live_stream or {}).get("activity"), reply
+        present, evidence, now, (live_stream or {}).get("activity")
     )
 
 
@@ -89,7 +88,7 @@ def full_state(
         registry = load_registry(page_dir)
     except RegistryError:
         registry = None
-    identity = layer_identity or layer_metadata(page_dir)
+    identity = layer_metadata(page_dir) if layer_identity is None else layer_identity
     return {
         "layer": identity,
         # The clock every timestamp below was written by. A seat dating one reads

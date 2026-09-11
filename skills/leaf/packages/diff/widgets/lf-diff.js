@@ -147,6 +147,18 @@ const lineLabel = ({ path, side, oldLine, newLine }) => {
   return `${file} · old line ${oldLine} · new line ${newLine}`;
 };
 
+const fileKey = ({ path }) => JSON.stringify([path, "file"]);
+const fileLabel = ({ path }) => `${path || "(unnamed file)"} · file`;
+const fileNode = (entry) => entry.node;
+const fileDatum = (entry, origin = null) => ({
+  file: true,
+  path: entry.record.path,
+  node: fileNode(entry),
+  ...(origin ? { origin } : {}),
+});
+const datumKey = (record) => (record.file ? fileKey(record) : lineKey(record));
+const datumLabel = (record) => (record.file ? fileLabel(record) : lineLabel(record));
+
 function renderedLines(file, rendered) {
   const records = sourceLines(file);
   const nodes = [...rendered.querySelectorAll("[data-content] [data-line]")];
@@ -215,13 +227,25 @@ function summaryNode(file, open) {
 function fileRow(row) {
   const file = document.createElement("div");
   file.className = "lf-diff-file";
-  file.append(row);
+  const actions = document.createElement("div");
+  actions.className = "lf-diff-file-actions lf-ui";
+  actions.dataset.lfGen = "1";
+  file.append(actions, row);
   return file;
 }
 
 function reviewButton(entry, changed) {
   const button = offer("button", "lf-btn lf-diff-review");
   button.addEventListener("click", () => changed(entry, !entry.reviewed));
+  return button;
+}
+
+function commentButton(label, opened, className) {
+  const button = offer("button", `lf-btn lf-diff-comment ${className}`, "+");
+  button.type = "button";
+  button.setAttribute("aria-label", `Comment on ${label}`);
+  button.title = `Comment on ${label}`;
+  button.addEventListener("click", opened);
   return button;
 }
 
@@ -243,7 +267,7 @@ function wrapSwitch() {
   return { node: label, box };
 }
 
-function reviewTools(host) {
+function diffTools(host, reviewing) {
   const tools = offer("div", "lf-diff-tools");
   const label = offer("label", "lf-diff-search-label");
   const search = document.createElement("input");
@@ -257,10 +281,13 @@ function reviewTools(host) {
   const progress = document.createElement("span");
   progress.className = "lf-diff-progress";
   progress.dataset.lfGen = "1";
-  const next = offer("button", "lf-btn lf-diff-next", "Next unreviewed");
-  next.addEventListener("click", () => settle(host.nextUnreviewed()));
+  const next = reviewing
+    ? offer("button", "lf-btn lf-diff-next", "Next unreviewed")
+    : null;
+  next?.addEventListener("click", () => settle(host.nextUnreviewed()));
   const wrap = wrapSwitch();
-  tools.append(label, progress, wrap.node, next);
+  tools.append(label, progress, wrap.node);
+  if (next) tools.append(next);
   return { node: tools, search, progress, next, wrap: wrap.box };
 }
 
@@ -477,7 +504,7 @@ customElements.define(
               does: () =>
                 this.wrapped() ? "Show long lines unwrapped" : "Wrap long lines",
               line: () => (this.wrapped() ? "stop wrapping" : "wrap long lines"),
-              run: () => this.reviewTools?.wrap.click(),
+              run: () => this.diffTools?.wrap.click(),
             },
             {
               id: "diff.search",
@@ -486,18 +513,18 @@ customElements.define(
               line: "filter files",
               returnFrame: () => ({
                 active: () => {
-                  const search = this.reviewTools?.search;
+                  const search = this.diffTools?.search;
                   const held = focused();
                   const inDiff =
                     this.contains(held) || Boolean(this.shadowRoot?.contains(held));
                   return Boolean(
                     search &&
                     inDiff &&
-                    (search.value || this.reviewTools.node.contains(held)),
+                    (search.value || this.diffTools.node.contains(held)),
                   );
                 },
                 close: () => {
-                  const search = this.reviewTools?.search;
+                  const search = this.diffTools?.search;
                   if (search?.value) {
                     this.clearFilter();
                     search.focus({ preventScroll: true });
@@ -506,13 +533,12 @@ customElements.define(
                   search?.blur();
                 },
                 does: () =>
-                  this.reviewTools?.search.value
+                  this.diffTools?.search.value
                     ? "Show every file again"
                     : "Leave the diff filter",
-                line: () =>
-                  this.reviewTools?.search.value ? "show all files" : "back",
+                line: () => (this.diffTools?.search.value ? "show all files" : "back"),
               }),
-              run: () => this.reviewTools?.search.focus(),
+              run: () => this.diffTools?.search.focus(),
             },
             {
               id: "diff.next-unreviewed",
@@ -583,7 +609,7 @@ customElements.define(
           this.manifestEntries = null;
           this.fileEntries = null;
           this.sharedStyles = null;
-          this.reviewTools = null;
+          this.diffTools = null;
           this.replaceChildren();
           shadowStage(this, []);
           projectData(
@@ -630,22 +656,23 @@ customElements.define(
         }));
         if (bound) for (const { node } of entries) node.dataset.lfGen = "1";
         this.fileEntries = entries;
-        this.reviewTools = reviewTools(this);
-        for (const entry of entries) this.attachReview(entry);
+        this.diffTools = diffTools(this, this.reviewing());
+        for (const entry of entries)
+          this.attachEntryControls(entry, { commentable: bound });
         this.refreshReviewedState();
         this.replaceChildren();
         shadowStage(this, [
           ...sharedStyles.values(),
-          this.reviewTools.node,
+          this.diffTools.node,
           ...entries.map(({ node }) => node),
         ]);
         if (bound)
           projectData(
             this,
-            entries.flatMap(({ lines }) => lines),
-            lineKey,
+            entries.flatMap((entry) => [fileDatum(entry), ...entry.lines]),
+            datumKey,
             ({ node }) => node,
-            { nested: true, labelOf: lineLabel, snapshot },
+            { nested: true, labelOf: datumLabel, snapshot },
           );
         this.paintHeadRoom();
         this.watchHeadRoom();
@@ -655,7 +682,7 @@ customElements.define(
         this.manifestEntries = null;
         this.fileEntries = null;
         this.sharedStyles = null;
-        this.reviewTools = null;
+        this.diffTools = null;
         this.classList.remove("lf-rendered");
         failSoft(this, err, source);
         if (this.shadowRoot) shadowStage(this, [...this.childNodes]);
@@ -735,8 +762,9 @@ customElements.define(
       this.manifestSnapshot = snapshot;
       this.fileEntries = entries;
       this.sharedStyles = new Map();
-      this.reviewTools = reviewTools(this);
-      for (const entry of entries) this.attachReview(entry);
+      this.diffTools = diffTools(this, this.reviewing());
+      for (const entry of entries)
+        this.attachEntryControls(entry, { commentable: true });
       this.refreshReviewedState();
       this.replaceChildren();
       this.stageManifest();
@@ -754,7 +782,7 @@ customElements.define(
         this,
         [
           ...this.sharedStyles.values(),
-          this.reviewTools?.node,
+          this.diffTools?.node,
           ...this.manifestEntries.map(({ node }) => node),
         ].filter(Boolean),
       );
@@ -763,20 +791,24 @@ customElements.define(
     projectManifest() {
       projectData(
         this,
-        (this.manifestEntries ?? []).flatMap(({ lines }, index) =>
-          lines.map((line) => ({
+        (this.manifestEntries ?? []).flatMap((entry, index) => [
+          fileDatum(entry, {
+            ...this.manifestSnapshot.origin,
+            path: ["files", index, "path"],
+          }),
+          ...entry.lines.map((line) => ({
             ...line,
             origin: {
               ...this.manifestSnapshot.origin,
               path: ["files", index, "patch"],
             },
           })),
-        ),
-        lineKey,
+        ]),
+        datumKey,
         ({ node }) => node,
         {
           nested: true,
-          labelOf: lineLabel,
+          labelOf: datumLabel,
           snapshot: this.manifestSnapshot,
           originOf: ({ origin }) => origin,
         },
@@ -787,7 +819,10 @@ customElements.define(
       this.threadOutlets ??= new Map();
       this.threadPairs ??= new Map();
       for (const [key, record] of this.threadOutlets) {
-        if (!record.outlet.isConnected || !record.gutterRow.isConnected) {
+        if (
+          !record.outlet.isConnected ||
+          (record.gutterRow && !record.gutterRow.isConnected)
+        ) {
           this.threadOutlets.delete(key);
           continue;
         }
@@ -799,6 +834,7 @@ customElements.define(
     }
 
     threadPair(row) {
+      this.threadPairs ??= new Map();
       const content = row.parentElement;
       const pre = content?.closest("pre");
       const gutter = pre?.querySelector("[data-gutter]");
@@ -833,9 +869,18 @@ customElements.define(
 
     threadOutletFor({ anchor, placement }) {
       const entry = this.fileEntryForDatum(anchor.datum);
-      if (
-        !entry?.loaded ||
-        entry.filtered ||
+      if (!entry || entry.filtered) return null;
+      let coordinate;
+      try {
+        coordinate = JSON.parse(anchor.datum);
+      } catch {
+        return null;
+      }
+      const file = coordinate[1] === "file";
+      if (file) {
+        if (placement.datumElement !== entry.node) return null;
+      } else if (
+        !entry.loaded ||
         (entry.details && !entry.details.open) ||
         placement.datumElement !==
           entry.lines.find((line) => lineKey(line) === anchor.datum)?.node
@@ -845,28 +890,35 @@ customElements.define(
       let record = this.threadOutlets.get(anchor.datum);
       if (record && record.row !== placement.datumElement) {
         record.outlet.remove();
-        record.gutterRow.remove();
+        record.gutterRow?.remove();
         this.threadOutlets.delete(anchor.datum);
         record = null;
       }
       if (!record) {
         const row = placement.datumElement;
-        const { gutterRow: lineGutter, pair } = this.threadPair(row);
         const outlet = document.createElement("section");
-        outlet.className = "lf-diff-thread-outlet lf-ui";
+        outlet.className = `lf-diff-thread-outlet lf-ui${
+          file ? " lf-diff-file-thread-outlet" : ""
+        }`;
         outlet.dataset.lfGen = "1";
         outlet.dataset.lfThreadDatum = anchor.datum;
         outlet.setAttribute(
           "aria-label",
-          `Threads on ${row.dataset.lfDatumLabel || "diff line"}`,
+          `Conversation on ${row.dataset.lfDatumLabel || (file ? "file" : "diff line")}`,
         );
-        const gutterRow = document.createElement("div");
-        gutterRow.className = "lf-diff-thread-gutter lf-ui";
-        gutterRow.dataset.lfGen = "1";
-        gutterRow.setAttribute("aria-hidden", "true");
-        row.after(outlet);
-        lineGutter.after(gutterRow);
-        record = { active: true, gutterRow, outlet, pair, row };
+        if (file) {
+          entry.node.append(outlet);
+          record = { active: true, gutterRow: null, outlet, pair: null, row };
+        } else {
+          const { gutterRow: lineGutter, pair } = this.threadPair(row);
+          const gutterRow = document.createElement("div");
+          gutterRow.className = "lf-diff-thread-gutter lf-ui";
+          gutterRow.dataset.lfGen = "1";
+          gutterRow.setAttribute("aria-hidden", "true");
+          row.after(outlet);
+          lineGutter.after(gutterRow);
+          record = { active: true, gutterRow, outlet, pair, row };
+        }
         this.threadOutlets.set(anchor.datum, record);
       }
       record.active = true;
@@ -877,12 +929,12 @@ customElements.define(
       for (const [key, record] of this.threadOutlets ?? []) {
         if (record.active) continue;
         record.outlet.remove();
-        record.gutterRow.remove();
+        record.gutterRow?.remove();
         this.threadOutlets.delete(key);
       }
       const counts = new Map();
       for (const record of this.threadOutlets?.values() ?? [])
-        counts.set(record.pair, (counts.get(record.pair) ?? 0) + 1);
+        if (record.pair) counts.set(record.pair, (counts.get(record.pair) ?? 0) + 1);
       for (const pair of this.threadPairs?.values() ?? []) {
         const count = counts.get(pair) ?? 0;
         const contentRow = count
@@ -921,6 +973,7 @@ customElements.define(
           );
           entry.lines = rendered.lines;
           entry.loaded = true;
+          this.attachLineComments(entry);
           this.stageManifest();
           this.projectManifest();
         } catch (error) {
@@ -954,16 +1007,17 @@ customElements.define(
     lfDataDatum(key, { outdated = false } = {}) {
       const entry = this.fileEntryForDatum(key);
       if (!entry) return null;
-      if (outdated) return entry.node;
-      if (!entry.loaded || entry.filtered) return entry.node;
-      const exact = entry.lines.find((line) => lineKey(line) === key);
-      if (exact) return exact.node;
       let coordinate;
       try {
         coordinate = JSON.parse(key);
       } catch {
         return null;
       }
+      if (coordinate[1] === "file") return fileNode(entry);
+      if (outdated) return entry.node;
+      if (!entry.loaded || entry.filtered) return entry.node;
+      const exact = entry.lines.find((line) => lineKey(line) === key);
+      if (exact) return exact.node;
       const [, side, at] = coordinate;
       if (!Number.isInteger(at) || !["old", "new"].includes(side)) return null;
       const context = entry.lines.find(
@@ -992,6 +1046,11 @@ customElements.define(
       const entry = this.fileEntryForDatum(key);
       if (!entry) return null;
       if (entry.filtered) this.clearFilter();
+      try {
+        if (JSON.parse(key)[1] === "file") return null;
+      } catch {
+        return null;
+      }
       if (!entry.details || entry.loaded || entry.failed) return null;
       entry.details.open = true;
       return this.loadManifestEntry(entry);
@@ -1007,12 +1066,19 @@ customElements.define(
       // it goes on working in a file with its scripts dropped, and the tools row stays
       // to carry it — a copy of a patch is exactly where a reader has no other way to
       // see the end of a long line.
-      const tools = this.reviewTools;
+      const tools = this.diffTools;
       tools?.search.closest("label")?.remove();
       tools?.progress.remove();
-      tools?.next.remove();
-      this.reviewTools = null;
+      tools?.next?.remove();
+      this.diffTools = null;
       for (const entry of this.fileEntries ?? []) {
+        entry.fileComment?.remove();
+        entry.fileComment = null;
+        for (const line of entry.lines) {
+          line.comment?.remove();
+          line.comment = null;
+        }
+        if (!entry.review) continue;
         if (!entry.reviewed) {
           entry.review.remove();
           continue;
@@ -1030,6 +1096,7 @@ customElements.define(
         entry.threadSurfaceToggle = () => this.threadSurface?.update();
         entry.details.addEventListener("toggle", entry.threadSurfaceToggle);
       }
+      if (!this.reviewing()) return;
       entry.review = reviewButton(entry, (target, reviewed) => {
         if (!actionAvailable(this, "review")) return;
         this.setReviewed(target, reviewed);
@@ -1044,9 +1111,48 @@ customElements.define(
           else this.refreshReviewedState();
         });
       });
-      entry.node.prepend(entry.review);
+      entry.node.querySelector(":scope > .lf-diff-file-actions").append(entry.review);
       this.setReviewed(entry, false, { repaint: false });
       this.paintReviewAvailability();
+    }
+
+    attachEntryControls(entry, { commentable }) {
+      if (commentable) {
+        const label = entry.record.path || "file";
+        entry.fileComment = commentButton(
+          label,
+          () => this.threadSurface?.open(entry.node, { origin: entry.fileComment }),
+          "lf-diff-file-comment",
+        );
+        entry.node
+          .querySelector(":scope > .lf-diff-file-actions")
+          .prepend(entry.fileComment);
+        this.attachLineComments(entry);
+      }
+      this.attachReview(entry);
+    }
+
+    attachLineComments(entry) {
+      for (const line of entry.lines) {
+        if (line.comment?.isConnected) continue;
+        const { gutterRow } = this.threadPair(line.node);
+        line.comment = commentButton(
+          lineLabel(line),
+          () => this.threadSurface?.open(line.node, { origin: line.comment }),
+          "lf-diff-line-comment",
+        );
+        // Thousands of lines must not become thousands of Tab stops. The page-level
+        // target chooser is the keyboard route to the same exact datum; this control is
+        // the conventional pointer affordance in the line-number gutter.
+        line.comment.tabIndex = -1;
+        line.node.addEventListener("pointerenter", () =>
+          gutterRow.classList.add("lf-diff-line-hover"),
+        );
+        line.node.addEventListener("pointerleave", () =>
+          gutterRow.classList.remove("lf-diff-line-hover"),
+        );
+        gutterRow.append(line.comment);
+      }
     }
 
     paintReviewAvailability = () => {
@@ -1062,6 +1168,7 @@ customElements.define(
     setReviewed(entry, reviewed, { repaint = true } = {}) {
       if (!entry) return;
       entry.reviewed = reviewed;
+      if (!entry.review) return;
       entry.node.toggleAttribute("data-reviewed", reviewed);
       entry.review.setAttribute("aria-pressed", String(reviewed));
       entry.review.setAttribute(
@@ -1071,7 +1178,7 @@ customElements.define(
       relabel(entry.review, reviewed ? "✓ Reviewed" : "Mark reviewed", {
         says: reviewed,
       });
-      if (repaint) this.refreshReviewTools();
+      if (repaint) this.refreshDiffTools();
     }
 
     refreshReviewedState() {
@@ -1088,29 +1195,36 @@ customElements.define(
         entry.filtered = Boolean(needle && !paths.includes(needle));
         entry.node.classList.toggle("lf-diff-filtered", entry.filtered);
       }
-      this.refreshReviewTools();
+      this.refreshDiffTools();
       layoutChanged(this);
       this.threadSurface?.update();
     }
 
     clearFilter() {
-      if (this.reviewTools) this.reviewTools.search.value = "";
+      if (this.diffTools) this.diffTools.search.value = "";
       this.filterFiles("");
     }
 
-    refreshReviewTools() {
-      if (!this.reviewTools || !this.fileEntries) return;
+    refreshDiffTools() {
+      if (!this.diffTools || !this.fileEntries) return;
       const shown = this.fileEntries.filter((entry) => !entry.filtered);
       const reviewed = this.fileEntries.filter((entry) => entry.reviewed).length;
-      const suffix =
-        shown.length === this.fileEntries.length ? "" : ` · ${shown.length} matching`;
-      this.reviewTools.progress.textContent = `${reviewed} of ${this.fileEntries.length} reviewed${suffix}`;
-      this.reviewTools.next.disabled = this.nextReviewEntry() === null;
+      const total = this.fileEntries.length;
+      const suffix = shown.length === total ? "" : ` · ${shown.length} matching`;
+      this.diffTools.progress.textContent = this.reviewing()
+        ? `${reviewed} of ${total} reviewed${suffix}`
+        : `${total} file${total === 1 ? "" : "s"}${suffix}`;
+      if (this.diffTools.next)
+        this.diffTools.next.disabled = this.nextReviewEntry() === null;
       paintKeys();
     }
 
+    reviewing() {
+      return this.hasAttribute("review");
+    }
+
     wrapped() {
-      return Boolean(this.reviewTools?.wrap.checked);
+      return Boolean(this.diffTools?.wrap.checked);
     }
 
     shownEntries() {
@@ -1270,6 +1384,7 @@ customElements.define(
     }
 
     nextReviewEntry() {
+      if (!this.reviewing()) return null;
       const entries = (this.fileEntries ?? []).filter(
         (entry) => !entry.filtered && !entry.reviewed,
       );
@@ -1307,7 +1422,7 @@ customElements.define(
           state.review.units[entry.record.path]?.detail.reviewed ?? false,
           { repaint: false },
         );
-      this.refreshReviewTools();
+      this.refreshDiffTools();
     }
   },
 );

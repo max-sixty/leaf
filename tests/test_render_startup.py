@@ -26,11 +26,15 @@ from playwright.sync_api import expect
 from render_support import (
     _CARD,
     BOTH_STAMPS,
+    CHART_PAGE,
     DRAFT_EDITED,
     DRAFT_TEXT,
     EXAMPLES,
     FEATURE_GALLERY,
     FIRST_PRESENTATION,
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
     JOURNEY_V1,
     JOURNEY_V2,
     LONG_PAGE,
@@ -40,6 +44,7 @@ from render_support import (
     SHADOWED_DIFF,
     SHORT_SUGGESTION,
     SUGGEST_BLOCK,
+    SUGGESTION_PAGE,
     TAB_AND_DOT,
     TAB_TONE,
     TOKEN,
@@ -51,6 +56,7 @@ from render_support import (
     compare_with,
     composer_quote,
     data_projection_page,
+    holding,
     leaf_page,
     live_url,
     live_watcher,
@@ -75,6 +81,26 @@ from render_support import (
 pytestmark = pytest.mark.nightly
 
 
+VISUAL_ACTION_TIMING = """
+  window.__lfVisualActionInsertions = [];
+  new MutationObserver(records => {
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (!(node instanceof Element)) continue;
+        const holders = [
+          ...(node.matches('.lf-visual-actions') ? [node] : []),
+          ...node.querySelectorAll('.lf-visual-actions'),
+        ];
+        for (const _holder of holders)
+          window.__lfVisualActionInsertions.push(
+            document.body?.hasAttribute('data-lf-presented') ?? false
+          );
+      }
+    }
+  }).observe(document, {childList: true, subtree: true});
+"""
+
+
 def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
     """The source can carry ordinary HTML and a package module runs as same-origin
     script. Neither may replace the document base, submit page state to another origin,
@@ -89,7 +115,16 @@ def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
   <button type="submit">Send page state</button>
 </form>
 """,
-        head='<base href="https://outside.invalid/rebased/">',
+        head=(
+            '<base href="https://outside.invalid/rebased/">'
+            """<script type="module">
+window.authoredModuleRan = true;
+window.dataModuleImport = import("/api/state").then(
+  () => "executed",
+  () => "blocked",
+);
+</script>"""
+        ),
     )
     url = live_url(serve(source))
     page, errors = open_page(
@@ -111,6 +146,8 @@ def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
         ),
     )
     try:
+        page.wait_for_function("() => window.authoredModuleRan === true")
+        assert page.evaluate("window.dataModuleImport") == "blocked"
         page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
         served = urlparse(page.url)
         assert (
@@ -139,11 +176,19 @@ def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
         page.wait_for_function("() => window.__cspViolations.includes('form-action')")
         assert escaped == []
         assert any("frame-ancestors 'none'" in error for error in errors), errors
+        assert any('MIME type of "application/json"' in error for error in errors), (
+            errors
+        )
         unexpected = [
             error
             for error in errors
             if not (
-                "Content Security Policy" in error or "Content-Security-Policy" in error
+                "Content Security Policy" in error
+                or "Content-Security-Policy" in error
+                or (
+                    "Failed to load module script" in error
+                    and 'MIME type of "application/json"' in error
+                )
             )
         ]
         assert unexpected == []
@@ -215,7 +260,7 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
         )
         reference = page.locator(".lf-session-reference")
         expect(reference).not_to_be_visible()
-        page.get_by_role("button", name="More page addresses", exact=True).click()
+        page.get_by_role("button", name="More page controls", exact=True).click()
         expect(reference).to_be_visible()
         expect(reference).to_have_text("Session 239383829012")
         expect(reference).to_have_accessible_name(
@@ -253,7 +298,7 @@ def test_a_website_session_reference_survives_a_failed_first_read(
     try:
         page.goto(url, wait_until="load")
         expect(page.locator(".lf-banner .lf-status-text")).to_contain_text(status_words)
-        page.get_by_role("button", name="More page addresses", exact=True).click()
+        page.get_by_role("button", name="More page controls", exact=True).click()
         expect(page.locator(".lf-session-reference")).to_have_text(
             "Session 239383829012"
         )
@@ -285,7 +330,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         expect(badge).to_have_text("Preview · fb77@26499ea1abcd+")
         expect(badge).to_have_attribute("aria-label", "Copy preview diagnostics")
 
-        page.get_by_role("button", name="More page addresses", exact=True).click()
+        page.get_by_role("button", name="More page controls", exact=True).click()
         expect(badge).to_be_visible()
         badge.click()
         expect(page.locator(".lf-live")).to_have_text("Copied preview diagnostics")
@@ -377,22 +422,22 @@ def test_authored_html_paints_while_runtime_startup_is_held(
     ("saved", "root_attribute", "body_attribute"),
     [
         (
-            {"lf-panel-open": "1", "lf-panel-width": "500"},
+            {"lf-thread-panel-open": "1", "lf-thread-panel-width": "500"},
             "data-lf-restore-panel",
-            "data-lf-panel",
+            "data-lf-auxiliary-surface",
         ),
         (
-            {"lf-tray-up": "asks", "lf-tray-width": "280"},
+            {"lf-tray-slot-open": "asks", "lf-tray-slot-width": "280"},
             "data-lf-restore-tray",
-            "data-lf-tray",
+            "data-lf-auxiliary-surface",
         ),
     ],
 )
-def test_a_restored_workspace_has_its_final_geometry_before_runtime_loads(
+def test_a_restored_auxiliary_surface_has_final_geometry_before_runtime_loads(
     browser, serve, saved, root_attribute, body_attribute
 ):
-    """Returning readers do not watch their saved workspace move the document."""
-    url = serve(leaf_page("Restored workspace", "<h1>Restored workspace</h1>"))
+    """Returning readers do not watch saved auxiliary chrome move the document."""
+    url = serve(leaf_page("Restored surface", "<h1>Restored surface</h1>"))
     context = browser.new_context(viewport={"width": 1600, "height": 900})
     priming = context.new_page()
     priming.goto(url, wait_until="load")
@@ -531,7 +576,7 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
         },
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-upgrade": True,
     }
     settled = {**entry, "x-example": '<lf-settled-link id="settled"></lf-settled-link>'}
@@ -669,7 +714,7 @@ def test_reading_regions_share_posture_allocation_and_transition_boundaries(
           const leaf = await import('/runtime/widget-api.js');
           const main = document.querySelector('main');
           const outer = document.createElement('section');
-          outer.id = 'outer-arrangement';
+          outer.id = 'outer-reading-arrangement';
           outer.innerHTML = `
             <header><button id="pane-heading">Pane heading</button></header>
             <div id="outer-body"><div id="compound-owner">
@@ -685,16 +730,16 @@ def test_reading_regions_share_posture_allocation_and_transition_boundaries(
           const previewBody = outer.querySelector('#preview-body');
           const style = document.createElement('style');
           style.textContent = `
-            #outer-arrangement { width: 640px; }
+            #outer-reading-arrangement { width: 640px; }
             #outer-body { width: 600px; }
             #compound-content { width: 50%; }
-            #outer-arrangement[data-lf-posture="bounded"] #outer-body {
+            #outer-reading-arrangement[data-lf-reading-posture="bounded"] #outer-body {
               height: 280px; overflow: auto;
             }
-            #outer-arrangement[data-lf-posture="bounded"] #preview-body {
+            #outer-reading-arrangement[data-lf-reading-posture="bounded"] #preview-body {
               height: 120px; overflow: auto;
             }
-            #compound-owner[data-lf-posture="flow"] #preview-body {
+            #compound-owner[data-lf-reading-posture="flow"] #preview-body {
               height: auto; overflow: visible;
             }`;
           document.head.append(style);
@@ -715,18 +760,18 @@ def test_reading_regions_share_posture_allocation_and_transition_boundaries(
                 : null,
             });
           });
-          const outerLayout = leaf.registerArrangement({
+          const outerLayout = leaf.registerReadingArrangement({
             owner: outer,
             content: outerBody,
             regions: [{id: 'outer-pane', host: outer, body: outerBody}],
           });
           previewId = leaf.compoundReadingRegionId(compound, 'preview');
-          const compoundLayout = leaf.registerArrangement({
+          const compoundLayout = leaf.registerReadingArrangement({
             owner: compound,
             content: compoundContent,
             regions: [{id: previewId, host: previewHost, body: previewBody}],
           });
-          await outerLayout.setPosture('bounded');
+          await outerLayout.setReadingPosture('bounded');
           const assigned = compoundContent.getBoundingClientRect();
           const bounded = {
             outerScroller: leaf.effectiveScroller('outer-pane').id,
@@ -738,18 +783,18 @@ def test_reading_regions_share_posture_allocation_and_transition_boundaries(
           };
           outerBody.style.width = '400px';
           const resizedAllocation = leaf.readingAllocation(previewId);
-          await compoundLayout.setPosture('flow');
+          await compoundLayout.setReadingPosture('flow');
           const childFlow = {
             scroller: leaf.effectiveScroller(previewId).id,
             posture: leaf.readingPosture(previewId),
           };
-          const first = outerLayout.setPosture('flow');
-          const second = outerLayout.setPosture('bounded');
+          const first = outerLayout.setReadingPosture('flow');
+          const second = outerLayout.setReadingPosture('bounded');
           await Promise.all([first, second]);
           previewHost.hidden = true;
           const hiddenBounds = leaf.shownRegionBounds(previewId);
           previewHost.hidden = false;
-          await outerLayout.setPosture('flow');
+          await outerLayout.setReadingPosture('flow');
           const flow = {
             outerIsDocument: leaf.effectiveScroller('outer-pane') === document.scrollingElement,
             previewIsDocument: leaf.effectiveScroller(previewId) === document.scrollingElement,
@@ -855,7 +900,7 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
           try {
             leaf.arrangeReadingElement({
               owner,
-              kind: 'pane',
+              role: 'pane',
               header,
               regions: [
                 {id: 'reclaimable-region'},
@@ -877,24 +922,24 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
           occupied();
 
           const detached = document.createElement('section');
-          detached.setAttribute('data-lf-root-workspace', '');
+          detached.dataset.lfWorkspaceContext = 'root';
           const detachedArrangement = leaf.arrangeReadingElement({
             owner: detached,
-            kind: 'workspace',
-          }).arrangement;
+            role: 'workspace',
+          }).readingArrangement;
           const detachedMarkerCleared =
-            !detached.hasAttribute('data-lf-root-workspace');
+            detached.dataset.lfWorkspaceContext === 'embedded';
           detachedArrangement.cleanup();
 
-          const {content, arrangement} = leaf.arrangeReadingElement({
+          const {content, readingArrangement} = leaf.arrangeReadingElement({
             owner,
-            kind: 'pane',
+            role: 'pane',
             header,
           });
-          await arrangement.setPosture('bounded');
+          await readingArrangement.setReadingPosture('bounded');
           let ownerMessage;
           try {
-            leaf.registerArrangement({owner, content});
+            leaf.registerReadingArrangement({owner, content});
           } catch (error) {
             ownerMessage = error.message;
           }
@@ -902,14 +947,14 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
           main.append(otherOwner);
           let contentMessage;
           try {
-            leaf.registerArrangement({owner: otherOwner, content});
+            leaf.registerReadingArrangement({owner: otherOwner, content});
           } catch (error) {
             contentMessage = error.message;
           }
-          const pending = arrangement.setPosture('flow');
-          arrangement.cleanup();
-          const replacement = leaf.registerArrangedElement({owner, content});
-          await replacement.setPosture('bounded');
+          const pending = readingArrangement.setReadingPosture('flow');
+          readingArrangement.cleanup();
+          const replacement = leaf.registerReadingElement({owner, content});
+          await replacement.setReadingPosture('bounded');
           await pending;
           const postureAfterReplacement = leaf.readingPosture(owner);
           replacement.cleanup();
@@ -922,8 +967,8 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
     )
     assert result == {
         "message": "leaf: reading region occupied-region is already live",
-        "ownerMessage": "leaf: arrangement owner is already live",
-        "contentMessage": "leaf: arrangement content is already live",
+        "ownerMessage": "leaf: reading arrangement owner is already live",
+        "contentMessage": "leaf: reading arrangement content is already live",
         "postureAfterReplacement": "bounded",
         "reclaimed": True,
         "unchanged": True,
@@ -951,10 +996,10 @@ def test_registry_state_index_refreshes_with_the_loaded_generation(browser, serv
           const generation = registry.$layer.generation;
           Object.assign(registry, {
             'lf-index-action': {
-              'x-state': { set: { record: { kind: 'value' } } },
+              'x-state': { set: { record: { role: 'value' } } },
             },
             'lf-index-report': {
-              'x-report': { measure: { record: { kind: 'body' } } },
+              'x-report': { measure: { record: { role: 'body' } } },
             },
             'lf-index-recordless': {
               'x-state': { settle: {} },
@@ -1313,12 +1358,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 
 def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
-    """Page visuals paint after upgrade while agent and durable state still wait.
-
-    The feature gallery's optional interface and playground both generate controls.
-    Holding replay proves they finish and paint by the widget-upgrade stamp. Page-local
-    playground changes work immediately, while its durable submit and the agent-derived
-    banner remain unavailable until the authoritative projection arrives."""
+    """Core page visuals paint after upgrade while agent state still waits."""
     url = serve(FEATURE_GALLERY)
     held = []
     page = browser.new_page(viewport={"width": 1440, "height": 900})
@@ -1333,32 +1373,48 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         controls = gallery.locator(".interaction-controls")
         expect(controls).to_have_count(1)
         expect(controls).to_be_visible()
-        playground = page.locator("#bg-card-playground")
-        expect(playground.locator(".lf-playground-controls")).to_be_visible()
-        expect(playground.locator(".lf-playground-presets")).to_be_visible()
-        expect(playground.locator(".lf-playground-actions")).to_be_visible()
-        submit = playground.get_by_role("button", name="Apply card")
-        expect(submit).to_be_disabled()
         expect(page.locator(".lf-status-text")).to_have_text(re.compile(r"^Connecting"))
-
-        playground.get_by_role("button", name="Evening invite").click()
-        expect(playground.locator("input[aria-label='Card title']")).to_have_value(
-            "Evening walk"
-        )
-        assert (
-            page.locator("#bg-playground-card-title").evaluate(
-                "element => getComputedStyle(element, '::before').content"
-            )
-            == '"Evening walk"'
-        )
 
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(controls).to_be_visible()
-        expect(submit).to_be_enabled()
-        expect(playground.locator("input[aria-label='Card title']")).to_have_value(
-            "Evening walk"
+        expect(page.locator(".lf-status-text")).not_to_have_text(
+            re.compile(r"^Connecting")
         )
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_playground_joins_initial_widget_settlement(browser, serve):
+    """An optional package paints locally while its durable action still waits."""
+    source = next(path for path in EXAMPLES if path.stem == "notification-playground")
+    url = serve(source)
+    held = []
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    errors = watched(page)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(url, wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        assert held, "the positive control did not hold the first state response"
+        playground = page.locator("#notification-playground")
+        expect(playground.locator(".lf-playground-controls")).to_be_visible()
+        expect(playground.locator(".lf-playground-presets")).to_be_visible()
+        expect(playground.locator(".lf-playground-actions")).to_be_visible()
+        submit = playground.get_by_role("button", name="Create notification")
+        expect(submit).to_be_disabled()
+        expect(page.locator(".lf-status-text")).to_have_text(re.compile(r"^Connecting"))
+
+        playground.get_by_role("button", name="Needs attention").click()
+        compact = playground.locator("input[aria-label='Compact spacing']")
+        expect(compact).to_be_checked()
+        expect(playground).to_have_attribute("data-playground-format", "status strip")
+
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        expect(submit).to_be_enabled()
+        expect(compact).to_be_checked()
         expect(page.locator(".lf-status-text")).not_to_have_text(
             re.compile(r"^Connecting")
         )
@@ -1405,7 +1461,7 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
         page.close()
 
 
-def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
+def test_a_current_auxiliary_choice_replaces_a_persisted_tray_during_replay(
     browser, serve
 ):
     """Restored chrome may neither publish stale asks nor replace a current choice.
@@ -1414,7 +1470,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
     Opening Threads during that interval replaces the remembered tray. Replay leaves
-    that workspace standing while it paints the accepted state and exposes the completed
+    that Thread panel standing while it paints the accepted state and exposes the completed
     Ask as a closed route for review.
     """
     url = serve(SHORT_SUGGESTION)
@@ -1433,7 +1489,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.wait_for_function(BOTH_STAMPS)
-    priming.evaluate("localStorage.setItem('lf-tray-up', 'asks')")
+    priming.evaluate("localStorage.setItem('lf-tray-slot-open', 'asks')")
     priming.close()
 
     held = []
@@ -1445,7 +1501,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         assert held, "the positive control did not hold the first state response"
         body = page.locator("body")
-        expect(body).to_have_attribute("data-lf-tray", "asks")
+        expect(body).to_have_attribute("data-lf-auxiliary-surface", "asks")
         expect(page.locator(".lf-asks")).to_be_hidden()
         expect(page.locator(".lf-asks-panel")).to_be_hidden()
         expect(page.locator(".lf-answer-all")).to_be_hidden()
@@ -1453,7 +1509,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
         comments = page.get_by_role("button", name=re.compile("^Threads"))
         expect(comments).to_be_enabled()
         comments.click()
-        expect(body).not_to_have_attribute("data-lf-tray", "asks")
+        expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "asks")
         expect(page.locator(".lf-general textarea")).to_be_editable()
 
         held.pop(0).continue_()
@@ -1465,7 +1521,7 @@ def test_a_current_workspace_choice_replaces_a_persisted_tray_during_replay(
         expect(decisions).to_have_attribute("data-lf-complete", "")
         expect(decisions).to_have_attribute("aria-expanded", "false")
         expect(page.locator(".lf-asks-panel")).to_be_hidden()
-        expect(page.locator(".lf-panel")).to_be_visible()
+        expect(page.locator(".lf-thread-panel")).to_be_visible()
         expect(page.locator("button.lf-asks-row")).to_have_count(0)
         expect(page.locator(".lf-answer-all")).to_be_hidden()
         assert errors == []
@@ -1569,6 +1625,66 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
             page.evaluate("() => getComputedStyle(document.body, '::after').content")
             == "none"
         )
+    finally:
+        page.close()
+
+
+def test_visual_actions_arrive_only_after_authoritative_presentation(browser, serve):
+    """Visual response controls are a presented reading, never startup scaffolding."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    held = []
+    page.add_init_script(VISUAL_ACTION_TIMING)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(serve(CHART_PAGE), wait_until="load")
+        page.wait_for_function(
+            "() => document.querySelectorAll('lf-chart.lf-rendered').length === 5"
+        )
+        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+        expect(page.locator(".lf-visual-actions")).to_have_count(0)
+        assert page.evaluate("() => window.__lfVisualActionInsertions") == []
+
+        assert held, (
+            "the first state read completed before the startup boundary was read"
+        )
+        held.pop(0).continue_()
+        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+        expect(page.locator(".lf-visual-actions")).to_have_count(5)
+        assert all(page.evaluate("() => window.__lfVisualActionInsertions"))
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_failed_anchor_presentation_keeps_visual_actions_withheld(browser, serve):
+    """A malformed visual reading cannot leave durable controls on a partial page."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held = []
+    page.add_init_script(VISUAL_ACTION_TIMING)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(
+            serve(
+                GENERIC_VISUAL_PAGE,
+                layer_registry=GENERIC_VISUAL_LAYER,
+                layer_widgets=GENERIC_VISUAL_WIDGETS,
+            ),
+            wait_until="load",
+        )
+        page.wait_for_function(
+            "() => document.querySelector('lf-test-visual')?.parts?.length === 3"
+        )
+        page.locator("lf-test-visual").evaluate(
+            "visual => { visual.parts[1] = {...visual.parts[0]}; }"
+        )
+        assert held, "the first state read completed before the visual was malformed"
+        held.pop(0).continue_()
+
+        expect(page.locator(".lf-status-text")).to_contain_text("reload", timeout=5000)
+        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+        expect(page.locator(".lf-visual-actions")).to_have_count(0)
+        assert page.evaluate("() => window.__lfVisualActionInsertions") == []
     finally:
         page.close()
 
@@ -1714,10 +1830,11 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     expect(body).to_have_text(corrected)
     # And the user is told, rather than left to notice: their edit is gone, which
     # without a reading looks exactly like a draft they never touched. The draft's
-    # existing controls keep their compact form; Page map states the provenance,
+    # existing controls keep their compact form; Page Map states the provenance,
     # and the target keeps the local quiet word.
     expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
-    page.evaluate("async () => (await import('/runtime/page-map.js')).enterPageMap()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
     rewritten = page.get_by_role(
         "button", name=re.compile(r"^Open rewritten: Rewritten")
     )
@@ -2082,7 +2199,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     )
 
     page.get_by_role("button", name=re.compile("^Threads")).click()
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
     expect(page.locator(".lf-thread")).to_have_count(0)
     page.locator(".lf-general textarea").fill("General comment during startup")
@@ -2188,6 +2305,145 @@ def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
     context.close()
 
 
+def test_floating_ui_loads_only_when_a_reader_opens_a_response(browser, serve):
+    """Pages that receive no response do not pay for its positioning engine."""
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    asked = _asked(context)
+    page, errors = open_page(browser, serve(FEATURE_GALLERY), context=context)
+
+    assert not [path for path in asked if "floating-ui" in path]
+    page.locator("#bg-react-ok").click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    assert [path for path in asked if "floating-ui" in path] == [
+        "/vendor/floating-ui.esm.js"
+    ]
+    assert errors == []
+    context.close()
+
+
+def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
+    """Comment entered from an already-selected passage keeps its focus request while
+    the positioning dependency loads, rather than focusing a still-hidden textarea."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    held = []
+    page.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
+    field = page.locator(".lf-fab-input")
+    try:
+        box = page.locator("#p10").bounding_box()
+        select(
+            page,
+            (box["x"] + 4, box["y"] + 6),
+            (box["x"] + 150, box["y"] + 6),
+        )
+        holding(page, held, 1, "the response placement module")
+        page.keyboard.press("c")
+        expect(field).to_be_hidden()
+        assert page.evaluate("() => document.activeElement === document.body")
+        assert page.evaluate("() => getSelection().toString().length > 0")
+
+        held.pop(0).continue_()
+        page.unroute("**/vendor/floating-ui.esm.js")
+        expect(field).to_be_visible()
+        expect(field).to_be_focused()
+        assert page.evaluate("() => getSelection().toString()") == ""
+        assert errors == []
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        page.close()
+
+
+def test_thread_focus_waits_for_the_lazy_placement_module(browser, serve):
+    """A thread opened while its placement module loads keeps focus on the page."""
+    page, errors = open_page(
+        browser,
+        serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")]),
+        context=browser.new_context(viewport={"width": 600, "height": 844}),
+    )
+    held = []
+    page.route("**/vendor/floating-ui.esm.js", lambda route: held.append(route))
+    preview = page.locator(".lf-margin-preview")
+    thread = preview.locator(".lf-conversation-thread")
+    try:
+        page.keyboard.press("t")
+        holding(page, held, 1, "the thread placement module")
+        expect(preview).to_have_css("opacity", "0")
+        assert not page.evaluate(
+            "card => card.contains(document.activeElement)", preview.element_handle()
+        )
+        page.evaluate(
+            """() => new Promise(resolve => {
+              dispatchEvent(new Event('resize'));
+              requestAnimationFrame(() => requestAnimationFrame(resolve));
+            })"""
+        )
+        expect(preview).to_have_css("opacity", "0")
+
+        held.pop(0).continue_()
+        page.unroute("**/vendor/floating-ui.esm.js")
+        expect(preview).to_have_css("opacity", "1")
+        expect(thread).to_be_focused()
+        assert errors == []
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        page.context.close()
+
+
+def test_an_unavailable_floating_ui_module_withdraws_the_response(browser, serve):
+    """A failed lazy module cannot leave a hidden live composer holding focus."""
+    url = serve(FEATURE_GALLERY)
+    page = browser.new_page(viewport={"width": 1280, "height": 800})
+    errors = watched(page)
+    page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    page.wait_for_function(BOTH_STAMPS)
+
+    with page.expect_event("pageerror") as raised:
+        page.locator("#bg-react-ok").click(modifiers=["Alt"])
+    assert "Failed to fetch dynamically imported module" in str(raised.value)
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    assert any(
+        "Failed to fetch dynamically imported module" in error for error in errors
+    )
+    page.close()
+
+
+def test_an_unavailable_floating_ui_module_withdraws_the_thread_preview(browser, serve):
+    """A failed lazy module cannot leave a hidden thread card holding focus."""
+    url = serve(LONG_PAGE, anchored=[("p1", "Paragraph 1.")])
+    page = browser.new_page(viewport={"width": 600, "height": 844})
+    errors = watched(page)
+    page.route("**/vendor/floating-ui.esm.js", lambda route: route.abort())
+    page.goto(url, wait_until="load")
+    page.wait_for_function(BOTH_STAMPS)
+
+    with page.expect_event("pageerror") as raised:
+        page.keyboard.press("t")
+    assert "Failed to fetch dynamically imported module" in str(raised.value)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    focus = page.evaluate(
+        """() => {
+          const active = document.activeElement;
+          return {
+            tag: active?.tagName,
+            className: active?.className,
+            controls: active?.getAttribute('aria-controls'),
+            visible: active?.checkVisibility?.() ?? false,
+            inside: document.querySelector('.lf-margin-preview').contains(active),
+          };
+        }"""
+    )
+    assert not focus["inside"] and focus["visible"], focus
+    assert any(
+        "Failed to fetch dynamically imported module" in error for error in errors
+    )
+    page.close()
+
+
 def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serve):
     """The other side of the narrowing, on a diff bound as a manifest of collapsed files.
 
@@ -2263,6 +2519,8 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
             str(d),
             "--to",
             "c-store",
+            "--for",
+            "c-store",
             "--text",
             "Depends what you want to keep:",
             "--markup",
@@ -2283,7 +2541,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
 
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
-    options = page.locator(".lf-panel lf-options#store-pick")
+    options = page.locator(".lf-thread-panel lf-options#store-pick")
     expect(options).to_be_visible()
     # Its module's own work, not the markup's: the pick control each option is chosen by.
     expect(options.locator("lf-option [data-lf-offer='checkbox']")).to_have_count(2)
@@ -2734,29 +2992,29 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     )
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
+    expect(page.locator(".lf-command-reference")).to_be_visible()
     expect(
-        page.locator(".lf-shortcut-reference h3", has_text="On a draft")
+        page.locator(".lf-command-reference h3", has_text="On a draft")
     ).to_have_count(1)
     expect(
         page.locator(
-            ".lf-shortcut-reference", has_text="a project widget using the same heading"
+            ".lf-command-reference", has_text="a project widget using the same heading"
         )
     ).to_be_visible()
     expect(
-        page.locator(".lf-shortcut-reference", has_text="Edit the text in place")
+        page.locator(".lf-command-reference", has_text="Edit the text in place")
     ).to_be_visible()
     # Help is a scope: the table stands down behind it, so c must not work the
     # panel under the sheet.
     page.keyboard.press("c")
-    expect(page.locator(".lf-panel")).to_be_hidden()
-    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(".lf-command-reference")).to_be_visible()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
+    expect(page.locator(".lf-command-reference")).to_be_hidden()
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
+    expect(page.locator(".lf-command-reference")).to_be_visible()
     page.mouse.click(300, 600)
-    expect(page.locator(".lf-shortcut-reference")).to_be_hidden()
+    expect(page.locator(".lf-command-reference")).to_be_hidden()
     assert errors == []
     page.close()
 
@@ -2835,6 +3093,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             "kind": "reply",
             "author": "claude",
             "parent": first_comment["id"],
+            "responds": first_comment["id"],
             "text": "Handled before the next turn.",
         },
     )
@@ -2945,7 +3204,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     declare("working", "running the migration", session_pid=dead_pid)
     expect(text).to_have_text(UNHELD)
     # Grey, not the amber a session falling behind wears: nobody is on the line, which
-    # is a page's arrangement rather than something for the user to chase.
+    # is a page's reading arrangement rather than something for the user to chase.
     expect(dot).to_have_class(re.compile(r"^lf-dot\s*$"))
 
     # Nothing ever claimed the page — a server started outside an agent host. There is
@@ -3031,7 +3290,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     comments = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     held, other = comments[0]["id"], comments[1]["id"]
     page.keyboard.press("c")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     receipts = page.locator(".lf-receipt")
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
     other_thread = page.locator(f'.lf-thread[data-id="{other}"]')
@@ -3070,14 +3329,17 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         session_model.record_pickup(transaction, [comments[0]])
     told(page)
     expect(held_receipt).to_contain_text("✓ Picked up")
-    expect(held_thread).to_have_attribute("data-lf-agent-stage", "picked-up")
+    expect(held_thread).to_have_attribute("data-lf-agent-phase", "picked_up")
+    expect(other_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    assert token_colour(page, "--accent") in held_thread.evaluate(
+        "node => getComputedStyle(node).boxShadow"
+    )
     expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
     expect(other_receipt).to_contain_text("✓ Sent")
     expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
         "Handling updates · 1 update waiting"
     )
-    expect(other_thread).not_to_have_attribute("data-lf-agent-stage", re.compile(".+"))
 
     latent_waiting = CliRunner().invoke(
         cli_model.cli, ["status", str(d), "waiting", "review the answer"]
@@ -3091,6 +3353,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         transaction.close_turn("s")
     told(page)
     expect(held_receipt).to_contain_text("○ Picked up · turn ended")
+    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(page.locator(".lf-status-text")).to_have_text(
         "Claude picked up 1 update, but that turn ended. 2 updates are saved."
     )
@@ -3104,7 +3368,11 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         told(page)
 
     status("working", "reading the reconnect traces", "--on", held)
-    expect(held_thread).to_have_attribute("data-lf-agent-stage", "working")
+    expect(held_thread).to_have_attribute("data-lf-agent-phase", "active")
+    expect(other_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    assert token_colour(page, "--ok-ink") in held_thread.evaluate(
+        "node => getComputedStyle(node).boxShadow"
+    )
     # One line, on the thread it names: a mark that stood on every open thread would
     # say only that the agent is busy, which the banner above already says.
     expect(receipts).to_have_count(2)
@@ -3113,9 +3381,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_receipt).to_have_count(1)
     expect(other_receipt).to_have_count(1)
     expect(other_receipt).to_contain_text("✓ Sent")
-    assert held_receipt.locator(".lf-receipt-state").evaluate(
-        "node => getComputedStyle(node).color"
-    ) == token_colour(page, "--ok-ink")
     # The move's state is metadata on the exact outgoing message, closing that row
     # rather than taking a full-width row of its own. Resolve settles the thread, not
     # the message, so it stands in the thread's corner and the row ends here.
@@ -3141,6 +3406,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
             "kind": "reply",
             "author": "claude",
             "parent": held,
+            "responds": held,
             "revision": 1,
             "text": "The traces say it is the vendor's timer, not ours.",
         },
@@ -3151,7 +3417,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     expect(held_receipt).to_have_count(0)
     expect(receipts).to_have_count(1)
-    expect(held_thread).not_to_have_attribute("data-lf-agent-stage", re.compile(".+"))
+
+    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
     # And a claim the agent renews after answering stands again: its line is on the thread
     # a second time, which is a fact about now rather than about what was said. With no
@@ -3161,7 +3429,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_receipt).to_have_count(0)
     expect(claim_receipt).to_contain_text("re-running it against the rolling deploy")
     expect(receipts).to_have_count(2)
-    expect(held_thread).to_have_attribute("data-lf-agent-stage", "working")
 
     # A conversation the reader has closed asks nothing and shows nothing, for the same
     # reason its reply box is gone.
@@ -3191,9 +3458,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     page.close()
 
 
-def test_feature_gallery_receipt_and_top_bar_share_agent_activity(browser, serve):
+def test_feature_gallery_receipt_and_banner_share_agent_activity(browser, serve):
     """The gallery's injected-chrome case exercises the external state it cannot
-    author: exact delivery into a turn drives both the receipt and top bar, and a
+    author: exact delivery into a turn drives both the receipt and banner, and a
     later waiting declaration cannot split them."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     page_dir = serve.page_dir
@@ -3203,7 +3470,7 @@ def test_feature_gallery_receipt_and_top_bar_share_agent_activity(browser, serve
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": "Does the top bar agree with this receipt?",
+            "text": "Does the banner agree with this receipt?",
         },
     )
     record_claim(page_dir, id="gallery", pid=os.getpid(), agent="Claude")
@@ -3353,10 +3620,10 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     d = serve.page_dir
     held = next(e for e in events_model.read_events(d) if e["kind"] == "comment")["id"]
     page.keyboard.press("c")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
     work_line = page.locator(".lf-receipt")
     work_button = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
-    work_label = work_button.locator(".lf-margin-element-label")
+    held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
 
     def claim(claim_ts, session="s"):
         """A page claim made now, carrying local work last renewed whenever."""
@@ -3391,11 +3658,8 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(work_line).to_have_count(1)
     expect(work_line).not_to_contain_text("quiet")
     expect(work_button).to_have_count(1)
-    expect(work_button).to_have_attribute("data-lf-tone", "positive")
-    work_button.hover()
-    expect(work_label).to_contain_text(
-        "Claude is working in this thread — reading the reconnect traces"
-    )
+    expect(held_thread).to_have_attribute("data-lf-agent-phase", "active")
+    expect(work_button).to_have_attribute("data-lf-agent-phase", "active")
 
     quiet_ts = (datetime.now().astimezone() - timedelta(minutes=40)).isoformat(
         timespec="seconds"
@@ -3408,12 +3672,11 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     )
     expect(work_line).to_contain_text("quiet")
     expect(work_line.locator("time")).to_have_count(0)
-    expect(work_button).to_have_attribute("data-lf-tone", "neutral")
-    expect(page.locator(f'.lf-thread[data-id="{held}"]')).not_to_have_attribute(
-        "data-lf-agent-stage", re.compile(".+")
-    )
-    expect(work_label).to_contain_text(
-        "Claude's work in this thread is quiet — reading the reconnect traces"
+    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    expect(work_button).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
+    expect(work_line.locator(".lf-receipt-state")).to_have_css(
+        "color", token_colour(page, "--muted")
     )
 
     # The other question the banner asks, asked here too: a claim left behind by a turn
@@ -3437,10 +3700,11 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     )
     expect(work_line).to_contain_text("quiet")
     expect(work_line.locator("time")).to_have_count(0)
-    expect(work_button).to_have_attribute("data-lf-tone", "neutral")
     assert work_line.locator(".lf-receipt-state").evaluate(
         "node => getComputedStyle(node).color"
     ) == token_colour(page, "--warn-ink")
+
+    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
 
     # Turn closure belongs to one exact session. An orchestrator ending its turn is
     # no evidence that a delegate abandoned a different update.
@@ -3459,7 +3723,8 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     )
     expect(work_line).not_to_contain_text("quiet")
     expect(work_line.locator("time")).to_have_count(0)
-    expect(work_button).to_have_attribute("data-lf-tone", "positive")
+    expect(held_thread).to_have_attribute("data-lf-agent-phase", "active")
+    expect(work_button).to_have_attribute("data-lf-agent-phase", "active")
 
     # And it goes when the claim is kept again, so the word tracks the claim rather
     # than latching on the first time it is late.
@@ -3467,7 +3732,27 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     claim(events_model.now_iso())
     expect(work_line).not_to_contain_text("quiet")
     expect(work_line).to_have_count(1)
-    expect(work_button).to_have_attribute("data-lf-tone", "positive")
+    expect(held_thread).to_have_attribute("data-lf-agent-phase", "active")
+    expect(work_button).to_have_attribute("data-lf-agent-phase", "active")
+    # The same ownership reading follows the conversation into its inline card.
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page, open=False)
+    work_button.click()
+    inline = page.locator(
+        f'.lf-margin-preview .lf-conversation-thread[data-thread="{held}"]'
+    )
+    expect(inline).to_be_visible()
+    expect(inline).to_have_attribute("data-lf-agent-phase", "active")
+    assert token_colour(page, "--ok-ink") in inline.evaluate(
+        "node => getComputedStyle(node).boxShadow"
+    )
+    claim(quiet_ts)
+    expect(inline.locator(".lf-receipt")).to_contain_text("quiet")
+    expect(inline).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
+    expect(inline.locator(".lf-receipt-state")).to_have_css(
+        "color", token_colour(page, "--muted")
+    )
     assert errors == []
     page.close()
 
@@ -3669,7 +3954,7 @@ def test_a_failed_thread_surface_returns_its_threads_to_core_fallback(
         "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-upgrade": True,
         "x-thread-surface": True,
         "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
@@ -3816,9 +4101,9 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     assert not [event for event in sent_events(serve.page_dir) if event.get("token")]
     page.keyboard.press("Escape")
     # A retired thread lands on the surface the reader's own gesture reaches. With the
-    # widget still on the page its passages keep a page-local address, so the margin's
-    # thread margin element and each passage's comment count open the fallback card and Threads
-    # stays shut; a disconnected widget leaves no such address and the panel answers.
+    # widget still on the page its passages keep a page-local destination, so the margin's
+    # thread margin entry and each passage's comment count open the fallback card and Threads
+    # stays shut; a disconnected widget leaves no such destination and the panel answers.
     if failure == "disconnect":
         expect(markers).to_have_count(0)
         page.get_by_role("button", name=re.compile(r"^Threads")).click()
@@ -3827,7 +4112,9 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         expect(markers).to_have_count(1)
         markers.first.click()
         expect(page.locator(".lf-margin-preview")).to_be_visible()
-        expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+        expect(page.locator(".lf-thread-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
+        )
         page.keyboard.press("Escape")
         broken.locator(".lf-mark-note").first.click()
         fallback = page.locator(
@@ -3915,7 +4202,7 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
         "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-upgrade": True,
         "x-example": '<lf-derived id="derived-example"></lf-derived>',
     }
@@ -4025,7 +4312,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
         "captured source",
         """
 <h1 id="title">Leaf skill</h1>
-<lf-source id="skill-source" source="leaf-skill" language="markdown"></lf-source>
+<lf-text-document id="skill-source" source="leaf-skill" language="markdown"></lf-text-document>
 <p id="latency-line">Import latency: <lf-num source="import-latency" at="2026-08-29T12:00:00Z">10 ms</lf-num>.</p>
 """,
     )
@@ -4038,7 +4325,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     )
 
     page, errors = open_page(browser, url)
-    expect(page.locator("lf-source figcaption")).to_have_text(
+    expect(page.locator("lf-text-document figcaption")).to_have_text(
         f"{long_label} · lines 1–3"
     )
     origin = {
@@ -4050,17 +4337,19 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
     }
     datum = page.locator('[data-lf-datum="document"]')
     assert datum.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == origin
-    expect(page.locator("lf-source code")).to_have_text(
+    expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )
     page.set_viewport_size({"width": 320, "height": 720})
-    assert page.locator("lf-source figcaption").evaluate(
+    assert page.locator("lf-text-document figcaption").evaluate(
         "node => node.scrollWidth <= node.clientWidth"
     )
     page.set_viewport_size({"width": 1280, "height": 720})
 
     data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Current instructions.\n")
-    expect(page.locator("lf-source code")).to_have_text("Current instructions.\n")
+    expect(page.locator("lf-text-document code")).to_have_text(
+        "Current instructions.\n"
+    )
     assert datum.evaluate("node => JSON.parse(node.dataset.lfOrigin)") == {
         **origin,
         "revision": 2,
@@ -4076,18 +4365,20 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
         "froze the reviewed source",
     )
     wait_for_revision(page, 2)
-    expect(page.locator("lf-source figcaption")).to_have_text(
+    expect(page.locator("lf-text-document figcaption")).to_have_text(
         f"{long_label} · lines 1–3 · snapshot 1"
     )
-    expect(page.locator("lf-source code")).to_have_text(
+    expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )
     compare_with(page, 1)
-    expect(page.locator("lf-source")).to_have_class(re.compile(r"\blf-ins-block\b"))
+    expect(page.locator("lf-text-document")).to_have_class(
+        re.compile(r"\blf-ins-block\b")
+    )
     expect(page.locator("#latency-line")).to_have_class(re.compile(r"\blf-ins-block\b"))
     compare_with(page, 1)
 
-    bounds = page.locator("lf-source code").evaluate(
+    bounds = page.locator("lf-text-document code").evaluate(
         """code => {
           const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
           let node;
@@ -4117,7 +4408,7 @@ def test_a_captured_source_stays_pointable_and_frozen_in_an_export(
 
     data_model.cmd_data_set(serve.page_dir, "leaf-skill", "Changed again.\n")
     told(page)
-    expect(page.locator("lf-source code")).to_have_text(
+    expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )
 
@@ -4250,6 +4541,7 @@ def test_conversation_timestamps_age_without_new_state(browser, serve):
             "kind": "reply",
             "author": "claude",
             "parent": comment["id"],
+            "responds": comment["id"],
             "text": "settled for this clock-only test",
         },
     )
@@ -4408,8 +4700,8 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
     authored = leaf_page(
         "source provenance",
         '<h1 id="title">Source</h1>'
-        '<lf-source id="live" source="document" language="python"></lf-source>'
-        '<lf-source id="frozen" source="document" language="python"></lf-source>',
+        '<lf-text-document id="live" source="document" language="python"></lf-text-document>'
+        '<lf-text-document id="frozen" source="document" language="python"></lf-text-document>',
     )
     url = live_url(serve(authored))
     data_model.cmd_data_set(
@@ -4764,3 +5056,34 @@ def test_data_notification_waits_for_a_version_activation(browser, serve):
     expect(page.locator("#lede")).to_have_text("Live status follows now.")
     assert errors == []
     page.close()
+
+
+def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser, serve):
+    """Importing capabilities does not start a half-constructed browser application."""
+    url = serve(SUGGESTION_PAGE)
+    boot = (serve.page_dir / "leaf.js").read_text()
+    context = browser.new_context()
+    context.route(
+        "**/leaf.js",
+        lambda route: route.fulfill(
+            content_type="text/javascript",
+            body="await import('/runtime/widget-api.js');\n"
+            "window.apiImportedBeforeBoot = true;\n"
+            "await import('/leaf-boot.js');",
+        ),
+    )
+
+    def boot_after_one_frame(route):
+        # Import side effects have a real frame in which to escape before boot owns
+        # presentation; this is controlled ordering rather than a network-speed race.
+        context.pages[0].evaluate("() => new Promise(requestAnimationFrame)")
+        route.fulfill(content_type="text/javascript", body=boot)
+
+    context.route("**/leaf-boot.js", boot_after_one_frame)
+    page, errors = open_page(browser, url, context=context)
+    assert page.evaluate("window.apiImportedBeforeBoot") is True
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    assert errors == []
+    context.close()

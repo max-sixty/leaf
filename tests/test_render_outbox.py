@@ -428,7 +428,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     sent = _traffic(page).sends
     page.keyboard.press("z")
     assert _traffic(page).sends == sent
-    # The local margin element shares the keyboard's guard; it cannot post around an
+    # The local margin entry shares the keyboard's guard; it cannot post around an
     # accepted event whose authoritative state is still incomplete.
     first_item = page.locator('[data-lf-margin-for="sug-refill"]')
     first_item.get_by_role("button", name=re.compile(r"^Undo accepting")).click()
@@ -454,7 +454,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     lifted = True
     told(page)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
-    page.locator("[data-lf-for='sug-in-card']").get_by_role(
+    page.locator("[data-lf-margin-for='sug-in-card']").get_by_role(
         "button", name="Retry", exact=True
     ).click()
     round_trip(page)
@@ -884,10 +884,10 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-outer-board", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    outer = entries["lf-outer-board"]
+    declarations = json.loads(registry_path.read_text())
+    outer = declarations["lf-outer-board"]
     outer["properties"]["restated"] = {"type": "boolean"}
-    outer["x-content"] = "items"
+    outer["x-content"] = "members"
     outer["x-example"] = (
         '<lf-outer-board id="x-outer"><lf-column id="x-col" label="Todo">'
         '<lf-card id="x-card"><strong>Card</strong></lf-card></lf-column>'
@@ -916,9 +916,9 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
         }
     }
     standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
-    entries["lf-column"] = standard["lf-column"]
-    entries["lf-column"]["x-parent"].append("lf-outer-board")
-    registry_path.write_text(json.dumps(entries))
+    declarations["lf-column"] = standard["lf-column"]
+    declarations["lf-column"]["x-owners"].append("lf-outer-board")
+    registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
         """import { once } from "/runtime/widget-api.js";
 customElements.define("lf-outer-board", class extends HTMLElement {
@@ -2115,7 +2115,7 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
 def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     browser, serve
 ):
-    """Opening the thread workspace stands the compact field down, so its old absolute
+    """Opening the thread panel stands the compact field down, so its old absolute
     position cannot create sideways overflow after the page narrows. The words remain
     the passage's draft and return when the reader selects that passage again."""
     page, errors = open_page(browser, serve(LONG_PAGE))
@@ -2128,7 +2128,7 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     page.locator(".lf-composer textarea").fill("held open across the panel opening")
-    # A press on the banner's own button gives the workspace the screen and focus.
+    # A press on the banner's own button gives the Thread panel the screen and focus.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -2260,4 +2260,454 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     assert _traffic(page).sends == sent, "the drop that moved nothing sent a move"
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     assert errors == []
+    page.close()
+
+
+def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
+    browser, serve
+):
+    """A preparation await does not freeze the set of unresolved reader gestures."""
+    url = _serve_preparing_thread(serve)
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.route("**/api/state*", refuse)
+    preparations = []
+    page.route("**/preparation-content", lambda route: preparations.append(route))
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "question",
+            "author": "user",
+            "revision": 1,
+            "text": "Please add the supporting detail.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "revision": 1,
+            "parent": "question",
+            "text": "Here is the detail.",
+            "markup": '<lf-preparation id="detail"><p>Supporting detail</p></lf-preparation>',
+        },
+    )
+    # Only the first accepted answer may reach application until its preparation finishes.
+    # Later gestures can enter delivery, but none can repair a stale candidate for us.
+    first_reading = []
+    later_posts = []
+
+    def first_answer_only(route):
+        event = route.request.post_data_json
+        if not event.get("attempt"):
+            route.continue_()
+        elif not first_reading:
+            response = route.fetch()
+            answer = response.json()
+            first_reading.append(answer["state"]["reading"])
+            route.fulfill(response=response, json=answer)
+        else:
+            later_posts.append(route)
+
+    page.route("**/api/event", first_answer_only)
+    with page.expect_request("**/preparation-content"):
+        page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    assert page.locator("#detail").get_attribute("data-ready") is None
+    assert len(preparations) == 1
+
+    page.locator("[data-lf-for='sug-thistle'] .lf-sug-accept").click()
+    expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
+    page.locator(".lf-general textarea").fill("Keep this newer comment visible.")
+    page.locator(".lf-general textarea").press("ControlOrMeta+Enter")
+    message = page.locator(".lf-threads .lf-msg-body").filter(
+        has_text="Keep this newer comment visible."
+    )
+    expect(message).to_have_count(1)
+
+    preparations[0].fulfill(status=204)
+    page.wait_for_function(
+        "reading => document.body.dataset.lfReading === reading", arg=first_reading[0]
+    )
+    # The only applied answer predates both gestures. Their immediate state must stand
+    # throughout that commit, with no second answer available to repaint it afterward.
+    expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
+    expect(message).to_have_count(1)
+    expect(page.locator("#detail")).to_have_attribute("data-ready", "yes")
+
+    page.unroute("**/api/event", first_answer_only)
+    for route in later_posts:
+        route.continue_()
+    round_trip(page)
+    assert errors == []
+    page.close()
+
+
+def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
+    return serve(
+        page,
+        layer_registry={
+            "lf-preparation": {
+                "description": "A reply whose presentation waits for its content.",
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+                "required": ["id"],
+                "additionalProperties": False,
+                "x-content": "markup",
+                "x-upgrade": True,
+                "x-example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
+            }
+        },
+        layer_widgets={
+            "lf-preparation.js": """
+import {once, settle} from '/runtime/widget-api.js';
+customElements.define('lf-preparation', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    settle(fetch('/preparation-content').then(() => {
+      this.dataset.ready = 'yes';
+    }));
+  }
+});
+"""
+        },
+    )
+
+
+def test_a_failed_candidate_restores_the_prior_version_approval(browser, serve):
+    """Approval chrome follows the complete state boundary when application rolls back."""
+    signoff_page = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title><meta name="lf-review" content="sign-off">',
+    )
+    page, errors = open_page(browser, _serve_preparing_thread(serve, signoff_page))
+    approval = page.locator(".lf-signoff")
+    expect(approval).to_have_text("Approve version")
+    before = page.locator("body").get_attribute("data-lf-reading")
+    held_states = []
+    page.route("**/api/state*", lambda route: held_states.append(route))
+    preparations = []
+    page.route("**/preparation-content", lambda route: preparations.append(route))
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "approval-question",
+            "author": "user",
+            "revision": 1,
+            "text": "Please add the supporting detail.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "revision": 1,
+            "parent": "approval-question",
+            "text": "Here is the detail.",
+            "markup": '<lf-preparation id="approval-detail"><p>Detail</p></lf-preparation>',
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "done",
+            "author": "user",
+            "revision": 1,
+            "version": 1,
+            "text": "Looks good",
+        },
+    )
+    holding(page, held_states, 1, "candidate approval read")
+    candidate = held_states[0].fetch().json()
+    with page.expect_request("**/preparation-content"):
+        held_states.pop(0).fulfill(json=candidate)
+    holding(page, preparations, 1, "approval thread preparation")
+    expect(approval).to_have_text("✓ Version approved")
+
+    page.evaluate(
+        """reading => {
+      const body = document.body;
+      const setAttribute = body.setAttribute;
+      body.setAttribute = function(name, value) {
+        if (name === 'data-lf-reading' && value === reading) {
+          body.setAttribute = setAttribute;
+          throw new Error('injected approval commit fault');
+        }
+        return setAttribute.call(this, name, value);
+      };
+    }""",
+        candidate["reading"],
+    )
+    with page.expect_console_message(
+        lambda message: "injected approval commit fault" in message.text
+    ):
+        preparations.pop(0).fulfill(status=204)
+
+    expect(page.locator("body")).to_have_attribute("data-lf-reading", before)
+    expect(approval).to_have_text("Approve version")
+    expect(approval).to_be_enabled()
+
+    page.unroute("**/api/state*")
+    for route in held_states:
+        route.continue_()
+    nudge(serve.page_dir)
+    expect(approval).to_have_text("✓ Version approved")
+    assert errors == ["leaf: read failed: injected approval commit fault"]
+    page.close()
+
+
+def test_undo_waits_for_the_candidate_view_to_commit_or_roll_back(browser, serve):
+    """A candidate can paint while preparing without becoming undo's authority."""
+    url = _serve_preparing_thread(serve)
+    page, errors = open_page(browser, url)
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+    before = page.locator("body").get_attribute("data-lf-reading")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    held_states = []
+    page.route("**/api/state*", lambda route: held_states.append(route))
+    preparations = []
+    page.route("**/preparation-content", lambda route: preparations.append(route))
+    posts = []
+
+    def record_post(route):
+        posts.append(route.request.post_data_json)
+        route.continue_()
+
+    page.route("**/api/event", record_post)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "question",
+            "author": "user",
+            "revision": 1,
+            "text": "Please add the supporting detail.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "revision": 1,
+            "parent": "question",
+            "text": "Here is the detail.",
+            "markup": '<lf-preparation id="detail"><p>Supporting detail</p></lf-preparation>',
+        },
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "sug-thistle",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    holding(page, held_states, 1, "candidate read")
+    candidate = held_states[0].fetch().json()
+    assert (
+        candidate["browser"]["views"]["1"]["undo"][0]["event"]["widget"]
+        == "sug-thistle"
+    )
+    with page.expect_request("**/preparation-content"):
+        held_states.pop(0).fulfill(json=candidate)
+    holding(page, preparations, 1, "thread preparation")
+    page.keyboard.press("Escape")
+    page.keyboard.press("z")
+    page.title()
+    assert not [event for event in posts if event.get("kind") == "undo"]
+
+    # Fail the completed candidate's readiness stamp once. This is a required DOM
+    # write after the preparation await, so it exercises actual rollback rather than
+    # the intentionally contained error state of one widget's renderState method.
+    page.evaluate(
+        """reading => {
+      const body = document.body;
+      const setAttribute = body.setAttribute;
+      body.setAttribute = function(name, value) {
+        if (name === 'data-lf-reading' && value === reading) {
+          body.setAttribute = setAttribute;
+          throw new Error('injected candidate commit fault');
+        }
+        return setAttribute.call(this, name, value);
+      };
+    }""",
+        candidate["reading"],
+    )
+    with page.expect_console_message(
+        lambda message: "injected candidate commit fault" in message.text
+    ):
+        preparations[0].fulfill(status=204)
+    expect(page.locator("body")).to_have_attribute("data-lf-reading", before)
+    expect(
+        page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
+    ).to_be_visible()
+    expect(page.locator("#sug-thistle")).not_to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    assert not [event for event in posts if event.get("kind") == "undo"]
+
+    page.unroute("**/api/state*")
+    for route in held_states:
+        route.continue_()
+    nudge(serve.page_dir)
+    expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    undo(page)
+    expect(page.locator("#sug-thistle")).not_to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    assert len([event for event in posts if event.get("kind") == "undo"]) == 1
+    assert errors == ["leaf: read failed: injected candidate commit fault"]
+    page.close()
+
+
+def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
+    browser, serve
+):
+    """A local optimistic paint fault cannot turn an accepted send into a refusal."""
+    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page.route("**/api/state*", refuse)
+    page.evaluate(
+        """() => {
+          const body = document.body;
+          const setAttribute = body.setAttribute;
+          body.setAttribute = function(name, value) {
+            if (name === 'data-lf-applied') {
+              body.setAttribute = setAttribute;
+              throw new Error('injected optimistic presentation fault');
+            }
+            return setAttribute.call(this, name, value);
+          };
+        }"""
+    )
+
+    with page.expect_request(
+        lambda request: (
+            "/api/event" in request.url
+            and request.post_data_json.get("kind") == "action"
+            and request.post_data_json.get("widget") == "sug-refill"
+        ),
+        timeout=2_000,
+    ):
+        page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    round_trip(page)
+
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    undo = page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
+    expect(undo).to_have_attribute("aria-disabled", "false")
+    assert [event["action"] for event in actions(serve.page_dir)] == ["accept"]
+    expected = [
+        error
+        for error in errors
+        if "leaf: optimistic presentation" in error
+        and "injected optimistic presentation fault" in error
+    ]
+    assert len(expected) == 1, errors
+    assert errors == expected
+    page.close()
+
+
+def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, serve):
+    """A deferred accepted action remains in the ledger while a later candidate waits.
+
+    Ending the deferral and emitting the package wake during that wait may project only
+    after the candidate commits or rolls back. Otherwise its candidate coordinate looks
+    committed, releases the action, and leaves rollback without the entry that held the
+    last complete projection coherent.
+    """
+    page, errors = open_page(browser, _serve_preparing_thread(serve))
+    prior_reading = page.locator("body").get_attribute("data-lf-reading")
+    page.evaluate("() => document.body.classList.add('lf-dragging')")
+    with page.expect_response("**/api/event"):
+        page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    page.wait_for_function(
+        "reading => document.body.dataset.lfReading !== reading", arg=prior_reading
+    )
+    accepted_reading = page.locator("body").get_attribute("data-lf-reading")
+    assert page.evaluate(
+        "async () => (await import('/runtime/application.js')).hasPending()"
+    ), "the deferred accepted action left before its coordinate committed"
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    held_states = []
+    page.route("**/api/state*", lambda route: held_states.append(route))
+    preparations = []
+    page.route("**/preparation-content", lambda route: preparations.append(route))
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "wake-question",
+            "author": "user",
+            "revision": 1,
+            "text": "Please show the deferred projection race.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "revision": 1,
+            "parent": "wake-question",
+            "text": "This candidate still has a fallible preparation.",
+            "markup": '<lf-preparation id="wake-detail"><p>Detail</p></lf-preparation>',
+        },
+    )
+    holding(page, held_states, 1, "candidate wake read")
+    candidate = held_states[0].fetch().json()
+    with page.expect_request("**/preparation-content"):
+        held_states.pop(0).fulfill(json=candidate)
+    holding(page, preparations, 1, "candidate wake preparation")
+
+    page.evaluate(
+        """() => {
+          document.body.classList.remove('lf-dragging');
+          document.dispatchEvent(new Event('lf-projection'));
+        }"""
+    )
+    page.title()  # cross the observer and state-feed microtask checkpoints
+    assert page.evaluate(
+        "async () => (await import('/runtime/application.js')).hasPending()"
+    ), "an external wake released pending state from the uncommitted candidate"
+    expect(page.locator("body")).to_have_attribute("data-lf-reading", accepted_reading)
+
+    page.evaluate(
+        """reading => {
+          const body = document.body;
+          const setAttribute = body.setAttribute;
+          body.setAttribute = function(name, value) {
+            if (name === 'data-lf-reading' && value === reading) {
+              body.setAttribute = setAttribute;
+              throw new Error('injected wake candidate fault');
+            }
+            return setAttribute.call(this, name, value);
+          };
+        }""",
+        candidate["reading"],
+    )
+    with page.expect_console_message(
+        lambda message: "injected wake candidate fault" in message.text
+    ):
+        preparations.pop(0).fulfill(status=204)
+
+    expect(page.locator("body")).to_have_attribute("data-lf-reading", accepted_reading)
+    page.wait_for_function(
+        "async () => !(await import('/runtime/application.js')).hasPending()",
+        timeout=1_000,
+    )
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    assert errors == ["leaf: read failed: injected wake candidate fault"]
     page.close()

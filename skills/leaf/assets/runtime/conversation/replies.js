@@ -5,7 +5,6 @@
    send preserves the panel's narrowing, and focuses the reply box only when no later
    selection, edit, or typing gesture stands. A general-comment send keeps focus in its
    originating box. */
-import { heldConversation, revealConversation } from "./landing.js";
 import {
   loadDraft,
   mirrorDraft,
@@ -13,10 +12,7 @@ import {
   sendMessage,
   tellDraft,
 } from "../drafts.js";
-import { post } from "../outbox.js";
 import { threadKey } from "./model.js";
-import { runtime } from "../context.js";
-import { wireInput } from "../composing/input.js";
 import { focused } from "../keyboard/scopes.js";
 import { landTyping, mayLandTyping } from "../composing/capture.js";
 
@@ -26,19 +22,28 @@ const REPLY_DRAFT_CONTEXT = Symbol("reply draft context");
 // gesture that sends it. A second view pressing Send afterwards reads the generation as
 // spent and refuses on its own — in this tab and in any other showing the page, which is
 // further than a hold kept in this document's memory reached.
-const sendReply = (t, liveId, text, owns) =>
+const sendReply = (t, liveId, text, owns, createReply) =>
   sendMessage("reply:" + threadKey(t), owns, (attempt) =>
-    post({
-      kind: "reply",
+    createReply({
       parent: liveId(),
-      revision: runtime.currentRevision,
       text,
       attempt,
     }),
   );
 
 // One reply draft, send, and typing continuation across every view of a thread.
-export function wireReply(t, input, send, liveId = () => t.root.id) {
+export function wireReply(
+  t,
+  input,
+  send,
+  {
+    liveId = () => t.root.id,
+    createReply,
+    revealReplyEditor,
+    wireInput,
+    onDraftLoaded = null,
+  },
+) {
   const draftCtx = "reply:" + threadKey(t);
   input[REPLY_DRAFT_CONTEXT] = draftCtx;
   input.value = loadDraft(draftCtx) ?? "";
@@ -59,14 +64,15 @@ export function wireReply(t, input, send, liveId = () => t.root.id) {
     // reading, taken now, rather than a race against a scroll or a blur arriving during
     // a flight this no longer waits on.
     send: (_text, raw, owns) => {
-      const sent = sendReply(t, liveId, raw, owns);
+      const sent = sendReply(t, liveId, raw, owns, createReply);
       if (!sent || (focused() !== input && focused() !== send) || !mayLandTyping(input))
         return;
       landTyping(input);
-      revealConversation(heldConversation(), input);
+      revealReplyEditor(input);
     },
   });
   sync();
+  onDraftLoaded?.(sync.value());
   // A box growing under the reader pushes its embedded Send below the list's foot:
   // eight lines of reply left the blue button a sliver at the scrollport's edge,
   // reachable only by the send key the placeholder happened to name. Landing reveals
@@ -78,9 +84,18 @@ export function wireReply(t, input, send, liveId = () => t.root.id) {
   input.addEventListener("input", () => {
     if (focused() !== input) return;
     const held = input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation");
-    if (held) revealConversation(held, input, "instant");
+    if (held) revealReplyEditor(input, "instant");
   });
-  mirrorDraft(input, sync, draftCtx);
+  mirrorDraft(
+    input,
+    {
+      load: (value) => {
+        sync.load(value);
+        onDraftLoaded?.(sync.value());
+      },
+    },
+    draftCtx,
+  );
   return sync;
 }
 

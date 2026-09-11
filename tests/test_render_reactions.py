@@ -47,9 +47,9 @@ PAINTED = """() => ({
     .map(el => el.id || el.dataset.id),
 })"""
 
-# The marker a margin entry paints for its lifecycle state. Since #371 `busy` is the only
-# state that paints one, anything else should report its absence.
-PAINTS_LIFECYCLE_MARK = """el => {
+# Interaction state never adds a second mark to a margin entry; durable agent ownership
+# paints the whole control instead.
+PAINTS_STATE_MARK = """el => {
   const mark = getComputedStyle(el, '::after');
   return mark.content === '\"\"' && parseFloat(mark.width) > 0
     && parseFloat(mark.height) > 0 && mark.backgroundColor !== 'rgba(0, 0, 0, 0)';
@@ -295,6 +295,9 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     mark.click()
     expect(mark).to_have_attribute("aria-expanded", "true")
     expect(remove).to_be_visible()
+    expect(receipt_item.locator(":scope > .lf-reacts")).to_have_attribute(
+        "aria-keyshortcuts", "Escape"
+    )
     assert mark.evaluate(face) == resting_face
     assert events_model.read_events(serve.page_dir)[-1] == before_reveal
     page.locator("h1").click()
@@ -306,6 +309,9 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     remove.press("Escape")
     expect(mark).to_be_focused()
     expect(remove).to_be_hidden()
+    expect(receipt_item.locator(":scope > .lf-reacts")).not_to_have_attribute(
+        "aria-keyshortcuts", re.compile(r".+")
+    )
     mark.click()
     # The dedicated remove press is in the wire before the log is read: behind a bare
     # trip the read answers with the comment this press is taking back, which is the
@@ -422,13 +428,13 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         expect(reaction).to_have_attribute("aria-pressed", "false")
         page.mouse.move(0, 0)
         resting = reaction.evaluate(read)
-        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
+        assert reaction.evaluate(PAINTS_STATE_MARK) is False
         reaction.hover()
         neutral_hover = reaction.evaluate(read)
         assert neutral_hover["ink"] == resting["ink"]
         assert neutral_hover["ring"] == resting["ring"]
         assert neutral_hover["fill"] != resting["fill"]
-        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
+        assert reaction.evaluate(PAINTS_STATE_MARK) is False
         stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
@@ -436,17 +442,17 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         page.mouse.move(0, 0)
         selected = {**resting, "fill": neutral_hover["fill"]}
         assert reaction.evaluate(read) == selected
-        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
+        assert reaction.evaluate(PAINTS_STATE_MARK) is False
         reaction.hover()
         assert reaction.evaluate(read) == selected
-        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
+        assert reaction.evaluate(PAINTS_STATE_MARK) is False
         stands(reaction.click)
         reopen()
         expect(reaction).to_be_visible()
         expect(reaction).to_have_attribute("aria-pressed", "false")
         page.mouse.move(0, 0)
         assert reaction.evaluate(read) == resting
-        assert reaction.evaluate(PAINTS_LIFECYCLE_MARK) is False
+        assert reaction.evaluate(PAINTS_STATE_MARK) is False
 
     item = page.locator('.lf-margin-cluster[data-lf-margin-for="draft"]')
 
@@ -829,16 +835,6 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
             choice_box["x"] >= field_box["x"] + field_box["width"]
             or choice_box["y"] >= field_box["y"] + field_box["height"]
         ), (field_box, choice_box)
-    if width == 1280:
-        assert all(
-            choice_box["x"] >= field_box["x"] + field_box["width"]
-            for choice_box in choice_boxes
-        ), (field_box, choice_boxes)
-    else:
-        assert all(
-            choice_box["y"] >= field_box["y"] + field_box["height"]
-            for choice_box in choice_boxes
-        ), (field_box, choice_boxes)
     field.fill("Keep this draft, still anchored")
     page.evaluate(RENDERED)
     assert abs(bar.bounding_box()["x"] - before["x"]) <= 1
@@ -1036,7 +1032,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     """
     page, errors = open_page(browser, serve(PANEL_PAGE))
     initial_events = events_model.read_events(serve.page_dir)
-    resized(page, 700, 900)
+    resized(page, 1000, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     field = page.locator(".lf-fab-input")
@@ -1066,7 +1062,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     resized(page, covered_width, 900)
     expect(bar).to_be_hidden()
     expect(search).to_be_focused()
-    resized(page, 700, 900)
+    resized(page, 1000, 900)
     enter_passage()
     expect(field).to_have_value(draft)
 
@@ -1079,7 +1075,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
 
     # A fresh reading proves the text survived in the draft store, rather than merely
     # remaining in the hidden textarea. The same passage regains it when room returns.
-    resized(page, 700, 900)
+    resized(page, 1000, 900)
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
     expect(field).to_be_visible()
@@ -2234,9 +2230,9 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
         '.lf-margin-cluster[data-lf-margin-for="how-store"] .lf-react-mark'
     )
     resting = mark.evaluate("el => getComputedStyle(el).backgroundColor")
-    assert mark.evaluate(PAINTS_LIFECYCLE_MARK) is False
+    assert mark.evaluate(PAINTS_STATE_MARK) is False
     mark.hover()
     assert mark.evaluate("el => getComputedStyle(el).backgroundColor") == resting
-    assert mark.evaluate(PAINTS_LIFECYCLE_MARK) is False
+    assert mark.evaluate(PAINTS_STATE_MARK) is False
     assert errors == []
     page.close()

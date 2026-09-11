@@ -422,10 +422,11 @@ customElements.define(
       const width = capture.viewport.width;
       const stageWidth = entry.shotHost.clientWidth;
       const bounded = this.dataset.lfReadingPosture === "bounded";
-      const roomBelow = innerHeight - entry.shotHost.getBoundingClientRect().top - 48;
+      // Flow layout follows the widget's own width, so scrolling cannot make a later
+      // paint-only inspection control resize the evidence and move the document.
       const stageHeight = bounded
         ? entry.shotHost.clientHeight
-        : Math.max(220, Math.min(560, roomBelow));
+        : Math.max(220, Math.min(560, stageWidth / 2));
       if (stageHeight <= 0) return;
 
       const gap = 8;
@@ -697,6 +698,10 @@ customElements.define(
       entry.record = record;
       entry.index = index;
       entry.total = total;
+      entry.shotHost.style.setProperty(
+        "--lf-vr-capture-width",
+        `${record.capture.viewport.width}px`,
+      );
       this.#paintOption(entry);
       setText(
         entry.article.querySelector(".lf-vr-case-position"),

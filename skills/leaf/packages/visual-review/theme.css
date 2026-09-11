@@ -619,6 +619,11 @@ html.lf-copy .lf-vr-shot-host {
   overflow: visible;
 }
 
+html.lf-copy .lf-vr-shot-host lf-shot {
+  width: min(100%, var(--lf-vr-capture-width, 100%));
+  max-width: 100%;
+}
+
 html.lf-copy .lf-vr-details > summary {
   display: none;
 }
@@ -652,6 +657,11 @@ html.lf-copy .lf-vr-details > .lf-vr-provenance {
     height: auto;
     min-height: 0;
     overflow: visible;
+  }
+
+  .lf-vr-shot-host lf-shot {
+    width: min(100%, var(--lf-vr-capture-width, 100%));
+    max-width: 100%;
   }
 
   .lf-vr-details > summary {

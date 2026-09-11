@@ -825,6 +825,21 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert after_box["top"] >= before_box["bottom"]
     resized(page, 1200, 900)
     expect(widget).to_have_attribute("data-compare-layout", "stack")
+    flow_height = shot_host.evaluate("node => node.getBoundingClientRect().height")
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
+    )
+    widget.get_by_role("button", name="Flip").evaluate("node => node.click()")
+    expect(widget).to_have_attribute("data-inspection-mode", "flip")
+    assert shot_host.evaluate(
+        "node => node.getBoundingClientRect().height"
+    ) == pytest.approx(flow_height, abs=1), (
+        "ordinary-flow evidence height must not depend on its viewport offset"
+    )
+    widget.get_by_role("button", name="Compare").evaluate("node => node.click()")
+    assert shot_host.evaluate(
+        "node => node.getBoundingClientRect().height"
+    ) == pytest.approx(flow_height, abs=1)
 
     widget.get_by_role("button", name="100%").click()
     expect(widget).to_have_attribute("data-inspection-scale", "actual")
@@ -937,6 +952,14 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(
         widget.locator(".lf-vr-case:not([hidden]) .lf-vr-frame-label").first
     ).to_be_visible()
+    resized(page, 1366, 900)
+    page.locator("html").evaluate("node => node.classList.add('lf-copy')")
+    copy_widths = widget.locator(".lf-vr-case lf-shot img").evaluate_all(
+        "images => images.map(image => image.getBoundingClientRect().width)"
+    )
+    assert copy_widths
+    assert max(copy_widths) <= 901
+    page.locator("html").evaluate("node => node.classList.remove('lf-copy')")
     page.emulate_media(media="print")
     expect(first).to_be_visible()
     expect(second).to_be_visible()
@@ -948,6 +971,11 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "nodes => nodes.map(node => node.getBoundingClientRect())"
     )
     assert after_box["top"] >= before_box["bottom"]
+    print_widths = widget.locator(".lf-vr-case lf-shot img").evaluate_all(
+        "images => images.map(image => image.getBoundingClientRect().width)"
+    )
+    assert print_widths
+    assert max(print_widths) <= 901
     page.emulate_media(media="screen")
     assert errors == []
     page.close()

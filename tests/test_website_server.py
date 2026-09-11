@@ -1964,6 +1964,13 @@ class _Read:
         return self.body
 
 
+class _PostedHeaders(_Read):
+    """An intercepted browser POST whose body must remain the browser's to consume."""
+
+    def json(self) -> dict:
+        raise AssertionError("the verifier re-read the browser's POST response body")
+
+
 class _StateReads:
     """One Playwright request context standing in for a page that is being read."""
 
@@ -2041,7 +2048,7 @@ class _FailedFirstTurn:
         }
         self.comments.append(comment)
         request = SimpleNamespace(method="POST", post_data_json=data)
-        return _Read(
+        return _PostedHeaders(
             {"state": {"events": [comment]}},
             url=url,
             request=request,
@@ -2054,11 +2061,12 @@ class _FailedFirstTurn:
 
     def state(self) -> dict:
         events = [
+            *self.comments,
             {
                 "kind": "reply",
                 "parent": "comment-1",
                 "text": website_server.GENERATION_FAILURE_REPLY,
-            }
+            },
         ]
         if len(self.comments) < 2:
             return {

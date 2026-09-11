@@ -1073,7 +1073,10 @@ export function createResponseSurface({
       // for wherever the pointer is parked, so that one keeps reading the event.
       const point = ev.detail ? pointerAt() : { x: ev.clientX, y: ev.clientY };
       const threadId = markAt(point.x, point.y);
-      if (threadId) return openPageThread(threadId);
+      if (threadId)
+        return openPageThread(threadId, {
+          focus: panel.classList.contains("open") ? "reply" : "thread",
+        });
     });
     wireFabInput();
   }

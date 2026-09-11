@@ -36,7 +36,13 @@ export function wireReply(
   t,
   input,
   send,
-  { liveId = () => t.root.id, createReply, revealReplyEditor, wireInput },
+  {
+    liveId = () => t.root.id,
+    createReply,
+    revealReplyEditor,
+    wireInput,
+    onDraftLoaded = null,
+  },
 ) {
   const draftCtx = "reply:" + threadKey(t);
   input[REPLY_DRAFT_CONTEXT] = draftCtx;
@@ -66,6 +72,7 @@ export function wireReply(
     },
   });
   sync();
+  onDraftLoaded?.(sync.value());
   // A box growing under the reader pushes its embedded Send below the list's foot:
   // eight lines of reply left the blue button a sliver at the scrollport's edge,
   // reachable only by the send key the placeholder happened to name. Landing reveals
@@ -79,7 +86,16 @@ export function wireReply(
     const held = input.closest(".lf-thread, .lf-conversation-thread, .lf-conversation");
     if (held) revealReplyEditor(input, "instant");
   });
-  mirrorDraft(input, sync, draftCtx);
+  mirrorDraft(
+    input,
+    {
+      load: (value) => {
+        sync.load(value);
+        onDraftLoaded?.(sync.value());
+      },
+    },
+    draftCtx,
+  );
   return sync;
 }
 

@@ -463,7 +463,20 @@ customElements.define(
             ? stackScale
             : sideScale
           : Math.min(stageWidth / width, stageHeight / Math.max(...heights));
-      const scale = this.#scale === "actual" ? 1 : Math.min(1, fitScale);
+      // A stacked comparison is a vertical reading surface: fit each capture to the
+      // available width and let the bounded stage scroll through the pair. Containing
+      // both frames in the stage makes shallow captures unreadably small even when the
+      // workspace has ample horizontal room.
+      const stackFitScale = stageWidth / width;
+      const scale =
+        this.#scale === "actual"
+          ? 1
+          : Math.min(
+              1,
+              this.#mode === "compare" && compareLayout === "stack"
+                ? stackFitScale
+                : fitScale,
+            );
       this.dataset.compareLayout = compareLayout;
       entry.shotHost.style.setProperty(
         "--lf-vr-frame-width",
@@ -716,7 +729,6 @@ customElements.define(
       const current = Math.max(0, ids.indexOf(this.#selected));
       const next = ids[(current + delta + ids.length) % ids.length];
       this.#select(next);
-      this.#queue.focus({ preventScroll: true });
     }
 
     async #review(id, disposition) {

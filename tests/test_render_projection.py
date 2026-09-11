@@ -868,12 +868,28 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(first).to_have_attribute("data-disposition", "looks-right")
     expect(widget.locator(".lf-vr-progress")).to_have_text("1 of 2 cases reviewed")
 
-    widget.get_by_role("button", name="Next").click()
+    next_button = widget.get_by_role("button", name="Next")
+    page.keyboard.press("g")
+    next_box = next_button.bounding_box()
+    assert next_box
+    next_code = page.locator(".lf-go-to-hint[data-lf-hint-code]").evaluate_all(
+        """(hints, target) => hints.map(hint => {
+          const box = hint.getBoundingClientRect();
+          const dx = box.x + box.width / 2 - (target.x + target.width / 2);
+          const dy = box.y + box.height / 2 - (target.y + target.height / 2);
+          return {code: hint.dataset.lfHintCode, distance: dx * dx + dy * dy};
+        }).sort((left, right) => left.distance - right.distance)[0].code""",
+        next_box,
+    )
+    page.keyboard.type(next_code)
     expect(first).to_be_hidden()
     expect(second).to_be_visible()
     expect(second.locator(".lf-vr-trace-link")).to_be_hidden()
     expect(case_select).to_have_value("run-detail")
-    expect(case_select).to_be_focused()
+    expect(case_select).not_to_be_focused()
+    page.keyboard.press("g")
+    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
+    page.keyboard.press("Escape")
 
     inserted_case = record["cases"][1] | {
         "id": "run-middle",
@@ -907,9 +923,9 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget).to_have_attribute("data-inspection-mode", "overlay")
     expect(widget.locator(".lf-vr-opacity")).to_have_value("35")
     case_select.select_option("run-list")
-    widget.get_by_role("button", name="Next").click()
+    next_button.click()
     expect(case_select).to_have_value("run-middle")
-    expect(case_select).to_be_focused()
+    expect(next_button).to_be_focused()
 
     resized(page, 390, 900)
     assert page.evaluate(
@@ -939,8 +955,8 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     """A focused review is a root workspace, not prose followed by a narrow widget.
 
     The case chooser never taxes the evidence width, the disposition is available before
-    the pixels, and this wide, shallow pair stacks because that is the larger common fit.
-    Capture facts follow the comparison rather than delaying it.
+    the pixels, and this wide, shallow pair stacks at a readable width inside a scrolling
+    evidence stage. Capture facts follow the comparison rather than delaying it.
     """
     page, errors = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
@@ -965,6 +981,10 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert geometry["evidence"]["height"] >= 360
     assert widget.get_attribute("data-compare-layout") == "stack", geometry
     assert geometry["frames"][1]["top"] >= geometry["frames"][0]["bottom"]
+    assert geometry["frames"][0]["width"] >= 895, geometry
+    assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
+        "node => node.scrollHeight > node.clientHeight"
+    )
     assert geometry["provenance"]["top"] >= geometry["evidence"]["bottom"]
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     shot_host.evaluate("node => node.style.height = '120px'")

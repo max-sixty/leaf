@@ -17,7 +17,7 @@
    expanded when focus moves within its work. Explicit owner focus temporarily derives
    the cluster from that contribution alone; closing it restores the ordinary cluster.
 
-   Controls are ordered by lifecycle state, rank, contribution key, and
+   Controls are ordered by interaction state, rank, contribution key, and
    control key. Generated readings follow contributed controls. One target's Threads
    share one reading and one card. Page Map also includes readings that deliberately
    have no target control, such as durable state provenance. Canonical pickup and work
@@ -145,21 +145,18 @@ export function createMarginProjection({
       icon: "sent",
       priority: 3,
       indication: true,
-      state: "busy",
     },
     pickup: {
       label: "Picked up",
       icon: "pickup",
       priority: 3,
       indication: true,
-      state: "idle",
     },
     waiting: {
       label: "Waiting for pickup",
       icon: "waiting",
       priority: 3,
       indication: true,
-      state: "busy",
     },
     reader: {
       label: "Your change",
@@ -173,7 +170,7 @@ export function createMarginProjection({
       priority: 4,
       indication: true,
     },
-    activity: { label: "Active", icon: "activity", priority: 4, state: "busy" },
+    activity: { label: "Active", icon: "activity", priority: 4 },
   };
   const RESTING_MARGIN_ENTRY_BUDGET = 2;
   const EXPANDED_MARGIN_ENTRY_BUDGET = 6;
@@ -512,13 +509,13 @@ export function createMarginProjection({
   };
   // One target has one lifecycle reading. Failure outranks work in flight, which
   // outranks an open interaction; the ordinary idle state never forces peers open.
-  // Generated acknowledgment readings join through the same state axis rather than a
-  // second engagement flag.
+  // Generated acknowledgment readings are settled server facts, so only a face that
+  // explicitly declares an interaction state joins this axis.
   const entryState = (entry) => {
     const states = [
       ...entry.offers.map(marginContributionState),
       ...entry.items.map(
-        (item) => item.state ?? (item.acknowledgmentFace ? "busy" : "idle"),
+        (item) => item.state ?? item.acknowledgmentFace?.state ?? "idle",
       ),
     ];
     return (

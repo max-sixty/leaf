@@ -353,6 +353,8 @@ module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
 
+### Commands and keyboard routes
+
 A widget contributes each command once with `commands(source, title, rows, options)`.
 The dispatcher, shortcut bar, command reference, `aria-keyshortcuts`, and Ask projection all
 consume those same live rows. Set a row or route's `decision` to its concise, non-empty

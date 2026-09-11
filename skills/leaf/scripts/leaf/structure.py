@@ -400,7 +400,9 @@ class StructParser:
             if isinstance(value, str) and value.startswith(f"/{MEDIA_DIR}/")
         )
 
-        if tag in ("template", "noscript"):
+        if tag == "noscript" or (
+            tag == "template" and "data-interaction-page" not in attrs
+        ):
             self.errors.append(
                 f"<{tag}> at line {line}: the browser renders none of its content; "
                 "write it plainly or leave it out"
@@ -429,6 +431,69 @@ class StructParser:
                 self.within[identity] = record
             return record
         return None
+
+    @staticmethod
+    def _record_direct_contents(record: dict, element) -> None:
+        for child in element.children:
+            if isinstance(child, turbohtml.Element):
+                record["children"].append(child.tag)
+                record["direct"].append(child.tag)
+            elif isinstance(child, turbohtml.Text) and child.data.strip():
+                record["text"] = True
+                record["direct"].append("#text")
+        pre = next(
+            (
+                child
+                for child in element.children
+                if isinstance(child, turbohtml.Element) and child.tag == "pre"
+            ),
+            None,
+        )
+        if pre is not None:
+            record["body"] = "".join(
+                child.data
+                for child in pre.children
+                if isinstance(child, turbohtml.Text)
+            )
+
+    def _visit_interaction_page(
+        self,
+        node,
+        *,
+        parent_tag: str,
+        ancestors: tuple,
+        holder: dict | None = None,
+    ) -> None:
+        """Index widget declarations in one inert, separately rendered page."""
+        if isinstance(node, turbohtml.Element):
+            attrs = self._attrs(node)
+            record = None
+            if self._source_element(node) and node.tag.startswith("lf-"):
+                record = self._record_element(
+                    node,
+                    attrs,
+                    parent_tag=parent_tag,
+                    ancestors=ancestors,
+                    holder=holder,
+                )
+                self._record_direct_contents(record, node)
+            next_holder = record or holder
+            next_ancestors = (*ancestors, node.tag)
+            for child in node.children:
+                self._visit_interaction_page(
+                    child,
+                    parent_tag=node.tag,
+                    ancestors=next_ancestors,
+                    holder=next_holder,
+                )
+            return
+        for child in node.children:
+            self._visit_interaction_page(
+                child,
+                parent_tag=parent_tag,
+                ancestors=ancestors,
+                holder=holder,
+            )
 
     def _visit(
         self,
@@ -549,27 +614,7 @@ class StructParser:
 
         next_holder = record or holder
         if record is not None:
-            for child in element.children:
-                if isinstance(child, turbohtml.Element):
-                    record["children"].append(child.tag)
-                    record["direct"].append(child.tag)
-                elif isinstance(child, turbohtml.Text) and child.data.strip():
-                    record["text"] = True
-                    record["direct"].append("#text")
-            pre = next(
-                (
-                    child
-                    for child in element.children
-                    if isinstance(child, turbohtml.Element) and child.tag == "pre"
-                ),
-                None,
-            )
-            if pre is not None:
-                record["body"] = "".join(
-                    child.data
-                    for child in pre.children
-                    if isinstance(child, turbohtml.Text)
-                )
+            self._record_direct_contents(record, element)
 
         for child in element.children:
             if isinstance(child, turbohtml.Element):
@@ -587,6 +632,15 @@ class StructParser:
                     and element.tag not in {"script", "style", "title"}
                 ):
                     self.outside_main.append(f"text in <{element.tag}> at line {line}")
+
+        if element.tag == "template" and "data-interaction-page" in attrs:
+            for child in element.children:
+                self._visit_interaction_page(
+                    child,
+                    parent_tag="template",
+                    ancestors=next_ancestors,
+                    holder=None,
+                )
 
         if element.tag == "style":
             self.css += element.text

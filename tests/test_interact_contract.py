@@ -3450,6 +3450,29 @@ def test_source_reading_preserves_foreign_graphics_as_exact_markup():
     assert after["content"] == ["After"]
 
 
+def test_source_reading_indexes_widgets_in_an_interaction_page_template():
+    """A gallery specimen is inert here but a real document when the replay imports it."""
+    html = (
+        '<main><p id="visible">Visible words.</p>'
+        '<template data-interaction-page><lf-ask id="nested-ask">'
+        '<h2>Hidden question</h2><lf-options id="nested-options" choose>'
+        '<lf-option id="nested-choice">Hidden answer</lf-option>'
+        "</lf-options></lf-ask></template></main>"
+    )
+    parser = structure_model.StructParser()
+    parser.feed(html)
+    parser.close()
+
+    assert parser.errors == []
+    assert [record["tag"] for record in parser.lf_elements] == [
+        "lf-ask",
+        "lf-options",
+        "lf-option",
+    ]
+    assert parser.by_id["nested-options"]["holder"] is parser.by_id["nested-ask"]
+    assert passages_model.page_passages(html).text == "Visible words."
+
+
 def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
     """A version's CSS is what its <style> blocks hold. Reading the whole file as one
     made a megabyte of base64 (one screenshot as a data: URI) into a stylesheet to

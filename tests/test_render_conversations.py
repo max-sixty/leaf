@@ -2432,6 +2432,10 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "claude",
         "lf-compose-field",
         "lf-compose-submit",
+        # A conversation keeps the authored theme's shared card and message-header
+        # structure when the margin projects it into the chrome.
+        "lf-conversation-head",
+        "lf-conversation-thread",
         "lf-edited",
         "lf-focus-within",
         # The rail is chrome, and its whole document face — placement, the hidden

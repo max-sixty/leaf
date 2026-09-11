@@ -14,6 +14,7 @@ from leaf.served_state import page as served_page
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
+    BOARD_PAGE,
     CHIPS,
     EXAMPLES,
     FEATURE_GALLERY,
@@ -367,9 +368,9 @@ HEARTBEAT_PAGES = (
     # run for those are watched nowhere else: a reading option under an entry holding
     # several readings, and the readings whose move is made, which wear the `status`
     # behavior on a span seat rather than a button. Two of its rows stand where they
-    # would overlap, so the push measurement is read here and nowhere else. Its docked
-    # rows exercise the rail re-read too; the contained swipe page leaves no withheld
-    # gallery row whose posture would be cleared.
+    # would overlap, so the push measurement is read here and nowhere else. Its crowded
+    # rows also exercise posture changes; docked rows need no absolute placement or
+    # rail re-read.
     pytest.param(
         FEATURE_GALLERY,
         {
@@ -377,7 +378,7 @@ HEARTBEAT_PAGES = (
             ".lf-margin-reading-option": 1,
             '.lf-margin-entry[data-lf-behavior="status"]': 2,
         },
-        {"row push", "rail width", "fold rule"},
+        {"row posture", "row push", "fold rule"},
         id="gallery",
     ),
 )
@@ -2784,8 +2785,12 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     else:
         expect(marker).to_have_css("animation-name", "none")
     expect(marker).not_to_have_attribute("data-lf-agent-arrival", re.compile(".*"))
-    # A fresh canonical state read repaints the same claim, without another arrival.
-    told(page)
+    # Repaint the same canonical claim without another arrival.
+    page.evaluate("""async () => {
+      document.dispatchEvent(new CustomEvent('lf-actions'));
+      await new Promise(requestAnimationFrame);
+      await new Promise(requestAnimationFrame);
+    }""")
     expect(marker).to_have_attribute("data-lf-agent-phase", "active")
     assert page.evaluate("window.agentArrivals.length") == expected_arrivals
     marker.focus()
@@ -2869,6 +2874,99 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     page.close()
 
 
+def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, serve):
+    """Two moved cards share a widget claim, but each receipt arrives only once.
+
+    The visible Page Map joins those same arrivals; reopening it later or repainting
+    the two units cannot restart either pulse.
+    """
+    page, errors = open_page(browser, live_url(serve(BOARD_PAGE)))
+    resized(page, 1440, 900)
+    for card in ("card-heater", "card-baffle"):
+        page.locator(f"#{card} .lf-grip").focus()
+        page.keyboard.press("Enter")
+        page.keyboard.press("ArrowRight")
+        with sending(page, f"move {card}"):
+            page.keyboard.press("Enter")
+        expect(page.locator(f"#col-done > #{card}")).to_be_visible()
+    moves = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ]
+    assert len(moves) == 2
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        session_model.record_pickup(transaction, moves)
+    told(page)
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.locator(".lf-page-map-dialog")
+    expect(dialog).to_be_visible()
+    expect(dialog.locator('[data-lf-agent-phase="picked_up"]')).to_have_count(2)
+    page.evaluate("""() => {
+      window.unitArrivals = [];
+      window.unitArrivalEnds = 0;
+      document.addEventListener('animationstart', event => {
+        if (!event.animationName.endsWith('agent-work-arrival')) return;
+        const style = getComputedStyle(event.target);
+        window.unitArrivals.push({
+          mapped: event.target.matches('.lf-page-map-action'),
+          duration: style.animationDuration, iterations: style.animationIterationCount,
+        });
+      });
+      document.addEventListener('animationend', event => {
+        if (event.animationName.endsWith('agent-work-arrival')) window.unitArrivalEnds++;
+      });
+    }""")
+    claim = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "status",
+            str(serve.page_dir),
+            "working",
+            "Checking both moved cards",
+            "--on",
+            "sprint",
+        ],
+    )
+    assert claim.exit_code == 0, claim.output
+    told(page)
+    expect(dialog.locator('[data-lf-agent-phase="active"]')).to_have_count(2)
+    page.wait_for_function("() => window.unitArrivalEnds === 4")
+    arrivals = page.evaluate("window.unitArrivals")
+    assert sorted(arrival["mapped"] for arrival in arrivals) == [
+        False,
+        False,
+        True,
+        True,
+    ]
+    assert all(
+        arrival["duration"] == "0.52s" and arrival["iterations"] == "1"
+        for arrival in arrivals
+    )
+    expect(page.locator("[data-lf-agent-arrival]")).to_have_count(0)
+
+    # Alternate the two same-target receipt identities through repeated real renders.
+    page.evaluate("""async () => {
+      for (let pass = 0; pass < 3; pass++) {
+        document.dispatchEvent(new CustomEvent('lf-actions'));
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+      }
+    }""")
+    assert page.evaluate("window.unitArrivals.length") == 4
+    expect(page.locator("[data-lf-agent-arrival]")).to_have_count(0)
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    expect(dialog.locator('[data-lf-agent-phase="active"]')).to_have_count(2)
+    expect(dialog.locator("[data-lf-agent-arrival]")).to_have_count(0)
+    assert page.evaluate("window.unitArrivals.length") == 4
+    assert errors == []
+    page.close()
+
+
 def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosure(
     browser, serve, monkeypatch
 ):
@@ -2917,6 +3015,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
                 cursor: style.cursor,
                 background: style.backgroundColor,
                 border: style.borderTopColor,
+                borderStyle: style.borderTopStyle,
+                animation: style.animationName,
                 ink: style.color,
                 opacity: style.opacity,
                 width: style.width,
@@ -2942,8 +3042,17 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         )
 
     expected_ink = resolved_color("--ink-2")
-    expected_paper = resolved_color("--paper")
-    expected_rule = resolved_color("--rule")
+    busy_surface = page.evaluate("""() => {
+      const probe = document.createElement('span');
+      document.body.append(probe);
+      const colors = {};
+      for (const [name, amount] of [['background', 4], ['border', 50]]) {
+        probe.style.color = `color-mix(in srgb, var(--ink) ${amount}%, var(--paper))`;
+        colors[name] = getComputedStyle(probe).color;
+      }
+      probe.remove();
+      return colors;
+    }""")
     expected_label_ink = resolved_color("--paper")
     expected_label_background = resolved_color("--ink")
 
@@ -2980,8 +3089,12 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             "context": context,
             "tabIndex": -1,
             "cursor": "default",
-            "background": pickup_paper if phase == "Picked up" else expected_paper,
-            "border": pickup_ink if phase == "Picked up" else expected_rule,
+            "background": pickup_paper
+            if phase == "Picked up"
+            else busy_surface["background"],
+            "border": pickup_ink if phase == "Picked up" else busy_surface["border"],
+            "borderStyle": "solid" if phase == "Picked up" else "dashed",
+            "animation": "none",
             "ink": pickup_ink if phase == "Picked up" else expected_ink,
             "opacity": "1",
             "width": "32px",

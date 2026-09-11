@@ -2489,6 +2489,8 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
             str(d),
             "--to",
             "c-store",
+            "--for",
+            "c-store",
             "--text",
             "Depends what you want to keep:",
             "--markup",
@@ -3061,6 +3063,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             "kind": "reply",
             "author": "claude",
             "parent": first_comment["id"],
+            "responds": first_comment["id"],
             "text": "Handled before the next turn.",
         },
     )
@@ -4508,6 +4511,7 @@ def test_conversation_timestamps_age_without_new_state(browser, serve):
             "kind": "reply",
             "author": "claude",
             "parent": comment["id"],
+            "responds": comment["id"],
             "text": "settled for this clock-only test",
         },
     )

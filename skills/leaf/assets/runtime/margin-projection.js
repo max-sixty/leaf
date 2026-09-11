@@ -463,6 +463,7 @@ export function createMarginProjection({
           (left.phase === "active" ? 0 : 1) - (right.phase === "active" ? 0 : 1),
       )[0] ?? null;
   const rows = new Map();
+  const rowTops = new WeakMap();
   const moreMarginEntries = new Map();
   const spillMarginEntries = new Map();
   const optionGroups = new Map();
@@ -1379,12 +1380,17 @@ export function createMarginProjection({
       },
       place: (item, column) => {
         const target = item.lfEntry?.target;
-        if (!target) return;
+        if (!target || item.classList.contains("lf-docked")) return;
         const place = nav.contains(item) ? measureMargin(column) : null;
         const top = Math.max(0, shownBox(target).top - column.top);
         return () => {
           place?.();
-          item.style.top = `${top}px`;
+          // Compare measured coordinates before CSS serialization rounds them. A
+          // repeated fractional value must not mutate the row on every heartbeat.
+          if (rowTops.get(item) !== top) {
+            item.style.top = `${top}px`;
+            rowTops.set(item, top);
+          }
         };
       },
     };

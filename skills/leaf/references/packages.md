@@ -346,17 +346,27 @@ element that performs the action. A Decision action begins an answer, answers, a
 or revises the Ask containing `source`. The action name is separate from `label`, which
 remains the command register's own-scope keycap override. In the complete reference, a
 keyless Decision command falls back to its action name rather than showing a blank keycap.
-The Ask projection always spells the binding it resolved beside the `decision` action
-name, so its inline hint says what the reader actually presses. A row may have zero or one
-live binding in the Decision role: zero receives the Ask's next free contextual `1`
-through `9`, while one keeps its canonical binding, such as `ArrowLeft`. Each action keeps
-one command id. Dispatch, the reference, the shortcut bar, its address, and
-`aria-keyshortcuts` all use that id. `address` may name an empty face a widget already
-positions; core writes the resolved binding there, so the package does not keep a second
-key map. Do not maintain a second Ask-control list.
-Otherwise core paints the binding at the visible control. Routes let one parameterized
-row contribute distinct controls and bindings. The Ask projection invokes the row's
-declared `run`; a run-less native command falls back to its control's `click()`.
+Every ordered Decision receives one of the Ask's contextual `1` through `9` routes while
+capacity remains, independently of any intrinsic widget binding. The Ask digit and the
+widget binding share one command id and source-scoped command reference. Invoking either
+therefore rechecks the original scope and liveness, calls the original `run` (or clicks a
+run-less native control), and preserves its return frame. A focused widget declaration
+wins when it collides with an Ask digit; undeclared digits continue to the Ask.
+
+`address` may name an empty face a widget already positions; core writes the reachable
+Ask digit there, so the package does not keep a second key map. Otherwise core paints the
+digit at the visible control. Routes let one parameterized row contribute distinct
+controls and intrinsic bindings. Do not maintain a second Ask-control list or declare the
+Ask's contextual digits in the package.
+
+Command scopes compose by focused ancestry. The exact control scope is nearest, followed
+by containing widget scopes and Leaf's outer page scopes. A scope owns only the bindings
+whose rows implement a Leaf invocation, so an undeclared key falls outward. An
+implemented declaration retains that precedence while its command is unavailable:
+liveness removes execution and projections, but does not expose an ancestor's different
+meaning. A row without `run` only presents native behavior or a shared outer handler and
+does not shadow it. Text fields and other native interactions retain their editing keys
+ahead of ancestor widget scopes.
 
 Every visible press a widget builds with `offer()` or `selectableOffer()` also joins the
 generated target map after `g`. Packages do not declare another `g` binding or repeat

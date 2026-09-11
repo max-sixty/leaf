@@ -142,7 +142,7 @@ import {
   standingStatusBoxes,
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
-import { activeRowLabel, availableCommands } from "./runtime/keyboard/dispatch.js";
+import { activeRowLabel } from "./runtime/keyboard/dispatch.js";
 import { focused, paintKeys, reflectFirstScopes } from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { createStanding } from "./runtime/standing.js";
@@ -395,7 +395,6 @@ asks = createAskView({
   scrollToElement: anchorTravel.scrollToElement,
   refreshConversation: () => app.refreshConversation(),
   placeBulkAnswer: (button) => versionBtn.before(button),
-  availableCommands,
   announce,
   repaint,
 });

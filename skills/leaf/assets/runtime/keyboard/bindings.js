@@ -23,12 +23,12 @@
      inline hint always says what the reader actually presses.
    - `control` is the visible element that activates the capability. `decision` is a
      non-empty action-name string or a function returning one; it includes that command in
-     its containing Ask. The row may carry an existing `address` and has zero or one live
-     binding. A keyless decision command receives its contextual number from the Ask
-     projection. Routes may carry the same fields when one row describes a parameterized
-     family of controls. The Ask projection invokes the row's declared `run`, passing its
-     declared binding when it has one; a run-less native command falls back to the
-     control's click.
+     its containing Ask. The row may carry an existing `address`. Routes may carry the
+     same fields when one row describes a parameterized family of controls. Every Decision
+     receives an independent contextual digit from the Ask projection; intrinsic widget
+     bindings remain available in the widget's own focus scope. The projection keeps a
+     scoped reference to the original command rather than copying its callback, so key,
+     Ask, and reference invocation share liveness, activation, and return-frame behavior.
    - `does` is the sentence for the press, or a function when the current state changes
      the sentence.
    - `line` is the shortcut bar's word: a row carrying one stands on the shortcut bar, and a row
@@ -175,9 +175,17 @@ export const spokenBinding = (binding) => {
 export const word = (cell) => (typeof cell === "function" ? cell() : cell);
 export const declaredBindings = (row) => word(row.keys) ?? [];
 export const commandRoutes = (row) => word(row.routes) ?? [];
-// TODO(2026-09-07): Implement the command and binding split specified in
-// notes/keyboard-command-ownership.md, including reader and page control of character
-// shortcuts, while keeping one binding vocabulary for dispatch and every projection.
+// A contextual route may invoke a command declared in another scope. Brand that private
+// edge with a Symbol so an unrelated package route field cannot accidentally become an
+// executable cross-scope reference. The dispatcher still validates the reference at use.
+const ROUTED_COMMAND = Symbol("a routed command reference");
+export const contextualRoute = (route, command) => ({
+  ...route,
+  [ROUTED_COMMAND]: command,
+});
+export const routedCommand = (route) => route?.[ROUTED_COMMAND] ?? null;
+// Bindings are routes to commands, not their identity. A contextual projection may add a
+// route without mutating this intrinsic set; dispatch still reads one spelling here.
 export const bindings = declaredBindings;
 // The command identities under one row. Equivalent bindings keep the row's identity
 // and share its implementation; distinct results are routes and expose only those exact
@@ -284,12 +292,13 @@ export function activeRows(rows, where = "a scope") {
 // The controls one ordered command set contributes to an Ask. `decision` names the
 // command's action in that Ask; it is not another command registry. The dispatcher, key
 // line, reference and Ask projection all read the same row. Routes may name distinct
-// controls when one compact row owns a family of parameterized bindings (numbered
-// options). A command with no binding receives its contextual number from the Ask
-// projection.
+// controls when one compact row owns a family of parameterized bindings. Each result
+// carries a scoped reference to the original command. A projection may bind that command
+// independently without copying `run` or treating its intrinsic binding as the projected
+// one.
 export function decisionControls(commands, where = "an Ask") {
   const controls = new Map();
-  for (const { source, row } of commands) {
+  for (const { source, scope, row } of commands) {
     const routes = commandRoutes(row);
     const candidates = [
       ...(row.decision !== undefined ? [{ row, route: null }] : []),
@@ -309,27 +318,32 @@ export function decisionControls(commands, where = "an Ask") {
         throw new TypeError(
           `leaf: ${contribution.id} in ${where} has no Element address`,
         );
-      if (active.length > 1)
-        throw new TypeError(
-          `leaf: ${contribution.id} in ${where} has ${active.length} live bindings; ` +
-            "an Ask control needs zero or one",
-        );
+      const binding = active[0] ?? null;
       const record = {
         id: contribution.id,
         source,
         control,
         label,
-        binding: active[0] ?? null,
         address,
-        run: row.run ? () => row.run(active[0]) : () => control.click(),
+        intrinsicBindings: active,
+        command: Object.freeze({
+          id: contribution.id,
+          source,
+          scope,
+          row,
+          binding,
+          control,
+        }),
       };
       const prior = controls.get(control);
       if (prior) {
         if (
           prior.id !== record.id ||
           prior.label !== record.label ||
-          prior.binding !== record.binding ||
-          prior.address !== record.address
+          prior.address !== record.address ||
+          prior.command.source !== record.command.source ||
+          prior.command.scope !== record.command.scope ||
+          prior.command.row !== record.command.row
         )
           throw new TypeError(
             `leaf: one control has two Decision commands in ${where}: ` +

@@ -41,6 +41,7 @@ import {
   commandPresentations,
   declaredBindings,
   live,
+  routedCommand,
   spell,
   spokenBinding,
   word,
@@ -67,7 +68,7 @@ import {
 } from "./scopes.js";
 import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
-import { availableCommands, readerIn } from "./dispatch.js";
+import { availableCommandRoutes, readerIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
 
 export const shortcutReferenceDialog = document.createElement("dialog");
@@ -168,7 +169,7 @@ function declaredStack(origin) {
 // the overlay claims the keyboard and the page stands down beneath it, and a key going live under it
 // is merely unlisted until the next open, one press away.
 let shortcutReferenceOpen = false;
-let commandsAtOpen = new Set();
+let commandRoutesAtOpen = new Map();
 // Where the reference was opened from, so closing it hands the reader back. Any dialog that
 // takes focus owes that; what makes it structural here is that a scope is *where focus is*,
 // so the overlay explaining a walk was also the way out of it — open the reference from a
@@ -241,7 +242,7 @@ function showShortcutReference(open, restoreFocus, invokeCommand, captureOrigin)
     shortcutReferenceOrigin = captureOrigin();
     shortcutReferenceLayers = [...document.querySelectorAll(":popover-open")];
     shortcutReferenceBoundary = coveringWorkspaceSurface();
-    commandsAtOpen = availableCommands();
+    commandRoutesAtOpen = availableCommandRoutes();
   }
   shortcutReferenceOpen = open;
   if (open) {
@@ -296,11 +297,45 @@ function showShortcutReference(open, restoreFocus, invokeCommand, captureOrigin)
       return spoken;
     };
     const commandButtons = [];
-    // A command id is one capability even when several scopes project it. Ask actions
-    // are the sharp case: the package declaration supplies the control and the page's
-    // Ask row supplies a contextual binding. The page row is visited first while it is
-    // live, so keep that complete route and omit the package's second telling of it.
-    const presentedCommands = new Set();
+    // A scope the reader is standing in is filtered by each row's own liveness, because
+    // they can see which state they are in and a row that would refuse the press must not
+    // be on screen. A scope they are merely near is listed whole: a row's `when` asks
+    // whether the press moves *here*, and here is not where they are. A transient mode is
+    // the exception because the reader is either in it or it does not exist.
+    const referenceScopes = declaredStack(shortcutReferenceOrigin?.control)
+      .map((scope) => {
+        const inIt = readerIn(scope) || scope.liveInReference;
+        const rows = scope.rows.filter(
+          (row) =>
+            row.does &&
+            (!inIt || (row.referenceWhen ? row.referenceWhen() : live(row))),
+        );
+        return { scope, rows };
+      })
+      .filter(({ rows }) => rows.length);
+    const presentationBindings = (row, route) =>
+      route ? [route.binding] : bindings(row);
+    const presentationAvailable = (row, route) => {
+      const available = commandRoutesAtOpen.get(row) ?? new Set();
+      return presentationBindings(row, route).some((binding) => available.has(binding));
+    };
+    // A command id is one capability even when several scopes project it. Prefer the
+    // first reachable presentation over an earlier unreachable one. Ask actions are the
+    // sharp case: while focus is on the Ask its digit is the reachable presentation;
+    // inside the widget, an intrinsic binding may replace a shadowed Ask digit.
+    const preferredCommands = new Map();
+    for (const { rows } of referenceScopes)
+      for (const row of rows)
+        for (const { id, route } of commandPresentations(row)) {
+          const candidate = {
+            row,
+            binding: route?.binding ?? null,
+            available: presentationAvailable(row, route),
+          };
+          const prior = preferredCommands.get(id);
+          if (!prior || (!prior.available && candidate.available))
+            preferredCommands.set(id, candidate);
+        }
     const availableWhere = (row, scopeTitle, scopeReach) => {
       const place = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
       return `Available ${place.charAt(0).toLocaleLowerCase()}${place.slice(1)}`;
@@ -312,8 +347,9 @@ function showShortcutReference(open, restoreFocus, invokeCommand, captureOrigin)
       for (const row of rows) {
         for (const presentation of commandPresentations(row)) {
           const { id, route } = presentation;
-          if (presentedCommands.has(id)) continue;
-          presentedCommands.add(id);
+          const preferred = preferredCommands.get(id);
+          if (preferred?.row !== row || preferred.binding !== (route?.binding ?? null))
+            continue;
           const does = route?.does ?? word(row.does);
           const tr = document.createElement("tr");
           tr.dataset.lfCommand = id;
@@ -337,8 +373,8 @@ function showShortcutReference(open, restoreFocus, invokeCommand, captureOrigin)
           actionCell.setAttribute("role", "gridcell");
           const action = el("div", "lf-shortcut-reference-action");
           const scopeLabel = el("span", "lf-shortcut-reference-scope", scopeTitle);
-          const available = commandsAtOpen.has(id);
-          if (row.run && row.runFromReference !== false) {
+          const available = presentationAvailable(row, route);
+          if ((row.run || routedCommand(route)) && row.runFromReference !== false) {
             const command = el("button", "lf-shortcut-reference-command", word(does));
             command.type = "button";
             command.tabIndex = -1;
@@ -398,33 +434,7 @@ function showShortcutReference(open, restoreFocus, invokeCommand, captureOrigin)
       total += entries.length;
       return { el: t, entries };
     };
-    for (const scope of declaredStack(shortcutReferenceOrigin?.control)) {
-      // A scope the reader is standing in is filtered by each row's own liveness, because
-      // they can see which state they are in and a row that would refuse the press must
-      // not be on screen. A scope they are merely near is listed whole: a row's `when`
-      // asks whether the press moves *here*, and here is not where they are, so a grip's
-      // "arrows move" belongs in the reference though no card is held and `r` belongs in
-      // it though no thread is focused. Filtering both by the same predicate is what took
-      // the thread's own keys out of the reference altogether.
-      //
-      // A transient mode is the exception, and it is one because there is no standing near
-      // it: the reader is in it or it is not there. Opening this modal dismisses the mode,
-      // so its declaration records that its rows must retain their boundary-time liveness.
-      // Deriving that fact from a blanket keyboard claim coupled two independent parts of a
-      // scope and made exempting `?` change what the reference listed.
-      const inIt = readerIn(scope) || scope.liveInReference;
-      // A declared section may merge many element instances under one title. Their
-      // identical bindings are alternatives at different focus locations, not competing
-      // meanings in one dispatch scope, so conflict validation stays on each registered
-      // scope and this aggregate only filters the rows relevant to the current state.
-      // Pointer-native actions can deliberately carry a label but no key, so the
-      // complete reference filters commands by meaning and liveness rather than by
-      // whether they currently have a keyboard route.
-      const rows = scope.rows.filter(
-        (row) =>
-          row.does && (!inIt || (row.referenceWhen ? row.referenceWhen() : live(row))),
-      );
-      if (!rows.length) continue;
+    for (const { scope, rows } of referenceScopes) {
       const title = scope.title ?? "On this page";
       const section = document.createElement("section");
       section.className = "lf-shortcut-reference-section";

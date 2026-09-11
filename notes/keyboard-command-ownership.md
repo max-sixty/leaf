@@ -1,53 +1,38 @@
 # Keyboard command and binding ownership
 
-Status: proposed
+Status: implemented
 
 ## Goal
 
-Leaf needs one keyboard model that remains predictable as packages add widgets. A
-package receiving focus must not change Leaf's application keys. A focused widget must
-still be able to provide compact local operation, and a reader must be able to disable
-character shortcuts without losing the commands they invoke.
+Leaf needs one keyboard model that remains predictable as independently authored
+packages add and nest widgets. The model must preserve native editing, let focused
+widgets provide compact local operation, and keep contextual surfaces such as Ask from
+copying widget behavior.
 
-The model separates three decisions:
+The resulting model has three parts:
 
-- A command owner defines an action and implements it.
-- A namespace owner assigns character bindings when commands compete for the same keys.
-- The focused interaction owns standard editing, navigation, activation, and return
-  behavior while it is active.
+- Commands belong to the layer that implements their semantic result.
+- Bindings are routes to commands, not command identity.
+- A key resolves through focused semantic ancestry, from the nearest declaration out.
 
 ## Terms
 
-**Command** is a stable capability in the keyboard register. Its owner supplies the
-id, words, liveness, control, and implementation. A command can have no configured
-keyboard binding and remain executable from a visible control or the complete command
-reference.
+**Command** is a stable capability in the keyboard register. Its owner supplies its id,
+words, liveness, control, and implementation. A command may have no intrinsic keyboard
+binding and remain executable from a visible control or a contextual route.
 
-**Binding** is a route from a key press to a command. Binding availability and command
-availability are separate readings.
+**Binding** is one route from a key press to a command. A widget binding is intrinsic to
+that widget's focus scope. A projection such as Ask may add a contextual binding without
+changing the command or its intrinsic routes.
 
-**Character shortcut** is a binding whose key produces non-space text and whose only
-possible modifier is Shift. It includes letters, digits, punctuation, uppercase letter
-routes, and character sequences such as `g t`. It excludes Space, named keys such as
-Enter and ArrowRight, and chords such as Mod+Enter and Alt+w.
+**Scope** is the semantic region in which a set of bindings receives first refusal. An
+element scope stands while focus is on that element or within its composed-tree
+descendants. Modes and Leaf page behavior contribute scopes through the same resolver.
 
-**Application namespace** contains Leaf's direct page and chrome character bindings.
-Leaf assigns and protects these bindings. Core scopes may give one application key a
-deliberate contextual meaning because Leaf owns every competing meaning; packages
-cannot shadow it.
-
-**Local namespace** contains a widget instance's direct bindings. The nearest semantic
-owner on the focused DOM and shadow-DOM ancestry wins between nested local namespaces.
-Package installation order does not participate.
-
-**Mode namespace** exists only after an explicit interaction enters it. Go-to target
-letters, item-selection hints, and a widget's own modal continuations belong to their
-mode. A continuation may repeat a direct character because its prefix or active mode
-already selected a different namespace.
-
-**Focused interaction key** is a binding supplied by a native control, an established
-interaction pattern, or an active mode. Arrow keys in tabs, Enter on a button,
-Mod+Enter in an editor, and Escape from an open mode are focused interaction keys.
+**Projection** derives a contextual presentation from canonical registrations and
+state without becoming a second owner of either. Ask projects registered Decision
+commands into contextual routes. Threads similarly projects canonical conversations
+into the panel, living margin, and widget-local outlets; it does not project commands.
 
 ## Ownership rules
 
@@ -55,279 +40,158 @@ Mod+Enter in an editor, and Escape from an open mode are focused interaction key
 
 Leaf owns page reading, chrome, shared commenting, search, navigation, and workspace
 commands. A widget owns commands that interpret or change that widget's content. A
-widget can expose a control or target to a Leaf command without acquiring the command:
+widget can expose a control or target to a Leaf command without acquiring the command;
 for example, a visual widget supplies a comment target while Leaf owns Comment.
 
-The command owner does not necessarily assign its keyboard binding.
+Command identity is stable across its routes. The Swipe widget owns `swipe.pass` whether
+the reader invokes it with ArrowLeft inside the deck, with an Ask digit from the question,
+or from the complete command reference.
 
-### Every character binding has an explicit namespace owner
+### Focused ancestry resolves bindings
 
-Leaf assigns direct application shortcuts, including `c`, `/`, `t`, `a`, and `g`. Their
-ownership comes from declared core application rows, independently of current liveness,
-focus, page policy, or reader preference. A package cannot claim one through a nearer
-scope.
+For an ordinary key press, the resolver walks:
 
-Leaf may define contextual application behavior in scopes it owns. For example, `c`
-retains the application Comment intent while Leaf resolves its current target. A core
-key whose meanings differ by context remains Leaf's product grammar because Leaf sees
-and validates the whole set. Packages extend such behavior through a capability API,
-when one exists, rather than binding the protected key themselves.
+1. the exact focused control or active mode;
+2. the nearest focused widget scope;
+3. ancestor widget scopes;
+4. Leaf's contextual and page scopes;
+5. the browser.
 
-A widget assigns direct character shortcuts only in its local namespace. It may use a
-character not protected by the application namespace. Nested widgets remain composable:
-the nearest local namespace that declares a character owns it, just as a focused tab
-list's arrows take precedence over an enclosing deck's arrows. A local declaration
-retains that ownership while its command is unavailable, so one state change cannot
-make the same press fall through to an ancestor's different local action. Liveness
-controls execution and projection, not ownership.
+Within the focused element ancestry, the first scope that declares the binding owns its
+Leaf meaning. An element scope receives first refusal only for keys it declares; every
+undeclared key continues outward. After that ancestry, Leaf's contextual and page tables
+remain peers at one outer level and resolve their first live command. Package load order,
+tag names, command-id prefixes, and a global protected-character list do not participate.
 
-A mode owner assigns its continuation namespace. Its declarations reserve nothing
-outside the active mode, so `g g` can coexist with direct `g`, and a generated Go-to
-alphabet does not consume the page or widget alphabet. A mode declares which application
-routes survive while it stands, along with its exit and return behavior.
+A presentation-only row has no `run`. It may name a browser-native press or give a
+widget-specific description to a shared outer Leaf handler, but it does not claim Leaf
+dispatch and therefore does not shadow that handler. Ownership below refers to a row that
+implements a Leaf invocation.
 
-Registration records provenance and namespace explicitly. Core application
-registration produces protected application rows. The public widget `commands()` entry
-point produces a local owner. A widget creates a mode through an API tied to that widget
-instance and the command that enters it. Leaf does not infer authority from tag names,
-command-id prefixes, or package load order.
+An element declaration retains precedence while its command is unavailable. Liveness
+decides whether a command executes and appears in projections, not whether the same key
+suddenly acquires an ancestor's different meaning. An unavailable inner declaration
+therefore suppresses outer Leaf commands while leaving any browser default intact.
 
-### Leaf assigns aggregate addresses
+This rule applies equally to character keys, digits, punctuation, named keys, and chords.
+Leaf's familiar page grammar remains the outer default: a widget changes a key only while
+focus is inside a scope that explicitly declares that key.
 
-Some character routes are properties of a collection rather than one command:
+### Native interaction stands before ancestor widgets
 
-- Leaf allocates Ask digits after reading every action in the active Ask. Packages never
-  declare contextual digits. A Decision command may retain one intrinsic non-character
-  binding, such as ArrowLeft or Mod+Enter. Leaf allocates a digit only where the Decision
-  command has no intrinsic binding and capacity remains.
-- Leaf allocates generated Go-to addresses after reading every visible destination. A
-  widget contributes a destination control; it does not choose an address.
+Native controls retain platform activation, selection, adjustment, editing, and
+composition. A text entry's character, deletion, caret, Home/End, and page-movement
+claims stand after an exact scope on that control and before any ancestor widget. An
+editor can therefore declare Mod+Enter or Escape exactly while retaining ordinary text
+entry and preventing an enclosing deck from taking its arrows.
 
-An action remains a command and a visible control when no digit or generated character
-is available.
+An active mode owns its continuations and inverse. Leaf orders nested Escape behavior
+through the return stack; one press unwinds one layer.
 
-### Focused interaction keys follow the active interaction
+### Leaf assigns collection-wide addresses
 
-Named keys, Space, and modified chords are outside the character namespaces. The
-nearest focused control or active interaction may claim them when the key is part of
-that interaction:
+Some routes are properties of a complete collection rather than any one widget:
 
-- Native controls retain their platform activation, selection, adjustment, and editing
-  keys.
-- Widgets implement the keys required by their interaction pattern, such as arrows and
-  Home/End in tabs.
-- An exact editor scope may add a local chord such as Mod+Enter.
-- An active mode may use Tab, Enter, and Escape for traversal, activation, and return.
+- Ask assigns `1` through `9` to the ordered live Decisions in the Ask.
+- Go-to assigns generated addresses after reading every visible destination.
 
-Leaf derives a focused native control's claim footprint from its element semantics and
-role. Text fields claim text and editing keys; buttons retain Enter and Space; ranges,
-radios, selects, and other native controls retain their adjustment keys. This footprint
-sits ahead of ancestor widget scopes. An exact control may add behavior deliberately,
-but an ancestor cannot take a native key first. If no interaction claims a key, the
-browser owns it. Composition and AltGraph text production take precedence over command
-chords.
+Packages contribute commands and controls, not those contextual addresses. Every Ask
+Decision consumes one digit while capacity remains, even when the command also has an
+intrinsic widget binding. ArrowLeft remains Swipe's local route; `1` is the Ask's
+independent route to the same `swipe.pass` command.
 
-The active interaction owns its Escape inverse, while Leaf orders nested inverses
-through the return stack. A widget declares how to leave the mode it opened; it does not
-decide which outer surface closes next.
-
-### Configuration filters bindings, not commands
-
-The reader setting is **Use character shortcuts**. The page may deny character
-shortcuts with:
-
-```html
-<meta name="lf-character-shortcuts" content="off">
-```
-
-Omission allows them. The effective setting is on only when the page allows character
-shortcuts and the reader preference is on. A page cannot force them on. Leaf reads the
-validated page policy at initial presentation and revision activation.
-
-The reader preference applies across Leaf pages on the same host. It is stored as a
-one-year host-scoped cookie with no `Domain`, `Path=/`, and `SameSite=Strict`. A page
-writes the cookie and its in-memory reading together. Pages re-read it when they regain
-focus or visibility because cookie changes do not emit a cross-port event. If persistence
-is unavailable, the setting lasts in memory for the current page. Other hosts and
-partitioned embedded browsers keep independent preferences.
-
-When character shortcuts are off:
-
-- Character dispatch, configured keycaps, generated character hints, shortcut-bar
-  entries, and `aria-keyshortcuts` disappear together.
-- Commands, controls, Space, named-key routes, and modified chords remain available.
-- The complete command reference retains executable commands and omits their disabled
-  character route. A purely instructional character row with no executable command is
-  omitted.
-- A mode opened from a control or the command reference retains its focused Tab, Enter,
-  and Escape behavior. Character continuations and character hints remain off.
-
-The preference control remains editable when the page denies shortcuts. The reference
-shows the stored reader preference and effective page state separately, so a checked
-preference does not imply that the current page enables it.
-
-## Case matrix
-
-| Case | Command owner | Namespace or convention | Result |
-| --- | --- | --- | --- |
-| Comment on a visual part | Leaf; widget supplies the target | Application | `c` retains Leaf's Comment intent and resolves the current target. |
-| Decision in `lf-options` | Widget | Leaf Ask allocator | The action receives the next free `1`-`9`; Tab and native activation remain. |
-| Swipe Decision | Swipe widget | Focused interaction | ArrowLeft and ArrowRight remain intrinsic routes; Leaf does not add a digit. |
-| Widget button in Go-to | Widget | Leaf mode allocator | Leaf assigns a visible, prefix-free address from the whole scene. |
-| Page text search | Leaf | Application | `/` searches all text in the active page reading surface. |
-| Thread-list search | Leaf | Application context | `/` searches the focused thread list under Leaf's declared contextual grammar. |
-| Diff file-name filter | Diff widget | None while `/` is protected | The visible filter control and command remain; the widget cannot shadow page `/`. |
-| Next diff hunk | Diff widget | Local | `]` is stable within the focused diff while it remains unprotected. |
-| Nested widget also using `]` | Nested widget | Nearer local namespace | The nested widget owns `]` while focused; the enclosing diff does not run it. |
-| Go-to continuation `g` | Leaf | Go-to mode | `g g` is valid because the second `g` is not in the application namespace. |
-| Tabs | Tabs widget | Established tabs pattern | ArrowLeft, ArrowRight, Home, and End operate only in the focused tab list. |
-| Range inside a swipe deck | Browser | Native control footprint | ArrowLeft adjusts the range and never reaches the enclosing deck. |
-| Native button | Widget or Leaf | Browser | Enter and Space activate the button without a duplicate Leaf route. |
-| Draft submission | Draft owner | Exact editor scope | Mod+Enter submits while Enter remains a newline. |
-| Leave a widget mode | Widget owns the inverse; Leaf owns nesting | Focused mode and return stack | Escape leaves the innermost active interaction, then returns outward. |
-| Go-to opened from the reference while character shortcuts are off | Leaf | Focused Go-to mode | Tab selects a destination, Enter activates it, and Escape leaves; letter hints stay absent. |
+An Ask digit remains outer to a focused widget scope. If that widget declares the same
+digit, the widget receives it while focused and the Ask route is not advertised. Other
+digits continue outward to the Ask. When focus returns to the Ask itself, its complete
+digit map is active again.
 
 ## Register contract
 
-The register remains the single declaration source. It produces three readings:
+The register remains the single declaration source. Each scoped command reference
+captures the source element, exact registered scope, row, stable command id, intrinsic
+invocation argument, and control. Contextual routes retain that reference rather than a
+copy of `run`.
 
-- **Command definitions** retain stable identity, source instance, semantic scope,
-  liveness, implementation, and invocation arguments independently of shortcuts.
-- **Configured shortcut routes** apply page policy and reader preference to declared
-  bindings. They do not depend on current focus or command liveness.
-- **Resolved shortcut routes** apply scope ancestry, current liveness, mode ownership,
-  native claims, and local shadowing for one explicit interaction context.
+Before invocation, dispatch revalidates that:
 
-Key dispatch, the shortcut bar, a control's tooltip, and `aria-keyshortcuts` consume
-resolved routes for their context. The complete reference combines command definitions
-with configured routes because it also documents commands outside the reader's current
-focus. It uses each scope's existing capability and reach rules rather than pretending
-every listed command is immediately reachable.
+- the source remains connected and owns the same scope;
+- the scope and row are still available;
+- the stable id and intrinsic route still exist;
+- a runnable implementation or connected native control remains.
 
-Explicit command invocation never simulates or requires a key press. It resolves a
-command by stable id and captured source instance, then revalidates semantic scope,
-liveness, native-layer availability, and source connection before acting. Keyboard
-interception claims, text-entry claims, and local key shadowing apply only to shortcut
-dispatch. A routed command retains its declared invocation argument after its character
-route is filtered out.
+Key dispatch, contextual aliases, and command-reference invocation then share the same
+execution path. The original row receives the original invocation argument and supplies
+the return frame. A digit alias does not pass its digit to a widget command or create a
+second click implementation.
 
-Binding parsing, canonicalization, classification, matching, and text-entry ownership
-share one parsed representation. The parser preserves a literal `+`, normalizes Unicode
-character keys to NFC, rejects unsupported declarations at registration, and
-distinguishes AltGraph text production from Ctrl+Alt command chords.
+Resolved projections use binding reachability, not only command-id reachability. This is
+necessary because an intrinsic widget route and an Ask alias deliberately share a command
+id while different focus scopes may make only one of their bindings reachable.
 
-## Validation
+## Cases
 
-Declaration-time validation rejects:
+| Focus and declaration | Press | Result |
+| --- | --- | --- |
+| Page, no nearer declaration | `c` | Leaf's page Comment command |
+| Focused widget declares `c` | `c` | Widget command |
+| Focused widget does not declare `c` | `c` | Leaf's page Comment command |
+| Focused widget implements dead `c` | `c` | No Leaf command; outer Comment remains suppressed |
+| Focused widget only describes an outer route | route | Outer implementation remains reachable |
+| Ask itself | `1` | First live Decision through its original command |
+| Swipe deck inside Ask | ArrowLeft | Swipe's intrinsic Pass route |
+| Widget inside Ask declares `1` | `1` | Widget route; Ask's first route is not advertised |
+| Text input inside a widget | character or caret key | Native editing |
+| Exact editor scope | Mod+Enter | Editor submission command |
+| Nested widgets both declare `]` | `]` | Nearest focused widget command |
+| Active Go-to mode | continuation | Go-to mode command |
 
-- a package local binding protected by the application namespace;
-- structurally unconditional duplicate meanings in the same dispatch scope;
-- a package-declared contextual Ask digit or generated Go-to address;
-- a route that loses its command identity or invocation argument when its binding is
-  filtered;
-- unsupported or non-canonical key syntax.
+## Alternatives considered
 
-Conditional and context-specific alternatives may share a binding. Scene resolution
-applies namespace and semantic-scope precedence, then checks computed liveness, current
-mode, native ownership, and composed ancestry. It rejects multiple live meanings at the
-same resulting precedence instead of choosing by declaration order. Different nested
-local owners resolve by semantic ancestry. A nearer owner's unavailable declaration
-suppresses a different ancestor-local meaning for that key. Browser tests exercise
-transitions because arbitrary liveness predicates cannot be proved mutually exclusive
-statically.
+### Protect Leaf's character namespace globally
 
-## Likely implementation failures
+This keeps page keys invariant even inside a focused widget, but requires provenance,
+collision validation, and exceptions for contextual capabilities. It also prevents useful
+focused punctuation and digit interactions even though focus already supplies a clear
+boundary. The extra namespace system does not buy enough predictability over ancestry.
 
-- Filtering `bindings(row)` directly can remove the command from reference invocation,
-  Decision discovery, or routed-command identity along with its shortcut.
-- Applying the dispatcher's current focus claims to the complete reference can hide
-  commands that are valid in another documented scope.
-- Reading route declarations directly can leave Ask chips, generated hints, tooltips, or
-  `aria-keyshortcuts` visible after dispatch has disabled them.
-- Treating every core character as one flat reserved set can consume the complete
-  alphabet and reject valid mode continuations.
-- Letting a dead local row fall through can change an ancestor key's meaning as widget
-  state changes.
-- An incomplete native claim footprint can make an enclosing widget intercept a range,
-  radio, select, or editor key.
-- Splitting bindings on every `+`, counting JavaScript string length, or ignoring
-  AltGraph can misclassify literal punctuation and composed text.
-- Page-local storage can make the preference reset when a newly handed local page uses a
-  different port. Cookies need explicit focus and visibility synchronization.
-- Adding a future protected application character can invalidate a package that already
-  uses it. Composition must report the incompatible layer change; Leaf cannot silently
-  take the key.
+### Give every character to Leaf except when a widget is focused
 
-## Cutover
+This is close to the chosen model but is too coarse if interpreted as handing the whole
+keyboard to the widget. A focused widget must receive only its declared bindings; otherwise
+it can silently swallow page commands it does not implement. Declaration-based first
+refusal states the seam precisely.
 
-The change replaces the current coupled binding/command reading rather than adding a
-second command system.
+### Let liveness decide ownership
 
-1. Complete the shared binding parser and character classifier.
-2. Add explicit application, local, and mode namespace provenance at the core and
-   package registration boundaries.
-3. Derive command definitions, configured routes, and context-resolved routes from the
-   existing register.
-4. Complete native control claim footprints and local ownership resolution.
-5. Move Ask digits and generated destinations through the shared allocator readings.
-6. Apply configured and resolved character filtering to dispatch and every projection.
-7. Add the reader preference, page policy, and standing chrome door to the existing
-   keyboard reference.
-8. Remove conflicting package bindings, including diff `/`, without compatibility
-   aliases.
+This makes a key fall through to a different semantic action as widget state changes. A
+disabled local action could unexpectedly run a page operation, and projections would
+shift between meanings without focus moving. Keeping declaration and liveness separate
+avoids that instability.
 
-Tests cover a character shortcut and its surviving command, both branches of a routed
-command, intrinsic and allocated Decision routes, digit-capacity exhaustion, generated
-Go-to hints, widget-local punctuation, a rejected application/widget conflict, nested
-local precedence, dead-child suppression, native controls inside keyboard-active
-widgets, text entry, AltGraph and composed Unicode input, every page-policy/reader-setting
-combination, and preference continuity across local page ports.
+### Copy widget callbacks into Ask
 
-## Alternatives
+This is mechanically small but creates a second invocation path. It loses command return
+frames, can retain replaced controls, and lets key and projection behavior drift. Scoped
+command references retain one implementation and validate it at the moment of use.
 
-### Let the nearest scope override application keys
+### Introduce a generic Projection class
 
-This needs the least new registry structure and preserves unrestricted local freedom.
-The shared resolver can keep dispatch and projections aligned, but a learned page key
-can still change meaning when a package receives focus. Package behavior becomes part of
-Leaf's application grammar without Leaf assigning it.
+Ask and Threads share the rule that a projection derives a contextual presentation
+without taking ownership, but not the same inputs or lifecycle. Ask reads commands and
+adds routes; Threads reads conversations and chooses panel, margin, or widget outlets. A
+generic class would freeze an abstraction before a second identical mechanism exists.
+Shared command references and scope resolution provide the keyboard seam without
+inventing a superclass.
 
-### Reserve every character for Leaf
+## Consequences
 
-This gives the application grammar complete stability and leaves widgets with native
-controls, named keys, and modified chords. It also removes useful focused operations
-such as diff hunk navigation even though they do not compete with an application key.
+The model is intentionally permissive: a focused package may shadow a learned Leaf page
+key. That behavior is bounded by visible semantic focus and an explicit declaration, and
+the key returns to Leaf as soon as focus leaves the widget. If real packages make that
+freedom confusing, command metadata can later distinguish application intents from local
+operations without replacing the ancestry resolver.
 
-### Reject every character collision across nested widgets
-
-This prevents local shadowing but makes independently valid widgets incompatible when
-an author composes them. Semantic focus ancestry already supplies a deterministic local
-owner, so the restriction adds composition failures without protecting application
-keys further.
-
-### Let widgets request meanings and have Leaf assign every character
-
-A global allocator eliminates collisions. The same widget action can receive different
-keys as page composition changes, so documentation, learned operation, and package tests
-cannot rely on a stable local binding. Semantic command ids do not make arbitrary
-generated letters memorable.
-
-### Give each package a fixed character prefix
-
-Prefixes partition the namespace, but they add a step to every local command and reserve
-letters for packages that may not be present. Nested active modes still need focus and
-return rules.
-
-### Route protected keys through contextual capability providers
-
-Leaf could own a semantic command such as Find and let the focused widget provide its
-implementation. This is preferable to arbitrary shadowing when every provider keeps the
-same user intent. It is not suitable for diff file-name filtering yet: page `/` searches
-all rendered text, while the diff filter changes the visible file set by name. A shared
-Find capability would first need one contract for search domain, result traversal, empty
-results, and return behavior.
-
-Protected application bindings, explicit mode namespaces, and nearest-owner local
-precedence preserve Leaf's learned grammar without making independently composed widgets
-share one global alphabet. Leaf allocates only the collections that no single widget can
-know.
+The present design does not add a reader-wide character-shortcut preference. Such a
+preference is an orthogonal route filter: it can remove character bindings while leaving
+commands and non-character routes intact. It should be added only with its own complete
+dispatch, projection, persistence, and accessibility contract.

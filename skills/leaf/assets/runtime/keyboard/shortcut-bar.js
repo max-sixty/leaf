@@ -156,8 +156,10 @@ function lineRows(scopes) {
     // Shadowing before liveness, for the reason the dispatcher matches the key first:
     // under the reference every page row is claimed away, and asking each one what the
     // page is waiting on to then say nothing about it is the table's cost per paint. A
-    // dead row names nothing, so it shadows nothing either. Keep all unshadowed rows in
-    // the batch so activeRows still rejects two live meanings inside this reachable scope.
+    // dead row names nothing within its own scope, where mutually exclusive rows may reuse
+    // a binding. `nearer.past(scope)` then records every element-scope declaration before
+    // outer scopes are read. Keep all unshadowed rows in the batch so activeRows still
+    // rejects two live meanings inside this reachable scope.
     const reachable = scope.rows.flatMap((row) => {
       if (!row.line || (!scope.sequence && word(row.lineWhen) === false)) return [];
       const bound = bindings(row);

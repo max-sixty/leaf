@@ -211,7 +211,7 @@ function scopesWithin(root, activeOnly) {
 }
 export function commandsWithin(root) {
   return scopesWithin(root, true).flatMap(({ source, scope }) =>
-    scope.rows.filter(live).map((row) => ({ source, row })),
+    scope.rows.filter(live).map((row) => ({ source, scope, row })),
   );
 }
 // Command-scope metadata under one widget, in declaration order. The action rows and

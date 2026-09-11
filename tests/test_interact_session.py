@@ -4428,6 +4428,74 @@ def test_codex_adapter_exits_after_its_offline_page_cannot_restart(
     assert adapter_log.count("server is not running") == 2
 
 
+def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
+    codex_claimed_page, spawn, codex_env, tmp_path, dead_pid
+):
+    page = codex_claimed_page
+    program, log = fake_codex_cli(tmp_path)
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    claim = service_model.page_claim(page)
+    files_model.write_json(
+        service_model.claim_path(page), {**claim, "pid": os.getpid()}
+    )
+    adapter = spawn(
+        [str(launcher), "codex", "run", "--codex-path", str(program)],
+        env=codex_env
+        | {
+            "CODEX_THREAD_ID": "codex-thread",
+            "FAKE_CODEX_LOG": str(log),
+            "FAKE_CODEX_QUEUE_FAILURE_ONCE": str(tmp_path / "failed-queue"),
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and not codex_model.adapter_is_live(
+            "codex-thread"
+        ):
+            time.sleep(0.05)
+        assert codex_model.adapter_is_live("codex-thread")
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "hello adapter"}
+        )
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            queues = codex_queues("codex-thread")
+            calls = (
+                [json.loads(line) for line in log.read_text().splitlines()]
+                if log.exists()
+                else []
+            )
+            if queues and queues[0][1]["state"] == "offering" and len(calls) > 1:
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the adapter did not reach its delivery retry")
+
+        claim = service_model.page_claim(page)
+        files_model.write_json(
+            service_model.claim_path(page), {**claim, "pid": dead_pid}
+        )
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and codex_model.adapter_is_live(
+            "codex-thread"
+        ):
+            time.sleep(0.05)
+        assert not codex_model.adapter_is_live("codex-thread")
+        assert adapter.wait(timeout=5) == 0
+        assert codex_queues("codex-thread")[0][1]["state"] == "offering"
+        assert files_model.read_json(page / "cursor.json") is None
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        assert len(calls) == 2
+    finally:
+        with service_model.PageTransaction(page) as transaction:
+            transaction.release_claim()
+
+
 def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
     codex_claimed_page, under_codex, codex_env, tmp_path
 ):

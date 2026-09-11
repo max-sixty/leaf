@@ -974,6 +974,8 @@ def run_adapter(
         )
     leases_released = False
     app_client = None
+    start_lock = adapter_start_lock_path(identity["id"])
+    start_lock.parent.mkdir(parents=True, exist_ok=True)
     try:
         check_queue_command(codex_path)
         if app_server is not None:
@@ -985,6 +987,12 @@ def run_adapter(
             ready_fd = None
         failures = 0
         while True:
+            with flocked(start_lock):
+                if not owned_pages(identity["id"]):
+                    watch.release()
+                    lease.close()
+                    leases_released = True
+                    return 0
             try:
                 queue_server = (
                     app_server
@@ -1023,14 +1031,14 @@ def run_adapter(
             if captured:
                 continue
             if reading.outcome is not None or not reading.live:
-                start_lock = adapter_start_lock_path(identity["id"])
-                start_lock.parent.mkdir(parents=True, exist_ok=True)
                 with flocked(start_lock):
                     captured = False
                     reading = read_watch_pass(watch, None, deliver=capture)
                     if captured or (reading.outcome is None and reading.live):
                         continue
-                    if _has_delivery_work(identity["id"]):
+                    if owned_pages(identity["id"]) and _has_delivery_work(
+                        identity["id"]
+                    ):
                         time.sleep(1)
                         continue
                     watch.release()

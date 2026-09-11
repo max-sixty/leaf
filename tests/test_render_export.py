@@ -140,7 +140,133 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
 
     assert preview.source_packages(source) == ["diagram"]
     assert preview.media_source(source) == media
-    assert examples / "layer.json" in preview.watch_paths(source, ROOT, [], {})
+    paths, _ = preview.watch_paths(source, ROOT, [], {})
+    assert examples / "layer.json" in paths
+
+
+def test_preview_reexpands_inputs_only_when_directory_membership_changes(
+    tmp_path, monkeypatch
+):
+    import preview
+
+    source = tmp_path / "examples" / "page.html"
+    source.parent.mkdir()
+    source.write_text("first", encoding="utf-8")
+    runtime = tmp_path / "runtime"
+    scripts = runtime / "skills" / "leaf" / "scripts" / "nested"
+    scripts.mkdir(parents=True)
+    existing_script = scripts / "existing.py"
+    existing_script.write_text("first", encoding="utf-8")
+    layer = tmp_path / "layer"
+    widgets = layer / "widgets"
+    widgets.mkdir(parents=True)
+
+    expansions = 0
+    expand = preview.watch_paths
+
+    def counted_expansion(*args):
+        nonlocal expansions
+        expansions += 1
+        return expand(*args)
+
+    monkeypatch.setattr(preview, "watch_paths", counted_expansion)
+    watched = preview.WatchedInputs(source, runtime, [layer], {})
+    baseline = watched.read()
+    assert watched.read() == baseline
+    assert expansions == 2
+
+    ignored = scripts / "README.md"
+    ignored.write_text("ignored", encoding="utf-8")
+    assert watched.read() == baseline
+    assert expansions == 3
+
+    existing_script.write_text("changed size", encoding="utf-8")
+    assert watched.read() != baseline
+    assert expansions == 3
+
+    added_script = scripts / "added.py"
+    added_script.write_text("new", encoding="utf-8")
+    assert str(added_script) in watched.read()
+    assert expansions == 4
+
+    renamed_script = scripts / "renamed.py"
+    added_script.rename(renamed_script)
+    renamed = watched.read()
+    assert str(added_script) not in renamed
+    assert str(renamed_script) in renamed
+    assert expansions == 5
+
+    renamed_script.unlink()
+    assert str(renamed_script) not in watched.read()
+    assert expansions == 6
+
+    versions = source.parent / "versions"
+    versions.mkdir()
+    version = versions / "page.v1.html"
+    version.write_text("version", encoding="utf-8")
+    assert str(version) in watched.read()
+    assert expansions == 7
+
+    widget = widgets / "lf-new.js"
+    widget.write_text("export {};", encoding="utf-8")
+    assert str(widget.resolve()) in watched.read()
+    assert expansions == 8
+
+
+def test_preview_reexpands_when_a_nearer_media_directory_appears(tmp_path):
+    import preview
+
+    checkout = tmp_path / "checkout"
+    source = checkout / "examples" / "developer" / "page.html"
+    source.parent.mkdir(parents=True)
+    source.write_text("page", encoding="utf-8")
+    launcher = checkout / "bin" / "leaf"
+    launcher.parent.mkdir()
+    launcher.touch()
+    manifest = checkout / "examples" / "layer.json"
+    manifest.write_text("[]", encoding="utf-8")
+    inherited_media = checkout / "examples" / "media"
+    inherited_media.mkdir()
+    inherited = inherited_media / "inherited.png"
+    inherited.write_bytes(b"inherited")
+
+    watched = preview.WatchedInputs(source, checkout, [], {})
+    assert str(inherited) in watched.read()
+
+    nearer_media = source.parent / "media"
+    nearer_media.mkdir()
+    nearer = nearer_media / "nearer.png"
+    nearer.write_bytes(b"nearer")
+    current = watched.read()
+    assert str(nearer) in current
+    assert str(inherited) not in current
+
+
+def test_preview_does_not_swallow_a_file_created_during_expansion(
+    tmp_path, monkeypatch
+):
+    import preview
+
+    source = tmp_path / "page.html"
+    source.write_text("page", encoding="utf-8")
+    scripts = tmp_path / "skills" / "leaf" / "scripts"
+    scripts.mkdir(parents=True)
+    added = scripts / "added.py"
+    expand = preview.watch_paths
+    expansions = 0
+
+    def racing_expansion(*args):
+        nonlocal expansions
+        expansions += 1
+        result = expand(*args)
+        if expansions == 2:
+            added.write_text("created after enumeration", encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(preview, "watch_paths", racing_expansion)
+    watched = preview.WatchedInputs(source, tmp_path, [], {})
+    assert str(added) in watched.read()
+    assert expansions == 3
 
 
 def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path):

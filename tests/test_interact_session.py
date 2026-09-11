@@ -614,6 +614,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     assert [
         (receipt["event"], receipt["phase"]) for receipt in activity["interactions"]
     ] == [("c1", "active"), ("c2", "sent")]
+    assert all("anchor" not in receipt for receipt in activity["interactions"])
     assert (activity["counts"]["total"], activity["counts"]["active"]) == (1, 0)
     assert (
         _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0

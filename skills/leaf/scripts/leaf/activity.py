@@ -81,6 +81,7 @@ def _canonical_interactions(
         item["phase"] = phase
         item["quiet"] = quiet
         item["dropped"] = dropped
+        item.pop("anchor", None)
         item.pop("fallback_phase", None)
         item.pop("fallback_ts", None)
         result.append(item)

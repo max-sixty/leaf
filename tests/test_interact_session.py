@@ -4249,7 +4249,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
                 "start",
                 str(page),
                 "--codex-path",
-                str(program),
+                os.path.relpath(program),
             ]
         ),
         environment,

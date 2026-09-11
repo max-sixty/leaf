@@ -110,6 +110,13 @@ if arguments == ["queue", "--help"]:
 if arguments[:1] != ["queue"]:
     print("unsupported command", file=sys.stderr)
     sys.exit(2)
+expected_cwd = os.environ.get("FAKE_CODEX_EXPECT_CWD")
+if expected_cwd and os.getcwd() != expected_cwd:
+    print(f"unexpected cwd: {{os.getcwd()}}", file=sys.stderr)
+    sys.exit(1)
+if os.environ.get("FAKE_CODEX_REJECT_DELIVERY"):
+    print("delivery unavailable", file=sys.stderr)
+    sys.exit(1)
 failure = os.environ.get("FAKE_CODEX_QUEUE_FAILURE_ONCE")
 if failure and not os.path.exists(failure):
     with open(failure, "w", encoding="utf-8") as failed:
@@ -4224,6 +4231,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
+        "FAKE_CODEX_EXPECT_CWD": str(host_model.state_home()),
     }
     if delivery_fault == "retry":
         environment["FAKE_CODEX_QUEUE_FAILURE_ONCE"] = str(
@@ -4426,6 +4434,58 @@ def test_codex_adapter_exits_after_its_offline_page_cannot_restart(
         encoding="utf-8"
     )
     assert adapter_log.count("server is not running") == 2
+
+
+def test_codex_adapter_stops_retrying_after_its_last_page_ends(
+    codex_claimed_page, under_codex, codex_env, tmp_path
+):
+    page = codex_claimed_page
+    program, log = fake_codex_cli(tmp_path)
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    started = under_codex(
+        shlex.join(
+            [str(launcher), "codex", "start", str(page), "--codex-path", str(program)]
+        ),
+        codex_env
+        | {
+            "CODEX_THREAD_ID": "codex-thread",
+            "FAKE_CODEX_LOG": str(log),
+            "FAKE_CODEX_REJECT_DELIVERY": "1",
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    out, err = started.communicate(timeout=60)
+    assert started.returncode == 0, f"{out}{err}"
+
+    claim = service_model.page_claim(page)
+    files_model.write_json(
+        service_model.claim_path(page), {**claim, "pid": os.getpid()}
+    )
+    events_model.append_event(
+        page, {"kind": "comment", "author": "user", "text": "hello adapter"}
+    )
+    adapter_log = codex_model.adapter_log_path("codex-thread")
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if adapter_log.is_file() and "delivery unavailable" in adapter_log.read_text():
+            break
+        time.sleep(0.05)
+    else:
+        pytest.fail("the adapter did not reach its delivery retry")
+
+    with service_model.PageTransaction(page) as transaction:
+        transaction.release_claim()
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and codex_model.adapter_is_live("codex-thread"):
+        time.sleep(0.05)
+    assert not codex_model.adapter_is_live("codex-thread")
+
+    [(_queue_path, queue)] = codex_queues("codex-thread")
+    assert queue["state"] == "offering"
+    assert not queue["batches"][0]["receipted"]
 
 
 def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(

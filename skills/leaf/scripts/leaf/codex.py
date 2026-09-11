@@ -985,6 +985,7 @@ def run_adapter(
             ready_fd = None
         failures = 0
         while True:
+            recovery_failed = False
             try:
                 queue_server = (
                     app_server
@@ -1005,11 +1006,11 @@ def run_adapter(
                         file=sys.stderr,
                         flush=True,
                     )
-                time.sleep(min(30, 2 ** min(failures, 5)))
-                continue
-            if recovered:
+                recovery_failed = True
+            else:
                 failures = 0
-                continue
+                if recovered:
+                    continue
 
             captured = False
 
@@ -1019,25 +1020,35 @@ def run_adapter(
                 captured = capture_batch(identity["id"], reading)
                 return False
 
-            reading = read_watch_pass(watch, None, deliver=capture)
+            def observe(_reading) -> bool:
+                return False
+
+            deliver = observe if recovery_failed else capture
+            reading = read_watch_pass(watch, None, deliver=deliver)
             if captured:
                 continue
-            if reading.outcome is not None or not reading.live:
+            watch_ended = not reading.live or (
+                not recovery_failed and reading.outcome is not None
+            )
+            if watch_ended:
                 start_lock = adapter_start_lock_path(identity["id"])
                 start_lock.parent.mkdir(parents=True, exist_ok=True)
                 with flocked(start_lock):
                     captured = False
-                    reading = read_watch_pass(watch, None, deliver=capture)
-                    if captured or (reading.outcome is None and reading.live):
-                        continue
-                    if _has_delivery_work(identity["id"]):
-                        time.sleep(1)
-                        continue
-                    watch.release()
-                    lease.close()
-                    leases_released = True
-                    return reading.outcome or 0
-            time.sleep(1)
+                    reading = read_watch_pass(watch, None, deliver=deliver)
+                    watch_ended = not reading.live or (
+                        not recovery_failed and reading.outcome is not None
+                    )
+                    inactive = not captured and watch_ended
+                    if inactive and (
+                        recovery_failed or not _has_delivery_work(identity["id"])
+                    ):
+                        watch.release()
+                        lease.close()
+                        leases_released = True
+                        return reading.outcome or 0
+            delay = min(30, 2 ** min(failures, 5)) if recovery_failed else 1
+            time.sleep(delay)
     except BaseException as error:
         if ready_fd is not None:
             os.write(
@@ -1095,6 +1106,7 @@ def cmd_codex_start(
                     arguments.extend(["--app-server", app_server])
                 process = subprocess.Popen(
                     arguments,
+                    cwd=state_home(),
                     stdin=subprocess.DEVNULL,
                     stdout=log,
                     stderr=log,

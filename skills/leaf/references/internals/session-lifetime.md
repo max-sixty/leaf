@@ -107,7 +107,9 @@ In Codex, the adapter collects available input, then freezes the delivery before
 handing its bounded id-only `leaf-delivery` pointer to Codex's durable same-task queue.
 Input collected after that boundary belongs to a later delivery. A failed or
 uncertain queue call retries the same frozen pointer; a successful call marks only
-that delivery accepted.
+that delivery accepted. Recovery continues while the session owns a live page. If
+the last page ends during a failed call, the adapter exits and leaves the frozen
+delivery and its queue record for a later adapter start.
 If every website startup retry fails, its deterministic fallback settles the
 triggering event and removes the unaccepted queue record. The immutable payload
 remains at its permanent path for a turn whose acceptance may have raced the failed

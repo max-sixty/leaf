@@ -269,7 +269,9 @@ Ask projection uses the same condition for standing state. Do not add a second
 completed attribute or trust the browser's optimistic item count. Re-vendoring must
 preserve the completion condition for every recorded action.
 
-A CSS-only widget is an entry and a theme rule. One with behavior takes a module.
+A package is for behavior, styling, or vocabulary reused across pages. Page-specific
+behavior belongs in an authored inline module and needs no package entry. A CSS-only
+widget is an entry and a theme rule. One with reusable behavior takes a module.
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. What the module owes:
@@ -737,8 +739,9 @@ and `lfDataDatum(key)` to map a semantic key to the rendered projected element.
 
 ## Widget-local Thread surfaces
 
-An upgraded widget declares `"x-thread-surface": true` when it can place complete
-Threads beside its own projected data. Its module registers one adapter:
+An upgraded widget declares `"x-thread-surface": true` when it can place the canonical
+response composer and complete Threads beside its own projected data. Its module
+registers one adapter:
 
 ```js
 this.threadSurface = registerThreadSurface(this, {
@@ -748,10 +751,11 @@ this.threadSurface = registerThreadSurface(this, {
 });
 ```
 
-Core calls `begin`, asks `outletFor` about each exact datum thread owned by that widget,
-then calls `end`. The adapter returns an element inside the widget or `null`. It owns
-only outlet creation, removal, and layout. Core renders the retained messages, replies,
-reactions, settlement controls, and receipts into each outlet. A claimed thread does not
+Core calls `begin`, asks `outletFor` about each exact datum Thread and the active
+composer owned by that widget, then calls `end`. The adapter returns an element inside
+the widget or `null`. It owns only outlet creation, removal, and layout. Core moves its
+one composer node or renders retained messages, replies, reactions, settlement controls,
+and receipts into each outlet. A claimed thread does not
 also appear in the margin projection; the Threads panel remains the complete index. With
 Threads closed, `t`/`T` lands on this local surface before trying the margin-projection
 fallback. Opening Threads from the focused surface carries the same thread into the
@@ -767,6 +771,12 @@ views, and returns its threads to the margin. Other registrations continue, and 
 next ordinary reconciliation retries the adapter. Outlets must remain inside their
 widget after `end`; disconnected outlets claim no threads. Core message-rendering
 errors still fail the state application rather than accepting a partial conversation.
+
+The registration handle's `open(datum, { origin })` accepts one projected element owned
+by the widget. Core captures its full datum coordinate, including external-data source
+revision, opens the ordinary anchored draft, and seats the response bar in the adapter's
+outlet when the datum still resolves exactly. `origin` is the widget control to which
+Escape may return focus. Widgets do not receive draft, submission, or event APIs.
 
 ## Seeing it
 

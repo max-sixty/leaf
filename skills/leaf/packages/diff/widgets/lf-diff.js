@@ -227,13 +227,25 @@ function summaryNode(file, open) {
 function fileRow(row) {
   const file = document.createElement("div");
   file.className = "lf-diff-file";
-  file.append(row);
+  const actions = document.createElement("div");
+  actions.className = "lf-diff-file-actions lf-ui";
+  actions.dataset.lfGen = "1";
+  file.append(actions, row);
   return file;
 }
 
 function reviewButton(entry, changed) {
   const button = offer("button", "lf-btn lf-diff-review");
   button.addEventListener("click", () => changed(entry, !entry.reviewed));
+  return button;
+}
+
+function commentButton(label, opened, className) {
+  const button = offer("button", `lf-btn lf-diff-comment ${className}`, "+");
+  button.type = "button";
+  button.setAttribute("aria-label", `Comment on ${label}`);
+  button.title = `Comment on ${label}`;
+  button.addEventListener("click", opened);
   return button;
 }
 
@@ -645,7 +657,8 @@ customElements.define(
         if (bound) for (const { node } of entries) node.dataset.lfGen = "1";
         this.fileEntries = entries;
         this.diffTools = diffTools(this, this.reviewing());
-        for (const entry of entries) this.attachReview(entry);
+        for (const entry of entries)
+          this.attachEntryControls(entry, { commentable: bound });
         this.refreshReviewedState();
         this.replaceChildren();
         shadowStage(this, [
@@ -750,7 +763,8 @@ customElements.define(
       this.fileEntries = entries;
       this.sharedStyles = new Map();
       this.diffTools = diffTools(this, this.reviewing());
-      for (const entry of entries) this.attachReview(entry);
+      for (const entry of entries)
+        this.attachEntryControls(entry, { commentable: true });
       this.refreshReviewedState();
       this.replaceChildren();
       this.stageManifest();
@@ -805,7 +819,10 @@ customElements.define(
       this.threadOutlets ??= new Map();
       this.threadPairs ??= new Map();
       for (const [key, record] of this.threadOutlets) {
-        if (!record.outlet.isConnected || !record.gutterRow.isConnected) {
+        if (
+          !record.outlet.isConnected ||
+          (record.gutterRow && !record.gutterRow.isConnected)
+        ) {
           this.threadOutlets.delete(key);
           continue;
         }
@@ -817,6 +834,7 @@ customElements.define(
     }
 
     threadPair(row) {
+      this.threadPairs ??= new Map();
       const content = row.parentElement;
       const pre = content?.closest("pre");
       const gutter = pre?.querySelector("[data-gutter]");
@@ -851,9 +869,18 @@ customElements.define(
 
     threadOutletFor({ anchor, placement }) {
       const entry = this.fileEntryForDatum(anchor.datum);
-      if (
-        !entry?.loaded ||
-        entry.filtered ||
+      if (!entry || entry.filtered) return null;
+      let coordinate;
+      try {
+        coordinate = JSON.parse(anchor.datum);
+      } catch {
+        return null;
+      }
+      const file = coordinate[1] === "file";
+      if (file) {
+        if (placement.datumElement !== entry.node) return null;
+      } else if (
+        !entry.loaded ||
         (entry.details && !entry.details.open) ||
         placement.datumElement !==
           entry.lines.find((line) => lineKey(line) === anchor.datum)?.node
@@ -863,28 +890,35 @@ customElements.define(
       let record = this.threadOutlets.get(anchor.datum);
       if (record && record.row !== placement.datumElement) {
         record.outlet.remove();
-        record.gutterRow.remove();
+        record.gutterRow?.remove();
         this.threadOutlets.delete(anchor.datum);
         record = null;
       }
       if (!record) {
         const row = placement.datumElement;
-        const { gutterRow: lineGutter, pair } = this.threadPair(row);
         const outlet = document.createElement("section");
-        outlet.className = "lf-diff-thread-outlet lf-ui";
+        outlet.className = `lf-diff-thread-outlet lf-ui${
+          file ? " lf-diff-file-thread-outlet" : ""
+        }`;
         outlet.dataset.lfGen = "1";
         outlet.dataset.lfThreadDatum = anchor.datum;
         outlet.setAttribute(
           "aria-label",
-          `Threads on ${row.dataset.lfDatumLabel || "diff line"}`,
+          `Conversation on ${row.dataset.lfDatumLabel || (file ? "file" : "diff line")}`,
         );
-        const gutterRow = document.createElement("div");
-        gutterRow.className = "lf-diff-thread-gutter lf-ui";
-        gutterRow.dataset.lfGen = "1";
-        gutterRow.setAttribute("aria-hidden", "true");
-        row.after(outlet);
-        lineGutter.after(gutterRow);
-        record = { active: true, gutterRow, outlet, pair, row };
+        if (file) {
+          entry.node.append(outlet);
+          record = { active: true, gutterRow: null, outlet, pair: null, row };
+        } else {
+          const { gutterRow: lineGutter, pair } = this.threadPair(row);
+          const gutterRow = document.createElement("div");
+          gutterRow.className = "lf-diff-thread-gutter lf-ui";
+          gutterRow.dataset.lfGen = "1";
+          gutterRow.setAttribute("aria-hidden", "true");
+          row.after(outlet);
+          lineGutter.after(gutterRow);
+          record = { active: true, gutterRow, outlet, pair, row };
+        }
         this.threadOutlets.set(anchor.datum, record);
       }
       record.active = true;
@@ -895,12 +929,12 @@ customElements.define(
       for (const [key, record] of this.threadOutlets ?? []) {
         if (record.active) continue;
         record.outlet.remove();
-        record.gutterRow.remove();
+        record.gutterRow?.remove();
         this.threadOutlets.delete(key);
       }
       const counts = new Map();
       for (const record of this.threadOutlets?.values() ?? [])
-        counts.set(record.pair, (counts.get(record.pair) ?? 0) + 1);
+        if (record.pair) counts.set(record.pair, (counts.get(record.pair) ?? 0) + 1);
       for (const pair of this.threadPairs?.values() ?? []) {
         const count = counts.get(pair) ?? 0;
         const contentRow = count
@@ -939,6 +973,7 @@ customElements.define(
           );
           entry.lines = rendered.lines;
           entry.loaded = true;
+          this.attachLineComments(entry);
           this.stageManifest();
           this.projectManifest();
         } catch (error) {
@@ -1037,6 +1072,12 @@ customElements.define(
       tools?.next?.remove();
       this.diffTools = null;
       for (const entry of this.fileEntries ?? []) {
+        entry.fileComment?.remove();
+        entry.fileComment = null;
+        for (const line of entry.lines) {
+          line.comment?.remove();
+          line.comment = null;
+        }
         if (!entry.review) continue;
         if (!entry.reviewed) {
           entry.review.remove();
@@ -1070,9 +1111,48 @@ customElements.define(
           else this.refreshReviewedState();
         });
       });
-      entry.node.prepend(entry.review);
+      entry.node.querySelector(":scope > .lf-diff-file-actions").append(entry.review);
       this.setReviewed(entry, false, { repaint: false });
       this.paintReviewAvailability();
+    }
+
+    attachEntryControls(entry, { commentable }) {
+      if (commentable) {
+        const label = entry.record.path || "file";
+        entry.fileComment = commentButton(
+          label,
+          () => this.threadSurface?.open(entry.node, { origin: entry.fileComment }),
+          "lf-diff-file-comment",
+        );
+        entry.node
+          .querySelector(":scope > .lf-diff-file-actions")
+          .prepend(entry.fileComment);
+        this.attachLineComments(entry);
+      }
+      this.attachReview(entry);
+    }
+
+    attachLineComments(entry) {
+      for (const line of entry.lines) {
+        if (line.comment?.isConnected) continue;
+        const { gutterRow } = this.threadPair(line.node);
+        line.comment = commentButton(
+          lineLabel(line),
+          () => this.threadSurface?.open(line.node, { origin: line.comment }),
+          "lf-diff-line-comment",
+        );
+        // Thousands of lines must not become thousands of Tab stops. The page-level
+        // target chooser is the keyboard route to the same exact datum; this control is
+        // the conventional pointer affordance in the line-number gutter.
+        line.comment.tabIndex = -1;
+        line.node.addEventListener("pointerenter", () =>
+          gutterRow.classList.add("lf-diff-line-hover"),
+        );
+        line.node.addEventListener("pointerleave", () =>
+          gutterRow.classList.remove("lf-diff-line-hover"),
+        );
+        gutterRow.append(line.comment);
+      }
     }
 
     paintReviewAvailability = () => {

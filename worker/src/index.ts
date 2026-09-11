@@ -8,7 +8,8 @@
  * so one reader can exercise the real event log without changing another reader's page.
  * During an image rollout, a layer mismatch pins that reader briefly to the container's
  * complete shell so a static document never reloads against an older API in a loop.
- * Accepted browser events enter a durable batch-size-one Queue and emit content-free
+ * Accepted browser events start their agent task in the already-selected reader
+ * container without holding the browser acknowledgement open, and emit content-free
  * canonical metadata to Analytics Engine.
  */
 
@@ -44,23 +45,19 @@ import {
 export interface Env {
   ASSETS: Fetcher;
   PAGES: DurableObjectNamespace<LeafWebsiteSession>;
-  AGENT_QUEUE: Queue<AgentTaskParams>;
+  AGENT_PREWARM: "true" | "false";
   WEBSITE_EVENTS: AnalyticsEngineDataset;
   SOURCE_AGENT_RATE_LIMITER: RateLimit;
   OPENAI_API_KEY: string;
 }
 
-const agentTaskParamsSchema = z.object({
-  sessionId: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
-  reference: z.string().check(z.regex(/^\d{12}$/)),
-  route: z
-    .string()
-    .check(z.regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/)),
-  eventId: z.string().check(z.regex(/^[A-Za-z0-9_-]{1,128}$/)),
-  sourceId: z.string().check(z.minLength(1), z.maxLength(64)),
-});
-
-export type AgentTaskParams = z.infer<typeof agentTaskParamsSchema>;
+interface AgentTaskParams {
+  sessionId: string;
+  reference: string;
+  route: string;
+  eventId: string;
+  sourceId: string;
+}
 
 const settledAgentResultSchema = z.object({ status: z.literal("settled") });
 const agentResultSchemas = {
@@ -178,6 +175,21 @@ function agentLog(
   });
 }
 
+function prewarmLog(
+  event: string,
+  reference: string,
+  route: string,
+  fields: Record<string, unknown> = {},
+): void {
+  console.log({
+    component: "leaf-agent",
+    event,
+    reference,
+    route,
+    ...fields,
+  });
+}
+
 async function measuredAgentOperation<T>(
   event: string,
   params: AgentTaskParams,
@@ -264,46 +276,66 @@ async function runAgentTask(
   );
 }
 
-const START_ATTEMPTS = 3;
-
-async function processAgentMessage(
+async function dispatchAgentTask(
   env: Env,
-  message: Message<unknown>,
+  params: AgentTaskParams,
 ): Promise<void> {
-  const parsed = agentTaskParamsSchema.safeParse(message.body);
-  if (!parsed.success) {
-    console.log({
-      component: "leaf-agent",
-      event: "queue_rejected",
-      error: "invalid_params",
-    });
-    message.ack();
-    return;
-  }
-  const params = parsed.data;
-  agentLog("queue_started", params, {
-    durationMs: Math.max(0, Date.now() - message.timestamp.getTime()),
-    attempts: message.attempts,
-  });
+  const started = Date.now();
+  agentLog("dispatch_started", params);
   try {
-    if (message.attempts <= START_ATTEMPTS) {
-      await runAgentTask(env, params);
-    } else {
-      agentLog("queue_startup_failed", params, { attempts: message.attempts - 1 });
+    const result = await runAgentTask(env, params);
+    agentLog("dispatch_completed", params, {
+      durationMs: Date.now() - started,
+      status: result.status,
+    });
+  } catch (error) {
+    agentLog("dispatch_failed", params, {
+      durationMs: Date.now() - started,
+      error: error instanceof Error ? error.name : "unknown",
+    });
+    try {
       await measuredAgentOperation("fallback_reply", params, () =>
         askContainer(env, params, "reply", {
           event: params.eventId,
           text: GENERATION_FAILURE_REPLY,
         }),
       );
+    } catch (fallbackError) {
+      agentLog("dispatch_abandoned", params, {
+        error: fallbackError instanceof Error ? fallbackError.name : "unknown",
+      });
     }
-    message.ack();
+  }
+}
+
+async function prewarmContainer(
+  env: Env,
+  sessionId: string,
+  reference: string,
+  route: string,
+  sourceId: string,
+): Promise<void> {
+  const started = Date.now();
+  prewarmLog("container_prewarm_started", reference, route);
+  try {
+    const allowed = await env.SOURCE_AGENT_RATE_LIMITER.limit({
+      key: `prewarm:${sourceId}`,
+    });
+    if (!allowed.success) {
+      prewarmLog("container_prewarm_denied", reference, route, {
+        durationMs: Date.now() - started,
+      });
+      return;
+    }
+    await getContainer(env.PAGES, sessionId).start();
+    prewarmLog("container_prewarm_completed", reference, route, {
+      durationMs: Date.now() - started,
+    });
   } catch (error) {
-    agentLog("queue_retrying", params, {
-      attempts: message.attempts,
+    prewarmLog("container_prewarm_failed", reference, route, {
+      durationMs: Date.now() - started,
       error: error instanceof Error ? error.name : "unknown",
     });
-    message.retry({ delaySeconds: 2 ** Math.min(message.attempts, 3) });
   }
 }
 
@@ -351,15 +383,6 @@ function recordAcceptedEvent(
     ],
     doubles: [accepted.event.revision ?? 0, accepted.needsReply ? 1 : 0],
   });
-}
-
-async function enqueueAgentTask(
-  env: Env,
-  params: AgentTaskParams,
-): Promise<void> {
-  const started = Date.now();
-  await env.AGENT_QUEUE.send(params);
-  agentLog("queue_admitted", params, { durationMs: Date.now() - started });
 }
 
 function staticAssetResponse(response: Response): Response {
@@ -438,12 +461,6 @@ async function staticState(
 }
 
 export default {
-  async queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
-    await Promise.all(
-      batch.messages.map((message) => processAgentMessage(env, message)),
-    );
-  },
-
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const requestStarted = Date.now();
     const url = new URL(request.url);
@@ -517,8 +534,16 @@ export default {
         headers.set("Leaf-Session-Reference", reference);
         if (existing === null) {
           headers.append("Set-Cookie", sessionCookie(sessionId, secure));
-        } else if (active) {
-          ctx.waitUntil(getContainer(env.PAGES, sessionId).start());
+        }
+        if (
+          env.AGENT_PREWARM === "true" &&
+          request.method === "GET" &&
+          request.headers.get("Sec-Fetch-Dest") === "document"
+        ) {
+          const sourceId = request.headers.get("CF-Connecting-IP") ?? "unknown";
+          ctx.waitUntil(
+            prewarmContainer(env, sessionId, reference, route.root, sourceId),
+          );
         }
         return new Response(response.body, {
           status: response.status,
@@ -549,7 +574,11 @@ export default {
         agentLog("event_accepted", params, {
           durationMs: Date.now() - requestStarted,
         });
-        await enqueueAgentTask(env, params);
+        // TODO(2026-09-10): Persist the accepted event and active Codex turn identity
+        // in this container's Durable Object before returning the acknowledgement.
+        // TODO(2026-09-10): Add an alarm/status hook that recovers a dispatch when
+        // its container disappears or it exceeds the Worker's waitUntil window.
+        ctx.waitUntil(dispatchAgentTask(env, params));
       }
     }
     const requestLayer = request.headers.get("Leaf-Layer");

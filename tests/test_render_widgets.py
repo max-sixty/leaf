@@ -2968,8 +2968,8 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
               getComputedStyle(document.querySelector(
                 '#notification-ask > :first-child')).marginTop,
             ].every(margin => margin === '0px'),
-            authoredWords: leaf.wrote(playground).includes('Version 2.8.0'),
-            spokenWords: leaf.says(playground).includes('Version 2.8.0'),
+            authoredWords: leaf.wrote(playground).includes('Drag event pressure'),
+            spokenWords: leaf.says(playground).includes('Drag event pressure'),
           };
         }"""
     )
@@ -3015,6 +3015,35 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     assert presets.bounding_box()["y"] == pytest.approx(presets_top, abs=1)
     expect(playground.get_by_role("button", name="Routine release")).to_be_visible()
     expect(playground.get_by_role("button", name="Needs attention")).to_be_visible()
+    pressure = page.locator("#notification-simulator-pressure")
+    expect(pressure).to_have_value("2")
+    expect(page.locator(".notification-demo-card-banner")).to_have_count(2)
+    expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
+    expect(page.locator(".notification-demo-strip-owner")).to_have_count(2)
+    regular_strip_padding = page.locator(
+        ".notification-demo-card-status-strip"
+    ).first.evaluate("card => getComputedStyle(card).paddingTop")
+    pressure.fill("4")
+    expect(page.locator(".notification-demo-card-banner")).to_have_count(4)
+    expect(page.locator(".notification-demo-card-status-strip")).to_have_count(4)
+    expect(page.locator(".notification-demo-candidate").first).to_contain_text(
+        "4 cards · full detail"
+    )
+    expect(page.locator(".notification-demo-candidate").last).to_contain_text(
+        "4 rows · compact summary"
+    )
+    pressure.fill("2")
+    playground.get_by_role("button", name="Needs attention").click()
+    expect(page.locator("#notification-simulator")).to_have_attribute(
+        "data-compact", "true"
+    )
+    compact_strip_padding = page.locator(
+        ".notification-demo-card-status-strip"
+    ).first.evaluate("card => getComputedStyle(card).paddingTop")
+    assert float(compact_strip_padding.removesuffix("px")) < float(
+        regular_strip_padding.removesuffix("px")
+    )
+    playground.get_by_role("button", name="Routine release").click()
     assert preview.evaluate("body => body.scrollTop") == 0
     action_box = actions.bounding_box()
     playground_box = playground.bounding_box()
@@ -3046,7 +3075,9 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
-    notification_box = page.locator("#notification-card").bounding_box()
+    notification_box = page.locator(
+        ".notification-demo-card-banner"
+    ).first.bounding_box()
     preview_box = page.locator("#notification-preview").bounding_box()
     instruction_box = page.locator("#notification-instruction").bounding_box()
     assert notification_box["y"] + notification_box["height"] <= (
@@ -3089,6 +3120,18 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     page.close()
 
 
+def test_composed_corpus_runs_authored_page_modules(browser, serve):
+    corpus = Path(__file__).parent.parent / "examples" / "corpus.html"
+    page, errors = open_page(browser, serve(corpus))
+
+    expect(page.locator("#notification-simulator-pressure")).to_have_value("2")
+    expect(page.locator(".notification-demo-card-banner")).to_have_count(2)
+    expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
+
+    assert errors == []
+    page.close()
+
+
 def test_notification_configuration_becomes_a_commentable_local_artifact(
     browser, serve
 ):
@@ -3113,12 +3156,12 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     expect(playground).to_have_attribute("data-playground-tone", "urgent")
     expect(playground).to_have_attribute("data-playground-compact", "true")
     expect(playground).to_have_attribute("data-playground-format", "status strip")
-    expect(page.locator("#notification-card")).to_have_accessible_name(
-        "Checkout needs attention"
-    )
-    expect(page.locator("#notification-strip")).to_have_accessible_name(
-        "Checkout needs attention"
-    )
+    expect(
+        page.locator(".notification-demo-card-banner").first
+    ).to_have_accessible_name("Checkout needs attention")
+    expect(
+        page.locator(".notification-demo-card-status-strip").first
+    ).to_have_accessible_name("Checkout needs attention")
     with sending(page, "the notification configuration"):
         playground.get_by_role("button", name="Create notification").click()
     # The reader can revise the configuration until the host stamps its result.
@@ -3140,8 +3183,9 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     assert action["detail"]["instruction"] == (
         "Build the status strip deployment notification as deployment-notification.html. "
         "Use urgent styling, 10px corners, #b6533c accents, compact spacing set to true, "
-        "owner visibility set to true, and title it Checkout needs attention. Show me the "
-        "generated source here for review."
+        "owner visibility set to true, and title it Checkout needs attention. Preserve the "
+        "shared event-pressure scenario in its browser test, then show me the generated "
+        "source here for review."
     )
 
     logged_action = next(
@@ -3247,7 +3291,9 @@ body { font-family: system-ui, sans-serif; }
     configuration.locator(":scope > summary").click()
     expect(configuration).not_to_have_attribute("open", "")
     configuration.locator(":scope > summary").click()
-    receipt_copy = page.locator("#notification-card > p").first
+    receipt_copy = page.locator(
+        ".notification-demo-card-banner .notification-demo-detail"
+    ).first
     expect(receipt_copy).to_be_visible()
     receipt_copy.select_text()
     page.keyboard.press("c")
@@ -3263,11 +3309,8 @@ body { font-family: system-ui, sans-serif; }
         for event in reversed(sent_events(serve.page_dir))
         if event["kind"] == "comment"
     )
-    assert comment["anchor"]["section"] == "notification-card"
-    assert comment["anchor"]["quote"] == (
-        "Version 2.8.0 changed the checkout service. Review the deployment run and "
-        "current service health."
-    )
+    assert comment["anchor"]["section"] == "notification-simulator"
+    assert comment["anchor"]["quote"] == ("Version 2.8.0 passed all 18 release checks.")
     logged_comment = next(
         event
         for event in events_model.read_events(serve.page_dir)
@@ -3319,10 +3362,7 @@ body { font-family: system-ui, sans-serif; }
     marked = page.evaluate(
         "() => [...CSS.highlights.get('lf-mark')].map(range => range.toString()).join('')"
     )
-    assert " ".join(marked.split()) == (
-        "Version 2.8.0 changed the checkout service. Review the deployment run and "
-        "current service health."
-    )
+    assert " ".join(marked.split()) == ("Version 2.8.0 passed all 18 release checks.")
     assert artifact.read_text(encoding="utf-8") == second_artifact
     assert errors == []
     page.close()
@@ -3538,10 +3578,10 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
     expect(playground.locator("#notification-instruction")).to_contain_text(
         "deployment-notification.html"
     )
-    expect(playground.locator("#notification-card")).to_have_accessible_name(
-        "Escalation sent"
-    )
-    expect(playground.locator("#notification-card")).to_be_visible()
+    expect(
+        playground.locator(".notification-demo-card-banner").first
+    ).to_have_accessible_name("Escalation sent")
+    expect(playground.locator(".notification-demo-card-banner").first).to_be_visible()
     assert copy.evaluate("document.documentElement.scrollWidth") == 480
     assert playground.evaluate(
         """root => [...root.querySelectorAll('.lf-pane-body')]

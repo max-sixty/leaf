@@ -2383,7 +2383,7 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
 
 
 def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
-    """The region owns the breathing room its current surface requires."""
+    """Resolve shares the first message line without changing the current surface."""
     url = serve(SEATED_QUESTION_PAGE)
     panel_comment(serve.page_dir, "First job note", {"section": "jobs"})
     root = panel_comment(
@@ -2452,20 +2452,21 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
           return {actionsTop: actions.top, actionsBottom: actions.bottom,
                   controlTop: control.top, expectedTop: own.top + inset,
                   controlBottom: control.bottom, headTop: head.top,
+                  headBottom: head.bottom,
                   authorBottom: author.bottom,
                   bodyTop: body.top,
                   bodyMargin: parseFloat(getComputedStyle(bodyNode).marginTop)};
         }"""
     )
-    assert placement["controlTop"] == pytest.approx(placement["expectedTop"], abs=1)
+    assert placement["controlTop"] == pytest.approx(placement["headTop"], abs=1)
     assert placement["actionsTop"] == pytest.approx(placement["controlTop"], abs=1)
     assert placement["actionsBottom"] == pytest.approx(
         placement["controlBottom"], abs=1
     )
-    assert placement["controlBottom"] <= placement["headTop"], (
-        f"Resolve did not keep its own row above the first inline message: {placement}"
+    assert placement["controlBottom"] <= placement["headBottom"], (
+        f"Resolve did not share the first inline message's heading: {placement}"
     )
-    assert placement["bodyTop"] - placement["authorBottom"] == pytest.approx(
+    assert placement["bodyTop"] - placement["headBottom"] == pytest.approx(
         placement["bodyMargin"], abs=1
     ), f"the first inline message has extra space below its author: {placement}"
 
@@ -2492,10 +2493,10 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
 def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     browser, serve, long_thread
 ):
-    """Pointer arrival opens one layer directly in its reply box. A thread reached by
-    t opens on its card, so c or Enter adds a second layer and Escape returns through
-    each one. The Page Map fallback remains live at the same time: this proves declaration
-    order cannot move it ahead of the causal frame. The page mark follows both focus modes."""
+    """Pointer and keyboard arrival open one compact conversation card. Enter or c
+    reveals its reply, and Escape returns through each layer. The Page Map fallback
+    remains live at the same time: declaration order cannot move it ahead of the causal
+    frame. The page mark follows both focus modes."""
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
     )
@@ -2534,13 +2535,19 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
 
+    expect(thread).to_be_focused()
+    expect(reply).to_be_hidden()
+    expect(thread.get_by_role("button", name="Reply", exact=True)).to_be_visible()
+    wait_standing(page, "bold text")
+    assert "dismiss conversation" in shortcut_bar_text(page)
+    page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(reply).to_be_visible()
-    wait_standing(page, "bold text")
-    assert "close thread" in shortcut_bar_text(page)
-    page.keyboard.press("t")
+    page.keyboard.type("t")
     expect(reply).to_have_value("t")
     expect(reply).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.keyboard.press("t")
@@ -3909,7 +3916,8 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # opens the same thread preview as its marker.
     go_to_address(page, "Margin entry", "p1")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-margin-thread textarea").first).to_be_focused()
+    expect(page.locator(".lf-margin-thread .lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-thread textarea").first).to_be_hidden()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     page.keyboard.press("Escape")
@@ -5670,7 +5678,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     # Every rung earns a press here because Esc is the only keyboard collapse.
     page.keyboard.press("t")
     expect(page.locator(".lf-margin-preview .lf-conversation-thread")).to_be_focused()
-    expect(line).to_contain_text("close thread")
+    expect(line).to_contain_text("dismiss conversation")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()

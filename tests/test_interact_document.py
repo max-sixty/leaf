@@ -62,6 +62,54 @@ def test_check_accepts_a_valid_page(page_dir):
     assert result.exit_code == 0, result.output
 
 
+def test_check_accepts_authored_module_scripts(page_dir):
+    version = page_dir / ".fixture-versions" / "v1.html"
+    version.write_text(
+        PAGE.replace(
+            "</head>",
+            '<script type="module">window.authoredModuleRan = true;</script></head>',
+        )
+    )
+
+    result = check(page_dir)
+
+    assert result.exit_code == 0, result.output
+
+
+@pytest.mark.parametrize(
+    "authored, expected",
+    [
+        ("<script>window.hiddenPath = true;</script>", "must be an authored module"),
+        (
+            '<button onclick="window.hiddenPath = true">Run</button>',
+            "uses executable attribute onclick",
+        ),
+        (
+            '<a href="javascript:window.hiddenPath=true">Run</a>',
+            "uses executable attribute href",
+        ),
+        (
+            '<a href="jav&#9;ascript:window.hiddenPath=true">Run</a>',
+            "uses executable attribute href",
+        ),
+    ],
+    ids=[
+        "classic-script",
+        "event-handler",
+        "javascript-url",
+        "encoded-javascript-url",
+    ],
+)
+def test_check_keeps_authored_code_in_module_blocks(page_dir, authored, expected):
+    version = page_dir / ".fixture-versions" / "v1.html"
+    version.write_text(PAGE.replace("</main>", f"{authored}</main>"))
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert expected in result.output
+
+
 def test_a_quote_crosses_an_upgraded_verbatim_wrapper(page_dir):
     quote = "jobs/backfill.py:88. Which plan should lead?"
 
@@ -1426,7 +1474,7 @@ def test_check_rejects_wrong_scaffold(page_dir):
     (page_dir / ".fixture-versions" / "v1.html").write_text(html)
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "exactly one external <script src>" in result.output
+    assert "exactly one external <script src> tag for /leaf.js" in result.output
     assert "exactly one stylesheet" in result.output
 
 

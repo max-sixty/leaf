@@ -25,6 +25,7 @@ import {
   marginEntryRecord,
   marginEntries,
   syncForwardedMarginEntryState,
+  syncMarginAgentPhase,
   visibleMarginEntryLabel,
 } from "./margin-entries.js";
 
@@ -157,6 +158,7 @@ export function createPageMapDialog({
       // comparisons do: their pair is provenance rather than part of the account.
       context: item.mapContext,
     });
+    syncMarginAgentPhase(button, item.agentReceipt);
     button.disabled = false;
   }
 

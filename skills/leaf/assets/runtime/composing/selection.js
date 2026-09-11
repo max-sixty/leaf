@@ -629,9 +629,11 @@ export function createSelectionComposer({
         // passage just as the reader's comment moves across it to a new floating card.
         const inlineThread =
           shouldLand && !panelIsOpen()
-            ? openInlineThread(sent.id, transition, (thread) =>
-                landTyping(thread.querySelector("textarea"), composerInput),
-              )
+            ? openInlineThread(sent.id, transition, (thread) => {
+                const reply = thread.querySelector("textarea");
+                reply?.lfRevealReply?.();
+                landTyping(reply, composerInput);
+              })
             : null;
         const inlineReply = inlineThread?.querySelector("textarea") ?? null;
         reply = inlineReply ?? reply;

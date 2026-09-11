@@ -5,13 +5,16 @@
 `version check` is a deterministic check of the exact mutable `index.html` (no
 browser, near-free; activation and `version stamp` run the same boundary): the HTML parses with balanced
 tags; one direct `<body><main>` contains all authored content; the page carries
-exactly one external script
-(<script type="module" src="/leaf.js">) and one stylesheet link
-(/theme.css), both directly in `<head>` so the presentation boundary exists before
-body paint; its exact CSP keeps fetches local and refuses document-base changes and
-form submissions; the head declares no `<link rel="canonical">`, because the served
-document names the page root itself and a second address in the head leaves a crawler
-choosing between them; every lf-* element validates against the vendored registry
+exactly one external script (`<script type="module" src="/leaf.js">`) and one
+stylesheet link (`/theme.css`), both directly in `<head>` so the presentation
+boundary exists before body paint; page-authored behavior appears only in inline
+module blocks, never classic scripts, event-handler attributes, or `javascript:`
+URLs; its exact source CSP keeps fetches local and refuses document-base changes and
+form submissions, while the HTTP projection adds exact hashes for the runtime
+bootstrap and each authored module; the head declares no `<link rel="canonical">`,
+because the served document names the page root itself and a second address in the
+head leaves a crawler choosing between them; every lf-* element validates against the
+vendored registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
@@ -32,7 +35,9 @@ version routes receive the current document policy and the same header. A standa
 file has no response header and cannot make this framing guarantee. The process-scoped
 MCP page server omits the header because its exact, ephemeral origin is intentionally
 framed by the host that approved it; the unguessable page path remains that transport's
-access boundary.
+access boundary. Every response carries `X-Content-Type-Options: nosniff`; typed data
+is available only through its JSON API, and media routes serve only admitted image
+types, so neither input surface can become a script module.
 
 ## Browser validation
 

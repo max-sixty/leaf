@@ -410,19 +410,22 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       <section id="bg-margin-controls">
         <p class="eyebrow bg-feature-elements">
           lf-margin-entry-gallery · Action control · Disclosure control · Status
-          indicator · Lifecycle state · lf-suggestion
+          indicator · Control state · Agent ownership · lf-suggestion
         </p>
         <h2>
           <strong>Margin entries</strong
           ><span class="bg-feature-detail">: every rank, tone, and state</span>
         </h2>
         <p id="bg-margin-controls-guide">
-          <strong>Everything visible at once.</strong> The first row holds every rank
-          and all three behaviors and tones. The second fixes every lifecycle state in
-          place. Only busy paints a mark, because only busy has nothing else on the page
-          saying it; engaged and failed still rank within the cluster and hold it open.
-          These inert specimens use the same constructor and stylesheet as the live
-          controls and status indicators.
+          <strong>Everything visible at once.</strong> The first row holds every rank,
+          behavior, and tone. The second fixes every control state in place: what the
+          control itself is doing. The third compares agent ownership: whether the agent
+          has the item. No ownership treatment means not held; a single blue ring means
+          picked up; a green double ring and tint mean working. Ownership decorates the
+          item's existing control. The Activity dot remains only when there is no other
+          control to carry that treatment. These inert specimens use the same
+          constructors and stylesheet as the live controls and status indicators. Reload
+          to see the one-time pulse as Working arrives.
         </p>
         <lf-margin-entry-gallery
           id="bg-margin-controls-specimens"
@@ -433,7 +436,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </h3>
         <p id="bg-margin-control-workflow-guide">
           <strong>Act, fail, and settle.</strong> Accept or Reject starts as an action.
-          The content changes immediately, and an open ring moves on Undo while the
+          The content changes immediately, and Undo gets a static dashed ring while the
           event travels. A refused send restores the suggestion and puts Failed in words
           beside Retry and Cancel. Success leaves the changed content and an Undo
           control alone in the cluster. Sent remains as a status until an agent picks
@@ -456,9 +459,10 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
         <p id="bg-button-status-guide">
           <strong>Edit and hand off.</strong> Opening the draft above replaces Edit with
-          Save and Cancel controls; Save uses the moving ring while it sends. The saved
-          draft arrives with a Waiting for pickup status. When an agent claims that
-          unsettled edit, the same target gains an animated Active disclosure.
+          Save and Cancel controls; Save uses the dashed ring while it sends. The saved
+          draft arrives with a Waiting for pickup status. Its existing control turns
+          blue when picked up and green, with one arrival pulse, while the agent works
+          on it. Hover for the control's action and current work description.
         </p>
         <p id="bg-buttons-line">
           <strong>Combine roles.</strong> Use the
@@ -1152,7 +1156,8 @@ switch --readers checkout-api,orders-api</code></pre>
           <lf-column id="bg-work-ready" label="Ready">
             <lf-card id="bg-work"
               ><strong>Check the sample route</strong>
-              An agent’s live work claim can put an Active control here.
+              A live work claim puts an Active indicator here because this card has no
+              other margin control to carry its activity dot.
             </lf-card>
           </lf-column>
           <lf-column id="bg-work-tried" label="Tried"></lf-column>

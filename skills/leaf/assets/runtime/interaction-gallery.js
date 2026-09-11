@@ -614,11 +614,13 @@ export function installInteractionGallery() {
   toggle.dataset.interactionToggle = "";
   const loopLabel = offer("label", "interaction-setting");
   const loop = offer("input", "interaction-loop", undefined, "checkbox");
+  loop.name = "interaction-loop";
   loop.dataset.interactionLoop = "";
   loopLabel.append(loop, " Loop");
   const viewportLabel = offer("label", "interaction-setting");
   viewportLabel.append("Viewport ");
   const viewport = offer("select", "interaction-viewport");
+  viewport.name = "interaction-viewport";
   viewport.dataset.interactionViewportSelect = "";
   for (const size of VIEWPORT_SIZES) {
     const option = document.createElement("option");

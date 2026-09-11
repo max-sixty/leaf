@@ -149,7 +149,12 @@ export function createChromeLayout({
     // grows until their horizontal spans meet, stack the status above the line instead.
     bottomStatusEl.style.bottom = "calc(14px + var(--lf-safe-bottom))";
     let status = bottomStatusEl.getBoundingClientRect();
-    if (line.height && status.height && overlapsAcross(status, line)) {
+    if (
+      !shortcutBarEl.inert &&
+      line.height &&
+      status.height &&
+      overlapsAcross(status, line)
+    ) {
       bottomStatusEl.style.bottom = `${innerHeight - line.top + 7}px`;
       status = bottomStatusEl.getBoundingClientRect();
     } else if (panelCovers() && status.height && overlaps(status, foot)) {

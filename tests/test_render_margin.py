@@ -14,6 +14,7 @@ from leaf.served_state import page as served_page
 from playwright.sync_api import expect
 from render_support import (
     ASK_PAGE,
+    BOARD_PAGE,
     CHIPS,
     EXAMPLES,
     FEATURE_GALLERY,
@@ -42,6 +43,7 @@ from render_support import (
     sending,
     stamp_page,
     ticked,
+    token_colour,
     told,
     undo,
     wait_for_revision,
@@ -366,9 +368,9 @@ HEARTBEAT_PAGES = (
     # run for those are watched nowhere else: a reading option under an entry holding
     # several readings, and the readings whose move is made, which wear the `status`
     # behavior on a span seat rather than a button. Two of its rows stand where they
-    # would overlap, so the push measurement is read here and nowhere else. Its docked
-    # rows exercise the rail re-read too; the contained swipe page leaves no withheld
-    # gallery row whose posture would be cleared.
+    # would overlap, so the push measurement is read here and nowhere else. Its crowded
+    # rows also exercise posture changes; docked rows need no absolute placement or
+    # rail re-read.
     pytest.param(
         FEATURE_GALLERY,
         {
@@ -376,7 +378,7 @@ HEARTBEAT_PAGES = (
             ".lf-margin-reading-option": 1,
             '.lf-margin-entry[data-lf-behavior="status"]': 2,
         },
-        {"row push", "rail width", "fold rule"},
+        {"row posture", "row push", "fold rule"},
         id="gallery",
     ),
 )
@@ -1154,14 +1156,14 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
 
 
 def test_the_feature_gallery_displays_the_complete_margin_entry_schema(browser, serve):
-    """The gallery keeps every margin entry axis and lifecycle witness visible together."""
+    """The gallery separates control state from ownership using the runtime paint."""
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
 
     atlas = page.locator("#bg-margin-controls-specimens")
     expect(atlas).to_be_visible()
     buttons = atlas.locator(".lf-margin-entry")
-    expect(buttons).to_have_count(11)
+    expect(buttons).to_have_count(15)
     records = buttons.evaluate_all(
         """buttons => buttons.map(button => ({
           behavior: button.dataset.lfBehavior,
@@ -1193,31 +1195,41 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_schema(browser, 
         )
 
     busy = specimen("busy")
-    marks = {
-        name: specimen(name).evaluate(
-            """button => {
-              const style = getComputedStyle(button, '::after');
-              return {
-                content: style.content,
-                width: style.width,
-                radius: style.borderRadius,
-                animation: style.animationName,
-                playState: style.animationPlayState,
-              };
-            }"""
-        )
-        for name in ("idle", "engaged", "busy", "failed")
-    }
-    # Busy is the only state that paints. The others still rank and hold the cluster
-    # open, and say what they are in the words beside them, so a second 6px shape at
-    # this size added a smudge and no fact.
-    assert marks["busy"]["width"] == "8px"
-    assert marks["busy"]["radius"] == "50%"
-    assert "margin-entry-busy" in marks["busy"]["animation"]
-    assert marks["busy"]["playState"] == "running"
-    for name in ("idle", "engaged", "failed"):
-        assert marks[name]["content"] == "none", (name, marks[name])
+    expect(atlas.locator(".margin-entry-gallery-heading")).to_have_text(
+        ["Rank and behavior", "Control state", "Agent ownership"]
+    )
+    expect(busy).to_have_css("border-style", "dashed")
+    expect(busy).to_have_css("animation-name", "none")
     expect(busy).to_have_attribute("aria-busy", "true")
+    for name in ("idle", "engaged", "busy", "failed"):
+        decorations = specimen(name).evaluate("""node => ({
+          before: getComputedStyle(node, '::before').content,
+          after: getComputedStyle(node, '::after').content,
+        })""")
+        assert decorations == {"before": "none", "after": "none"}, (name, decorations)
+
+    not_held = specimen("not held")
+    picked_up = specimen("picked up")
+    working = specimen("working")
+    alone = specimen("working alone")
+    expect(not_held).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    expect(picked_up).to_have_attribute("data-lf-agent-phase", "picked_up")
+    expect(picked_up).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(picked_up).to_have_css("box-shadow", "none")
+    expect(picked_up.locator(".lf-margin-entry-icon")).to_have_attribute(
+        "data-lf-icon", "comment"
+    )
+    for control in (working, alone):
+        expect(control).to_have_attribute("data-lf-agent-phase", "active")
+        expect(control).to_have_css("border-top-color", token_colour(page, "--ok-ink"))
+        expect(control).to_have_css("background-color", token_colour(page, "--ok-tint"))
+        assert "inset" in control.evaluate("node => getComputedStyle(node).boxShadow")
+    expect(working.locator(".lf-margin-entry-icon")).to_have_attribute(
+        "data-lf-icon", "comment"
+    )
+    expect(alone.locator(".lf-margin-entry-icon")).to_have_attribute(
+        "data-lf-icon", "activity"
+    )
     expect(
         atlas.locator('[data-margin-entry-specimen="sent"] > .lf-margin-entry')
     ).to_have_attribute("role", "status")
@@ -1234,6 +1246,10 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_schema(browser, 
             "Engaged",
             "Busy",
             "Failed",
+            "Not held",
+            "Picked up",
+            "Working",
+            "Working alone",
         ]
     )
 
@@ -1269,8 +1285,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     """The margin entry specimen shows the stable endpoints and exercises each transition.
 
     Busy and Active depend on a request in flight and an external work claim, so the
-    source names those conditions while this browser journey holds each one long enough
-    to prove that the real margin entry draws its moving state.
+    journey holds each condition while checking its ring and semantic carrier.
     """
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
@@ -1332,13 +1347,11 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     expect(pending_undo).to_have_attribute("aria-busy", "true")
     expect(page.locator("#bg-margin-control-workflow lf-old")).to_be_hidden()
     expect(page.locator("#bg-margin-control-workflow lf-new")).to_be_visible()
+    expect(pending_undo).to_have_css("border-style", "dashed")
+    expect(pending_undo).to_have_css("animation-name", "none")
     assert pending_undo.evaluate(
-        """button => {
-          const style = getComputedStyle(button, '::after');
-          return style.animationName.includes('margin-entry-busy') &&
-            style.animationPlayState === 'running';
-        }"""
-    ), "the gallery's busy margin entry has no running lifecycle animation"
+        "button => getComputedStyle(button, '::after').content === 'none'"
+    ), "sending must mark the whole control, without a second status badge"
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -1352,6 +1365,8 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     undo_button = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
     expect(undo_button).to_have_attribute("data-lf-state", "idle")
+    action_shadow = undo_button.evaluate("node => getComputedStyle(node).boxShadow")
+    assert action_shadow != "none"
     sent = workflow.get_by_role("status", name=re.compile(r"^Sent for "))
     expect(sent).to_be_visible()
     expect(sent).to_have_attribute("data-lf-state", "busy")
@@ -1369,18 +1384,18 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    active = workflow.locator(
-        '.lf-margin-entry[data-lf-kinds="activity"][data-lf-state="busy"]:visible'
+    expect(undo_button).to_have_attribute("data-lf-agent-phase", "active")
+    expect(undo_button).to_have_attribute(
+        "aria-description", re.compile("applying the selected route")
     )
-    expect(active).to_be_visible()
-    expect(active).to_have_attribute("aria-label", re.compile(r"^Active"))
-    assert active.evaluate(
-        """button => {
-          const style = getComputedStyle(button, '::after');
-          return style.animationName.includes('margin-entry-busy') &&
-            style.animationPlayState === 'running';
-        }"""
-    ), "the gallery's Active margin entry has no running lifecycle animation"
+    expect(undo_button).not_to_have_attribute("data-lf-agent-arrival", re.compile(".*"))
+    working_shadow = undo_button.evaluate("node => getComputedStyle(node).boxShadow")
+    assert "inset" in working_shadow and working_shadow.endswith(action_shadow), (
+        "agent ownership erased the action's raised shadow",
+        action_shadow,
+        working_shadow,
+    )
+    expect(workflow.locator('[data-lf-kinds="activity"]:visible')).to_have_count(0)
 
     stamp_page(
         serve.page_dir,
@@ -1389,7 +1404,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
         completes=("bg-margin-control-workflow",),
     )
     wait_for_revision(page, 3)
-    expect(active).to_have_count(0)
+    expect(workflow.locator("[data-lf-agent-phase]")).to_have_count(0)
     expect(page.locator("#bg-margin-control-workflow lf-new")).to_be_visible()
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     expect(
@@ -2228,7 +2243,7 @@ def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_margin_entry_tone_colors_only_the_icon(browser, serve, scheme):
-    """State keeps its distinct shape; tone never recolors the shell or state mark."""
+    """Busy dashes the whole ring; tone colors only the icon at every state."""
     page, errors = open_page(
         browser,
         serve(leaf_page("margin entry tones", '<p id="target">A shared target</p>')),
@@ -2268,9 +2283,9 @@ def test_margin_entry_tone_colors_only_the_icon(browser, serve, scheme):
                 face.outlineColor, face.outlineStyle, face.outlineWidth],
         mark: mark.content === 'none' ? null :
           [mark.color, mark.borderTopColor, mark.backgroundColor],
-        shape: mark.content === 'none' ? null :
-          [mark.width, mark.height, mark.borderRadius,
-           mark.transform !== 'none', mark.borderRightWidth, mark.borderTopStyle],
+        shape: [face.borderTopStyle, face.borderRightStyle,
+                face.borderBottomStyle, face.borderLeftStyle],
+        animation: face.animationName,
         icon: getComputedStyle(button.querySelector('svg')).color
       };
     }"""
@@ -2280,27 +2295,17 @@ def test_margin_entry_tone_colors_only_the_icon(browser, serve, scheme):
         assert readings[0]["mark"] == readings[1]["mark"] == readings[2]["mark"]
         assert len({reading["icon"] for reading in readings}) == 3
 
-    # Busy is the one state that paints, so it is the one state with a shape to read.
-    # This page is emulating `reduce`, where the open ring is held still, so the
-    # transform is a settled `none` rather than a sample of a turning one — which is
-    # what makes it the reading that catches the override losing to the rule it
-    # overrides, a specificity away from turning forever for a reader who asked for
-    # stillness.
-    shapes = {
-        "idle": None,
-        "engaged": None,
-        "busy": ["8px", "8px", "50%", False, "2px", "solid"],
-        "failed": None,
-    }
-    for state, shape in shapes.items():
+    for state in ("idle", "engaged", "busy", "failed"):
         page.evaluate("state => window.setToneState(state)", state)
         for button in buttons:
             expect(button).to_have_attribute("data-lf-state", state)
         readings = [button.evaluate(read) for button in buttons]
-        assert all(
-            (reading["mark"] is None) == (state != "busy") for reading in readings
+        assert all(reading["mark"] is None for reading in readings)
+        border = "dashed" if state == "busy" else "solid"
+        assert [reading["shape"] for reading in readings] == [[border] * 4] * len(
+            buttons
         )
-        assert [reading["shape"] for reading in readings] == [shape] * len(buttons)
+        assert all(reading["animation"] == "none" for reading in readings)
         assert_icon_only(readings)
 
     page.evaluate("() => window.setToneState('idle')")
@@ -2568,7 +2573,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(options).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close thread")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("dismiss conversation")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(options).to_be_visible()
@@ -2678,6 +2683,337 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     page.close()
 
 
+@pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
+def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_motion):
+    """Pickup and work recolor the thread's retained carrier in both map projections.
+
+    A second thread at the same target supplies the aggregation contrast: working
+    outranks picked up without growing another margin seat or changing the press.
+    """
+    page, errors = open_page(
+        browser,
+        live_url(
+            serve(
+                ASK_PAGE,
+                events=[
+                    {**COMMENT_ON_ASK, "id": "1" * 32},
+                    {
+                        **COMMENT_ON_ASK,
+                        "id": "2" * 32,
+                        "text": "Check the return visit too.",
+                    },
+                ],
+            )
+        ),
+    )
+    page.emulate_media(reduced_motion=reduced_motion)
+    resized(page, 1440, 900)
+    roots = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    cluster = page.locator('[data-lf-margin-for="bracket"]')
+    marker = cluster.locator(":scope > .lf-margin-marker")
+    expect(marker).to_have_attribute("data-lf-kinds", "comment")
+    marker.evaluate("node => node.dataset.identityProbe = 'retained'")
+    initial = marker.evaluate("node => getComputedStyle(node).borderTopColor")
+    colors = page.evaluate("""() => {
+      const probe = document.createElement('span');
+      document.body.append(probe);
+      const result = {};
+      for (const name of ['--accent', '--ok-ink']) {
+        probe.style.color = `var(${name})`;
+        result[name] = getComputedStyle(probe).color;
+      }
+      probe.remove();
+      return result;
+    }""")
+
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        session_model.record_pickup(transaction, roots)
+    told(page)
+    expect(marker).to_have_attribute("data-lf-agent-phase", "picked_up")
+    picked_up = marker.evaluate("node => getComputedStyle(node).borderTopColor")
+    assert picked_up == colors["--accent"] and picked_up != initial, (
+        "pickup did not recolor the Thread control blue"
+    )
+    page.evaluate("""() => {
+      window.agentArrivals = [];
+      window.agentArrivalEnds = 0;
+      document.addEventListener('animationstart', event => {
+        if (!event.animationName.endsWith('agent-work-arrival')) return;
+        const style = getComputedStyle(event.target);
+        window.agentArrivals.push({duration: style.animationDuration,
+          iterations: style.animationIterationCount});
+      });
+      document.addEventListener('animationend', event => {
+        if (event.animationName.endsWith('agent-work-arrival')) window.agentArrivalEnds++;
+      });
+    }""")
+
+    detail = "Checking the return visit, dispatching the diagram guidance review, and comparing every scheduling alternative before preparing the updated recommendation."
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "status",
+            str(serve.page_dir),
+            "working",
+            detail,
+            "--on",
+            roots[0]["id"],
+        ],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    told(page)
+    expect(marker).to_have_attribute("data-lf-agent-phase", "active")
+    working = marker.evaluate("node => getComputedStyle(node).borderTopColor")
+    assert working == colors["--ok-ink"] and working != picked_up, (
+        "work did not change pickup blue to working green"
+    )
+    expect(marker).to_have_attribute("data-identity-probe", "retained")
+    expect(marker.locator(".lf-margin-entry-icon")).to_have_attribute(
+        "data-lf-icon", "comment"
+    )
+    expect(cluster.locator(".lf-margin-entry:visible")).to_have_count(1)
+    expected_arrivals = 1 if reduced_motion == "no-preference" else 0
+    if expected_arrivals:
+        page.wait_for_function("() => window.agentArrivalEnds === 1")
+        assert page.evaluate("window.agentArrivals") == [
+            {"duration": "0.52s", "iterations": "1"}
+        ]
+    else:
+        expect(marker).to_have_css("animation-name", "none")
+    expect(marker).not_to_have_attribute("data-lf-agent-arrival", re.compile(".*"))
+    expect(marker).to_have_attribute("title", f"Threads · Working · {detail}")
+
+    # An unchanged claim neither replays its arrival nor restates its accessible
+    # ownership text. Observe every write, including a remove followed by a restore.
+    def ownership_text_mutations(control):
+        return control.evaluate("""async node => {
+          const writes = [];
+          const record = mutations => writes.push(...mutations.map(mutation => ({
+            attribute: mutation.attributeName, before: mutation.oldValue,
+            after: node.getAttribute(mutation.attributeName),
+          })));
+          const observer = new MutationObserver(record);
+          observer.observe(node, {attributes: true, attributeOldValue: true,
+            attributeFilter: ['title', 'aria-description']});
+          for (let pass = 0; pass < 3; pass++) {
+            document.dispatchEvent(new CustomEvent('lf-actions'));
+            await new Promise(requestAnimationFrame);
+            await new Promise(requestAnimationFrame);
+          }
+          record(observer.takeRecords());
+          observer.disconnect();
+          return writes;
+        }""")
+
+    assert ownership_text_mutations(marker) == []
+    expect(marker).to_have_attribute("data-lf-agent-phase", "active")
+    assert page.evaluate("window.agentArrivals.length") == expected_arrivals
+    marker.focus()
+    page.keyboard.press("Enter")
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    expect(preview.locator(".lf-margin-thread")).to_have_count(1)
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1 of 2")
+    expect(preview).to_contain_text(COMMENT_ON_ASK["text"])
+    preview.get_by_role("button", name="Next conversation").click()
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("2 of 2")
+    expect(preview.locator(".lf-margin-thread")).to_have_count(1)
+    expect(preview).to_contain_text("Check the return visit too.")
+    expect(preview).not_to_contain_text(COMMENT_ON_ASK["text"])
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.locator(".lf-page-map-dialog")
+    rows = dialog.locator(".lf-page-map-action").filter(
+        has=page.locator('[data-lf-icon="comment"]')
+    )
+    expect(rows).to_have_count(2)
+    expect(dialog.locator('[data-lf-map-item^="activity:"]')).to_have_count(0)
+    active = dialog.locator('[data-lf-agent-phase="active"]')
+    expect(active).to_have_count(1)
+    expect(active.locator(".lf-margin-kind")).to_have_attribute(
+        "data-lf-icon", "comment"
+    )
+    expect(dialog.locator('[data-lf-agent-phase="picked_up"]')).to_have_count(1)
+    page.keyboard.press("Escape")
+    # Two contributed actions fold the Thread control behind More. The visible
+    # primary must retain ownership, and its own accessible description survives it.
+    page.evaluate("""async () => {
+      const {offer, marginEntry, registerMarginContribution} =
+        await import('/runtime/widget-api.js');
+      const controls = document.createElement('span');
+      const edit = marginEntry(offer('button', ''), {
+        key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
+      });
+      edit.setAttribute('aria-description', 'Edit the proposed bracket');
+      const cancel = marginEntry(offer('button', ''), {
+        key: 'cancel', icon: 'cross', label: 'Cancel', rank: 'secondary'
+      });
+      controls.append(edit, cancel);
+      window.agentCarrier = edit;
+      window.agentCancel = cancel;
+      window.agentContribution = registerMarginContribution({
+        key: 'carrier-probe', target: document.querySelector('#bracket'), controls,
+      });
+    }""")
+    carrier = cluster.get_by_role("button", name="Edit", exact=True)
+    expect(carrier).to_be_visible()
+    expect(carrier).to_have_attribute("data-lf-agent-phase", "active")
+    expect(carrier).to_have_attribute(
+        "aria-description", f"Edit the proposed bracket · Working · {detail}"
+    )
+    expect(carrier).to_have_css("border-top-color", colors["--ok-ink"])
+    expect(carrier).to_have_attribute("title", f"Edit · Working · {detail}")
+    assert page.evaluate("window.agentArrivals.length") == expected_arrivals, (
+        "moving the same work claim to another semantic carrier replayed its arrival"
+    )
+    # A contributor can forward a control whose ownership was already painted.
+    # Use the same canonical receipt to exercise its real secondary option proxy.
+    page.evaluate("""async () => {
+      const {syncMarginAgentPhase} = await import('/runtime/widget-api.js');
+      const {runtime} = await import('/runtime/context.js');
+      const receipt = runtime.activity.interactions.find(item => item.phase === 'active');
+      syncMarginAgentPhase(window.agentCancel, receipt);
+    }""")
+    cluster.locator(":scope > .lf-margin-more").click()
+    proxy = cluster.locator(".lf-margin-option-proxy").filter(has_text="Cancel")
+    expect(proxy).to_be_visible()
+    assert proxy.evaluate("node => node.lfForwardedControl === window.agentCancel")
+    expect(proxy).to_have_attribute("title", f"Cancel · Working · {detail}")
+    expect(proxy).to_have_attribute("aria-description", f"Working · {detail}")
+    assert ownership_text_mutations(proxy) == []
+    page.evaluate("""async () => {
+      const {syncMarginAgentPhase} = await import('/runtime/widget-api.js');
+      syncMarginAgentPhase(window.agentCancel, null);
+      window.agentContribution.unregister();
+    }""")
+    expect(marker).to_be_visible()
+    assert (
+        page.evaluate("() => window.agentCarrier.getAttribute('aria-description')")
+        == "Edit the proposed bracket"
+    )
+    resized(page, 390, 760)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    receipt = page.locator(".lf-thread-panel .lf-receipt.is-active .lf-receipt-state")
+    expect(receipt).to_have_text(f"● Active — {detail}")
+    expect(receipt).to_have_attribute("title", f"● Active — {detail}")
+    expect(receipt).to_have_css("color", colors["--ok-ink"])
+    geometry = receipt.evaluate("""node => {
+      const style = getComputedStyle(node);
+      const box = node.getBoundingClientRect();
+      return {width: box.width, height: box.height, lineHeight: parseFloat(style.lineHeight),
+        overflow: node.scrollWidth > node.clientWidth, whiteSpace: style.whiteSpace,
+        textOverflow: style.textOverflow, right: box.right, viewport: innerWidth};
+    }""")
+    assert geometry["width"] > 0 and geometry["right"] <= geometry["viewport"], geometry
+    assert geometry["height"] <= geometry["lineHeight"] + 1, geometry
+    assert (
+        geometry["overflow"]
+        and geometry["whiteSpace"] == "nowrap"
+        and geometry["textOverflow"] == "ellipsis"
+    ), geometry
+    assert errors == []
+    page.close()
+
+
+def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, serve):
+    """Two moved cards share a widget claim, but each receipt arrives only once.
+
+    The visible Page Map joins those same arrivals; reopening it later or repainting
+    the two units cannot restart either pulse.
+    """
+    page, errors = open_page(browser, live_url(serve(BOARD_PAGE)))
+    resized(page, 1440, 900)
+    for card in ("card-heater", "card-baffle"):
+        page.locator(f"#{card} .lf-grip").focus()
+        page.keyboard.press("Enter")
+        page.keyboard.press("ArrowRight")
+        with sending(page, f"move {card}"):
+            page.keyboard.press("Enter")
+        expect(page.locator(f"#col-done > #{card}")).to_be_visible()
+    moves = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ]
+    assert len(moves) == 2
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        session_model.record_pickup(transaction, moves)
+    told(page)
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.locator(".lf-page-map-dialog")
+    expect(dialog).to_be_visible()
+    expect(dialog.locator('[data-lf-agent-phase="picked_up"]')).to_have_count(2)
+    page.evaluate("""() => {
+      window.unitArrivals = [];
+      window.unitArrivalEnds = 0;
+      document.addEventListener('animationstart', event => {
+        if (!event.animationName.endsWith('agent-work-arrival')) return;
+        const style = getComputedStyle(event.target);
+        window.unitArrivals.push({
+          mapped: event.target.matches('.lf-page-map-action'),
+          duration: style.animationDuration, iterations: style.animationIterationCount,
+        });
+      });
+      document.addEventListener('animationend', event => {
+        if (event.animationName.endsWith('agent-work-arrival')) window.unitArrivalEnds++;
+      });
+    }""")
+    claim = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "status",
+            str(serve.page_dir),
+            "working",
+            "Checking both moved cards",
+            "--on",
+            "sprint",
+        ],
+    )
+    assert claim.exit_code == 0, claim.output
+    told(page)
+    expect(dialog.locator('[data-lf-agent-phase="active"]')).to_have_count(2)
+    page.wait_for_function("() => window.unitArrivalEnds === 4")
+    arrivals = page.evaluate("window.unitArrivals")
+    assert sorted(arrival["mapped"] for arrival in arrivals) == [
+        False,
+        False,
+        True,
+        True,
+    ]
+    assert all(
+        arrival["duration"] == "0.52s" and arrival["iterations"] == "1"
+        for arrival in arrivals
+    )
+    expect(page.locator("[data-lf-agent-arrival]")).to_have_count(0)
+
+    # Alternate the two same-target receipt identities through repeated real renders.
+    page.evaluate("""async () => {
+      for (let pass = 0; pass < 3; pass++) {
+        document.dispatchEvent(new CustomEvent('lf-actions'));
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+      }
+    }""")
+    assert page.evaluate("window.unitArrivals.length") == 4
+    expect(page.locator("[data-lf-agent-arrival]")).to_have_count(0)
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    expect(dialog.locator('[data-lf-agent-phase="active"]')).to_have_count(2)
+    expect(dialog.locator("[data-lf-agent-arrival]")).to_have_count(0)
+    assert page.evaluate("window.unitArrivals.length") == 4
+    assert errors == []
+    page.close()
+
+
 def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosure(
     browser, serve, monkeypatch
 ):
@@ -2726,6 +3062,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
                 cursor: style.cursor,
                 background: style.backgroundColor,
                 border: style.borderTopColor,
+                borderStyle: style.borderTopStyle,
+                animation: style.animationName,
                 ink: style.color,
                 opacity: style.opacity,
                 width: style.width,
@@ -2751,8 +3089,17 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         )
 
     expected_ink = resolved_color("--ink-2")
-    expected_paper = resolved_color("--paper")
-    expected_rule = resolved_color("--rule")
+    busy_surface = page.evaluate("""() => {
+      const probe = document.createElement('span');
+      document.body.append(probe);
+      const colors = {};
+      for (const [name, amount] of [['background', 4], ['border', 50]]) {
+        probe.style.color = `color-mix(in srgb, var(--ink) ${amount}%, var(--paper))`;
+        colors[name] = getComputedStyle(probe).color;
+      }
+      probe.remove();
+      return colors;
+    }""")
     expected_label_ink = resolved_color("--paper")
     expected_label_background = resolved_color("--ink")
 
@@ -2777,6 +3124,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         expect(control.locator(":scope > .lf-margin-entry-label")).to_be_hidden()
         words_still()
         current = face(control)
+        pickup_ink = resolved_color("--accent")
+        pickup_paper = resolved_color("--chip")
         assert current == {
             "tag": "SPAN",
             "offer": "",
@@ -2787,9 +3136,13 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             "context": context,
             "tabIndex": -1,
             "cursor": "default",
-            "background": expected_paper,
-            "border": expected_rule,
-            "ink": expected_ink,
+            "background": pickup_paper
+            if phase == "Picked up"
+            else busy_surface["background"],
+            "border": pickup_ink if phase == "Picked up" else busy_surface["border"],
+            "borderStyle": "solid" if phase == "Picked up" else "dashed",
+            "animation": "none",
+            "ink": pickup_ink if phase == "Picked up" else expected_ink,
             "opacity": "1",
             "width": "32px",
             "wordOpacity": "0",
@@ -2910,10 +3263,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     told(page)
     assert_status("Picked up", "just now")
 
-    # A direct action makes the acknowledgment a secondary reading. It keeps the same
-    # status semantics and full-strength circular margin entry instead of falling back to a
-    # dim disclosure with an ellipsis, which is the feature gallery's Edit + Picked up
-    # arrangement.
+    # A surviving semantic action carries pickup itself. Removing that carrier
+    # restores the status fallback with the same canonical receipt.
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
@@ -2928,20 +3279,23 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
           });
         }"""
     )
-    secondary = page.locator(
-        '[data-lf-margin-for="jobs"] .lf-margin-reading-option[data-lf-kinds="pickup"]'
-    )
+    carrier = page.locator(".lf-receipt-primary-probe")
     expect(marker).to_be_hidden()
-    expect(secondary).to_be_visible()
-    assert_status("Picked up", "just now", secondary)
-
-    page.evaluate("() => document.activeElement.blur()")
-    page.mouse.move(0, 0)
-    expect(page.locator(".lf-target-trace")).to_be_hidden()
-    secondary.hover()
-    expect(page.locator('.lf-target-trace[data-for="jobs"]')).to_be_visible()
-    page.locator(".lf-receipt-primary-probe").hover()
-    expect(page.locator('.lf-target-trace[data-for="jobs"]')).to_be_visible()
+    expect(carrier).to_have_attribute("data-lf-agent-phase", "picked_up")
+    expect(carrier).to_have_attribute("aria-description", "Picked up")
+    expect(carrier.locator(".lf-margin-entry-icon")).to_have_attribute(
+        "data-lf-icon", "edit"
+    )
+    expect(
+        page.locator('[data-lf-margin-for="jobs"] .lf-margin-entry:visible')
+    ).to_have_count(1)
+    carrier.focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    mapped = page.locator('.lf-page-map-action[data-lf-agent-phase="picked_up"]')
+    expect(mapped).to_have_count(1)
+    expect(mapped.locator(".lf-margin-kind")).to_have_attribute("data-lf-icon", "edit")
+    page.keyboard.press("Escape")
     page.evaluate("() => window.lfReceiptSecondary.unregister()")
     expect(marker).to_be_visible()
 
@@ -3344,7 +3698,9 @@ def test_a_forced_inline_thread_keeps_its_control_inside_the_margin_budget(
     assert geometry["bottomChrome"] > 0, geometry
     assert geometry["coveredBottomChrome"] == 0, geometry
     reply = page.locator(".lf-margin-preview textarea")
-    reply.click()
+    page.locator(".lf-margin-preview").get_by_role(
+        "button", name="Reply", exact=True
+    ).click()
     reply.fill("The covered terrace is easier to find.")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(reply).to_have_value("The covered terrace is easier to find.")
@@ -3509,7 +3865,8 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     told(page)
     expect(thread).to_have_attribute("data-stable-proof", "same-thread-button")
     expect(thread.locator(".lf-margin-count")).to_have_text("2")
-    expect(page.locator(".lf-margin-thread")).to_have_count(2)
+    expect(page.locator(".lf-margin-thread")).to_have_count(1)
+    expect(page.locator(".lf-margin-preview-position")).to_have_text("1 of 2")
     expect(thread).to_have_attribute("aria-expanded", "true")
 
     resized(page, 1207, 900)
@@ -3853,22 +4210,30 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).not_to_contain_text("options · choose")
-    close = preview.get_by_role("button", name="Close thread", exact=True)
+    close = preview.get_by_role("button", name="Dismiss conversation view", exact=True)
     resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
     expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
     expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
     expect(close).to_have_text("")
     expect(resolve).to_have_text("")
+    reply_button = preview.get_by_role("button", name="Reply", exact=True)
+    expect(reply_button).to_be_visible()
+    expect(preview.locator("textarea")).to_be_hidden()
     geometry = preview.evaluate(
         """preview => {
           const thread = preview.querySelector('.lf-conversation-thread');
-          const textarea = thread.querySelector('textarea');
-          const send = thread.querySelector('.lf-compose-submit');
+          const head = preview.querySelector('.lf-margin-preview-head');
+          const messageHead = thread.querySelector(
+            ':scope > .lf-conversation-msg:first-of-type > .lf-conversation-head'
+          );
+          const reply = thread.querySelector('.lf-reply-disclosure');
           const close = preview.querySelector('.lf-margin-preview-close');
           const resolve = thread.querySelector('.lf-resolve');
           const tr = thread.getBoundingClientRect();
-          const ta = textarea.getBoundingClientRect();
-          const sr = send.getBoundingClientRect();
+          const hr = head.getBoundingClientRect();
+          const mh = messageHead.getBoundingClientRect();
+          const rb = reply.getBoundingClientRect();
+          const cr = close.getBoundingClientRect();
           const rr = resolve.getBoundingClientRect();
           const ts = getComputedStyle(thread);
           return {
@@ -3880,40 +4245,53 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
               left: tr.left + parseFloat(ts.borderLeftWidth)
                 + parseFloat(ts.paddingLeft),
             },
-            textarea: {top: ta.top, right: ta.right, bottom: ta.bottom, left: ta.left},
-            send: {top: sr.top, right: sr.right, bottom: sr.bottom, left: sr.left},
+            head: {bottom: hr.bottom},
+            messageHead: {top: mh.top},
+            reply: {right: rb.right, left: rb.left},
+            close: {top: cr.top, left: cr.left, bottom: cr.bottom},
             closeBorder: getComputedStyle(close).borderTopWidth,
             resolveBorder: getComputedStyle(resolve, '::before').borderTopWidth,
             resolve: {top: rr.top, right: rr.right, bottom: rr.bottom},
           };
         }"""
     )
-    # Send belongs inside the field instead of taking width beside it. The field
-    # fills the thread's content box, inside any padding the thread reserves.
-    assert geometry["textarea"]["left"] == pytest.approx(
-        geometry["thread"]["left"], abs=1
-    )
-    assert geometry["textarea"]["right"] == pytest.approx(
+    assert geometry["reply"]["left"] == pytest.approx(geometry["thread"]["left"], abs=1)
+    assert geometry["reply"]["right"] == pytest.approx(
         geometry["thread"]["right"], abs=1
     )
-    assert geometry["send"]["left"] >= geometry["textarea"]["left"]
-    assert geometry["send"]["right"] <= geometry["textarea"]["right"]
-    assert geometry["send"]["top"] >= geometry["textarea"]["top"]
-    assert geometry["send"]["bottom"] <= geometry["textarea"]["bottom"]
     assert float(geometry["closeBorder"][:-2]) == 0
     assert float(geometry["resolveBorder"][:-2]) == 0
-    assert geometry["resolve"]["top"] >= geometry["thread"]["top"]
-    assert geometry["resolve"]["right"] == pytest.approx(
-        geometry["thread"]["right"], abs=1
+    assert geometry["resolve"]["top"] == pytest.approx(geometry["close"]["top"], abs=1)
+    assert geometry["resolve"]["bottom"] == pytest.approx(
+        geometry["close"]["bottom"], abs=1
     )
-    assert geometry["resolve"]["bottom"] <= geometry["thread"]["bottom"]
+    assert geometry["resolve"]["right"] <= geometry["close"]["left"] - 3, geometry
+    assert geometry["messageHead"]["top"] - geometry["head"]["bottom"] < 24
+    reply_button.click()
+    expect(preview.locator("textarea")).to_be_visible()
+    page.locator("h1").click()
+    expect(preview).to_be_hidden()
+    marker.click()
+    expect(reply_button).to_be_visible()
+    expect(preview.locator("textarea")).to_be_hidden()
+    reply_button.click()
+    expect(reply_button).to_be_hidden()
+    expect(preview.locator("textarea")).to_be_focused()
+    expect(preview.locator("textarea")).to_be_visible()
+    preview.locator("textarea").fill("Keep this draft visible.")
     page.locator(".lf-margin-preview-close").click()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close thread")
-    expect(preview.locator("textarea")).to_be_focused()
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("dismiss conversation")
+    expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+    expect(preview.locator("textarea")).to_be_visible()
+    expect(preview.locator("textarea")).to_have_value("Keep this draft visible.")
+    preview.locator("textarea").fill("")
+    page.locator(".lf-margin-preview-close").click()
+    page.keyboard.press("Enter")
+    expect(preview.locator("textarea")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     expect(marker).to_be_focused()
@@ -3949,7 +4327,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
 
-    preview.get_by_role("button", name="Close thread").focus()
+    preview.get_by_role("button", name="Dismiss conversation view").focus()
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     expect(preview).to_be_hidden()
@@ -4040,6 +4418,9 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
         or geometry["cardTop"] >= geometry["controlsBottom"] + 7
     ), geometry
     assert 319 <= geometry["cardWidth"] <= 460, geometry
+    expect(thread.locator(".lf-conversation-thread")).to_be_focused()
+    expect(reply).to_be_hidden()
+    thread.get_by_role("button", name="Reply", exact=True).click()
     expect(reply).to_be_focused()
     reply.fill("Yes. One visit can cover both jobs.")
     ticked(page)
@@ -4102,7 +4483,13 @@ def test_a_thread_margin_entry_opens_inline_when_the_panel_is_closed(browser, se
 
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-margin-thread textarea")).to_be_focused()
+    expect(page.locator(".lf-margin-thread .lf-conversation-thread")).to_be_focused()
+    expect(page.locator(".lf-margin-thread textarea")).to_be_hidden()
+    expect(
+        page.locator(".lf-margin-thread").get_by_role(
+            "button", name="Reply", exact=True
+        )
+    ).to_be_visible()
     expect(marker).to_have_attribute("aria-controls", "lf-margin-preview")
     expect(marker).to_have_attribute("aria-expanded", "true")
     assert errors == []
@@ -4149,7 +4536,7 @@ def test_a_new_anchored_comment_keeps_the_readers_conversation_view(
         expect(page.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")
         )
-        expect(page.locator(".lf-shortcut-bar")).to_contain_text("close thread")
+        expect(page.locator(".lf-shortcut-bar")).to_contain_text("dismiss conversation")
         preview_box = preview.bounding_box()
         assert preview_box["x"] >= 0, preview_box
         assert preview_box["x"] + preview_box["width"] <= width, preview_box
@@ -4240,8 +4627,8 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(browser, se
     page.close()
 
 
-def test_a_shared_passage_keeps_all_of_its_threads_in_one_quiet_card(browser, serve):
-    """Several roots need no repeated category label or local panel handoff."""
+def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve):
+    """A shared target shows one unambiguous conversation and local navigation."""
     second_comment = {
         "kind": "comment",
         "author": "user",
@@ -4256,7 +4643,37 @@ def test_a_shared_passage_keeps_all_of_its_threads_in_one_quiet_card(browser, se
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     preview = page.locator(".lf-margin-preview")
 
-    expect(preview.locator(".lf-margin-thread")).to_have_count(2)
+    expect(preview.locator(".lf-margin-thread")).to_have_count(1)
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1 of 2")
+    previous = preview.get_by_role("button", name="Previous conversation")
+    next_conversation = preview.get_by_role("button", name="Next conversation")
+    expect(previous).to_be_disabled()
+    expect(next_conversation).to_be_enabled()
+    disabled_style = previous.evaluate(
+        "button => [getComputedStyle(button).backgroundColor, "
+        "getComputedStyle(button).color]"
+    )
+    previous.hover()
+    assert (
+        previous.evaluate(
+            "button => [getComputedStyle(button).backgroundColor, "
+            "getComputedStyle(button).color]"
+        )
+        == disabled_style
+    )
+    expect(preview).to_contain_text(COMMENT_ON_ASK["text"])
+    next_conversation.click()
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("2 of 2")
+    expect(preview).to_contain_text(second_comment["text"])
+    expect(preview).not_to_contain_text(COMMENT_ON_ASK["text"])
+    expect(previous).to_be_enabled()
+    expect(next_conversation).to_be_disabled()
+    expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+    page.keyboard.press("r")
+    told(page)
+    expect(preview.locator(".lf-margin-preview-nav")).to_be_hidden()
+    expect(preview).to_contain_text(COMMENT_ON_ASK["text"])
+    expect(preview).not_to_contain_text(second_comment["text"])
     expect(preview.locator(".lf-conversation-open")).to_have_count(0)
     expect(preview.get_by_role("button", name=re.compile(r"Threads?"))).to_have_count(0)
     page.locator(".lf-threads-toggle").click()
@@ -4295,7 +4712,8 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     expect(
         thread.get_by_role("button", name="Open interactive reply in Threads")
     ).to_have_count(1)
-    expect(thread.locator("textarea")).to_be_focused()
+    expect(thread.locator(".lf-conversation-thread")).to_be_focused()
+    expect(thread.locator("textarea")).to_be_hidden()
     geometry = marker.evaluate(
         """markerNode => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -4332,6 +4750,7 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     assert geometry["titleLeft"] == pytest.approx(geometry["cardLeft"] + 13, abs=0.5)
     assert not geometry["panelOpen"], geometry
 
+    thread.get_by_role("button", name="Reply", exact=True).click()
     send = preview.get_by_role("button", name="Send")
     send.focus()
     page.evaluate("() => dispatchEvent(new Event('resize'))")
@@ -4377,7 +4796,8 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     marker.focus()
     page.keyboard.press("Enter")
     expect(preview).to_be_visible()
-    expect(preview.locator("textarea")).to_be_focused()
+    expect(preview.locator(".lf-conversation-thread")).to_be_focused()
+    expect(preview.locator("textarea")).to_be_hidden()
 
     resized_shell(page, 1472, 900)
     beside = page.evaluate(
@@ -4881,8 +5301,14 @@ def test_an_open_desktop_preview_reconciles_arriving_meanings(browser, serve):
     )
     told(page)
     expect(marker.locator(".lf-margin-count")).to_have_text("2")
-    expect(page.locator(".lf-margin-thread")).to_have_count(2)
-    expect(page.locator(".lf-margin-thread").last).to_contain_text(
+    expect(page.locator(".lf-margin-thread")).to_have_count(1)
+    expect(page.locator(".lf-margin-preview-position")).to_have_text("1 of 2")
+    expect(page.locator(".lf-margin-thread")).not_to_contain_text(
+        "A second reading arrived while the preview was pinned."
+    )
+    page.get_by_role("button", name="Next conversation").click()
+    expect(page.locator(".lf-margin-preview-position")).to_have_text("2 of 2")
+    expect(page.locator(".lf-margin-thread")).to_contain_text(
         "A second reading arrived while the preview was pinned."
     )
 

@@ -53,9 +53,9 @@ lf-diff:not(.lf-rendered) > pre {
 /* The press is out of the summary's flow, so that line holds a column open for it and a
    long path wraps above it rather than running underneath. A copy with no press to make
    room for takes its ordinary inset back. */
-.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) > details > summary,
-.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) .lf-diff-rename {
-                                     padding-right: calc(var(--lf-diff-press) + 18px); }
+.lf-diff-file:has(> .lf-diff-file-actions > *) > details > summary,
+.lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename {
+                                     padding-right: calc(var(--lf-diff-actions) + 18px); }
 .lf-diff-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px;
                  margin: 8px 0; padding: 8px 10px; border: 1px solid var(--code-border);
                  border-radius: var(--r); background: var(--code-chrome);
@@ -69,7 +69,7 @@ lf-diff:not(.lf-rendered) > pre {
 .lf-diff-wrap-label { display: inline-flex; align-items: center; gap: 6px; flex: none;
                       white-space: nowrap; cursor: pointer; }
 .lf-diff-wrap { margin: 0; flex: none; cursor: pointer; }
-.lf-diff-next, .lf-diff-review { min-height: 30px; font: inherit; }
+.lf-diff-next, .lf-diff-review, .lf-diff-comment { min-height: 30px; font: inherit; }
 /* The file's row is a disclosure, and a disclosure is a control, so the review press
    cannot be a descendant of it (lf-diff.js). It is a sibling drawn over the summary
    line instead: a block in the flow ahead of the row, pushed to the right by its auto
@@ -94,23 +94,46 @@ lf-diff:not(.lf-rendered) > pre {
    lifted alone it covered the press too, on every file, so a click on "Mark reviewed"
    opened and closed the file instead. */
 .lf-diff-file { position: relative; display: flow-root; margin: 8px 0;
-                --lf-diff-press: 110px; }
-.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) > :is(details, .lf-diff-rename) {
+                --lf-diff-actions: 32px; --lf-diff-press: 110px; }
+.lf-diff-file:has(.lf-diff-review, .lf-diff-reviewed) { --lf-diff-actions: 150px; }
+.lf-diff-file:has(> .lf-diff-file-actions > *) > :is(details, .lf-diff-rename) {
                 margin-top: -32px; }
-.lf-diff-review, .lf-diff-reviewed { display: block; position: relative; z-index: 3;
-                                     width: fit-content; height: 26px;
-                                     margin: 6px 11px 0 auto;
-                                     font-family: var(--sans); }
+.lf-diff-file-actions { position: relative; z-index: 3; display: flex;
+                        align-items: center; justify-content: flex-end; gap: 6px;
+                        width: fit-content; height: 26px; margin: 6px 11px 0 auto;
+                        font-family: var(--sans); }
+.lf-diff-review, .lf-diff-reviewed { display: block; width: fit-content; height: 26px;
+                                     font-family: inherit; }
 .lf-diff-review { box-sizing: border-box; width: var(--lf-diff-press);
                   min-height: 26px; padding: 2px 8px;
                   font-size: var(--t-6); }
 .lf-diff-reviewed { font-size: var(--t-5); line-height: 26px; }
 .lf-diff-review[aria-pressed="true"], .lf-diff-reviewed { color: var(--ok);
                                                          font-weight: 650; }
+.lf-diff-file-comment { box-sizing: border-box; width: 26px; height: 26px;
+                        min-width: 26px; min-height: 26px; padding: 0;
+                        border-color: transparent; border-radius: var(--r);
+                        background: transparent; color: var(--muted);
+                        font-size: 18px; line-height: 1; }
+.lf-diff-file-comment:is(:hover, :focus-visible, .lf-focus-visible) {
+                        border-color: var(--border-2); background: var(--card);
+                        color: var(--accent); }
+.lf-diff-line-comment { position: absolute; z-index: 1; inset-block-start: 50%;
+                        inset-inline-start: 2px; width: 22px; height: 22px;
+                        min-width: 22px; min-height: 22px; padding: 0;
+                        translate: 0 -50%; opacity: 0; border-color: var(--accent);
+                        border-radius: 50%; background: var(--accent); color: var(--paper);
+                        font: 700 16px/1 var(--sans); pointer-events: none; }
+[data-gutter] > :has(> .lf-diff-line-comment) { position: relative; }
+[data-gutter] > :has(> .lf-diff-line-comment):hover > .lf-diff-line-comment,
+[data-gutter] > .lf-diff-line-hover > .lf-diff-line-comment,
+.lf-diff-line-comment:is(:focus-visible, .lf-focus-visible) {
+                        opacity: 1; pointer-events: auto; }
 .lf-diff-filtered { display: none !important; }
 .lf-diff-next:is(:focus-visible, .lf-focus-visible),
 .lf-diff-wrap:is(:focus-visible, .lf-focus-visible),
 .lf-diff-review:is(:focus-visible, .lf-focus-visible),
+.lf-diff-comment:is(:focus-visible, .lf-focus-visible),
 .lf-diff-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
                                                         --lf-here-ring: diff-tools;
                                                         outline-offset: 1px; }
@@ -137,8 +160,7 @@ lf-diff:not(.lf-rendered) > pre {
                               top: var(--lf-banner-h, 0px); z-index: 2; }
   /* The press with it, 5px down: its own 6px less the border the summary's box starts
      inside, which is the distance between the two at rest. */
-  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-review,
-  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-reviewed { position: sticky;
+  :host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file-actions { position: sticky;
                               top: calc(var(--lf-banner-h, 0px) + 5px); }
 }
 /* The room that header takes, so a landing arrives below it rather than behind it. The
@@ -193,6 +215,8 @@ lf-diff:not(.lf-rendered) > pre {
                           background: var(--paper); }
 .lf-diff-thread-gutter { border-inline-end: 1px solid var(--rule); }
 .lf-diff-thread-outlet { padding: 10px clamp(10px, 2vw, 18px); white-space: normal; }
+.lf-diff-file-thread-outlet { margin-top: 8px; border: 1px solid var(--rule);
+                              border-radius: var(--r); }
 .lf-diff-thread-outlet > .lf-conversation-thread {
                           max-width: 760px; border: 1px solid var(--border-2);
                           border-radius: 7px; padding: 10px 12px; background: var(--card); }
@@ -235,7 +259,10 @@ lf-diff:not(.lf-rendered) > pre {
 [data-lf-syn="fn"] { color: var(--syn-name); }
 [data-lf-syn="ty"] { color: var(--syn-type); }
 @media print {
-  .lf-diff-tools, .lf-diff-review:not([data-lf-said]) { display: none !important; }
+  .lf-diff-tools, .lf-diff-comment,
+  .lf-diff-review:not([data-lf-said]) { display: none !important; }
+  .lf-diff-file:not(:has([data-lf-said])) > .lf-diff-file-actions {
+                          display: none !important; }
   .lf-diff-file:not(:has([data-lf-said])) > details > summary,
   .lf-diff-file:not(:has([data-lf-said])) .lf-diff-rename { padding-right: 10px; }
   /* The row's pull (above) takes back the press's height, and the press an unreviewed

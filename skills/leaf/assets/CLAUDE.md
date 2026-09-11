@@ -429,9 +429,12 @@ The server projects threads from the whole log, so a conversation stays current
 on a pinned page even when the document projection remains historical.
 Registry-declared `x-conversation` seats show an exact-section
 textual view while the owner exists in the current document. A declared
-`x-thread-surface` may instead seat the complete shared Thread view beside an exact
-projected datum. The widget owns only the outlet's layout and visibility; core owns the
-messages, replies, reactions, settlement, receipts, focus, and fallback. The living
+`x-thread-surface` may instead seat the canonical response composer and complete shared
+Thread views beside an exact projected datum. The registration handle opens Comment
+from one of the widget's projected elements; it never constructs an anchor or owns an
+editor. The widget owns only the trigger and outlet's layout and visibility; core owns
+the draft, response modes, messages, replies, reactions, settlement, receipts, focus,
+and fallback. The living
 margin carries a thread while no widget claims it, and the Threads panel remains the
 complete index. With the panel closed, a thread margin entry and the `t`/`T` walk use that
 inline seat; with it open, they use its indexed cards. A press on a marked passage or its
@@ -494,7 +497,7 @@ The extension keys describe general behavior:
 | `x-ask-surface` | the complete reading and arrival region around one nested Ask source |
 | `x-awaits` | the condition, explicit answer verbs, and optional nested roll-up for an Ask |
 | `x-conversation` | the condition under which the widget owns a conversation seat, and whether its root requires a version response |
-| `x-thread-surface` | the upgraded widget may provide local outlets for complete Threads anchored to its exact projected data |
+| `x-thread-surface` | the upgraded widget may provide local outlets for the canonical response composer and complete Threads anchored to its exact projected data |
 | `x-work` | admits local agent work without a pending reader move, through a content or conversation seat and optional condition; an admitted page-widget claim then appears at the page edge through its target margin entry |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
 | `x-wide` | whether width follows a box or a drawing |
@@ -587,12 +590,16 @@ Control state is paint: ink, fill, border, or an inset ring. Do not express it b
 changing font weight, size, padding, border width, or another metric. Reserve
 space before a generated control appears. Transient feedback may repaint a control or
 briefly replace its label, but neither may change its geometry; `reserve` measures all
-enumerable labels in the control's current font and sets a minimum width. Text that
-wraps reserves on the same terms: the narrowest box in which every line it can write
-fits its stated clamp, measured in the face it is set in (`reserveStatusRoom`), because
-a count of characters tracks the advance of a zero rather than of a line. Re-measure
-after changing type tokens; avoid numeric reservations where the possible words are
-available. Pair local visual feedback with `notice` for an assistive announcement.
+enumerable labels in the control's current font and sets a minimum width. Re-measure
+after changing type tokens. The banner status stays on one line with ellipsis and a
+complete hover title; its CSS reservation stays independent of changing copy. Pair
+local visual feedback with `notice` for an assistive announcement.
+
+Agent ownership colors the existing semantic margin control: pickup is blue, working
+is green with an inset double ring and one arrival pulse. Sending uses a static neutral
+dashed ring. A separate Activity control appears only when no semantic carrier exists.
+Thread cards carry the same ownership color; quiet or ended claims release it. Reduced
+motion suppresses arrival, and repainting or replacing a carrier cannot replay it.
 
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for

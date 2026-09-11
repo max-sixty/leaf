@@ -20,10 +20,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH=/codex-bin:/app/.venv/bin:$PATH
 
 COPY --from=codex /codex-bin /codex-bin
+RUN ln -s /codex-bin/rg /usr/local/bin/rg
 
 COPY pyproject.toml uv.lock ./
 COPY skills/leaf ./skills/leaf
-RUN uv sync --frozen --no-dev \
+RUN uv sync --frozen --no-dev --compile-bytecode \
+    && /app/.venv/bin/python -m compileall -q /app/skills/leaf/scripts/leaf \
     && /app/.venv/bin/leaf --version
 
 COPY worker/codex-config.toml /app/.codex/config.toml

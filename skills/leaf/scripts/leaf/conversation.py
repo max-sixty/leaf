@@ -4,13 +4,13 @@ import json
 import sys
 from pathlib import Path
 
-from leaf.anchor_capture import capture_anchor
 from leaf.asks import local_ask_entry, page_awaiting_values
 from leaf.delivery import current_responses
 from leaf.event_contracts import report_contract_error
 from leaf.event_log import read_events
 from leaf.files import (
     latest_published,
+    latest_revision,
     require_revision,
     revision_path,
     version_revisions,
@@ -24,8 +24,6 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
-from leaf.registry.storage import require_registry
-from leaf.revisioning import activate_source
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction
 from leaf.structure import parse_revision
@@ -66,6 +64,8 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
     landed in the log. A stamped version is what this thread asked for, so an
     unstamped live revision cannot settle it.
     """
+    from leaf.registry.storage import require_registry
+
     version = latest_published(page_dir, events)
     revision = version_revisions(events)[version]
     if revision <= root["revision"]:
@@ -117,12 +117,21 @@ def _current_anchor(
     quote: str,
     section: str,
     part: str,
+    revision: int | None = None,
 ) -> tuple[int, dict | None]:
     """Capture one optional target against the page's active reading."""
-    activate_source(page_dir, events)
-    revision = require_revision(page_dir)
+    if revision is None:
+        from leaf.revisioning import activate_source
+
+        activation = activate_source(page_dir, events)
+        if activation.error:
+            sys.exit(f"cannot use invalid index.html: {activation.error}")
+        revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
+    from leaf.anchor_capture import capture_anchor
+    from leaf.registry.storage import require_registry
+
     html = revision_path(page_dir, revision).read_text(encoding="utf-8")
     registry = require_registry(page_dir)
     page = page_reading(html, events, registry, revision)
@@ -180,7 +189,7 @@ def cmd_comment(
 @contract_writer
 def cmd_reply(
     page_dir: Path,
-    to: str,
+    to: str | None,
     text,
     markup: str,
     awaits: bool = False,
@@ -194,20 +203,20 @@ def cmd_reply(
     skip_if_settled: bool = False,
     only_if_unclaimed: bool = False,
     identity: dict | None = None,
+    validate_source: bool = False,
 ) -> dict | None:
     """Post one complete threaded reply, optionally moving its anchor.
 
     ``for_event`` fences the write to the exact current obligation. Its response
     address may differ from ``to`` when a widget gesture belongs to a frozen
-    conversation. ``initiates`` explicitly posts when the conversation currently
-    owes no reply. Durable hosts may make an already-settled retry a no-op.
+    conversation. One unambiguous delivered reply supplies both values. ``initiates``
+    explicitly posts when the conversation currently owes no reply. Durable hosts may
+    make an already-settled retry a no-op.
     """
     body = read_text_arg(page_dir, text)
+    posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         events = page.events
-        root_id, root = _thread_root(events, to)
-        if (for_event is None) == (not initiates):
-            sys.exit("reply requires exactly one of for_event or initiates")
         if attempt is not None:
             existing = next(
                 (event for event in events if event.get("attempt") == attempt), None
@@ -217,14 +226,78 @@ def cmd_reply(
                     existing.get("responds") == for_event
                     if for_event is not None
                     else existing.get("initiates") is True
+                    if initiates
+                    else True
                 )
                 if (
                     existing["kind"] != "reply"
-                    or existing["parent"] != to
+                    or (to is not None and existing["parent"] != to)
                     or not same_scope
                 ):
                     sys.exit(f"attempt {attempt!r} already belongs to another event")
                 return existing
+        responses = current_responses(page_dir, events)
+        if initiates:
+            if for_event is not None:
+                sys.exit("reply accepts --for or --initiates, not both")
+            if to is None:
+                sys.exit("reply --initiates requires --to")
+        elif for_event is None:
+            if to is not None:
+                sys.exit("a delivered reply uses --for; omit --to to infer both")
+            claim = page.active_claim
+            delivered = (
+                {
+                    event_id
+                    for event in events
+                    if event["kind"] == "pickup"
+                    and event["phase"] == "opened"
+                    and event["session"] == claim["id"]
+                    and event["turn"] == claim.get("turn")
+                    for event_id in event["events"]
+                }
+                if claim is not None
+                and posting_identity.get("session") == claim["id"]
+                and claim.get("turn") is not None
+                and claim.get("turn_closed") is None
+                else set()
+            )
+            pending = [
+                (event_id, response)
+                for event_id, response in responses.items()
+                if event_id in delivered and response["kind"] == "reply"
+            ]
+            if len(pending) != 1:
+                sys.exit(
+                    "reply needs exactly one reply obligation from this turn's "
+                    "opened delivery to infer; use --for EVENT_ID when more than "
+                    "one was delivered"
+                )
+            for_event, expected = pending[0]
+            to = expected["to"]
+        else:
+            expected = responses.get(for_event)
+            if expected is not None and expected["kind"] == "version":
+                root_id, _ = _thread_root(events, to or expected["conversation"])
+                if skip_if_settled:
+                    return None
+                sys.exit(
+                    f"thread {root_id!r} requires a page version and cannot take a "
+                    "reply; incorporate its request in the next version, or open a "
+                    "separate thread on the same Ask with `leaf comment --section "
+                    "<ask-id>` if you need an answer first"
+                )
+            if expected is None or expected["kind"] != "reply":
+                if skip_if_settled:
+                    return None
+                sys.exit(
+                    f"event {for_event!r} no longer requires a reply; "
+                    "read the current delivery or conversation state"
+                )
+            if to is None:
+                to = expected["to"]
+        assert to is not None
+        root_id, root = _thread_root(events, to)
         if root and (root.get("response") or {}).get("kind") == "version":
             if skip_if_settled:
                 return None
@@ -234,7 +307,6 @@ def cmd_reply(
                 "thread on the same Ask with `leaf comment --section <ask-id>` if "
                 "you need an answer first"
             )
-        responses = current_responses(page_dir, events)
         if for_event is not None:
             expected = responses.get(for_event)
             if expected != {"kind": "reply", "to": to, "for": for_event}:
@@ -271,13 +343,42 @@ def cmd_reply(
                 f"thread {root_id!r} holds the command goal named by its opening "
                 "comment, so its anchor cannot be moved"
             )
+        reply_revision = None
+        if validate_source:
+            active = latest_revision(page_dir)
+            source_matches_active = bool(
+                active is not None
+                and (page_dir / "index.html").is_file()
+                and (page_dir / "index.html").read_bytes()
+                == revision_path(page_dir, active).read_bytes()
+            )
+            if source_matches_active:
+                reply_revision = active
+            else:
+                from leaf.revisioning import activate_source
+
+                activation = activate_source(page_dir, events)
+                if activation.error:
+                    sys.exit(
+                        f"cannot reply while index.html is invalid: {activation.error}"
+                    )
+                reply_revision = activation.revision
         revision, anchor = (
-            _current_anchor(page_dir, events, quote, section, part)
+            _current_anchor(
+                page_dir,
+                events,
+                quote,
+                section,
+                part,
+                revision=reply_revision,
+            )
             if moving
             else (None, None)
         )
         fragment = check_markup(page_dir, "reply", markup, events) if markup else None
         if awaits and fragment:
+            from leaf.registry.storage import require_registry
+
             registry = require_registry(page_dir)
             structural = sorted(
                 {
@@ -295,7 +396,7 @@ def cmd_reply(
         event = {
             "kind": "reply",
             "author": "claude",
-            **(message_identity() if identity is None else identity),
+            **posting_identity,
             "parent": to,
             "text": body,
             **(
@@ -324,6 +425,8 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
     every wording while thread folds project the latest one. Markup stays frozen with
     the original message because reader actions may already rest on widgets it sent.
     """
+    from leaf.registry.storage import require_registry
+
     body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
@@ -386,6 +489,9 @@ def cmd_report(page_dir: Path, widget: str, verb: str, fields: tuple) -> None:
     page's watcher wakes to fold it in. Field values
     are strings — the declared detail schemas for reports speak in attribute
     values, which is all a report may move."""
+    from leaf.registry.storage import require_registry
+    from leaf.revisioning import activate_source
+
     detail = {}
     for field in fields:
         name, eq, value = field.partition("=")

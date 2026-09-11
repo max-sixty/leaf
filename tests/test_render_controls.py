@@ -2656,6 +2656,7 @@ def test_a_panel_row_follows_its_pages_status_live(
                 "kind": "reply",
                 "author": "claude",
                 "parent": comment["id"],
+                "responds": comment["id"],
                 "revision": 1,
                 "text": "Use the existing page directory.",
             },

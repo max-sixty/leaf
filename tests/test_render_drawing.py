@@ -772,7 +772,7 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     assert event["kind"] == "comment"
     assert "text" not in event
     assert event["drawing"]["format"] == "leaf-drawing/1"
-    thread = page.get_by_role("dialog", name=re.compile("Thread for"))
+    thread = page.get_by_role("dialog", name=re.compile("Conversation for"))
     expect(thread).to_be_visible()
     expect(page.locator(".lf-drawing-preview")).to_have_count(0)
     expect(thread.locator(".lf-drawing-reference")).to_have_text("Drawing comment")

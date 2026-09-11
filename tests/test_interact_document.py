@@ -88,8 +88,17 @@ def test_check_accepts_authored_module_scripts(page_dir):
             '<a href="javascript:window.hiddenPath=true">Run</a>',
             "uses executable attribute href",
         ),
+        (
+            '<a href="jav&#9;ascript:window.hiddenPath=true">Run</a>',
+            "uses executable attribute href",
+        ),
     ],
-    ids=["classic-script", "event-handler", "javascript-url"],
+    ids=[
+        "classic-script",
+        "event-handler",
+        "javascript-url",
+        "encoded-javascript-url",
+    ],
 )
 def test_check_keeps_authored_code_in_module_blocks(page_dir, authored, expected):
     version = page_dir / ".fixture-versions" / "v1.html"

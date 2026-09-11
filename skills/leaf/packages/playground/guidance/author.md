@@ -93,7 +93,8 @@ control in `detail.values`, including controls the prose does not repeat.
 A preview that needs JavaScript keeps its page-specific behavior in an inline
 `<script type="module">` block. Put the real candidates in an ordinary element or a
 page-specific custom element. Use a package widget only when that behavior or
-vocabulary is reused across pages.
+vocabulary is reused across pages. Follow `references/packages.md`'s behavior-module
+contract in either case.
 
 Wait for `customElements.whenDefined("lf-playground")` before reading
 `closest("lf-playground").values`. Later control snapshots arrive in the bubbling

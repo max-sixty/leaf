@@ -353,7 +353,7 @@ class StructParser:
             if (len(name) > 2 and name.startswith("on")) or (
                 name in SCRIPT_URL_ATTRIBUTES
                 and isinstance(value, str)
-                and value.lstrip().lower().startswith("javascript:")
+                and "".join(value.split()).lower().startswith("javascript:")
             ):
                 self.executable_attributes.append(
                     {"tag": tag, "line": line, "name": name, "value": value}

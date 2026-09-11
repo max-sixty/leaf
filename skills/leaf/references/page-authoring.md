@@ -141,6 +141,10 @@ its exact contents into the served policy. Standard browser APIs are available; 
 that integrates with Leaf may import the public `/runtime/widget-api.js` module and
 listen to public widget events such as `lf-playground-change`.
 
+Page modules follow the behavior-module contract in `references/packages.md`. In
+particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
+rules keep authored controls correct after reconnection, thread quoting, and export.
+
 Use a package when behavior, styling, or vocabulary is reused across pages. A one-page
 explorer or playground keeps its code in the page. The one external script element
 remains `/leaf.js`; import any vendored dependencies from an inline module. Leaf

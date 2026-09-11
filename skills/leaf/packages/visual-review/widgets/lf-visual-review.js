@@ -1,7 +1,7 @@
 /* A visual run is external evidence: one source supplies its cases, while Leaf's event
- * log owns case dispositions and threads. The module keeps browsing selection local,
- * projects each case with source provenance, and delegates aligned image comparison to
- * the existing lf-shot widget. */
+ * log owns case dispositions and threads. The module keeps browsing and inspection
+ * choices local, projects each case with source provenance, and reshapes the existing
+ * aligned lf-shot comparison without introducing another evidence model. */
 import "/widgets/lf-shot.js";
 
 import {
@@ -15,6 +15,7 @@ import {
   offer,
   once,
   paintKeys,
+  PRESS,
   projectData,
   registerReadingElement,
   registerThreadSurface,
@@ -33,6 +34,17 @@ const CLASSIFICATION = {
 const DISPOSITION = {
   "looks-right": "Looks right",
   "needs-work": "Needs work",
+};
+
+const INSPECTION = {
+  flip: "Flip",
+  side: "Side by side",
+  opacity: "Opacity",
+};
+
+const SCALE = {
+  fit: "Fit",
+  actual: "Actual size",
 };
 
 function make(tag, className, text = null, says = true) {
@@ -91,9 +103,13 @@ customElements.define(
     #commands = null;
     #evidenceHost = null;
     #footer = null;
+    #inspector = null;
+    #mode = "flip";
+    #opacity = 50;
     #queue = null;
     #queueHost = null;
     #run = null;
+    #scale = "fit";
     #selected = null;
     #snapshot = null;
     #partition = null;
@@ -148,8 +164,9 @@ customElements.define(
 
       this.#evidenceHost = make("section", "lf-vr-evidence-region");
       this.#evidenceHost.setAttribute("aria-label", "Selected visual evidence");
+      this.#inspector = this.#buildInspector();
       this.#casesBody = make("div", "lf-vr-cases");
-      this.#evidenceHost.append(this.#casesBody);
+      this.#evidenceHost.append(this.#inspector, this.#casesBody);
       const evidence = arrangeReadingElement({
         owner: this.#evidenceHost,
         role: "pane",
@@ -184,6 +201,7 @@ customElements.define(
         workspace.readingArrangement,
       ];
       this.#registerCommands();
+      this.#paintInspector();
     }
 
     #registerLayout() {
@@ -197,6 +215,7 @@ customElements.define(
         ":scope > .lf-vr-evidence-region",
       );
       this.#queue = this.#queueHost?.querySelector(".lf-vr-queue");
+      this.#inspector = this.#evidenceHost?.querySelector(".lf-vr-inspector");
       this.#casesBody = this.#evidenceHost?.querySelector(".lf-vr-cases");
       this.#title = this.querySelector(".lf-vr-title");
       this.#footer = this.querySelector(":scope > .lf-reading-after");
@@ -207,6 +226,7 @@ customElements.define(
         !this.#queueHost ||
         !this.#evidenceHost ||
         !this.#queue ||
+        !this.#inspector ||
         !this.#casesBody ||
         !this.#title ||
         !this.#footer
@@ -246,6 +266,133 @@ customElements.define(
         registerReadingElement({ owner: this, content: workspaceContent }),
       ];
       this.#registerCommands();
+      this.#paintInspector();
+    }
+
+    #buildInspector() {
+      const inspector = offer("div", "lf-vr-inspector");
+      inspector.setAttribute("aria-label", "Inspection controls");
+
+      for (const [kind, values] of [
+        ["mode", INSPECTION],
+        ["scale", SCALE],
+      ]) {
+        const group = offer("div", `lf-vr-inspector-group lf-vr-${kind}-group`);
+        const label = make(
+          "span",
+          "lf-vr-inspector-label",
+          kind === "mode" ? "View" : "Size",
+          false,
+        );
+        group.setAttribute("role", "group");
+        group.setAttribute("aria-label", label.textContent);
+        group.append(label);
+        for (const [value, text] of Object.entries(values)) {
+          const button = offer("button", "lf-vr-inspector-button", text);
+          button.dataset[kind] = value;
+          button.addEventListener("click", () => {
+            if (kind === "mode") this.#setMode(value);
+            else this.#setScale(value);
+          });
+          commands(button, "On visual evidence", [
+            {
+              id: `visual.${kind}.${value}`,
+              keys: PRESS,
+              does: `${text} visual evidence`,
+              line: text.toLowerCase(),
+              run: () => button.click(),
+            },
+          ]);
+          group.append(button);
+        }
+        inspector.append(group);
+      }
+
+      const opacity = offer("label", "lf-vr-opacity-control");
+      const opacityLabel = make(
+        "span",
+        "lf-vr-inspector-label",
+        "Candidate opacity",
+        false,
+      );
+      const slider = offer("input", "lf-vr-opacity", undefined, "range");
+      slider.min = "0";
+      slider.max = "100";
+      slider.name = "candidate-opacity";
+      slider.step = "5";
+      slider.value = String(this.#opacity);
+      slider.setAttribute("aria-label", "Candidate opacity");
+      slider.addEventListener("input", () => this.#setOpacity(Number(slider.value)));
+      const output = make("output", "lf-vr-opacity-value", `${this.#opacity}%`, false);
+      opacity.append(opacityLabel, slider, output);
+      inspector.append(opacity);
+      return inspector;
+    }
+
+    #setMode(mode) {
+      if (!(mode in INSPECTION) || mode === this.#mode) return;
+      this.#mode = mode;
+      this.#paintInspector();
+      notice(`${INSPECTION[mode]} view`);
+    }
+
+    #setScale(scale) {
+      if (!(scale in SCALE) || scale === this.#scale) return;
+      this.#scale = scale;
+      this.#paintInspector();
+      notice(`${SCALE[scale]} evidence`);
+    }
+
+    #setOpacity(opacity) {
+      if (!Number.isFinite(opacity)) return;
+      this.#opacity = Math.max(0, Math.min(100, opacity));
+      this.#paintInspector();
+    }
+
+    #paintInspector() {
+      if (!this.#inspector) return;
+      this.dataset.inspectionMode = this.#mode;
+      this.dataset.inspectionScale = this.#scale;
+      this.style.setProperty("--lf-vr-opacity", String(this.#opacity / 100));
+      for (const button of this.#inspector.querySelectorAll("[data-mode]"))
+        button.setAttribute("aria-pressed", String(button.dataset.mode === this.#mode));
+      for (const button of this.#inspector.querySelectorAll("[data-scale]"))
+        button.setAttribute(
+          "aria-pressed",
+          String(button.dataset.scale === this.#scale),
+        );
+      const opacity = this.#inspector.querySelector(".lf-vr-opacity-control");
+      const slider = opacity.querySelector(".lf-vr-opacity");
+      const active = this.#mode === "opacity";
+      opacity.dataset.active = String(active);
+      slider.disabled = !active;
+      slider.value = String(this.#opacity);
+      const readout = opacity.querySelector(".lf-vr-opacity-value");
+      const percent = `${this.#opacity}%`;
+      if (readout.textContent !== percent) relabel(readout, percent, { says: false });
+      for (const shot of this.querySelectorAll("lf-shot")) {
+        const flip = this.#mode === "flip";
+        if (flip) shot.removeAttribute("data-lf-shot-controls");
+        else shot.dataset.lfShotControls = "off";
+        for (const frame of shot.querySelectorAll(".lf-shotframe")) {
+          const oldLabel = frame.querySelector(":scope > .lf-vr-frame-label");
+          if (this.#mode !== "side") {
+            oldLabel?.remove();
+            continue;
+          }
+          if (oldLabel) continue;
+          const label = make(
+            "span",
+            "lf-vr-frame-label lf-ui",
+            frame.dataset.lfState === "before" ? "Base" : "Candidate",
+            false,
+          );
+          label.setAttribute("aria-hidden", "true");
+          frame.prepend(label);
+        }
+      }
+      layoutChanged(this);
+      paintKeys();
     }
 
     #cleanupLayout() {
@@ -283,12 +430,14 @@ customElements.define(
           this.#renderMissing(snapshot);
           return;
         }
+        this.#inspector.hidden = false;
         this.#casesBody.querySelector(":scope > .lf-vr-empty")?.remove();
         const ids = this.#run.cases.map(({ id }) => id);
         if (new Set(ids).size !== ids.length)
           throw new Error("visual run repeats a case id");
         setText(this.#title, this.#run.title);
         this.#reconcileCases(this.#run.cases);
+        this.#paintInspector();
         const fallback = this.#run.cases.find(
           ({ classification }) => classification !== "clean",
         );
@@ -303,6 +452,7 @@ customElements.define(
 
     #renderMissing(snapshot) {
       setText(this.#title, "Waiting for a visual run");
+      this.#inspector.hidden = true;
       this.#queue.replaceChildren();
       this.#caseEntries.clear();
       this.#selected = null;
@@ -447,13 +597,14 @@ customElements.define(
 
       const current = entry.shotHost.querySelector("lf-shot");
       const alt = `${record.title}. ${record.result}`;
+      let shot = current;
       if (
         !current ||
         current.getAttribute("before") !== record.before ||
         current.getAttribute("after") !== record.after ||
         current.getAttribute("alt") !== alt
       ) {
-        const shot = document.createElement("lf-shot");
+        shot = document.createElement("lf-shot");
         shot.id = `lf-${this.id}-${record.id}-comparison`;
         shot.setAttribute("before", record.before);
         shot.setAttribute("after", record.after);

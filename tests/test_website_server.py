@@ -510,6 +510,9 @@ def test_the_local_benchmark_accepts_a_git_release(tmp_path, monkeypatch):
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
     """A hosted task must not discover or initialize another plugin environment."""
+    site_root = tmp_path / "site"
+    site_root.mkdir()
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site_root))
     host = website_server.WebsiteCodexHost(
         "codex",
         tmp_path / "app-server.sock",
@@ -530,6 +533,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
 
     assert host._ensure_server() is not None
     assert launched["options"]["env"]["LEAF"] == website_server.LEAF_COMMAND
+    assert launched["options"]["cwd"] == str(site_root)
     assert "LEAF_SKILL_DIR" not in launched["options"]["env"]
     assert launched["command"] == [
         "codex",
@@ -815,6 +819,7 @@ def test_notifications_before_start_response_reach_the_turn_follower(
                     "params": {
                         "threadId": "hosted-thread",
                         "turnId": "initial-turn",
+                        "completedAtMs": 1_000,
                         "item": {
                             "id": "message-1",
                             "type": "agentMessage",
@@ -955,6 +960,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                     "params": {
                         "threadId": "hosted-thread",
                         "turnId": "initial-turn",
+                        "startedAtMs": 1_000,
                         "item": {
                             "id": "command-1",
                             "type": "commandExecution",
@@ -969,9 +975,44 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                     "params": {
                         "threadId": "hosted-thread",
                         "turnId": "initial-turn",
+                        "completedAtMs": 1_080,
+                        "item": {
+                            "id": "command-1",
+                            "type": "commandExecution",
+                            "command": "leaf version check .",
+                            "status": "completed",
+                            "exitCode": 0,
+                        },
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "method": "item/started",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turnId": "initial-turn",
+                        "startedAtMs": 2_000,
                         "item": {
                             "id": "message-1",
                             "type": "agentMessage",
+                            "phase": "final_answer",
+                            "text": "",
+                        },
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "method": "item/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turnId": "initial-turn",
+                        "completedAtMs": 2_500,
+                        "item": {
+                            "id": "message-1",
+                            "type": "agentMessage",
+                            "phase": "final_answer",
                             "text": "Deployment verified.",
                         },
                     },
@@ -1035,10 +1076,27 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         "turn_following_started",
         "turn_first_notification",
         "turn_first_activity",
+        "turn_item_started",
+        "turn_item_completed",
+        "turn_item_started",
+        "turn_item_completed",
+        "turn_first_model_message",
         "turn_stream_completed",
     ]
-    assert logs[2]["eventId"] == "reader-event"
-    assert logs[2]["turnId"] == "initial-turn"
+    assert logs[3] == {
+        "component": "leaf-agent",
+        "event": "turn_item_started",
+        "eventId": "reader-event",
+        "turnId": "initial-turn",
+        "itemId": "command-1",
+        "itemType": "commandExecution",
+        "itemAtMs": 1_000,
+    }
+    assert logs[4]["durationMs"] == 80
+    assert logs[4]["status"] == "completed"
+    assert logs[4]["exitCode"] == 0
+    assert logs[6]["durationMs"] == 500
+    assert logs[7]["phase"] == "final_answer"
     assert finished == [
         (
             page_dir,
@@ -1305,6 +1363,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert b'src="/examples/decision/sitenote.js"' in document
         assert b'data-lf-entry="/examples/decision/leaf.js"' in document
         assert headers["Content-Security-Policy"] == "frame-ancestors 'none'"
+        assert headers["Leaf-Session"] == "active"
 
         raw_state, headers = get(f"{root}/examples/decision/api/state")
         state = json.loads(raw_state)
@@ -1314,6 +1373,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "install_url": "/#install",
         }
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
+        assert headers["Leaf-Session"] == "active"
 
         raw_view, _ = get(
             verify_site.activation_url(f"{root}/examples/decision/", state)
@@ -1645,6 +1705,33 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
         page.close()
 
 
+def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
+    page = browser.new_page()
+    try:
+        url = "https://site-verifier.test/visible-response"
+        page.route(
+            url,
+            lambda route: route.fulfill(
+                content_type="text/html",
+                body="""<div class="lf-threads" style="height: 100px; overflow: auto">
+                  <div style="height: 500px"></div>
+                  <div class="lf-msg claude"><span class="lf-msg-text">Visible reply</span></div>
+                </div>""",
+            ),
+        )
+        page.goto(url)
+        page.evaluate(verify_site.VISIBLE_REPLY_INIT)
+        page.evaluate(verify_site.VISIBLE_REPLY_WATCH)
+        page.wait_for_timeout(100)
+        assert page.evaluate(verify_site.VISIBLE_REPLY_READING) is None
+
+        page.locator(".lf-msg.claude").scroll_into_view_if_needed()
+        page.wait_for_function(verify_site.VISIBLE_REPLY_READY)
+        assert page.evaluate(verify_site.VISIBLE_REPLY_READING) is not None
+    finally:
+        page.close()
+
+
 def test_a_page_that_never_presents_names_itself_and_how_far_it_got():
     """The site gate's own timeout says nothing; the message it raises has to.
 
@@ -1779,10 +1866,20 @@ class _Read:
     ok = True
     status = 200
 
-    def __init__(self, payload: dict, body: str = "", headers: dict | None = None):
+    def __init__(
+        self,
+        payload: dict,
+        body: str = "",
+        headers: dict | None = None,
+        *,
+        url: str = "",
+        request=None,
+    ):
         self.payload = payload
         self.body = body
         self.headers = headers or {}
+        self.url = url
+        self.request = request
 
     def json(self) -> dict:
         return self.payload
@@ -1817,6 +1914,48 @@ class _FailedFirstTurn:
         self.heading = heading
         self.request = self
         self.comments: list[dict] = []
+        self.draft = ""
+        self.last_response = None
+
+    def locator(self, selector: str):
+        assert selector == ".lf-general textarea"
+        return self
+
+    def fill(self, text: str) -> None:
+        self.draft = text
+
+    def evaluate(self, script: str) -> float:
+        assert script == verify_site.VISIBLE_REPLY_WATCH
+        return 100.0
+
+    def press(self, key: str) -> None:
+        assert key == "ControlOrMeta+Enter"
+        attempt = f"attempt-{len(self.comments) + 1}"
+        self.last_response = self.post(
+            "https://leaf.page/examples/triage-board/api/event",
+            {
+                "kind": "comment",
+                "revision": 1,
+                "text": self.draft,
+                "attempt": attempt,
+            },
+        )
+
+    def expect_response(self, predicate):
+        owner = self
+
+        class ResponseInfo:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                assert predicate(owner.last_response)
+
+            @property
+            def value(self):
+                return owner.last_response
+
+        return ResponseInfo()
 
     def post(self, url: str, data: dict, **kwargs) -> _Read:
         comment = {
@@ -1825,7 +1964,12 @@ class _FailedFirstTurn:
             "revision": data["revision"],
         }
         self.comments.append(comment)
-        return _Read({"state": {"events": [comment]}})
+        request = SimpleNamespace(method="POST", post_data_json=data)
+        return _Read(
+            {"state": {"events": [comment]}},
+            url=url,
+            request=request,
+        )
 
     def get(self, url: str, **kwargs) -> _Read:
         if url.endswith("/api/state"):
@@ -1868,12 +2012,12 @@ def test_the_deploy_gate_sends_the_new_message_the_container_asks_for():
     context = _FailedFirstTurn(heading)
     asked = verify_site.ask_until_answered(
         context,
+        context,
         "https://leaf.page/examples/triage-board/",
         "https://leaf.page/examples/triage-board/api/state",
         "layer",
         "release",
         heading,
-        "deployment-abcd1234",
         {"active": {"revision": 1, "url": "revisions/1.html"}},
     )
     assert asked.asks == 2
@@ -2022,6 +2166,14 @@ class _PresentationWait:
         self.waits.append(timeout)
 
 
+class _Click:
+    def __init__(self, clicks: list[str]):
+        self.clicks = clicks
+
+    def click(self) -> None:
+        self.clicks.append("threads")
+
+
 class _Heading:
     def __init__(self, text: str):
         self.text = text
@@ -2054,7 +2206,9 @@ class _DeployedPage:
         )
         self.init_scripts: list[str] = []
         self.presentation_waits: list[int] = []
+        self.visible_reply_waits: list[int] = []
         self.revision_waits: list[tuple[int, int]] = []
+        self.clicks: list[str] = []
 
     def add_init_script(self, script: str) -> None:
         self.init_scripts.append(script)
@@ -2070,8 +2224,13 @@ class _DeployedPage:
         answered.ok = self.reload_ok
         return answered
 
-    def wait_for_function(self, expression: str, *, arg: int, timeout: int) -> None:
-        assert "lf-revision" in expression
+    def wait_for_function(
+        self, expression: str, *, arg: int | None = None, timeout: int
+    ) -> None:
+        if expression == verify_site.VISIBLE_REPLY_READY:
+            self.visible_reply_waits.append(timeout)
+            return
+        assert "lf-revision" in expression and arg is not None
         self.revision_waits.append((arg, timeout))
         if self.revision >= arg:
             return
@@ -2083,10 +2242,16 @@ class _DeployedPage:
     def locator(self, selector: str):
         if selector == "h1":
             return _Heading(self.heading)
+        if selector == ".lf-threads-toggle":
+            return _Click(self.clicks)
         assert selector == "body[data-lf-presented]"
         return _PresentationWait(self.presentation_waits)
 
     def evaluate(self, script: str):
+        if script == verify_site.VISIBLE_REPLY_WATCH:
+            return 100.0
+        if script == verify_site.VISIBLE_REPLY_READING:
+            return 12_600.0
         if script == verify_site.STARTUP_READING:
             presented_at = (
                 self.presented_at
@@ -2184,6 +2349,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     container = _DeployedContainer(release, page)
     published = {"revision": 2, "url": "revisions/2.html"}
     profile = verify_site.AgentProfile()
+    profile.visible_reply_started_ms = 100.0
     profile.ask_count = 1
     profile.milestones = {
         "acknowledged 1": 0.250,
@@ -2225,12 +2391,16 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # The ordinary first load uses the edge-page presentation bound. The post-turn
     # reload gets its own bound for both presentation and the later revision follow.
     assert page.presentation_waits == [30_000, verify_site.TURN_PRESENTATION]
+    assert page.visible_reply_waits == [30_000]
     assert page.revision_waits == [(2, verify_site.TURN_PRESENTATION)]
     assert verify_site.TURN_PRESENTATION > 30_000
     # The stamps the message needs to say which stall it was. Without them a page that
     # upgraded and stalled on its first state read reports the same "no startup
     # milestone" as one whose modules never arrived.
-    assert page.init_scripts == [verify_site.PROFILE_SCRIPT]
+    assert page.init_scripts == [
+        verify_site.PROFILE_SCRIPT,
+        verify_site.VISIBLE_REPLY_INIT,
+    ]
     # A green run reports startup and the post-presentation revision follow separately.
     reported = capsys.readouterr().out
     assert "presented in 28444 ms" in reported
@@ -2238,6 +2408,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     assert "request acknowledged 250 ms" in reported
     assert "activity working: Editing the page at 1.0 s" in reported
     assert "published at 12.0 s" in reported
+    assert "response visible at 12.5 s" in reported
     assert "changed page — HTML first byte 100 ms" in reported
     assert benchmark == {
         "origin": verify_site.ORIGIN,
@@ -2272,6 +2443,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 {"atMs": 12500.0, "kind": "away", "detail": ""},
             ],
             "publishedMs": 12000.0,
+            "responseVisibleMs": 12500.0,
             "repliedMs": 12500.0,
             "answeredMs": 12500.0,
         },
@@ -2297,6 +2469,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "followedRevisionMs": 2500.0,
         },
     }
+    assert page.clicks == ["threads"]
     assert container.closed
 
     # A reload the container never answered is its own reading, taken before the wait.
@@ -2325,6 +2498,8 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     release = "5b6be522" + "0" * 56
     heading = f"Deployment {release[:8]} verified"
     published = {"revision": 2, "url": "revisions/2.html"}
+    profile = verify_site.AgentProfile()
+    profile.visible_reply_started_ms = 100.0
     monkeypatch.setattr(
         verify_site,
         "ask_until_answered",
@@ -2337,6 +2512,7 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
             ),
             1,
             1,
+            profile,
         ),
     )
 

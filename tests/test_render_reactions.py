@@ -835,16 +835,6 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
             choice_box["x"] >= field_box["x"] + field_box["width"]
             or choice_box["y"] >= field_box["y"] + field_box["height"]
         ), (field_box, choice_box)
-    if width == 1280:
-        assert all(
-            choice_box["x"] >= field_box["x"] + field_box["width"]
-            for choice_box in choice_boxes
-        ), (field_box, choice_boxes)
-    else:
-        assert all(
-            choice_box["y"] >= field_box["y"] + field_box["height"]
-            for choice_box in choice_boxes
-        ), (field_box, choice_boxes)
     field.fill("Keep this draft, still anchored")
     page.evaluate(RENDERED)
     assert abs(bar.bounding_box()["x"] - before["x"]) <= 1

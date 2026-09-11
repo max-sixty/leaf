@@ -22,7 +22,8 @@
    80ch and then wraps, grows toward the available viewport edge, and finally scrolls.
    The target chooses a placement from the field's minimum footprint once. Later
    content and margin controls cannot re-seat it; Floating UI shifts and sizes that
-   placement inside the reading region as either one changes.
+   placement inside the reading region as either one changes. A region too small for
+   the compact control yields to the viewport so the reader keeps their response.
    When the target fills the viewport, the viewport still caps the field. When a
    covering panel leaves no usable band for the response bar, placement withdraws it
    without discarding its draft. If the disappearing bar held focus, the visible
@@ -196,6 +197,11 @@ export function createResponseSurface({
       boundary.width > 0 && Math.ceil(boundary.width) >= Math.ceil(minimumFabWidth())
     );
   };
+  const minimumFabHeight = () =>
+    composerOpen
+      ? Math.max(0, fabBar.offsetHeight - fabInput.offsetHeight) +
+        parseFloat(getComputedStyle(fabInput).minHeight)
+      : fabBar.offsetHeight;
 
   const answerFabPosition = (positioned) => {
     const waiters = fabPositionWaiters;
@@ -380,11 +386,13 @@ export function createResponseSurface({
     let regionBounds = readingRegion && shownRegionBounds(readingRegion);
     let boundary = floatBoundary(regionBounds);
     // Keep the response within its pane while that pane can hold the compact control.
-    // During a responsive posture change a pane can briefly become narrower than the
-    // editor even though the window is not. In that case the response is already a
-    // viewport-plane overlay, so let the viewport carry it instead of withdrawing the
-    // reader's draft as if its semantic anchor had disappeared.
-    if (regionBounds && !fabFits(regionBounds)) {
+    // A resize can narrow the pane; scrolling can leave only a short visible strip.
+    // The response is already a viewport-plane overlay, so let the viewport carry it
+    // instead of withdrawing the draft and dropping focus while the reader types.
+    if (
+      regionBounds &&
+      (!fabFits(regionBounds) || boundary.height < minimumFabHeight())
+    ) {
       regionBounds = null;
       boundary = floatBoundary();
     }
@@ -450,15 +458,11 @@ export function createResponseSurface({
     };
     if (fabPlacement === null) setWidth(boundary.width);
     setHeight(boundary.height);
-    const minimumHeight = composerOpen
-      ? Math.max(0, fabBar.offsetHeight - fabInput.offsetHeight) +
-        parseFloat(getComputedStyle(fabInput).minHeight)
-      : fabBar.offsetHeight;
     // The choices deliberately wrap inside the response surface, so their intrinsic
     // scroll width is not a fit requirement. Only the compact control's minimum is: a
     // covering panel may genuinely leave less than that, while an ordinary narrow page
     // still has a usable surface once the choices reflow below the field.
-    if (boundary.height < minimumHeight || !fabFits(regionBounds)) return false;
+    if (boundary.height < minimumFabHeight() || !fabFits(regionBounds)) return false;
 
     const reference = {
       contextElement: owner ?? document.documentElement,
@@ -644,7 +648,6 @@ export function createResponseSurface({
   function dismissFab() {
     dismissedSelectionKeyup = Boolean(pageSelection() || fabAnchor?.quote);
     pageSelection()?.removeAllRanges();
-    if (composerOpen) hideComposer();
     showFab(null);
   }
   function refreshFab() {
@@ -755,6 +758,10 @@ export function createResponseSurface({
     if (origin) showFab(anchor, null, { origin });
     setTimeout(() => {
       targetActivation = false;
+      // A browser command or touch handle can replace the visual target while its
+      // selectionchange is held out above. Re-read once the explicit activation is
+      // complete so that real later selection is not discarded with the focus collapse.
+      scheduleSelectionUpdate();
     });
   }
   // Focusing text entry collapses a native page selection. Hold that browser-authored
@@ -868,6 +875,9 @@ export function createResponseSurface({
   let fabInputTakingFocus = false;
   const beginFabFocus = () => {
     fabInputTakingFocus = true;
+  };
+  const endFabFocus = () => {
+    fabInputTakingFocus = false;
   };
   function openComment(anchor, text, options = {}) {
     return openComposer(anchor, text, options);
@@ -1153,6 +1163,7 @@ export function createResponseSurface({
   return {
     fabPositioned,
     beginFabFocus,
+    endFabFocus,
     anchorStands,
     showFab,
     dismissFab,

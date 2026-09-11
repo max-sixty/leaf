@@ -314,8 +314,8 @@ export function bake() {
   // Runtime-owned controls are native by default on the live page. In a script-free
   // copy their browser activation would still fire, but its result would not, so remove
   // them by the offer marker rather than by the tabindex attribute pseudo-controls used
-  // to carry. A wrapper around a non-offered native control is the exception: the browser
-  // still owns that complete interaction in the copy.
+  // to carry. Native inputs remain operable, including inputs a widget generated
+  // for a CSS-only interaction. Their labels and wrappers keep that same contract.
   //
   // A valued marker is a press. An empty marker is usually the box a widget builds to
   // hold controls — a suggestion's ✓/✗ row among them — and matched on the bare
@@ -326,29 +326,18 @@ export function bake() {
   // wrapper the two kinds empty together. Native controls keep working without Leaf and
   // stay, whether or not a widget built their surrounding box.
   const browserControl =
-    "input:not([data-lf-offer]), select:not([data-lf-offer]), textarea:not([data-lf-offer]), " +
+    "input, select:not([data-lf-offer]), textarea:not([data-lf-offer]), " +
     "a[href]:not([data-lf-offer]), button:not([data-lf-offer]), summary:not([data-lf-offer])";
   const scriptedOffer =
     "[data-lf-offer]:not([data-lf-said]):is(" +
     ":not([data-lf-offer=''], input), :not(:has(*)):not(input, select, textarea, a[href], summary))";
   const keepsBrowserControl = (container) =>
     container.querySelector(browserControl) ||
-    [...container.querySelectorAll("label")].some(
-      (label) => label.control && !label.control.matches("[data-lf-offer]"),
+    [container, ...container.querySelectorAll("label")].some(
+      (label) => label.localName === "label" && label.control?.matches(browserControl),
     );
-  // A generated label is the other half of a control this pass keeps. `offer` writes it
-  // the empty marker, and an explicit one — `for` pointing at the control rather than
-  // wrapping it — is a leaf with only words in it, which is the "mutable status word"
-  // shape the loop above removes. Removed, it leaves the native control it named with no
-  // accessible name at all, which is what the copy's own accessibility reading calls
-  // critical. A wrapping label never reached this, holding its control inside it, so the
-  // hole stayed closed for as long as every generated label wrapped; the first widget to
-  // write `for` opened it. Asked of the control rather than of the label, so a label
-  // whose control does leave goes with it and no word is orphaned.
-  const namesKeptControl = (el) =>
-    el instanceof HTMLLabelElement && el.control && !el.control.matches(scriptedOffer);
   for (const control of all(scriptedOffer).reverse()) {
-    if (keepsBrowserControl(control) || namesKeptControl(control)) continue;
+    if (keepsBrowserControl(control)) continue;
     let dead = control,
       box = dead.parentElement?.closest("[data-lf-offer]");
     dead.remove();

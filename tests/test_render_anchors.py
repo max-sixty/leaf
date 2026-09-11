@@ -228,6 +228,49 @@ def test_every_passage_in_a_real_page_can_be_quoted(browser, serve, source):
     page.close()
 
 
+def test_a_region_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
+    """A shrinking visible region gives the viewport its draft before it loses focus."""
+    source = next(source for source in EXAMPLES if source.stem == "live-progress")
+    page, errors = open_page(browser, serve(source))
+    resized(page, 700, 850)
+    page.evaluate("""() => {
+        const range = document.createRange();
+        range.selectNodeContents(document.querySelector('#lp-k-done'));
+        getSelection().removeAllRanges();
+        getSelection().addRange(range);
+        document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+    }""")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    page.keyboard.press("c")
+    expect(field).to_be_focused()
+    draft = "Why does the remaining check need a decision?"
+    field.fill(draft)
+    resized(page, 420, 850)
+    expect(field).to_be_focused()
+    expect(field).to_have_value(draft)
+
+    # Native End on macOS scrolls the page even from its textarea. A smooth scroll can
+    # cross this narrow band in one frame or several; put that actual geometry on screen
+    # directly so the test cannot miss the point where the region no longer fits a field.
+    page.locator("#lp-overview").evaluate(
+        "region => window.scrollTo(0, scrollY + region.getBoundingClientRect().bottom - 20)"
+    )
+    page.evaluate(RENDERED)
+    assert page.locator("#lp-overview").evaluate(
+        "region => Math.abs(region.getBoundingClientRect().bottom - 20) < 1"
+    )
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    expect(field).to_have_attribute(
+        "aria-label", "Comment on “17 of 18 checks complete”"
+    )
+    page.keyboard.type(" What must Finance decide?")
+    expect(field).to_have_value(draft + " What must Finance decide?")
+    assert errors == []
+    page.close()
+
+
 def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, serve):
     """The gesture itself, on the words a widget renders from an attribute: drag across
     a column's heading and the same button, quote, and mark come up as for a paragraph,
@@ -554,6 +597,9 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
     The browser's native selection remains available while an exposed pointer action
     and a direct keyboard action both work."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    # Keep the margin actions exposed beside the response field: its overlay is allowed
+    # to cover nearby content, while a native selection must never intercept a press.
+    resized(page, 930, 900)
     # Across the two paragraphs, so the row deciding the first is inside the selection.
     start = page.locator("#replace").bounding_box()
     end = page.locator("#insert").bounding_box()
@@ -566,6 +612,7 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
     wait_for_pending_mark(page)
     assert "Refill" in pending_text(page)
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    assert not page.evaluate("getSelection().isCollapsed")
 
     item = page.locator("[data-lf-for='sug-refill']").locator("xpath=..")
     expect(item.locator(":scope > .lf-margin-more")).to_be_hidden()
@@ -636,7 +683,9 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
 ):
     """A decision replaces the selection instead of reopening its Comment field."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
-    resized(page, 1440, 900)
+    # This width leaves the suggestion's actions exposed beside the selected passage.
+    # Generated hints deliberately omit controls covered by the response overlay.
+    resized(page, 930, 900)
     box = page.locator("#replace").bounding_box()
     select(
         page,
@@ -645,6 +694,7 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
         steps=16,
     )
     expect(page.locator(".lf-composer")).to_be_visible()
+    assert not page.evaluate("getSelection().isCollapsed")
 
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     if route == "g":

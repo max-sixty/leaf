@@ -864,6 +864,7 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
     ).first
 
     draw_over(page, target)
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     with sending(page, "the data-anchored drawing"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-drawing-posted")).to_have_count(1)

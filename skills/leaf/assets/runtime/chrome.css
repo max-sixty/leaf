@@ -238,8 +238,8 @@
 }
 /* Pickup colors the carrier's glyph; active work colors its interior. The ordinary
    contour continues to communicate the entry's behavior. */
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="picked_up"]
-  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
+.lf-margin-entry[data-lf-agent-phase="picked_up"]
+  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
 .lf-margin-entry[data-lf-agent-phase="picked_up"][data-lf-tone="positive"] {
@@ -248,14 +248,14 @@
 .lf-margin-entry[data-lf-agent-phase="picked_up"][data-lf-tone="negative"] {
   border-color: var(--danger-ink);
 }
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="active"] {
+.lf-margin-entry[data-lf-agent-phase="active"] {
   --lf-agent-tint: var(--ok-wash);
   background: var(--lf-agent-tint);
 }
 .lf-margin-entry[data-lf-agent-phase="active"][data-lf-behavior="action"] {
   --lf-agent-stage-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] {
+.lf-margin-entry[data-lf-agent-arrival] {
   animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out var(--lf-agent-arrival-delay, 0ms) 1;
 }
 @keyframes lf-runtime-4f3c2a8d-agent-work-arrival {
@@ -264,7 +264,7 @@
   100% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 10px transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
-  :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] { animation: none; }
+  .lf-margin-entry[data-lf-agent-arrival] { animation: none; }
 }
 .lf-margin-entry-glyph { line-height: 1; }
 .lf-margin-entry-icon {
@@ -1708,6 +1708,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
     color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
+  .lf-page-map-action[data-lf-agent-phase="picked_up"] > .lf-margin-kind {
+    color: var(--ok-ink);
+  }
+  .lf-page-map-action[data-lf-agent-phase="active"] {
+    --lf-agent-tint: var(--ok-wash);
+    background: var(--lf-agent-tint);
+  }
+  .lf-page-map-action[data-lf-agent-arrival] {
+    animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out var(--lf-agent-arrival-delay, 0ms) 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lf-page-map-action[data-lf-agent-arrival] { animation: none; }
+  }
   .lf-page-map-action:is(:hover, :focus-visible) { background: var(--lf-agent-tint, var(--chip)); }
   .lf-page-map-action .lf-margin-kind { width: 16px; height: 16px;
     align-self: center; fill: none; stroke: currentColor; stroke-width: 1.5;

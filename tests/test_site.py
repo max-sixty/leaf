@@ -554,6 +554,26 @@ def test_the_published_notification_example_runs_its_authored_module(
         page.close()
 
 
+def test_published_visual_evidence_loads_from_its_page(served_example, browser):
+    """Typed media paths resolve under the same page as authored media."""
+    _, url = served_example("visual-review-gallery")
+    page, errors = open_page(browser, url)
+    try:
+        review = page.locator("#visual-review-run")
+        for index in (0, 1):
+            review.locator(".lf-vr-case-tab").nth(index).click()
+            comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
+            expect(comparison).to_be_visible()
+            images = comparison.locator("img")
+            expect(images).to_have_count(2)
+            for image in images.all():
+                expect(image).to_have_js_property("complete", True)
+                assert image.evaluate("image => image.naturalWidth") > 0
+        assert errors == []
+    finally:
+        page.close()
+
+
 def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, browser):
     """A lower sequence from a replacement cannot be applied over vanished state."""
     _, url = served_example("triage-board")
@@ -625,9 +645,21 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
     follower = context.new_page()
     errors = [*watched(leader), *watched(follower)]
     try:
+
+        def passive_session(route):
+            response = route.fetch()
+            headers = response.headers
+            headers["leaf-session"] = "passive"
+            route.fulfill(response=response, headers=headers)
+
+        servers = []
         for page in (leader, follower):
-            page.goto(url, wait_until="load")
+            page.route("**/api/state*", passive_session)
+            response = page.goto(url, wait_until="load")
+            assert response
+            servers.append(response.header_value("Leaf-Server"))
             page.wait_for_function(BOTH_STAMPS)
+        assert servers[0] and servers[0] == servers[1]
         follower.evaluate(
             """() => {
               window.__leafActivated = 0;
@@ -635,18 +667,21 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
             }"""
         )
         leader.evaluate(
-            """async () => {
+            """async server => {
               const script = document.querySelector("script[data-lf-runtime]");
               const url = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
               const client = await import(url.href);
               client.observeSession(new Response(null, {headers: {
-                "Leaf-Session": "active", "Leaf-Server": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                "Leaf-Session": "active", "Leaf-Server": server
               }}));
-            }"""
+            }""",
+            servers[0],
         )
-        follower.wait_for_function("window.__leafActivated === 1", timeout=5_000)
+        follower.wait_for_function("() => window.__leafActivated === 1", timeout=5_000)
         assert errors == []
     finally:
+        for page in (leader, follower):
+            page.unroute_all(behavior="ignoreErrors")
         context.close()
 
 

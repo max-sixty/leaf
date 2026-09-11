@@ -3575,6 +3575,7 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
     copy.goto(out.as_uri(), wait_until="load")
     playground = copy.locator("#notification-playground")
     expect(playground.locator(".lf-playground-actions")).to_be_hidden()
+    expect(playground.locator(".notification-demo-pressure")).to_be_hidden()
     expect(playground.locator("#notification-instruction")).to_contain_text(
         "deployment-notification.html"
     )
@@ -5732,14 +5733,18 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
 
     # Tab remains the complementary route into the widget's controls. Read after the
     # landing above, because a Tab onto a control below the fold scrolls to it and would
-    # take the arrival's own geometry with it. The Ask action context remains the same.
+    # take the arrival's own geometry with it. The Ask action context remains the same;
+    # its key badges may move to the shared chrome when Linux font metrics leave a local
+    # badge clipped, but the controls retain the same semantic routes.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
-    expect(
-        page.locator(
-            "#storage-options > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
-        )
-    ).to_have_text(["1", "2"])
+    picks = page.locator("#storage-options .lf-pick")
+    expect(picks.nth(0)).to_have_attribute(
+        "aria-keyshortcuts", "ArrowUp ArrowDown Space 1"
+    )
+    expect(picks.nth(1)).to_have_attribute(
+        "aria-keyshortcuts", "ArrowUp ArrowDown Space 2"
+    )
 
     # And nothing of the borrowed stop is left behind: PAGE_PAINT_ATTRIBUTES is the whole
     # of what the runtime may leave on an author's element, and `tabindex` is not in it.

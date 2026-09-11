@@ -1393,6 +1393,42 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         page.close()
 
 
+def test_feature_gallery_playground_matches_default_controls_before_upgrade(
+    browser, serve
+):
+    """The authored specimen is complete while the playground runtime is loading."""
+    held = []
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    errors = watched(page)
+    page.route("**/leaf.js", lambda route: held.append(route))
+
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(FEATURE_GALLERY), wait_until="commit")
+
+        card = page.locator("#bg-playground-card")
+        expect(card).to_be_visible()
+        expect(card).to_have_accessible_name("Field note")
+        expect(card).to_have_css("border-radius", "12px")
+        assert (
+            card.evaluate("node => getComputedStyle(node, '::before').backgroundColor")
+            != "rgba(0, 0, 0, 0)"
+        )
+        assert (
+            page.locator("#bg-playground-card-title").evaluate(
+                "node => getComputedStyle(node, '::before').content"
+            )
+            == '"Field note"'
+        )
+        assert held, "the positive control did not hold the Leaf runtime"
+        assert errors == []
+    finally:
+        for route in held:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        page.close()
+
+
 def test_a_broken_optional_page_interface_does_not_withhold_presentation(
     browser, serve
 ):

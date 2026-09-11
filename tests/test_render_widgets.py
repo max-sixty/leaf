@@ -839,6 +839,11 @@ PLAYGROUND_PAGE = leaf_page(
     """
 <h1>Card playground</h1>
 <style>
+  #card-playground {
+    --playground-accent: #4f766f;
+    --playground-radius: 12px;
+    --playground-title: "Field note";
+  }
   #playground-card {
     --lf-block-frame: 1;
     border: 2px solid var(--playground-accent);

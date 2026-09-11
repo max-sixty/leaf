@@ -74,6 +74,8 @@ ended, and the pending ledger's unresolved attempts — painted on the root elem
 `data-lf-traffic` for whatever waits on the page from outside it;
 `runtime/requests.js` owns typed one-shot request availability, sending, and the
 server-projected request lifecycle watcher;
+`runtime/request-elements.js` owns shared request-control wiring, locking, selection,
+and receipt-state mechanics while each package supplies its words and bound detail;
 `runtime/asks/model.js` owns request discovery, folding, and the semantic Ask
 subscription;
 `runtime/asks/view.js` owns Ask chrome, marking, the Ask walk, and

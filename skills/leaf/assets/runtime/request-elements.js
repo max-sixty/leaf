@@ -1,6 +1,6 @@
-/* Shared UI for one-shot package requests. Packages own the child tag, command
-   vocabulary, and bound detail; this module owns the repeated control, command,
-   request lifecycle, and receipt presentation. */
+/* Shared wiring for one-shot package requests. Packages supply the child tag, bound
+   detail, and every reader-facing word; this module owns the repeated control,
+   command, request lifecycle, and receipt-state mechanics. */
 import { keys as commands } from "./keyboard/scopes.js";
 import { offer, quoted } from "./widget-elements.js";
 import { once } from "./widget-upgrade.js";
@@ -16,7 +16,15 @@ export function createDefineRequestElement({
 }) {
   return function defineRequestElement(
     tagName,
-    { itemTag, commandContext, commandPrefix, detail },
+    {
+      itemTag,
+      controlText,
+      commandContext,
+      commandPrefix,
+      commandText,
+      detail,
+      statusText,
+    },
   ) {
     const children = (holder) => [...holder.querySelectorAll(`:scope > ${itemTag}`)];
 
@@ -41,10 +49,7 @@ export function createDefineRequestElement({
       }
       status.hidden = false;
       status.dataset.status = receipt?.status ?? "pending";
-      const action = request.action.replaceAll("-", " ");
-      status.textContent = receipt
-        ? `${action} ${receipt.status} · ${receipt.text}`
-        : `${action} requested · waiting for the host`;
+      status.textContent = statusText(request, receipt);
     };
 
     customElements.define(
@@ -56,7 +61,7 @@ export function createDefineRequestElement({
             this._requestWired = true;
             if (quoted(this)) return;
             for (const option of children(this)) {
-              const control = offer("button", "lf-btn lf-request-press", "Request");
+              const control = offer("button", "lf-btn lf-request-press", controlText);
               const label = title(option);
               control.setAttribute("aria-label", label);
               control.onclick = async () => {
@@ -85,9 +90,7 @@ export function createDefineRequestElement({
                   id: `${commandPrefix}.${option.getAttribute("verb")}`,
                   keys: [],
                   control,
-                  decision: label,
-                  does: label,
-                  line: label.toLowerCase(),
+                  ...commandText(label),
                   run: () => control.click(),
                 };
               }),

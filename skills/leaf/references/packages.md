@@ -516,21 +516,35 @@ do not need package-specific request bookkeeping.
 }
 ```
 
-The module imports `defineRequestElement` from `/runtime/widget-api.js`. The shared
-element wires each offered child into the server-projected request seat, registers its
-command and answer, and paints the pending or terminal receipt. A failed receipt makes
-the seat ready again; a successful receipt completes it. A page holder gets a new seat
-in a new authored revision, while a holder in frozen thread markup keeps one seat for
-that document's whole lifetime. Requests are not replayable state and are not undoable.
-`watchHistory` remains the audit-log surface for widgets that intentionally render
-events themselves.
+The module imports `defineRequestElement` from `/runtime/widget-api.js` for the ordinary
+request-row shape. The package supplies its control, command, and status words while the
+shared element wires each offered child into the server-projected request seat, registers
+its answer, and paints its lifecycle. A package that needs another control shape uses
+`requestAvailable`, `sendRequest`, and `watchRequestLifecycle` directly. A failed receipt
+makes the seat ready again; a successful receipt completes it. A page holder gets a new
+seat in a new authored revision, while a holder in frozen thread markup keeps one seat
+for that document's whole lifetime. Requests are not replayable state and are not
+undoable. `watchHistory` remains the audit-log surface for widgets that intentionally
+render events themselves.
 
 ```js
 defineRequestElement("lf-operations", {
   itemTag: "lf-operation",
+  controlText: "Do this",
   commandContext: "On a host operation",
   commandPrefix: "operation",
+  commandText: (label) => ({
+    decision: label,
+    does: `Request ${label.toLowerCase()}`,
+    line: `request ${label.toLowerCase()}`,
+  }),
   detail: (holder) => ({ target: holder.getAttribute("target") }),
+  statusText: (request, receipt) => {
+    const operation = request.action.replaceAll("-", " ");
+    return receipt
+      ? `${operation} ${receipt.status} · ${receipt.text}`
+      : `${operation} requested · waiting for the host`;
+  },
 });
 ```
 

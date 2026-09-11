@@ -367,8 +367,9 @@ HEARTBEAT_PAGES = (
     # run for those are watched nowhere else: a reading option under an entry holding
     # several readings, and the readings whose move is made, which wear the `status`
     # behavior on a span seat rather than a button. Two of its rows stand where they
-    # would overlap, so the push measurement is read here and nowhere else. Its
-    # withheld and docked rows exercise the posture clear and rail re-read too.
+    # would overlap, so the push measurement is read here and nowhere else. Its docked
+    # rows exercise the rail re-read too; the contained swipe page leaves no withheld
+    # gallery row whose posture would be cleared.
     pytest.param(
         FEATURE_GALLERY,
         {
@@ -376,7 +377,7 @@ HEARTBEAT_PAGES = (
             ".lf-margin-reading-option": 1,
             '.lf-margin-entry[data-lf-behavior="status"]': 2,
         },
-        {"row posture", "row push", "rail width", "fold rule"},
+        {"row push", "rail width", "fold rule"},
         id="gallery",
     ),
 )
@@ -3550,7 +3551,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     """A readable free margin outranks an overlay and follows the selected cluster."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
-    resized(page, 1838, 900)
+    resized(page, 2672, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
     page.locator("body").focus()
     page.keyboard.press("t")
@@ -3589,7 +3590,9 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
         }"""
     )
     assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] >= geometry["controlsRight"] + 7, geometry
+    assert geometry["cardLeft"] == pytest.approx(
+        geometry["controlsRight"] + 8, abs=0.5
+    ), geometry
     assert geometry["cardLeft"] >= geometry["mainRight"], geometry
     assert geometry["cardWidth"] >= 459, geometry
     assert geometry["coveredControls"] == 0, geometry

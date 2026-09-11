@@ -168,7 +168,9 @@ arrives restoring none of the reader's arrangements and placing no focus, and it
 standalone copy with the scripts. Its body is written `inert` for the same reason: a
 document tree has one focus, so the chrome a replay drives must not be able to take the
 reader off the page they are standing on, and an inert subject ends a shown dialog's
-focusing steps before they reach anything;
+focusing steps before they reach anything. A contained page takes one initial state
+reading to render production chrome, then opens no news stream or heartbeat of its own;
+the outer page remains the live reader lease;
 `runtime/markdown.js` owns safe, lazy Markdown rendering for runtime-supplied text;
 `runtime/updates.js` owns the accepted claim snapshot and canonical action,
 report, and work-claim feeds;

@@ -9,7 +9,7 @@ and requests another reading at its next deadline; it does not run a second fold
 
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
-| work declaration: state, detail, event floor, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
+| work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` or `leaf ack` process, held open for its life | process exit |
@@ -26,7 +26,7 @@ per subject and unit, for the newest unsettled reader move on it (a tick and the
 press that followed are one), on the subject's existing target margin entry or a compact
 local row: append is **Sent**, then **Waiting for pickup** after the short grace;
 Codex acceptance is **Queued**; entry into a named open turn is **Picked up**; a
-later `status … --on` claim on the same subject is **Active**. That same evidence
+later `status … --on` claim on the same reader move is **Active**. That same evidence
 makes page activity **queued**, **handling**, or **picked up; turn ended**. A reply,
 resolution, or authored state that honors the move settles the interaction; a later
 version note settles a page action whose verb has no authored record form, and a note
@@ -43,9 +43,10 @@ not a second work declaration; the declaration remains underneath and becomes cu
 again when the turn or observer ends.
 
 A work declaration has to be renewed, and `leaf status` renews it. `--on` names the thread
-or widget the work is about, so one check-in moves the banner, the Target
-margin entry, and the local receipt under the reader's words; those stand until the
-agent's next word in that thread. Nothing in a session touches `status.json`
+or widget the work is about. A thread claim also records the current unanswered message,
+so one check-in keeps **Active** beside the words that prompted the work even when the
+reader adds another comment. Widget work appears on the Target margin entry. These
+readings stand until the agent's next word in that thread. Nothing in a session touches `status.json`
 while its turn is over, so work handed to a delegate is renewed from the
 delegate's own hands or not at all.
 

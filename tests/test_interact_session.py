@@ -559,6 +559,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     assert (status["state"], status["detail"]) == ("working", "reading the traces")
     work = status["work"][0]
     assert work["subject"] == {"kind": "thread", "id": "c1"}
+    assert work["event"] == "c1"
     assert work["detail"] == "reading the traces" and work["ts"] == status["ts"]
     assert work["after"] == comment_seq
     assert work["agent"] == "Trace reader" and work["id"] and work["session"]
@@ -571,6 +572,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
         {
             "id": work["id"],
             "target": {"kind": "thread", "id": "c1"},
+            "event": "c1",
             "source": "claim",
             "action": "working",
             "detail": {"text": "reading the traces"},
@@ -601,6 +603,10 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "and this?"}
     )
+    assert [
+        (receipt["event"], receipt["phase"])
+        for receipt in page_state(page_dir)["activity"]["interactions"]
+    ] == [("c1", "active"), ("c2", "sent")]
     assert session_model.cmd_wait(page_dir) == 0
     capsys.readouterr()
     handed = files_model.read_json(page_dir / "status.json")

@@ -83,7 +83,10 @@ def canonical_acknowledgments(
             (entry["seq"] for entry in (opened, queued) if entry),
             default=source["seq"],
         )
-        if claim and claim["log_floor"] >= delivery_seq:
+        claim_matches = claim and (
+            target["kind"] == "widget" or claim.get("event") == source["id"]
+        )
+        if claim_matches and claim["log_floor"] >= delivery_seq:
             phase, evidence = "active", claim
             used_claims.add(claim["id"])
         elif opened:
@@ -144,14 +147,31 @@ def canonical_acknowledgments(
         ):
             continue
         source = unanswered
+        target = {"kind": "thread", "id": thread_id}
+        coordinate = ["thread", thread_id]
         acknowledgments.append(
             receipt(
                 source,
-                {"kind": "thread", "id": thread_id},
-                ["thread", thread_id],
+                target,
+                coordinate,
                 requires_response=True,
             )
         )
+        claim = effective_claims.get(("thread", thread_id))
+        claim_event = claim.get("event") if claim else None
+        if claim_event and claim_event != source["id"]:
+            claimed_source = next(
+                (message for message in turns if message["id"] == claim_event), None
+            )
+            if claimed_source:
+                acknowledgments.append(
+                    receipt(
+                        claimed_source,
+                        target,
+                        coordinate,
+                        requires_response=False,
+                    )
+                )
 
     # A page action stays unsettled only while the authored document still lags
     # its standing record. A recordless verb has no markup form to compare, so a

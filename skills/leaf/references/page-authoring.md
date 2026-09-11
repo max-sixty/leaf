@@ -136,10 +136,10 @@ page width.
 ## Page behavior
 
 Write page-specific behavior in one or more `<script type="module">` blocks. Leaf
-hashes their exact contents into the served policy, so the code is part of the same
-immutable revision as the markup it controls. Standard browser APIs are available;
-code that integrates with Leaf may import the public `/runtime/widget-api.js` module
-and listen to public widget events such as `lf-playground-change`.
+stores the code in the same immutable revision as the markup it controls and hashes
+its exact contents into the served policy. Standard browser APIs are available; code
+that integrates with Leaf may import the public `/runtime/widget-api.js` module and
+listen to public widget events such as `lf-playground-change`.
 
 Use a package when behavior, styling, or vocabulary is reused across pages. A one-page
 explorer or playground keeps its code in the page. The one external script element

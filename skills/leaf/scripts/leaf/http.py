@@ -293,6 +293,7 @@ def supervised_document(
     bootstrap: str,
     release_id: str | None = None,
     page_root: str = "",
+    asset_root: str | None = None,
 ) -> bytes:
     """Supervise HTTP startup before the module graph or stylesheet can load.
 
@@ -310,8 +311,12 @@ def supervised_document(
     # The MCP complete-page transport scopes root routes under its bearer path. Do
     # that before hashing: CSP authorizes the bytes the browser receives, not the
     # unscoped immutable source. `_send` applies the same idempotent rewrite later.
-    source = scope_document_routes(source.encode(), page_root).decode()
-    bootstrap = scope_page_routes(bootstrap.encode(), page_root).decode()
+    source = scope_document_routes(
+        source.encode(), page_root, asset_root=asset_root
+    ).decode()
+    bootstrap = scope_page_routes(
+        bootstrap.encode(), page_root, asset_root=asset_root
+    ).decode()
     parsed = parse_structure(source)
     policy = _declared_policy(parsed)
     policy_offset = source_offset(source, policy["position"])

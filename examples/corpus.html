@@ -103,7 +103,7 @@
       }
 
       notification-simulator .notification-demo-card {
-        --lf-frame: 1;
+        --lf-block-frame: 1;
         min-width: 0;
         border: 1px solid var(--border-2);
         border-radius: var(--notification-radius);
@@ -449,7 +449,7 @@
       }
 
       .pr-review-gesture {
-        --lf-frame: 1;
+        --lf-block-frame: 1;
         margin: var(--sp-3) 0;
         padding: var(--sp-3);
         border-inline-start: 3px solid var(--accent);
@@ -569,7 +569,7 @@
       }
 
       #bg-playground-card {
-        --lf-frame: 1;
+        --lf-block-frame: 1;
         --bg-playground-card-ink: var(--ink);
         --bg-playground-card-muted: var(--muted);
         --bg-playground-card-surface: var(--card);
@@ -712,7 +712,7 @@
       }
 
       .bg-target-card {
-        --lf-frame: 1;
+        --lf-block-frame: 1;
         min-width: 0;
         padding: var(--sp-3);
         border: 1px solid var(--border-2);
@@ -1339,7 +1339,9 @@ outside average, before, after
             <lf-playground-preview id="notification-preview">
               <p>
                 Drag event pressure from a routine release to a burst. Both formats
-                receive the same updates, so their scan cost stays comparable.
+                receive the same updates, so their scan cost stays comparable. The
+                Format control selects the requested output while leaving both
+                candidates visible for comparison.
               </p>
               <notification-simulator
                 id="notification-simulator"

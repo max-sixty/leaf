@@ -58,6 +58,7 @@ def write_live_shell(
                 bootstrap=bootstrap,
                 release_id=release_id,
                 page_root=page_root,
+                asset_root=asset_root,
             ),
             page_root,
             asset_root=asset_root,

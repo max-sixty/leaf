@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
+    <title>Leaf visual-review package</title>
+    <meta
+      name="description"
+      content="Review a typed run of aligned website captures with the optional Leaf visual-review package."
+    />
+    <link rel="stylesheet" href="/theme.css" />
+    <script type="module" src="/leaf.js"></script>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">visual-review package</p>
+      <h1 id="visual-review-title">Review one guided run</h1>
+      <p class="lede" id="visual-review-lede">
+        Each case keeps its action, observed result, exact preview path, aligned
+        captures, and browser provenance together with the reader’s disposition and
+        comments.
+      </p>
+      <lf-visual-review
+        id="visual-review-run"
+        source="gallery-visual-run"
+      ></lf-visual-review>
+    </main>
+  </body>
+</html>

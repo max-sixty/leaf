@@ -47,7 +47,8 @@ PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
 )
 FEATURE_GALLERY = ROOT / "examples" / "developer" / "feature-gallery.html"
-CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), FEATURE_GALLERY)
+DEVELOPER_PAGES = tuple(sorted((ROOT / "examples" / "developer").glob("*.html")))
+CORPUS_SOURCES = (*PUBLIC_EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
 
 
 def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
@@ -402,7 +403,7 @@ def test_page_fixtures_pass_check(tmp_path, monkeypatch, initialized_page):
     root = Path(__file__).parent.parent / "examples"
     packages = json.loads((root / "layer.json").read_text(encoding="utf-8"))
     examples = [*CORPUS_SOURCES, root / "corpus.html"]
-    assert FEATURE_GALLERY.is_file()
+    assert FEATURE_GALLERY in DEVELOPER_PAGES
     selection_args = [arg for package in packages for arg in ("--package", package)]
 
     def initialize(target):

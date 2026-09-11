@@ -14,6 +14,7 @@ from render_support import (
     BOARD_PAGE,
     CHIPS,
     CLIPPED_BY,
+    COMMAND_HUB_EXAMPLE,
     CONTROL_LABEL_PAGE,
     CROWDED_PAGE,
     DIFF_PAGE,
@@ -790,41 +791,6 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     ).to_be_visible()
     page.keyboard.press("Escape")
 
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    reference = page.get_by_role("dialog", name="Command reference")
-    expect(reference).to_be_visible()
-    resized(page, 320, 900)
-    operation = reference.locator("tr").filter(has_text="Restart the sample worker")
-    geometry = operation.evaluate(
-        """row => {
-          const key = row.querySelector('.lf-key-label > kbd');
-          const keyBox = key.getBoundingClientRect();
-          const action = row.cells[1];
-          const actionBox = action.getBoundingClientRect();
-          const range = document.createRange(), broken = [];
-          const walker = document.createTreeWalker(action, NodeFilter.SHOW_TEXT);
-          for (let node = walker.nextNode(); node; node = walker.nextNode())
-            for (const match of node.textContent.matchAll(/[A-Za-z]+/g)) {
-              range.setStart(node, match.index);
-              range.setEnd(node, match.index + match[0].length);
-              if (new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size > 1)
-                broken.push(match[0]);
-            }
-          return {
-            broken,
-            keyFits: key.scrollWidth <= key.clientWidth && key.scrollHeight <= key.clientHeight,
-            keyRight: keyBox.right,
-            actionLeft: actionBox.left,
-          };
-        }"""
-    )
-    assert geometry["keyFits"], geometry
-    assert geometry["keyRight"] <= geometry["actionLeft"], geometry
-    assert geometry["broken"] == [], geometry
-    resized(page, 1600, 900)
-    page.keyboard.press("Escape")
-
     page.locator(".lf-others").click()
     expect(page.locator(".lf-others-panel")).to_be_visible()
     expect(page.locator("a.lf-others-row")).to_contain_text("A second Leaf page")
@@ -916,7 +882,7 @@ def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, s
 
 
 def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
-    """Sign-off, layer comments, and request outcomes are real gallery journeys."""
+    """Sign-off, layer comments, and transport refusal are real core journeys."""
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1280, 900)
 
@@ -956,53 +922,6 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
-    ready = page.locator("#bg-request-live")
-    restart = ready.get_by_role("button", name="Restart the sample worker", exact=True)
-
-    with sending(page, "the restart request"):
-        restart.click()
-    request = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request" and event["widget"] == "bg-request-live"
-    ][-1]
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "receipt",
-            "author": "claude",
-            "request": request["id"],
-            "status": "failed",
-            "text": "The sample branch is protected by another review",
-        },
-    )
-    told(page)
-    expect(ready).to_contain_text(
-        "restart failed · The sample branch is protected by another review"
-    )
-    expect(restart).to_be_enabled()
-
-    with sending(page, "the retried restart request"):
-        restart.click()
-    retried = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "request" and event["widget"] == "bg-request-live"
-    ][-1]
-    events_model.append_event(
-        serve.page_dir,
-        {
-            "kind": "receipt",
-            "author": "claude",
-            "request": retried["id"],
-            "status": "succeeded",
-            "text": "Restarted the sample worker",
-        },
-    )
-    told(page)
-    expect(ready).to_contain_text("restart succeeded · Restarted the sample worker")
-    expect(restart).to_be_disabled()
-
     def reject(route):
         route.fulfill(
             status=400,
@@ -1022,6 +941,99 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     expect(retry).to_have_count(0)
 
     assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_command_hub_exercises_request_failure_retry_and_success(browser, serve):
+    """The package's worked page carries a request through both terminal outcomes."""
+    page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    operations = page.locator("#dedupe-operations")
+    restart = operations.get_by_role(
+        "button", name="Restart with a fresh worker", exact=True
+    )
+
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.get_by_role("dialog", name="Command reference")
+    expect(reference).to_be_visible()
+    resized(page, 320, 900)
+    operation = reference.locator("tr").filter(has_text="Restart with a fresh worker")
+    geometry = operation.evaluate(
+        """row => {
+          const key = row.querySelector('td:first-child kbd');
+          const keyBox = key.getBoundingClientRect();
+          const action = row.cells[1];
+          const actionBox = action.getBoundingClientRect();
+          const range = document.createRange(), broken = [];
+          const walker = document.createTreeWalker(action, NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode())
+            for (const match of node.textContent.matchAll(/[A-Za-z]+/g)) {
+              range.setStart(node, match.index);
+              range.setEnd(node, match.index + match[0].length);
+              if (new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size > 1)
+                broken.push(match[0]);
+            }
+          return {
+            broken,
+            keyClass: key.parentElement.className,
+            keyFits: key.scrollWidth <= key.clientWidth && key.scrollHeight <= key.clientHeight,
+            keyRight: keyBox.right,
+            actionLeft: actionBox.left,
+          };
+        }"""
+    )
+    assert "lf-key-label" in geometry["keyClass"], geometry
+    assert geometry["keyFits"], geometry
+    assert geometry["keyRight"] <= geometry["actionLeft"], geometry
+    assert geometry["broken"] == [], geometry
+    page.keyboard.press("Escape")
+    resized(page, 1280, 900)
+
+    with sending(page, "the restart request"):
+        restart.click()
+    request = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "request" and event["widget"] == "dedupe-operations"
+    ][-1]
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "receipt",
+            "author": "claude",
+            "request": request["id"],
+            "status": "failed",
+            "text": "The branch is protected by another review",
+        },
+    )
+    told(page)
+    expect(operations).to_contain_text(
+        "restart failed · The branch is protected by another review"
+    )
+    expect(restart).to_be_enabled()
+
+    with sending(page, "the retried restart request"):
+        restart.click()
+    retried = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "request" and event["widget"] == "dedupe-operations"
+    ][-1]
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "receipt",
+            "author": "claude",
+            "request": retried["id"],
+            "status": "succeeded",
+            "text": "Started a fresh worker",
+        },
+    )
+    told(page)
+    expect(operations).to_contain_text("restart succeeded · Started a fresh worker")
+    expect(restart).to_be_disabled()
+
+    assert errors == []
     page.close()
 
 
@@ -1054,15 +1066,34 @@ def test_the_feature_gallery_exercises_live_and_snapshotted_external_data(
     page.close()
 
 
-def test_the_feature_gallery_exercises_an_inline_diff_thread(browser, serve):
-    """The gallery's diff specimen carries a real line thread through both seats."""
-    page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
-    diff = page.locator("#bg-review-diff")
-    thread = diff.locator(
-        '.lf-conversation-thread[data-thread="8c91ac4c0c9d4e17831f45581a11639a"]'
+def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
+    """The diff package's worked page carries a real line thread through both seats."""
+    source = next(example for example in EXAMPLES if example.stem == "pr-walkthrough")
+    url = live_url(serve(source))
+    page, errors = open_page(browser, url)
+    diff = page.locator("#pr-exact-patch")
+    details = diff.locator(".lf-diff-file > details").first
+    details.evaluate("element => { element.open = true; }")
+    target = details.locator("[data-line-type='change-addition'][data-lf-datum]").first
+    root = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this review note beside the line that changes it.",
+            "anchor": {
+                "section": "pr-exact-patch",
+                "datum": target.get_attribute("data-lf-datum"),
+                "source": target.get_attribute("data-lf-source"),
+                "data_revision": int(target.get_attribute("data-lf-source-revision")),
+            },
+        },
     )
+    told(page)
+    thread = diff.locator(f'.lf-conversation-thread[data-thread="{root["id"]}"]')
     expect(thread).to_contain_text(
-        "Keep the route choice visible beside the line that changes it."
+        "Keep this review note beside the line that changes it."
     )
     send = thread.locator(".primary")
     expect(send).to_be_disabled()
@@ -1086,7 +1117,6 @@ def test_the_feature_gallery_exercises_an_inline_diff_thread(browser, serve):
     markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     baseline = markers.count()
 
-    details = diff.locator(".lf-diff-file > details")
     details.evaluate("element => { element.open = false; }")
     expect(thread).to_have_count(0)
     expect(markers).to_have_count(baseline + 1)
@@ -1095,20 +1125,6 @@ def test_the_feature_gallery_exercises_an_inline_diff_thread(browser, serve):
     expect(markers).to_have_count(baseline)
 
     page.locator("body").focus()
-    page.keyboard.press("t")
-    expect(
-        page.locator(
-            ".lf-margin-preview .lf-conversation-thread"
-            '[data-thread="2be2443f0bb6cc49fc86b52f340e6073"]'
-        )
-    ).to_be_focused()
-    page.keyboard.press("t")
-    expect(
-        page.locator(
-            ".lf-margin-preview .lf-conversation-thread"
-            '[data-thread="a554d5e884abffdb6494a2fb90b0634f"]'
-        )
-    ).to_be_focused()
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()

@@ -27,6 +27,42 @@
       .package-next dd {
         color: var(--ink-2);
       }
+      .package-catalog {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sp-3);
+        margin-block: var(--sp-4);
+      }
+      .package-card {
+        display: grid;
+        gap: var(--sp-2);
+        padding: var(--sp-4);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r);
+        color: inherit;
+        text-decoration: none;
+      }
+      .package-card strong {
+        font: 600 var(--t-3) / 1.25 var(--serif);
+      }
+      .package-card span {
+        color: var(--ink-2);
+      }
+      .package-card em {
+        color: var(--accent);
+        font: 600 var(--t-6) / 1.4 var(--sans);
+        font-style: normal;
+        letter-spacing: 0.035em;
+        text-transform: uppercase;
+      }
+      .package-card:is(:hover, :focus-visible) {
+        border-color: var(--accent);
+      }
+      @media (max-width: 640px) {
+        .package-catalog {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
     </style>
     <script type="module" src="/leaf.js"></script>
   </head>
@@ -55,8 +91,70 @@
         <lf-toc id="package-contents"></lf-toc>
       </aside>
 
+      <section id="bundled">
+        <h2>Choose a bundled package</h2>
+        <p>
+          The <a href="/examples/feature-gallery/">core product gallery</a> now stays
+          with Leaf’s default vocabulary. Each optional package has a focused working
+          page, so its controls, data, and reader task can be judged without searching
+          an omnibus gallery.
+        </p>
+        <div class="package-catalog">
+          <a class="package-card" href="/examples/security-boundary/">
+            <strong>Diagram</strong>
+            <span>Render Mermaid evidence with commentable semantic nodes.</span>
+            <em>Open page ↗</em>
+          </a>
+          <a class="package-card" href="/examples/pr-walkthrough/">
+            <strong>Diff</strong>
+            <span>Review unified diffs with file and line conversations.</span>
+            <em>Open page ↗</em>
+          </a>
+          <a class="package-card" href="/examples/swipe-gallery/">
+            <strong>Swipe</strong>
+            <span>Classify a card queue while keeping both outcomes inspectable.</span>
+            <em>Open page ↗</em>
+          </a>
+          <a class="package-card" href="/examples/notification-playground/">
+            <strong>Playground</strong>
+            <span
+              >Tune a configuration against a live preview, then submit it once.</span
+            >
+            <em>Open page ↗</em>
+          </a>
+          <a class="package-card" href="/examples/targeting-gallery/">
+            <strong>Targeting</strong>
+            <span>Select exact interface targets and produce structured edits.</span>
+            <em>Open page ↗</em>
+          </a>
+          <a class="package-card" href="/examples/command-hub/">
+            <strong>Command Hub</strong>
+            <span>Inspect delegated work, operations, workers, and receipts.</span>
+            <em>Open page ↗</em>
+          </a>
+          <a class="package-card" href="/examples/pr-walkthrough/">
+            <strong>PR review</strong>
+            <span>Keep pull-request state, call changes, and evidence together.</span>
+            <em>Open page ↗</em>
+          </a>
+          <a class="package-card" href="/examples/live-progress/">
+            <strong>Monitoring</strong>
+            <span
+              >Present live system state without turning the page into a
+              dashboard.</span
+            >
+            <em>Open page ↗</em>
+          </a>
+          <a class="package-card" href="/examples/visual-review-gallery/">
+            <strong>Visual review</strong>
+            <span>Review typed, aligned captures as one ordered evidence run.</span>
+            <em>Open page ↗</em>
+          </a>
+        </div>
+      </section>
+
       <section id="start">
-        <h2>Start with two files</h2>
+        <h2>Build a package with two files</h2>
         <p>Create a package in the project, then check the empty composition:</p>
         <pre
           id="package-init-command"

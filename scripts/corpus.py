@@ -34,7 +34,15 @@ PUBLIC_TABS = [
     ("security-boundary", "Security"),
     ("command-hub", "Command"),
 ]
-FEATURE_GALLERY = EXAMPLES_DIR / "developer" / "feature-gallery.html"
+DEVELOPER_TABS = [
+    (EXAMPLES_DIR / "developer" / "feature-gallery.html", "Core features"),
+    (EXAMPLES_DIR / "developer" / "swipe-gallery.html", "Swipe package"),
+    (EXAMPLES_DIR / "developer" / "targeting-gallery.html", "Targeting package"),
+    (
+        EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
+        "Visual review package",
+    ),
+]
 CONTENTS_SIDEBAR = re.compile(
     r'\s*<aside class="sidebar" id="[^"]+">\s*'
     r"<lf-toc\b[^>]*></lf-toc>\s*</aside>"
@@ -45,7 +53,7 @@ TABS = [
         (source, source.stem.replace("-", " ").title())
         for source in regression_sources()
     ),
-    (FEATURE_GALLERY, "Features"),
+    *DEVELOPER_TABS,
 ]
 
 HEAD = """\
@@ -152,10 +160,11 @@ def build() -> str:
             f"{sorted(on_disk ^ in_table)}"
         )
     developer_pages = set((EXAMPLES_DIR / "developer").glob("*.html"))
-    if developer_pages != {FEATURE_GALLERY}:
+    declared_developer_pages = {source for source, _ in DEVELOPER_TABS}
+    if developer_pages != declared_developer_pages:
         sys.exit(
-            "developer feature fixtures must share feature-gallery.html: "
-            f"{sorted(path.name for path in developer_pages ^ {FEATURE_GALLERY})}"
+            "developer pages and the DEVELOPER_TABS table disagree: "
+            f"{sorted(path.name for path in developer_pages ^ declared_developer_pages)}"
         )
 
     _, capture_revisions = composed_data()

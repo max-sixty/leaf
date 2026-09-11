@@ -18,11 +18,13 @@ import {
   once,
   offer,
   failSoft,
+  isCanonicalMediaUrl,
   commands,
   marginEntry,
   paintKeys,
   relabel,
   registerMarginContribution,
+  scopedMediaUrl,
   selectableOffer,
   settle,
 } from "/runtime/widget-api.js";
@@ -62,7 +64,8 @@ customElements.define(
         frame.dataset.lfState = state;
 
         const img = document.createElement("img");
-        img.src = this.getAttribute(state);
+        const source = this.getAttribute(state);
+        img.src = isCanonicalMediaUrl(source) ? scopedMediaUrl(source) : source;
         img.alt = `${state}: ${alt}`;
         shots.push(img);
         frame.append(img);

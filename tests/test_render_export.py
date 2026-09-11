@@ -1357,11 +1357,11 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     live = browser.new_page(viewport={"width": 1200, "height": 900})
     live.goto(url, wait_until="load")
     resized(live, 1200, 900)
+    # A handoff colors the target's surviving semantic control rather than standing up
+    # a second margin row of its own, so the live reading is the pencil's phase.
     expect(
-        live.locator(
-            "[data-lf-margin-for='d-open'] [data-lf-behavior='status']:visible"
-        )
-    ).to_have_attribute("data-lf-kinds", "pickup")
+        live.locator("[data-lf-margin-for='d-open'] [data-lf-agent-phase]:visible")
+    ).to_have_attribute("data-lf-agent-phase", "picked_up")
     expect(live.get_by_text("Outcome", exact=True)).to_have_count(0)
     live.close()
 
@@ -1372,6 +1372,9 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     page.goto(out.as_uri(), wait_until="load")
 
     expect(page.locator('[data-lf-behavior="status"]')).to_have_count(0)
+    # Both seats a live handoff can speak from: the status row, and the phase on the
+    # control that carries it.
+    expect(page.locator("[data-lf-agent-phase]")).to_have_count(0)
     expect(page.get_by_text("Outcome", exact=True)).to_have_count(0)
     expect(page.locator("#d-open")).to_contain_text(
         "The sample workshop is in the red room."

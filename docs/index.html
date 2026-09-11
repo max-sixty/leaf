@@ -250,31 +250,31 @@ whose rehearsal count advances, and the user drags an on-call task to During."
       </section>
 
       <section id="track-example">
-        <h2>Example: Watch work finish</h2>
+        <h2>Example: Track a release</h2>
         <p id="track-setup">
-          The <a href="/examples/live-progress/">cutover-rehearsal example</a> is a page
-          the agent keeps current while it works. It holds a stable overview beside the
-          changing evidence stream and the one exception the release captain must
-          decide. Run it like any other example:
+          The <a href="/examples/live-progress/">checkout release example</a> keeps the
+          current rollout state and next stage beside the checks and log that support
+          it. Release notes, code changes, and the rollback procedure stay available
+          without competing with the live work. Run it like any other example:
         </p>
         <pre id="progress-command"><code>scripts/preview.py live-progress</code></pre>
         <lf-chronology id="track-versions">
           <lf-chronology-entry id="track-v4" at="v4" kind="observation">
-            <strong>11 of 18 checks are done.</strong> Traffic has just moved to the new
-            checkout service.
+            <strong>The candidate is built and signed.</strong> The release page records
+            its immutable identity and stable rollback target.
           </lf-chronology-entry>
           <lf-chronology-entry id="track-v5" at="v5" kind="intervention">
-            <strong>14 checks are done.</strong> Rollback is running, so that milestone
-            becomes active and the chronology gains the cutover result.
+            <strong>The canary pauses at 25%.</strong> Four checks pass; finance export
+            parity blocks automatic promotion.
           </lf-chronology-entry>
           <lf-chronology-entry id="track-v6" at="v6" kind="observation">
-            <strong>Rollback is done.</strong> The report becomes active and the browser
-            follows the version without a reload.
+            <strong>All five checks pass.</strong> The summary and release plan advance
+            to 100% while the browser keeps the reader's place in the log.
           </lf-chronology-entry>
         </lf-chronology>
         <p id="track-source">
-          The published example is the middle state, with metrics, milestones, a
-          blocker, and a chronology for the next version to update in place.
+          The published example is the paused canary: one screen for deciding whether
+          the evidence supports continuing or sending a bound rollback request.
         </p>
       </section>
 

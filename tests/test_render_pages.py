@@ -1145,7 +1145,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
 def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, serve):
     """The selected thread may strengthen its contour, but its overlay stays hollow.
 
-    This is the checkout-rehearsal regression: the metric fills its host edge to edge,
+    This is the checkout-release regression: the metric fills its host edge to edge,
     so a mark projected above the widget also sits above every word the widget draws.
     Comparing the interior with that overlay hidden makes the guarantee independent of
     the widget's DOM, colors, and stacking choices.
@@ -1160,7 +1160,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
             "author": "user",
             "revision": 1,
             "text": "Swap this with the next block.",
-            "anchor": {"section": "lp-k-blocked"},
+            "anchor": {"section": "lp-k-checks"},
         },
     )
     page, errors = open_page(browser, url)
@@ -1168,8 +1168,8 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
     panel_settled(page)
     page.locator(".lf-thread .lf-quote").click()
 
-    card = page.locator("#lp-k-blocked")
-    mark = page.locator('.lf-visual-mark[data-for="lp-k-blocked"].lf-visual-mark-here')
+    card = page.locator("#lp-k-checks")
+    mark = page.locator('.lf-visual-mark[data-for="lp-k-checks"].lf-visual-mark-here')
     expect(mark).to_be_visible()
     card.scroll_into_view_if_needed()
     box = card.bounding_box()

@@ -6,10 +6,10 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>Live progress: checkout cutover rehearsal</title>
+    <title>Release page: checkout v2 canary</title>
     <meta
       name="description"
-      content="Follow a checkout cutover rehearsal while it runs: rollback evidence, an unresolved finance-export exception, and the containment decision it waits on."
+      content="Follow an active checkout release through its current state, rollout steps, named checks, live log, rollback evidence, release notes, and code changes."
     />
     <meta
       http-equiv="Content-Security-Policy"
@@ -17,108 +17,236 @@
     />
     <link rel="stylesheet" href="/theme.css" />
     <script type="module" src="/leaf.js"></script>
+    <style>
+      #lp-current-state > strong {
+        display: block;
+        margin-bottom: var(--sp-1);
+        font: 650 var(--t-3) / 1.2 var(--sans);
+      }
+
+      #lp-release-facts {
+        margin-block: var(--sp-3);
+      }
+
+      #lp-checks-table {
+        margin-top: var(--sp-2);
+        font-size: var(--t-5);
+      }
+
+      .release-check-result {
+        font: 650 var(--t-6) / 1.2 var(--sans);
+      }
+
+      .release-check-result[data-status="pass"] {
+        color: var(--ok-ink);
+      }
+
+      .release-check-result[data-status="fail"] {
+        color: var(--danger-ink);
+      }
+
+      #lp-log-note,
+      #lp-checks-note {
+        margin-top: 0;
+        color: var(--muted);
+        font-family: var(--sans);
+        font-size: var(--t-5);
+      }
+
+      #lp-code-changes {
+        margin-top: var(--sp-3);
+      }
+    </style>
   </head>
   <body>
     <main>
       <lf-monitor id="lp-monitor">
         <header>
-          <p class="eyebrow">live operations · rehearsal 4 of 5</p>
-          <h1>Checkout cutover rehearsal</h1>
+          <h1>Checkout v2 release</h1>
           <p class="lede" id="lp-lede">
-            Checkout is stable on the old service and rollback is proved. The next step
-            waits while one finance-export exception needs a containment decision.
+            The production canary is paused at 25%. Customer checkout is healthy, but
+            finance export is one row short and must reconcile before traffic expands.
           </p>
         </header>
 
         <lf-monitor-grid id="lp-regions">
-          <lf-monitor-region id="lp-overview" label="Overview" zone="overview">
-            <header><h2>Overview</h2></header>
-            <aside class="callout" id="lp-active">
-              <strong>Rollback proved.</strong> The old checkout service is handling all
-              traffic; finance export remains isolated from the customer path.
+          <lf-monitor-region id="lp-release" label="Release" zone="release">
+            <header><h2>Release</h2></header>
+            <aside class="callout" id="lp-current-state">
+              <strong>Paused at 25%</strong>
+              Automatic promotion stopped when the finance-parity check failed. The
+              candidate remains live for canary traffic while Ledger traces a
+              partial-refund fixture mismatch; the exact failing producer is not yet
+              established.
             </aside>
             <lf-metrics id="lp-metrics">
-              <lf-metric id="lp-k-done" value="17 of 18">checks complete</lf-metric>
-              <lf-metric id="lp-k-running" value="0">running now</lf-metric>
-              <lf-metric id="lp-k-blocked" value="1">needs decision</lf-metric>
+              <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
+              <lf-metric id="lp-k-checks" value="4 of 5">checks passing</lf-metric>
             </lf-metrics>
-            <h3 id="lp-crew-heading">On the rehearsal</h3>
-            <lf-roster id="lp-roster">
-              <lf-agent id="lp-agent-router" state="done">
-                <strong>router</strong> Matched order counts after rollback.
-              </lf-agent>
-              <lf-agent id="lp-agent-ledger" state="blocked">
-                <strong>ledger</strong> Waiting on the finance containment choice.
-              </lf-agent>
-              <lf-agent id="lp-agent-observer" state="waiting">
-                <strong>observer</strong> Guardrails are green; watching the old
-                service.
-              </lf-agent>
-              <lf-agent id="lp-agent-scribe" state="idle">
-                <strong>scribe</strong> Ready to record the containment decision.
-              </lf-agent>
-            </lf-roster>
-          </lf-monitor-region>
-
-          <lf-monitor-region id="lp-evidence" label="Run log" zone="evidence">
-            <header><h2>Captured run log</h2></header>
-            <p id="lp-evidence-note">
-              This snapshot ends at 14:24:44. During a rehearsal, new samples appear
-              here while the overview and containment choice stay in place.
+            <dl class="facts" id="lp-release-facts">
+              <dt>Environment</dt>
+              <dd>Production</dd>
+              <dt>Candidate</dt>
+              <dd><code>checkout-v2</code></dd>
+              <dt>Stable</dt>
+              <dd><code>checkout-v1</code></dd>
+              <dt>Observed</dt>
+              <dd>14:24:44</dd>
+            </dl>
+            <p id="lp-hold-policy">
+              <strong>Hold until 14:32.</strong> Escalate to Finance at 14:30; roll back
+              sooner if a customer guardrail fails.
             </p>
-            <lf-text-document
-              id="lp-live-log"
-              source="rehearsal-log"
-            ></lf-text-document>
-            <footer>Newest samples appear at the end.</footer>
-          </lf-monitor-region>
 
-          <lf-monitor-region id="lp-exception" label="Exception" zone="exception">
-            <header><h2>Exception</h2></header>
-            <aside class="callout" id="lp-finance-note">
-              <strong>Partially refunded order missing from export.</strong> Checkout
-              traffic is healthy, but order <code>co_18427</code> appears in the ledger
-              and not in the finance file. The export stays isolated until this choice
-              is recorded.
-            </aside>
-            <lf-milestones id="lp-exception-status">
-              <lf-milestone id="lp-finance-gate" status="blocked" when="now">
-                <strong>Resume the finance export</strong> Waiting on safeguards for the
-                missing partial refund.
+            <lf-release-actions
+              id="lp-release-actions"
+              candidate="checkout-v2"
+              stable="checkout-v1"
+            >
+              <lf-release-action verb="rollback">
+                <strong>Request rollback to checkout-v1</strong>
+                <p>
+                  Ready; returns traffic to the stable release without repairing the
+                  missing finance row.
+                </p>
+              </lf-release-action>
+            </lf-release-actions>
+
+            <h3 id="lp-steps-heading">Release steps</h3>
+            <lf-milestones id="lp-release-steps">
+              <lf-milestone id="lp-step-build" status="done" when="14:18">
+                <strong>Build and verify the candidate</strong> Image signed and
+                provenance recorded.
+              </lf-milestone>
+              <lf-milestone id="lp-step-canary" status="done" when="14:22">
+                <strong>Deploy the 25% canary</strong> Candidate serving production
+                checkout traffic.
+              </lf-milestone>
+              <lf-milestone id="lp-step-checks" status="blocked" when="now">
+                <strong>Pass release checks</strong> Finance export has 1,998 of 1,999
+                expected rows.
+              </lf-milestone>
+              <lf-milestone id="lp-step-promote" status="planned">
+                <strong>Expand to 100%</strong>
+              </lf-milestone>
+              <lf-milestone id="lp-step-observe" status="planned">
+                <strong>Observe and complete</strong>
               </lf-milestone>
             </lf-milestones>
-            <lf-ask id="lp-finance-decision">
-              <h3>
-                Which safeguards should stay active while Ledger rebuilds the fixture?
-              </h3>
-              <p>
-                Pass drops a safeguard; Keep retains it until the partial-refund case
-                passes.
-              </p>
-              <lf-swipe-deck id="lp-finance-cases">
-                <lf-swipe-pile id="lp-finance-queue" verdict="unseen">
-                  <lf-swipe-card id="lp-hold-exports">
-                    <strong>Hold every partial-refund export</strong> Pause all
-                    partial-refund orders until the rebuilt fixture passes.
-                  </lf-swipe-card>
-                  <lf-swipe-card id="lp-quarantine-order">
-                    <strong>Quarantine this order</strong> Continue ordinary exports and
-                    reconcile <code>co_18427</code> by hand.
-                  </lf-swipe-card>
-                  <lf-swipe-card id="lp-finance-signoff">
-                    <strong>Require finance sign-off</strong> Keep the export closed
-                    until Finance reviews the repaired row.
-                  </lf-swipe-card>
-                </lf-swipe-pile>
-                <lf-swipe-pile id="lp-finance-pass" verdict="pass"></lf-swipe-pile>
-                <lf-swipe-pile id="lp-finance-keep" verdict="keep"></lf-swipe-pile>
-              </lf-swipe-deck>
-            </lf-ask>
+
+            <details id="lp-release-notes">
+              <summary>Release notes · 3 changes</summary>
+              <ul>
+                <li>Keep partial-refund state through checkout retries.</li>
+                <li>Write refund adjustments to the finance export.</li>
+                <li>Add parity checks before production promotion.</li>
+              </ul>
+            </details>
+            <details id="lp-release-owners">
+              <summary>Release owners · 5</summary>
+              <lf-roster id="lp-owners">
+                <lf-agent id="lp-agent-deployer" state="waiting">
+                  <strong>deployer</strong> Holding promotion at 25% while finance
+                  parity is red.
+                </lf-agent>
+                <lf-agent id="lp-agent-ledger" state="working">
+                  <strong>ledger</strong> Reconciling <code>co_18427</code> against the
+                  candidate export.
+                </lf-agent>
+                <lf-agent id="lp-agent-finance" state="blocked">
+                  <strong>finance</strong> Waiting for the missing export row before
+                  signing off.
+                </lf-agent>
+                <lf-agent id="lp-agent-observer" state="idle">
+                  <strong>observer</strong> Ready to watch the release after promotion.
+                </lf-agent>
+                <lf-agent id="lp-agent-builder" state="done">
+                  <strong>builder</strong> Signed the candidate and recorded its
+                  provenance.
+                </lf-agent>
+              </lf-roster>
+            </details>
+            <details id="lp-rollback-procedure">
+              <summary>Rollback procedure · 3 steps</summary>
+              <ol class="steps">
+                <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
+                <li>Drain the candidate after active sessions finish.</li>
+                <li>Verify order counts and finance-export isolation.</li>
+              </ol>
+            </details>
+          </lf-monitor-region>
+
+          <lf-monitor-region id="lp-checks" label="Checks" zone="checks">
+            <header><h2>Checks</h2></header>
+            <p id="lp-checks-note">Four checks pass. One blocks promotion.</p>
+            <table id="lp-checks-table">
+              <thead>
+                <tr>
+                  <th>Check</th>
+                  <th>Result</th>
+                  <th>Observed / required</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="lp-check-errors">
+                  <th scope="row">Error rate</th>
+                  <td>
+                    <span class="release-check-result" data-status="pass">Pass</span>
+                  </td>
+                  <td><code>0.11%</code> / below <code>0.50%</code></td>
+                </tr>
+                <tr id="lp-check-latency">
+                  <th scope="row">p95 latency</th>
+                  <td>
+                    <span class="release-check-result" data-status="pass">Pass</span>
+                  </td>
+                  <td><code>184 ms</code> / below <code>300 ms</code></td>
+                </tr>
+                <tr id="lp-check-orders">
+                  <th scope="row">Order parity</th>
+                  <td>
+                    <span class="release-check-result" data-status="pass">Pass</span>
+                  </td>
+                  <td><code>2,000</code> / <code>2,000</code></td>
+                </tr>
+                <tr id="lp-check-finance">
+                  <th scope="row">Finance export</th>
+                  <td>
+                    <span class="release-check-result" data-status="fail">Fail</span>
+                  </td>
+                  <td><code>1,998</code> / <code>1,999</code> rows</td>
+                </tr>
+                <tr id="lp-check-rollback">
+                  <th scope="row">Rollback target</th>
+                  <td>
+                    <span class="release-check-result" data-status="pass">Pass</span>
+                  </td>
+                  <td>3 batches / zero delta</td>
+                </tr>
+              </tbody>
+            </table>
+          </lf-monitor-region>
+
+          <lf-monitor-region id="lp-log" label="Run log" zone="log">
+            <header><h2>Run log</h2></header>
+            <p id="lp-log-note">
+              Example snapshot ending at 14:24:44. New events append without moving a
+              reader who has scrolled back.
+            </p>
+            <lf-text-document id="lp-live-log" source="release-log"></lf-text-document>
+            <details id="lp-code-changes">
+              <summary>Code changes · 2 files, +18 −4</summary>
+              <lf-diff id="lp-release-diff" source="release-patch" snapshot="1">
+                <pre></pre>
+              </lf-diff>
+            </details>
+            <footer>Newest events appear at the end.</footer>
           </lf-monitor-region>
         </lf-monitor-grid>
 
         <footer>
-          Checkout can remain on the old service while Finance contains the export gap.
+          Traffic stays at 25% until finance export parity passes or the 14:32 rollback
+          deadline arrives.
         </footer>
       </lf-monitor>
     </main>

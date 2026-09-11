@@ -99,17 +99,6 @@ export function agentWorkPhase(receipt) {
     : null;
 }
 
-export function agentWorkTargetPhases(activity, kind) {
-  const phases = new Map();
-  for (const receipt of activity?.interactions ?? []) {
-    if (receipt.target.kind !== kind) continue;
-    const phase = agentWorkPhase(receipt);
-    if (phase && (phase === "active" || !phases.has(receipt.target.id)))
-      phases.set(receipt.target.id, phase);
-  }
-  return phases;
-}
-
 function updateTarget(target) {
   if (target === null) return null;
   if (target instanceof Element) {

@@ -1324,11 +1324,6 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           padding: var(--sp-1);
           font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
           color: var(--ink); overflow-wrap: anywhere; }
-/* Inline thread cards mark current ownership without changing their geometry. */
-.lf-conversation-thread[data-lf-agent-phase="picked_up"] {
-          box-shadow: inset 2px 0 var(--accent); }
-.lf-conversation-thread[data-lf-agent-phase="active"] {
-          box-shadow: inset 3px 0 var(--ok-ink); }
 .lf-conversation-thread:is(:focus-within, .lf-focus-within) {
           outline: none; border-radius: var(--r); background: var(--here-surface); }
 @media (forced-colors: active) {

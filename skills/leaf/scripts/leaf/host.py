@@ -96,6 +96,48 @@ def ancestry() -> list[tuple[int, str]]:
     return walked
 
 
+def process_argv(pid: int) -> list[str] | None:
+    """The words a live process was launched with, or None once it is gone.
+
+    `process_info` answers which program a process *is*; this answers what it
+    was told to do, which is the only thing that separates a `codex` hosting one
+    session from a `codex` hosting all of them (`session_lifetime`).
+
+    The same two platform doors, and for the same reason: `ps` is setuid root on
+    macOS and the seatbelt sandbox Codex runs its shell tool under refuses to
+    exec it. KERN_PROCARGS2 needs no privilege for this user's own processes.
+    Its buffer is [argc][exec path][alignment NULs][argc NUL-terminated args],
+    so the path is dropped and the args taken by count rather than by scanning
+    into the environment that follows them."""
+    if sys.platform == "darwin":
+        libc = ctypes.CDLL(None)
+        libc.sysctl.argtypes = [
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.c_uint,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_size_t),
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+        ]
+        ctl_kern, kern_procargs2 = 1, 49
+        size = ctypes.c_size_t(262144)
+        buffer = ctypes.create_string_buffer(size.value)
+        mib = (ctypes.c_int * 3)(ctl_kern, kern_procargs2, pid)
+        if libc.sysctl(mib, 3, buffer, ctypes.byref(size), None, 0) != 0:
+            return None
+        raw = buffer.raw[: size.value]
+        argc = int.from_bytes(raw[:4], sys.byteorder)
+        rest = raw[4:]
+        rest = rest[rest.index(b"\0") :].lstrip(b"\0")
+        return [word.decode("utf-8", "replace") for word in rest.split(b"\0")[:argc]]
+
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return None
+    return [word.decode("utf-8", "replace") for word in raw.split(b"\0") if word]
+
+
 def config_home() -> Path:
     """$XDG_CONFIG_HOME/leaf (~/.config/leaf/) — the user's implicit package."""
     return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "leaf"
@@ -206,7 +248,23 @@ def session_lifetime(identity: dict) -> dict:
     assigned or a job an older daemon cleaned. The record's `sessionId` has to
     be this session's, because the variable is inherited: a session started
     under the job's own shell tool carries the job's directory and is a process
-    of its own."""
+    of its own.
+
+    Codex has a second shape with no session process at all. The ChatGPT app
+    runs one `codex ... app-server` per app launch and multiplexes every
+    conversation through it: its children are node, uv and zsh, never a
+    per-conversation `codex`. The ancestry walk still reaches that process, so
+    recording its pid gave every session in the app one shared lifetime, and one
+    that ends only when the app quits — measured on a machine with 133 claims
+    naming a single app-server pid and 49 session-managed servers that could
+    never retire. Nothing else there is per-conversation either: the app holds
+    every thread's writer lock under `~/.codex/thread-writer-locks` for its own
+    lifetime rather than the thread's, so those are pinned the same way.
+
+    With no process to name and no host fact to read, such a session's lifetime
+    is its activity. `activity` records that the claim carries no liveness of
+    its own, and names which host shape it met; `claim_is_active` judges it from
+    when the page was last touched."""
     if identity["host"] == "claude-code":
         if job := os.environ.get("CLAUDE_JOB_DIR"):
             record = read_json(Path(job) / "state.json")
@@ -221,6 +279,8 @@ def session_lifetime(identity: dict) -> dict:
     walked = ancestry()
     for pid, program in walked:
         if program == "codex":
+            if "app-server" in (process_argv(pid) or []):
+                return {"activity": "codex-app-server"}
             return {"pid": pid}
     # Nothing to fall back to: any pid guessed here is a claim that expires on
     # its own, and the states that follow from one are silent. LEAF_SESSION_ID

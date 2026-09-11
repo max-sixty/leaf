@@ -368,9 +368,8 @@ HEARTBEAT_PAGES = (
     # run for those are watched nowhere else: a reading option under an entry holding
     # several readings, and the readings whose move is made, which wear the `status`
     # behavior on a span seat rather than a button. Two of its rows stand where they
-    # would overlap, so the push measurement is read here and nowhere else. Its crowded
-    # rows also exercise posture changes; docked rows need no absolute placement or
-    # rail re-read.
+    # would overlap, so the push measurement is read here and nowhere else. Its rows
+    # remain in flow at this width, so the rail is re-read without clearing posture.
     pytest.param(
         FEATURE_GALLERY,
         {
@@ -378,7 +377,7 @@ HEARTBEAT_PAGES = (
             ".lf-margin-reading-option": 1,
             '.lf-margin-entry[data-lf-behavior="status"]': 2,
         },
-        {"row posture", "row push", "fold rule"},
+        {"rail width", "row push", "fold rule"},
         id="gallery",
     ),
 )
@@ -1207,7 +1206,7 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
     not_held = specimen("not held")
     picked_up = specimen("picked up")
     working = specimen("working")
-    alone = specimen("working alone")
+    fallback = specimen("activity fallback")
     expect(not_held).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
     expect(picked_up).to_have_attribute("data-lf-agent-phase", "picked_up")
     expect(picked_up).to_have_css("border-top-color", token_colour(page, "--accent"))
@@ -1215,7 +1214,7 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
     expect(picked_up.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "comment"
     )
-    for control in (working, alone):
+    for control in (working, fallback):
         expect(control).to_have_attribute("data-lf-agent-phase", "active")
         expect(control).to_have_css("border-top-color", token_colour(page, "--ok-ink"))
         expect(control).to_have_css("background-color", token_colour(page, "--ok-tint"))
@@ -1223,7 +1222,7 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
     expect(working.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "comment"
     )
-    expect(alone.locator(".lf-margin-entry-icon")).to_have_attribute(
+    expect(fallback.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
     expect(
@@ -1241,7 +1240,7 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
             "Not held",
             "Picked up",
             "Working",
-            "Working alone",
+            "Activity fallback",
         ]
     )
 

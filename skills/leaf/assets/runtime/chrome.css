@@ -1267,10 +1267,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     outline: none;
     background: var(--here-surface);
   }
-  .lf-thread[data-lf-agent-phase="picked_up"] {
-    box-shadow: inset 2px 0 var(--accent); }
-  .lf-thread[data-lf-agent-phase="active"] {
-    box-shadow: inset 3px 0 var(--ok-ink); }
   .lf-quote { margin: 0 0 8px; padding: 2px 8px 2px 12px;
     border-inline-start: 3px solid var(--mark-ink); color: var(--muted);
     font-style: italic; cursor: pointer; overflow-wrap: anywhere; }

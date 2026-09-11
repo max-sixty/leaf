@@ -639,7 +639,7 @@ export function createSelectionComposer({
               )
             : null;
         const inlineReply = inlineThread?.querySelector("textarea") ?? null;
-        // Expand the destination before its placement and carry measure the card.
+        // Expand the destination before placement so Floating UI measures the final card.
         // Focus still waits for that placement; it must not change the measured shape.
         inlineReply?.lfRevealReply?.();
         reply = inlineReply ?? reply;

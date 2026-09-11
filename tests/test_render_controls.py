@@ -219,13 +219,13 @@ CONTROL_ARCHETYPES = (
         "target": "#stable-diff .lf-diff-wrap-label",
     },
     {
-        # The review press shares its file's summary line without being inside it, since
-        # a disclosure is a control and anything focusable within one is a control nested
-        # in a control. Sharing the line puts it in this sweep: its two labels are
-        # different words of different lengths, and one width for both is what keeps the
-        # summary beside it from reflowing when it is pressed.
-        "name": "diff-review",
-        "coverage": ".lf-diff-review",
+        # The file actions share its summary line without sitting inside that disclosure.
+        # The review press changes label, so one width for both states keeps the summary
+        # and the optional comment press still.
+        "name": "diff-file",
+        "coverage": (
+            ":is(.lf-diff-file-actions > button, .lf-diff-file > details > summary)"
+        ),
         "target": "#stable-diff .lf-diff-review",
     },
     {
@@ -269,6 +269,15 @@ CONTROL_ARCHETYPES = (
         "coverage": ".lf-targeting-change-fields > :is(select, button)",
         "target": ".lf-targeting-property",
         "select": "min-height",
+    },
+    {
+        # The visual inspector's view and size presses are joined groups whose selected
+        # treatment changes in place. Pressing Side by side exercises both states while
+        # its Flip and Opacity neighbours stay under the reader's pointer.
+        "name": "visual-review-inspection",
+        "example": VISUAL_REVIEW_GALLERY,
+        "coverage": ".lf-vr-inspector-group > .lf-vr-inspector-button",
+        "target": '.lf-vr-mode-group > [data-mode="side"]',
     },
     {
         # A disposition changes both its selected paint and the case's durable review
@@ -4953,6 +4962,7 @@ RING_WALKS = (
             "ship-review",
         ),
     ),
+    ("an inline response", (), ("pr-walkthrough",)),
     ("the thread list", ("g", "Shift+t"), ("corpus",)),
     ("passage search", ("/",), ("corpus",)),
     # Item hints, and the anchored bar the reader answers a chosen item on. Both open the
@@ -5039,6 +5049,10 @@ def offered(page, selector):
 # surface of their own; `g T` lands on the Threads list, which the walk's own first stop
 # reads, while page `c` enters its comment box and is exercised separately.
 RING_SCOPE_SURFACE = {
+    "an inline response": (
+        'lf-diff .lf-fab-bar[data-lf-presentation="inline"] .lf-composer[data-lf-open]',
+        None,
+    ),
     "the thread list": (".lf-thread-panel.open", None),
     "a thread card": (".lf-margin-preview:popover-open", None),
     "the Page Map dialog": (".lf-page-map-dialog[open]", None),
@@ -5057,6 +5071,10 @@ RING_SCOPE_SURFACE = {
     "a reaction palette": (".lf-react-strip.lf-react-open", None),
 }
 RING_SCOPE_CONTROL = {
+    "an inline response": (
+        "#pr-exact-patch .lf-diff-file-comment",
+        '#pr-exact-patch .lf-fab-bar[data-lf-presentation="inline"] textarea.lf-fab-input',
+    ),
     "the Asks tray": (".lf-asks", ".lf-asks-row"),
     "a thread card": (
         '.lf-margin-marker[data-lf-kinds~="comment"]',
@@ -5091,6 +5109,7 @@ RING_WALK_VIEWPORT = (1200, 900)
 # page-margin surfaces the panel replaces; the thread-list walk's own `g T` is the door
 # under test, and now correctly toggles an already-open panel closed.
 RING_SCOPES_STARTING_WITHOUT_PANEL = {
+    "an inline response",
     "the thread list",
     "a contents link",
     "a thread card",

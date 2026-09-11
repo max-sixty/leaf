@@ -207,7 +207,9 @@
   border-color: var(--rule); color: var(--ink-2);
   box-shadow: none; cursor: default;
 }
-/* Tone colours only the icon. Category and agent ownership own the ring and fill. */
+/* Tone colours the icon until pickup uses that channel; then tone moves to the
+   control's existing contour. Category keeps its weight and shadow, and working owns
+   the fill, so the meanings remain simultaneous without drawing another ring. */
 .lf-margin-entry[data-lf-tone="positive"] > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
@@ -239,6 +241,12 @@
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="picked_up"]
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--ok-ink);
+}
+.lf-margin-entry[data-lf-agent-phase="picked_up"][data-lf-tone="positive"] {
+  border-color: var(--ok-ink);
+}
+.lf-margin-entry[data-lf-agent-phase="picked_up"][data-lf-tone="negative"] {
+  border-color: var(--danger-ink);
 }
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="active"] {
   --lf-agent-tint: var(--ok-wash);

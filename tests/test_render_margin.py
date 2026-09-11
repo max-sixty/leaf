@@ -1170,7 +1170,7 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
     atlas = page.locator("#bg-margin-controls-specimens")
     expect(atlas).to_be_visible()
     buttons = atlas.locator(".lf-margin-entry")
-    expect(buttons).to_have_count(11)
+    expect(buttons).to_have_count(13)
     records = buttons.evaluate_all(
         """buttons => buttons.map(button => ({
           behavior: button.dataset.lfBehavior,
@@ -1200,7 +1200,7 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
         )
 
     expect(atlas.locator(".margin-entry-gallery-heading")).to_have_text(
-        ["Rank and behavior", "Agent ownership"]
+        ["Rank and behavior", "Agent ownership", "Ownership with tone"]
     )
 
     not_held = specimen("not held")
@@ -1235,6 +1235,19 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
     expect(fallback.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
+    positive_pickup = specimen("positive pickup")
+    negative_pickup = specimen("negative pickup")
+    for control in (positive_pickup, negative_pickup):
+        expect(control).to_have_attribute("data-lf-agent-phase", "picked_up")
+        expect(control.locator(".lf-margin-entry-icon")).to_have_css(
+            "color", token_colour(page, "--ok-ink")
+        )
+    expect(positive_pickup).to_have_css(
+        "border-top-color", token_colour(page, "--ok-ink")
+    )
+    expect(negative_pickup).to_have_css(
+        "border-top-color", token_colour(page, "--danger-ink")
+    )
     expect(
         atlas.locator('[data-margin-entry-specimen="sent"] > .lf-margin-entry')
     ).to_have_attribute("role", "status")
@@ -1251,6 +1264,8 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
             "Picked up",
             "Working",
             "Activity fallback",
+            "Positive pickup",
+            "Negative pickup",
         ]
     )
 

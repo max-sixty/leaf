@@ -109,6 +109,30 @@ const GROUPS = [
       },
     ],
   },
+  {
+    heading: "Ownership with tone",
+    summary: "Pickup keeps the control's positive or negative meaning",
+    specimens: [
+      {
+        name: "Positive pickup",
+        detail: "green icon · positive contour",
+        icon: "check",
+        behavior: "action",
+        tone: "positive",
+        rank: "primary",
+        agentPhase: "picked_up",
+      },
+      {
+        name: "Negative pickup",
+        detail: "green icon · negative contour",
+        icon: "cross",
+        behavior: "action",
+        tone: "negative",
+        rank: "secondary",
+        agentPhase: "picked_up",
+      },
+    ],
+  },
 ];
 
 function generated(tag, className, words = null) {

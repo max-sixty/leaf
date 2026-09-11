@@ -231,10 +231,6 @@ html.lf-copy lf-playground > .lf-playground-actions {
 }
 
 @container (max-width: 38rem) {
-  lf-playground {
-    padding: var(--sp-3);
-  }
-
   lf-playground-preview {
     min-height: 14rem;
   }

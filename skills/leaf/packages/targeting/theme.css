@@ -142,10 +142,6 @@ html.lf-copy lf-targeting .lf-targeting-editor {
 }
 
 @container (max-width: 38rem) {
-  lf-targeting {
-    padding: var(--sp-3);
-  }
-
   lf-targeting .lf-targeting-form-row,
   lf-targeting .lf-targeting-change-fields {
     align-items: stretch;

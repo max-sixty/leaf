@@ -124,7 +124,7 @@ def _current_anchor(
         from leaf.revisioning import activate_source
 
         activation = activate_source(page_dir, events)
-        if activation.error:
+        if activation.error and (quote or section or part):
             sys.exit(f"cannot use invalid index.html: {activation.error}")
         revision = require_revision(page_dir)
     if not (quote or section or part):

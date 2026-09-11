@@ -88,9 +88,9 @@ list. Add `--awaits` when the reply's prose asks the reader to answer:
 leaf reply <page> --awaits --text "Which store should own it?"
 ```
 
-To add an agent-initiated turn to a conversation that currently owes no reply, use
-`--initiates` instead of `--for`. Leaf refuses it while any event in that conversation
-has a standing reply obligation.
+To add an agent-initiated turn to a conversation that currently owes no reply, name the
+thread with `--to <message-id>` and use `--initiates` instead of `--for`. Leaf refuses
+it while any event in that conversation has a standing reply obligation.
 
 A widget whose registry entry declares a local `x-awaits` or
 `x-request.ask` already joins the page's Ask list and keeps its thread "On you"

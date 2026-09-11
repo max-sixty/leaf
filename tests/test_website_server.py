@@ -1205,6 +1205,39 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
     ] == [comment["id"]]
 
 
+def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    website_server.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+    [delivery] = website_server.accept_codex_delivery("hosted-thread")
+    (page_dir / "index.html").write_text("<main>unfinished")
+
+    with pytest.raises(ValueError):
+        website_server.WebsiteCodexHost("codex")._finish_turn(
+            page_dir,
+            "hosted-thread",
+            delivery["turn"],
+            {"id": "app-server-turn", "status": "completed", "error": None},
+        )
+
+    claim = website_server.page_claim(page_dir)
+    assert claim["turn"] == delivery["turn"]
+    assert claim["turn_closed"] is not None
+    assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
+    assert [
+        obligation["event"]
+        for obligation in website_server.full_state(page_dir, read_events(page_dir))[
+            "activity"
+        ]["obligations"]
+    ] == [comment["id"]]
+
+
 def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     comment = append_event(
         page_dir,

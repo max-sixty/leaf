@@ -122,6 +122,23 @@ def test_a_quote_crosses_an_upgraded_verbatim_wrapper(page_dir):
     assert anchor["section"] == "plan"
 
 
+def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_dir):
+    """A general comment captures no source, so an unfinished edit cannot block it."""
+    revision = files_model.latest_revision(page_dir)
+    (page_dir / "index.html").write_text("<main>unfinished")
+
+    result = comment(page_dir, "--text", "What should change?")
+
+    assert result.exit_code == 0, result.output
+    event = json.loads(result.output)
+    assert event["revision"] == revision
+    assert "anchor" not in event
+
+    anchored = comment(page_dir, "--quote", "Plan", "--text", "Change this")
+    assert anchored.exit_code != 0
+    assert "cannot use invalid index.html" in anchored.output
+
+
 def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries():
     registry = {
         "lf-shell": {"x-upgrade": True, "x-verbatim": True},

@@ -791,43 +791,6 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     ).to_be_visible()
     page.keyboard.press("Escape")
 
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    reference = page.get_by_role("dialog", name="Command reference")
-    expect(reference).to_be_visible()
-    resized(page, 320, 900)
-    operation = reference.locator("tr").filter(
-        has_text="Draw anywhere on the page, then send or add words"
-    )
-    geometry = operation.evaluate(
-        """row => {
-          const key = row.querySelector('td:first-child kbd');
-          const keyBox = key.getBoundingClientRect();
-          const action = row.cells[1];
-          const actionBox = action.getBoundingClientRect();
-          const range = document.createRange(), broken = [];
-          const walker = document.createTreeWalker(action, NodeFilter.SHOW_TEXT);
-          for (let node = walker.nextNode(); node; node = walker.nextNode())
-            for (const match of node.textContent.matchAll(/[A-Za-z]+/g)) {
-              range.setStart(node, match.index);
-              range.setEnd(node, match.index + match[0].length);
-              if (new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size > 1)
-                broken.push(match[0]);
-            }
-          return {
-            broken,
-            keyFits: key.scrollWidth <= key.clientWidth && key.scrollHeight <= key.clientHeight,
-            keyRight: keyBox.right,
-            actionLeft: actionBox.left,
-          };
-        }"""
-    )
-    assert geometry["keyFits"], geometry
-    assert geometry["keyRight"] <= geometry["actionLeft"], geometry
-    assert geometry["broken"] == [], geometry
-    resized(page, 1600, 900)
-    page.keyboard.press("Escape")
-
     page.locator(".lf-others").click()
     expect(page.locator(".lf-others-panel")).to_be_visible()
     expect(page.locator("a.lf-others-row")).to_contain_text("A second Leaf page")
@@ -988,6 +951,43 @@ def test_command_hub_exercises_request_failure_retry_and_success(browser, serve)
     restart = operations.get_by_role(
         "button", name="Restart with a fresh worker", exact=True
     )
+
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.get_by_role("dialog", name="Command reference")
+    expect(reference).to_be_visible()
+    resized(page, 320, 900)
+    operation = reference.locator("tr").filter(has_text="Restart with a fresh worker")
+    geometry = operation.evaluate(
+        """row => {
+          const key = row.querySelector('td:first-child kbd');
+          const keyBox = key.getBoundingClientRect();
+          const action = row.cells[1];
+          const actionBox = action.getBoundingClientRect();
+          const range = document.createRange(), broken = [];
+          const walker = document.createTreeWalker(action, NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode())
+            for (const match of node.textContent.matchAll(/[A-Za-z]+/g)) {
+              range.setStart(node, match.index);
+              range.setEnd(node, match.index + match[0].length);
+              if (new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size > 1)
+                broken.push(match[0]);
+            }
+          return {
+            broken,
+            keyClass: key.parentElement.className,
+            keyFits: key.scrollWidth <= key.clientWidth && key.scrollHeight <= key.clientHeight,
+            keyRight: keyBox.right,
+            actionLeft: actionBox.left,
+          };
+        }"""
+    )
+    assert "lf-key-label" in geometry["keyClass"], geometry
+    assert geometry["keyFits"], geometry
+    assert geometry["keyRight"] <= geometry["actionLeft"], geometry
+    assert geometry["broken"] == [], geometry
+    page.keyboard.press("Escape")
+    resized(page, 1280, 900)
 
     with sending(page, "the restart request"):
         restart.click()

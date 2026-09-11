@@ -225,7 +225,7 @@
   background: var(--lf-agent-tint, var(--chip));
 }
 .lf-margin-entry[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
-  border-color: var(--lf-agent-color, var(--accent));
+  border-color: var(--accent);
 }
 .lf-margin-entry:is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring); --lf-here-ring: margin-entry; outline-offset: 1px;
@@ -234,33 +234,26 @@
 .lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
 }
-/* Agent ownership colors the semantic carrier without changing its glyph or action.
-   The inset working ring leaves the keyboard focus outline independent. */
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="picked_up"] {
-  --lf-agent-color: var(--accent);
-  --lf-agent-tint: var(--chip);
+/* Pickup colors the carrier's glyph; active work colors its interior. The ordinary
+   contour continues to communicate the entry's behavior. */
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="picked_up"]
+  > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
+  color: var(--accent);
 }
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="active"] {
-  --lf-agent-color: var(--ok-ink);
   --lf-agent-tint: var(--ok-tint);
-  --lf-agent-stage-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--ok-ink);
-  box-shadow: var(--lf-agent-stage-shadow);
-}
-:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase] {
-  color: var(--lf-agent-color); border-color: var(--lf-agent-color);
   background: var(--lf-agent-tint);
 }
 .lf-margin-entry[data-lf-agent-phase="active"][data-lf-behavior="action"] {
-  --lf-agent-stage-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--ok-ink),
-    0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+  --lf-agent-stage-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] {
   animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out var(--lf-agent-arrival-delay, 0ms) 1;
 }
 @keyframes lf-runtime-4f3c2a8d-agent-work-arrival {
-  0% { box-shadow: var(--lf-agent-stage-shadow), 0 0 0 0 color-mix(in srgb, var(--ok-ink) 42%, transparent); }
-  58% { box-shadow: var(--lf-agent-stage-shadow), 0 0 0 7px color-mix(in srgb, var(--ok-ink) 16%, transparent); }
-  100% { box-shadow: var(--lf-agent-stage-shadow), 0 0 0 10px transparent; }
+  0% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 0 color-mix(in srgb, var(--ok-ink) 42%, transparent); }
+  58% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 7px color-mix(in srgb, var(--ok-ink) 16%, transparent); }
+  100% { box-shadow: var(--lf-agent-stage-shadow, 0 0 0 0 transparent), 0 0 0 10px transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
   :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] { animation: none; }

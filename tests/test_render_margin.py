@@ -368,9 +368,8 @@ HEARTBEAT_PAGES = (
     # run for those are watched nowhere else: a reading option under an entry holding
     # several readings, and the readings whose move is made, which wear the `status`
     # behavior on a span seat rather than a button. Two of its rows stand where they
-    # would overlap, so the push measurement is read here and nowhere else. Its crowded
-    # rows also exercise posture changes; docked rows need no absolute placement or
-    # rail re-read.
+    # would overlap, so the push measurement is read here and nowhere else. Its docked
+    # rows exercise the rail re-read; none changes posture during an unchanged refresh.
     pytest.param(
         FEATURE_GALLERY,
         {
@@ -378,7 +377,7 @@ HEARTBEAT_PAGES = (
             ".lf-margin-reading-option": 1,
             '.lf-margin-entry[data-lf-behavior="status"]': 2,
         },
-        {"row posture", "row push", "fold rule"},
+        {"rail width", "row push", "fold rule"},
         id="gallery",
     ),
 )
@@ -1210,16 +1209,26 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
     fallback = specimen("activity fallback")
     expect(not_held).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
     expect(picked_up).to_have_attribute("data-lf-agent-phase", "picked_up")
-    expect(picked_up).to_have_css("border-top-color", token_colour(page, "--accent"))
-    expect(picked_up).to_have_css("box-shadow", "none")
-    expect(picked_up.locator(".lf-margin-entry-icon")).to_have_attribute(
-        "data-lf-icon", "comment"
+    expect(picked_up).to_have_css(
+        "border-top-color",
+        not_held.evaluate("node => getComputedStyle(node).borderTopColor"),
     )
+    expect(picked_up).to_have_css(
+        "background-color",
+        not_held.evaluate("node => getComputedStyle(node).backgroundColor"),
+    )
+    expect(picked_up).to_have_css("box-shadow", "none")
+    picked_up_icon = picked_up.locator(".lf-margin-entry-icon")
+    expect(picked_up_icon).to_have_attribute("data-lf-icon", "comment")
+    expect(picked_up_icon).to_have_css("color", token_colour(page, "--accent"))
     for control in (working, fallback):
         expect(control).to_have_attribute("data-lf-agent-phase", "active")
-        expect(control).to_have_css("border-top-color", token_colour(page, "--ok-ink"))
+        expect(control).to_have_css(
+            "border-top-color",
+            not_held.evaluate("node => getComputedStyle(node).borderTopColor"),
+        )
         expect(control).to_have_css("background-color", token_colour(page, "--ok-tint"))
-        assert "inset" in control.evaluate("node => getComputedStyle(node).boxShadow")
+        expect(control).to_have_css("box-shadow", "none")
     expect(working.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "comment"
     )
@@ -1386,7 +1395,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     )
     expect(undo_button).not_to_have_attribute("data-lf-agent-arrival", re.compile(".*"))
     working_shadow = undo_button.evaluate("node => getComputedStyle(node).boxShadow")
-    assert "inset" in working_shadow and working_shadow.endswith(action_shadow), (
+    assert working_shadow == action_shadow, (
         "agent ownership erased the action's raised shadow",
         action_shadow,
         working_shadow,
@@ -2688,7 +2697,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
 
 @pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
 def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_motion):
-    """Pickup and work recolor the thread's retained carrier in both map projections.
+    """Pickup and work decorate the thread's retained carrier in both map projections.
 
     A second thread at the same target supplies the aggregation contrast: working
     outranks picked up without growing another margin seat or changing the press.
@@ -2720,12 +2729,16 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     marker = cluster.locator(":scope > .lf-margin-marker")
     expect(marker).to_have_attribute("data-lf-kinds", "comment")
     marker.evaluate("node => node.dataset.identityProbe = 'retained'")
-    initial = marker.evaluate("node => getComputedStyle(node).borderTopColor")
+    initial = marker.evaluate("""node => {
+      const style = getComputedStyle(node);
+      return {border: style.borderTopColor, background: style.backgroundColor,
+        icon: getComputedStyle(node.querySelector(':scope > .lf-margin-entry-icon')).color};
+    }""")
     colors = page.evaluate("""() => {
       const probe = document.createElement('span');
       document.body.append(probe);
       const result = {};
-      for (const name of ['--accent', '--ok-ink']) {
+      for (const name of ['--accent', '--ok-ink', '--ok-tint']) {
         probe.style.color = `var(${name})`;
         result[name] = getComputedStyle(probe).color;
       }
@@ -2737,10 +2750,15 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
         session_model.record_pickup(transaction, roots)
     told(page)
     expect(marker).to_have_attribute("data-lf-agent-phase", "picked_up")
-    picked_up = marker.evaluate("node => getComputedStyle(node).borderTopColor")
-    assert picked_up == colors["--accent"] and picked_up != initial, (
-        "pickup did not recolor the Thread control blue"
-    )
+    picked_up = marker.evaluate("""node => {
+      const style = getComputedStyle(node);
+      return {border: style.borderTopColor, background: style.backgroundColor,
+        icon: getComputedStyle(node.querySelector(':scope > .lf-margin-entry-icon')).color};
+    }""")
+    assert picked_up == {
+        **initial,
+        "icon": colors["--accent"],
+    }, "pickup did not color only the Thread icon blue"
     page.evaluate("""() => {
       window.agentArrivals = [];
       window.agentArrivalEnds = 0;
@@ -2770,10 +2788,15 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     assert claimed.exit_code == 0, claimed.output
     told(page)
     expect(marker).to_have_attribute("data-lf-agent-phase", "active")
-    working = marker.evaluate("node => getComputedStyle(node).borderTopColor")
-    assert working == colors["--ok-ink"] and working != picked_up, (
-        "work did not change pickup blue to working green"
-    )
+    working = marker.evaluate("""node => {
+      const style = getComputedStyle(node);
+      return {border: style.borderTopColor, background: style.backgroundColor,
+        icon: getComputedStyle(node.querySelector(':scope > .lf-margin-entry-icon')).color};
+    }""")
+    assert working == {
+        **initial,
+        "background": colors["--ok-tint"],
+    }, "work did not color only the Thread control interior green"
     expect(marker).to_have_attribute("data-identity-probe", "retained")
     expect(marker.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "comment"
@@ -2841,7 +2864,12 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(active.locator(".lf-margin-kind")).to_have_attribute(
         "data-lf-icon", "comment"
     )
-    expect(dialog.locator('[data-lf-agent-phase="picked_up"]')).to_have_count(1)
+    expect(active).to_have_css("background-color", colors["--ok-tint"])
+    picked_up_row = dialog.locator('[data-lf-agent-phase="picked_up"]')
+    expect(picked_up_row).to_have_count(1)
+    expect(picked_up_row.locator(".lf-margin-kind")).to_have_css(
+        "color", colors["--accent"]
+    )
     page.keyboard.press("Escape")
     # Two contributed actions fold the Thread control behind More. The visible
     # primary must retain ownership, and its own accessible description survives it.
@@ -2869,7 +2897,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(carrier).to_have_attribute(
         "aria-description", f"Edit the proposed bracket · Working · {detail}"
     )
-    expect(carrier).to_have_css("border-top-color", colors["--ok-ink"])
+    expect(carrier).to_have_css("background-color", colors["--ok-tint"])
+    expect(carrier).to_have_css("box-shadow", "none")
     expect(carrier).to_have_attribute("title", f"Edit · Working · {detail}")
     assert page.evaluate("window.agentArrivals.length") == expected_arrivals, (
         "moving the same work claim to another semantic carrier replayed its arrival"
@@ -3068,6 +3097,9 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
                 borderStyle: style.borderTopStyle,
                 animation: style.animationName,
                 ink: style.color,
+                iconInk: getComputedStyle(
+                  node.querySelector(':scope > .lf-margin-entry-icon')
+                ).color,
                 opacity: style.opacity,
                 width: style.width,
                 wordOpacity: wordStyle.opacity,
@@ -3120,7 +3152,6 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         current = face(control)
         expect(control).to_have_attribute("data-lf-state", "idle")
         pickup_ink = resolved_color("--accent")
-        pickup_paper = resolved_color("--chip")
         assert current == {
             "tag": "SPAN",
             "offer": "",
@@ -3131,11 +3162,12 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             "context": context,
             "tabIndex": -1,
             "cursor": "default",
-            "background": pickup_paper if phase == "Picked up" else expected_paper,
-            "border": pickup_ink if phase == "Picked up" else expected_rule,
+            "background": expected_paper,
+            "border": expected_rule,
             "borderStyle": "solid",
             "animation": "none",
-            "ink": pickup_ink if phase == "Picked up" else expected_ink,
+            "ink": expected_ink,
+            "iconInk": pickup_ink if phase == "Picked up" else expected_ink,
             "opacity": "1",
             "width": "32px",
             "wordOpacity": "0",
@@ -3148,7 +3180,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         expect(page.get_by_role("status", name=named)).to_have_count(1)
         # Hover reveals the full-strength label without dimming or lifting the margin entry.
         resting_surface = {
-            key: current[key] for key in ("background", "border", "ink", "opacity")
+            key: current[key]
+            for key in ("background", "border", "ink", "iconInk", "opacity")
         }
         control.hover()
         trace_box = page.locator('.lf-target-trace[data-for="jobs"]')
@@ -3159,7 +3192,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         expect(label).to_have_css("opacity", "1")
         hovered = face(control)
         assert {
-            key: hovered[key] for key in ("background", "border", "ink", "opacity")
+            key: hovered[key]
+            for key in ("background", "border", "ink", "iconInk", "opacity")
         } == resting_surface
         assert hovered["wordOpacity"] == "1"
         assert hovered["wordPosition"] == "absolute"

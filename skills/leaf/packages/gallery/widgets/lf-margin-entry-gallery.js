@@ -85,7 +85,7 @@ const GROUPS = [
       },
       {
         name: "Picked up",
-        detail: "Thread · single blue ring",
+        detail: "Thread · blue icon",
         icon: "comment",
         behavior: "disclosure",
         rank: "reading",
@@ -93,7 +93,7 @@ const GROUPS = [
       },
       {
         name: "Working",
-        detail: "Thread · green double ring",
+        detail: "Thread · green interior",
         icon: "comment",
         behavior: "disclosure",
         rank: "reading",

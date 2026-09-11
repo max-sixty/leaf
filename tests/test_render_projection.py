@@ -28,6 +28,7 @@ from render_support import (
     COMMAND_HUB_EXAMPLE,
     COMMAND_HUB_PACKAGE,
     COMMAND_HUB_PAGE,
+    EXAMPLE_MEDIA,
     IMPORTER_CARD,
     KEPT_SECTION_PAGE,
     LIVE_KEYS_V1,
@@ -652,6 +653,189 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
+    assert errors == []
+    page.close()
+
+
+def test_visual_review_guides_one_typed_still_run(browser, serve):
+    authored = leaf_page(
+        "visual review run",
+        """
+<h1 id="title">Visual review</h1>
+<p id="claim">The candidate makes run status visible without changing navigation.</p>
+<lf-visual-review id="visual-run" source="docs-run"></lf-visual-review>
+""",
+    )
+    media = {
+        "/media/051bee487bfb5d13.png": (
+            EXAMPLE_MEDIA / "051bee487bfb5d13.png"
+        ).read_bytes(),
+        "/media/a99a1b63048502d0.png": (
+            EXAMPLE_MEDIA / "a99a1b63048502d0.png"
+        ).read_bytes(),
+    }
+    url = live_url(serve(authored, packages=("visual-review",), media=media))
+    capture = {
+        "browser": "Chrome",
+        "browserVersion": "140.0.7339.80",
+        "viewport": {"width": 1280, "height": 900},
+        "deviceScaleFactor": 1,
+        "colorScheme": "light",
+        "locale": "en-US",
+        "timezone": "America/Los_Angeles",
+    }
+    record = {
+        "title": "Docs navigation · candidate 7b921ac",
+        "observedAt": "2026-09-10T10:30:00-07:00",
+        "base": {"revision": "4c118aa", "url": "https://base.example/rev/"},
+        "candidate": {
+            "revision": "7b921ac",
+            "url": "https://candidate.example/rev",
+        },
+        "cases": [
+            {
+                "id": "run-list",
+                "title": "Run list status",
+                "path": "/runs?owner=max",
+                "action": "Open the run list.",
+                "result": "Each row exposes its current status.",
+                "classification": "changed",
+                "capture": capture,
+                "before": "/media/051bee487bfb5d13.png",
+                "after": "/media/a99a1b63048502d0.png",
+                "traceUrl": "https://trace.example/runs/17",
+            },
+            {
+                "id": "run-detail",
+                "title": "Run detail navigation",
+                "path": "/runs/17",
+                "action": "Open the first run.",
+                "result": "The detail link and surrounding layout stay stable.",
+                "classification": "clean",
+                "capture": capture,
+                "before": "/media/051bee487bfb5d13.png",
+                "after": "/media/a99a1b63048502d0.png",
+            },
+        ],
+    }
+    data_model.cmd_data_set(serve.page_dir, "docs-run", record, "initial visual run")
+    source = serve.page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "</main>",
+            '<lf-visual-review id="visual-pinned" source="docs-run" '
+            'snapshot="1"></lf-visual-review></main>',
+        )
+    )
+    page, errors = open_page(browser, url)
+    case_thread = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 2,
+            "text": "Keep this note beside the run-list evidence.",
+            "anchor": {
+                "section": "visual-run",
+                "datum": "run-list",
+                "source": "docs-run",
+                "data_revision": 1,
+            },
+        },
+    )
+    told(page)
+    widget = page.locator("#visual-run")
+    cases = widget.locator(".lf-vr-case")
+    first = cases.filter(has=page.locator(".lf-vr-case-title", has_text="Run list"))
+    second = cases.filter(has=page.locator(".lf-vr-case-title", has_text="Run detail"))
+
+    expect(widget.locator(".lf-vr-title")).to_have_text(record["title"])
+    expect(widget.locator(".lf-vr-case-tab")).to_have_count(2)
+    expect(first).to_be_visible()
+    expect(second).to_be_hidden()
+    expect(first).to_have_attribute("data-lf-projection", "visual-run")
+    expect(first).to_have_attribute("data-lf-datum", "run-list")
+    origin = first.evaluate("node => JSON.parse(node.dataset.lfOrigin)")
+    assert origin["source"] == "docs-run"
+    assert origin["path"] == ["cases", 0]
+    expect(first.locator("lf-shot")).to_have_attribute(
+        "before", "/media/051bee487bfb5d13.png"
+    )
+    expect(first.locator("lf-shot")).to_have_attribute(
+        "after", "/media/a99a1b63048502d0.png"
+    )
+    expect(first.locator("lf-shot img")).to_have_count(2)
+    expect(
+        first.locator(f'.lf-conversation-thread[data-thread="{case_thread["id"]}"]')
+    ).to_have_count(1)
+    expect(first.get_by_role("link", name="Open base")).to_have_attribute(
+        "href", "https://base.example/rev/runs?owner=max"
+    )
+    expect(first.get_by_role("link", name="Open candidate")).to_have_attribute(
+        "href", "https://candidate.example/rev/runs?owner=max"
+    )
+    expect(first.get_by_role("link", name="Open trace")).to_have_attribute(
+        "href", "https://trace.example/runs/17"
+    )
+    expect(first.locator(".lf-vr-provenance")).to_contain_text(
+        "Chrome 140.0.7339.80 · 1280 × 900 · 1× · light · en-US"
+    )
+
+    with sending(page, "the first visual disposition"):
+        first.get_by_role("button", name="Looks right").click()
+    expect(first).to_have_attribute("data-disposition", "looks-right")
+    expect(widget.locator(".lf-vr-foot")).to_have_text("1 of 2 cases reviewed")
+
+    widget.locator('.lf-vr-case-tab[data-case="run-list"]').focus()
+    page.keyboard.press("ArrowDown")
+    expect(first).to_be_hidden()
+    expect(second).to_be_visible()
+    expect(second.locator(".lf-vr-trace-link")).to_be_hidden()
+    expect(widget.locator('.lf-vr-case-tab[data-case="run-detail"]')).to_be_focused()
+
+    inserted_case = record["cases"][1] | {
+        "id": "run-middle",
+        "title": "Inserted run case",
+        "path": "/runs/middle",
+    }
+    changed = record | {
+        "cases": [
+            record["cases"][0],
+            inserted_case,
+            record["cases"][1]
+            | {"result": "The detail route remains stable after the rerun."},
+        ]
+    }
+    original = second.element_handle()
+    data_model.cmd_data_set(serve.page_dir, "docs-run", changed)
+    told(page)
+    expect(second.locator(".lf-vr-result")).to_have_text(
+        "The detail route remains stable after the rerun."
+    )
+    expect(
+        page.locator("#visual-pinned .lf-vr-result").filter(
+            has_text="The detail link and surrounding layout stay stable."
+        )
+    ).to_have_count(1)
+    assert original.evaluate(
+        "node => node === document.querySelector('.lf-vr-case[data-lf-datum=\"run-detail\"]')"
+    )
+    expect(second).to_be_visible()
+    expect(first).to_have_attribute("data-disposition", "looks-right")
+    widget.locator('.lf-vr-case-tab[data-case="run-list"]').click()
+    page.keyboard.press("ArrowDown")
+    expect(widget.locator('.lf-vr-case-tab[data-case="run-middle"]')).to_be_focused()
+
+    resized(page, 390, 900)
+    assert page.evaluate(
+        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+    page.emulate_media(media="print")
+    expect(first).to_be_visible()
+    expect(second).to_be_visible()
+    expect(widget.locator(".lf-vr-queue-region")).to_be_visible()
+    expect(widget.locator(".lf-vr-dispositions").first).to_be_hidden()
+    page.emulate_media(media="screen")
     assert errors == []
     page.close()
 

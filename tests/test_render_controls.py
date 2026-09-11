@@ -281,7 +281,7 @@ CONTROL_ARCHETYPES = (
         # treatment changes in place. Pressing Side by side exercises both states while
         # its Flip and Opacity neighbours stay under the reader's pointer.
         "name": "visual-review-inspection",
-        "example": VISUAL_REVIEW_GALLERY,
+        "source": VISUAL_REVIEW_GALLERY,
         "coverage": ".lf-vr-inspector-group > .lf-vr-inspector-button",
         "target": '.lf-vr-mode-group > [data-mode="side"]',
     },

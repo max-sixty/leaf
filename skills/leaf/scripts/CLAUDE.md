@@ -69,17 +69,14 @@ Do not put domain logic into `cli.py` or branch across these owners there.
 
 Read the reference that owns the boundary before changing it:
 
-- `../references/internals/page-storage.md` for page files and atomic state;
-- `../references/internals/events.md` for event shapes, conversations, undo,
-  edits, and reactions;
-- `../references/internals/layer-registry.md` for composition, vendoring, and
-  layer generations;
-- `../references/internals/session-lifetime.md` for claims, watchers, and
-  service lifetime;
-- `../references/internals/validation.md` for static checks, browser checks,
-  parsed source, and file-side passages.
-- `../references/internals/mcp-app.md` for MCP tools, resource metadata, the
-  process-scoped page server, snapshot fallback, and Codex return carrier.
+- `leaf/page-storage.md` for page files and atomic state;
+- `leaf/events.md` for event shapes, conversations, undo, edits, and reactions;
+- `leaf/layer-registry.md` for composition, vendoring, and layer generations;
+- `leaf/session-lifetime.md` for claims, watchers, and service lifetime;
+- `leaf/validation.md` for static checks, browser checks, parsed source, and file-side
+  passages;
+- `leaf/mcp-app.md` for MCP tools, resource metadata, the process-scoped page server,
+  snapshot fallback, and Codex return carrier.
 
 `../references/packages.md` owns the public package contract. The browser's
 parallel projection, passage, registry, and render rules live in

@@ -313,11 +313,25 @@ export function createMarginProjection({
   );
   previewClose.append(iconElement("cross", "lf-action-icon"));
   previewClose.type = "button";
-  previewClose.setAttribute("aria-label", "Close thread");
-  previewClose.title = "Close thread (Esc)";
+  previewClose.setAttribute("aria-label", "Dismiss conversation view");
+  previewClose.title = "Dismiss conversation view (Esc)";
   previewHead.append(previewTitle, previewClose);
+  const previewNav = el("div", "lf-margin-preview-nav");
+  const previewPosition = el("span", "lf-margin-preview-position");
+  const previewPrevious = offer(
+    "button",
+    "lf-btn lf-icon-action lf-margin-preview-step",
+  );
+  previewPrevious.append(iconElement("previous", "lf-action-icon"));
+  previewPrevious.setAttribute("aria-label", "Previous conversation");
+  previewPrevious.title = "Previous conversation";
+  const previewNext = offer("button", "lf-btn lf-icon-action lf-margin-preview-step");
+  previewNext.append(iconElement("next", "lf-action-icon"));
+  previewNext.setAttribute("aria-label", "Next conversation");
+  previewNext.title = "Next conversation";
+  previewNav.append(previewPosition, previewPrevious, previewNext);
   const previewList = el("div", "lf-margin-preview-list");
-  preview.append(previewHead, previewList);
+  preview.append(previewHead, previewNav, previewList);
   let threadTransitionEpoch = 0;
   let threadTransitionMotions = [];
 
@@ -474,6 +488,7 @@ export function createMarginProjection({
   let optionsOrdinal = 0;
   let pageInventory = [];
   let previewEntry = null;
+  let previewThreadItem = null;
   let previewMarginEntry = null;
   let transferThreadFocus = false;
   let previewShowing = false;
@@ -2445,26 +2460,33 @@ export function createMarginProjection({
     paintKeys();
   }
 
-  function buildThreadCard(entry) {
+  function buildThreadCard(entry, requestedItem = null) {
     const focusedNode = preview.contains(document.activeElement)
       ? document.activeElement.closest?.("[data-lf-margin-entry]")
       : null;
     const focusedItem = focusedNode?.dataset.lfMarginEntry ?? null;
     const threadItems = entry.items.filter((item) => item.kind === "comment");
+    const wanted = requestedItem ?? previewThreadItem ?? focusedItem;
+    const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
+    previewThreadItem = selected?.id ?? null;
     const targetHeading = entry.target?.querySelector(":scope > strong")?.textContent;
     // A target with a heading is named by it. One without — an aside, a paragraph —
-    // and holding one thread is headed by the passage that thread quotes, as the panel
-    // heads it: a card headed "aside · The fallback cookie is read-only…" over a comment
-    // on the aside's last sentence was a third name for one thread, and the least exact.
-    const quoted =
-      threadItems.length === 1 && threadItems[0].thread?.anchor
-        ? anchorLabel(threadItems[0].thread.anchor, threadItems[0].thread.root.about)
-        : null;
+    // is headed by the passage the selected thread quotes, as the panel heads it: a card
+    // headed "aside · The fallback cookie is read-only…" over a comment on the aside's
+    // last sentence was a third name for one thread, and the least exact.
+    const quoted = selected?.thread?.anchor
+      ? anchorLabel(selected.thread.anchor, selected.thread.root.about)
+      : null;
     const title = trimmed(targetHeading || quoted || entry.title, 72);
     keeps(preview, "data-lf-thread", "");
-    keeps(preview, "aria-label", `Thread for ${title}`);
+    keeps(preview, "aria-label", `Conversation for ${title}`);
     previewTitle.textContent = title;
-    const nodes = threadItems.map(previewItemNode);
+    previewNav.hidden = threadItems.length < 2;
+    const selectedIndex = Math.max(0, threadItems.indexOf(selected));
+    previewPosition.textContent = `${selectedIndex + 1} of ${threadItems.length}`;
+    previewPrevious.disabled = selectedIndex === 0;
+    previewNext.disabled = selectedIndex === threadItems.length - 1;
+    const nodes = selected ? [previewItemNode(selected)] : [];
     const keep = new Set(nodes);
     for (const child of [...previewList.children]) if (!keep.has(child)) child.remove();
     let cursor = previewList.firstChild;
@@ -2478,12 +2500,26 @@ export function createMarginProjection({
       ].find((candidate) => candidate.dataset.lfMarginEntry === focusedItem);
       const destination = replacement?.matches("button, textarea:not([disabled])")
         ? replacement
-        : (replacement?.querySelector("textarea:not([disabled])") ??
-          replacement?.querySelector("button") ??
+        : (replacement?.querySelector(".lf-conversation-thread") ??
+          previewList.querySelector(".lf-conversation-thread") ??
           previewClose);
       destination.focus({ preventScroll: true });
     }
     placeThreadPreview();
+  }
+
+  function stepPreviewThread(step) {
+    if (!previewEntry) return;
+    const threadItems = previewEntry.items.filter((item) => item.kind === "comment");
+    const current = threadItems.findIndex((item) => item.id === previewThreadItem);
+    const next = Math.max(0, Math.min(threadItems.length - 1, current + step));
+    if (next === current || !threadItems[next]) return;
+    buildThreadCard(previewEntry, threadItems[next].id);
+    const thread = previewList.querySelector(".lf-conversation-thread");
+    if (thread) {
+      thread.focus({ preventScroll: true });
+      revealConversation(thread, thread);
+    }
   }
 
   function previewItemNode(item) {
@@ -2534,13 +2570,13 @@ export function createMarginProjection({
     highlight(drawingOnly ? null : (entry?.target ?? null));
   }
 
-  function showPreview(entry, button, retry = true) {
+  function showPreview(entry, button, retry = true, threadItem = null) {
     if (!entry || designModeActive()) return;
     if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
     if (previewEntry && previewEntry.key !== entry.key) clearThreadTransition();
     previewEntry = entry;
     transferThreadCard(button);
-    buildThreadCard(entry);
+    buildThreadCard(entry, threadItem);
     // The open pseudo-class is not observable until the browser's show operation
     // completes, and another auto popover may still be closing in this rendering turn.
     if (!preview.matches(":popover-open") && !previewShowing) {
@@ -2586,13 +2622,13 @@ export function createMarginProjection({
     }
     pinnedKey = entry.key;
     const positioned = showPreview(entry, button);
-    if (previewList.querySelector("textarea"))
+    if (previewList.querySelector(".lf-conversation-thread"))
       deferThreadPreviewFocus(positioned, () => {
         if (previewEntry?.key !== entry.key) return;
-        const reply = previewList.querySelector("textarea");
-        if (!reply) return;
-        reply.focus({ preventScroll: true });
-        revealConversation(reply.closest(".lf-conversation-thread"), reply);
+        const thread = previewList.querySelector(".lf-conversation-thread");
+        if (!thread) return;
+        thread.focus({ preventScroll: true });
+        revealConversation(thread, thread);
       });
   }
 
@@ -2603,6 +2639,7 @@ export function createMarginProjection({
     forcedInlineKey = null;
     forcedInlineOptionsKey = null;
     previewEntry = null;
+    previewThreadItem = null;
     previewMarginEntry = null;
     previewFocusPending = null;
     answerThreadPreviewPosition(false);
@@ -2636,8 +2673,8 @@ export function createMarginProjection({
     )
       return {
         root: preview,
-        does: "Close the thread card",
-        says: "close thread",
+        does: "Dismiss the conversation view",
+        says: "dismiss conversation",
         out: () => closePreview(true),
       };
     const optionsHost = atFocus ? host : hosts.get(expandedOptionsKey);
@@ -2715,7 +2752,7 @@ export function createMarginProjection({
       return null;
     }
     pinnedKey = entry.key;
-    const initiallyPositioned = showPreview(entry, button);
+    const initiallyPositioned = showPreview(entry, button, true, itemId);
     const item = [...previewList.children].find(
       (candidate) => candidate.dataset.lfMarginEntry === itemId,
     );
@@ -2831,9 +2868,13 @@ export function createMarginProjection({
       if (!onPaper.matches) renderMargin.refresh();
     });
     previewClose.onclick = () => closePreview(true);
+    previewPrevious.onclick = () => stepPreviewThread(-1);
+    previewNext.onclick = () => stepPreviewThread(1);
     preview.addEventListener("focusin", keepThreadPreviewFocusVisible);
     preview.addEventListener("toggle", (event) => {
       if (event.newState !== "closed") return;
+      for (const reply of previewList.querySelectorAll("textarea"))
+        reply.lfCollapseReply?.();
       clearThreadTransition();
       if (!previewEntry) return;
       const button = previewMarginEntry;
@@ -2841,6 +2882,7 @@ export function createMarginProjection({
       forcedInlineKey = null;
       forcedInlineOptionsKey = null;
       previewEntry = null;
+      previewThreadItem = null;
       previewMarginEntry = null;
       previewFocusPending = null;
       answerThreadPreviewPosition(false);

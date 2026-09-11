@@ -1682,16 +1682,36 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       calc(100vh - var(--lf-banner-h) - 16px)); margin: 0; }
   .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
     gap: 8px; }
+  .lf-margin-preview[data-lf-thread] .lf-margin-preview-head {
+    align-items: flex-start; }
   .lf-page-map-head > strong { flex: 1; }
   .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
     line-height: 1.35; }
+  .lf-margin-preview[data-lf-thread] .lf-margin-preview-title {
+    padding-inline-end: calc(max(28px, var(--aim-floor)) + 4px); }
   .lf-margin-preview-close { flex: none; }
+  .lf-margin-preview-nav { display: flex; align-items: center; justify-content: flex-end;
+    gap: 4px; margin-top: 5px; color: var(--muted-2); font-size: var(--t-6); }
+  .lf-margin-preview-nav[hidden] { display: none; }
+  .lf-margin-preview-position { margin-inline-end: 2px; }
+  .lf-margin-preview-step { --lf-icon-action-hit: 28px; border: 0;
+    background: transparent; color: var(--muted); }
+  .lf-margin-preview-step:not(:disabled):hover { background: var(--chip);
+    color: var(--ink); }
   .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 10px; }
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
   .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
   .lf-margin-thread .lf-say { align-items: stretch; }
   .lf-margin-thread .lf-say textarea { min-width: 0; }
+  .lf-margin-preview[data-lf-thread] .lf-margin-thread-body > .lf-conversation-thread {
+    position: static; }
+  .lf-margin-preview[data-lf-thread] .lf-conversation-thread > .lf-thread-head {
+    inset-block-start: 12px;
+    inset-inline-end: calc(12px + max(28px, var(--aim-floor)) + 4px); }
+  .lf-margin-preview[data-lf-thread] .lf-conversation-thread:has(> .lf-thread-head) >
+      .lf-conversation-msg:first-of-type > .lf-conversation-head {
+    min-height: 0; padding-inline-end: 0; align-items: baseline; }
   .lf-page-map-action { width: 100%; min-width: 0;
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;

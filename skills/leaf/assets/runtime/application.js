@@ -257,7 +257,10 @@ export function mountApplication(dependencies) {
     refreshAnchorHover: dependencies.anchorPaint.refreshHover,
     repaintConversation: refreshConversation,
   };
-  const surfaceView = inlineView;
+  const surfaceView = {
+    ...inlineView,
+    composition: dependencies.compositionSurface,
+  };
 
   const margin = dependencies.createLivingMargin({
     panelIsOpen: dependencies.panelIsOpen,
@@ -413,6 +416,7 @@ export function mountApplication(dependencies) {
     registerSurface(owner, adapter, {
       invalidate: invalidateDom,
       closeReactionMode: dependencies.closeReactionMode,
+      composition: dependencies.compositionSurface,
     });
 
   application = {

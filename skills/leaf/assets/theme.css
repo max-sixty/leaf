@@ -2064,6 +2064,62 @@ html.lf-versioning::view-transition-new(root) {
           border-color: transparent; background: transparent; color: var(--muted); }
 .lf-compose-submit:is(:disabled, [aria-disabled="true"])::before {
           border: 0; background: transparent; }
+/* Core may seat its one response bar in a widget's exact-datum Thread outlet. The
+   widget supplies only the layout location; these rules carry the canonical composer
+   through the same shadow-theme slice as the Thread view around it. */
+.lf-fab-bar[data-lf-presentation="inline"] { display: inline-flex; position: static;
+          box-sizing: border-box; align-items: flex-end; gap: 4px; width: 100%;
+          max-width: 760px; white-space: nowrap; color: var(--ink);
+          font: var(--t-5)/var(--lf-ui-lh) var(--sans); }
+.lf-fab-bar[data-lf-presentation="inline"] *,
+.lf-fab-bar[data-lf-presentation="inline"] *::before,
+.lf-fab-bar[data-lf-presentation="inline"] *::after { box-sizing: inherit; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer { display: contents; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer
+          > :not(.lf-compose-field, .lf-composer-media) { display: none !important; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-compose-field { flex: 1 1 auto; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-response-control {
+          min-height: 32px; margin: 0; border: 1px solid var(--border-2);
+          border-radius: var(--r); background: var(--card); color: var(--ink-2);
+          font: inherit; line-height: 1.3; box-shadow: 0 2px 8px var(--shade); }
+.lf-fab-bar[data-lf-presentation="inline"] textarea.lf-fab-input {
+          display: block; width: 100%; min-width: 0; max-width: none; max-height: 50vh;
+          padding: 6px max(40px, calc(var(--aim-floor) + 12px)) 6px 12px;
+          resize: none; field-sizing: content; overflow-y: auto; white-space: pre-wrap; }
+.lf-fab-bar[data-lf-presentation="inline"] textarea.lf-fab-input:is(:focus, .lf-focus) {
+          outline: var(--here-ring); outline-offset: 0; border-color: transparent;
+          --lf-here-ring: inline-response; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-compose-submit {
+          inset-inline-end: 2px; inset-block-end: 2px; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-response-action {
+          min-width: 30px; padding-inline: 9px; display: inline-flex;
+          align-items: center; justify-content: center; gap: 0; white-space: nowrap;
+          cursor: pointer; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-response-action[hidden],
+.lf-fab-bar[data-lf-presentation="inline"]:not([data-lf-target-only]) > .lf-fab,
+.lf-fab-bar[data-lf-presentation="inline"]:not(.lf-response-open)
+          > .lf-response-options { display: none !important; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-response-action[data-lf-collapse]
+          > :is(.lf-response-action-space, .lf-response-action-label) {
+          display: none; }
+.lf-fab-bar[data-lf-presentation="inline"].lf-response-open { flex-wrap: wrap; }
+.lf-fab-bar[data-lf-presentation="inline"].lf-response-open
+          > .lf-response-more { display: none !important; }
+.lf-fab-bar[data-lf-presentation="inline"].lf-response-open
+          > .lf-response-options { display: inline-flex; align-items: center;
+          flex-wrap: wrap; gap: 4px; max-width: 100%; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media { display: flex;
+          flex: none; gap: 6px; max-width: 148px; padding: 0; overflow-x: auto; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media[hidden] {
+          display: none !important; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-item {
+          position: relative; flex: none; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-open {
+          width: 42px; height: 34px; overflow: hidden; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-open img {
+          display: block; width: 100%; height: 100%; object-fit: cover; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-remove {
+          position: absolute; top: -5px; right: -5px; }
 .lf-resolve.lf-icon-action { position: relative; flex: none; margin-inline-start: auto;
           border: 0; background: transparent; color: var(--ink);
           box-shadow: none; }

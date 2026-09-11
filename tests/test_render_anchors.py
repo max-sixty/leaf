@@ -4375,7 +4375,7 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
 
 
 def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
-    """The file header is a durable target before its patch is fetched or opened."""
+    """A file comment starts inline without fetching or opening its patch."""
     authored = leaf_page(
         "file comment",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
@@ -4411,18 +4411,17 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
 
     details = page.locator("lf-diff details").first
     file_row = page.locator("lf-diff .lf-diff-file").first
-    summary = details.locator("summary")
     expect(details).not_to_have_attribute("open", "")
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
     expect(file_row).to_have_attribute("data-lf-datum", '["app.py","file"]')
     expect(file_row).to_have_attribute("data-lf-datum-label", "app.py · file")
 
-    summary.hover(position={"x": 100, "y": 10})
-    page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_be_visible()
-    page.keyboard.up("Alt")
-    summary.click(modifiers=["Alt"])
+    page.get_by_role("button", name="Comment on app.py", exact=True).click()
     expect(details).not_to_have_attribute("open", "")
+    expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
+    outlet = page.locator("lf-diff .lf-diff-file-thread-outlet")
+    expect(outlet).to_have_count(1)
+    expect(outlet.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator("#lf-composer-quote")).to_contain_text("§ app.py · file")
     page.locator(".lf-fab-input").fill("Review this file as a whole.")
     page.keyboard.press("ControlOrMeta+Enter")
@@ -4439,6 +4438,11 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             "data_revision": 1,
         }
     ]
+    expect(outlet.locator(".lf-conversation-thread")).to_contain_text(
+        "Review this file as a whole."
+    )
+    expect(details).not_to_have_attribute("open", "")
+    expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     expect(page.locator(".lf-thread .lf-quote")).to_have_text("§ app.py · file")
@@ -4544,10 +4548,37 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(page.locator(".lf-live")).to_contain_text("Selected app.py · new line 2")
     page.keyboard.press("Escape")
 
-    added.click(modifiers=["Alt"])
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    page.locator(".lf-fab-input").fill("Review the whole added line.")
+    line_comment = page.get_by_role(
+        "button", name="Comment on app.py · new line 2", exact=True
+    )
+    added.hover()
+    expect(line_comment).to_be_visible()
+    line_comment.click()
+    composer_outlet = page.locator(
+        f"lf-diff .lf-diff-thread-outlet[data-lf-thread-datum='{new_key}']"
+    )
+    expect(composer_outlet.locator(".lf-fab-bar")).to_be_visible()
+    input_ = composer_outlet.locator(".lf-fab-input")
+    expect(input_).to_be_focused()
+    input_.fill("Review the whole added line.")
+    input_.evaluate("input => input.setSelectionRange(7, 16)")
+    page.evaluate("() => document.querySelector('#patch').threadSurface.update()")
+    expect(input_).to_be_focused()
+    assert input_.evaluate("input => [input.selectionStart, input.selectionEnd]") == [
+        7,
+        16,
+    ]
+    details.evaluate("element => { element.open = false; }")
+    expect(composer_outlet).to_have_count(0)
+    expect(page.locator(".lf-fab-input")).to_have_value("Review the whole added line.")
+    expect(page.locator(".lf-notice")).to_have_text("Draft kept — g D returns to it")
+    details.evaluate("element => { element.open = true; }")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+d")
+    expect(composer_outlet.locator(".lf-fab-input")).to_have_value(
+        "Review the whole added line."
+    )
+    expect(composer_outlet.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     inline = page.locator("lf-diff .lf-diff-thread-outlet")

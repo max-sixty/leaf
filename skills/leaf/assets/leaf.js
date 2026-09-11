@@ -318,6 +318,17 @@ app = mountApplication({
     drawing: pendingDrawing,
   }),
   activeActionAnchor: () => responseSurface.fabAnchorAt(),
+  compositionSurface: {
+    active: () =>
+      composerOpen && responseSurface?.fabAnchorAt()
+        ? { anchor: responseSurface.fabAnchorAt() }
+        : null,
+    node: () => fabBar,
+    open: (...args) => responseSurface.commentOnTarget(...args),
+    outlet: () => responseSurface?.fabInlineOutlet() ?? null,
+    seat: (...args) => responseSurface.seatFab(...args),
+    restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
+  },
   landInConversation: (...args) => landing.landInConversation(...args),
   showThread: (...args) => landing.showThread(...args),
   setPanel: (...args) => panelWorkspace.setPanel(...args),
@@ -461,6 +472,7 @@ responseSurface = createResponseSurface({
   openPageThread: app.margin.openPageThread,
   isDrawing: () => drawing.isDrawing(),
   refreshConversation: app.refreshConversation,
+  responseHome: chromeRoot,
 });
 reactions = createReactionController({
   marginElementChoices: app.margin.marginElementChoices,

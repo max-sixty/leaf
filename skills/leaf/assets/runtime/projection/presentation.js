@@ -178,8 +178,24 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
   // Every action reaches the send door after its widget has painted the semantic
   // outcome. Give recorded and recordless actions the same local coordinate so later
   // gestures and all projection consumers read that outcome before delivery settles.
+  // An exact undo uses the target's same entry rather than a reverse action or DOM
+  // snapshot; the pure fold derives whichever prior value still stands.
   function stageOptimistic(entry) {
     const e = entry.event;
+    if (e.kind === "undo") {
+      const target =
+        entry.undoTarget?.projection ?? currentProjection().classified.get(e.undoes);
+      if (!target || target.e.kind !== "action") return false;
+      entry.projection = {
+        kind: "undo",
+        target,
+        targetEntry: entry.undoTarget,
+        coordinate: target.coordinate,
+        localOrder: entry.order,
+      };
+      committedWidgets.delete(target.e.widget);
+      return true;
+    }
     if (e.kind !== "action") return false;
     const widget = elementById(e.widget);
     const spec = widget && registry[widget.localName]?.["x-state"]?.[e.action];

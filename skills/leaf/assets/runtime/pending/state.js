@@ -1,7 +1,9 @@
 /* The one ordered ledger of browser gestures not yet accounted by an applied state.
 
    This module owns records only. Delivery and presentation receive the ledger from the
-   application composition root; readers receive snapshots and narrow queries. */
+   application composition root; readers receive snapshots and narrow queries. An undo
+   may retain the exact pending action record it depends on, so serialized delivery can
+   replace that local identity with the accepted event id or discard both on refusal. */
 import {
   conversationForAttempt,
   isConversationEvent,
@@ -18,11 +20,13 @@ export function createPendingLedger({ newAttempt, now }) {
     if (index >= 0) entries.splice(index, 1);
   };
 
-  const withdrawChildren = (entry) => {
+  const withdrawDependents = (entry) => {
     const parent = entry.message?.id;
-    if (!parent) return;
     for (const child of [...entries])
-      if (child !== entry && child.event.parent === parent) {
+      if (
+        child !== entry &&
+        ((parent && child.event.parent === parent) || child.undoTarget === entry)
+      ) {
         remove(child);
         child.resolve(null);
       }
@@ -58,6 +62,11 @@ export function createPendingLedger({ newAttempt, now }) {
         projection: null,
         conversation,
         message: isMessageEvent(attempted) ? conversation : null,
+        undoTarget:
+          attempted.kind === "undo" && typeof attempted.undoes === "symbol"
+            ? (entries.find((candidate) => candidate.localId === attempted.undoes) ??
+              null)
+            : null,
       };
       entries.push(entry);
       return entry;
@@ -70,7 +79,7 @@ export function createPendingLedger({ newAttempt, now }) {
       entry.answered = true;
       entry.acceptedId = null;
       entry.rejected = entry.event.kind === "action";
-      withdrawChildren(entry);
+      withdrawDependents(entry);
       if (entry.event.kind !== "action") remove(entry);
     },
     accept(entry, event) {
@@ -104,6 +113,19 @@ export function createPendingLedger({ newAttempt, now }) {
       if (!named) return;
       entry.namedParent = parent;
       entry.event.parent = named;
+    },
+    nameUndo(entry, receipts) {
+      if (entry.event.kind !== "undo" || typeof entry.event.undoes !== "symbol")
+        return true;
+      const target = entry.undoTarget;
+      const named =
+        target?.acceptedId ??
+        receipts.find((candidate) => candidate.attempt === target?.event.attempt)?.id;
+      if (named) {
+        entry.event.undoes = named;
+        return true;
+      }
+      return false;
     },
   };
 }

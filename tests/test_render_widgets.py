@@ -4043,6 +4043,127 @@ def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve)
     page.close()
 
 
+def test_a_classification_can_return_before_its_send_finishes(browser, serve):
+    """An exact Return control can name its pending classification. The visual
+    withdrawal is immediate, while the outbox preserves the durable action then undo
+    order and resolves the local identity before the second POST reaches the server.
+    """
+    page, errors = open_page(browser, serve(SWIPE_PAGE))
+    page.route("**/api/state*", refuse)
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    card = page.locator("#swipe-a")
+
+    with page.expect_request("**/api/event"):
+        page.locator("#session-triage .lf-swipe-pass").click()
+    expect(page.locator("#session-pass > #swipe-a")).to_have_count(1)
+    returned = card.get_by_role(
+        "button", name="Return Buffer rolling expiry to queue", exact=True
+    )
+    expect(returned).to_be_visible()
+    returned.click()
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    assert len(held) == 1
+
+    accepted = held[0].fetch()
+    action = next(
+        event
+        for event in accepted.json()["state"]["events"]
+        if event.get("attempt") == held[0].request.post_data_json["attempt"]
+    )
+    held[0].fulfill(response=accepted)
+    holding(page, held, 2, "the dependent withdrawal")
+    assert held[1].request.post_data_json["undoes"] == action["id"]
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    held[1].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    log = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] in {"action", "undo"}
+    ]
+    assert [(event["kind"], event.get("undoes")) for event in log] == [
+        ("action", None),
+        ("undo", action["id"]),
+    ]
+    assert errors == []
+    page.close()
+
+
+def test_return_disappears_with_a_refused_pending_classification(browser, serve):
+    """A withdrawal dependent on an unaccepted action has nothing durable to name.
+    Refusal drops both local entries, leaves the authored card queued, and never sends
+    an invalid undo command.
+    """
+    page, errors = open_page(browser, serve(SWIPE_PAGE))
+    page.route("**/api/state*", refuse)
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    card = page.locator("#swipe-a")
+
+    with page.expect_request("**/api/event"):
+        page.locator("#session-triage .lf-swipe-pass").click()
+    card.get_by_role(
+        "button", name="Return Buffer rolling expiry to queue", exact=True
+    ).click()
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    attempt = held[0].request.post_data_json["attempt"]
+    held[0].fulfill(
+        status=400,
+        json={
+            "ok": False,
+            "attempt": attempt,
+            "error": "refused before append",
+            "final": True,
+        },
+    )
+    page.wait_for_timeout(50)
+
+    assert len(held) == 1
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    assert actions(serve.page_dir) == []
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
+def test_a_refused_return_restores_the_classification(browser, serve):
+    """A fallible optimistic withdrawal is an overlay on the durable projection.
+    If the undo door refuses it, the same accepted classification reappears.
+    """
+    page, errors = open_page(browser, serve(SWIPE_PAGE))
+    card = page.locator("#swipe-a")
+    page.locator("#session-triage .lf-swipe-pass").click()
+    round_trip(page)
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        card.get_by_role(
+            "button", name="Return Buffer rolling expiry to queue", exact=True
+        ).click()
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    attempt = held[0].request.post_data_json["attempt"]
+    held[0].fulfill(
+        status=400,
+        json={
+            "ok": False,
+            "attempt": attempt,
+            "error": "refused before append",
+            "final": True,
+        },
+    )
+    page.unroute("**/api/event")
+    round_trip(page)
+
+    expect(page.locator("#session-pass > #swipe-a")).to_have_count(1)
+    assert len(actions(serve.page_dir)) == 1
+    assert errors and all("400" in error for error in errors)
+    page.close()
+
+
 def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
     """A ledger row withdraws its own classification, including the finishing one."""
     page, errors = open_page(browser, serve(SWIPE_PAGE))
@@ -4067,11 +4188,26 @@ def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
         page.keyboard.press(binding)
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect(deck.locator(".lf-swipe-progress")).to_have_text("All done!! · 6 classified")
     expect(
         second.get_by_role(
             "button", name="Return Bound fallback lifetime to queue", exact=True
         )
-    ).to_be_hidden()
+    ).to_be_visible()
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        second.get_by_role(
+            "button", name="Return Bound fallback lifetime to queue", exact=True
+        ).click()
+    expect(page.locator("#session-queue > #swipe-b")).to_have_count(1)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    holding(page, held, 1, "the earlier card's withdrawal")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
 
     final = page.locator("#swipe-d")
     final.get_by_role(
@@ -4080,7 +4216,7 @@ def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
     round_trip(page)
     expect(page.locator("#session-queue > #swipe-d")).to_have_count(1)
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    expect(final).to_be_focused()
+    expect(second).to_be_focused()
     assert errors == []
     page.close()
 

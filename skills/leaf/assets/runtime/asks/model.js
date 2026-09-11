@@ -1,9 +1,11 @@
-/* Server-projected ask state, resolved onto the browser's live DOM: which asks
+/* Server-projected ask state plus exact pending withdrawals, resolved onto the
+   browser's live DOM: which asks
    are open, answered, or waiting on the agent, and the three lists the banner, the tray,
    and the walks read.
 
-   The banner's Asks count is durable progress: `Asks 3/7` means three of the seven active
-   Asks are answered. `allAsks` supplies the denominator and
+   The banner's Asks count is effective progress: `Asks 3/7` means three of the seven active
+   Asks are answered, including a pending withdrawal the reader can already see.
+   `allAsks` supplies the denominator and
    `unansweredAsks` supplies what remains outside the numerator, so moving focus or
    walking the page changes neither number. At 7/7 the same button stays available and
    takes the positive treatment; it is both the completion signal and the route back
@@ -51,17 +53,22 @@
    the visible/navigation surface. `actionAvailable` still queries whether the source or
    an ancestor's aggregate is open. A module reading `openAsks()` calls
    `askSource()` when it needs the actionable widget rather than the reader-facing
-   region. */
+   region. A pending withdrawal re-folds its owner's declared answer and completion
+   predicate locally; refusal removes that overlay and restores the authoritative Ask. */
 
 import { watchProjection } from "../projection-watch.js";
-import { registry, tagsDeclaring } from "../registry.js";
+import { matchesWhen, registry, tagsDeclaring } from "../registry.js";
 import { closestAcross, elementById } from "../passages.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
-import { authoredParents } from "../projection/authored.js";
+import {
+  authoredFacet,
+  authoredParents,
+  stateCoordinate,
+} from "../projection/authored.js";
 import { currentProjection } from "../projection/state.js";
 
-/* Server-projected ask state, resolved onto the browser's live DOM. */
+/* Effective ask state, resolved onto the browser's live DOM. */
 const authoredParentOf = (node) => authoredParents.get(node);
 
 export const askEntry = (el) => registry[el.tagName.toLowerCase()]?.["x-awaits"];
@@ -117,10 +124,74 @@ const awaitingValues = (answered) => ({
   ...(runtime.browser?.conversation?.asks?.awaiting ?? {}),
 });
 
+function completionMet(owner, spec, projection) {
+  const completion = spec.completion;
+  if (!completion) return true;
+  const context = { positionedParents: positionedParents(projection) };
+  const empty = completion.empty;
+  const containers = [...owner.querySelectorAll(empty.within)].filter((candidate) =>
+    matchesWhen(candidate, empty.when),
+  );
+  if (containers.length !== 1) return false;
+  const container = containers[0];
+  return ![...document.querySelectorAll("[id]")].some(
+    (candidate) =>
+      candidate !== container &&
+      registry[candidate.localName] &&
+      projectedParent(candidate, context) === container,
+  );
+}
+
+function projectionAnswered(owner, projection) {
+  const entry = askEntry(owner);
+  const until = entry?.until;
+  const threadCompletion =
+    until &&
+    closestAcross(owner, ".lf-msg, .lf-conversation-msg") &&
+    matchesWhen(owner, until.when);
+  const verbs = threadCompletion ? [until.verb] : (entry?.answers ?? []);
+  for (const verb of verbs) {
+    const spec = registry[owner.localName]?.["x-state"]?.[verb];
+    if (!spec) continue;
+    const held = [...projection.actions.values()].find(
+      ({ e }) => e.widget === owner.id && e.action === verb,
+    );
+    const record = spec.record;
+    if (spec.unit === "widget" && ["attribute", "value"].includes(record?.kind)) {
+      const coordinate = stateCoordinate(owner.id, owner.id, spec);
+      const value = held ? held.value : authoredFacet(coordinate);
+      if (
+        value !== null &&
+        value !== undefined &&
+        value !== "" &&
+        (!Array.isArray(value) || value.length > 0)
+      )
+        return true;
+      continue;
+    }
+    if (held && completionMet(owner, spec, projection)) return true;
+  }
+  return false;
+}
+
+function optimisticallyReopened(projection) {
+  const reopened = [];
+  const owners = new Set(
+    [...(projection.pendingWithdrawals?.values() ?? [])]
+      .map(({ e }) => elementById(e.widget))
+      .filter(Boolean),
+  );
+  for (const owner of owners)
+    if (askEntry(owner) && !projectionAnswered(owner, projection)) reopened.push(owner);
+  return reopened;
+}
+
 function context(answered = false) {
   const projection = currentProjection();
+  const awaiting = awaitingValues(answered);
+  for (const owner of optimisticallyReopened(projection)) awaiting[owner.id] = true;
   return {
-    awaiting: awaitingValues(answered),
+    awaiting,
     positionedParents: positionedParents(projection),
     projection,
   };
@@ -140,7 +211,13 @@ function asks(kind, pendingRequestEvents) {
   );
   const documentAsks = runtime.view?.document?.asks?.[kind] ?? [];
   const conversationAsks = runtime.browser?.conversation?.asks?.[kind] ?? [];
-  const elements = [...documentAsks, ...conversationAsks]
+  const optimistic =
+    kind === "all"
+      ? []
+      : optimisticallyReopened(currentProjection()).map((el) => ({
+          id: askSurface(el).id,
+        }));
+  const elements = [...documentAsks, ...conversationAsks, ...optimistic]
     .map((ask) => elementById(ask.id))
     .filter(
       (element) => element && (kind === "all" || !requested.has(askSource(element).id)),

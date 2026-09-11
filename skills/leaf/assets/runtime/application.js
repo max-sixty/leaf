@@ -500,6 +500,7 @@ export const undoable = (...args) => app().undoable(...args);
 export const undoableAction = (...args) => app().undoableAction(...args);
 export const undoLast = (...args) => app().undoLast(...args);
 export const withdraw = (...args) => app().withdraw(...args);
+export const withdrawableAction = (...args) => app().withdrawableAction(...args);
 export const watchActions = (...args) => app().watchActions(...args);
 export const watchAsks = (...args) => app().watchAsks(...args);
 export const watchRequestLifecycle = (...args) => app().watchRequestLifecycle(...args);

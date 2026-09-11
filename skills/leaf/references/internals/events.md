@@ -47,7 +47,11 @@ what still stands, the same reading a reload has always made and the one
 `restated` writes from the author's side. `renderState` paints withdrawals and
 forward changes alike, retaining the widget and its independent children. The
 door refuses an `undoes` naming anything but an unwithdrawn gesture of the
-reader's own.
+reader's own. An exact control may withdraw a forward action before that action's
+POST finishes: the browser derives the withdrawal immediately, keeps both gestures
+in its ordered ledger, and replaces the local dependency with the accepted action id
+before sending the undo. Refusal of the action discards its dependent undo; refusal
+of the undo re-derives the still-standing action.
 
 ## Authorship and voice
 

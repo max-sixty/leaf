@@ -3784,7 +3784,7 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
 
 
 def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
-    """a lands on the authored question and exposes the deck's own bindings there.
+    """The Ask supplies digits; focus inside the deck exposes its directional keys.
 
     The last classification both places its card and closes the Ask, so z reopens the
     question with that card back in the queue.
@@ -3811,19 +3811,23 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
 
     page.keyboard.press("a")
     expect(decision).to_be_focused()
+    expect(page.locator(".lf-swipe-pass")).to_have_attribute("aria-keyshortcuts", "1")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
-        ["←", "→"]
+        ["1", "2"]
     )
-    assert "← / →\nPass / Keep" in shortcut_bar_text(page)
+    assert "1–2\nPass / Keep" in shortcut_bar_text(page)
 
     page.keyboard.press("Tab")
+    expect(page.locator(".lf-swipe-pass")).to_have_attribute(
+        "aria-keyshortcuts", "ArrowLeft 1"
+    )
     assert "←\npass the active card" in shortcut_bar_text(page)
     assert "Pass\npass the active card" not in shortcut_bar_text(page)
     page.keyboard.press("a")
     expect(decision).to_be_focused()
 
-    # The reference exposes the same exact routes as their inline bindings.
+    # The reference exposes the same exact commands through the Ask's digit routes.
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(
@@ -3839,6 +3843,8 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     ).to_have_count(0)
     page.keyboard.press("Escape")
 
+    # Directional keys remain the widget's intrinsic routes while focus is in the deck.
+    page.keyboard.press("Tab")
     for binding in ("ArrowRight", "ArrowLeft", "ArrowRight", "ArrowLeft"):
         page.keyboard.press(binding)
     round_trip(page)
@@ -5741,8 +5747,8 @@ def test_the_ask_itself_binds_each_contributed_action(browser, serve):
     page.close()
 
 
-def test_ask_contextual_bindings_skip_explicit_numeric_bindings(browser, serve):
-    """A package's own digit keeps its meaning beside keyless Decision commands."""
+def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, serve):
+    """An Ask digit aliases a command without replacing its focused widget binding."""
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     resized(page, 900, 900)
 
@@ -5750,25 +5756,29 @@ def test_ask_contextual_bindings_skip_explicit_numeric_bindings(browser, serve):
         """async () => {
           const {commands} = await import('/runtime/widget-api.js');
           const suggestion = document.getElementById('sug');
+          const source = document.createElement('span');
           const inspect = document.createElement('button');
+          inspect.id = 'inspect-action';
           inspect.textContent = 'Inspect';
           inspect.onclick = () => { inspect.dataset.activated = '1'; };
-          suggestion.append(inspect);
-          commands(inspect, 'Explicit numeric action', [{
-            id: 'test.inspect',
-            keys: ['1'],
-            control: inspect,
-            label: 'I',
-            decision: 'Inspect',
-            does: 'Inspect this suggestion',
-            line: 'Inspect',
-            run: () => inspect.click(),
-          }]);
+          source.append(inspect);
+          suggestion.append(source);
+          commands(source, 'Suggestion action', [
+            {
+              id: 'test.inspect',
+              keys: ['x', 'y'],
+              control: inspect,
+              label: 'I',
+              decision: 'Inspect',
+              does: 'Inspect this suggestion',
+              line: 'Inspect',
+              run: () => inspect.click(),
+            },
+          ]);
         }"""
     )
 
-    # The source scope keeps its presentation override in the global reference. Once the
-    # reader enters the Ask, that projection presents the binding it actually resolves.
+    # The source scope keeps its intrinsic presentation in the global reference.
     page.keyboard.press("?")
     page.keyboard.press("?")
     inspect_reference = page.locator(
@@ -5781,16 +5791,151 @@ def test_ask_contextual_bindings_skip_explicit_numeric_bindings(browser, serve):
     page.keyboard.press("Escape")
 
     inspect = page.get_by_role("button", name="Inspect")
+    page.keyboard.press("a")
+    expect(page.locator("#sug")).to_be_focused()
+    assert "1–3\nAccept / Reject / Inspect" in shortcut_bar_text(page)
+    expect(inspect).to_have_attribute("aria-keyshortcuts", "3")
+    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
+        ["1", "2", "3"]
+    )
+
+    # The Ask's third route invokes the original command. Once the command's own control
+    # is focused, both equivalent intrinsic bindings and the independent Ask digit remain
+    # reachable routes to that command.
+    page.keyboard.press("3")
+    expect(inspect).to_have_attribute("data-activated", "1")
+    inspect.evaluate("control => delete control.dataset.activated")
     inspect.focus()
+    expect(inspect).to_have_attribute("aria-keyshortcuts", "x y 3")
     assert "I\nInspect" in shortcut_bar_text(page)
+    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
+        ["1", "2", "3"]
+    )
+    page.keyboard.press("y")
+    expect(inspect).to_have_attribute("data-activated", "1")
+    inspect.evaluate("control => delete control.dataset.activated")
+
+    # A nearer dead declaration removes only x. The route snapshot keeps y rather than
+    # collapsing the command's equivalent bindings into whichever one came first.
+    page.evaluate(
+        """async () => {
+          const {commands} = await import('/runtime/widget-api.js');
+          const inspect = document.getElementById('inspect-action');
+          commands(inspect, 'Inspect control', [{
+            id: 'test.dead-local-x', keys: ['x'],
+            does: 'Run an unavailable local command',
+            line: 'unavailable local command', when: () => false,
+            run: () => { inspect.dataset.deadLocalX = '1'; },
+          }]);
+        }"""
+    )
+    expect(inspect).to_have_attribute("aria-keyshortcuts", "y 3")
+    assert "y\nInspect" in shortcut_bar_text(page)
+    page.keyboard.press("x")
+    expect(inspect).not_to_have_attribute("data-dead-local-x", "1")
+    expect(inspect).not_to_have_attribute("data-activated", "1")
+    page.keyboard.press("y")
+    expect(inspect).to_have_attribute("data-activated", "1")
+    inspect.evaluate("control => delete control.dataset.activated")
+    page.keyboard.press("3")
+    expect(inspect).to_have_attribute("data-activated", "1")
+
+    # The complete reference keeps the Ask alias while it remains reachable; y is an
+    # equivalent intrinsic route rather than another command identity.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    focused_inspect = page.locator(
+        '.lf-command-reference tr[data-lf-command="test.inspect"]'
+    )
+    expect(focused_inspect.locator("kbd")).to_have_text("3")
+
+    assert errors == []
+    page.close()
+
+
+def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
+    """A focused widget digit suppresses its Ask alias without taking other digits."""
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    page.evaluate(
+        """async () => {
+          const {commands} = await import('/runtime/widget-api.js');
+          const suggestion = document.getElementById('sug');
+          const inspect = document.createElement('button');
+          inspect.textContent = 'Inspect';
+          inspect.onclick = () => { inspect.dataset.activated = '1'; };
+          suggestion.append(inspect);
+          commands(inspect, 'Inspect control', [
+            {
+              id: 'test.inspect', keys: ['1'], control: inspect, label: 'I',
+              decision: 'Inspect', does: 'Inspect this suggestion', line: 'Inspect',
+              run: () => inspect.click(),
+            },
+            {
+              id: 'test.local-three', keys: ['3'],
+              does: 'Run the local third command', line: 'local three',
+              run: () => { inspect.dataset.localThree = '1'; },
+            },
+          ]);
+        }"""
+    )
+
+    inspect = page.get_by_role("button", name="Inspect")
+    page.keyboard.press("a")
+    expect(inspect).to_have_attribute("aria-keyshortcuts", "3")
+    inspect.focus()
+    expect(inspect).to_have_attribute("aria-keyshortcuts", "1 3")
+    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
+        ["2"]
+    )
+    page.keyboard.press("1")
+    expect(inspect).to_have_attribute("data-activated", "1")
+    inspect.evaluate("control => delete control.dataset.activated")
+    page.keyboard.press("3")
+    expect(inspect).to_have_attribute("data-local-three", "1")
+    expect(inspect).not_to_have_attribute("data-activated", "1")
+
+    assert errors == []
+    page.close()
+
+
+def test_an_ask_alias_preserves_the_original_commands_return_frame(browser, serve):
+    """A projected digit enters and leaves through the widget command's own contract."""
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+
+    page.evaluate(
+        """async () => {
+          const { commands } = await import('/runtime/widget-api.js');
+          const suggestion = document.getElementById('sug');
+          const control = document.createElement('button');
+          control.textContent = 'Configure';
+          const layer = document.createElement('div');
+          layer.id = 'test-command-layer';
+          layer.hidden = true;
+          const inside = document.createElement('button');
+          inside.textContent = 'Inside configuration';
+          layer.append(inside);
+          suggestion.append(control, layer);
+          commands(control, 'Configuration action', [{
+            id: 'test.configure', keys: [], control,
+            decision: 'Configure', does: 'Open configuration', line: 'configure',
+            run: () => { layer.hidden = false; inside.focus(); },
+            returnFrame: () => ({
+              active: () => !layer.hidden,
+              close: () => { layer.hidden = true; },
+              does: 'Close configuration',
+              line: 'close configuration',
+            }),
+          }]);
+        }"""
+    )
 
     page.keyboard.press("a")
     expect(page.locator("#sug")).to_be_focused()
-    assert "2 / 3 / 1\nAccept / Reject / Inspect" in shortcut_bar_text(page)
-    expect(inspect).to_have_attribute("aria-keyshortcuts", "1")
-
-    page.keyboard.press("1")
-    expect(inspect).to_have_attribute("data-activated", "1")
+    page.keyboard.press("3")
+    expect(page.get_by_role("button", name="Inside configuration")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator("#test-command-layer")).to_be_hidden()
+    expect(page.locator("#sug")).to_be_focused()
 
     assert errors == []
     page.close()
@@ -5840,8 +5985,8 @@ def test_ask_action_name_functions_must_return_text(browser, serve):
     page.close()
 
 
-def test_ask_explicit_commands_do_not_consume_contextual_binding_slots(browser, serve):
-    """Only keyless Decision commands count against the nine numeric bindings.
+def test_every_ask_decision_consumes_one_contextual_binding_slot(browser, serve):
+    """Intrinsic bindings do not exempt Decisions from the nine Ask digits.
 
     A projected Decision still executes its declared command rather than inventing a
     second click path through its control.
@@ -5853,10 +5998,11 @@ def test_ask_explicit_commands_do_not_consume_contextual_binding_slots(browser, 
         """async () => {
           const {commands} = await import('/runtime/widget-api.js');
           const suggestion = document.getElementById('sug');
-          for (const [index, key] of [...'bcdefghij'].entries()) {
+          for (const [index, key] of [...'bcdef'].entries()) {
             const binding = `Alt+${key}`;
             const control = document.createElement('button');
             control.textContent = `Explicit ${key}`;
+            control.onclick = () => { control.dataset.clicked = '1'; };
             suggestion.append(control);
             commands(control, `Explicit ${key}`, [{
               id: `test.explicit-${index}`,
@@ -5899,16 +6045,20 @@ def test_ask_explicit_commands_do_not_consume_contextual_binding_slots(browser, 
     page.keyboard.press("a")
     expect(page.locator("#sug")).to_be_focused()
 
-    # Accept and Reject take 1 and 2; nine explicitly bound commands consume no numeric
-    # binding, so the keyless command declared after all of them still receives 3.
+    # Accept and Reject take 1 and 2. The five intrinsically bound Decisions still take
+    # 3–7, and the two keyless commands receive 8 and 9.
     page.keyboard.press("3")
+    expect(page.get_by_role("button", name="Explicit b")).to_have_attribute(
+        "data-clicked", "1"
+    )
+    page.keyboard.press("8")
     expect(page.get_by_role("button", name="Later keyless")).to_have_attribute(
         "data-activated", "1"
     )
     expect(page.get_by_role("button", name="Later keyless")).not_to_have_attribute(
         "data-clicked", "1"
     )
-    page.keyboard.press("4")
+    page.keyboard.press("9")
     expect(page.get_by_role("button", name="Native keyless")).to_have_attribute(
         "data-clicked", "1"
     )

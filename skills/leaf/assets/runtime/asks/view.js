@@ -102,8 +102,10 @@ import { keyBadgePlacement } from "../keyboard/key-badge-placement.js";
 import {
   ariaShortcuts,
   bindings,
+  contextualRoute,
   decisionControls,
   PRESS,
+  routedCommand,
   spell,
 } from "../keyboard/bindings.js";
 import {
@@ -139,6 +141,7 @@ import { addressableSays, addressableWord } from "../anchor-resolution.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
+import { availableCommandRoutes } from "../keyboard/dispatch.js";
 
 // Contextual actions for the Ask the reader is standing in. These share the binding-badge face
 // but not the g sequence's lifecycle: the ask view paints them whenever its semantic
@@ -156,7 +159,6 @@ export function createAskView({
   presentedControl,
   readingBlock,
   placeBulkAnswer,
-  availableCommands,
   announce,
   repaint,
 }) {
@@ -556,11 +558,11 @@ export function createAskView({
   }
 
   // The Ask-local action map. A package contributes exact controls through the same
-  // command scopes dispatch and Help already consume. Core preserves a contributed
-  // binding and gives each keyless action the next free contextual digit. The map stays
-  // active as Tab moves into the Ask; activation calls the contributed command's run,
-  // while nearer local scopes still own the bindings they declare and the dispatcher's
-  // ordinary shadowing keeps actions out of text entry and nested modes.
+  // command scopes dispatch and Help already consume. Each action receives a contextual
+  // digit independently of any intrinsic widget binding. The map stays active as Tab
+  // moves into the Ask; each route points back to the contributed command, while nearer
+  // local scopes still own the keys they declare and the dispatcher's ordinary shadowing
+  // keeps an unavailable digit out of every projection.
   function ownedAskControl(askSource, commandSource) {
     const selector = tagsDeclaring(
       (entry) => entry["x-awaits"] || entry["x-request"]?.ask,
@@ -580,44 +582,39 @@ export function createAskView({
         control.getAttribute("aria-disabled") !== "true" &&
         control.getAttribute("aria-busy") !== "true",
     );
-    const reserved = new Set(
-      actions.map(({ binding }) => binding).filter((binding) => binding !== null),
-    );
-    // Generated binding badges are bindings too. Read them through the same projection as
-    // declared package keys so their words cannot name contextual actions the dispatcher
-    // has removed.
     const contextual = bindings({
       keys: Array.from({ length: MAX_ASK_ACTIONS }, (_, index) => String(index + 1)),
-    }).filter((binding) => !reserved.has(binding));
-    return actions.flatMap((action) => {
-      const resolvedBinding = action.binding ?? contextual.shift();
-      return resolvedBinding ? [{ ...action, resolvedBinding }] : [];
     });
+    return actions
+      .slice(0, contextual.length)
+      .map((action, index) => ({ ...action, binding: contextual[index] }));
   };
   // A binding with a different result is a different command. Keep each action as a
   // route under one compact row, so the dispatcher, command reference, shortcut bar, and the
   // control-facing projections all consume the same binding-to-control identity.
   const actionRoutes = () =>
     availableActions().map(
-      ({ id, control, label, bindingBadge, run, resolvedBinding: binding }) => ({
-        id,
-        binding,
-        does: `Activate the “${label}” action`,
-        line: label,
-        control,
-        bindingBadge,
-        run,
-      }),
+      ({ id, control, label, bindingBadge, intrinsicBindings, command, binding }) =>
+        contextualRoute(
+          {
+            id,
+            binding,
+            does: `Activate the “${label}” action`,
+            line: label,
+            control,
+            bindingBadge,
+            intrinsicBindings,
+          },
+          command,
+        ),
     );
   const actionRow = {
     id: "ask.activate-nth",
     keys: () => actionRoutes().map(({ binding }) => binding),
     routes: actionRoutes,
     label: () => {
-      const routes = actionRoutes();
-      if (routes.every(({ binding }, index) => binding === String(index + 1)))
-        return routes.length > 1 ? `1–${routes.length}` : "1";
-      return routes.map(({ binding }) => spell(binding)).join(" / ");
+      const count = actionRoutes().length;
+      return count > 1 ? `1–${count}` : "1";
     },
     does: () =>
       `Activate an action in this Ask: ${actionRoutes()
@@ -628,14 +625,10 @@ export function createAskView({
         .map(({ line }) => line)
         .join(" / "),
     when: () => actionRoutes().length > 0,
-    run: (binding) =>
-      actionRoutes()
-        .find((route) => route.binding === binding)
-        ?.run(),
   };
-  const reachableActionRoutes = () => {
-    const available = availableCommands();
-    return actionRoutes().filter(({ id }) => available.has(id));
+  const reachableActionRoutes = (available = availableCommandRoutes()) => {
+    const reachable = available.get(actionRow) ?? new Set();
+    return actionRoutes().filter(({ binding }) => reachable.has(binding));
   };
 
   // The chips are an eye's projection of the same row, and aria-keyshortcuts is its
@@ -643,7 +636,7 @@ export function createAskView({
   // a binding-badge face lends that face and its exact placement; other actions get chrome at
   // the visible margin entry's corner. Off-screen actions keep their working badge and name
   // on the shortcut bar but wear no chip. A nearer keyboard layer suppresses the row and both
-  // projections through the exact available commands, so a digit never stays
+  // projections through the exact reachable bindings, so a digit never stays
   // promised after a sequence, text box, or modal has taken it.
   const wornBindingBadges = new Map();
   const wornShortcuts = new Map();
@@ -699,7 +692,8 @@ export function createAskView({
   }
   function paintActionProjections() {
     clearActionProjections();
-    const routes = reachableActionRoutes();
+    const available = availableCommandRoutes();
+    const routes = reachableActionRoutes(available);
     if (!routes.length) {
       askActionLayer.replaceChildren();
       return;
@@ -720,12 +714,29 @@ export function createAskView({
     // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
     // the fixed shortcut bar above it. One face belongs to one action, and every part of
     // it must be visible on top; otherwise the ordinary core chip carries the same route.
-    for (const { binding, control, bindingBadge } of routes) {
+    for (const route of routes) {
+      const { binding, intrinsicBindings, control, bindingBadge } = route;
       const previousShortcut = control.getAttribute("aria-keyshortcuts");
-      const projected = ariaShortcuts([{ keys: [binding] }], false).split(/\s+/);
+      const intrinsicAvailable = available.get(routedCommand(route).row) ?? new Set();
+      const intrinsicShortcuts = new Set(
+        ariaShortcuts([{ keys: intrinsicBindings }], false).split(/\s+/),
+      );
+      const projected = ariaShortcuts(
+        [
+          {
+            keys: [
+              ...intrinsicBindings.filter((key) => intrinsicAvailable.has(key)),
+              binding,
+            ],
+          },
+        ],
+        false,
+      ).split(/\s+/);
       const projectedShortcut = [
         ...new Set([
-          ...(previousShortcut ?? "").split(/\s+/).filter(Boolean),
+          ...(previousShortcut ?? "")
+            .split(/\s+/)
+            .filter((key) => key && !intrinsicShortcuts.has(key)),
           ...projected,
         ]),
       ].join(" ");

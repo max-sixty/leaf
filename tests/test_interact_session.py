@@ -638,6 +638,34 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     assert "work" not in files_model.read_json(page_dir / "status.json")
 
 
+def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
+    )
+    assert (
+        _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
+    )
+    with service_model.PageTransaction(page_dir) as transaction:
+        session_model.record_pickup(transaction, [comment])
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "c2",
+            "author": "user",
+            "parent": "c1",
+            "text": "and this?",
+        },
+    )
+
+    interactions = page_state(page_dir)["activity"]["interactions"]
+    assert [(item["event"], item["phase"]) for item in interactions] == [
+        (None, "active"),
+        ("c2", "sent"),
+    ]
+
+
 def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir):
     """A page widget and a comment root are two kinds of subject, resolved once at
     the CLI boundary and stored with the distinction intact. Widget work ends only

@@ -164,14 +164,17 @@ def canonical_acknowledgments(
                 (message for message in turns if message["id"] == claim_event), None
             )
             if claimed_source:
-                acknowledgments.append(
-                    receipt(
-                        claimed_source,
-                        target,
-                        coordinate,
-                        requires_response=False,
-                    )
+                anchor = receipt(
+                    claimed_source,
+                    target,
+                    coordinate,
+                    requires_response=False,
                 )
+                # The anchor holds Active beside the message that started the work.
+                # Any weaker phase is a second delivery receipt on a subject whose
+                # newest move already carries one.
+                if anchor["phase"] == "active":
+                    acknowledgments.append(anchor)
 
     # A page action stays unsettled only while the authored document still lags
     # its standing record. A recordless verb has no markup form to compare, so a

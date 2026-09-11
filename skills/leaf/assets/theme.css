@@ -2133,6 +2133,9 @@ html.lf-versioning::view-transition-new(root) {
           display: block; width: 100%; height: 100%; object-fit: cover; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-remove {
           position: absolute; top: -5px; right: -5px; }
+@media print {
+  .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
+}
 .lf-resolve.lf-icon-action { position: relative; flex: none; margin-inline-start: auto;
           border: 0; background: transparent; color: var(--ink);
           box-shadow: none; }

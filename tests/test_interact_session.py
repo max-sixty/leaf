@@ -601,12 +601,30 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     # exact reader events and leaves the page-wide status alone.
     serving(page_dir, 1)
     events_model.append_event(
-        page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "and this?"}
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "c2",
+            "author": "user",
+            "parent": "c1",
+            "text": "and this?",
+        },
     )
+    activity = page_state(page_dir)["activity"]
+    assert [
+        (receipt["event"], receipt["phase"]) for receipt in activity["interactions"]
+    ] == [("c1", "active"), ("c2", "sent")]
+    assert (activity["counts"]["total"], activity["counts"]["active"]) == (1, 0)
+    assert (
+        _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
+    )
+    renewed = files_model.read_json(page_dir / "status.json")["work"][0]
+    assert renewed["event"] == "c1"
     assert [
         (receipt["event"], receipt["phase"])
         for receipt in page_state(page_dir)["activity"]["interactions"]
     ] == [("c1", "active"), ("c2", "sent")]
+    assert _status(page_dir, "waiting", "look at v2").exit_code == 0
     assert session_model.cmd_wait(page_dir) == 0
     capsys.readouterr()
     handed = files_model.read_json(page_dir / "status.json")

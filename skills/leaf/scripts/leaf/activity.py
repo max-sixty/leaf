@@ -137,13 +137,18 @@ def canonical_activity(
             ):
                 deadlines.append(due)
 
-    # Every unsettled reader move contributes to page activity. ``obligations``
-    # is the narrower subset that must receive an agent reply before a turn may
-    # end; widget actions can instead be settled by the authored document.
-    outstanding = [item for item in interactions if item.get("event") is not None]
+    # Local receipts may retain a claim on the earlier message that prompted it
+    # while the subject's newest move keeps its own delivery receipt. Page activity
+    # still counts one interaction per semantic coordinate, taking the newest move.
+    outstanding_by_coordinate = {
+        tuple(item["coordinate"]): item
+        for item in interactions
+        if item.get("event") is not None
+    }
+    outstanding = list(outstanding_by_coordinate.values())
     obligations = [item for item in outstanding if item["requires_response"]]
     active = [item for item in interactions if item["phase"] == "active"]
-    active_moves = [item for item in active if item.get("event") is not None]
+    active_moves = [item for item in outstanding if item["phase"] == "active"]
     newest_position = max(
         (item.get("delivery_seq") or item["seq"] for item in outstanding),
         default=0,

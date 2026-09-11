@@ -21,10 +21,11 @@ and requests another reading at its next deadline; it does not run a second fold
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | any carrier freezes the host-neutral envelope before presenting it | never; every transport resolves the same immutable id |
 
 Delivery acceptance is a different fact from authored work, but it is exact agent
-activity. Pickup never rewrites `status.json`. The server projects one interaction
+activity. Pickup never rewrites `status.json`. Page activity counts one interaction
 per subject and unit, for the newest unsettled reader move on it (a tick and the Done
-press that followed are one), on the subject's existing target margin entry or a compact
-local row: append is **Sent**, then **Waiting for pickup** after the short grace;
+press that followed are one). A thread's local views may also retain **Active** beside
+the earlier message that prompted its standing claim. On the subject's existing target
+margin entry or a compact local row, append is **Sent**, then **Waiting for pickup** after the short grace;
 Codex acceptance is **Queued**; entry into a named open turn is **Picked up**; a
 later `status … --on` claim on the same reader move is **Active**. That same evidence
 makes page activity **queued**, **handling**, or **picked up; turn ended**. A reply,

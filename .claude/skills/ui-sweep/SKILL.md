@@ -9,6 +9,13 @@ Use the gallery and a composed example to find defects beyond the suite's stated
 invariants. Derive experiments from the reader's task and the code's interaction
 structure, then drive, judge, and fix them in the browser.
 
+## First reading
+
+Open the exact candidate before reading its implementation or the author's verdict.
+Use the page for its stated task at ordinary browser zoom. Record the initial visual
+problems in the subject, actions, evidence, and supporting information. Give an
+independent reviewer the task and candidate before giving them the author's assessment.
+
 ## Derive
 
 Read the changed code and its callers. For a standing sweep, start from a reader
@@ -41,7 +48,10 @@ that should preserve the active relationship.
 
 Choose content density, viewport boundaries, input routes, and visual states that
 distinguish the hypotheses. Carry a tested relationship into a different composed
-example to challenge assumptions the gallery makes easy.
+example to challenge assumptions the gallery makes easy. For a changed layout, find a
+width or content length where a group first wraps or rearranges and inspect both sides
+of that transition. Include a constrained height when the surface claims to fit the
+viewport.
 
 ## Observe
 
@@ -63,12 +73,14 @@ cannot establish a smooth transition.
 For paint-only transitions, compare the same target's hit-test rectangle before,
 during, and after the state change; added paint does not move its target.
 
-Judge the rendered experience: can the reader identify the subject, read the
-surface alongside its context, and find the next action? Check legibility, room,
-and visual continuity. Rank competing space claims by their relationship to the
-active task. Test affected paint in both color schemes and affected export
-behavior in print. Support visual findings with an inspected image and explain
-the failed hierarchy, spacing, legibility, or interaction, even when tests pass.
+Judge both the whole composition and its details at native scale. Inspect the subject,
+actions, evidence, and supporting information; quality in one region says nothing about
+another. Check whether labels and values group and align, text wraps at meaningful
+boundaries, controls and icons remain legible, and space follows the active task. Capture
+the full viewport for composition and native-scale details wherever the full image cannot
+support that judgment. Computed styles and geometry explain a visual result; they do not
+establish that it looks coherent. Test affected paint in both color schemes and affected
+export behavior in print.
 
 Use visual treatments to communicate content hierarchy and state. Avoid rounded
 one-sided borders and reflexive cards, tints, gradients, or soft shadows. Keep
@@ -85,5 +97,7 @@ Pin measurable page defects in render_version and gesture defects in the owning
 `test_render_*.py` module. Put the bug back once and watch the new check fail.
 Keep the implementation, tests, and owning contracts aligned, and run the
 required checks. Report established behavior, unresolved findings, and untested
-relationships explicitly; uncompleted transitions remain untested. Hand over the
+relationships explicitly; uncompleted transitions remain untested. Report functional and
+visual coverage separately, naming the regions and states judged in the browser. Passing
+interaction checks or collecting screenshots is not a visual verdict. Hand over the
 reviewed branch and evidence; landing waits for the go-ahead.

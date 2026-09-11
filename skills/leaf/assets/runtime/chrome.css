@@ -1711,8 +1711,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Inset, because a row here fills the list to its own edge and the list is a
      scroller: there is nothing outside the row for a ring to be drawn in, and an
      outset one is cut on both sides by the box it scrolls in. The layer's rule for
-     a box whose edge touches something that paints (CLAUDE.md, "Standing somewhere").
-     The ring's width is the inset, so the band lands just inside the row's own edge. */
+     a box whose edge touches something that paints. The ring's width is the inset,
+     so the band lands just inside the row's own edge. */
   .lf-page-map-action:focus-visible {
     outline: var(--here-ring); --lf-here-ring: page-map-action;
     outline-offset: calc(-1 * var(--here-ring-w)); }

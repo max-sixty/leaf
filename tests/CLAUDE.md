@@ -6,11 +6,11 @@ assert once they are visible. The difficult part is arranging the test so that a
 green result could only have come from the behavior named by the test.
 
 This file owns test setup, suite structure, and testing mechanics.
-`skills/leaf/assets/CLAUDE.md` and `skills/leaf/references/internals/` own the
-product protocols. Keep implementation rules there; state here only what a test
-must observe or control. Each section below is a rule, the helper that carries
-it, and the test that pins it, so a heading is an address other files can point
-at.
+`skills/leaf/assets/CLAUDE.md` and the code-adjacent contracts routed by
+`/developing-leaf` own the product protocols. Keep implementation rules there;
+state here only what a test must observe or control. Each section below is a
+rule, the helper that carries it, and the test that pins it, so a heading is an
+address other files can point at.
 
 ## Run the narrowest useful surface
 

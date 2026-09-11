@@ -71,7 +71,7 @@ describe("deployment configuration", () => {
     expect(dev.workers_dev).toBe(true);
     expect(dev.routes).toEqual([]);
     expect(devContainer.name).toBe("leaf-website-dev-leafexamplesession");
-    expect(devContainer.max_instances).toBe(10);
+    expect(devContainer.max_instances).toBe(100);
     expect({
       ...devContainer,
       name: container.name,
@@ -89,7 +89,7 @@ describe("deployment configuration", () => {
     ]);
   });
 
-  it("reserves ten basic container slots for development", () => {
+  it("reserves enough basic container slots to verify development rollouts", () => {
     const [devContainer] = config.env.dev.containers;
 
     expect(container.max_instances + devContainer.max_instances).toBe(6_000);

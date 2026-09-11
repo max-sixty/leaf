@@ -603,9 +603,10 @@ the selection distinct without adding another line inside it.
 
 Agent ownership colors the existing semantic margin control: pickup is blue, working
 is green with an inset double ring and one arrival pulse. A separate Activity control
-appears only when no semantic carrier exists.
-Thread cards carry the same ownership color; quiet or ended claims release it. Reduced
-motion suppresses arrival, and repainting or replacing a carrier cannot replay it.
+appears only when no semantic carrier exists. Conversation receipts carry the local
+claim beside its triggering message; thread cards do not repeat that ownership as a
+colored edge. Quiet or ended claims release ownership. Reduced motion suppresses arrival,
+and repainting or replacing a carrier cannot replay it.
 
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for

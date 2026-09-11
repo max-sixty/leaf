@@ -8,6 +8,902 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
 <link rel="stylesheet" href="/theme.css">
 <script type="module" src="/leaf.js"></script>
+<!-- notification-playground.html authored styles -->
+<style>
+      notification-simulator {
+        display: block;
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        container-type: inline-size;
+      }
+
+      notification-simulator .notification-demo-pressure {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: var(--sp-1) var(--sp-3);
+        align-items: center;
+        margin: var(--sp-3) 0;
+        padding: var(--sp-3);
+        border-block: 1px solid var(--border-2);
+      }
+
+      notification-simulator .notification-demo-pressure-label {
+        color: var(--ink-2);
+        font: 600 var(--t-5) / 1.3 var(--sans);
+      }
+
+      notification-simulator .notification-demo-pressure-reading {
+        min-width: 4.5rem;
+        color: var(--ink);
+        font: 650 var(--t-5) / 1.3 var(--sans);
+        text-align: end;
+      }
+
+      notification-simulator .notification-demo-pressure-input {
+        grid-column: 1 / -1;
+        width: 100%;
+        margin: 0;
+        accent-color: var(--notification-accent);
+      }
+
+      notification-simulator .notification-demo-pressure-scale {
+        display: flex;
+        grid-column: 1 / -1;
+        justify-content: space-between;
+        color: var(--ink-3);
+        font: var(--t-6) / 1.2 var(--sans);
+      }
+
+      notification-simulator .notification-demo-candidates {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sp-3);
+      }
+
+      notification-simulator .notification-demo-candidate {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: var(--sp-2);
+        min-width: 0;
+        margin: 0;
+        padding: var(--sp-2);
+        border: 1px solid transparent;
+        border-radius: calc(var(--notification-radius) + var(--sp-1));
+      }
+
+      notification-simulator .notification-demo-candidate[data-selected] {
+        border-color: var(--notification-accent);
+        box-shadow: inset 0 0 0 1px var(--notification-accent);
+      }
+
+      notification-simulator .notification-demo-caption {
+        display: flex;
+        gap: var(--sp-2);
+        align-items: baseline;
+        justify-content: space-between;
+        color: var(--ink-2);
+        font: var(--t-6) / 1.3 var(--sans);
+      }
+
+      notification-simulator .notification-demo-name {
+        color: var(--ink);
+        font-weight: 680;
+      }
+
+      notification-simulator .notification-demo-metric {
+        text-align: end;
+      }
+
+      notification-simulator .notification-demo-feed {
+        display: grid;
+        align-content: start;
+        gap: var(--sp-2);
+        min-width: 0;
+      }
+
+      notification-simulator .notification-demo-card {
+        --lf-block-frame: 1;
+        min-width: 0;
+        border: 1px solid var(--border-2);
+        border-radius: var(--notification-radius);
+        background: var(--card);
+      }
+
+      notification-simulator[data-tone="urgent"] .notification-demo-card {
+        background: color-mix(in srgb, var(--notification-accent) 10%, var(--card));
+      }
+
+      notification-simulator .notification-demo-card-banner {
+        padding: var(--sp-3);
+        border-inline-start: 4px solid var(--notification-accent);
+      }
+
+      notification-simulator[data-compact="true"] .notification-demo-card-banner {
+        padding: var(--sp-2) var(--sp-3);
+      }
+
+      notification-simulator[data-compact="true"] .notification-demo-card-status-strip {
+        gap: 0 var(--sp-2);
+        padding: var(--sp-1) var(--sp-2);
+      }
+
+      notification-simulator[data-compact="true"] .notification-demo-feed {
+        gap: var(--sp-1);
+      }
+
+      notification-simulator .notification-demo-card-head,
+      notification-simulator .notification-demo-card-status-strip {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: var(--sp-1) var(--sp-2);
+        align-items: baseline;
+      }
+
+      notification-simulator .notification-demo-card-head {
+        color: var(--ink-2);
+        font: var(--t-6) / 1.3 var(--sans);
+      }
+
+      notification-simulator .notification-demo-card-status-strip {
+        grid-template-columns: minmax(4.5rem, 0.55fr) minmax(0, 1.45fr) auto;
+        padding: var(--sp-2);
+        border-block-start: 3px solid var(--notification-accent);
+      }
+
+      notification-simulator .notification-demo-title {
+        min-width: 0;
+        margin: var(--sp-1) 0;
+        font: 650 var(--t-4) / 1.18 var(--sans);
+        overflow-wrap: anywhere;
+      }
+
+      notification-simulator
+        .notification-demo-card-status-strip
+        .notification-demo-title {
+        margin: 0;
+        font-size: var(--t-5);
+      }
+
+      notification-simulator .notification-demo-state {
+        color: var(--ink-2);
+        font: 600 var(--t-6) / 1.2 var(--sans);
+      }
+
+      notification-simulator .notification-demo-strip-owner {
+        grid-column: 2 / -1;
+        color: var(--ink-2);
+        font: var(--t-6) / 1.2 var(--sans);
+      }
+
+      notification-simulator .notification-demo-detail,
+      notification-simulator .notification-demo-owner {
+        margin: var(--sp-1) 0 0;
+      }
+
+      notification-simulator .notification-demo-owner,
+      notification-simulator .notification-demo-time {
+        color: var(--ink-2);
+        font-size: var(--t-6);
+      }
+
+      notification-simulator .notification-demo-card[data-level="warn"] {
+        border-color: color-mix(in srgb, var(--warn) 55%, var(--border-2));
+      }
+
+      notification-simulator .notification-demo-card[data-level="bad"] {
+        border-color: color-mix(in srgb, var(--bad) 55%, var(--border-2));
+      }
+
+      @container (max-width: 42rem) {
+        notification-simulator .notification-demo-candidates {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
+      @media print {
+        notification-simulator .notification-demo-pressure {
+          display: none;
+        }
+      }
+    </style>
+<!-- notification-playground.html authored module -->
+<script type="module">
+      import {
+        keeps,
+        layoutChanged,
+        once,
+        offer,
+        quoted,
+      } from "/runtime/widget-api.js";
+
+      const EVENTS = [
+        {
+          service: "Checkout",
+          title: "Checkout deployed",
+          detail: "Version 2.8.0 passed all 18 release checks.",
+          owner: "Payments platform",
+          time: "14:32",
+          level: "ok",
+        },
+        {
+          service: "Search",
+          title: "Index promotion delayed",
+          detail: "The new catalog index is 90 seconds behind the release.",
+          owner: "Discovery systems",
+          time: "14:34",
+          level: "warn",
+        },
+        {
+          service: "Payments",
+          title: "Authorization latency recovered",
+          detail: "P95 latency returned below 200 ms after the rollout.",
+          owner: "Payments platform",
+          time: "14:36",
+          level: "ok",
+        },
+        {
+          service: "Fraud",
+          title: "Rule synchronization blocked",
+          detail: "The eu-west ruleset needs an operator before traffic moves.",
+          owner: "Risk engineering",
+          time: "14:38",
+          level: "bad",
+        },
+      ];
+
+      function element(tag, className, text) {
+        const node = document.createElement(tag);
+        node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      }
+
+      function metric(label) {
+        const node = element("span", "notification-demo-metric", label);
+        node.setAttribute("aria-live", "polite");
+        return node;
+      }
+
+      function candidate(name, format) {
+        const figure = element("figure", "notification-demo-candidate");
+        figure.dataset.notificationFormat = format;
+        const caption = element("figcaption", "notification-demo-caption");
+        caption.append(element("strong", "notification-demo-name", name), metric(""));
+        const feed = element(
+          "div",
+          `notification-demo-feed notification-demo-${format.replace(" ", "-")}`,
+        );
+        feed.setAttribute("aria-label", `${name} candidate`);
+        figure.append(caption, feed);
+        return { figure, feed, metric: caption.lastElementChild };
+      }
+
+      function notification(event, format, index, values) {
+        const formatClass = format.replace(" ", "-");
+        const article = element(
+          "article",
+          `notification-demo-card notification-demo-card-${formatClass}`,
+        );
+        article.dataset.level = event.level;
+        const title = index === 0 ? values.title : event.title;
+        const heading = element("h2", "notification-demo-title", title);
+        heading.id = `notification-${formatClass}-${index + 1}-title`;
+        article.setAttribute("aria-labelledby", heading.id);
+
+        if (format === "banner") {
+          const header = element("header", "notification-demo-card-head");
+          header.append(
+            element("span", "notification-demo-service", `${event.service} update`),
+            element("time", "notification-demo-time", event.time),
+          );
+          article.append(
+            header,
+            heading,
+            element("p", "notification-demo-detail", event.detail),
+          );
+          if (values["show-owner"])
+            article.append(
+              element("p", "notification-demo-owner", `Owner: ${event.owner}`),
+            );
+          return article;
+        }
+
+        article.append(
+          element("span", "notification-demo-state", event.service),
+          heading,
+          element("time", "notification-demo-time", event.time),
+        );
+        if (values["show-owner"])
+          article.append(
+            element("span", "notification-demo-strip-owner", `Owner · ${event.owner}`),
+          );
+        return article;
+      }
+
+      customElements.define(
+        "notification-simulator",
+        class extends HTMLElement {
+          #count = 2;
+          #slider = null;
+          #reading = null;
+          #banner = null;
+          #strip = null;
+          #playground = null;
+          #change = null;
+          #values = null;
+
+          connectedCallback() {
+            if (once(this)) this.#build();
+            this.#connect();
+          }
+
+          disconnectedCallback() {
+            this.#playground?.removeEventListener("lf-playground-change", this.#change);
+            this.#playground = null;
+          }
+
+          #build() {
+            const pressure = offer("section", "notification-demo-pressure");
+            const label = offer(
+              "label",
+              "notification-demo-pressure-label",
+              "Concurrent release events",
+            );
+            label.htmlFor = `${this.id}-pressure`;
+            this.#slider = offer(
+              "input",
+              "notification-demo-pressure-input",
+              undefined,
+              "range",
+            );
+            this.#slider.id = label.htmlFor;
+            this.#slider.min = "1";
+            this.#slider.max = String(EVENTS.length);
+            this.#slider.step = "1";
+            this.#slider.value = String(this.#count);
+            this.#slider.disabled = quoted(this);
+            this.#reading = offer("output", "notification-demo-pressure-reading");
+            this.#reading.htmlFor = this.#slider.id;
+            const scale = offer("div", "notification-demo-pressure-scale");
+            scale.append(offer("span", "", "Routine"), offer("span", "", "Burst"));
+            pressure.append(label, this.#slider, this.#reading, scale);
+
+            this.#banner = candidate("A · Banner stack", "banner");
+            this.#strip = candidate("B · Status stream", "status strip");
+            const candidates = element("div", "notification-demo-candidates");
+            candidates.append(this.#banner.figure, this.#strip.figure);
+            this.append(pressure, candidates);
+
+            this.#slider.addEventListener("input", () => {
+              this.#count = Number(this.#slider.value);
+              this.#render();
+            });
+          }
+
+          async #connect() {
+            await customElements.whenDefined("lf-playground");
+            if (!this.isConnected) return;
+            this.#playground?.removeEventListener("lf-playground-change", this.#change);
+            this.#playground = this.closest("lf-playground");
+            if (!this.#playground) return;
+            this.#change = (event) => {
+              if (event.target !== this.#playground) return;
+              this.#values = event.detail.values;
+              this.#render();
+            };
+            this.#playground.addEventListener("lf-playground-change", this.#change);
+            this.#values = this.#playground.values;
+            this.#render();
+          }
+
+          #render() {
+            if (!this.#values) return;
+            const events = EVENTS.slice(0, this.#count);
+            keeps(this, "data-tone", this.#values.tone);
+            keeps(this, "data-compact", this.#values.compact);
+            this.style.setProperty("--notification-accent", this.#values.accent);
+            this.style.setProperty("--notification-radius", `${this.#values.radius}px`);
+            this.#reading.value = `${this.#count} ${
+              this.#count === 1 ? "event" : "events"
+            }`;
+            this.#banner.figure.toggleAttribute(
+              "data-selected",
+              this.#values.format === "banner",
+            );
+            this.#strip.figure.toggleAttribute(
+              "data-selected",
+              this.#values.format === "status strip",
+            );
+            this.#banner.feed.replaceChildren(
+              ...events.map((event, index) =>
+                notification(event, "banner", index, this.#values),
+              ),
+            );
+            this.#strip.feed.replaceChildren(
+              ...events.map((event, index) =>
+                notification(event, "status strip", index, this.#values),
+              ),
+            );
+            this.#banner.metric.textContent = `${this.#count} cards · full detail`;
+            this.#strip.metric.textContent = `${this.#count} rows · compact summary`;
+            layoutChanged(this);
+          }
+        },
+      );
+    </script>
+<!-- pr-walkthrough.html authored styles -->
+<style>
+      .pr-agent-brief {
+        margin: var(--sp-3) 0;
+      }
+
+      .pr-agent-brief > :first-child,
+      .pr-review-gesture > :first-child {
+        margin-top: 0;
+      }
+
+      .pr-agent-brief > :last-child,
+      .pr-review-gesture > :last-child {
+        margin-bottom: 0;
+      }
+
+      .pr-review-gesture {
+        --lf-block-frame: 1;
+        margin: var(--sp-3) 0;
+        padding: var(--sp-3);
+        border-inline-start: 3px solid var(--accent);
+        background: color-mix(in srgb, var(--accent) 5%, transparent);
+      }
+
+      .pr-evidence-status {
+        white-space: nowrap;
+      }
+
+      .pr-evidence-status > span {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: var(--chip-r);
+        font: var(--t-6) var(--sans);
+      }
+
+      .pr-status-passed {
+        background: var(--ok-tint);
+        color: var(--ok-ink);
+      }
+
+      .pr-status-gap {
+        background: var(--warn-tint);
+        color: var(--warn-ink);
+      }
+
+      .pr-change-key {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        margin: var(--sp-2) 0;
+        color: var(--muted);
+        font: var(--t-6) var(--sans);
+      }
+
+      .pr-change-key span {
+        padding: 2px 8px;
+        border: 1px solid var(--rule);
+        border-radius: var(--chip-r);
+      }
+
+      .pr-change-key .pr-added {
+        background: var(--ok-tint);
+        color: var(--ok-ink);
+      }
+
+      .pr-change-key .pr-removed {
+        background: var(--danger-tint);
+        color: var(--danger-ink);
+      }
+
+      .pr-scale-facts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin: var(--sp-3) 0;
+        border-block: 1px solid var(--rule);
+      }
+
+      .pr-scale-facts > div {
+        min-width: 0;
+        padding: var(--sp-2);
+        border-inline-start: 1px solid var(--rule);
+      }
+
+      .pr-scale-facts > div:nth-child(3n + 1) {
+        border-inline-start: 0;
+      }
+
+      .pr-scale-facts > div:nth-child(n + 4) {
+        border-top: 1px solid var(--rule);
+      }
+
+      .pr-scale-facts dt {
+        color: var(--muted);
+        font: var(--t-7) var(--sans);
+        letter-spacing: 0.045em;
+        text-transform: uppercase;
+      }
+
+      .pr-scale-facts dd {
+        margin: 2px 0 0;
+        color: var(--ink);
+        font: var(--t-3) var(--mono);
+      }
+
+      @media (max-width: 680px) {
+        .pr-scale-facts {
+          grid-template-columns: 1fr;
+        }
+
+        .pr-scale-facts > div {
+          border-inline-start: 0;
+          border-top: 1px solid var(--rule);
+        }
+
+        .pr-scale-facts > div:first-child {
+          border-top: 0;
+        }
+      }
+
+      @media print {
+        .pr-review-gesture {
+          background: transparent;
+        }
+      }
+    </style>
+<!-- feature-gallery.html authored styles -->
+<style>
+      .bg-feature-detail {
+        color: var(--ink-2);
+        font-weight: 400;
+      }
+
+      .bg-feature-elements {
+        margin-bottom: 4px;
+      }
+
+      #bg-playground-card {
+        --lf-block-frame: 1;
+        --bg-playground-card-ink: var(--ink);
+        --bg-playground-card-muted: var(--muted);
+        --bg-playground-card-surface: var(--card);
+        position: relative;
+        isolation: isolate;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: var(--sp-3);
+        width: min(100%, 21rem);
+        min-height: 15rem;
+        overflow: hidden;
+        padding: var(--sp-4);
+        border: 1px solid
+          color-mix(in srgb, var(--playground-accent) 72%, var(--border-2));
+        border-radius: var(--playground-radius);
+        background: color-mix(
+          in srgb,
+          var(--playground-accent) 4%,
+          var(--bg-playground-card-surface)
+        );
+        box-shadow: none;
+        color: var(--bg-playground-card-ink);
+        text-align: left;
+      }
+
+      #bg-playground-card::before {
+        position: absolute;
+        z-index: -1;
+        inset: 0 auto 0 0;
+        width: 5px;
+        background: var(--playground-accent);
+        content: "";
+      }
+
+      #bg-card-playground[data-playground-compact="true"] #bg-playground-card {
+        min-height: 12.5rem;
+        gap: var(--sp-2);
+        padding: var(--sp-3);
+      }
+
+      #bg-card-playground[data-playground-tone="bold"] #bg-playground-card {
+        --bg-playground-card-ink: var(--paper);
+        --bg-playground-card-muted: color-mix(in srgb, var(--paper) 72%, transparent);
+        --bg-playground-card-surface: color-mix(
+          in srgb,
+          var(--ink) 90%,
+          var(--playground-accent)
+        );
+        border-color: var(--playground-accent);
+      }
+
+      #bg-card-playground[data-playground-tone="tinted"] #bg-playground-card {
+        --bg-playground-card-muted: var(--ink-2);
+        background: color-mix(
+          in srgb,
+          var(--playground-accent) 13%,
+          var(--bg-playground-card-surface)
+        );
+      }
+
+      #bg-card-playground[data-playground-alignment="center"] #bg-playground-card {
+        text-align: center;
+      }
+
+      #bg-card-playground[data-playground-alignment="center"]
+        :is(.bg-playground-card-head, .bg-playground-card-foot) {
+        justify-content: center;
+      }
+
+      #bg-card-playground[data-playground-elevated="true"] #bg-playground-card {
+        box-shadow: 0 16px 38px color-mix(in srgb, var(--ink) 16%, transparent);
+        transform: translateY(-2px);
+      }
+
+      .bg-playground-card-head,
+      .bg-playground-card-foot {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: var(--sp-1) var(--sp-3);
+        color: var(--bg-playground-card-muted);
+        font: 550 var(--t-6) / 1.3 var(--sans);
+      }
+
+      .bg-playground-card-distance,
+      .bg-playground-card-foot {
+        font-variant-numeric: tabular-nums;
+      }
+
+      .bg-playground-route {
+        align-self: center;
+        width: 100%;
+        min-height: 4.5rem;
+        overflow: visible;
+      }
+
+      .bg-playground-contour {
+        fill: none;
+        stroke: var(--bg-playground-card-muted);
+        stroke-width: 1;
+        opacity: 0.22;
+      }
+
+      .bg-playground-path {
+        fill: none;
+        stroke: var(--playground-accent);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 3;
+      }
+
+      .bg-playground-point {
+        fill: var(--playground-accent);
+        stroke: var(--bg-playground-card-surface);
+        stroke-width: 3;
+      }
+
+      .bg-playground-card-copy h5 {
+        margin: 0;
+        color: inherit;
+        font: 600 var(--t-2) / 1.12 var(--serif);
+        letter-spacing: -0.012em;
+      }
+
+      .bg-playground-card-copy h5::before {
+        content: var(--playground-title);
+      }
+
+      .bg-playground-card-copy p {
+        max-width: 31ch;
+        margin: var(--sp-1) auto 0;
+        color: var(--bg-playground-card-muted);
+        font: var(--t-5) / 1.45 var(--sans);
+      }
+
+      .bg-target-card-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sp-3);
+      }
+
+      .bg-target-card {
+        --lf-block-frame: 1;
+        min-width: 0;
+        padding: var(--sp-3);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r);
+        background: var(--card);
+      }
+
+      @media screen and (max-width: 640px) {
+        .bg-target-card-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
+      .interaction-gallery lf-tabs {
+        margin-top: 14px;
+        margin-bottom: 0;
+        box-shadow: 0 18px 46px color-mix(in srgb, var(--ink) 11%, transparent);
+      }
+
+      .interaction-gallery .interaction-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      /* Placement and density only. The runtime gives the playback action the shared
+         lf-btn face; the gallery keeps its changing labels on one stable row. */
+      .interaction-gallery .interaction-control {
+        min-height: var(--aim-floor);
+        padding: 6px 13px;
+        font: 600 var(--t-6) / 1.2 var(--sans);
+      }
+
+      .interaction-gallery .interaction-setting {
+        display: inline-flex;
+        min-height: var(--aim-floor);
+        align-items: center;
+        gap: 6px;
+        color: var(--ink-2);
+        font: var(--t-6) / 1.2 var(--sans);
+      }
+
+      .interaction-gallery .interaction-setting select {
+        min-height: var(--aim-floor);
+        padding: 5px 24px 5px 8px;
+        border: 1px solid var(--border-2);
+        border-radius: 6px;
+        background: var(--card);
+        color: var(--ink);
+        font: inherit;
+      }
+
+      .interaction-gallery .interaction-loop {
+        margin: 0;
+      }
+
+      /* Under the persistent controls rather than beside them, at every width. The
+         runtime rewrites this line as the demo runs, and changing prose on the button's
+         line would move the row while the reader is aiming at it. */
+      .interaction-gallery .interaction-status {
+        flex-basis: 100%;
+        color: var(--muted);
+        font: var(--t-6) / 1.4 var(--sans);
+      }
+
+      .interaction-demo {
+        margin: 0;
+      }
+
+      .interaction-stage {
+        position: relative;
+        min-height: 18rem;
+        overflow: visible;
+        padding: clamp(28px, 6vw, 64px);
+        border: 1px solid var(--border-2);
+        border-radius: calc(var(--r) - 2px);
+        background:
+          linear-gradient(
+            120deg,
+            color-mix(in srgb, var(--field) 72%, transparent),
+            transparent 58%
+          ),
+          var(--paper);
+      }
+
+      .interaction-frame-stage {
+        height: 30rem;
+        overflow: hidden;
+        padding: 0;
+      }
+
+      .interaction-suggestion-stage {
+        height: 24rem;
+      }
+
+      .interaction-frame {
+        display: none;
+        width: var(--interaction-viewport-size, 200%);
+        height: var(--interaction-viewport-size, 200%);
+        border: 0;
+        opacity: 0;
+        pointer-events: none;
+        transform: scale(var(--interaction-page-scale, 0.5));
+        transform-origin: top left;
+      }
+
+      .interaction-gallery[data-interaction-viewport="1"] {
+        --interaction-viewport-size: 100%;
+        --interaction-page-scale: 1;
+      }
+
+      .interaction-gallery[data-interaction-viewport="2"] {
+        --interaction-viewport-size: 200%;
+        --interaction-page-scale: 0.5;
+      }
+
+      .interaction-gallery[data-interaction-viewport="4"] {
+        --interaction-viewport-size: 400%;
+        --interaction-page-scale: 0.25;
+      }
+
+      .interaction-frame[data-interaction-ready] {
+        display: block;
+        opacity: 1;
+      }
+
+      .interaction-keypress {
+        position: absolute;
+        z-index: 4;
+        right: 18px;
+        bottom: 18px;
+        padding: 7px 10px;
+        border: 1px solid var(--border-2);
+        border-radius: 8px;
+        background: var(--card);
+        box-shadow: 0 4px 14px var(--shade);
+        color: var(--ink);
+        font: 650 var(--t-6) / 1 var(--sans);
+        pointer-events: none;
+      }
+
+      .interaction-keypress[hidden] {
+        display: none;
+      }
+
+      .interaction-pointer {
+        position: absolute;
+        z-index: 5;
+        top: 0;
+        left: 0;
+        width: 22px;
+        height: 28px;
+        background: var(--ink);
+        clip-path: polygon(0 0, 78% 71%, 47% 73%, 63% 100%, 49% 100%, 34% 76%, 0 100%);
+        filter: drop-shadow(0 1px 0 var(--paper)) drop-shadow(0 2px 3px var(--shade));
+        pointer-events: none;
+        transform-origin: 2px 2px;
+        will-change: transform, opacity;
+      }
+
+      .interaction-pointer[hidden] {
+        display: none;
+      }
+
+      .interaction-demo figcaption {
+        max-width: 66ch;
+        margin-top: 13px;
+        color: var(--ink-2);
+        font-size: var(--t-5);
+        line-height: 1.55;
+      }
+
+      @container lf-shell (max-width: 1151px) {
+        #bg-sidebar {
+          display: none;
+        }
+      }
+
+      @media print {
+        .interaction-controls,
+        .interaction-pointer {
+          display: none !important;
+        }
+
+        .interaction-gallery lf-tabs {
+          box-shadow: none;
+        }
+      }
+    </style>
 </head>
 <body>
 <main>
@@ -338,7 +1234,7 @@ outside average, before, after
 <lf-tab id="corpus-notification-playground" label="Notification">
 <lf-workspace id="notification-workspace">
         <lf-ask id="notification-ask">
-          <h1>Create the deployment notification</h1>
+          <h1>Stress-test the deployment notification</h1>
           <lf-playground
             id="notification-playground"
             submit-label="Create notification"
@@ -431,58 +1327,14 @@ outside average, before, after
 
             <lf-playground-preview id="notification-preview">
               <p>
-                Change one control to update both candidates, then choose the format
-                that keeps the deployment state easiest to scan.
+                Drag event pressure from a routine release to a burst. Both formats
+                receive the same updates, so their scan cost stays comparable. The
+                Format control selects the requested output while leaving both
+                candidates visible for comparison.
               </p>
-              <div id="notification-candidates">
-                <figure
-                  class="notification-candidate"
-                  data-notification-format="banner"
-                >
-                  <figcaption>A · Banner</figcaption>
-                  <article
-                    class="notification-card"
-                    id="notification-card"
-                    aria-labelledby="notification-title"
-                  >
-                    <header>
-                      <p class="eyebrow">Deployment update</p>
-                      <h2 class="notification-title" id="notification-title"></h2>
-                    </header>
-                    <p>
-                      Version 2.8.0 changed the checkout service. Review the deployment
-                      run and current service health.
-                    </p>
-                    <p class="notification-owner" id="notification-owner">
-                      <strong>Owner:</strong> Payments platform
-                    </p>
-                    <footer>Recorded at 14:32 · 18 checks completed</footer>
-                  </article>
-                </figure>
-                <figure
-                  class="notification-candidate"
-                  data-notification-format="status strip"
-                >
-                  <figcaption>B · Status strip</figcaption>
-                  <article
-                    class="notification-card"
-                    id="notification-strip"
-                    aria-labelledby="notification-strip-title"
-                  >
-                    <header>
-                      <p class="eyebrow">Checkout · version 2.8.0</p>
-                      <h2 class="notification-title" id="notification-strip-title"></h2>
-                    </header>
-                    <p>
-                      Review the deployment run and current service health. Recorded at
-                      14:32 after 18 checks.
-                    </p>
-                    <p class="notification-owner">
-                      <strong>Owner:</strong> Payments platform
-                    </p>
-                  </article>
-                </figure>
-              </div>
+              <notification-simulator
+                id="notification-simulator"
+              ></notification-simulator>
               <section id="notification-artifact" hidden>
                 <lf-text-document
                   id="notification-artifact-source"
@@ -502,7 +1354,8 @@ outside average, before, after
               spacing set to <lf-playground-value for="compact"></lf-playground-value>,
               owner visibility set to
               <lf-playground-value for="show-owner"></lf-playground-value>, and title it
-              <lf-playground-value for="title"></lf-playground-value>. Show me the
+              <lf-playground-value for="title"></lf-playground-value>. Preserve the
+              shared event-pressure scenario in its browser test, then show me the
               generated source here for review.
             </lf-playground-output>
           </lf-playground>

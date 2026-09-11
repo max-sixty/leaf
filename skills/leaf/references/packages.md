@@ -269,7 +269,9 @@ Ask projection uses the same condition for standing state. Do not add a second
 completed attribute or trust the browser's optimistic item count. Re-vendoring must
 preserve the completion condition for every recorded action.
 
-A CSS-only widget is an entry and a theme rule. One with behavior takes a module.
+A package is for behavior, styling, or vocabulary reused across pages. Page-specific
+behavior belongs in an authored inline module and needs no package entry. A CSS-only
+widget is an entry and a theme rule. One with reusable behavior takes a module.
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. What the module owes:

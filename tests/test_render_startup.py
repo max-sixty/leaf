@@ -115,7 +115,16 @@ def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
   <button type="submit">Send page state</button>
 </form>
 """,
-        head='<base href="https://outside.invalid/rebased/">',
+        head=(
+            '<base href="https://outside.invalid/rebased/">'
+            """<script type="module">
+window.authoredModuleRan = true;
+window.dataModuleImport = import("/api/state").then(
+  () => "executed",
+  () => "blocked",
+);
+</script>"""
+        ),
     )
     url = live_url(serve(source))
     page, errors = open_page(
@@ -137,6 +146,8 @@ def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
         ),
     )
     try:
+        page.wait_for_function("() => window.authoredModuleRan === true")
+        assert page.evaluate("window.dataModuleImport") == "blocked"
         page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
         served = urlparse(page.url)
         assert (
@@ -165,11 +176,19 @@ def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
         page.wait_for_function("() => window.__cspViolations.includes('form-action')")
         assert escaped == []
         assert any("frame-ancestors 'none'" in error for error in errors), errors
+        assert any('MIME type of "application/json"' in error for error in errors), (
+            errors
+        )
         unexpected = [
             error
             for error in errors
             if not (
-                "Content Security Policy" in error or "Content-Security-Policy" in error
+                "Content Security Policy" in error
+                or "Content-Security-Policy" in error
+                or (
+                    "Failed to load module script" in error
+                    and 'MIME type of "application/json"' in error
+                )
             )
         ]
         assert unexpected == []

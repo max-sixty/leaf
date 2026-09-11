@@ -291,6 +291,14 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     for private in ("data.json", "events.jsonl", "status.json", "cursor.json"):
         assert not (example_root / private).exists()
 
+    notification_root = assets / "examples" / "notification-playground"
+    notification = manifest["pages"]["/examples/notification-playground"]
+    notification_document = (notification_root / "index.html").read_text()
+    assert (
+        f'from "{notification["assets"]}/runtime/widget-api.js"'
+        in notification_document
+    )
+
     # Public paths remain page-scoped, but repeated immutable payload bytes occupy one
     # inode in the build and container image rather than one complete copy per page.
     repeated = [
@@ -527,6 +535,24 @@ def test_a_website_example_keeps_its_version_identity_and_history(
         page.close()
 
 
+def test_the_published_notification_example_runs_its_authored_module(
+    served_example, browser
+):
+    _, url = served_example("notification-playground")
+    page, errors = open_page(browser, url)
+    try:
+        pressure = page.get_by_role("slider", name="Concurrent release events")
+        expect(pressure).to_have_value("2")
+
+        pressure.fill("4")
+
+        expect(page.locator(".notification-demo-card-banner")).to_have_count(4)
+        expect(page.locator(".notification-demo-card-status-strip")).to_have_count(4)
+        assert errors == []
+    finally:
+        page.close()
+
+
 def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, browser):
     """A lower sequence from a replacement cannot be applied over vanished state."""
     _, url = served_example("triage-board")
@@ -743,8 +769,9 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
 
     with pytest.raises(SystemExit) as stopped:
         site_build.build(tmp_path / "invalid-site", verify_links=False)
-    assert "expected exactly one external <script src> tag, found 0" in str(
-        stopped.value
+    assert (
+        "expected exactly one external <script src> tag for /leaf.js, found 0"
+        in str(stopped.value)
     )
 
 

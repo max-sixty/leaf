@@ -304,7 +304,10 @@ describe("product-site delivery", () => {
 
     const response = await worker.fetch(
       new Request("https://leaf.page/examples/triage-board/", {
-        headers: { "Sec-Fetch-Dest": "document" },
+        headers: {
+          "CF-Connecting-IP": "203.0.113.8",
+          "Sec-Fetch-Dest": "document",
+        },
       }),
       env,
       { waitUntil } as unknown as ExecutionContext,
@@ -315,9 +318,14 @@ describe("product-site delivery", () => {
       .get("Set-Cookie")
       ?.match(/^__Host-leaf-page=([0-9a-f]{32});/)?.[1];
     expect(sessionId).toBeDefined();
+    expect(waitUntil).toHaveBeenCalledOnce();
+    await waitUntil.mock.calls[0][0];
+
+    expect(env.SOURCE_AGENT_RATE_LIMITER.limit).toHaveBeenCalledWith({
+      key: "prewarm:203.0.113.8",
+    });
     expect(getContainer).toHaveBeenCalledWith(env.PAGES, sessionId);
     expect(start).toHaveBeenCalledOnce();
-    expect(waitUntil).toHaveBeenCalledWith(started);
   });
 
   it("does not prewarm an HTML probe that is not a browser navigation", async () => {
@@ -341,6 +349,37 @@ describe("product-site delivery", () => {
     expect(response.status).toBe(200);
     expect(getContainer).not.toHaveBeenCalled();
     expect(waitUntil).not.toHaveBeenCalled();
+  });
+
+  it("does not allocate a container when a source exhausts its prewarm limit", async () => {
+    const deny = vi.fn(async () => ({ success: false }));
+    const env = environment({
+      AGENT_PREWARM: "true",
+      ASSETS: {
+        fetch: async () =>
+          new Response("<!doctype html><title>Leaf</title>", {
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          }),
+      } as unknown as Fetcher,
+      SOURCE_AGENT_RATE_LIMITER: { limit: deny } as RateLimit,
+    });
+    const waitUntil = vi.fn();
+
+    const response = await worker.fetch(
+      new Request("https://leaf.page/", {
+        headers: {
+          "CF-Connecting-IP": "203.0.113.9",
+          "Sec-Fetch-Dest": "document",
+        },
+      }),
+      env,
+      { waitUntil } as unknown as ExecutionContext,
+    );
+    await waitUntil.mock.calls[0][0];
+
+    expect(response.status).toBe(200);
+    expect(deny).toHaveBeenCalledWith({ key: "prewarm:203.0.113.9" });
+    expect(getContainer).not.toHaveBeenCalled();
   });
 
   it.each(["/media/upload.png", "/examples/triage-board/media/upload.png"])(

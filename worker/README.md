@@ -181,7 +181,9 @@ from production.
 
 `AGENT_PREWARM` is repeated in the production and dev Wrangler environments because
 named environments do not inherit variables. Change it to `false` to compare cold
-startup without changing the request path. A single global warm container cannot be
+startup without changing the request path. Prewarm uses a separate per-source key on
+the task-start rate limiter, which caps document-shaped requests from one source at
+twenty per minute in each Cloudflare location. A single global warm container cannot be
 reassigned to these per-session Durable Object identities. A reusable warm pool would
 need leases, state cleanup, and recovery, so Leaf does not maintain one.
 
@@ -234,7 +236,6 @@ permission. The deploy workflow gives each build attempt its own release identit
 builds and pushes the container before it activates the Worker, and deploys the image
 by its immutable registry digest. It then requests an immediate container rollout and
 drives the public site in Chrome. The gate accepts only the exact build release: it
-checks the passive edge presentation, immutable module URLs, absence of browser errors
-and premature container allocation, then starts a fresh private container and verifies
-that its state has the same release identity. A coherent old release cannot satisfy
-the gate.
+checks the passive edge presentation, immutable module URLs, and browser errors, then
+activates that reader's private container and verifies that its state has the same
+release identity. A coherent old release cannot satisfy the gate.

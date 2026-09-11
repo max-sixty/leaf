@@ -313,10 +313,20 @@ async function prewarmContainer(
   sessionId: string,
   reference: string,
   route: string,
+  sourceId: string,
 ): Promise<void> {
   const started = Date.now();
   prewarmLog("container_prewarm_started", reference, route);
   try {
+    const allowed = await env.SOURCE_AGENT_RATE_LIMITER.limit({
+      key: `prewarm:${sourceId}`,
+    });
+    if (!allowed.success) {
+      prewarmLog("container_prewarm_denied", reference, route, {
+        durationMs: Date.now() - started,
+      });
+      return;
+    }
     await getContainer(env.PAGES, sessionId).start();
     prewarmLog("container_prewarm_completed", reference, route, {
       durationMs: Date.now() - started,
@@ -530,7 +540,10 @@ export default {
           request.method === "GET" &&
           request.headers.get("Sec-Fetch-Dest") === "document"
         ) {
-          ctx.waitUntil(prewarmContainer(env, sessionId, reference, route.root));
+          const sourceId = request.headers.get("CF-Connecting-IP") ?? "unknown";
+          ctx.waitUntil(
+            prewarmContainer(env, sessionId, reference, route.root, sourceId),
+          );
         }
         return new Response(response.body, {
           status: response.status,

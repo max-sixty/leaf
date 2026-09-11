@@ -1,7 +1,13 @@
-/* A fixed developer exhibit of the complete margin entry schema. It deliberately uses the
- * public marginEntry factory rather than reproducing any margin entry anatomy or state paint;
- * the only local rendering is the comparison grid and the words that name each cell. */
-import { marginEntry, once, offer, relabel } from "/runtime/widget-api.js";
+/* A fixed developer exhibit of margin entry controls and agent ownership. It uses
+ * the public marginEntry and ownership helpers rather than reproducing anatomy or
+ * paint; the package owns only the comparison grid and the words naming each cell. */
+import {
+  marginEntry,
+  once,
+  offer,
+  relabel,
+  syncMarginAgentPhase,
+} from "/runtime/widget-api.js";
 
 const GROUPS = [
   {
@@ -67,8 +73,8 @@ const GROUPS = [
     ],
   },
   {
-    heading: "Lifecycle",
-    summary: "Only work in flight is marked; the rest rank without painting",
+    heading: "Control state",
+    summary: "Idle, engaged, busy, failed · what this control is doing",
     specimens: [
       {
         name: "Idle",
@@ -84,7 +90,7 @@ const GROUPS = [
       },
       {
         name: "Busy",
-        detail: "moving open ring",
+        detail: "sending · static dashed ring",
         icon: "sent",
         state: "busy",
       },
@@ -93,6 +99,43 @@ const GROUPS = [
         detail: "no mark · ranks first",
         icon: "retry",
         state: "failed",
+      },
+    ],
+  },
+  {
+    heading: "Agent ownership",
+    summary: "Not held, picked up, working · whether the agent has the item",
+    specimens: [
+      {
+        name: "Not held",
+        detail: "Thread · neutral ring",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+      },
+      {
+        name: "Picked up",
+        detail: "Thread · single blue ring",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+        agentPhase: "picked_up",
+      },
+      {
+        name: "Working",
+        detail: "Thread · green double ring",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+        agentPhase: "active",
+      },
+      {
+        name: "Working alone",
+        detail: "Activity dot · no other control can carry it",
+        icon: "activity",
+        behavior: "disclosure",
+        rank: "reading",
+        agentPhase: "active",
       },
     ],
   },
@@ -109,10 +152,11 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
   const item = generated("div", "margin-entry-gallery-item");
   item.dataset.marginEntrySpecimen = specimen.name.toLowerCase();
   const behavior = specimen.behavior ?? "action";
+  const key = `gallery-${groupIndex}-${specimenIndex}`;
   const control = marginEntry(
     offer(behavior === "status" ? "span" : "button", "margin-entry-gallery-face"),
     {
-      key: `gallery-${groupIndex}-${specimenIndex}`,
+      key,
       label: specimen.name,
       icon: specimen.icon,
       behavior,
@@ -121,6 +165,12 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
       state: specimen.state ?? "idle",
     },
   );
+  if (specimen.agentPhase)
+    syncMarginAgentPhase(control, {
+      id: key,
+      target: { kind: "widget", id: key },
+      phase: specimen.agentPhase,
+    });
   if (control instanceof HTMLButtonElement) control.disabled = true;
   if (behavior !== "status") control.setAttribute("aria-disabled", "true");
 

@@ -34,6 +34,7 @@
 import { layoutMarginRows } from "./margin-layout.js";
 import { iconElement } from "./icons.js";
 import { keeps } from "./widget-elements.js";
+import { agentWorkPhase } from "./updates.js";
 
 const contributions = new Set();
 const listeners = new Set();
@@ -79,6 +80,7 @@ const FORWARDED_ATTRIBUTES = [
   "aria-expanded",
   "aria-haspopup",
   "aria-pressed",
+  "data-lf-agent-phase",
 ];
 
 const changed = () => {
@@ -159,7 +161,114 @@ function validateMarginEntries(offered) {
   }
 }
 
+// Ownership is independent of a control's action and delivery state. A semantic
+// carrier keeps its glyph and press while the canonical receipt supplies its color.
+const agentDescriptions = new WeakMap();
+const forwardedSources = new WeakMap();
+// Every claim gets one arrival window shared by its margin and Page Map carriers.
+// A new carrier can join the remaining pulse, but repainting cannot begin it again.
+const claimArrivals = new Map();
+const controlArrivals = new WeakMap();
+function syncAgentArrival(control, claim, phase) {
+  if (phase !== "active") {
+    control.removeAttribute("data-lf-agent-arrival");
+    return;
+  }
+  if (!claimArrivals.has(claim)) claimArrivals.set(claim, performance.now());
+  const elapsed = performance.now() - claimArrivals.get(claim);
+  if (controlArrivals.get(control) === claim) return;
+  controlArrivals.set(control, claim);
+  if (elapsed >= 520 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  control.style.setProperty("--lf-agent-arrival-delay", `${-elapsed}ms`);
+  keeps(control, "data-lf-agent-arrival", "1");
+  control.addEventListener(
+    "animationend",
+    () => {
+      control.removeAttribute("data-lf-agent-arrival");
+    },
+    { once: true },
+  );
+}
+
+// Both entry reconciliation and activity updates ask this one writer to compose
+// text. Rebuilding a control must not clear a tooltip whose ownership is unchanged.
+function paintAgentDescription(control) {
+  const source = forwardedSources.get(control);
+  if (source) {
+    for (const attribute of ["aria-description", "title"]) {
+      const value = source.getAttribute(attribute);
+      if (value === null) control.removeAttribute(attribute);
+      else keeps(control, attribute, value);
+    }
+    return;
+  }
+  const reading = agentDescriptions.get(control);
+  if (!reading) {
+    control.removeAttribute("title");
+    return;
+  }
+  if (!reading.phase) {
+    for (const [attribute, value] of [
+      ["aria-description", reading.description],
+      ["title", reading.title],
+    ]) {
+      if (value === null) control.removeAttribute(attribute);
+      else keeps(control, attribute, value);
+    }
+    return;
+  }
+  const work = [reading.phase === "active" ? "Working" : "Picked up", reading.detail]
+    .filter(Boolean)
+    .join(" · ");
+  const action = control[RECORD]?.label || control.getAttribute("aria-label");
+  keeps(
+    control,
+    "aria-description",
+    [reading.description, work].filter(Boolean).join(" · "),
+  );
+  keeps(
+    control,
+    "title",
+    [action, reading.title !== action && reading.title, work]
+      .filter(Boolean)
+      .join(" · "),
+  );
+}
+
+export function syncMarginAgentPhase(control, receipt) {
+  const phase = agentWorkPhase(receipt);
+  syncAgentArrival(
+    control,
+    receipt && JSON.stringify([receipt.target.kind, receipt.target.id, receipt.id]),
+    phase,
+  );
+  if (phase) {
+    if (!agentDescriptions.has(control))
+      agentDescriptions.set(control, {
+        description: control.getAttribute("aria-description"),
+        title: control.getAttribute("title"),
+      });
+    Object.assign(agentDescriptions.get(control), { phase, detail: receipt.detail });
+    keeps(control, "data-lf-agent-phase", phase);
+    paintAgentDescription(control);
+  } else {
+    control.removeAttribute("data-lf-agent-phase");
+    if (agentDescriptions.has(control)) {
+      agentDescriptions.get(control).phase = null;
+      paintAgentDescription(control);
+      agentDescriptions.delete(control);
+    }
+  }
+}
+
 export function syncForwardedMarginEntryState(projection, source) {
+  forwardedSources.set(projection, source);
+  paintAgentDescription(projection);
+  syncAgentArrival(
+    projection,
+    controlArrivals.get(source),
+    source.dataset.lfAgentPhase,
+  );
   const label = source.getAttribute("aria-label");
   if (label == null) projection.removeAttribute("aria-label");
   else keeps(projection, "aria-label", label);
@@ -215,7 +324,7 @@ export function marginEntry(
 
   if (!control.classList.contains("lf-margin-entry"))
     control.classList.add("lf-margin-entry");
-  control.removeAttribute("title");
+  paintAgentDescription(control);
   keeps(control, "data-lf-margin-entry-key", record.key);
   keeps(control, "data-lf-behavior", record.behavior);
   keeps(control, "data-lf-tone", record.tone);

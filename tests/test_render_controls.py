@@ -92,6 +92,14 @@ from render_support import (
 
 pytestmark = pytest.mark.nightly
 
+SWIPE_GALLERY = next(path for path in PAGE_FIXTURES if path.stem == "swipe-gallery")
+TARGETING_GALLERY = next(
+    path for path in PAGE_FIXTURES if path.stem == "targeting-gallery"
+)
+VISUAL_REVIEW_GALLERY = next(
+    path for path in PAGE_FIXTURES if path.stem == "visual-review-gallery"
+)
+
 
 CONTROL_STABILITY_PAGE = leaf_page(
     "control stability",
@@ -143,12 +151,6 @@ CONTROL_STABILITY_PAGE = leaf_page(
     <lf-playground-value for="tone"></lf-playground-value> tone.
   </lf-playground-output>
 </lf-playground></lf-ask>
-<lf-ask id="stable-targeting-decision"><h2>Which style should change?</h2>
-<lf-targeting id="stable-targeting">
-  <lf-target-preview id="stable-targeting-preview">
-    <article id="stable-target"><h3>Release readiness</h3></article>
-  </lf-target-preview>
-</lf-targeting></lf-ask>
 <lf-diff id="stable-diff" review><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
@@ -238,17 +240,6 @@ CONTROL_ARCHETYPES = (
         "target": "#stable-playground .lf-playground-submit",
     },
     {
-        "name": "targeting-style",
-        "coverage": ".lf-targeting-change-fields > :is(select, button)",
-        "target": "#stable-targeting .lf-targeting-add-style",
-    },
-    {
-        "name": "visual-review-disposition",
-        "example": FEATURE_GALLERY,
-        "coverage": ".lf-vr-dispositions > button",
-        "target": "#bg-visual-run .lf-vr-case:not([hidden]) .lf-vr-looks-right",
-    },
-    {
         # The comparison rail: Before and After stand beside each other above the frames,
         # and each caption chooses its own frame. Pressing After is the transition with
         # something to prove — the caption the reader leaves and the one they arrive at
@@ -269,6 +260,24 @@ CONTROL_ARCHETYPES = (
         "coverage": ".interaction-controls > button",
         "target": "[data-interaction-toggle]",
     },
+    {
+        # The targeting package's box-model row. The property select can show labels
+        # from Padding through Minimum height beside the add press, so choosing the
+        # longest value proves that the row reserves enough room for every state.
+        "name": "targeting-box-model",
+        "example": TARGETING_GALLERY,
+        "coverage": ".lf-targeting-change-fields > :is(select, button)",
+        "target": ".lf-targeting-property",
+        "select": "min-height",
+    },
+    {
+        # A disposition changes both its selected paint and the case's durable review
+        # state while its opposite remains beside it.
+        "name": "visual-review-disposition",
+        "example": VISUAL_REVIEW_GALLERY,
+        "coverage": ".lf-vr-dispositions > button",
+        "target": ".lf-vr-case:not([hidden]) .lf-vr-needs-work",
+    },
 )
 CONTROL_ROW_PRESS = (
     "button, summary, select, "
@@ -278,14 +287,6 @@ CONTROL_ROW_PRESS = (
     "[role=spinbutton], [role=switch], [role=tab], [role=treeitem])"
 )
 CONTROL_ROW_NEIGHBOUR = CONTROL_ROW_PRESS + ", a[href]"
-
-
-def _open_gallery_swipe(browser, serve, page):
-    """Serve the authored swipe specimen as a page; the gallery replay is inert."""
-    markup = page.locator(
-        "#bg-interaction-swipe template[data-interaction-page]"
-    ).inner_html()
-    return open_page(browser, serve(leaf_page("Swipe a card", markup)))
 
 
 def _touch_drag(cdp, x, y, *, dx=0, dy=0, steps=14):
@@ -1811,9 +1812,9 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
 )
 def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
     """Each row mechanism holds its other controls still across its causal transition."""
-    # The synthetic page composes authored controls and the standing comment that makes
-    # the margin entry's row. Examples supply the playback scenario and the visual-review
-    # run with its external evidence.
+    # The synthetic page composes every mechanism a page can author, and carries the
+    # standing comment the margin entry's row is made of. An archetype naming an example
+    # is one no page can compose, so its proof runs where the mechanism lives.
     example = archetype.get("example")
     page, errors = open_page(
         browser,
@@ -1834,29 +1835,17 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
         ),
     )
     page_at_rest(page)
-    if archetype["name"] == "targeting-style":
-        workbench = page.locator("#stable-targeting")
-        workbench.get_by_role("button", name="Select element").click()
-        page.locator("#stable-target h3").click()
-        workbench.locator(".lf-targeting-candidate-choice").filter(
-            has_text="<article#stable-target>"
-        ).click()
-        expect(workbench.locator(".lf-targeting-target")).to_have_count(1)
-        page_at_rest(page)
     page.evaluate(DEFINE_BOXES)
     control = page.locator(archetype["target"])
     expect(control).to_be_visible()
     before = control.evaluate(NEIGHBOURHOOD, NEIGHBOUR)
     assert before["names"], f"{archetype['name']} has no neighbouring control to hold"
-    if archetype["name"] == "visual-review-disposition":
-        expect(control).to_have_attribute("aria-pressed", "false")
 
-    control.click()
+    if option := archetype.get("select"):
+        control.select_option(option)
+    else:
+        control.click()
     round_trip(page)
-    if archetype["name"] == "targeting-style":
-        expect(page.locator("#stable-targeting .lf-targeting-change")).to_have_count(1)
-    elif archetype["name"] == "visual-review-disposition":
-        expect(control).to_have_attribute("aria-pressed", "true")
     page_at_rest(page)
     after = page.evaluate("() => window.__lfBoxes()")
     assert any(box is not None for box in after), (
@@ -1880,12 +1869,12 @@ def test_the_composed_corpus_declares_every_control_row_archetype(browser, serve
     corpus = next(example for example in EXAMPLES if example.stem == "corpus")
     page, errors = open_page(browser, serve(corpus))
     page_at_rest(page)
+    page.evaluate(DEFINE_BOXES)
     observed = set()
     undeclared = []
 
-    def collect_controls(document, state):
-        document.evaluate(DEFINE_BOXES)
-        controls = document.locator(CONTROL_ROW_PRESS)
+    def collect_controls(state):
+        controls = page.locator(CONTROL_ROW_PRESS)
         for index in range(controls.count()):
             control = controls.nth(index)
             if not control.is_visible() or not control.is_enabled():
@@ -1916,12 +1905,7 @@ def test_the_composed_corpus_declares_every_control_row_archetype(browser, serve
     assert labels, "the composed corpus has no panels to sweep"
     for tab_label in labels:
         page.get_by_role("tab", name=tab_label, exact=True).click()
-        collect_controls(page, tab_label)
-        if tab_label == "Features":
-            swipe, swipe_errors = _open_gallery_swipe(browser, serve, page)
-            collect_controls(swipe, "Features > Swipe a card")
-            errors.extend(swipe_errors)
-            swipe.close()
+        collect_controls(tab_label)
 
     assert not undeclared, (
         "controls with neighbours need one archetype:\n  " + "\n  ".join(undeclared)
@@ -4994,11 +4978,10 @@ RING_WALKS = (
     # These controls live behind exact page-owned view states. Give each one a focused
     # stop rather than changing the active panel for the whole page walk: selecting a
     # late outer corpus tab would make its preceding until-found panels part of that
-    # sequential walk. The swipe template is served as its own interactive page because
-    # the gallery's replay document is deliberately inert.
+    # sequential walk.
     ("a settled decision", (), ("corpus",)),
     ("a settled option", (), ("corpus",)),
-    ("a swipe card", (), ("feature-gallery",)),
+    ("a swipe card", (), ("swipe-gallery",)),
     ("a contents link", (), ("feature-gallery",)),
     ("the comments", ("c",), ("ship-review",)),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
@@ -5095,7 +5078,7 @@ RING_SCOPE_CONTROL = {
         None,
         "#comparison-policy[settled] > lf-option > .lf-pick",
     ),
-    "a swipe card": (None, "#bg-motion-swipe-card"),
+    "a swipe card": (None, "#swipe-keyboard-card"),
     "a contents link": (None, "#bg-contents li a"),
 }
 # The window a scope's own surface stands in, where that is not the walk's own. These
@@ -5363,7 +5346,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     unnamed = set()
     opened, walked_in, errors = set(), set(), []
     stops = 0
-    examples = {example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY)}
+    examples = {
+        example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY, SWIPE_GALLERY)
+    }
     assert not (missing := set(RING_WALK_EXAMPLES) - set(examples)), (
         "the ring walk names examples that no longer exist: "
         + ", ".join(sorted(missing))
@@ -5431,7 +5416,6 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
         for scope, keys, corpus in RING_WALKS:
             if name not in corpus:
                 continue
-            walk = page
             # The posture the scope's own surface stands in, read after the panel below
             # has settled and put back afterwards, so the next scope walks the page this
             # one was handed. Before the panel, the room a floor is measured against is
@@ -5453,8 +5437,6 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 expect(settled).to_be_visible()
                 if settled.get_attribute("aria-expanded") != "true":
                     settled.click()
-            elif scope == "a swipe card":
-                walk, swipe_console = _open_gallery_swipe(browser, serve, page)
             if scope == "the page":
                 pencil = page.locator(".lf-draft-controls .lf-draft-pencil").first
                 if pencil.count() and pencil.is_visible():
@@ -5498,7 +5480,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 # target and the walk wants a card rather than a particular one.
                 if opener:
                     page.locator(opener).first.click()
-                target = walk.locator(arrival).first
+                target = page.locator(arrival).first
                 expect(target).to_be_visible()
                 target.focus()
                 # A press opened the scope and a script placed the reader in it, and
@@ -5515,11 +5497,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 # `page_at_rest` below runs before the first stop is read, and the walk
                 # runs until the order comes round, so a stale step out and back moves
                 # where the walk starts rather than what it covers.
-                walk.keyboard.press("Tab")
-                walk.evaluate(RENDERED)
-                walk.keyboard.press("Shift+Tab")
-                if scope in RING_SINGLE_STOPS:
-                    expect(target).to_be_focused()
+                page.keyboard.press("Tab")
+                page.evaluate(RENDERED)
+                page.keyboard.press("Shift+Tab")
             else:
                 # Each press read on a rendered frame, rather than on the settled page
                 # every Tab below it is pressed against: what the next key of the
@@ -5533,7 +5513,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 for key in keys:
                     page.keyboard.press(key)
                     page.evaluate(RENDERED)
-            page_at_rest(walk)
+            page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
             if surface and (offers is None or offered(page, offers)):
                 assert page.locator(surface).count() == 1, (
@@ -5546,7 +5526,7 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             # The tab order comes back round, so the walk ends when it reaches a control
             # it has already stood on. The cap is a backstop against a page whose order
             # never repeats.
-            walk.evaluate("() => { window.__lfSeen = new WeakSet(); }")
+            page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
             where = f"in {scope} of {example.stem}"
             walked, empty, came_round = 0, 0, False
             for _ in range(400):
@@ -5564,9 +5544,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     # margin entry instead, leaving the `shot` ring painted nowhere the corpus
                     # could be walked to while every control involved was focusable
                     # before the press and after it.
-                    page_at_rest(walk)
-                    walk.keyboard.press("Tab")
-                stop = walk.evaluate(RING_NEW_STOP)
+                    page_at_rest(page)
+                    page.keyboard.press("Tab")
+                stop = page.evaluate(RING_NEW_STOP)
                 if stop == "seen":
                     came_round = True
                     break
@@ -5588,9 +5568,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                     continue
                 empty = 0
                 walked, stops = walked + 1, stops + 1
-                if (lost := walk.evaluate(SEEN_STOP)) is not None:
+                if (lost := page.evaluate(SEEN_STOP)) is not None:
                     unseen.add(f"{where}: {lost}")
-                drawn = rings_drawn(walk)
+                drawn = rings_drawn(page)
                 for ring in drawn:
                     if not ring["here"]:
                         continue
@@ -5630,9 +5610,6 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             if scope in {"a settled decision", "a settled option"}:
                 page.get_by_role("tab", name="Triage", exact=True).click()
                 page_at_rest(page)
-            if walk is not page:
-                errors.extend(f"{where}: {error}" for error in swipe_console)
-                walk.close()
 
         for declared in page.evaluate(RING_NAMES):
             seen = rings.setdefault(declared["name"], [])

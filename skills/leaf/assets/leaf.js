@@ -145,7 +145,7 @@ import {
   standingStatusBoxes,
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
-import { activeRowLabel, availableCommands } from "./runtime/keyboard/dispatch.js";
+import { activeRowLabel } from "./runtime/keyboard/dispatch.js";
 import {
   focused,
   keys,
@@ -329,6 +329,17 @@ app = mountApplication({
     drawing: pendingDrawing,
   }),
   activeActionAnchor: () => responseSurface.fabAnchorAt(),
+  compositionSurface: {
+    active: () =>
+      composerOpen && responseSurface?.fabAnchorAt()
+        ? { anchor: responseSurface.fabAnchorAt() }
+        : null,
+    node: () => fabBar,
+    open: (...args) => responseSurface.commentOnTarget(...args),
+    outlet: () => responseSurface?.fabInlineOutlet() ?? null,
+    seat: (...args) => responseSurface.seatFab(...args),
+    restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
+  },
   landInConversation: (...args) => landing.landInConversation(...args),
   showThread: (...args) => landing.showThread(...args),
   setPanel: (...args) => threadPanelController.setPanel(...args),
@@ -406,7 +417,6 @@ asks = createAskView({
   scrollToElement: anchorTravel.scrollToElement,
   refreshConversation: () => app.refreshConversation(),
   placeBulkAnswer: (button) => versionBtn.before(button),
-  availableCommands,
   announce,
   repaint,
 });
@@ -473,6 +483,7 @@ responseSurface = createResponseSurface({
   openPageThread: app.margin.openPageThread,
   drawModeActive: () => drawing.drawModeActive(),
   refreshConversation: app.refreshConversation,
+  responseHome: chromeRoot,
 });
 reactions = createReactionController({
   marginEntryChoices: app.margin.marginEntryChoices,

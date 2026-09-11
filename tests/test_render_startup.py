@@ -1358,12 +1358,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 
 def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
-    """Page visuals paint after upgrade while agent and durable state still wait.
-
-    The feature gallery's optional interface and playground both generate controls.
-    Holding replay proves they finish and paint by the widget-upgrade stamp. Page-local
-    playground changes work immediately, while its durable submit and the agent-derived
-    banner remain unavailable until the authoritative projection arrives."""
+    """Core page visuals paint after upgrade while agent state still waits."""
     url = serve(FEATURE_GALLERY)
     held = []
     page = browser.new_page(viewport={"width": 1440, "height": 900})
@@ -1378,32 +1373,48 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         controls = gallery.locator(".interaction-controls")
         expect(controls).to_have_count(1)
         expect(controls).to_be_visible()
-        playground = page.locator("#bg-card-playground")
-        expect(playground.locator(".lf-playground-controls")).to_be_visible()
-        expect(playground.locator(".lf-playground-presets")).to_be_visible()
-        expect(playground.locator(".lf-playground-actions")).to_be_visible()
-        submit = playground.get_by_role("button", name="Apply card")
-        expect(submit).to_be_disabled()
         expect(page.locator(".lf-status-text")).to_have_text(re.compile(r"^Connecting"))
-
-        playground.get_by_role("button", name="Evening invite").click()
-        expect(playground.locator("input[aria-label='Card title']")).to_have_value(
-            "Evening walk"
-        )
-        assert (
-            page.locator("#bg-playground-card-title").evaluate(
-                "element => getComputedStyle(element, '::before').content"
-            )
-            == '"Evening walk"'
-        )
 
         held.pop(0).continue_()
         page.wait_for_function(BOTH_STAMPS)
         expect(controls).to_be_visible()
-        expect(submit).to_be_enabled()
-        expect(playground.locator("input[aria-label='Card title']")).to_have_value(
-            "Evening walk"
+        expect(page.locator(".lf-status-text")).not_to_have_text(
+            re.compile(r"^Connecting")
         )
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_playground_joins_initial_widget_settlement(browser, serve):
+    """An optional package paints locally while its durable action still waits."""
+    source = next(path for path in EXAMPLES if path.stem == "notification-playground")
+    url = serve(source)
+    held = []
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    errors = watched(page)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(url, wait_until="load")
+        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+        assert held, "the positive control did not hold the first state response"
+        playground = page.locator("#notification-playground")
+        expect(playground.locator(".lf-playground-controls")).to_be_visible()
+        expect(playground.locator(".lf-playground-presets")).to_be_visible()
+        expect(playground.locator(".lf-playground-actions")).to_be_visible()
+        submit = playground.get_by_role("button", name="Create notification")
+        expect(submit).to_be_disabled()
+        expect(page.locator(".lf-status-text")).to_have_text(re.compile(r"^Connecting"))
+
+        playground.get_by_role("button", name="Needs attention").click()
+        compact = playground.locator("input[aria-label='Compact spacing']")
+        expect(compact).to_be_checked()
+        expect(playground).to_have_attribute("data-playground-format", "status strip")
+
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        expect(submit).to_be_enabled()
+        expect(compact).to_be_checked()
         expect(page.locator(".lf-status-text")).not_to_have_text(
             re.compile(r"^Connecting")
         )

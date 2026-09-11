@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
+    <title>Leaf swipe package</title>
+    <meta
+      name="description"
+      content="Review a queue of cards with the optional Leaf swipe package."
+    />
+    <link rel="stylesheet" href="/theme.css" />
+    <script type="module" src="/leaf.js"></script>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">swipe package</p>
+      <h1 id="swipe-title">Classify a queue without losing context</h1>
+      <p class="lede" id="swipe-lede">
+        Swipe presents one card at a time, keeps the two outcomes visible, and records
+        each classification through the ordinary Leaf action log.
+      </p>
+      <lf-ask id="swipe-ask">
+        <h2>Which follow-ups should stay?</h2>
+        <lf-swipe-deck id="swipe-deck">
+          <lf-swipe-pile id="swipe-queue" verdict="unseen">
+            <lf-swipe-card id="swipe-keyboard-card">
+              <strong>Document the keyboard route</strong>
+              <p>Keep the interaction reachable without a pointer.</p>
+            </lf-swipe-card>
+            <lf-swipe-card id="swipe-animation-card">
+              <strong>Record the exit animation</strong>
+              <p>Keep motion evidence only when timing changes the judgment.</p>
+            </lf-swipe-card>
+          </lf-swipe-pile>
+          <lf-swipe-pile id="swipe-pass" verdict="pass"></lf-swipe-pile>
+          <lf-swipe-pile id="swipe-keep" verdict="keep"></lf-swipe-pile>
+        </lf-swipe-deck>
+      </lf-ask>
+      <section id="swipe-recorded">
+        <h2>A completed classification remains inspectable</h2>
+        <lf-specimen id="swipe-recorded-specimen" label="a recorded swipe result">
+          <lf-swipe-deck id="swipe-completed">
+            <lf-swipe-pile id="swipe-completed-queue" verdict="unseen"></lf-swipe-pile>
+            <lf-swipe-pile id="swipe-completed-pass" verdict="pass"></lf-swipe-pile>
+            <lf-swipe-pile id="swipe-completed-keep" verdict="keep">
+              <lf-swipe-card id="swipe-completed-card">
+                <strong>Keep the explicit expiry bound</strong>
+                <p>
+                  The card stays in the pile that carries its recorded classification.
+                </p>
+              </lf-swipe-card>
+            </lf-swipe-pile>
+          </lf-swipe-deck>
+        </lf-specimen>
+      </section>
+    </main>
+  </body>
+</html>

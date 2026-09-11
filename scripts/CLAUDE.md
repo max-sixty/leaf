@@ -67,10 +67,10 @@ rules a new or changed example has to meet.
   `leaf-website-dev` Cloudflare environment and runs that benchmark against its
   `workers.dev` origin. The command always selects the `dev` Wrangler environment;
   production deployment stays in `publish-site.yaml`.
-  `query-site-agent-logs.py` reads one canonical event id or visible session reference
-  from each configured Analytics Engine event index, then emits its unsampled timing
-  window from Workers Observability. It excludes Cloudflare's surrounding request
-  metadata, and the same lookup covers production and dev.
+  Hosted-agent diagnostics live in Workers Observability. Query its REST API directly
+  with the canonical event id or visible session reference; once the Container starts
+  a Codex turn, its `turnId` also finds the model-request timings. Analytics Engine is
+  aggregate product telemetry, not a log index.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws it and the three
   photographs of the same staged scene beside it — the landing page's light and dark
   session stills, and `session-card.png` at the 1.91:1 an unfurler draws a card at.

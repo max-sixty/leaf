@@ -211,7 +211,7 @@ function scopesWithin(root, activeOnly) {
 }
 export function commandsWithin(root) {
   return scopesWithin(root, true).flatMap(({ source, scope }) =>
-    scope.rows.filter(live).map((row) => ({ source, row })),
+    scope.rows.filter(live).map((row) => ({ source, scope, row })),
   );
 }
 // Command-scope metadata under one widget, in declaration order. The action rows and
@@ -387,7 +387,7 @@ export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
 // boundary the way `closest` climbs inside one, so a widget staging its controls in a
 // shadow tree declares them the same way. A projected margin control carries the source
 // control's semantic scopes ahead of the projection's containing scopes: its press and
-// local Escape still mean what the contributor declared, while the dialog or margin it
+// local Escape still mean what the contributor declared, while the sheet or margin it
 // was projected into remains the surrounding keyboard context.
 export function scopesFor(node) {
   const found = [];

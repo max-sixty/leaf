@@ -363,18 +363,30 @@ remains the command register's own-scope keycap override. A row with no bindings
 a Decision action name. This also applies when computed `keys` is initially empty and
 gains bindings later. The command reference uses a keyless Decision command's action name
 rather than a blank keycap.
-The Ask projection always spells the binding it resolved beside the `decision` action
-name, so its inline hint says what the reader actually presses. A row may have zero or one
-live binding in the Decision role: zero receives the Ask's next free contextual `1`
-through `9`, while one keeps its canonical binding, such as `ArrowLeft`. Each action keeps
-one command id. Dispatch, the command reference, the shortcut bar, its binding badge, and
-`aria-keyshortcuts` all use that id. `bindingBadge` may name an empty face a widget
-already positions. Each supplied face belongs to one action; core writes the resolved binding
-there while the whole face is connected, visible, and uncovered. Otherwise core paints its
-own binding badge at the visible control. The package does not keep a second key map or
-Ask-control list. Routes let one parameterized
-row contribute distinct controls and bindings. The Ask projection invokes the row's
-declared `run`; a run-less native command falls back to its control's `click()`.
+Every ordered Decision receives one of the Ask's contextual `1` through `9` routes while
+capacity remains, independently of any intrinsic widget binding. The Ask digit and the
+widget binding share one command id and source-scoped command reference. Invoking either
+therefore rechecks the original scope and liveness, calls the original `run` (or clicks a
+run-less native control), and preserves its return frame. A focused widget declaration
+wins when it collides with an Ask digit; undeclared digits continue to the Ask.
+
+`bindingBadge` may name an empty face a widget already positions. Each supplied face
+belongs to one action; core writes the reachable Ask digit there while the whole face is
+connected, visible, and uncovered. Otherwise core paints its own binding badge at the
+visible control. Routes let one parameterized row contribute distinct controls and
+intrinsic bindings. Do not maintain a second Ask-control list or declare the Ask's
+contextual digits in the package.
+
+Command scopes compose by focused ancestry. The exact control scope is nearest, followed
+by containing widget scopes and Leaf's outer page scopes. A scope owns only the bindings
+whose rows implement a Leaf invocation, so an undeclared key falls outward. An
+implemented declaration retains that precedence for an ordinary binding while its
+command is unavailable: liveness removes execution and projections, but does not expose
+an ancestor's different meaning. Escape is the semantic-unwind exception, so a dead inner
+Escape declaration cannot reserve the key and strand the next live return. A row without
+`run` only presents native behavior or a shared outer handler and does not shadow it. Text
+fields and other native interactions retain their editing keys ahead of ancestor widget
+scopes.
 
 Every visible press a widget builds with `offer()` or `selectableOffer()` also joins the
 generated target map after `g`. Packages do not declare another `g` binding or repeat
@@ -425,7 +437,7 @@ identity when its key or wording changes: the command browser and repeated widge
 instances use it instead of display prose. If one compact row binds keys with different
 meanings, add `routes` with an `id`, `binding`, and action sentence for each meaning. The
 shortcut bar stays compact, while the command reference lists and runs each route on its own.
-Use `runFromReference: false` only for a parameterized step that cannot be run without a
+Use `runFromCommandReference: false` only for a parameterized step that cannot be run without a
 choice the command reference does not have, such as a generated hint tied to the live viewport. An
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).
@@ -742,8 +754,9 @@ and `lfDataDatum(key)` to map a semantic key to the rendered projected element.
 
 ## Widget-local Thread surfaces
 
-An upgraded widget declares `"x-thread-surface": true` when it can place complete
-Threads beside its own projected data. Its module registers one adapter:
+An upgraded widget declares `"x-thread-surface": true` when it can place the canonical
+response composer and complete Threads beside its own projected data. Its module
+registers one adapter:
 
 ```js
 this.threadSurface = registerThreadSurface(this, {
@@ -753,10 +766,11 @@ this.threadSurface = registerThreadSurface(this, {
 });
 ```
 
-Core calls `begin`, asks `outletFor` about each exact datum thread owned by that widget,
-then calls `end`. The adapter returns an element inside the widget or `null`. It owns
-only outlet creation, removal, and layout. Core renders the retained messages, replies,
-reactions, settlement controls, and receipts into each outlet. A claimed thread does not
+Core calls `begin`, asks `outletFor` about each exact datum Thread and the active
+composer owned by that widget, then calls `end`. The adapter returns an element inside
+the widget or `null`. It owns only outlet creation, removal, and layout. Core moves its
+one composer node or renders retained messages, replies, reactions, settlement controls,
+and receipts into each outlet. A claimed thread does not
 also appear in the margin projection; the Threads panel remains the complete index. With
 Threads closed, `t`/`T` lands on this local surface before trying the margin-projection
 fallback. Opening Threads from the focused surface carries the same thread into the
@@ -772,6 +786,12 @@ views, and returns its threads to the margin. Other registrations continue, and 
 next ordinary reconciliation retries the adapter. Outlets must remain inside their
 widget after `end`; disconnected outlets claim no threads. Core message-rendering
 errors still fail the state application rather than accepting a partial conversation.
+
+The registration handle's `open(datum, { origin })` accepts one projected element owned
+by the widget. Core captures its full datum coordinate, including external-data source
+revision, opens the ordinary anchored draft, and seats the response bar in the adapter's
+outlet when the datum still resolves exactly. `origin` is the widget control to which
+Escape may return focus. Widgets do not receive draft, submission, or event APIs.
 
 ## Seeing it
 

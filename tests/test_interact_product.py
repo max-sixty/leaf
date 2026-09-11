@@ -1119,6 +1119,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     result = check(page_dir, version=2)
     assert result.exit_code == 1
     assert "lf- namespace" in result.output and "lf-msg-7" in result.output
+    (page_dir / "index.html").write_text(PAGE)
 
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
@@ -1760,7 +1761,8 @@ def test_comment_requires_the_registry_its_runtime_reads(page_dir):
     result = comment(page_dir, "--quote", "Ship dark", "--text", "Still posts")
     assert result.exit_code != 0
     assert (
-        "no registry.json" in result.output and "run `leaf page init`" in result.output
+        "registry.json missing" in result.output
+        and "run `leaf page init`" in result.output
     )
     assert events_model.read_events(page_dir) == before
 

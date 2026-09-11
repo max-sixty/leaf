@@ -50,9 +50,10 @@ ANSWER_ASK_INSTRUCTION = (
     "conversation with "
     "`response.kind: version` is answered by revising the page and resolving it; open a "
     "separate `leaf comment --section <ask-id>` on the same Ask if that revision "
-    "needs an answer first. Reply to other conversations with the delivery's exact "
-    "`leaf reply <page> --to <response.to> --for <event-id> --text ...`; an ordinary "
-    "reply leaves the conversation open for the reader."
+    "needs an answer first. With one reply in the current opened delivery, use "
+    "`leaf reply <page> --text ...`; select an event with `--for <event-id>` when "
+    "several are pending. The reply validates and activates a changed source, and "
+    "leaves the conversation open for the reader."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (
     "A wait result prints one immutable Leaf delivery envelope containing one page's "

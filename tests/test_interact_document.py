@@ -53,6 +53,7 @@ from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf.validation import compatibility as validation_model
 
@@ -119,6 +120,23 @@ def test_a_quote_crosses_an_upgraded_verbatim_wrapper(page_dir):
     anchor = json.loads(result.output)["anchor"]
     assert anchor["quote"] == quote
     assert anchor["section"] == "plan"
+
+
+def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_dir):
+    """A general comment captures no source, so an unfinished edit cannot block it."""
+    revision = files_model.latest_revision(page_dir)
+    (page_dir / "index.html").write_text("<main>unfinished")
+
+    result = comment(page_dir, "--text", "What should change?")
+
+    assert result.exit_code == 0, result.output
+    event = json.loads(result.output)
+    assert event["revision"] == revision
+    assert "anchor" not in event
+
+    anchored = comment(page_dir, "--quote", "Plan", "--text", "Change this")
+    assert anchored.exit_code != 0
+    assert "cannot use invalid index.html" in anchored.output
 
 
 def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries():
@@ -1465,6 +1483,268 @@ def test_reply_refuses_a_suggestion(page_dir):
     )
     assert result.exit_code != 0
     assert "frozen in the log" in result.output
+
+
+def test_reply_infers_one_obligation_and_activates_the_current_source(page_dir):
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
+    )
+    service_model.claim_page(page_dir)
+    with service_model.PageTransaction(page_dir) as page:
+        claim = page.active_claim
+        session_model.record_pickup(
+            page,
+            [comment],
+            session=claim["id"],
+            turn=claim["turn"],
+        )
+    updated = PAGE.replace("<h2>Plan</h2>", "<h2>Updated plan</h2>")
+    (page_dir / "index.html").write_text(updated)
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--text", "Updated."],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert result.output == "replied in c1\n"
+    assert files_model.list_revisions(page_dir) == [1, 2]
+    assert files_model.revision_path(page_dir, 2).read_text() == updated
+    reply = events_model.read_events(page_dir)[-1]
+    assert reply["parent"] == "c1"
+    assert reply["responds"] == "c1"
+
+
+def test_reply_refuses_an_invalid_current_source(page_dir):
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
+    )
+    service_model.claim_page(page_dir)
+    with service_model.PageTransaction(page_dir) as page:
+        claim = page.active_claim
+        session_model.record_pickup(
+            page,
+            [comment],
+            session=claim["id"],
+            turn=claim["turn"],
+        )
+    (page_dir / "index.html").write_text("<main>unfinished")
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--text", "Updated."],
+    )
+
+    assert result.exit_code != 0
+    assert "cannot reply while index.html is invalid" in result.output
+    assert not any(
+        event["kind"] == "reply" for event in events_model.read_events(page_dir)
+    )
+
+
+def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
+    comments = []
+    for event_id in ("c1", "c2"):
+        comments.append(
+            events_model.append_event(
+                page_dir,
+                {
+                    "kind": "comment",
+                    "id": event_id,
+                    "author": "user",
+                    "text": f"question {event_id}",
+                },
+            )
+        )
+    service_model.claim_page(page_dir)
+    with service_model.PageTransaction(page_dir) as page:
+        claim = page.active_claim
+        session_model.record_pickup(
+            page,
+            comments,
+            session=claim["id"],
+            turn=claim["turn"],
+        )
+    updated = PAGE.replace("<h2>Plan</h2>", "<h2>Updated plan</h2>")
+    (page_dir / "index.html").write_text(updated)
+
+    ambiguous = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--text", "Updated."],
+    )
+    assert ambiguous.exit_code != 0
+    assert "use --for EVENT_ID" in ambiguous.output
+    assert files_model.list_revisions(page_dir) == [1]
+
+    selected = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--for", "c2", "--text", "Updated."],
+    )
+
+    assert selected.exit_code == 0, selected.output
+    assert files_model.list_revisions(page_dir) == [1, 2]
+    reply = events_model.read_events(page_dir)[-1]
+    assert reply["parent"] == "c2"
+    assert reply["responds"] == "c2"
+
+
+def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
+    delivered = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "make it blue"},
+    )
+    service_model.claim_page(page_dir)
+    with service_model.PageTransaction(page_dir) as page:
+        claim = page.active_claim
+        session_model.record_pickup(
+            page,
+            [delivered],
+            session=claim["id"],
+            turn=claim["turn"],
+        )
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "r2",
+            "author": "user",
+            "parent": "c1",
+            "text": "actually make it red",
+        },
+    )
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--text", "Made it blue."],
+    )
+
+    assert result.exit_code != 0
+    assert "this turn's opened delivery" in result.output
+    assert not any(
+        event["kind"] == "reply" and event["author"] == "claude"
+        for event in events_model.read_events(page_dir)
+    )
+
+
+def test_inferred_reply_belongs_to_the_session_with_the_opened_delivery(
+    page_dir, monkeypatch
+):
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
+    )
+    service_model.claim_page(page_dir)
+    with service_model.PageTransaction(page_dir) as page:
+        claim = page.active_claim
+        session_model.record_pickup(
+            page,
+            [comment],
+            session=claim["id"],
+            turn=claim["turn"],
+        )
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "different-reporter")
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--text", "Updated."],
+    )
+
+    assert result.exit_code != 0
+    assert "this turn's opened delivery" in result.output
+
+
+def test_inferred_reply_cannot_borrow_a_closed_turns_delivery(page_dir):
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
+    )
+    service_model.claim_page(page_dir)
+    with service_model.PageTransaction(page_dir) as page:
+        claim = page.active_claim
+        session_model.record_pickup(
+            page,
+            [comment],
+            session=claim["id"],
+            turn=claim["turn"],
+        )
+        page.close_turn(claim["id"], claim["turn"])
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--text", "Updated."],
+    )
+
+    assert result.exit_code != 0
+    assert "this turn's opened delivery" in result.output
+
+
+def test_inferred_reply_attempt_is_idempotent(page_dir):
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
+    )
+    service_model.claim_page(page_dir)
+    with service_model.PageTransaction(page_dir) as page:
+        claim = page.active_claim
+        session_model.record_pickup(
+            page,
+            [comment],
+            session=claim["id"],
+            turn=claim["turn"],
+        )
+
+    first = conversation_model.cmd_reply(
+        page_dir,
+        None,
+        "Updated.",
+        "",
+        for_event=None,
+        attempt="retry-1",
+    )
+    retried = conversation_model.cmd_reply(
+        page_dir,
+        None,
+        "Updated.",
+        "",
+        for_event=None,
+        attempt="retry-1",
+    )
+
+    assert retried["id"] == first["id"]
+    assert (
+        len(
+            [
+                event
+                for event in events_model.read_events(page_dir)
+                if event["kind"] == "reply"
+            ]
+        )
+        == 1
+    )
+
+
+def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
+    )
+    conversation_model.cmd_reply(
+        page_dir,
+        "c1",
+        "Updated.",
+        "",
+        for_event="c1",
+    )
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["reply", str(page_dir), "--for", "c1", "--text", "Again."],
+    )
+
+    assert result.exit_code != 0
+    assert "event 'c1' no longer requires a reply" in result.output
 
 
 def test_check_rejects_wrong_scaffold(page_dir):

@@ -86,16 +86,19 @@ def main() -> None:
     )
     target = parser.parse_args().target
     output = os.environ.get("LEAF_BENCHMARK_OUTPUT")
-    if output is not None:
+    if output is not None and os.environ.get("LEAF_SITE_AGENT_RUNNER"):
+        # The local adapter calls this script back with the release it built. That
+        # callback is the only invocation whose positional value is not a target.
         result = measure(target)
-        Path(output).write_text(json.dumps(result), encoding="utf-8")
-        return
-    if target == "local":
+    elif target == "local":
         result = measure_local()
     else:
         configure_origin(target)
         result = measure(None)
-    print(json.dumps(result, indent=2))
+    if output is not None:
+        Path(output).write_text(json.dumps(result), encoding="utf-8")
+    else:
+        print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":

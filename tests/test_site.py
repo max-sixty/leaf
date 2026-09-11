@@ -1488,14 +1488,14 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
         ),
     )
 
-    def fail_first_contained_read(route):
-        if route.request.frame.name == "interaction-accept" and not failed:
+    def fail_first_contained_reads(route):
+        if route.request.frame.name == "interaction-accept" and len(failed) < 2:
             failed.append(route.request.url)
             route.fulfill(status=200, content_type="application/json", body="{")
         else:
             route.continue_()
 
-    page.route("**/api/state*", fail_first_contained_read)
+    page.route("**/api/state*", fail_first_contained_reads)
     try:
         navigate(page, errors, f"{url}#bg-interactions")
         gallery = page.locator("#bg-interactions")
@@ -1511,11 +1511,11 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
                 );
                 return {asked, heard};
             }"""
-        ) == {"asked": 2, "heard": 2}
-        assert failed
+        ) == {"asked": 3, "heard": 3}
+        assert len(failed) == 2
         assert news_frames and not any(news_frames)
-        assert len(errors) == 1
-        assert errors[0].startswith("leaf: read failed:")
+        assert len(errors) == 2
+        assert all(error.startswith("leaf: read failed:") for error in errors)
     finally:
         context.close()
 

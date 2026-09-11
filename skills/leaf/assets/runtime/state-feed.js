@@ -402,7 +402,7 @@ export function createStateFeed({
         const retry = () => {
           if (document.body.hasAttribute("data-lf-presented")) return;
           if (!readAnswered) void ask();
-          void present();
+          else void present();
           setTimeout(retry, TICK_MS);
         };
         retry();

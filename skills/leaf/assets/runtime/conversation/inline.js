@@ -14,6 +14,7 @@ import { paintReactStrips, removeConversationNode } from "./reaction-strips.js";
 import { elementById } from "../passages.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
+import { paintAcknowledgmentsNow } from "./acknowledgments.js";
 
 /* Textual conversation views rendered outside the retained Threads list.
 
@@ -247,5 +248,6 @@ export function renderMarginThread(host, thread, commands) {
   setChildren(host, [node], (removed) =>
     removeConversationNode(removed, commands.reaction.closeReactionMode),
   );
+  paintAcknowledgmentsNow(host);
   return node;
 }

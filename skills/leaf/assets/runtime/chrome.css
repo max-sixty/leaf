@@ -208,39 +208,19 @@
   box-shadow: none; cursor: default;
 }
 /* Tone colours only the icon. Category and interaction own the ring and fill;
-   work in flight keeps its separate neutral mark. */
+   sending keeps its neutral dashed ring. */
 .lf-margin-entry[data-lf-tone="positive"] > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
 .lf-margin-entry[data-lf-tone="negative"] > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--danger-ink);
 }
-/* Work in flight gets a small lower-right witness, a moving open ring, and it is the
-   only state that gets one. It changes neither the margin entry's ring nor its tone. Busy
-   earns the paint because nothing else on the page states it: a busy margin entry keeps its
-   full opacity and its pointer, so with no ring an in-flight press looks exactly like
-   an idle one. Every other state is already said in words beside the margin entry — a failure
-   by the receipt reading "Failed" and the Retry it swaps in, an open interaction by the
-   editor standing open — and a filled shape this size cannot be told from its
-   neighbours at 1x, so a second mark for them bought a smudge and no fact. The witness
-   is decoration: it must not extend the margin entry's pointer target into the gap beside
-   it. */
-.lf-margin-entry[data-lf-state="busy"]:not([data-lf-behavior="status"])::after {
-  content: ""; position: absolute; z-index: 2; inline-size: 8px; block-size: 8px;
-  inset-inline-end: -2px; inset-block-end: -2px; box-sizing: border-box;
-  background: var(--paper); border: 2px solid currentColor;
-  border-block-start-color: transparent; border-radius: 50%;
-  pointer-events: none;
-  animation: lf-runtime-4f3c2a8d-margin-entry-busy 650ms linear infinite;
-}
-@keyframes lf-runtime-4f3c2a8d-margin-entry-busy { to { transform: rotate(360deg); } }
-/* The same `:not(...)` the rule above carries, so this override matches its specificity
-   and, standing later, wins. Without it the ring keeps turning for a reader who asked
-   for stillness. */
-@media (prefers-reduced-motion: reduce) {
-  .lf-margin-entry[data-lf-state="busy"]:not([data-lf-behavior="status"])::after {
-    animation: none;
-  }
+/* Sending belongs to the control, while ownership belongs to the agent. The
+   static neutral dashed ring replaces the corner spinner on every control. */
+.lf-margin-entry[data-lf-state="busy"]:not([data-lf-agent-phase]) {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--ink) 50%, var(--paper));
+  background: color-mix(in srgb, var(--ink) 4%, var(--paper));
 }
 /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
    and tab stop from standing reaction marks, which retain their shape without
@@ -271,11 +251,27 @@
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="active"] {
   --lf-agent-color: var(--ok-ink);
   --lf-agent-tint: var(--ok-tint);
-  box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--ok-ink);
+  --lf-agent-stage-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--ok-ink);
+  box-shadow: var(--lf-agent-stage-shadow);
 }
 :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase] {
   color: var(--lf-agent-color); border-color: var(--lf-agent-color);
   background: var(--lf-agent-tint);
+}
+.lf-margin-entry[data-lf-agent-phase="active"][data-lf-behavior="action"] {
+  --lf-agent-stage-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--ok-ink),
+    0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+}
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] {
+  animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out var(--lf-agent-arrival-delay, 0ms) 1;
+}
+@keyframes lf-runtime-4f3c2a8d-agent-work-arrival {
+  0% { box-shadow: var(--lf-agent-stage-shadow), 0 0 0 0 color-mix(in srgb, var(--ok-ink) 42%, transparent); }
+  58% { box-shadow: var(--lf-agent-stage-shadow), 0 0 0 7px color-mix(in srgb, var(--ok-ink) 16%, transparent); }
+  100% { box-shadow: var(--lf-agent-stage-shadow), 0 0 0 10px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] { animation: none; }
 }
 .lf-margin-entry-glyph { line-height: 1; }
 .lf-margin-entry-icon {

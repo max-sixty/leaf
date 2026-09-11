@@ -590,6 +590,12 @@ after changing type tokens. The banner status stays on one line with ellipsis an
 complete hover title; its CSS reservation stays independent of changing copy. Pair
 local visual feedback with `notice` for an assistive announcement.
 
+Agent ownership colors the existing semantic margin control: pickup is blue, working
+is green with an inset double ring and one arrival pulse. Sending uses a static neutral
+dashed ring. A separate Activity control appears only when no semantic carrier exists.
+Thread cards carry the same ownership color; quiet or ended claims release it. Reduced
+motion suppresses arrival, and repainting or replacing a carrier cannot replay it.
+
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for
 a state the reader must return to or act on, such as failure.

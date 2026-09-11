@@ -34,6 +34,7 @@
 import { layoutMarginRows } from "./margin-layout.js";
 import { iconElement } from "./icons.js";
 import { keeps } from "./widget-elements.js";
+import { agentWorkPhase } from "./updates.js";
 
 const contributions = new Set();
 const listeners = new Set();
@@ -165,11 +166,38 @@ function validateMarginEntries(offered) {
 // Ownership is independent of a control's action and delivery state. A semantic
 // carrier keeps its glyph and press while the canonical receipt supplies its color.
 const agentDescriptions = new WeakMap();
+// Every claim gets one arrival window shared by its margin and Page Map carriers.
+// A new carrier can join the remaining pulse, but repainting cannot begin it again.
+const claimArrivals = new Map();
+const controlArrivals = new WeakMap();
+function syncAgentArrival(control, claim, phase) {
+  if (phase !== "active") {
+    control.removeAttribute("data-lf-agent-arrival");
+    return;
+  }
+  if (!claimArrivals.has(claim)) claimArrivals.set(claim, performance.now());
+  const elapsed = performance.now() - claimArrivals.get(claim);
+  if (controlArrivals.get(control) === claim) return;
+  controlArrivals.set(control, claim);
+  if (elapsed >= 520 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  control.style.setProperty("--lf-agent-arrival-delay", `${-elapsed}ms`);
+  keeps(control, "data-lf-agent-arrival", "1");
+  control.addEventListener(
+    "animationend",
+    () => {
+      control.removeAttribute("data-lf-agent-arrival");
+    },
+    { once: true },
+  );
+}
+
 export function syncMarginAgentPhase(control, receipt) {
-  const phase =
-    receipt && !receipt.dropped && ["active", "picked_up"].includes(receipt.phase)
-      ? receipt.phase
-      : null;
+  const phase = agentWorkPhase(receipt);
+  syncAgentArrival(
+    control,
+    receipt && JSON.stringify([receipt.target.kind, receipt.target.id, receipt.id]),
+    phase,
+  );
   if (phase) {
     if (!agentDescriptions.has(control))
       agentDescriptions.set(control, {
@@ -184,7 +212,6 @@ export function syncMarginAgentPhase(control, receipt) {
         agentDescriptions.get(control).description,
         phase === "active" ? "Working" : "Picked up",
         receipt.detail,
-        receipt.quiet ? "quiet" : null,
       ]
         .filter(Boolean)
         .join(" · "),
@@ -196,7 +223,6 @@ export function syncMarginAgentPhase(control, receipt) {
         agentDescriptions.get(control).title,
         phase === "active" ? "Working" : "Picked up",
         receipt.detail,
-        receipt.quiet ? "quiet" : null,
       ]
         .filter(Boolean)
         .join(" · "),
@@ -218,6 +244,11 @@ export function syncMarginAgentPhase(control, receipt) {
 }
 
 export function syncForwardedMarginEntryState(projection, source) {
+  syncAgentArrival(
+    projection,
+    controlArrivals.get(source),
+    source.dataset.lfAgentPhase,
+  );
   const label = source.getAttribute("aria-label");
   if (label == null) projection.removeAttribute("aria-label");
   else keeps(projection, "aria-label", label);

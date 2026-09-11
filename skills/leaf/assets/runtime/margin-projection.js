@@ -89,7 +89,7 @@ import { panel } from "./conversation/panel-elements.js";
 import { blockAt, closestAcross, elementById, inChrome, says } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
-import { updateSequence, workClaimState } from "./updates.js";
+import { agentWorkPhase, updateSequence, workClaimState } from "./updates.js";
 import { threadList } from "./conversation/state.js";
 import { threadKey } from "./conversation/model.js";
 
@@ -457,12 +457,7 @@ export function createMarginProjection({
   const agentReceipt = (items) =>
     items
       .map((item) => item.agentReceipt)
-      .filter(
-        (receipt) =>
-          receipt &&
-          !receipt.dropped &&
-          ["active", "picked_up"].includes(receipt.phase),
-      )
+      .filter((receipt) => agentWorkPhase(receipt))
       .sort(
         (left, right) =>
           (left.phase === "active" ? 0 : 1) - (right.phase === "active" ? 0 : 1),

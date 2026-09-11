@@ -1323,6 +1323,11 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           padding: var(--sp-1);
           font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
           color: var(--ink); overflow-wrap: anywhere; }
+/* Panel and inline thread cards mark current ownership without changing their geometry. */
+:is(.lf-thread, .lf-conversation-thread)[data-lf-agent-phase="picked_up"] {
+          box-shadow: inset 2px 0 var(--accent); }
+:is(.lf-thread, .lf-conversation-thread)[data-lf-agent-phase="active"] {
+          box-shadow: inset 3px 0 var(--ok-ink); }
 .lf-conversation-thread:is(:focus-within, .lf-focus-within) {
           outline: none; border-radius: var(--r); background: var(--here-surface); }
 @media (forced-colors: active) {
@@ -1474,12 +1479,13 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-receipt time { color: var(--muted-2); white-space: nowrap; }
 .lf-receipt.lf-message-receipt { display: inline-flex; flex: 1 1 auto; align-items: baseline;
   width: auto; min-width: 0; margin: 0; padding: 0; clear: none; grid-column: auto;
-  border: 0; border-radius: 0; background: none; color: var(--ok-ink);
+  border: 0; border-radius: 0; background: none; color: var(--muted);
   font-size: inherit; font-weight: 600; line-height: inherit; }
 .lf-message-receipt::before { content: "·"; flex: none; color: var(--muted-2); }
 .lf-message-receipt[data-lf-phase="queued"],
-.lf-message-receipt[data-lf-phase="picked_up"] { color: var(--accent); }
-.lf-message-receipt[data-lf-phase="active"] { color: var(--ok-ink); }
+.lf-message-receipt.is-picked-up { color: var(--accent); }
+.lf-message-receipt[data-lf-phase="sent"],
+.lf-message-receipt.is-active { color: var(--ok-ink); }
 .lf-message-receipt[data-lf-phase="waiting"],
 .lf-message-receipt[data-lf-dropped],
 .lf-message-receipt[data-lf-dropped] .lf-receipt-state { color: var(--warn-ink); }

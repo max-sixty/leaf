@@ -15,7 +15,7 @@
 
 import { countTraffic } from "./traffic.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
-import { runtime } from "./context.js";
+import { containedPage, runtime } from "./context.js";
 import {
   layerHeaders,
   observeSession,
@@ -394,6 +394,20 @@ export function createStateFeed({
     // for. A page that did get its answer holds a reading, and an unchanged page is not
     // asked for twice.
     readAndPresent().finally(() => {
+      // A contained page is a fixed specimen controlled by its parent gallery. It needs
+      // the first reading to render production chrome, but another news stream and
+      // heartbeat would duplicate the outer page's connection for a picture that cannot
+      // accept reader input or durable updates.
+      if (containedPage) {
+        const retry = () => {
+          if (document.body.hasAttribute("data-lf-presented")) return;
+          if (!readAnswered) void ask();
+          else void present();
+          setTimeout(retry, TICK_MS);
+        };
+        retry();
+        return;
+      }
       feedStarted = true;
       // One shared clock serves temporal paint, deferred work, and failed reads.
       setInterval(() => {

@@ -309,13 +309,14 @@ value and must be removed when that value returns.
 ### A package-owned interaction replay
 
 The developer Product Gallery can replay a package widget's production motion without
-moving that package into the default layer. Its figure names the widget module with
+moving that package into the default layer. Its figure carries the contained page's
+authored markup in `template[data-interaction-page]` and names the widget module with
 `data-interaction-module`; that module exports one optional
 `interactionGalleryScenario` object with `reset(root)` and `play(context)` methods.
-`reset` receives the figure and restores its authored starting state without animation.
-`play` receives a frozen orchestration surface:
+`reset` receives the contained page's `Document` and restores its authored starting
+state without animation. `play` receives a frozen orchestration surface:
 
-- `root` is the same figure.
+- `root` is the same contained `Document`.
 - `arrive()` shows the illustrative pointer and waits for its opening beat.
 - `press(target)` moves the pointer to an element and shows the press.
 - `track(animation)` joins a returned `Animation` to pause, resume, and replay.

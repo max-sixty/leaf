@@ -580,10 +580,8 @@ class WatchedInputs:
         self.directories: list[Path] = []
         self.all_paths: list[Path] = []
         self.directory_state = {}
-        self.current = {}
-        self.expand()
 
-    def expand(self) -> None:
+    def expand(self) -> dict:
         while True:
             known_directories = {str(path) for path in self.directories}
             directory_state = snapshot(self.directories)
@@ -597,7 +595,7 @@ class WatchedInputs:
             break
         self.all_paths = list(dict.fromkeys((*self.paths, *self.directories)))
         state = snapshot(self.all_paths)
-        self.current = {
+        current = {
             str(path): state[str(path)] for path in self.paths if str(path) in state
         }
         self.directory_state = {
@@ -605,8 +603,11 @@ class WatchedInputs:
             for path in self.directories
             if str(path) in directory_state
         }
+        return current
 
     def read(self) -> dict:
+        if not self.all_paths:
+            return self.expand()
         current = snapshot(self.all_paths)
         directory_state = {
             str(path): current[str(path)]
@@ -614,12 +615,10 @@ class WatchedInputs:
             if str(path) in current
         }
         if directory_state != self.directory_state:
-            self.expand()
-            return self.current
-        self.current = {
+            return self.expand()
+        return {
             str(path): current[str(path)] for path in self.paths if str(path) in current
         }
-        return self.current
 
 
 def start_preview_server(

@@ -16,7 +16,6 @@ from leaf import session as session_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_support import (
-    ADDRESS_PAGE,
     ALL_ASKS_IN_ORDER,
     ASK_IN_A_CARD_PAGE,
     ASK_ROW_SAYS,
@@ -25,6 +24,7 @@ from render_support import (
     ASKS_IN_ORDER,
     ASKS_PAGE,
     BAD_CHART_PAGE,
+    BINDING_BADGE_PAGE,
     BOARD_PAGE,
     BOTH_STAMPS,
     CHANGE_SHAPES_PAGE,
@@ -65,7 +65,7 @@ from render_support import (
     SWAP_PAGE,
     CutOff,
     actions,
-    banner_address,
+    banner_control,
     compare_with,
     holding,
     leaf_page,
@@ -96,7 +96,7 @@ WORKSPACE_PAGE = leaf_page(
     """
 <lf-workspace id="review-workspace">
   <header><h1>Review queue</h1></header>
-  <lf-split id="review-regions" direction="columns">
+  <lf-partition id="review-regions" direction="columns">
     <lf-pane id="queue" label="Items">
       <p>Queue start</p>
       <div style="height: 1100px"></div>
@@ -108,7 +108,7 @@ WORKSPACE_PAGE = leaf_page(
       <div style="height: 1100px"></div>
       <p>Detail end</p>
     </lf-pane>
-  </lf-split>
+  </lf-partition>
   <footer>2 items</footer>
 </lf-workspace>
 """,
@@ -123,7 +123,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     queue = page.locator("#queue > .lf-pane-content > .lf-pane-body")
     detail = page.locator("#detail > .lf-pane-content > .lf-pane-body")
 
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     page.wait_for_function(
         "() => document.documentElement.scrollHeight === document.documentElement.clientHeight"
     )
@@ -163,7 +163,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     expect(detail.locator("article > header")).to_have_count(1)
 
     page.set_viewport_size({"width": 520, "height": 900})
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     page.wait_for_function(
         """() => getComputedStyle(document.querySelector(
           '#queue > .lf-pane-content > .lf-pane-body')).overflowY === 'visible'"""
@@ -187,7 +187,7 @@ def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_con
 ):
     page, errors = open_page(browser, serve(WORKSPACE_PAGE))
     workspace = page.locator("#review-workspace")
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
     page.evaluate(
         """async () => {
@@ -205,7 +205,7 @@ def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_con
           leaf.layoutChanged(owner);
         }"""
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
 
     page.evaluate(
         """async () => {
@@ -214,44 +214,44 @@ def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_con
           const owner = document.querySelector('#package-surface');
           leaf.arrangeReadingElement({
             owner,
-            kind: 'workspace',
+            role: 'workspace',
             header: owner.firstElementChild,
           });
         }"""
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     surface = page.locator("#package-surface")
-    expect(surface.locator(":scope > .lf-arranged-before")).to_have_text(
+    expect(surface.locator(":scope > .lf-reading-before")).to_have_text(
         "Package-owned furniture"
     )
     expect(
-        surface.locator(":scope > .lf-arranged-content > #review-regions")
+        surface.locator(":scope > .lf-reading-content > #review-regions")
     ).to_have_count(1)
 
-    surface.locator(":scope > .lf-arranged-content").evaluate(
+    surface.locator(":scope > .lf-reading-content").evaluate(
         "content => content.append('Unsupported loose prose')"
     )
     surface.evaluate(
         "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
-    surface.locator(":scope > .lf-arranged-content").evaluate(
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    surface.locator(":scope > .lf-reading-content").evaluate(
         "content => content.lastChild.remove()"
     )
     surface.evaluate(
         "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
     page.set_viewport_size({"width": 1100, "height": 420})
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
-    surface.locator(":scope > .lf-arranged-before").evaluate(
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
+    surface.locator(":scope > .lf-reading-before").evaluate(
         "heading => heading.style.display = 'none'"
     )
     surface.evaluate(
         "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     assert errors == []
     page.close()
 
@@ -265,7 +265,7 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     ask = page.locator("#session-triage-decision")
     assert ask.evaluate("node => getComputedStyle(node).display") == "block"
     assert (
-        ask.locator(":scope > .lf-arranged-before").evaluate(
+        ask.locator(":scope > .lf-reading-before").evaluate(
             "heading => getComputedStyle(heading).marginTop"
         )
         != "0px"
@@ -297,10 +297,10 @@ def test_a_direct_embedded_workspace_keeps_the_root_in_document_flow(browser, se
     )
     page, errors = open_page(browser, serve(source))
     expect(page.locator("#embedded-workspace")).to_have_attribute(
-        "data-lf-posture", "flow"
+        "data-lf-reading-posture", "flow"
     )
     expect(page.locator("#outer-workspace")).to_have_attribute(
-        "data-lf-posture", "flow"
+        "data-lf-reading-posture", "flow"
     )
     assert page.evaluate(
         "document.documentElement.scrollHeight > document.documentElement.clientHeight"
@@ -318,8 +318,8 @@ CUSTOM_WORKSPACE_LAYER = {
         },
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "prose",
-        "x-layout": "workspace",
+        "x-content": "markup",
+        "x-reading-role": "workspace",
         "x-upgrade": True,
         "x-verbatim": True,
         "x-example": '<lf-studio id="studio"><lf-pane id="canvas" label="Canvas"><p>Draw.</p></lf-pane></lf-studio>',
@@ -331,23 +331,23 @@ import {
   arrangeReadingElement,
   fitRootReadingElement,
   once,
-  registerArrangedElement,
+  registerReadingElement,
   settle,
 } from '/runtime/widget-api.js';
 
 customElements.define('lf-studio', class extends HTMLElement {
   connectedCallback() {
     if (once(this)) {
-      const arranged = arrangeReadingElement({owner: this, kind: 'workspace'});
-      this.arrangement = arranged.arrangement;
+      const arranged = arrangeReadingElement({owner: this, role: 'workspace'});
+      this.readingArrangement = arranged.readingArrangement;
       this.content = arranged.content;
     } else {
       this.content = this.querySelector(':scope > .lf-workspace-content');
-      this.arrangement = registerArrangedElement({owner: this, content: this.content});
+      this.readingArrangement = registerReadingElement({owner: this, content: this.content});
     }
     this.fitting = fitRootReadingElement({
       owner: this,
-      arrangement: this.arrangement,
+      readingArrangement: this.readingArrangement,
       minimumSize: () => ({width: 200, height: 200}),
     });
     settle(this.fitting.update());
@@ -356,8 +356,8 @@ customElements.define('lf-studio', class extends HTMLElement {
   disconnectedCallback() {
     this.fitting?.cleanup();
     this.fitting = null;
-    this.arrangement?.cleanup();
-    this.arrangement = null;
+    this.readingArrangement?.cleanup();
+    this.readingArrangement = null;
   }
 });
 """
@@ -386,8 +386,8 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
         ),
     )
     studio = page.locator("#studio")
-    expect(studio).to_have_attribute("data-lf-root-workspace", "")
-    expect(studio).to_have_attribute("data-lf-posture", "bounded")
+    expect(studio).to_have_attribute("data-lf-workspace-context", "root")
+    expect(studio).to_have_attribute("data-lf-reading-posture", "bounded")
     geometry = page.evaluate(
         """() => {
           const main = document.querySelector('main').getBoundingClientRect();
@@ -401,7 +401,7 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
     studio.evaluate(
         "owner => { const main = owner.parentElement; owner.remove(); main.append(owner); }"
     )
-    expect(studio).to_have_attribute("data-lf-posture", "bounded")
+    expect(studio).to_have_attribute("data-lf-reading-posture", "bounded")
     assert studio.evaluate(
         """async owner => {
           const leaf = await import('/runtime/widget-api.js');
@@ -415,11 +415,11 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
           wrapper.append(owner);
         }"""
     )
-    expect(studio).not_to_have_attribute("data-lf-root-workspace", "")
-    expect(studio).to_have_attribute("data-lf-posture", "flow")
+    expect(studio).to_have_attribute("data-lf-workspace-context", "embedded")
+    expect(studio).to_have_attribute("data-lf-reading-posture", "flow")
     studio.evaluate("owner => document.querySelector('main').replaceChildren(owner)")
-    expect(studio).to_have_attribute("data-lf-root-workspace", "")
-    expect(studio).to_have_attribute("data-lf-posture", "bounded")
+    expect(studio).to_have_attribute("data-lf-workspace-context", "root")
+    expect(studio).to_have_attribute("data-lf-reading-posture", "bounded")
     assert errors == []
     page.close()
 
@@ -443,19 +443,19 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
         ),
     )
     embedded = page.locator("#embedded-studio")
-    expect(embedded).not_to_have_attribute("data-lf-root-workspace", "")
-    expect(embedded).to_have_attribute("data-lf-posture", "flow")
+    expect(embedded).to_have_attribute("data-lf-workspace-context", "embedded")
+    expect(embedded).to_have_attribute("data-lf-reading-posture", "flow")
     embedded.evaluate(
         """owner => {
-          owner.setAttribute('data-lf-root-workspace', '');
-          owner.dataset.lfPosture = 'bounded';
+          owner.dataset.lfWorkspaceContext = 'root';
+          owner.dataset.lfReadingPosture = 'bounded';
         }"""
     )
     assert embedded.evaluate(
-        "owner => owner.classList.contains('lf-workspace-arranged')"
+        "owner => owner.classList.contains('lf-workspace-reading')"
     )
     embedded.evaluate(
-        "owner => owner.classList.replace('lf-workspace-arranged', 'lf-pane-arranged')"
+        "owner => owner.classList.replace('lf-workspace-reading', 'lf-pane-reading')"
     )
     assert page.evaluate(
         "getComputedStyle(document.documentElement).overflowY !== 'hidden'"
@@ -480,7 +480,7 @@ def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
     page, errors = open_page(browser, live_url(serve(example)), context=context)
     monitor = page.locator("#lp-monitor")
 
-    expect(monitor).to_have_attribute("data-lf-posture", "bounded")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
     desk = page.evaluate(
         """() => Object.fromEntries(['lp-overview', 'lp-evidence', 'lp-exception']
           .map(id => [id, document.querySelector(`#${id}`).getBoundingClientRect()]))"""
@@ -508,22 +508,22 @@ def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
     expect(first_overflowing).not_to_have_attribute("data-lf-more-below", "")
 
     resized(page, 1100, 500)
-    expect(monitor).to_have_attribute("data-lf-posture", "flow")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
     resized(page, 820, 780)
-    expect(monitor).to_have_attribute("data-lf-posture", "flow")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
     flow = page.locator("lf-monitor-region").evaluate_all(
         "regions => regions.map(region => region.getBoundingClientRect().top)"
     )
     assert flow == sorted(flow) and len(set(flow)) == 3, flow
 
     resized(page, 1100, 780)
-    expect(monitor).to_have_attribute("data-lf-posture", "bounded")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(monitor).to_have_attribute("data-lf-posture", "flow")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
-    expect(monitor).to_have_attribute("data-lf-posture", "bounded")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
 
     monitor.evaluate(
         """owner => {
@@ -532,9 +532,9 @@ def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
           wrapper.append(owner);
         }"""
     )
-    expect(monitor).to_have_attribute("data-lf-posture", "flow")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
     monitor.evaluate("owner => document.querySelector('main').replaceChildren(owner)")
-    expect(monitor).to_have_attribute("data-lf-posture", "bounded")
+    expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
     assert page.evaluate(
         """async () => {
           const {readingRegions} = await import('/runtime/widget-api.js');
@@ -782,7 +782,7 @@ PLAYGROUND_PAGE = leaf_page(
 <h1>Card playground</h1>
 <style>
   #playground-card {
-    --lf-frame: 1;
+    --lf-block-frame: 1;
     border: 2px solid var(--playground-accent);
     border-radius: var(--playground-radius);
     padding: 24px;
@@ -1753,7 +1753,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
         expect(link).to_have_css("opacity", "1")
         expect(link).to_have_css("pointer-events", "auto")
     link_hints = page.locator(
-        '.lf-goto-targets > .lf-sequence-address[data-lf-address-kind="Link"]'
+        '.lf-go-to-hints > .lf-go-to-hint[data-lf-go-to-kind="Link"]'
     )
     expect(link_hints).to_have_count(nav.locator("a").count())
     assert (
@@ -2936,7 +2936,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     actions = playground.locator(":scope > .lf-playground-actions")
 
     resized(page, 1100, 520)
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     expect(actions).to_be_visible()
     bounded = page.evaluate(
         """async () => {
@@ -3060,21 +3060,21 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
           footer.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true, composed: true}));
         }"""
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     actions.evaluate(
         """footer => {
           footer.style.removeProperty('height');
           footer.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true, composed: true}));
         }"""
     )
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
     # Beside Threads, the notification wraps beyond the preview's minimum height.
     # The preview must grow around its content before the instruction begins.
     resized(page, 1280, 720)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     notification_box = page.locator(
         ".notification-demo-card-banner"
     ).first.bounding_box()
@@ -3087,9 +3087,9 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     page.locator(".lf-threads-toggle").click()
 
     resized(page, 1100, 300)
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     resized(page, 500, 900)
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     flow = page.evaluate(
         """async () => {
           const leaf = await import('/runtime/widget-api.js');
@@ -3230,11 +3230,11 @@ body { font-family: system-ui, sans-serif; }
 """
     artifact.write_text(first_artifact, encoding="utf-8")
     artifact_binding = """              <section id="notification-artifact" hidden>
-                <lf-source
+                <lf-text-document
                   id="notification-artifact-source"
                   source="notification-artifact"
                   language="html"
-                ></lf-source>
+                ></lf-text-document>
               </section>
 """
     result_source = (
@@ -3251,11 +3251,11 @@ body { font-family: system-ui, sans-serif; }
             """        </lf-workspace>
       </details>
       <section id="notification-artifact">
-        <lf-source
+        <lf-text-document
           id="notification-artifact-source"
           source="notification-artifact"
           language="html"
-        ></lf-source>
+        ></lf-text-document>
       </section>""",
             1,
         )
@@ -3798,21 +3798,23 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     pass_reference = page.locator(
-        '.lf-shortcut-reference tr[data-lf-command="swipe.pass"]'
+        '.lf-command-reference tr[data-lf-command="swipe.pass"]'
     )
     expect(pass_reference.locator("kbd")).to_have_text("←")
-    expect(pass_reference.locator(".lf-key-sequence")).to_have_attribute(
+    expect(pass_reference.locator(".lf-binding-sequence")).to_have_attribute(
         "aria-label", "ArrowLeft"
     )
     expect(
-        page.locator('.lf-shortcut-reference tr[data-lf-command="swipe.undo-last"]')
+        page.locator('.lf-command-reference tr[data-lf-command="swipe.undo-last"]')
     ).to_have_count(0)
     page.keyboard.press("Escape")
 
     page.keyboard.press("a")
     expect(decision).to_be_focused()
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_text(["←", "→"])
+    expect(page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")).to_have_text(
+        ["←", "→"]
+    )
     assert "← / →\nPass / Keep" in shortcut_bar_text(page)
 
     page.keyboard.press("Tab")
@@ -3825,14 +3827,14 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(
-        page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.pass"]')
+        page.locator('.lf-command-reference-command[data-lf-command="swipe.pass"]')
     ).to_have_text("Activate the “Pass” action")
     expect(
-        page.locator('.lf-shortcut-reference-command[data-lf-command="swipe.keep"]')
+        page.locator('.lf-command-reference-command[data-lf-command="swipe.keep"]')
     ).to_have_text("Activate the “Keep” action")
     expect(
         page.locator(
-            '.lf-shortcut-reference-command[data-lf-command="ask.activate-nth"]'
+            '.lf-command-reference-command[data-lf-command="ask.activate-nth"]'
         )
     ).to_have_count(0)
     page.keyboard.press("Escape")
@@ -3841,7 +3843,9 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
         page.keyboard.press(binding)
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
-    expect(page.locator(".lf-ask-addresses > .lf-ask-address")).to_have_count(0)
+    expect(
+        page.locator(".lf-ask-binding-badges > .lf-ask-binding-badge")
+    ).to_have_count(0)
     assert "Undo last swipe" not in shortcut_bar_text(page)
     assert [event["action"] for event in actions(serve.page_dir)] == [
         "swipe",
@@ -4729,14 +4733,14 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     """A changed span may cross a nested widget without painting its generated UI."""
     page, errors = open_page(browser, serve(FEATURE_GALLERY))
     page.locator('[data-lf-margin-for="bg-route-ask"] [role="button"]').click()
-    addresses = page.locator("#bg-route > lf-option > .lf-address")
-    expect(addresses).to_have_text(["1", "2"])
+    badges = page.locator("#bg-route > lf-option > .lf-key-badge")
+    expect(badges).to_have_text(["1", "2"])
 
     assert page.locator("#bg-nested-change > lf-new > p").evaluate(
         """node => [...(CSS.highlights.get('lf-sug-ins') ?? [])]
           .some(range => range.intersectsNode(node.firstChild))"""
     ), "the proposal has to carry word-level insertion emphasis"
-    assert addresses.evaluate_all(
+    assert badges.evaluate_all(
         """nodes => {
           const ranges = [...(CSS.highlights.get('lf-sug-ins') ?? [])];
           return nodes.map(node =>
@@ -4866,8 +4870,8 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     # move is one control against the other.
     box = "el => [el.offsetLeft, el.offsetTop, el.offsetWidth, el.offsetHeight]"
     before = accept.evaluate(box)
-    # The verb is discovery chrome; at rest the margin element is the canonical circle.
-    expect(accept.locator(".lf-margin-element-icon")).to_have_attribute(
+    # The verb is discovery chrome; at rest the margin entry is the canonical circle.
+    expect(accept.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "check"
     )
 
@@ -4882,7 +4886,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
     expect(accept).to_have_count(0)
     undo_button = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(undo_button.locator(".lf-margin-element-icon")).to_have_attribute(
+    expect(undo_button.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     expect(row.locator(".lf-margin-receipt")).to_have_count(0)
@@ -4927,7 +4931,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
 
 
 def test_a_pointer_decision_announces_without_needing_button_focus(browser, serve):
-    """The live result is independent of browsers focusing a clicked margin element."""
+    """The live result is independent of browsers focusing a clicked margin entry."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     assert page.evaluate("document.activeElement === document.body")
 
@@ -4955,7 +4959,7 @@ def test_a_settled_deletion_keeps_undo_on_the_containing_passage(browser, serve)
     expect(undo).to_be_visible()
     expect(
         undo.locator("xpath=ancestor::*[contains(@class, 'lf-margin-cluster')]")
-    ).not_to_have_class(re.compile(r"\blf-waiting\b"))
+    ).not_to_have_class(re.compile(r"\blf-withheld\b"))
     expect(page.locator(".lf-margin-receipt")).to_have_count(0)
     assert errors == []
     page.close()
@@ -4970,7 +4974,7 @@ def test_rejecting_a_suggestion_promotes_the_surviving_button(browser, serve):
 
     expect(reject).to_have_count(0)
     undo_button = row.get_by_role("button", name=re.compile(r"^Undo rejecting"))
-    expect(undo_button).to_have_attribute("data-lf-margin-element-primary", "")
+    expect(undo_button).to_have_attribute("data-lf-margin-entry-primary", "")
     expect(row.locator(".lf-sug-accept")).to_be_hidden()
     expect(row.locator(".lf-margin-receipt")).to_have_count(0)
     expect(row).not_to_contain_text("Rejected")
@@ -5037,7 +5041,7 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
 
 
 # `folded` is the layer's own division of the pair rather than a convenience: accept
-# rests in the rail as the target's primary margin element, and reject is one press behind `…`.
+# rests in the rail as the target's primary margin entry, and reject is one press behind `…`.
 @pytest.mark.parametrize(
     "outcome,verb,folded",
     [("accept", "Accepted", False), ("reject", "Rejected", True)],
@@ -5436,7 +5440,7 @@ def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, 
     # action without adding a second status beside the settled content.
     row = second.locator("[data-lf-for='sug-refill']")
     accepted = row.get_by_role("button", name=re.compile(r"^Undo accepting"))
-    expect(accepted.locator(".lf-margin-element-icon")).to_have_attribute(
+    expect(accepted.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "undo"
     )
     expect(row.locator(".lf-margin-receipt")).to_have_count(0)
@@ -5568,7 +5572,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     # The overlay and the shortcut bar offer it because there is something to reach.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("waiting on you for")
+    expect(page.locator(".lf-command-reference")).to_contain_text("waiting on you for")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("asks")
 
@@ -5679,7 +5683,9 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     page.keyboard.press("Tab")
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
     expect(
-        page.locator("#storage-options > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator(
+            "#storage-options > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
+        )
     ).to_have_text(["1", "2"])
 
     # And nothing of the borrowed stop is left behind: PAGE_PAINT_ATTRIBUTES is the whole
@@ -5690,11 +5696,11 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     page.close()
 
 
-def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
+def test_the_ask_itself_binds_each_contributed_action(browser, serve):
     """a lands semantic focus on the Ask; digits work its exact action list there.
 
     The list is contributed by the decision widget rather than inferred from generated
-    descendants: options own controls inside the Ask, while a suggestion's margin elements are
+    descendants: options own controls inside the Ask, while a suggestion's margin entries are
     hoisted into the shared margin. Core gives either list the same stable numeric
     projection, and pressing a digit activates the native control without first moving
     focus into the widget.
@@ -5708,7 +5714,9 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
         page
     )
     expect(
-        page.locator("#live-question > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator(
+            "#live-question > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
+        )
     ).to_have_text(["1", "2"])
 
     page.keyboard.press("2")
@@ -5733,7 +5741,7 @@ def test_the_ask_itself_addresses_each_contributed_action(browser, serve):
     page.close()
 
 
-def test_ask_contextual_addresses_skip_explicit_numeric_bindings(browser, serve):
+def test_ask_contextual_bindings_skip_explicit_numeric_bindings(browser, serve):
     """A package's own digit keeps its meaning beside keyless Decision commands."""
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     resized(page, 900, 900)
@@ -5764,10 +5772,10 @@ def test_ask_contextual_addresses_skip_explicit_numeric_bindings(browser, serve)
     page.keyboard.press("?")
     page.keyboard.press("?")
     inspect_reference = page.locator(
-        '.lf-shortcut-reference tr[data-lf-command="test.inspect"]'
+        '.lf-command-reference tr[data-lf-command="test.inspect"]'
     )
     expect(inspect_reference.locator("kbd")).to_have_text("I")
-    expect(inspect_reference.locator(".lf-key-sequence")).to_have_attribute(
+    expect(inspect_reference.locator(".lf-binding-sequence")).to_have_attribute(
         "aria-label", "I"
     )
     page.keyboard.press("Escape")
@@ -5832,8 +5840,8 @@ def test_ask_action_name_functions_must_return_text(browser, serve):
     page.close()
 
 
-def test_ask_explicit_commands_do_not_consume_contextual_address_slots(browser, serve):
-    """Only keyless Decision commands count against the nine numeric addresses.
+def test_ask_explicit_commands_do_not_consume_contextual_binding_slots(browser, serve):
+    """Only keyless Decision commands count against the nine numeric bindings.
 
     A projected Decision still executes its declared command rather than inventing a
     second click path through its control.
@@ -5892,7 +5900,7 @@ def test_ask_explicit_commands_do_not_consume_contextual_address_slots(browser, 
     expect(page.locator("#sug")).to_be_focused()
 
     # Accept and Reject take 1 and 2; nine explicitly bound commands consume no numeric
-    # address, so the keyless command declared after all of them still receives 3.
+    # binding, so the keyless command declared after all of them still receives 3.
     page.keyboard.press("3")
     expect(page.get_by_role("button", name="Later keyless")).to_have_attribute(
         "data-activated", "1"
@@ -5909,15 +5917,17 @@ def test_ask_explicit_commands_do_not_consume_contextual_address_slots(browser, 
     page.close()
 
 
-def test_ask_action_addresses_stay_aligned_when_focus_enters_a_card(browser, serve):
-    """Tab keeps every Ask address in the titled card's trailing column."""
+def test_ask_action_binding_badges_stay_aligned_when_focus_enters_a_card(
+    browser, serve
+):
+    """Tab keeps every Ask binding badge in the titled card's trailing column."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
     resized(page, 900, 900)
 
     page.keyboard.press("a")
     selector = (
         "#live-question > :is(lf-option, .lf-another) "
-        "> .lf-address[data-lf-ask-address]"
+        "> .lf-key-badge[data-lf-ask-binding-badge]"
     )
     ask = page.locator(selector)
     expect(ask).to_have_text(["1", "2", "3"])
@@ -5946,54 +5956,141 @@ def test_ask_action_addresses_stay_aligned_when_focus_enters_a_card(browser, ser
     addition = page.locator("#live-question > .lf-another")
     addition.get_by_role("textbox", name="Another option").fill("A fourth option")
     page.keyboard.press("Tab")
-    address = addition.locator("> .lf-address[data-lf-ask-address]")
+    binding_badge = addition.locator("> .lf-key-badge[data-lf-ask-binding-badge]")
     submit = addition.get_by_role("button", name="Add option")
-    expect(address).to_be_visible()
+    expect(binding_badge).to_be_visible()
     expect(submit).to_be_visible()
-    address_box = address.bounding_box()
+    badge_box = binding_badge.bounding_box()
     submit_box = submit.bounding_box()
-    assert address_box is not None
+    assert badge_box is not None
     assert submit_box is not None
-    assert address_box["x"] + address_box["width"] / 2 == pytest.approx(
+    assert badge_box["x"] + badge_box["width"] / 2 == pytest.approx(
         ask_centers[-1]["x"], abs=0.5
     )
-    assert submit_box["x"] + submit_box["width"] < address_box["x"]
+    assert submit_box["x"] + submit_box["width"] < badge_box["x"]
 
     assert errors == []
     page.close()
 
 
-def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
-    """A row address that reaches the shortcut bar yields to the legend naming its digit."""
-    page, errors = open_page(browser, serve(ADDRESS_PAGE))
+def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve):
+    """Disconnected, shared, covered, and clipped faces use core binding badges."""
+    page, errors = open_page(browser, serve(SHORT_SUGGESTION))
+    resized(page, 900, 900)
+
+    page.evaluate(
+        """async () => {
+           const {commands} = await import('/runtime/widget-api.js');
+           const source = document.getElementById('sug');
+           const face = (id, top) => {
+             const bindingBadge = document.createElement('span');
+             bindingBadge.id = id;
+             bindingBadge.className = 'lf-key-badge';
+             bindingBadge.style.cssText = `position: fixed; left: 90px; top: ${top}px;`;
+             return bindingBadge;
+           };
+           const add = (id, top, bindingBadge) => {
+             const control = document.createElement('button');
+            control.id = id;
+            control.textContent = id;
+            control.style.cssText = `position: fixed; left: 560px; top: ${top}px;`;
+            source.append(control);
+            commands(control, id, [{
+               id: `test.${id}`, keys: [], control, bindingBadge,
+              decision: id, does: `Activate ${id}`, line: id,
+              run: () => control.click(),
+            }]);
+          };
+
+           add('disconnected-face', 220, face('detached-binding-badge', 100));
+           const shared = face('shared-binding-badge', 120);
+          source.append(shared);
+          add('shared-face-one', 300, shared);
+          add('shared-face-two', 380, shared);
+           const covered = face('covered-binding-badge', 200);
+          source.append(covered);
+          const cover = document.createElement('span');
+           cover.id = 'binding-badge-cover';
+          cover.style.cssText =
+            'position: fixed; left: 90px; top: 200px; width: 24px; height: 24px;' +
+            ' z-index: 2; background: black;';
+          source.append(cover);
+          add('covered-face', 460, covered);
+          const clip = document.createElement('span');
+          clip.id = 'binding-badge-clip';
+          clip.style.cssText =
+            'position: fixed; left: 90px; top: 240px; width: 24px; height: 8px;' +
+            ' overflow: hidden;';
+          const clipped = document.createElement('span');
+          clipped.id = 'clipped-binding-badge';
+          clipped.className = 'lf-key-badge';
+          clipped.style.cssText = 'position: absolute; left: 0; top: 0;';
+          clip.append(clipped);
+          source.append(clip);
+          add('clipped-face', 540, clipped);
+        }"""
+    )
+
+    page.keyboard.press("a")
+    controls = page.locator(
+        "#disconnected-face, #shared-face-one, #shared-face-two, #covered-face, "
+        "#clipped-face"
+    )
+    expect(controls).to_have_count(5)
+    assert controls.evaluate_all(
+        "nodes => nodes.map(node => node.getAttribute('aria-keyshortcuts'))"
+    ) == ["3", "4", "5", "6", "7"]
+    expect(
+        page.locator("#shared-binding-badge[data-lf-ask-binding-badge]")
+    ).to_have_count(0)
+    expect(
+        page.locator("#covered-binding-badge[data-lf-ask-binding-badge]")
+    ).to_have_count(0)
+    expect(
+        page.locator("#clipped-binding-badge[data-lf-ask-binding-badge]")
+    ).to_have_count(0)
+    for binding in ("3", "4", "5", "6", "7"):
+        expect(
+            page.locator(
+                ".lf-ask-binding-badges > .lf-ask-binding-badge", has_text=binding
+            )
+        ).to_have_count(1)
+
+    assert errors == []
+    page.close()
+
+
+def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
+    """A binding badge that reaches the shortcut bar yields to its digit's legend."""
+    page, errors = open_page(browser, serve(BINDING_BADGE_PAGE))
     resized(page, 900, 520)
 
-    # The first Ask uses titled cards, whose trailing addresses cannot meet the leading
+    # The first Ask uses titled cards, whose trailing binding badges cannot meet the leading
     # shortcut bar. Step to the compact row Ask, where both occupy the leading edge.
     page.keyboard.press("a")
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     page.keyboard.press("a")
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     expect(
-        page.locator("#rows > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator("#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
     ).to_have_text(["1", "2"])
-    # Put the second row's address one pixel into the shortcut bar's band. The first stays a
+    # Put the second row's badge one pixel into the shortcut bar's band. The first stays a
     # row above it, so a placement pass that reserves the legend keeps one and removes
     # the other. Calculate the scroll from their current boxes rather than pinning the
     # fixture to today's spacing.
     page.evaluate(
         """() => {
-          const addresses = document.querySelectorAll(
-            '#rows > lf-option > .lf-address[data-lf-ask-address]'
+          const badges = document.querySelectorAll(
+            '#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]'
           );
-          const last = addresses[addresses.length - 1].getBoundingClientRect();
+          const last = badges[badges.length - 1].getBoundingClientRect();
           const line = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
           scrollTo(0, scrollY + last.top - line.top - 1);
         }"""
     )
     page.wait_for_function(SCROLL_SETTLED, arg=SCROLL_SETTLE_MS)
     expect(
-        page.locator("#rows > lf-option > .lf-address[data-lf-ask-address]")
+        page.locator("#rows > lf-option > .lf-key-badge[data-lf-ask-binding-badge]")
     ).to_have_count(1)
     geometry = page.evaluate(
         """() => {
@@ -6004,12 +6101,12 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
           return {
             line: read(document.querySelector('.lf-shortcut-bar')),
             chips: [...document.querySelectorAll(
-              '.lf-ask-addresses > .lf-ask-address, [data-lf-ask-address]'
+              '.lf-ask-binding-badges > .lf-ask-binding-badge, [data-lf-ask-binding-badge]'
             )].map(read),
           };
         }"""
     )
-    assert geometry["chips"], "the fixture did not leave an Ask address on screen"
+    assert geometry["chips"], "the fixture did not leave an Ask binding badge on screen"
     assert all(
         chip["right"] <= geometry["line"]["left"]
         or geometry["line"]["right"] <= chip["left"]
@@ -6024,7 +6121,7 @@ def test_ask_addresses_do_not_cover_their_key_line(browser, serve):
 
 def test_a_needed_draft_contributes_its_current_ask_action(browser, serve):
     source = leaf_page(
-        "needed draft address",
+        "needed draft binding",
         """
 <h1>Supply the copy</h1>
 <lf-ask id="copy-ask"><h2>What should the invitation say?</h2>
@@ -6226,7 +6323,7 @@ def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serv
     Rebuilding a view the reader is already looking at is motion that says nothing, and
     it costs them whatever adjustment they had made within it. The gate reads what the
     page shows of the ask rather than what its own box claims, which is the reading
-    commentOnItem makes before its own travel.
+    commentOnAddressable makes before its own travel.
 
     The first press is the control: the walk does travel, from a page that opens above
     the change, so a second press standing still is this gate rather than a walk that
@@ -6299,12 +6396,12 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     # measures from where the reader stands in the page and steps on rather than
     # restarting — the button being no place to measure from.
     #
-    # Reached through `banner_address` rather than by clicking the button where it
+    # Reached through `banner_control` rather than by clicking the button where it
     # would stand on a wide row: at this fixture's 900px the row cannot hold every
-    # address in a face wider than this desk's, and folding one is the row's stated
-    # answer. Which address the fold takes is the banner's business and not this
+    # control in a face wider than this desk's, and folding one is the row's stated
+    # answer. Which control the fold takes is the banner's business and not this
     # walk's, so the helper opens the door where it has to.
-    banner_address(page, ".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     page.keyboard.press("a")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 
@@ -6381,7 +6478,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
     cached for the life of the tab, so the zero is permanent.
 
     The reply is in the log before the page loads and the panel is shut, which is the
-    only arrangement that reproduces it: a reply arriving into an open panel upgrades
+    only reading arrangement that reproduces it: a reply arriving into an open panel upgrades
     into boxes and was always right. Rooms are compared rather than named, because the
     number is the face's and this is about whether it was ever read.
 
@@ -6688,9 +6785,9 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     tells one from the other. And the thread's label read `§ ps-decision`, the bare id.
 
     The label is the part with the mechanism worth naming. An element anchor is labelled
-    with its item's opening words, read when the node is built — and on the reconcile
+    with its element's opening words, read when the node is built — and on the reconcile
     that first builds this node, the message body carrying the widget has not been
-    connected yet, so the item did not exist and the reading came back empty. A node the
+    connected yet, so the element did not exist and the reading came back empty. A node the
     reconcile keeps is never built again, so nothing asked a second time. It is repainted
     with the quote now, which is the pass that already exists for records whose subject
     the reconcile has just written."""
@@ -6969,14 +7066,12 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     expect(page.locator("#sug-delete")).to_be_hidden()
     expect(progress).to_have_text("Asks 1/4")
 
-    banner_address(page, ".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     row = page.locator('.lf-asks-row[data-lf-at="sug-delete"]')
     expect(row.locator(".lf-asks-answer")).to_have_text("Accepted")
     row.click()
     expect(page.locator(".lf-asks-panel")).to_be_hidden()
-    undo = page.locator(
-        '[data-lf-for="sug-delete"] [data-lf-margin-element-key="undo"]'
-    )
+    undo = page.locator('[data-lf-for="sug-delete"] [data-lf-margin-entry-key="undo"]')
     expect(undo).to_be_focused()
     assert "1\nUndo" in shortcut_bar_text(page)
 
@@ -7031,7 +7126,7 @@ def test_a_row_stands_the_reader_on_the_ask_it_names(browser, serve):
     # sheet must dismiss the sheet; otherwise all the focus and scrolling below happen
     # correctly behind an opaque surface.
     resized(page, 560, 620)
-    banner_address(page, ".lf-asks").click()
+    banner_control(page, ".lf-asks").click()
     expect(page.locator(".lf-asks-panel")).to_be_visible()
 
     # The last of the four, which a short window leaves well off screen.
@@ -7135,12 +7230,19 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
         """() => getComputedStyle(document.body).marginLeft === '0px'"""
     )
 
-    page.locator(".lf-asks").click()
+    # Leaves is a modal covering workspace, so its scrim correctly makes the page and
+    # banner inert. The global destination remains the route from one tray to the other.
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
     expect(decisions).to_be_visible()
     expect(leaves).to_be_hidden()
 
+    # The destination captured the covering tray it replaced, so the first Escape
+    # returns there; the second closes that one standing tray.
     page.keyboard.press("Escape")
     expect(decisions).to_be_hidden()
+    expect(leaves).to_be_visible()
+    page.keyboard.press("Escape")
     expect(leaves).to_be_hidden()
     assert errors == []
     page.close()
@@ -7365,7 +7467,7 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
 # built from: the body is the one thing that cannot be wrong, and everything between it
 # and the picture is the module.
 DREW = {
-    # kind: (series, marks each, the element each series is drawn as)
+    # role: (series, marks each, the element each series is drawn as)
     "c-bars": (2, 3, "rect"),
     "c-rows": (1, 2, "rect"),
     "c-stack": (2, 2, "rect"),
@@ -7765,7 +7867,7 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
     right, so the reader would open the panel onto an empty box for the life of the tab.
 
     The reply is in the log before the page loads and the panel is shut, which is the
-    only arrangement that reproduces it: a reply arriving into an open panel has boxes
+    only reading arrangement that reproduces it: a reply arriving into an open panel has boxes
     already."""
     url = serve(CHART_IN_A_MESSAGE_PAGE)
     d = serve.page_dir

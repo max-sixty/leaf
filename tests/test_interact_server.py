@@ -978,6 +978,34 @@ def test_server_round_trip(server, page_dir):
     }
 
 
+def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_dir):
+    """The live root, a stamped version and a revision are all this page.
+
+    The revision address used to fall through to the static file branch, which
+    returned the authored bytes. The module that source names still started a
+    runtime, but without the layer's policy, the bootstrap that policy hashes, or
+    the revision identity that tells the runtime which document it is showing. Each
+    address names the page root as canonical, which is how a reader sent to one of
+    them, and a crawler that finds all three, arrive at one page.
+    """
+    stamped = CliRunner().invoke(
+        cli_model.cli, ["version", "stamp", str(page_dir), "--text", "cut"]
+    )
+    assert stamped.exit_code == 0, stamped.output
+    revision = files_model.latest_revision(page_dir)
+    marker = f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
+    for address in (
+        "/",
+        "/versions/v1.html",
+        f"/revisions/{files_model.revision_path(page_dir, revision).name}",
+    ):
+        status, body = fetch(server + address)
+        assert status == 200, address
+        assert b'<link rel="canonical" href="/" data-lf-runtime>' in body, address
+        assert marker.encode() in body, address
+        assert b'data-lf-entry="/leaf.js"' in body, address
+
+
 def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
     server, page_dir
 ):
@@ -2475,8 +2503,8 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
         },
         "required": ["id", "slots"],
         "additionalProperties": False,
-        "x-parent": ["lf-task"],
-        "x-content": "none",
+        "x-owners": ["lf-task"],
+        "x-content": "empty",
         "x-upgrade": True,
         "x-state": {
             "move": {
@@ -2504,7 +2532,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
                 "unit": "widget",
                 "record": record,
                 "requires": {
-                    "target": "parent",
+                    "target": "owner",
                     "awaiting": False,
                 },
             },
@@ -3637,7 +3665,7 @@ def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_
     # page and stop lines name the page directory, which may legitimately sit
     # under the checkout — as it does whenever a run is given a `--basetemp`
     # there. Equality on that one line says what the absence was reaching for.
-    runtime = next(l for l in note.splitlines() if l.startswith("runtime"))
+    runtime = next(line for line in note.splitlines() if line.startswith("runtime"))
     assert runtime == "runtime  unknown payload (unknown source)"
 
 

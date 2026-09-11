@@ -24,11 +24,11 @@ from interact_support import (
     add_test_widget,
     case_alias,
     check,
+    element_declaration,
     fixture_version_path,
     install_payload,
     record_claim,
     shipped_payload,
-    widget_entry,
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -1039,21 +1039,23 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
 
-    panel = int(constant(r"^export const PANEL_W = (\d+);", layout))
-    tray = int(constant(r"^const TRAY_W = (\d+);", trays))
-    strip = constant(r"^export const STRIP_TRAYS = \[(.*?)\];", trays)
+    panel = int(constant(r"^export const THREAD_PANEL_W = (\d+);", layout))
+    tray = int(constant(r"^const TRAY_SLOT_W = (\d+);", trays))
+    strip = constant(r"^export const BESIDE_TRAYS = \[(.*?)\];", trays)
     strip_names = re.findall(r'"([a-z-]+)"', strip)
     for spelling in (
         f"(width <= {panel * 2}px)",
         f"(width > {panel * 2}px)",
         f"(width <= {tray * 2}px)",
-        "var(" + constant(r'^export const PANEL_PROP = "([^"]+)";', layout) + ")",
-        "var(" + constant(r'^export const TRAY_PROP = "([^"]+)";', trays) + ")",
+        "var("
+        + constant(r'^export const THREAD_PANEL_PROP = "([^"]+)";', layout)
+        + ")",
+        "var(" + constant(r'^export const TRAY_SLOT_PROP = "([^"]+)";', trays) + ")",
         "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for tray_name in strip_names:
-        assert f'[data-lf-tray="{tray_name}"]' in sheet
+        assert f'[data-lf-auxiliary-surface="{tray_name}"]' in sheet
         assert f'[data-lf-restore-tray="{tray_name}"]' in sheet
 
 
@@ -1073,21 +1075,21 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE).group(1)
 
-    workspace = (assets / "runtime" / "panel-workspace.js").read_text()
+    thread_panel = (assets / "runtime" / "thread-panel.js").read_text()
     for pattern, source in (
-        (r'^export const PANEL_KEY = "([^"]+)";', workspace),
-        (r'^export const TRAY_KEY = "([^"]+)";', trays),
-        (r'key: "(lf-panel-width)"', layout),
-        (r'key: "(lf-tray-width)"', trays),
+        (r'^export const THREAD_PANEL_KEY = "([^"]+)";', thread_panel),
+        (r'^export const TRAY_SLOT_KEY = "([^"]+)";', trays),
+        (r'key: "(lf-thread-panel-width)"', layout),
+        (r'key: "(lf-tray-slot-width)"', trays),
     ):
         key = constant(pattern, source)
         assert f'localStorage.getItem("{key}")' in bootstrap
 
     for literal in (
-        constant(r"^export const PANEL_W = (\d+);", layout),
-        constant(r"^const PANEL_MIN = (\d+);", layout),
-        constant(r"^const TRAY_W = (\d+);", trays),
-        constant(r"^const TRAY_MIN = (\d+);", trays),
+        constant(r"^export const THREAD_PANEL_W = (\d+);", layout),
+        constant(r"^const THREAD_PANEL_MIN = (\d+);", layout),
+        constant(r"^const TRAY_SLOT_W = (\d+);", trays),
+        constant(r"^const TRAY_SLOT_MIN = (\d+);", trays),
         "data-lf-restore-panel",
         "data-lf-restore-tray",
     ):
@@ -1437,10 +1439,10 @@ def test_init_refuses_a_layer_theme_that_leaves_a_block_open(tmp_path, monkeypat
 
 
 def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
-    """A custom widget adds one entry; it need not fork the shipped vocabulary.
+    """A custom widget adds one element declaration; it need not fork the shipped vocabulary.
 
-    Precedence still belongs to the later layer, but at the entry boundary: the
-    project entry replaces the user's whole schema rather than inheriting stale
+    Precedence still belongs to the later layer, but at the declaration boundary: the
+    project declaration replaces the user's whole schema rather than inheriting stale
     fields from it.
     """
     user = tmp_path / "config" / "leaf"
@@ -1453,7 +1455,7 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
         "type": "object",
         "properties": {"user-only": {"type": "string"}},
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-upgrade": False,
     }
     project_entry = {
@@ -1461,7 +1463,7 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
         "type": "object",
         "properties": {"project-only": {"type": "string"}},
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-upgrade": False,
     }
     project_only = {
@@ -1469,7 +1471,7 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
         "type": "object",
         "properties": {},
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-upgrade": False,
     }
     (user / "registry.json").write_text(json.dumps({"lf-local": user_entry}))
@@ -1492,7 +1494,7 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
 def test_init_merges_dollar_entries_by_member(tmp_path, monkeypatch):
     """A project idiom joins the shipped registry; a restated one replaces its member.
 
-    $ entries merge one level deep. Under replace-whole, the first project layer
+    $ declarations merge one level deep. Under replace-whole, the first project layer
     to declare an idiom vendored a $idioms holding only its own: the shipped
     idioms' CSS kept styling (theme files concatenate), while the vendored registry
     stopped declaring them — a silent wipe of everything the layer didn't restate.
@@ -1679,7 +1681,7 @@ def test_init_reads_the_complete_layer_before_revendoring(tmp_path, monkeypatch)
     layer = tmp_path / ".leaf"
     layer.mkdir(parents=True)
     (layer / "registry.json").write_text(
-        json.dumps({"lf-bad-theme": widget_entry("lf-bad-theme")})
+        json.dumps({"lf-bad-theme": element_declaration("lf-bad-theme")})
     )
     (layer / "theme.css").write_bytes(b"\xff")
 
@@ -1855,7 +1857,7 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
     layer.mkdir(parents=True)
     (layer / "theme.css").write_text(":root { --accent: rebeccapurple; }\n")
     (layer / "registry.json").write_text(
-        json.dumps({"lf-new-shape": widget_entry("lf-new-shape")})
+        json.dumps({"lf-new-shape": element_declaration("lf-new-shape")})
     )
 
     result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
@@ -2100,9 +2102,9 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
     for name in ("first", "second"):
         package = tmp_path / name
         (package / "widgets").mkdir(parents=True)
-        entry = widget_entry("lf-shared")
-        entry["description"] = name
-        (package / "registry.json").write_text(json.dumps({"lf-shared": entry}))
+        declaration = element_declaration("lf-shared")
+        declaration["description"] = name
+        (package / "registry.json").write_text(json.dumps({"lf-shared": declaration}))
         (package / "theme.css").write_text(f"/* package {name} */\n")
         (package / "widgets" / "shared.js").write_text(f"// {name}\n")
 
@@ -2710,7 +2712,7 @@ def test_package_init_starts_one_checked_upgraded_widget(
     registry = json.loads((package_root / "registry.json").read_text())
     entry = registry["lf-risk-note"]
     assert entry["description"]
-    assert entry["x-content"] == "prose"
+    assert entry["x-content"] == "markup"
     assert entry["x-upgrade"] is True
     assert entry["x-verbatim"] is True
     assert entry["x-example"] == (
@@ -2868,7 +2870,7 @@ def test_package_init_widget_cannot_overwrite_a_member_created_during_init(
 ):
     """Candidate validation and installation are separated by real work. A second
     writer winning the module name in that interval keeps its bytes; initialization
-    fails without publishing the generated registry entry around them.
+    fails without publishing the generated element declaration around them.
     """
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -2900,9 +2902,11 @@ def test_package_init_widget_cannot_overwrite_a_member_created_during_init(
 def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "package"
-    entry = widget_entry("lf-risk-note", upgrade=True)
-    entry["x-example"] = "<lf-risk-note>Missing the required id.</lf-risk-note>"
-    monkeypatch.setattr(packages_model, "starter_widget_entry", lambda tag: entry)
+    declaration = element_declaration("lf-risk-note", upgrade=True)
+    declaration["x-example"] = "<lf-risk-note>Missing the required id.</lf-risk-note>"
+    monkeypatch.setattr(
+        packages_model, "starter_element_declaration", lambda tag: declaration
+    )
 
     result = CliRunner().invoke(
         cli_model.cli,
@@ -3437,9 +3441,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     (widget_package / "widgets").mkdir(parents=True)
     (widget_package / "vendor").mkdir()
     (widget_package / "registry.json").write_text(
-        json.dumps({"lf-solo": widget_entry("lf-solo", True)})
+        json.dumps({"lf-solo": element_declaration("lf-solo", True)})
     )
-    (widget_package / "theme.css").write_text("lf-solo { --lf-frame: 1; }\n")
+    (widget_package / "theme.css").write_text("lf-solo { --lf-block-frame: 1; }\n")
     (widget_package / "widgets" / "lf-solo.js").write_text(
         'import { ready } from "./ready.js";\n'
         'customElements.define("lf-solo", class extends HTMLElement {\n'
@@ -3491,7 +3495,9 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert (page / "widgets" / "ready.js").is_file()
     assert (page / "vendor" / "solo.json").is_file()
     theme = (page / "theme.css").read_text()
-    assert theme.index("lf-solo { --lf-frame: 1; }") < theme.index("--solo-night: 1")
+    assert theme.index("lf-solo { --lf-block-frame: 1; }") < theme.index(
+        "--solo-night: 1"
+    )
     guidance = (page / "guidance" / "author.md").read_text()
     assert guidance.index("# Solo widget") < guidance.index("# Night theme")
     assert "Report the result." in (page / "guidance" / "worker.md").read_text()
@@ -3625,12 +3631,42 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
     assert (page / "widgets" / "lf-call-diff.js").is_file()
 
 
+def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    package = schema_model.BUNDLED_PACKAGES / "visual-review"
+    page = tmp_path / "visual-review"
+
+    checked = CliRunner().invoke(cli_model.cli, ["package", "check", str(package)])
+    initialized = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "init", "--package", "visual-review", str(page)],
+    )
+
+    assert checked.exit_code == 0, checked.output
+    assert initialized.exit_code == 0, initialized.output
+    registry = json.loads((page / "registry.json").read_text())
+    widget = registry["lf-visual-review"]
+    assert registry["$layer"]["packages"] == ["visual-review"]
+    assert widget["x-data"] == {
+        "run": {
+            "contract": "visual-run",
+            "source": "source",
+            "snapshot": "snapshot",
+        }
+    }
+    assert widget["x-state"]["review"]["unit"] == "case"
+    assert widget["x-thread-surface"] is True
+    assert "visual-run" in registry["$data"]["contracts"]
+    assert (page / "widgets" / "lf-visual-review.js").is_file()
+    assert (page / "guidance" / "author.md").is_file()
+
+
 def test_a_bundled_name_wins_over_a_same_named_project_path(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     local = tmp_path / "command-hub"
     local.mkdir()
     (local / "registry.json").write_text(
-        json.dumps({"lf-local": widget_entry("lf-local")})
+        json.dumps({"lf-local": element_declaration("lf-local")})
     )
 
     bundled = tmp_path / "bundled"

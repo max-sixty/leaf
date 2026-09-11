@@ -60,7 +60,7 @@ from render_support import (
     Traffic,
     _traffic,
     _until,
-    arrange_return,
+    apply_restore_case,
     arrival_findings,
     author_test_widget,
     draw_edge,
@@ -73,7 +73,7 @@ from render_support import (
     page_at_rest,
     panel_settled,
     primed,
-    reader_arrangements,
+    reader_view_restore_cases,
     resize_notice_after_last_probe,
     resized,
 )
@@ -85,10 +85,10 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
     """
 <lf-workspace id="gate-workspace">
   <header><h1>Queue</h1></header>
-  <lf-split id="gate-split" direction="columns">
+  <lf-partition id="gate-split" direction="columns">
     <lf-pane id="gate-list" label="Items"><p>First</p><div style="height:900px"></div><p>Last</p></lf-pane>
     <lf-pane id="gate-detail" label="Detail"><p>Subject</p><div style="height:900px"></div><button>Finish</button></lf-pane>
-  </lf-split>
+  </lf-partition>
   <footer>End of queue</footer>
 </lf-workspace>
 """,
@@ -158,13 +158,13 @@ RECURSIVE_ROWS_PAGE = leaf_page(
     "recursive row fit",
     """
 <lf-workspace id="rows-workspace">
-  <lf-split id="rows" direction="rows">
+  <lf-partition id="rows" direction="rows">
     <lf-pane id="upper" label="Upper"><p>Upper body</p><footer style="height:120px">Tall actions</footer></lf-pane>
-    <lf-split id="lower" direction="columns">
+    <lf-partition id="lower" direction="columns">
       <lf-pane id="lower-left" label="Lower left"><p>Left body</p></lf-pane>
       <lf-pane id="lower-right" label="Lower right"><p>Right body</p></lf-pane>
-    </lf-split>
-  </lf-split>
+    </lf-partition>
+  </lf-partition>
 </lf-workspace>
 """,
 )
@@ -173,12 +173,12 @@ RECURSIVE_ROWS_PAGE = leaf_page(
 def test_recursive_rows_flow_before_short_height_hides_pane_furniture(browser, serve):
     page, errors = open_page(browser, serve(RECURSIVE_ROWS_PAGE))
     workspace = page.locator("#rows-workspace")
-    expect(workspace).to_have_attribute("data-lf-posture", "bounded")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
 
     # The children's summed minima fit here, but equal rows cannot each give the
     # taller upper pane its minimum. The workspace must therefore choose flow.
     page.set_viewport_size({"width": 1200, "height": 700})
-    expect(workspace).to_have_attribute("data-lf-posture", "flow")
+    expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     rows = page.evaluate(
         """() => {
           const upper = document.querySelector('#upper').getBoundingClientRect();
@@ -430,13 +430,13 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve):
     _until(page, first_trip_home, "heard back the new document's first answer")
 
 
-def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
-    """Every arrangement the layer restores is exercised on one representative page.
+def test_every_restore_case_a_reader_can_return_to_is_arrived_in(browser, serve):
+    """Every restore case the layer restores is exercised on one representative page.
 
     Restoring reader furniture is layer-owned and identical under every authored
     version, so multiplying this reading across the corpus repeats the mechanism rather
     than adding an input. The probe speaks only to a returning reader, and every finding
-    here is the arrival pass's. It is held to the arrangements the runtime declares —
+    here is the arrival pass's. It is held to the restore cases the runtime declares —
     all of them, in order, because a pass that stopped at the first would leave every
     surface after it exactly as unwatched as it was before.
     """
@@ -471,30 +471,30 @@ def test_every_arrangement_a_reader_can_return_to_is_arrived_in(browser, serve):
     declared = browser.new_page()
     declared.goto(url, wait_until="load")
     render_checks_model.wait_for_probe(declared, "presented")
-    arrangements = reader_arrangements(declared)
+    restore_cases = reader_view_restore_cases(declared)
     suggestion_state = declared.locator("#sug-rewrite").get_attribute("data-lf-state")
     option_transition = declared.locator("#wait-day").evaluate(
         "element => getComputedStyle(element).transitionProperty"
     )
     declared.close()
-    assert len(arrangements) > 1, "the runtime declares nothing to arrive in"
+    assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
     assert suggestion_state == "accept"
     assert option_transition == "box-shadow, transform"
 
     arrived = [f for f in arrival_findings(primed(browser, prepare), url)]
     assert [f.split("]")[0].lstrip("[") for f in arrived] == [
-        a["name"] for a in arrangements
+        a["name"] for a in restore_cases
     ]
-    # And each was the arrangement it names rather than that one plus everything the
+    # And each was the restore case it names rather than that one plus everything the
     # reloads before it left standing — a difference no finding could show on its own,
     # since all of them would still be reported, each under a name that had stopped
-    # being true. Only the other arrangements' keys are held against an arrival: the
+    # being true. Only the other restore cases' keys are held against an arrival: the
     # page writes its own reading position on the way out of every load, so a store
-    # holding that too is a page that departed, not an arrangement that leaked.
-    arranged = {a["key"] for a in arrangements}
-    for finding, arrangement in zip(arrived, arrangements):
+    # holding that too is a page that departed, not a restore case that leaked.
+    arranged = {a["key"] for a in restore_cases}
+    for finding, restore_case in zip(arrived, restore_cases):
         held = set(finding.split("returned holding ")[1].split(","))
-        assert held & arranged == {arrangement["key"]}, finding
+        assert held & arranged == {restore_case["key"]}, finding
 
 
 def test_arrival_reading_reports_a_deterministic_transition(browser, serve):
@@ -601,7 +601,7 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     page's own. The window that opens is also the one this test is about: it is where a
     restore is put back, and standing in it is strictly more than catching it.
 
-    What the reader left standing is the arrangement the runtime declares, all of them
+    What the reader left standing is the restore case the runtime declares, all of them
     in turn, so a fourth remembered surface is covered the day it starts remembering.
     """
     url = serve(CHANGE_SHAPES_PAGE)
@@ -652,8 +652,8 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
         page.unroute("**/api/state*")
         return moved()
 
-    arrangements = reader_arrangements(page)
-    assert len(arrangements) > 1, "the runtime declares nothing to arrive in"
+    restore_cases = reader_view_restore_cases(page)
+    assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
 
     # The control, and the whole reason the silences below say anything: standing the
     # tray up by hand is the gesture whose motion the arrivals must not have. What it
@@ -668,11 +668,11 @@ def test_a_reader_arrives_at_what_they_left_rather_than_watching_it_arrive(
     page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
     first_visit = arrive()
 
-    for arrangement in arrangements:
-        arrange_return(page, arrangement)
+    for restore_case in restore_cases:
+        apply_restore_case(page, restore_case)
         extra = {k: v for k, v in arrive().items() if k not in first_visit}
         assert not extra, (
-            f"returning to {arrangement['name']} moved what a first visit does not: "
+            f"returning to {restore_case['name']} moved what a first visit does not: "
             + "; ".join(f"{k} at {moved_at(cdp, node)}" for k, node in extra.items())
         )
     # A ResizeObserver notice is the render gate's to adjudicate over two attempts on
@@ -886,13 +886,13 @@ def test_the_render_gate_requires_a_visual_parts_provider(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-callout"]["properties"]["parts"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-callout"]["properties"]["parts"] = {
         "type": "string",
         "minLength": 1,
     }
-    entries["lf-callout"]["x-visual"] = {"parts": "parts"}
-    registry_path.write_text(json.dumps(entries, indent=2))
+    declarations["lf-callout"]["x-visual"] = {"parts": "parts"}
+    registry_path.write_text(json.dumps(declarations, indent=2))
 
     failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
 
@@ -1050,10 +1050,10 @@ flowchart LR
 def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     browser, serve, tmp_path, monkeypatch
 ):
-    """Bug-back for two module contracts the gate enforces: an entry that says
+    """Bug-back for two module contracts the gate enforces: a declaration that says
     x-verbatim while the module renders other words in the body's stead (quotes
     would strand on words the screen no longer shows), and a module attaching a
-    shadow root its entry doesn't declare (the passage walk crosses only the
+    shadow root its declaration doesn't declare (the passage walk crosses only the
     declared ones, so an undeclared root's words anchor astray)."""
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
@@ -1112,13 +1112,13 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-shell", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-shell"]["properties"]["mode"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-shell"]["properties"]["mode"] = {
         "type": "string",
         "enum": ["replace"],
     }
-    entries["lf-shell"]["required"] = []
-    registry_path.write_text(json.dumps(entries, indent=2))
+    declarations["lf-shell"]["required"] = []
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
         'import { once } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-shell", class extends HTMLElement {\n'
@@ -1179,8 +1179,8 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
 def _author_stateful_verbatim_widget(tmp_path):
     author_test_widget(tmp_path, "lf-stateful", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    stateful = entries["lf-stateful"]
+    declarations = json.loads(registry_path.read_text())
+    stateful = declarations["lf-stateful"]
     stateful["properties"].update(
         {
             "reader": {"type": "string"},
@@ -1215,7 +1215,7 @@ def _author_stateful_verbatim_widget(tmp_path):
             "record": {"kind": "value", "attr": "agent", "value": "value"},
         }
     }
-    registry_path.write_text(json.dumps(entries, indent=2))
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
         'import { once } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-stateful", class extends HTMLElement {\n'
@@ -1435,19 +1435,19 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
     monkeypatch.chdir(tmp_path)
     _author_stateful_verbatim_widget(tmp_path)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-shell"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-shell"] = {
         "description": "A preserving wrapper around a stateful child.",
         "type": "object",
         "properties": {"id": {"type": "string"}},
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-upgrade": True,
         "x-verbatim": True,
         "x-example": '<lf-shell id="shell-example">Example</lf-shell>',
     }
-    registry_path.write_text(json.dumps(entries, indent=2))
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
         'import { once } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-shell", class extends HTMLElement {\n'
@@ -1499,21 +1499,21 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-shell", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entries["lf-shell"]["properties"]["mode"] = {
+    declarations = json.loads(registry_path.read_text())
+    declarations["lf-shell"]["properties"]["mode"] = {
         "type": "string",
         "enum": ["prose", "order"],
     }
-    entries["lf-piece"] = {
+    declarations["lf-piece"] = {
         "description": "An anonymous nested upgraded piece.",
         "type": "object",
         "properties": {},
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-upgrade": True,
         "x-example": "<lf-piece>Example</lf-piece>",
     }
-    registry_path.write_text(json.dumps(entries, indent=2))
+    registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
         'import { once } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-piece", class extends HTMLElement {\n'
@@ -1600,7 +1600,7 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     the document's question — so an element a module stages into its own tree keeps its
     declarations and gets neither pass, and the failure is silence: no error, no missing
     box, nothing a reading of the drawn page can tell from an attribute with nothing to
-    say. Here a project widget stages an <lf-event>, whose entry declares both keys, and
+    say. Here a project widget stages an <lf-chronology-entry>, whose declaration names both keys, and
     the gate is asked for each.
 
     A staged element rather than a module that wipes its own body after the passes have
@@ -1610,13 +1610,13 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
+    declarations = json.loads(registry_path.read_text())
     # The fixture's x-verbatim claim is about a body this module no longer shows, and
     # the gate says so on its own; declaring the root keeps this test's finding the
     # only one about the tree.
-    entries["lf-callout"].pop("x-verbatim")
-    entries["lf-callout"]["x-shadow"] = True
-    registry_path.write_text(json.dumps(entries, indent=2))
+    declarations["lf-callout"].pop("x-verbatim")
+    declarations["lf-callout"]["x-shadow"] = True
+    registry_path.write_text(json.dumps(declarations, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
         'import { once, shadowStage } from "/runtime/widget-api.js";\n'
@@ -1625,8 +1625,8 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
         "  class extends HTMLElement {\n"
         "    connectedCallback() {\n"
         "      if (!once(this)) return;\n"
-        '      const staged = document.createElement("lf-event");\n'
-        '      staged.id = "staged-event";\n'
+        '      const staged = document.createElement("lf-chronology-entry");\n'
+        '      staged.id = "staged-chronology-entry";\n'
         '      staged.setAttribute("at", "09:00");\n'
         '      staged.setAttribute("kind", "failure");\n'
         '      staged.textContent = "The feeder stopped.";\n'
@@ -1656,15 +1656,15 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     monkeypatch.chdir(tmp_path)
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
-    entries = json.loads(registry_path.read_text())
-    entry = entries["lf-callout"]
-    entry.pop("x-verbatim")  # the module shows a tree of its own, not the body
-    entry["x-shadow"] = True
-    entry["properties"]["label"] = {"type": "string"}
-    entry["properties"]["urgent"] = {"type": "boolean"}
-    entry["x-says"] = {"label": "before"}
-    entry["x-paints"] = ["urgent"]
-    registry_path.write_text(json.dumps(entries, indent=2))
+    declarations = json.loads(registry_path.read_text())
+    declaration = declarations["lf-callout"]
+    declaration.pop("x-verbatim")  # the module shows a tree of its own, not the body
+    declaration["x-shadow"] = True
+    declaration["properties"]["label"] = {"type": "string"}
+    declaration["properties"]["urgent"] = {"type": "boolean"}
+    declaration["x-says"] = {"label": "before"}
+    declaration["x-paints"] = ["urgent"]
+    registry_path.write_text(json.dumps(declarations, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
         'import { once, shadowStage } from "/runtime/widget-api.js";\n'
@@ -2164,7 +2164,7 @@ def test_misplaced_boxes_checks_page_overflow_but_not_leaf_chrome(browser, serve
           const main = document.querySelector('main');
           const style = getComputedStyle(main), box = main.getBoundingClientRect();
           const columnLeft = box.left + parseFloat(style.paddingLeft);
-          const label = document.querySelector('.lf-margin-element-label');
+          const label = document.querySelector('.lf-margin-entry-label');
           const scroller = document.querySelector('#scroller');
           return {
             labelPast: Math.round(columnLeft - label.getBoundingClientRect().left),
@@ -2350,7 +2350,7 @@ def test_a_change_may_be_decided_over_the_note_it_stands_level_with(browser, ser
     """Both residents of the right margin are pinned by the flow — the controls level
     with the change they decide, the note level with the block it annotates — so on a
     page that writes one beside the other, neither can step aside and the controls are
-    drawn over the note's first line. That is the arrangement leaf ships, so the gate
+    drawn over the note's first line. That is the restore case Leaf ships, so the gate
     that reads words drawn on words has to let it through, or every page composing the
     two idioms is refused at handover.
 
@@ -2956,7 +2956,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
     bare fixture because the panel has to be holding something for its boxes to exist,
     and a seeded example is the corpus's own conversation. The log has to hold an
     anchored comment, not merely exist: the planted rule traps its margin against a
-    thread's quoted address, so a page whose log carries only widget events opens the
+    thread's quoted target, so a page whose log carries only widget events opens the
     panel on nothing and reports the control as missing."""
     seeded = [
         path

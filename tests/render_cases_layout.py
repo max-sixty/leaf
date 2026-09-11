@@ -80,14 +80,14 @@ def resize_notice_after_last_probe(page):
     page.evaluate = with_notice
 
 
-def reader_arrangements(page):
+def reader_view_restore_cases(page):
     """The return states declared by the runtime that restores them."""
-    return render_checks_model.evaluate_probe(page, "arrangements")
+    return render_checks_model.evaluate_probe(page, "readerViewRestoreCases")
 
 
-def arrange_return(page, arrangement):
+def apply_restore_case(page, restore_case):
     """Put exactly one declared return state into this reader's stores."""
-    render_checks_model.evaluate_probe(page, "arrange", arrangement)
+    render_checks_model.evaluate_probe(page, "applyRestoreCase", restore_case)
 
 
 def arrival_transition_findings(page, arrival):
@@ -99,7 +99,7 @@ def arrival_transition_findings(page, arrival):
 
 
 def arrival_findings(browser, url):
-    """Whether a page comes up at all in each arrangement a reader can return to.
+    """Whether a page comes up at all in each restore case a reader can return to.
 
     The suite's, not `render_version`'s, and the line between them is whose fault a
     finding is. Everything the gate reads is something the page's author wrote and
@@ -116,11 +116,11 @@ def arrival_findings(browser, url):
     evaluating, which could reach almost nothing. It reached the reader, who reported
     it.
 
-    One page, reloaded into each arrangement, which is what a returning reader does:
+    One page, reloaded into each restore case, which is what a returning reader does:
     the store is written on the origin the page is already on and read while the next
     load evaluates. What comes back is completed presentation, any page transition that
     began before it, and the console. Boxes are not measured again: every shipped example
-    was measured in each of these arrangements and none of them moved a box that a first
+    was measured in each of these restore cases and none of them moved a box that a first
     visit didn't.
     """
 
@@ -149,7 +149,7 @@ def arrival_findings(browser, url):
     render_checks_model.install_window_errors(page)
     found = []
     try:
-        # A first visit, to be arranged from and to read the arrangements off. Reported
+        # A first visit, from which to read the restore cases. Reported
         # rather than raised when it doesn't arrive: this is the reading that says what
         # happens on a load, so a load it could not make is its own answer, and a page
         # that never came up has nothing to be arranged into.
@@ -171,9 +171,9 @@ def arrival_findings(browser, url):
                 + ("; ".join([*errors, *notices]) or "and no console error says why")
             ]
         found += arrival_transition_findings(page, "first visit")
-        for arrangement in reader_arrangements(page):
-            arrange_return(page, arrangement)
-            # A console the last arrangement dirtied is not this one's news.
+        for restore_case in reader_view_restore_cases(page):
+            apply_restore_case(page, restore_case)
+            # A console the last restore case dirtied is not this one's news.
             errors.clear()
             notices.clear()
             try:
@@ -182,17 +182,17 @@ def arrival_findings(browser, url):
                 render_checks_model.wait_for_probe(page, "presented")
             except PlaywrightTimeout:
                 found.append(
-                    f"[{arrangement['name']}] the page never finished coming up — "
+                    f"[{restore_case['name']}] the page never finished coming up — "
                     + (
                         "; ".join([*errors, *notices])
                         or "and no console error says why"
                     )
                 )
                 continue
-            found += arrival_transition_findings(page, arrangement["name"])
+            found += arrival_transition_findings(page, restore_case["name"])
             # A ResizeObserver notice is the gate's to adjudicate over two attempts on
             # the same document; one seen here says nothing on its own.
-            found += [f"[{arrangement['name']}] console: {e}" for e in errors]
+            found += [f"[{restore_case['name']}] console: {e}" for e in errors]
     finally:
         page.close()
     return found
@@ -306,7 +306,7 @@ def prose_beside_identifiers(held):
         (
             "Keyboard",
             (
-                "<kbd>r</kbd> arms the bar with address-chip digits, 1–n in declared"
+                "<kbd>r</kbd> arms the bar with binding badges, 1–n in declared"
                 " order; a stray key disarms and keeps its meaning."
             ),
             [
@@ -417,7 +417,7 @@ SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
 )
 
 
-# A note written level with a change, which is the one arrangement that puts two
+# A note written level with a change, which is the one restore case that puts two
 # residents of the right margin on the same line.
 NOTE_BESIDE_A_CHANGE = LONG_PAGE.replace(
     "</main>",
@@ -510,9 +510,9 @@ EDGES = [
         html=lambda: LONG_PAGE,
         comments=1,
         stand=lambda page: page.locator(".lf-threads-toggle").click(),
-        region=".lf-panel",
+        region=".lf-thread-panel",
         side="right",
-        store="lf-panel-width",
+        store="lf-thread-panel-width",
         wide=420,
         squeeze=(1000, 500),
     ),
@@ -523,7 +523,7 @@ EDGES = [
         stand=lambda page: page.locator(".lf-asks").click(),
         region=".lf-asks-panel",
         side="left",
-        store="lf-tray-width",
+        store="lf-tray-slot-width",
         wide=300,
         squeeze=(800, 400),
     ),
@@ -541,7 +541,7 @@ def edge_settled(page, edge):
     Both are finished rather than waited out, which is that reasoning in full. Each is
     presentation over a layout the gesture already installed, so the end frame is the
     settled page either way, and finishing is the only thing that terminates when the
-    test is holding the clock still — `showTray` and a drawn edge reach the same shell
+    test is holding the clock still — `setOpenTray` and a drawn edge reach the same shell
     carry the panel does, so a held-motion test that came through here would sit out the
     same stopped clock. Polling, because a carry starts inside the gesture's own task
     and a finished fill leaves `getAnimations` a turn later.
@@ -605,7 +605,7 @@ def draw_edge(page, edge, by):
     )
 
 
-# The room sampled across a workspace motion. The shell owns the value in CSS, so a
+# The room sampled across an auxiliary-surface motion. The shell owns the value in CSS, so a
 # harmless probe resolves the custom-property expression to the width a wide exhibit
 # would actually receive.
 ROOM_EVERY_FRAME = """(frames) => {
@@ -715,7 +715,7 @@ NEIGHBOUR = (
 PRESS = "[data-lf-offer], [role=tab], [role=button], .lf-btn, .lf-pick, button, summary"
 
 # The controls a press is aimed *past*: the ones sharing its row, standing on the same
-# line, and on screen at both ends of the gesture. A target margin element's row is its cluster;
+# line, and on screen at both ends of the gesture. A target margin entry's row is its cluster;
 # contribution and options wrappers do not split the visible row. Other controls use
 # their parent. Held in a JS array rather than looked up afterwards, because identity
 # has to survive a press that adds or removes a sibling; measured with offset*, which
@@ -770,7 +770,7 @@ DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
 
 
 def unfolded_button(control):
-    """Return a secondary margin element, opening `…` only for a larger peer set.
+    """Return a secondary margin entry, opening `…` only for a larger peer set.
 
     A single peer is already visible. In either posture the contribution's real
     control stays with its owner and the visible proxy forwards the reader's press.
@@ -790,11 +790,11 @@ def unfolded_button(control):
     )
 
 
-def banner_address(page, selector):
-    """The banner address named, brought out from behind the row's menu if it is there.
+def banner_control(page, selector):
+    """The named banner control, brought out from behind the row's menu if needed.
 
-    A window too narrow to hold every address folds the ones it cannot into one menu, so
-    a test that presses an address by name has to say which of the two places it is
+    A window too narrow to hold every control folds the ones it cannot into one menu, so
+    a test that presses a control by name has to say which of the two places it is
     standing in. Nothing else about it changes: it is the same control, with the same
     words, the same state paint and the same press. The reading is taken of the page as
     it is rather than of a width the test assumed, so one call reads the same at 1440 and
@@ -811,10 +811,10 @@ def banner_address(page, selector):
     return control
 
 
-# The banner's addresses in the row's one order. The fold takes a run off the front of
+# The banner's controls in the row's one order. The fold takes a run off the front of
 # the row into the menu, so the menu's contents followed by the row read straight
-# through as that one order. The door itself is not an address, and a control the page
-# has taken away is not one either.
+# through as that one order. The door itself is not part of that control order, and a
+# control the page has taken away is not part of it either.
 BANNER_ORDER = """() => {
   const shelf = document.querySelector('.lf-banner-actions');
   const menu = document.querySelector('.lf-banner-menu');
@@ -876,12 +876,12 @@ AIM_POINT = """(el) => {
   return null;
 }"""
 # The promise itself, read where the runtime states it: the aim's box in the chrome's
-# layer carries the aimed item's id (data-for, refreshAim's one write of it). The
+# layer carries the aimed element's id (data-for, refreshAim's one write of it). The
 # composer's own mark then stands on that same item once the press is made, so the box's
 # answer before the press and the draft's after it agreeing is the promise being kept.
 AIMED = """() => document.querySelector(".lf-aim")?.getAttribute("data-for") ?? null"""
 # The item the draft stands on, which is not always the element wearing the outline: a
-# mark hangs on the boxes its item shows through, and a display: contents wrapper shows
+# mark hangs on the boxes its element shows through, and a display: contents wrapper shows
 # through its slots. Reading the raw id said the promise was broken for every suggestion
 # on every example — while the reading that had passed all along was the vacuous one, the
 # outline sitting on a wrapper that draws nothing.
@@ -925,7 +925,7 @@ PAGE_MARKUP = """() => [...document.body.children]
         return c.outerHTML;
     })
     .join("").replaceAll(' class=""', "")"""
-# Every legend box stands on its item: same corner, one pixel out, for every item wholly
+# Every legend box stands on its addressable element: same corner, one pixel out, for every element wholly
 # on screen. Items partly off it are clipped to the scroller (shownRect) and are not
 # compared, and items off it have no box shown at all. An item with no box of its own —
 # one a page styles display: contents — reads as what its contents paint, mirroring
@@ -1041,7 +1041,7 @@ def token_colour(page, name):
 
 
 def button_radius(page):
-    """Resolve the shared margin element corner through the page's own theme token."""
+    """Resolve the shared margin entry corner through the page's own theme token."""
     return page.evaluate(
         """() => {
         const probe = document.createElement('span');
@@ -1450,14 +1450,14 @@ PAINTED_IN_SILENCE_PAGE = leaf_page(
     "silence",
     """
 <h1 id="h">Transport</h1>
-<lf-timeline id="open-group">
-  <lf-event id="p-seen" at="09:12" kind="failure"><strong>Feed stopped</strong></lf-event>
-</lf-timeline>
+<lf-chronology id="open-group">
+  <lf-chronology-entry id="p-seen" at="09:12" kind="failure"><strong>Feed stopped</strong></lf-chronology-entry>
+</lf-chronology>
 <details id="folded">
   <summary>Weighed in March</summary>
-  <lf-timeline id="folded-group">
-    <lf-event id="p-folded" at="10:20" kind="failure"><strong>Feed stopped</strong></lf-event>
-  </lf-timeline>
+  <lf-chronology id="folded-group">
+    <lf-chronology-entry id="p-folded" at="10:20" kind="failure"><strong>Feed stopped</strong></lf-chronology-entry>
+  </lf-chronology>
 </details>
 """,
     head="<style>.lf-quiet { display: none }</style>",
@@ -1513,7 +1513,7 @@ DEEP_FOCUS = """() => {
 # The here ring where a box casts it as a shadow rather than drawing it as an outline,
 # and how far past its edge that band reaches. Two rules in the layer draw it that way —
 # the anchored response bar, which writes `outline: none` so its states keep one
-# silhouette, and the item hint the keyboard is browsing, a chip in a layer nothing can
+# silhouette, and the target hint the keyboard is browsing, a chip in a layer nothing can
 # focus — and to a reader they are the same band as every other ring (--here-shadow,
 # theme.css).
 #
@@ -1658,7 +1658,7 @@ RING_NAMES = """() => {
 #
 # Both carriers of the band are read. Most of the layer's rules draw it as an outline;
 # two cast it as a shadow instead, and a reading that knew only the outline reported the
-# response bar and the browsed item hint as boxes with no ring on them at all.
+# response bar and the browsed target hint as boxes with no ring on them at all.
 RINGS_DRAWN = f"""async () => {{
   // shownBand, rather than a fourth reading of what a box clips to. Its own comment
   // carries why: version check --render imports it so the band a handover is refused
@@ -1692,7 +1692,7 @@ RINGS_DRAWN = f"""async () => {{
   // a visible ring cut in half is a fault whoever drew it.
   //
   // Or the same band cast as a shadow, which is the same ring to the reader and so the
-  // same ring here: the anchored response bar and the browsed item hint draw it that
+  // same ring here: the anchored response bar and the browsed target hint draw it that
   // way. Left out, the bar's own controls came back wearing `pressable` — the name of
   // the floor rule whose outline this one takes away — and the hint's band went
   // unmeasured wherever it stood.
@@ -1783,7 +1783,7 @@ RINGS_DRAWN = f"""async () => {{
     let scrolled = false;
     const above = (n) => n.parentElement || n.getRootNode().host || null;
     // One side, one message, named for the innermost box that took it. A scroll region's
-    // edge is often the window's to the pixel — .lf-threads' right edge is .lf-panel's is
+    // edge is often the window's to the pixel — .lf-threads' right edge is .lf-thread-panel's is
     // innerWidth — and one ring reported twice reads as two defects. The innermost box is
     // the more useful of the two answers anyway: it is the box the control lives in.
     const taken = {{}};

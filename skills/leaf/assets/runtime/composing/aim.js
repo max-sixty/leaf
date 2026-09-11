@@ -17,14 +17,14 @@ export function createAim({
   refreshAim,
   commentOnTarget,
   standDown,
-  drawingIsOn,
-  design,
+  drawModeActive,
+  designMode,
 }) {
   let aiming = false;
   // Design is the active input mode, so the sequence is unavailable while it stands. Keep
   // that priority in the aim's one public reading as well as its press claim: the promise
   // painted under the pointer and the gesture that follows must have the same owner.
-  const aimIsAvailable = () => !design.isOn() && !drawingIsOn();
+  const aimIsAvailable = () => !designMode.active() && !drawModeActive();
   const aimIsOn = () => aiming && aimIsAvailable();
   // Modifier aim, declared once: the key listeners, the press guard (claimPress) and the
   // reference's row all read this object. It is the register's one row that is not a key —
@@ -121,7 +121,7 @@ export function createAim({
     // under way when the key goes down keeps the events it is waiting for, and one that
     // ends after the aim's own press can still be ended.
     if (ev.type === "pointerdown") {
-      const designTarget = design.press(ev.target);
+      const designTarget = designMode.press(ev.target);
       const aim =
         aimIsAvailable() && ev.getModifierState(AIM.modifier) && !inChrome(ev.target);
       // The item the outline is naming, through the reading that named it (aimedTarget,
@@ -132,7 +132,7 @@ export function createAim({
       // which butt with no gap between them — nothing makes the two tie-break the same way.
       // A reader ⌥-pressing on that seam was outlined one option and commented on the next.
       claimedPress = designTarget
-        ? { design: design.target(ev.target) }
+        ? { designMode: designMode.target(ev.target) }
         : aim
           ? { aim: aimedTarget() }
           : null;
@@ -149,7 +149,7 @@ export function createAim({
     ev.stopPropagation();
     if (ev.type !== "click") return;
     if (claimedPress.aim) commentOnTarget(claimedPress.aim);
-    else if (claimedPress.design) design.open(claimedPress.design);
+    else if (claimedPress.designMode) designMode.open(claimedPress.designMode);
   }
   function mount() {
     addEventListener("keydown", keyDown);

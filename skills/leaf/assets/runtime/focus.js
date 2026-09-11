@@ -2,7 +2,7 @@
 
 // Put the reader on an element that may not be a tab stop: focus it, and where it will
 // not take focus, lend it the tab stop a control has for exactly as long as it holds it —
-// the lend leaves with the first blur, so a paragraph the address sequence landed on is a
+// the lend leaves with the first blur, so a paragraph the Go-to sequence landed on is a
 // paragraph again once the reader moves off it, and `tabindex` never becomes a thing the
 // runtime leaves behind on an author's element. An element that already declares a stop
 // keeps its own. Four arrivals want this and none owns the element: a go-to hint

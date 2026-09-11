@@ -241,14 +241,6 @@ customElements.define(
             run: () => this.#submit.click(),
           },
           {
-            id: "targeting.select",
-            keys: [],
-            control: this.#arm,
-            does: "Select a preview element",
-            line: "select an element",
-            run: () => this.#arm.click(),
-          },
-          {
             id: "targeting.focused-element",
             keys: ["Enter"],
             does: "Choose the focused preview element",

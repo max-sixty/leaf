@@ -299,6 +299,12 @@ def supervised_document(
     The authored source keeps its canonical script. The served document receives
     the current layer CSP, the exact bootstrap hash, and the server incarnation
     probe, so historical sources inherit the current delivery boundary.
+
+    It also names the page it belongs to. A page answers at three addresses — the
+    live root, each stamped version, and each immutable revision — and every one
+    of them serves this document, so the page root is the address that stands for
+    all of them. The href is relative to the delivery, which has no origin to
+    know: it resolves wherever the page directory is mounted.
     """
     source = runtime_document(source, revision, version).decode()
     # The MCP complete-page transport scopes root routes under its bearer path. Do
@@ -326,6 +332,7 @@ def supervised_document(
         f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
         f'<script data-lf-runtime data-lf-server="{server_id}" data-lf-layer="{layer_id}"{release}{public_root} data-lf-entry="/leaf.js" '
         f'data-lf-theme="/theme.css" data-lf-probe="/registry.json">{bootstrap}</script>'
+        f'<link rel="canonical" href="{html.escape(page_root, quote=True)}/" data-lf-runtime>'
     )
     return (
         source[:policy_offset]
@@ -722,6 +729,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             source = revision_path(self.page_dir, revision).read_text(encoding="utf-8")
             version = stamped_version(events, revision)
+        self._send_document(source, revision, version)
+
+    def _send_document(self, source: str, revision: int, version: int | None) -> None:
+        """Serve one immutable document under the current delivery boundary."""
         try:
             projected = supervised_document(
                 source,
@@ -752,20 +763,7 @@ class Handler(BaseHTTPRequestHandler):
             source = revision_path(self.page_dir, mapping[version]).read_text(
                 encoding="utf-8"
             )
-            self._send(
-                200,
-                "text/html; charset=utf-8",
-                supervised_document(
-                    source,
-                    mapping[version],
-                    version,
-                    server_id=self.server_id,
-                    layer_id=self.layer,
-                    bootstrap=self.bootstrap,
-                    release_id=self.release,
-                    page_root=self.page_root,
-                ),
-            )
+            self._send_document(source, mapping[version], version)
             return True
         if path.startswith("/revisions/"):
             name = Path(path).name
@@ -776,6 +774,11 @@ class Handler(BaseHTTPRequestHandler):
             ):
                 self._json({"error": "unknown revision"}, 404)
                 return True
+            source = revision_path(self.page_dir, revision).read_text(encoding="utf-8")
+            self._send_document(
+                source, revision, stamped_version(read_events(self.page_dir), revision)
+            )
+            return True
         file = self.page_dir / path.lstrip("/")
         # The allowlist rejects traversal spellings; containment is the second
         # boundary for a page directory edited or symlinked after vendoring.

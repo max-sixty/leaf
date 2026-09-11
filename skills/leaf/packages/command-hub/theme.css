@@ -76,7 +76,7 @@ lf-task[status="blocked"]::before,
 lf-task[status="stalled"]::before { background: var(--danger); border-color: var(--danger); }
 lf-task[status="review"]::before  { background: var(--warn); border-color: var(--warn); }
 lf-task > lf-task { margin-left: 11px; border-left: 1px solid var(--rule);
-                    --lf-frame: 1; }
+                    --lf-block-frame: 1; }
 lf-task > strong { margin-right: 6px; }
 lf-task[status="done"] > strong { color: var(--muted); }
 
@@ -135,7 +135,7 @@ lf-operations { display: grid; grid-template-columns: repeat(auto-fit, minmax(14
   gap: var(--sp-2); margin: var(--sp-3) 0; }
 lf-operation { position: relative; display: block; padding: var(--sp-3) 5.5rem var(--sp-3) var(--sp-3);
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);
-  --lf-frame: 1; }
+  --lf-block-frame: 1; }
 lf-operation[data-lf-requested] { background: color-mix(in srgb, var(--accent) 7%, var(--paper)); }
 .lf-operation-press { position: absolute; top: var(--sp-3); right: var(--sp-3); }
 .lf-operation-status { grid-column: 1 / -1; color: var(--muted); font: var(--t-6) var(--sans); }

@@ -10,21 +10,21 @@ from leaf.schema import ASSETS, DATA_CONTRACT_NAME, EXTENSION_SCHEMA, HTML_NAME
 from .contract import (
     GUIDANCE_READER,
     RegistryError,
-    read_registry_entries,
+    read_registry_declarations,
     unresolved_schema_reference,
 )
 
 
 def kernel_event_kinds() -> dict:
     """The fixed event records produced and consumed by Leaf's kernel."""
-    return read_registry_entries(ASSETS / "registry.json")["$events"]["kinds"]
+    return read_registry_declarations(ASSETS / "registry.json")["$events"]["kinds"]
 
 
-def merge_layer_entries(merged: dict, entries: dict) -> None:
-    """Fold one layer's top-level registry entries into the merge.
+def merge_layer_declarations(merged: dict, declarations: dict) -> None:
+    """Fold one layer's top-level registry declarations into the merge.
 
-    A tag entry replaces the earlier one whole; schemas never deep-merge,
-    because a half-old, half-new contract is no layer's vocabulary. A $ entry
+    An element declaration replaces the earlier one whole; schemas never deep-merge,
+    because a half-old, half-new contract is no layer's vocabulary. A $ declaration
     holds shared layer facts, so its members merge. Under replace-whole, a project
     declaring one idiom vendored a $idioms holding exactly that idiom — its theme
     rules kept styling, theme.css concatenating where the registry did not, while
@@ -40,7 +40,7 @@ def merge_layer_entries(merged: dict, entries: dict) -> None:
     only way a project can take a shipped reaction token off its bar, or a user
     an extension off `$languages.paths`, without restating the whole map.
     """
-    for name, entry in entries.items():
+    for name, entry in declarations.items():
         earlier = merged.get(name)
         if not (name.startswith("$") and earlier is not None):
             merged[name] = entry

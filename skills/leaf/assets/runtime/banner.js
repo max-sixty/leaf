@@ -27,7 +27,7 @@ bannerStatus.append(dot, statusText);
 
 export const toggleBtn = el(
   "button",
-  "lf-btn lf-workspace lf-threads-toggle",
+  "lf-btn lf-auxiliary-toggle lf-threads-toggle",
   "Threads",
 );
 toggleBtn.title = "Show or hide the thread panel";
@@ -163,10 +163,10 @@ const showStatus = (kind, tone, ...parts) => {
   if (changed) announce(statusText.textContent);
 };
 // The developer preview's identity: which checkout is serving this page, and a press to
-// copy the whole diagnostic. It is the banner's least-used address, so it stays behind
-// the address door at every width instead of adding a permanent chip to the reading row.
-// The shelf still owns and measures it with every other address.
-let previewMarginElement = null;
+// copy the whole diagnostic. It is the banner's least-used control, so it stays behind
+// the overflow door at every width instead of adding a permanent chip to the reading row.
+// The shelf still owns and measures it with every other control.
+let previewMarginEntry = null;
 // A checkout goes dirty and clean again while a developer works, so the chip holds the
 // wider of its two spellings for the page's life rather than growing a character under
 // the reader's pointer. Renewed with the row's other reservations at a breakpoint.
@@ -197,12 +197,12 @@ function renderPreview(state) {
     `event sequence: ${state.events.at(-1)?.seq ?? 0}`,
     `url: ${safeUrl}`,
   ].join("\n");
-  if (!previewMarginElement) {
-    previewMarginElement = el("button", "lf-btn lf-preview", label);
-    previewMarginElement.type = "button";
-    previewMarginElement.dataset.lfAlwaysFold = "1";
-    previewMarginElement.setAttribute("aria-label", "Copy preview diagnostics");
-    previewMarginElement.addEventListener("click", async () => {
+  if (!previewMarginEntry) {
+    previewMarginEntry = el("button", "lf-btn lf-preview", label);
+    previewMarginEntry.type = "button";
+    previewMarginEntry.dataset.lfAlwaysFold = "1";
+    previewMarginEntry.setAttribute("aria-label", "Copy preview diagnostics");
+    previewMarginEntry.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(previewDiagnostics);
         notice("Copied preview diagnostics");
@@ -210,7 +210,7 @@ function renderPreview(state) {
         notice("Couldn't copy preview diagnostics");
       }
     });
-    // Seated by the same writer that seats every other address, so the row reads in one
+    // Seated by the same writer that seats every other control, so the row reads in one
     // order and the fold knows about it; then measured with the whole run standing, then
     // folded against what it measured. The unfold is the measurement's precondition, not
     // tidiness: `arrangeBannerControls` ends in a fold, this chip is seated first so it
@@ -220,11 +220,11 @@ function renderPreview(state) {
     // same call for the same reason.
     arrangeBannerControls();
     unfoldShelf();
-    reserve(previewMarginElement, previewLabels);
+    reserve(previewMarginEntry, previewLabels);
     foldShelf();
   }
-  previewMarginElement.textContent = label;
-  previewMarginElement.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
+  previewMarginEntry.textContent = label;
+  previewMarginEntry.title = `${preview.example} · started ${preview.started} · copy diagnostics`;
 }
 // The two lines the page cannot reach through its own state, said here because the
 // reservation below has to know them as well as the reading does.
@@ -314,7 +314,7 @@ function statusWords({
 let publication = null;
 
 // The public website support handle is available on demand with the banner's other
-// low-frequency addresses. It does not compete with the page's live status sentence.
+// low-frequency controls. It does not compete with the page's live status sentence.
 let sessionReferenceElement = null;
 let sessionReferenceLabel = "";
 function renderSessionReference() {
@@ -361,7 +361,7 @@ function renderStatusNow(state) {
   publication = state.publication ?? null;
   // Before the words, because the row folds against the room they will need: a page
   // learning its agent's name, or that it is published, is a page whose longest line has
-  // just changed, and the addresses beside it are what pay for the difference.
+  // just changed, and the controls beside it are what pay for the difference.
   if (reserveStatusRoom()) foldShelf();
   if (publication) {
     const [said, installs] = publicationWords(publication);
@@ -457,7 +457,7 @@ function pageLines() {
 }
 
 // The narrowest box those lines all fit the clamp in — the floor the stylesheet's cap
-// hands the addresses as the room they may not have.
+// hands the controls as the room they may not have.
 //
 // Measured, because what it has to cover is the width a wrapped line of these words
 // takes in the face the row is set in, and no count of characters tracks that: a `ch`
@@ -465,7 +465,7 @@ function pageLines() {
 // face rather than of its size. Two lines of the longest of these take 37.5 characters
 // where `system-ui` is SF — this desk — and 40.4 where it is DejaVu, which is what the
 // image CI runs on resolves it to. Stated as thirty-four it was under both, and a number
-// over the second reserves on the first room the row can only find by folding an address.
+// over the second reserves on the first room the row can only find by folding a control.
 // This is the question `reserve` asks of a control's words, asked of the sentence's.
 //
 // A copy of the sentence, seated where the sentence sits, so it is measured in the face,
@@ -544,22 +544,22 @@ let signoffDeclared =
 let signoff = signoffDeclared && runtime.currentStamp !== null;
 export const isSignoffDeclared = () => signoffDeclared;
 
-// One order, at every width. An edge's address sits at that edge: All leaves is the first
-// address beside the tray it opens on the left, and approval and Threads finish beside the
+// One order, at every width. An edge's control sits at that edge: All leaves is the first
+// control beside the tray it opens on the left, and approval and Threads finish beside the
 // panel they open on the right. The row used to turn round at the covering breakpoint,
 // which carried Threads from one end of the banner to the other and swapped the page's one
 // committing press across it — so a reader who learned this row on a laptop had to learn
 // it again on a phone, and a press they were reaching for was somewhere else. What a
-// narrow window changes now is how many of these addresses stand on the row at once; the
+// narrow window changes now is how many of these controls stand on the row at once; the
 // rest fold into the row's own menu, in this same order (`foldShelf`).
 //
-// Low-frequency identifiers stand first in the complete address order and always behind
+// Low-frequency identifiers stand first in the complete control order and always behind
 // its door. A checkout appears only in a developer preview; a session reference appears
 // only on the public website.
 //
 // This is DOM order rather than CSS `order`, so the tab route says the same thing the row
 // draws. Reordering existing nodes can briefly drop native focus; put it back without
-// moving the page, and hand it to the menu's door where the fold has taken the address
+// moving the page, and hand it to the menu's door where the fold has taken the control
 // the reader was standing on.
 function arrangeBannerControls() {
   const focused = document.activeElement;
@@ -568,17 +568,17 @@ function arrangeBannerControls() {
     approveBtn,
     othersBtn,
     sessionReferenceElement,
-    previewMarginElement,
+    previewMarginEntry,
   ]);
   // Registry-declared blanket answers can join the middle of this row after boot, and a
-  // folded address is still on it. Preserve every such control in its standing relative
-  // order while moving only the edge-owned addresses.
+  // folded control is still on it. Preserve every such control in its standing relative
+  // order while moving only the edge-owned controls.
   const middle = [...overflowMenu.children, ...bannerActions.children].filter(
     (control) => control !== overflowBtn && !edges.has(control),
   );
   const controls = [
     ...(sessionReferenceElement ? [sessionReferenceElement] : []),
-    ...(previewMarginElement ? [previewMarginElement] : []),
+    ...(previewMarginEntry ? [previewMarginEntry] : []),
     othersBtn,
     ...middle,
     ...(signoff ? [approveBtn] : []),
@@ -648,7 +648,7 @@ export function stateSignoff(next, syncLayout, paintApproval) {
 // write can move them — a page with a thousand open threads, or a machine with a thousand
 // live pages, is not one anyone hands a user.
 //
-// Every address stands on the row while this runs. A control measures its own words in
+// Every control stands on the row while this runs. A control measures its own words in
 // its own live face, and inside the shut menu the fold may have put it in there is no
 // box to measure: every word comes back zero and the floor with it. The fold is asked
 // again at the end, against the reservations this just took.
@@ -661,7 +661,7 @@ let reservedCovering = null;
 let reserveAfterMenuCloses = false;
 export function reserveBannerControls() {
   // The shelf is a stable reading while it stands open. A breakpoint can cross under
-  // it, but measuring requires moving every address back onto the row; defer that move
+  // it, but measuring requires moving every control back onto the row; defer that move
   // until the reader closes the shelf, then renew before its next opening.
   if (overflowMenu.matches(":popover-open")) {
     reserveAfterMenuCloses = true;
@@ -671,8 +671,8 @@ export function reserveBannerControls() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
   if (sessionReferenceElement)
     reserve(sessionReferenceElement, [sessionReferenceLabel]);
-  if (previewMarginElement) reserve(previewMarginElement, previewLabels);
-  // News keeps one readable address while it changes words. The row folds rather than
+  if (previewMarginEntry) reserve(previewMarginEntry, previewLabels);
+  // News keeps one readable control while it changes words. The row folds rather than
   // clips, so no control has to collapse into an illegible pressure release.
   reserve(latestChip, [
     "New page available → open v999",
@@ -683,7 +683,7 @@ export function reserveBannerControls() {
   reserve(asksBtn, ["Asks 999/999"]);
   reserve(othersBtn, ["All leaves (999)"]);
   // The sentence's own room, taken in the same face and on the same occasions as the
-  // addresses' — the words have not changed, but what they set has, which is the whole
+  // controls' — the words have not changed, but what they set has, which is the whole
   // reason none of these is a number.
   reservedWords = null;
   reserveStatusRoom();
@@ -704,7 +704,7 @@ overflowMenu.addEventListener("toggle", (event) => {
 // this breakpoint's before anything is measured against them. A crossing is two events, a
 // resize and a media query change, and the platform does not order them against each
 // other: a fold running on the resize measured the narrow row against the widths the
-// window it had just left reserved, folded an address the narrow row had room for, handed
+// window it had just left reserved, folded a control the narrow row had room for, handed
 // the reader the door it went behind, and then had the renewal behind it take that door
 // away with the reader still standing on it. Renewed here, at the head of the one layout
 // pass, the renewal is the crossing's first act whichever event arrives first.

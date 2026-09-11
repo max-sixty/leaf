@@ -1,6 +1,6 @@
 # Interactive and external evidence
 
-Read the selected registry entries first. Read this reference when the page uses
+Read the selected element declarations first. Read this reference when the page uses
 measured facts, diagrams, charts, source files, images, or before/after captures.
 
 ## Measured facts
@@ -37,7 +37,7 @@ Use `lf-diagram` for flows, state machines, sequences, class relationships, ER
 schemas, and small XY plots; Beautiful Mermaid renders that Mermaid-source subset.
 Flowcharts accept Mermaid's classic node shapes. Unstyled nodes already use Leaf's
 accent surface. Use `classDef` only for nodes that need to stand apart from that
-baseline, and copy the whole `fill`/`stroke`/`color` set from the registry entry, such
+baseline, and copy the whole `fill`/`stroke`/`color` set from the element declaration, such
 as `fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)`. Beautiful Mermaid also
 honors `stroke-width`; other properties are ignored. The widget refuses the
 `click`, `accTitle`, and `accDescr` directives, which the renderer would draw as
@@ -67,7 +67,7 @@ stable source id and take comments on the whole drawing.
 
 ## Source files and media
 
-Use `lf-source` when literal UTF-8 text should remain selectable and commentable
+Use `lf-text-document` when literal UTF-8 text should remain selectable and commentable
 without copying it into the authored HTML. Use a unified-patch capture with
 `lf-diff`; the diff keeps its per-file view
 and gives each source line a stable comment coordinate. Its Pierre renderer is
@@ -83,7 +83,7 @@ decision or targeted comments omits it. First add a current-data binding so Leaf
 can give the source its page-lifetime contract:
 
 ```html
-<lf-source id="skill-source" source="leaf-skill" language="markdown"></lf-source>
+<lf-text-document id="skill-source" source="leaf-skill" language="markdown"></lf-text-document>
 
 <lf-diff id="review-patch" source="pr-patch" snapshot="2" collapsed><pre></pre></lf-diff>
 ```
@@ -109,7 +109,7 @@ stamping or handing over the reviewed page to freeze that capture; omit the
 attribute when the block should follow later captures or `data set` calls. On a
 served page, the valid unpinned save that adds the binding may already have
 become an interim revision before capture. That is expected; the next valid save
-activates the pinned snapshot. Wrap `lf-source` in ordinary `<details>` or place
+activates the pinned snapshot. Wrap `lf-text-document` in ordinary `<details>` or place
 it in an `lf-tabs` panel when the evidence should start collapsed or share a
 compact frame with alternatives. A bound `lf-diff` keeps one empty `<pre></pre>`
 because that is the shared data-body shape; the captured patch, not that element,

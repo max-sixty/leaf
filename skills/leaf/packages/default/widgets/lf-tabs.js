@@ -1,4 +1,4 @@
-/* lf-tabs: parallel workstreams on one page, one panel on screen at a time.
+/* lf-tabs: several views of one page, one panel on screen at a time.
  * The upgrade builds the strip from the panels' `label` attributes and hides
  * inactive panels with hidden="until-found", so browser find-in-page and
  * fragment navigation still reach them — `beforematch` opens the owning tab,

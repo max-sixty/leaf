@@ -427,8 +427,8 @@ def test_page_inspection_routes_frozen_captures_to_a_new_reply(page_dir):
             "author": "claude",
             "revision": 1,
             "text": "The reviewed instructions and their current replacement.",
-            "markup": '<lf-source id="reviewed" source="instructions" snapshot="1"></lf-source>'
-            '<lf-source id="current" source="instructions"></lf-source>',
+            "markup": '<lf-text-document id="reviewed" source="instructions" snapshot="1"></lf-text-document>'
+            '<lf-text-document id="current" source="instructions"></lf-text-document>',
         },
     )
     data_model.cmd_data_set(page_dir, "instructions", "Reviewed wording.", "reviewed")
@@ -515,8 +515,8 @@ def test_check_rejects_widget_violations(page_dir):
             '<lf-metric id="bad-metric" value="1"/>'
             "<figure/>"
             "<lf-bogus></lf-bogus>"
-            '<lf-timeline id="bad-timeline">'
-            '<lf-event id="stray-event" kind="medium">S</lf-event></lf-timeline>'
+            '<lf-chronology id="bad-chronology">'
+            '<lf-chronology-entry id="stray-chronology-entry" kind="medium">S</lf-chronology-entry></lf-chronology>'
             '<lf-option id="stray"><strong>S</strong></lf-option>'
             '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
             '<lf-diagram id="bare-body">graph LR</lf-diagram>',
@@ -530,7 +530,7 @@ def test_check_rejects_widget_violations(page_dir):
     assert out.count("self-closing") == 2
     assert "unknown widget" in out
     assert "'medium' is not one of" in out
-    assert "must be a direct child of <lf-options>" in out
+    assert "must be a direct member of <lf-options>" in out
     assert "'id' is a required property" in out
     assert "does not match" in out  # id pattern
     # A stray element beside the <pre>, and a body that never opened one: both are
@@ -597,7 +597,7 @@ def test_check_rejects_a_language_nothing_will_color(page_dir):
 
 def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     """The list is the layer's fact, not one widget's, so nothing in the lint knows
-    which widget takes a language: a tag whose entry declares x-language is held to
+    which widget takes a language: a tag whose declaration carries x-language is held to
     $languages on the strength of the declaration. A thirteenth widget that colors
     something — a terminal transcript, a diff — is covered without the lint moving."""
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -905,10 +905,13 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
                 used.setdefault(rec["tag"], {}).setdefault(attr, set()).add(value)
     # An example pins a snapshot by writing the data revision a capture retained, and
     # a source that only ever takes `data set` retains none: examples/*.data.json can
-    # attach a capture label to a `$captures` file and not to a set value, so
-    # pr-review-facts has no revision for lf-pull-request to name. The manifest, not
-    # this floor, is where that is fixed.
-    unreachable = {("lf-pull-request", "snapshot")}
+    # attach a capture label to a `$captures` file and not to a typed set value, so the
+    # pull-request and visual-run records have no retained revision for their widgets
+    # to name. The manifest, not this floor, is where that is fixed.
+    unreachable = {
+        ("lf-pull-request", "snapshot"),
+        ("lf-visual-review", "snapshot"),
+    }
     missing = []
     for tag, entry in sorted(registry.items()):
         if not tag.startswith("lf-"):
@@ -958,8 +961,8 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     assert check(page_dir).exit_code == 0
 
 
-def test_a_chip_is_admissible_in_both_its_holders(page_dir):
-    """x-parent is a list because one element can belong to two holders, and a chip
+def test_a_chip_is_admissible_in_both_its_owners(page_dir):
+    """x-owners is a list because one element can belong to two owners, and a chip
     is written in a lf-option and in a lf-variant — the same shape either side of the
     decision. Neither is special-cased anywhere: the nesting check reads the list."""
     (page_dir / ".fixture-versions" / "v1.html").write_text(
@@ -977,7 +980,7 @@ def test_a_chip_is_admissible_in_both_its_holders(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "must be a direct child of <lf-option> or <lf-variant>" in result.output
+    assert "must be a direct member of <lf-option> or <lf-variant>" in result.output
 
 
 def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
@@ -985,7 +988,7 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["lf-deck"] = {
-        "description": "A project package's differently named split.",
+        "description": "A project package's differently named partition.",
         "type": "object",
         "properties": {
             "id": {"type": "string"},
@@ -993,8 +996,8 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
         },
         "required": ["id", "direction"],
         "additionalProperties": False,
-        "x-content": "prose",
-        "x-layout": "split",
+        "x-content": "markup",
+        "x-reading-role": "partition",
         "x-upgrade": False,
     }
     registry["lf-zone"] = {
@@ -1006,8 +1009,8 @@ def test_layout_grammar_follows_declared_roles_across_packages(page_dir):
         },
         "required": ["id", "label"],
         "additionalProperties": False,
-        "x-content": "prose",
-        "x-layout": "pane",
+        "x-content": "markup",
+        "x-reading-role": "pane",
         "x-upgrade": False,
     }
     registry_path.write_text(json.dumps(registry))
@@ -1034,11 +1037,11 @@ def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
             "<h2>Plan</h2>",
             """<lf-workspace id="review-space">
   <p>Before the misplaced header.</p><header><h2>Plan</h2></header>
-  <lf-split id="regions" direction="columns">
+  <lf-partition id="regions" direction="columns">
     <lf-pane id="queue" label="Queue"><p>First</p></lf-pane>
     <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
     <p>Loose</p>
-  </lf-split>
+  </lf-partition>
 </lf-workspace>""",
         )
     )
@@ -1046,7 +1049,8 @@ def test_layout_grammar_rejects_invalid_slots_and_split_content(page_dir):
     assert result.exit_code == 1
     assert "direct <header> must be first" in result.output
     assert (
-        "exactly two direct pane or split widgets and no loose content" in result.output
+        "exactly two direct pane or partition widgets and no loose content"
+        in result.output
     )
 
 
@@ -1067,8 +1071,9 @@ def test_workspace_requires_one_element_body(page_dir):
         )
         result = check(page_dir)
         assert result.exit_code == 1, f"{name} passed workspace validation"
-        assert "x-layout workspace must contain exactly one direct body element" in (
-            result.output
+        assert (
+            "x-reading-role workspace must contain exactly one direct body element"
+            in (result.output)
         )
 
 
@@ -1102,14 +1107,16 @@ def test_check_rejects_loose_content_in_items_container(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "admits only ['lf-option'] children" in result.output
+    assert "admits only ['lf-option'] members" in result.output
     assert "'br'" in result.output  # self-closed strays count as children too
     assert "loose text" in result.output
 
 
 def test_check_requires_one_child_for_each_declared_role(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-milestones"]["x-children"] = {"lf-milestone": {"one-each": "status"}}
+    registry["lf-milestones"]["x-required-members"] = {
+        "lf-milestone": {"one-each": "status"}
+    }
     (page_dir / "registry.json").write_text(json.dumps(registry))
     version = page_dir / ".fixture-versions" / "v1.html"
     version.write_text(
@@ -1181,7 +1188,7 @@ def test_milestones_compose(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "must be a direct child of <lf-milestones>" in result.output
+    assert "must be a direct member of <lf-milestones>" in result.output
 
 
 def test_tabs_validate_and_compose(page_dir):
@@ -1214,7 +1221,7 @@ def test_tabs_reject_structural_violations(page_dir):
     result = check(page_dir)
     assert result.exit_code == 1
     assert "'label' is a required property" in result.output
-    assert "must be a direct child of <lf-tabs>" in result.output
+    assert "must be a direct member of <lf-tabs>" in result.output
     assert "loose text" in result.output
 
 
@@ -1243,7 +1250,7 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
         ),
         (
             "<lf-old><p>orphan</p></lf-old><lf-options>",
-            "must be a direct child of <lf-suggestion>",
+            "must be a direct member of <lf-suggestion>",
         ),
         (
             (
@@ -1612,6 +1619,25 @@ def test_check_owns_the_lf_meta_vocabulary(page_dir):
     assert result.exit_code == 1
     assert "unknown lf- meta" in result.output
     assert "lf-review" in result.output  # the error names the known vocabulary
+
+
+def test_check_leaves_the_pages_own_address_to_delivery(page_dir):
+    """An authored canonical is not an extra hint; it is a competing answer.
+
+    The served document names the page root at every address the page answers, so a
+    second one in the head leaves a crawler choosing, and the usual outcome is that it
+    honours neither. The words a page owes a search result are its title and
+    description, which it writes; the address is the server's.
+    """
+    (page_dir / ".fixture-versions" / "v1.html").write_text(
+        PAGE.replace(
+            "<title>t</title>",
+            '<title>t</title>\n<link rel="canonical" href="https://example.com/p">',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "the served document names the page root itself" in result.output
 
 
 def test_check_rejects_duplicate_ids(page_dir):
@@ -4190,7 +4216,7 @@ def test_page_state_before_first_stamp(page_dir):
 
 def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     """A block a user points at whole needs an id, or the aim falls through to
-    the enclosing section — the failure item anchoring's own page shipped. Advice
+    the enclosing section — the failure addressable-element anchoring's own page shipped. Advice
     on a passing run, not a gate, and quiet where a tight wrapper (a figure around
     a table) already gives the aim something to hold."""
     blocks = (
@@ -4446,7 +4472,7 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     """A layer can add idless column content without changing card indexes."""
     registry_file = page_dir / "registry.json"
     registry = json.loads(registry_file.read_text())
-    registry["lf-chip"]["x-parent"].append("lf-column")
+    registry["lf-chip"]["x-owners"].append("lf-column")
     registry_file.write_text(json.dumps(registry))
     board = (
         '<lf-board id="reading-board">'

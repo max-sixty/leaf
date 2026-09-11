@@ -8,7 +8,7 @@ import {
 } from "/runtime/widget-api.js";
 
 customElements.define(
-  "lf-source",
+  "lf-text-document",
   class extends HTMLElement {
     connectedCallback() {
       if (this.stopWatching) return;
@@ -55,7 +55,7 @@ customElements.define(
 
 function sourceNode(widget, { snapshot, tokens }, prior) {
   const figure = prior ?? document.createElement("figure");
-  figure.className = "lf-source-document";
+  figure.className = "lf-text-document-view";
   let caption = figure.querySelector(":scope > figcaption");
   let pre = figure.querySelector(":scope > pre");
   if (!caption || !pre) {

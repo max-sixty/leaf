@@ -1,5 +1,5 @@
 /* Tray DOM and readonly visibility are safe to import before browser boot.
- * createTrays binds workspace transitions to explicit commands and paint functions;
+ * createTrays binds modality transitions to explicit commands and paint functions;
  * mountTrays installs the controls only after chrome has been attached. */
 import { el } from "./widget-elements.js";
 import { drawnEdge } from "./drawn-edge.js";
@@ -11,8 +11,8 @@ import { allAsks } from "./asks/model.js";
 import { walkRows } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { iconElement } from "./icons.js";
-import { dismissBannerAddresses, focusBannerAddress } from "./banner-shelf.js";
-// The left side holds one tray at a time. `showTray` owns `trayUp` and renders the
+import { dismissBannerControls, focusBannerControl } from "./banner-shelf.js";
+// The left side holds one tray at a time. `setOpenTray` owns `openTrayKey` and renders the
 // complete outcome for leaves and asks. The leaves tray overlays the document because its
 // rows leave the page. The asks tray takes a strip because its rows travel within the
 // page and the reader must keep the target visible. Both entry controls call the same
@@ -40,13 +40,13 @@ import { dismissBannerAddresses, focusBannerAddress } from "./banner-shelf.js";
 // than wrapping, so under this the tray is furniture showing the first syllable of every
 // name on it. The Asks tray's rows clamp to three lines instead and would go on reading
 // further down, which is why the floor is the leaves tray's to set.
-const TRAY_W = 300;
-const TRAY_MIN = 220;
-const TRAY_COVERING = `(width <= ${TRAY_W * 2}px)`;
+const TRAY_SLOT_W = 300;
+const TRAY_SLOT_MIN = 220;
+const TRAY_COVERING = `(width <= ${TRAY_SLOT_W * 2}px)`;
 // Where the standing width is written, and where the cascade reads it. chrome.css
 // spells the same name and the same covering width, and the layer test holds the two
 // spellings equal, since a stylesheet cannot read a constant.
-export const TRAY_PROP = "--lf-tray-w";
+export const TRAY_SLOT_PROP = "--lf-tray-slot-width";
 // Which trays take their room out of the page rather than lying over it. The rule that
 // takes the strip spells this list in chrome.css, and the layer test holds the two equal.
 //
@@ -56,9 +56,9 @@ export const TRAY_PROP = "--lf-tray-w";
 // it — and a tray lying over the document would be hiding the very thing it just sent you
 // to. A 300px tray and a 720px column overlap on any window under about 1320px, which is
 // most of them, so this is the common case rather than the narrow one.
-export const STRIP_TRAYS = ["asks"];
+export const BESIDE_TRAYS = ["asks"];
 
-export const TRAY_KEY = "lf-tray-up";
+export const TRAY_SLOT_KEY = "lf-tray-slot-open";
 const trayCovering = matchMedia(TRAY_COVERING);
 export const trayCovers = () => trayCovering.matches;
 
@@ -71,7 +71,7 @@ export const trayCovers = () => trayCovering.matches;
 const trayLists = [];
 function trayFurniture(panel, name) {
   const head = el("div", "lf-tray-head");
-  const title = el("span", "lf-panel-title", name);
+  const title = el("span", "lf-auxiliary-title", name);
   const close = el("button", "lf-btn lf-icon-action lf-close-action");
   close.append(iconElement("cross", "lf-action-icon"));
   close.title = `Close ${name.toLowerCase()} (Esc)`;
@@ -132,22 +132,22 @@ export const asksList = asksFurniture.list;
 // Registered rather than listed, for the same reason the widgets are: the toggle, the
 // press, the reload and the Escape rung all read this map, so a third tray joins by
 // registering and none of them names a tray to do its job.
-// A reader gesture writes through showTray. A reload writes saved intent later through
+// A reader gesture writes through setOpenTray. A reload writes saved intent later through
 // restoreTrays, after registration and the late Asks painter have been initialized. An
 // ephemeral developer replay may restore this visible state without replacing the saved
 // intent.
-let trayUp = null;
-export const currentTray = () => trayUp;
-export const openTray = (key) => trayUp === key;
+let openTrayKey = null;
+export const currentTray = () => openTrayKey;
+export const trayIsOpen = (key) => openTrayKey === key;
 // Each tray's one offer: something to show, or the tray already standing so its button
 // can still close it. An Asks tray of none is the same.
 export const asksOffered = () =>
-  pagePresented() && (allAsks().length > 0 || openTray("asks"));
+  pagePresented() && (allAsks().length > 0 || trayIsOpen("asks"));
 export const askRows = () => [...asksPanel.querySelectorAll("button.lf-asks-row")];
 
 export function createTrays({
   landEdge,
-  moveShell,
+  moveContentFrame,
   panelIsOpen,
   setPanel,
   syncLayout,
@@ -156,7 +156,7 @@ export function createTrays({
   paintLeavesOffer,
   renderAsks,
   renderMargin,
-  registerModalWorkspace,
+  registerAuxiliarySurface,
 }) {
   const trays = new Map();
   const beforeOpen = ({ remember = true } = {}) => {
@@ -166,26 +166,26 @@ export function createTrays({
   const traysEdge = drawnEdge({
     side: "left",
     noun: "tray panel",
-    wide: TRAY_W,
-    min: TRAY_MIN,
-    prop: TRAY_PROP,
-    key: "lf-tray-width",
+    wide: TRAY_SLOT_W,
+    min: TRAY_SLOT_MIN,
+    prop: TRAY_SLOT_PROP,
+    key: "lf-tray-slot-width",
     covering: TRAY_COVERING,
     when: () => leavesOffered() || asksOffered(),
     land: landEdge,
   });
 
-  function showTray(key, { remember = true, returnFocus = true } = {}) {
-    if (trayUp === key) return;
-    // Threads and trays are alternate workspaces. Retire the standing one before another
+  function setOpenTray(key, { remember = true, returnFocus = true } = {}) {
+    if (openTrayKey === key) return;
+    // Threads and trays are alternate auxiliary surfaces. Retire the standing one before another
     // opens so layout, focus, and persisted state never have to reconcile two of them.
     if (key) {
-      dismissBannerAddresses();
+      dismissBannerControls();
       beforeOpen({ remember });
     }
-    trays.get(trayUp)?.workspace.sync(false);
-    trayUp = key;
-    for (const [name, { panel, btn, paint, workspace }] of trays) {
+    trays.get(openTrayKey)?.modality.sync(false);
+    openTrayKey = key;
+    for (const [name, { panel, btn, paint, modality }] of trays) {
       const open = name === key;
       btn.setAttribute("aria-expanded", String(open));
       if (open) {
@@ -195,14 +195,14 @@ export function createTrays({
         // reader watches the list they just closed blank out and an empty card slide away.
         paint?.();
         panel.classList.add("open");
-        workspace.sync(true);
+        modality.sync(true);
         motion(
           panel,
           [{ transform: "translateX(-100%)" }, { transform: "translateX(0)" }],
           200,
         );
       } else if (panel.classList.contains("open")) {
-        workspace.sync(false);
+        modality.sync(false);
         // Slid out before hidden, and hidden only if still closed on arrival — a
         // reopen mid-slide leaves the panel standing rather than racing the finish.
         const out = motion(
@@ -211,69 +211,75 @@ export function createTrays({
           160,
         );
         const hide = () => {
-          if (trayUp === name) return; // reopened mid-slide; it stays up, list and all
+          if (openTrayKey === name) return; // reopened mid-slide; it stays up, list and all
           panel.classList.remove("open");
           paint?.();
         };
         if (out) out.finished.then(hide, () => {});
         else hide();
         if (returnFocus && panel.contains(document.activeElement))
-          focusBannerAddress(btn);
+          focusBannerControl(btn);
       }
     }
-    if (remember) readerStore.set(TRAY_KEY, key ?? "");
+    if (remember) readerStore.set(TRAY_SLOT_KEY, key ?? "");
     // Publish the tray through the shared shell boundary so responsive postures settle
     // once and only the reading column's route to them is motion.
-    moveShell(() => {
-      if (key) document.body.dataset.lfTray = key;
-      else delete document.body.dataset.lfTray;
+    moveContentFrame(() => {
+      if (key) document.body.dataset.lfAuxiliarySurface = key;
+      else delete document.body.dataset.lfAuxiliarySurface;
     });
     syncLayout();
     renderMargin();
     paintKeys();
   }
-  // Registration only. No tray opens while this module evaluates: showTray runs from a
+  // Registration only. No tray opens while this module evaluates: setOpenTray runs from a
   // press, and restoreTrays from the arrangement restore at boot, after every owner has
   // evaluated.
-  function trayIs(key, panel, btn, close, paint) {
-    const workspace = registerModalWorkspace({
+  function registerTray(key, panel, btn, close, paint) {
+    const modality = registerAuxiliarySurface({
       surface: panel,
       scroller: () => panel.querySelector(".lf-tray-list"),
       covers: () => key === "leaves" || trayCovers(),
       focus: () =>
         panel.querySelector(".lf-tray-list button, .lf-tray-list a[href]") ?? panel,
-      dismiss: () => showTray(null),
+      dismiss: () => setOpenTray(null),
     });
-    trays.set(key, { panel, btn, close, paint, workspace });
+    trays.set(key, { panel, btn, close, paint, modality });
   }
   // The painters are thunks: each tray's owner imports this module back, so neither
   // painter is a binding this module can read as it evaluates.
-  trayIs("leaves", othersPanel, othersBtn, leavesFurniture.close, paintLeavesOffer);
-  trayIs("asks", asksPanel, asksBtn, asksFurniture.close, renderAsks);
+  registerTray(
+    "leaves",
+    othersPanel,
+    othersBtn,
+    leavesFurniture.close,
+    paintLeavesOffer,
+  );
+  registerTray("asks", asksPanel, asksBtn, asksFurniture.close, renderAsks);
   const trayNames = Object.freeze([...trays.keys()]);
 
   // A persisted tray is state-dependent chrome: Asks folds the log and Leaves comes from
-  // the first state response. Keep the remembered intent in trayUp, but restore its pixels
-  // only once that response has produced the page's presentation. Unlike showTray, this
+  // the first state response. Keep the remembered intent in openTrayKey, but restore its pixels
+  // only once that response has produced the page's presentation. Unlike setOpenTray, this
   // first paint does not animate — it is part of the page arriving, not a reader gesture.
   function restoreTray() {
-    if (!trayUp) return;
-    const tray = trays.get(trayUp);
+    if (!openTrayKey) return;
+    const tray = trays.get(openTrayKey);
     if (!tray) return;
     beforeOpen();
     tray.btn.setAttribute("aria-expanded", "true");
     tray.paint?.();
     tray.panel.classList.add("open");
-    tray.workspace.sync(true);
-    document.body.dataset.lfTray = trayUp;
+    tray.modality.sync(true);
+    document.body.dataset.lfAuxiliarySurface = openTrayKey;
   }
   function restoreTrays() {
     // Remembered tray intent is staged here, after every declaration exists. Its strip is
     // part of the arrival geometry, but its state-dependent rows stay hidden until the first
     // replay presents the page and restoreTray paints them. An already-presented document
     // (an exported or pre-presented DOM) can restore immediately through the same function.
-    trayUp = readerStore.get(TRAY_KEY) || null;
-    if (trayUp) document.body.dataset.lfTray = trayUp;
+    openTrayKey = readerStore.get(TRAY_SLOT_KEY) || null;
+    if (openTrayKey) document.body.dataset.lfAuxiliarySurface = openTrayKey;
     renderMargin();
     if (pagePresented()) restoreTray();
   }
@@ -285,9 +291,9 @@ export function createTrays({
     traysEdge.handle(othersPanel, () => othersBtn);
     traysEdge.handle(asksPanel, () => asksBtn);
     for (const [key, { btn, close }] of trays) {
-      btn.classList.add("lf-workspace");
-      btn.onclick = () => showTray(openTray(key) ? null : key);
-      close.onclick = () => showTray(null);
+      btn.classList.add("lf-auxiliary-toggle");
+      btn.onclick = () => setOpenTray(trayIsOpen(key) ? null : key);
+      close.onclick = () => setOpenTray(null);
       btn.setAttribute("aria-expanded", "false");
     }
     keys(
@@ -319,5 +325,5 @@ export function createTrays({
       () => askRows().length > 0,
     );
   }
-  return { showTray, restoreTray, restoreTrays, traysEdge, trayNames, mountTrays };
+  return { setOpenTray, restoreTray, restoreTrays, traysEdge, trayNames, mountTrays };
 }

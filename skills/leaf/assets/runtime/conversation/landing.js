@@ -19,7 +19,7 @@
    `boxReturnFrame` and `standingConversation` climb the same conversation relation, so
    “comment on the thread” going in and “back to thread” coming out name one element. The
    panel's general box returns to the Threads list when it was entered there, and to the
-   prior page place and workspace when page `c` entered it directly. `backFromBox` remains
+   prior page place and auxiliary chrome state when page `c` entered it directly. `backFromBox` remains
    the fallback for Tab or pointer arrival, where no keyboard entry exists to restore. A
    page-owned first-message seat has no standing place of its own; a widget control that
    explicitly enters its box supplies the caller-owned return target through

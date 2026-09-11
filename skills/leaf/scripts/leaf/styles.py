@@ -235,9 +235,9 @@ def _declares_column(block) -> bool:
     """Whether a rule says it draws the readable column, in the block that draws it.
 
     A stylesheet knows which of its rules is the column, and this asks it. The rule
-    setting the column's max-width sets `--lf-column: 1` beside it, so the cascade wins
+    setting the column's max-width sets `--lf-reading-column: 1` beside it, so the cascade wins
     the two together and the claim cannot drift from the width — the same shape as
-    `--lf-frame`, which a box declares where it draws its frame.
+    `--lf-block-frame`, which a box declares where it draws its frame.
 
     Before this, seven container names stood in for the answer: `main`, `body`,
     `article`, `.container`, `.wrap`, `.content`, `.page`. A name list is wrong in both
@@ -250,7 +250,7 @@ def _declares_column(block) -> bool:
     check that has stopped asking."""
     return any(
         declaration.type == "declaration"
-        and declaration.name == "--lf-column"
+        and declaration.name == "--lf-reading-column"
         and tinycss2.serialize(declaration.value).strip() == "1"
         for declaration in block
     )

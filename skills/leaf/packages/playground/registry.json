@@ -17,7 +17,7 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-guidance": {
       "author": "Use controls for candidates and parameters the reader should vary together. Keep A/B candidates in the same preview and apply each control edit or custom gesture to both from one shared state; show live measurements when they affect the choice. Wrap the real artifact and load its vendored or page-media assets from the page's origin. Bind simple changes with `--playground-NAME` or `data-playground-NAME`, and use an inline page module for behavior or computation. Write a self-contained task in `lf-playground-output`; `choose` sends every typed control value whether or not the prose repeats it."
     },
@@ -109,8 +109,8 @@
       }
     ],
     "additionalProperties": false,
-    "x-parent": ["lf-playground"],
-    "x-content": "items",
+    "x-owners": ["lf-playground"],
+    "x-content": "members",
     "x-upgrade": false
   },
   "lf-playground-choice": {
@@ -128,8 +128,8 @@
     },
     "required": ["value", "label"],
     "additionalProperties": false,
-    "x-parent": ["lf-playground-control"],
-    "x-content": "none",
+    "x-owners": ["lf-playground-control"],
+    "x-content": "empty",
     "x-upgrade": false
   },
   "lf-playground-preset": {
@@ -143,8 +143,8 @@
     },
     "required": ["label"],
     "additionalProperties": false,
-    "x-parent": ["lf-playground"],
-    "x-content": "items",
+    "x-owners": ["lf-playground"],
+    "x-content": "members",
     "x-upgrade": false
   },
   "lf-playground-setting": {
@@ -161,8 +161,8 @@
     },
     "required": ["for", "value"],
     "additionalProperties": false,
-    "x-parent": ["lf-playground-preset"],
-    "x-content": "none",
+    "x-owners": ["lf-playground-preset"],
+    "x-content": "empty",
     "x-upgrade": false
   },
   "lf-playground-preview": {
@@ -175,8 +175,8 @@
       }
     },
     "additionalProperties": false,
-    "x-parent": ["lf-playground"],
-    "x-content": "prose",
+    "x-owners": ["lf-playground"],
+    "x-content": "markup",
     "x-upgrade": false
   },
   "lf-playground-output": {
@@ -189,8 +189,8 @@
       }
     },
     "additionalProperties": false,
-    "x-parent": ["lf-playground"],
-    "x-content": "prose",
+    "x-owners": ["lf-playground"],
+    "x-content": "markup",
     "x-upgrade": false
   },
   "lf-playground-value": {
@@ -204,8 +204,8 @@
     },
     "required": ["for"],
     "additionalProperties": false,
-    "x-parent": ["lf-playground-output"],
-    "x-content": "none",
+    "x-owners": ["lf-playground-output"],
+    "x-content": "empty",
     "x-inline": true,
     "x-upgrade": false
   }

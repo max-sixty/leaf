@@ -39,10 +39,15 @@ rollout_active_grace_period = 600
 name = "PAGES"
 class_name = "LeafWebsiteSession"
 
-[[workflows]]
-name = "leaf-website-agent"
-binding = "AGENT_WORKFLOW"
-class_name = "LeafWebsiteAgentWorkflow"
+[[queues.producers]]
+binding = "AGENT_QUEUE"
+queue = "leaf-website-agent"
+
+[[queues.consumers]]
+queue = "leaf-website-agent"
+max_batch_size = 1
+max_batch_timeout = 0
+max_retries = 6
 
 [[analytics_engine_datasets]]
 binding = "WEBSITE_EVENTS"
@@ -101,10 +106,15 @@ routes = []
   name = "PAGES"
   class_name = "LeafWebsiteSession"
 
-  [[env.dev.workflows]]
-  name = "leaf-website-agent-dev"
-  binding = "AGENT_WORKFLOW"
-  class_name = "LeafWebsiteAgentWorkflow"
+  [[env.dev.queues.producers]]
+  binding = "AGENT_QUEUE"
+  queue = "leaf-website-agent-dev"
+
+  [[env.dev.queues.consumers]]
+  queue = "leaf-website-agent-dev"
+  max_batch_size = 1
+  max_batch_timeout = 0
+  max_retries = 6
 
   [[env.dev.analytics_engine_datasets]]
   binding = "WEBSITE_EVENTS"

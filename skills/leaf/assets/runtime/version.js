@@ -14,7 +14,7 @@
  * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
  * `comparisonChanges`, and the pair the margin's Change reading discloses with,
  * `inlineComparison` and `toggleInlineComparison`); `readingBlock`, the block the decision
- * walk and the keyboard reference start from; and `captureReturnPlace`, the control or
+ * walk and the command reference start from; and `captureReturnPlace`, the control or
  * reading landmark a keyboard entry returns to.
  *
  * A comparison has two depths and both are this owner's. The marks say which blocks
@@ -87,11 +87,11 @@
  * before the swap.
  *
  * A layer also owes a way out at all, over the same page the way in is live on.
- * `versionsOffered` (there is a menu) answers for the destination, the mode standing over
+ * `versionsOffered` (there is a menu) answers for the destination, the chooser standing over
  * the page, and the button; `versionsToWalk` (there is somewhere to step) answers for the
  * menu's own scope. One predicate for both left `g V` opening a menu on a page whose way
- * out no scope was live over. Where the platform owns the dismissal the mode's own rows
- * still have to be live over the same page, since a mode with no live row is a claim the
+ * out no scope was live over. Where the platform owns the dismissal the chooser's own rows
+ * still have to be live over the same page, since a chooser with no live row is a claim the
  * surfaces never hear. A section merges the rows of every scope sharing its title, so a
  * contributor the page hasn't got must bring none — `merge` drops it — or the two
  * capabilities cannot differ in liveness under one heading.
@@ -154,7 +154,7 @@ import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { focusDestination } from "./focus.js";
 import { settle, settling } from "./widget-upgrade.js";
 import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
-import { allButTheReference } from "./keyboard/register.js";
+import { allButCommandReference } from "./keyboard/register.js";
 
 import { reportPageError, sameDelivery } from "./layer-client.js";
 import { projectionFromView } from "./projection/presentation.js";
@@ -200,12 +200,12 @@ servedStampMarker?.remove();
 // presentation, layout, and mode facts the surviving runtime owns.
 const authoredAttributes = (root) =>
   new Map([...root.attributes].map(({ name, value }) => [name, value]));
+// The authored share of the head, which a revision brings with it. Delivery marks
+// what it inserts — the identity markers, the page's canonical address, a
+// publication's card — and that share belongs to the document the reader was
+// served rather than to the revision arriving inside it.
 const versionedHeadNode = (node) =>
-  !(
-    node.localName === "meta" &&
-    ["lf-revision", "lf-version"].includes(node.getAttribute("name")) &&
-    node.hasAttribute("data-lf-runtime")
-  ) &&
+  !node.hasAttribute("data-lf-runtime") &&
   (node.localName === "title" ||
     node.localName === "style" ||
     node.localName === "base" ||
@@ -241,7 +241,7 @@ export const latestChip = el(
 latestChip.dataset.lfUrgent = "1";
 
 export function createVersionController({
-  designIsOn,
+  designModeActive,
   paintLegend,
   midComposition,
   readAndApply,
@@ -280,10 +280,10 @@ export function createVersionController({
   // changed since they last looked, which is as far back as they were away. The base is
   // the menu's to say, so every version older than this one offers itself as one.
   //
-  // The closed control is an address, not the menu's account of the working document.
+  // The closed control is a destination, not the menu's account of the working document.
   // Keep it to one stable version token (or Draft) through disclosure and comparison;
   // those states remain in the menu, class, title, and accessible name. A state arriving
-  // on the poll therefore cannot resize this control and displace addresses to its left.
+  // on the poll therefore cannot resize this control and displace controls to its left.
   // `versionLabels` names the compact token range the banner reserves once at load.
   const currentVersionToken = () =>
     runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
@@ -361,8 +361,8 @@ export function createVersionController({
   // live root an explicit in-place release of the composition hold, on an immutable page
   // ordinary version travel.
 
-  // The one address on this row whose arrival a reader must not miss: what they are
-  // reading has been replaced. Every other address is standing information, and being
+  // The one control on this row whose arrival a reader must not miss: what they are
+  // reading has been replaced. Every other control is standing information, and being
   // behind the row's menu costs it nothing; this one is news, so the menu's door says so
   // while it holds it (banner-shelf.js, paintDoor).
 
@@ -392,7 +392,7 @@ export function createVersionController({
     does: "Open a numbered version",
     line: "open version",
     when: () => versionsToWalk() && numberedVersionRoutes().length > 0,
-    // The focused menu and its standing mode share this route. The first gives g V a
+    // The focused menu and its standing chooser share this route. The first gives g V a
     // visible compact hint; the second preserves the key across a browser hand-back that
     // leaves the menu open with focus at its door. Close first, as the numbered key is the
     // keyboard form of pressing that row; this matters when it names the version already
@@ -406,7 +406,7 @@ export function createVersionController({
   // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
   // button, and the row says so with no `run`. A row's Compare is the same comparison for the
   // pointer, which has no walk to state it with. Exact number keys are shared with the
-  // standing menu mode below, so they stay visible in this focused scope and survive a
+  // standing menu chooser below, so they stay visible in this focused scope and survive a
   // browser hand-back that lands at its door.
   //
   // v is the one row worth a key of its own: the current page is where the walk ends, and
@@ -414,7 +414,7 @@ export function createVersionController({
   // page-level destination remains the complete `g V` route rather than a second meaning for
   // a bare letter.
   //
-  // This scope is live only while there is a list to walk. The mode below stays live for
+  // This scope is live only while there is a list to walk. The chooser below stays live for
   // every open menu so page-level Leaf shortcuts remain suspended while the browser owns
   // the transient layer.
   const NEWEST = {
@@ -466,7 +466,7 @@ export function createVersionController({
     },
   };
 
-  // The mode represents the menu standing, not whether it has multiple versions to walk.
+  // The chooser represents the menu standing, not whether it has multiple versions to walk.
   // It suspends page shortcuts and owns exact numbered destinations plus the Tab-boundary
   // handoff that a popover does not provide. A keyboard-opened menu has CHOOSER's exact
   // return frame; light dismissal stays native for pointer-opened menus, and their Escape
@@ -478,8 +478,8 @@ export function createVersionController({
     at: versionMenuIsOpen,
     // Opening the modal reference dismisses this popover. Retain the menu-boundary
     // reading so the reference filters member-dependent rows by their actual liveness.
-    liveInReference: true,
-    // A mode over the page suspends the page, which the two modes above this one always did
+    liveInCommandReference: true,
+    // A chooser over the page suspends the page, which the two transient contexts above this one always did
     // and this one did not — so a reader in the middle of choosing a version could press `l`
     // and take focus out of the menu into the leaves tray, `d` and scroll a page they were
     // not looking at, or `c` and open the composer under the list. None of it fails loudly:
@@ -487,9 +487,9 @@ export function createVersionController({
     // worst of them was a page-level key that set a comparison base, which the walk they
     // were standing in then disagreed with — that key is the menu's own business now, and
     // the claim is what would have held it either way. The claim is also what narrows
-    // the line to the menu's own keys, so what the mode takes and what it offers are one
+    // the line to the menu's own keys, so what the chooser takes and what it offers are one
     // statement rather than a suspension the surfaces have to be told about separately.
-    claims: allButTheReference,
+    claims: allButCommandReference,
     rows: [
       VERSION_WALK,
       OPEN_NUMBER,
@@ -751,7 +751,7 @@ export function createVersionController({
   }
 
   // ---------- version diff ----------
-  // "Changes since vN": blocks (paragraphs, list items, widget items) whose text
+  // "Changes since vN": blocks (paragraphs, list items, Leaf elements) whose text
   // isn't present in the base version get a tinted marker, so re-reading a
   // revision is cheap. Block-level and additions-only — deleted text has no home
   // to mark — and a widget that renders its own body is opaque to it. The base is
@@ -760,13 +760,15 @@ export function createVersionController({
   // press that marks it on the page.
   //
   // Which blocks and which widgets is the registry's answer both times, so a widget added
-  // to the vocabulary diffs on the strength of its entry: a widget item whose content
+  // to the vocabulary diffs on the strength of its declaration: a compound member whose content
   // model is prose is a block of the page's prose the same way a paragraph is.
   const diffBlockSel = () =>
     [
       TEXT_BLOCK,
       "aside",
-      ...tagsDeclaring((e) => e["x-parent"] && (e["x-content"] ?? "prose") === "prose"),
+      ...tagsDeclaring(
+        (e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup",
+      ),
       // Preserving widgets contribute their own prose. The leaf-blocks-only rule
       // below avoids counting nested blocks twice and keeps base and live readings
       // symmetric: a draft's authored <pre> and rendered body key the same words.
@@ -783,11 +785,11 @@ export function createVersionController({
       // External data is absent from both authored documents. Its seat is opaque, and
       // the authored binding and immutable selector below are the comparison key.
       ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
-      // flatMap, so the set holds holder tags rather than the arrays naming them: a set
+      // flatMap, so the set holds owner tags rather than the arrays naming them: a set
       // of arrays never dedupes, two array objects never being equal.
       ...new Set(
         tagsDeclaring((e) => e["x-retired-when"]).flatMap(
-          (tag) => registry[tag]["x-parent"],
+          (tag) => registry[tag]["x-owners"],
         ),
       ),
       "svg",
@@ -1062,7 +1064,7 @@ export function createVersionController({
   // What a text-changing marked block holds for the margin's disclosure reading. A pure
   // state change remains marked but offers no empty prose comparison. The one controlled
   // id is a quiet label at the start of the block. It names the versions for assistive
-  // reading while the margin and Page map carry that provenance visually, outside the
+  // reading while the margin and Page Map carry that provenance visually, outside the
   // passage whose words are being compared.
   const inlineComparison = (target) =>
     diffOn &&
@@ -1077,7 +1079,7 @@ export function createVersionController({
 
   // The press, and the sentence to say about it — composed here, where the versions are
   // named. The event is the comparison's, because what changed is its standing
-  // rendering: the same pass that reads the marks reads the margin element's relation back.
+  // rendering: the same pass that reads the marks reads the margin entry's relation back.
   function toggleInlineComparison(target) {
     if (!inlineComparison(target)) return null;
     const said = inlineOpen.has(target)
@@ -1366,7 +1368,7 @@ export function createVersionController({
     captureAuthoredFacets(fresh);
     await settlePageInterface();
     syncLayout();
-    if (designIsOn()) paintLegend();
+    if (designModeActive()) paintLegend();
     return () => {
       restoreView(view);
       restoreStanding(standing);
@@ -1432,7 +1434,7 @@ export function createVersionController({
   // than a pixel offset, since content moves between versions: re-find it by its text
   // within its section, then the section alone, and only fall back to the raw offset when
   // neither survived the revision. The panel's own open state is restored separately
-  // (PANEL_KEY); because that runs first, the column is already reflowed by the time we
+  // (THREAD_PANEL_KEY); because that runs first, the column is already reflowed by the time we
   // scroll.
 
   // The page's own text blocks the reader can see, in document order, with the rect of each

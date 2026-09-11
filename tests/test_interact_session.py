@@ -695,7 +695,7 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     assert renewed_claim["disposition"] == "effective"
 
     # Replacing the prose widget with a data widget removes its x-work seat, but the
-    # page-edge target margin element remains attached to the same live subject. The claim
+    # page-edge target margin entry remains attached to the same live subject. The claim
     # therefore survives this unrelated version too.
     without_seat = re.sub(
         r'<lf-board id="rollout">.*?</lf-board>',
@@ -710,7 +710,7 @@ def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir
     changed = stamp(page_dir, 4, "Changed presentation")
     assert changed.exit_code == 0, changed.output
 
-    # Removing the subject itself would remove the target margin element. Publication still
+    # Removing the subject itself would remove the target margin entry. Publication still
     # refuses that silent loss until the version names the work it answers.
     without_target = re.sub(
         r'<lf-diagram id="rollout-card">.*?</lf-diagram>',
@@ -1524,7 +1524,7 @@ def test_revendoring_can_change_x_work_while_the_target_button_holds_a_claim(pag
     """x-work admits an initial claim; it is not the claim's only later seat.
 
     Re-vendoring can remove that declaration while the live widget remains, because
-    the page-edge target margin element continues to present the already-admitted work.
+    the page-edge target margin entry continues to present the already-admitted work.
     """
     work_page = PAGE.replace(
         '<lf-diagram id="flow">',
@@ -1565,7 +1565,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
 
     A version note older than the move cannot answer it. Its receipt can still admit
     an explicit claim without x-work; only the next note settles the move, while the
-    claim itself remains at the widget's target margin element until an explicit --completes
+    claim itself remains at the widget's target margin entry until an explicit --completes
     note answers that separate work lifecycle.
     """
     work_page = PAGE.replace(

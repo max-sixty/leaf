@@ -260,20 +260,32 @@ const addressableAimTarget = (addressable) => ({
   surface: wholeVisualSurface(addressable),
 });
 
-const datumAimTarget = (datum) => {
+// The one coordinate minted from a projected datum. Pointer aim, passage capture, and
+// widget-local comment affordances all pass through this function so source provenance
+// cannot disappear merely because the gesture began in generated UI rather than text.
+export const anchorForDatum = (datum, fields = {}) => {
   const dataRevision = Number(datum.dataset.lfSourceRevision);
   return {
-    anchor: {
-      section: datum.dataset.lfProjection,
-      datum: datum.dataset.lfDatum,
-      ...(datum.dataset.lfSource && Number.isInteger(dataRevision)
-        ? { source: datum.dataset.lfSource, data_revision: dataRevision }
-        : {}),
-    },
+    section: datum.dataset.lfProjection,
+    datum: datum.dataset.lfDatum,
+    ...fields,
+    ...(datum.dataset.lfSource && Number.isInteger(dataRevision)
+      ? { source: datum.dataset.lfSource, data_revision: dataRevision }
+      : {}),
+  };
+};
+
+export function datumAimTarget(datum) {
+  if (!(datum instanceof Element) || !datum.matches(DATUM)) return null;
+  const anchor = anchorForDatum(datum);
+  const owner = sectionOf(anchor);
+  if (!owner || !containsAcross(owner, datum)) return null;
+  return {
+    anchor,
     element: datum,
     label: datum.dataset.lfDatumLabel?.trim() || aimLabel(datum),
   };
-};
+}
 
 // Pointer aim and target-chooser hints share this reading. The returned element is the
 // element the coordinate resolves to, so the promise and eventual mark agree.

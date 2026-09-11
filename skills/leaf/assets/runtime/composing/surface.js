@@ -76,6 +76,7 @@ import {
 } from "./capture.js";
 import { repaint } from "../repaint.js";
 import { letGo, takesLetters } from "../focus.js";
+import { focused } from "../keyboard/scopes.js";
 
 import { pointerAt } from "../pointer.js";
 import { anchorLabel } from "../conversation/messages.js";
@@ -115,6 +116,7 @@ export function createResponseSurface({
   openPageThread,
   drawModeActive,
   refreshConversation,
+  responseHome,
 }) {
   const hideReference = () => closeCommandReference(false);
   const hasOtherResponses = (anchor) =>
@@ -162,6 +164,7 @@ export function createResponseSurface({
   let fabAnchor = null;
   let fabOrigin = null;
   let fabFloating = true;
+  let fabInlineOutlet = null;
   let fabPlacement = null;
   let fabInlineConnection = null;
   let fabPlacementInput = null;
@@ -172,6 +175,7 @@ export function createResponseSurface({
   let fabPositionCleanup = null;
   let fabPositionTarget = null;
   let fabPositionWaiters = [];
+  const fabFocused = () => (fabInlineOutlet ? focused() : document.activeElement);
 
   // Measure the compact response once per anchor/state. Expanded choices are designed to
   // wrap and therefore cannot redefine whether the response surface fits at all.
@@ -230,9 +234,59 @@ export function createResponseSurface({
   }
 
   const fabPositioned = () =>
-    fabBar.hasAttribute("data-lf-placement") && fabBar.style.visibility !== "hidden"
+    ((fabInlineOutlet?.isConnected && fabBar.parentElement === fabInlineOutlet) ||
+      fabBar.hasAttribute("data-lf-placement")) &&
+    fabBar.style.visibility !== "hidden"
       ? Promise.resolve(true)
       : new Promise((resolve) => fabPositionWaiters.push(resolve));
+
+  // Reparenting the canonical response bar is presentation, not a composer transition.
+  // Preserve the exact typing position across light/shadow DOM moves; Chromium may put
+  // focus on the shadow host while a focused textarea is adopted into its tree.
+  function moveFab(parent) {
+    if (fabBar.parentElement === parent) return;
+    const held = focused();
+    const holdsFocus = held instanceof HTMLElement && fabBar.contains(held);
+    const selection =
+      holdsFocus && held === fabInput
+        ? {
+            start: held.selectionStart,
+            end: held.selectionEnd,
+            direction: held.selectionDirection,
+          }
+        : null;
+    parent.append(fabBar);
+    if (!holdsFocus || focused() === held) return;
+    held.focus({ preventScroll: true });
+    if (selection)
+      held.setSelectionRange(selection.start, selection.end, selection.direction);
+  }
+
+  function seatFab(outlet) {
+    if (!(outlet instanceof Element) || !fabAnchor || !composerOpen) return false;
+    if (fabInlineOutlet !== outlet || fabBar.parentElement !== outlet) {
+      stopFabPositioning({ reset: true });
+      fabInlineOutlet = outlet;
+      fabFloating = false;
+      moveFab(outlet);
+    }
+    fabBar.dataset.lfPresentation = "inline";
+    fabBar.style.display = "inline-flex";
+    fabBar.style.removeProperty("visibility");
+    answerFabPosition(true);
+    return true;
+  }
+
+  function restoreFab({ place = true } = {}) {
+    if (!fabInlineOutlet && fabBar.parentElement === responseHome) return false;
+    stopFabPositioning({ reset: true });
+    fabInlineOutlet = null;
+    fabFloating = true;
+    delete fabBar.dataset.lfPresentation;
+    moveFab(responseHome);
+    if (place && fabAnchor && !placeFab()) showFab(null);
+    return true;
+  }
 
   function scheduleFabPosition() {
     if (fabPositionFrame || !fabAnchor || !fabFloating) return;
@@ -502,7 +556,7 @@ export function createResponseSurface({
     const previous = fabAnchor;
     const previousOrigin = fabOrigin;
     const previousFloating = fabFloating;
-    const leavingBar = !anchor && fabBar.contains(document.activeElement);
+    const leavingBar = !anchor && fabBar.contains(fabFocused());
     const returnToPanel = leavingBar && panelCovers() && !fabFits();
     const returnTarget =
       leavingBar && previous && !previous.quote
@@ -512,6 +566,13 @@ export function createResponseSurface({
             ? visualActionAnchor(previous)
             : null
         : null;
+    const keptInline = Boolean(
+      fabInlineOutlet?.isConnected &&
+      anchor &&
+      previous &&
+      sameAnchor(previous, anchor),
+    );
+    if (!anchor || (fabInlineOutlet && !keptInline)) restoreFab({ place: false });
     if (!anchor) fabInputTakingFocus = false;
     if (!anchor || (previous && !sameAnchor(previous, anchor))) resetResponseOptions();
     if (!anchor && composerOpen) hideComposer();
@@ -520,11 +581,11 @@ export function createResponseSurface({
       !previous ||
       !sameAnchor(previous, anchor) ||
       !place ||
-      !previousFloating
+      (!previousFloating && !keptInline)
     )
       stopFabPositioning({ reset: true });
     fabAnchor = anchor;
-    fabFloating = !fabAnchor || place;
+    fabFloating = !fabAnchor || (place && !keptInline);
     fabOrigin = fabAnchor && origin?.isConnected ? origin : null;
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
     fabBar.style.display = fabAnchor ? "inline-flex" : "none";
@@ -544,7 +605,7 @@ export function createResponseSurface({
       // screen. `e` still needs the durable anchor so it can extend that existing item;
       // in that route the floating bar is never painted and placement is deliberately
       // skipped. Every route that actually shows the bar keeps the geometry gate.
-      if (place && !placeFab(target ?? anchorBox(fabAnchor))) {
+      if (place && fabFloating && !placeFab(target ?? anchorBox(fabAnchor))) {
         fabAnchor = null;
         fabOrigin = null;
         stopFabPositioning({ reset: true });
@@ -805,8 +866,8 @@ export function createResponseSurface({
   function fabHoldsCapturedPassage() {
     return (
       fabInputTakingFocus ||
-      fabBar.contains(document.activeElement) ||
-      reactionContextContains(document.activeElement)
+      fabBar.contains(fabFocused()) ||
+      reactionContextContains(fabFocused())
     );
   }
   // Wired once the chrome is mounted (leaf.js): the box is selection.js's, an owner that
@@ -1100,6 +1161,9 @@ export function createResponseSurface({
     updateFab,
     standDown,
     fabAnchorAt,
+    seatFab,
+    restoreFab,
+    fabInlineOutlet: () => fabInlineOutlet,
     mount,
   };
 }

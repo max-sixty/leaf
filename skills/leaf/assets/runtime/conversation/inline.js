@@ -233,7 +233,7 @@ function conversationThreadNode(
   return thread;
 }
 
-export function renderThreadSurface(host, threads, commands) {
+export function renderThreadSurface(host, threads, commands, response = null) {
   const removeNode = (node) =>
     removeConversationNode(node, commands.reaction.closeReactionMode);
   const receipts = [...host.querySelectorAll(":scope > .lf-receipt")];
@@ -242,6 +242,7 @@ export function renderThreadSurface(host, threads, commands) {
     [
       ...threads.map((thread) => conversationThreadNode(host, thread, true, commands)),
       ...receipts,
+      ...(response ? [response] : []),
     ],
     removeNode,
   );

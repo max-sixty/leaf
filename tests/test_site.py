@@ -645,9 +645,21 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
     follower = context.new_page()
     errors = [*watched(leader), *watched(follower)]
     try:
+
+        def passive_session(route):
+            response = route.fetch()
+            headers = response.headers
+            headers["leaf-session"] = "passive"
+            route.fulfill(response=response, headers=headers)
+
+        servers = []
         for page in (leader, follower):
-            page.goto(url, wait_until="load")
+            page.route("**/api/state*", passive_session)
+            response = page.goto(url, wait_until="load")
+            assert response
+            servers.append(response.header_value("Leaf-Server"))
             page.wait_for_function(BOTH_STAMPS)
+        assert servers[0] and servers[0] == servers[1]
         follower.evaluate(
             """() => {
               window.__leafActivated = 0;
@@ -655,18 +667,21 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
             }"""
         )
         leader.evaluate(
-            """async () => {
+            """async server => {
               const script = document.querySelector("script[data-lf-runtime]");
               const url = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
               const client = await import(url.href);
               client.observeSession(new Response(null, {headers: {
-                "Leaf-Session": "active", "Leaf-Server": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                "Leaf-Session": "active", "Leaf-Server": server
               }}));
-            }"""
+            }""",
+            servers[0],
         )
-        follower.wait_for_function("window.__leafActivated === 1", timeout=5_000)
+        follower.wait_for_function("() => window.__leafActivated === 1", timeout=5_000)
         assert errors == []
     finally:
+        for page in (leader, follower):
+            page.unroute_all(behavior="ignoreErrors")
         context.close()
 
 

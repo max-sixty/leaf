@@ -10,6 +10,7 @@ import {
   commands,
   compoundReadingRegionId,
   failSoft,
+  fitRootReadingElement,
   layoutChanged,
   notice,
   offer,
@@ -21,6 +22,7 @@ import {
   registerThreadSurface,
   relabel,
   sendAction,
+  settle,
   standingState,
   watchActions,
   watchData,
@@ -37,14 +39,14 @@ const DISPOSITION = {
 };
 
 const INSPECTION = {
+  compare: "Compare",
   flip: "Flip",
-  side: "Side by side",
-  opacity: "Opacity",
+  overlay: "Overlay",
 };
 
 const SCALE = {
   fit: "Fit",
-  actual: "Actual size",
+  actual: "100%",
 };
 
 function make(tag, className, text = null, says = true) {
@@ -56,10 +58,6 @@ function make(tag, className, text = null, says = true) {
 
 function setText(element, text) {
   if (element.textContent !== text) relabel(element, text, { says: true });
-}
-
-function setEcho(element, text) {
-  if (element.textContent !== text) relabel(element, text, { says: "echo" });
 }
 
 function previewUrl(target, path) {
@@ -102,10 +100,13 @@ customElements.define(
     #casesBody = null;
     #commands = null;
     #evidenceHost = null;
-    #footer = null;
+    #fitting = null;
     #inspector = null;
-    #mode = "flip";
+    #layoutFrame = null;
+    #mode = "compare";
+    #onResize = () => this.#scheduleEvidenceLayout();
     #opacity = 50;
+    #progress = null;
     #queue = null;
     #queueHost = null;
     #run = null;
@@ -113,12 +114,24 @@ customElements.define(
     #selected = null;
     #snapshot = null;
     #partition = null;
+    #sizes = null;
     #threadSurface = null;
     #title = null;
 
     connectedCallback() {
       if (once(this)) this.#buildLayout();
       else this.#registerLayout();
+      this.#fitting = fitRootReadingElement({
+        owner: this,
+        readingArrangement: this.#arrangements.at(-1),
+        minimumSize: () => ({ width: 720, height: 600 }),
+      });
+      this.#sizes = new ResizeObserver(() => this.#scheduleEvidenceLayout());
+      this.#sizes.observe(this);
+      for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
+        this.#sizes.observe(stage);
+      window.addEventListener("resize", this.#onResize);
+      settle(this.#fitting.update());
       this.#threadSurface ??= registerThreadSurface(this, {
         begin: () => {},
         outletFor: (entry) => this.#threadOutlet(entry),
@@ -135,25 +148,38 @@ customElements.define(
       this.stopWatching = null;
       this.#threadSurface?.unregister();
       this.#threadSurface = null;
+      this.#fitting?.cleanup();
+      this.#fitting = null;
+      this.#sizes?.disconnect();
+      this.#sizes = null;
+      window.removeEventListener("resize", this.#onResize);
+      if (this.#layoutFrame !== null) cancelAnimationFrame(this.#layoutFrame);
+      this.#layoutFrame = null;
       this.#cleanupLayout();
     }
 
     #buildLayout() {
       const header = make("header", "lf-vr-head");
-      const eyebrow = make("p", "lf-vr-eyebrow", "Visual review");
       this.#title = make("h2", "lf-vr-title", "Waiting for a visual run");
-      header.append(eyebrow, this.#title);
+      this.#progress = make("p", "lf-vr-progress", "No cases reviewed");
+      header.append(this.#title, this.#progress);
 
-      this.#queueHost = make("nav", "lf-vr-queue-region");
+      this.#queueHost = offer("nav", "lf-vr-queue-region");
       this.#queueHost.setAttribute("aria-label", "Visual review cases");
-      const queueHeader = make("p", "lf-vr-region-title", "Cases", false);
-      this.#queue = document.createElement("ol");
-      this.#queue.className = "lf-vr-queue";
-      this.#queueHost.append(queueHeader, this.#queue);
+      const previous = offer("button", "lf-btn lf-vr-previous", "Previous");
+      previous.type = "button";
+      previous.addEventListener("click", () => this.#step(-1));
+      this.#queue = offer("select", "lf-vr-case-select");
+      this.#queue.name = "visual-case";
+      this.#queue.setAttribute("aria-label", "Selected visual case");
+      this.#queue.addEventListener("change", () => this.#select(this.#queue.value));
+      const next = offer("button", "lf-btn lf-vr-next", "Next");
+      next.type = "button";
+      next.addEventListener("click", () => this.#step(1));
+      this.#queueHost.append(previous, this.#queue, next);
       const queue = arrangeReadingElement({
         owner: this.#queueHost,
         role: "pane",
-        header: queueHeader,
         regions: [
           {
             id: compoundReadingRegionId(this, "cases"),
@@ -166,7 +192,7 @@ customElements.define(
       this.#evidenceHost.setAttribute("aria-label", "Selected visual evidence");
       this.#inspector = this.#buildInspector();
       this.#casesBody = make("div", "lf-vr-cases");
-      this.#evidenceHost.append(this.#inspector, this.#casesBody);
+      this.#evidenceHost.append(this.#casesBody);
       const evidence = arrangeReadingElement({
         owner: this.#evidenceHost,
         role: "pane",
@@ -179,20 +205,17 @@ customElements.define(
       });
 
       this.#partition = make("div", "lf-vr-partition");
-      this.#partition.dataset.lfDirection = "columns";
       this.#partition.append(this.#queueHost, this.#evidenceHost);
       const partition = arrangeReadingElement({
         owner: this.#partition,
         role: "partition",
       });
 
-      this.#footer = make("footer", "lf-vr-foot", "No cases reviewed");
-      this.append(header, this.#partition, this.#footer);
+      this.append(header, this.#partition);
       const workspace = arrangeReadingElement({
         owner: this,
         role: "workspace",
         header,
-        footer: this.#footer,
       });
       this.#arrangements = [
         queue.readingArrangement,
@@ -214,11 +237,11 @@ customElements.define(
       this.#evidenceHost = partitionContent?.querySelector(
         ":scope > .lf-vr-evidence-region",
       );
-      this.#queue = this.#queueHost?.querySelector(".lf-vr-queue");
+      this.#queue = this.#queueHost?.querySelector(".lf-vr-case-select");
       this.#inspector = this.#evidenceHost?.querySelector(".lf-vr-inspector");
       this.#casesBody = this.#evidenceHost?.querySelector(".lf-vr-cases");
       this.#title = this.querySelector(".lf-vr-title");
-      this.#footer = this.querySelector(":scope > .lf-reading-after");
+      this.#progress = this.querySelector(".lf-vr-progress");
       if (
         !workspaceContent ||
         !this.#partition ||
@@ -229,7 +252,7 @@ customElements.define(
         !this.#inspector ||
         !this.#casesBody ||
         !this.#title ||
-        !this.#footer
+        !this.#progress
       )
         throw new Error("visual review lost its reading regions");
       this.#arrangements = [
@@ -278,15 +301,8 @@ customElements.define(
         ["scale", SCALE],
       ]) {
         const group = offer("div", `lf-vr-inspector-group lf-vr-${kind}-group`);
-        const label = make(
-          "span",
-          "lf-vr-inspector-label",
-          kind === "mode" ? "View" : "Size",
-          false,
-        );
         group.setAttribute("role", "group");
-        group.setAttribute("aria-label", label.textContent);
-        group.append(label);
+        group.setAttribute("aria-label", kind === "mode" ? "View" : "Size");
         for (const [value, text] of Object.entries(values)) {
           const button = offer("button", "lf-vr-inspector-button", text);
           button.dataset[kind] = value;
@@ -309,12 +325,7 @@ customElements.define(
       }
 
       const opacity = offer("label", "lf-vr-opacity-control");
-      const opacityLabel = make(
-        "span",
-        "lf-vr-inspector-label",
-        "Candidate opacity",
-        false,
-      );
+      const opacityLabel = offer("span", "lf-vr-inspector-label", "Candidate opacity");
       const slider = offer("input", "lf-vr-opacity", undefined, "range");
       slider.min = "0";
       slider.max = "100";
@@ -323,7 +334,7 @@ customElements.define(
       slider.value = String(this.#opacity);
       slider.setAttribute("aria-label", "Candidate opacity");
       slider.addEventListener("input", () => this.#setOpacity(Number(slider.value)));
-      const output = make("output", "lf-vr-opacity-value", `${this.#opacity}%`, false);
+      const output = offer("output", "lf-vr-opacity-value", `${this.#opacity}%`);
       opacity.append(opacityLabel, slider, output);
       inspector.append(opacity);
       return inspector;
@@ -363,7 +374,7 @@ customElements.define(
         );
       const opacity = this.#inspector.querySelector(".lf-vr-opacity-control");
       const slider = opacity.querySelector(".lf-vr-opacity");
-      const active = this.#mode === "opacity";
+      const active = this.#mode === "overlay";
       opacity.dataset.active = String(active);
       slider.disabled = !active;
       slider.value = String(this.#opacity);
@@ -376,23 +387,92 @@ customElements.define(
         else shot.dataset.lfShotControls = "off";
         for (const frame of shot.querySelectorAll(".lf-shotframe")) {
           const oldLabel = frame.querySelector(":scope > .lf-vr-frame-label");
-          if (this.#mode !== "side") {
+          if (this.#mode !== "compare") {
             oldLabel?.remove();
             continue;
           }
           if (oldLabel) continue;
-          const label = make(
-            "span",
-            "lf-vr-frame-label lf-ui",
-            frame.dataset.lfState === "before" ? "Base" : "Candidate",
-            false,
-          );
+          const label = make("span", "lf-vr-frame-label lf-ui", null, false);
+          label.dataset.label =
+            frame.dataset.lfState === "before" ? "Base" : "Candidate";
           label.setAttribute("aria-hidden", "true");
           frame.prepend(label);
         }
       }
       layoutChanged(this);
+      this.#scheduleEvidenceLayout();
       paintKeys();
+    }
+
+    #scheduleEvidenceLayout() {
+      if (this.#layoutFrame !== null) return;
+      this.#layoutFrame = requestAnimationFrame(() => {
+        this.#layoutFrame = null;
+        this.#paintEvidenceLayout();
+      });
+    }
+
+    #paintEvidenceLayout() {
+      const entry = this.#caseEntries.get(this.#selected);
+      const shot = entry?.shotHost.querySelector("lf-shot");
+      const frames = shot ? [...shot.querySelectorAll(".lf-shotframe")] : [];
+      if (!entry?.record || frames.length !== 2 || !entry.shotHost.clientWidth) return;
+
+      const { capture } = entry.record;
+      const ratio = capture.deviceScaleFactor;
+      const fallbackHeight = capture.viewport.height;
+      const heights = frames.map((frame) => {
+        const image = frame.querySelector("img");
+        if (!image.complete)
+          image.addEventListener("load", () => this.#scheduleEvidenceLayout(), {
+            once: true,
+          });
+        return image.naturalHeight ? image.naturalHeight / ratio : fallbackHeight;
+      });
+      const width = capture.viewport.width;
+      const stageWidth = entry.shotHost.clientWidth;
+      const bounded = this.dataset.lfReadingPosture === "bounded";
+      const roomBelow = innerHeight - entry.shotHost.getBoundingClientRect().top - 48;
+      const stageHeight = bounded
+        ? entry.shotHost.clientHeight
+        : Math.max(220, Math.min(560, roomBelow));
+      if (stageHeight <= 0) return;
+
+      const gap = 8;
+      const labelHeight = 24;
+      const sideScale = Math.min(
+        (stageWidth - gap) / (2 * width),
+        (stageHeight - labelHeight) / Math.max(...heights),
+      );
+      const stackScale = Math.min(
+        stageWidth / width,
+        (stageHeight - 2 * labelHeight - gap) / (heights[0] + heights[1]),
+      );
+      // Geometry chooses the comparison, not another preference for the reader to
+      // manage. Wide captures keep their scan lines intact by stacking unless doing so
+      // would cost more than forty percent of the common scale; other pairs take the
+      // strictly larger arrangement. Both frames always share the chosen scale.
+      const wideCapture = width / Math.max(...heights) >= 1.5;
+      const compareLayout =
+        stackScale >= sideScale || (wideCapture && stackScale >= sideScale * 0.6)
+          ? "stack"
+          : "side";
+      const fitScale =
+        this.#mode === "compare"
+          ? compareLayout === "stack"
+            ? stackScale
+            : sideScale
+          : Math.min(stageWidth / width, stageHeight / Math.max(...heights));
+      const scale = this.#scale === "actual" ? 1 : Math.min(1, fitScale);
+      this.dataset.compareLayout = compareLayout;
+      entry.shotHost.style.setProperty(
+        "--lf-vr-frame-width",
+        `${Math.max(1, width * scale)}px`,
+      );
+      entry.shotHost.style.setProperty(
+        "--lf-vr-stage-height",
+        bounded ? "100%" : `${stageHeight}px`,
+      );
     }
 
     #cleanupLayout() {
@@ -437,14 +517,15 @@ customElements.define(
           throw new Error("visual run repeats a case id");
         setText(this.#title, this.#run.title);
         this.#reconcileCases(this.#run.cases);
-        this.#paintInspector();
         const fallback = this.#run.cases.find(
           ({ classification }) => classification !== "clean",
         );
         if (!this.#caseEntries.has(this.#selected))
           this.#selected = fallback?.id ?? ids[0];
         this.#select(this.#selected);
+        this.#paintInspector();
         this.#renderStandingState();
+        settle(this.#fitting?.update());
       } catch (error) {
         failSoft(this, error);
       }
@@ -453,7 +534,10 @@ customElements.define(
     #renderMissing(snapshot) {
       setText(this.#title, "Waiting for a visual run");
       this.#inspector.hidden = true;
+      this.#evidenceHost.append(this.#inspector);
       this.#queue.replaceChildren();
+      for (const { shotHost } of this.#caseEntries.values())
+        this.#sizes?.unobserve(shotHost);
       this.#caseEntries.clear();
       this.#selected = null;
       const empty = make("p", "lf-vr-empty", "Waiting for visual-run data.");
@@ -469,7 +553,7 @@ customElements.define(
           snapshot,
         },
       );
-      setText(this.#footer, "No cases reviewed");
+      setText(this.#progress, "No cases reviewed");
       layoutChanged(this);
       paintKeys();
     }
@@ -478,11 +562,12 @@ customElements.define(
       const wanted = new Set(cases.map(({ id }) => id));
       for (const [id, entry] of this.#caseEntries) {
         if (wanted.has(id)) continue;
-        entry.item.remove();
+        this.#sizes?.unobserve(entry.shotHost);
+        entry.option.remove();
         entry.article.remove();
         this.#caseEntries.delete(id);
       }
-      const items = [];
+      const options = [];
       const articles = [];
       for (const [index, record] of cases.entries()) {
         let entry = this.#caseEntries.get(record.id);
@@ -491,10 +576,10 @@ customElements.define(
           this.#caseEntries.set(record.id, entry);
         }
         this.#updateCase(entry, record, index, cases.length);
-        items.push(entry.item);
+        options.push(entry.option);
         articles.push(entry.article);
       }
-      orderChildren(this.#queue, items);
+      orderChildren(this.#queue, options);
       orderChildren(this.#casesBody, articles);
       projectData(
         this,
@@ -514,25 +599,28 @@ customElements.define(
     }
 
     #createCase(id) {
-      const item = document.createElement("li");
-      item.className = "lf-vr-queue-item lf-ui";
-      const tab = offer("button", "lf-vr-case-tab");
-      tab.type = "button";
-      tab.dataset.case = id;
-      tab.addEventListener("click", () => this.#select(id));
-      const marker = make("span", "lf-vr-case-marker");
-      marker.setAttribute("aria-hidden", "true");
-      const label = make("span", "lf-vr-case-label");
-      const classification = make("span", "lf-vr-case-classification");
-      tab.append(marker, label, classification);
-      item.append(tab);
+      const option = document.createElement("option");
+      option.value = id;
 
       const article = make("article", "lf-vr-case");
       const heading = make("header", "lf-vr-case-head");
+      const headingText = make("div", "lf-vr-case-heading");
       const position = make("p", "lf-vr-case-position");
       const title = make("h3", "lf-vr-case-title");
-      const path = make("code", "lf-vr-path");
-      heading.append(position, title, path);
+      headingText.append(position, title);
+      const review = make("div", "lf-vr-review");
+      review.setAttribute("role", "group");
+      review.setAttribute("aria-label", "Case disposition");
+      const dispositions = make("div", "lf-vr-dispositions");
+      for (const [value, text] of Object.entries(DISPOSITION)) {
+        const button = offer("button", `lf-btn lf-vr-disposition lf-vr-${value}`, text);
+        button.type = "button";
+        button.dataset.disposition = value;
+        button.addEventListener("click", () => this.#review(id, value));
+        dispositions.append(button);
+      }
+      review.append(dispositions);
+      heading.append(headingText, review);
       const claim = make("dl", "lf-vr-claim");
       for (const [termClass, valueClass, term] of [
         ["lf-vr-action-term", "lf-vr-action", "Action"],
@@ -547,34 +635,28 @@ customElements.define(
       const candidate = link("lf-btn lf-vr-candidate-link", "Open candidate");
       const trace = link("lf-btn lf-vr-trace-link", "Open trace");
       links.append(base, candidate, trace);
+      const path = make("code", "lf-vr-path");
       const provenance = make("p", "lf-vr-provenance");
+      const details = make("div", "lf-vr-details");
+      details.append(path, provenance);
+      const support = make("footer", "lf-vr-support");
+      support.append(links, details);
+      const toolbar = make("div", "lf-vr-toolbar-slot", null, false);
       const shotHost = make("div", "lf-vr-shot-host");
-      const review = make("footer", "lf-vr-review");
-      const reviewLabel = make("span", "lf-vr-review-label", "Case disposition");
-      const dispositions = make("div", "lf-vr-dispositions");
-      for (const [value, text] of Object.entries(DISPOSITION)) {
-        const button = offer("button", `lf-btn lf-vr-disposition lf-vr-${value}`, text);
-        button.type = "button";
-        button.dataset.disposition = value;
-        button.addEventListener("click", () => this.#review(id, value));
-        dispositions.append(button);
-      }
-      review.append(reviewLabel, dispositions);
+      this.#sizes?.observe(shotHost);
       const threadOutlet = make("section", "lf-vr-thread-outlet lf-ui");
       threadOutlet.dataset.lfGen = "1";
       threadOutlet.setAttribute("aria-label", "Threads on this visual case");
-      article.append(heading, claim, links, provenance, shotHost, review, threadOutlet);
-      return { article, item, tab, shotHost };
+      article.append(heading, claim, toolbar, shotHost, support, threadOutlet);
+      return { article, option, shotHost, record: null, index: 0, total: 0 };
     }
 
     #updateCase(entry, record, index, total) {
       entry.article.dataset.classification = record.classification;
-      entry.tab.dataset.classification = record.classification;
-      setEcho(entry.tab.querySelector(".lf-vr-case-label"), record.title);
-      setEcho(
-        entry.tab.querySelector(".lf-vr-case-classification"),
-        CLASSIFICATION[record.classification],
-      );
+      entry.record = record;
+      entry.index = index;
+      entry.total = total;
+      this.#paintOption(entry);
       setText(
         entry.article.querySelector(".lf-vr-case-position"),
         `Case ${index + 1} of ${total} · ${CLASSIFICATION[record.classification]}`,
@@ -619,11 +701,13 @@ customElements.define(
       for (const [caseId, entry] of this.#caseEntries) {
         const selected = caseId === id;
         entry.article.hidden = !selected;
-        entry.tab.setAttribute("aria-current", selected ? "step" : "false");
-        entry.tab.setAttribute("aria-pressed", String(selected));
+        entry.option.selected = selected;
       }
+      const selected = this.#caseEntries.get(id);
+      selected.article.querySelector(".lf-vr-toolbar-slot").append(this.#inspector);
       this.#threadSurface?.update();
       layoutChanged(this);
+      this.#scheduleEvidenceLayout();
       paintKeys();
     }
 
@@ -632,7 +716,7 @@ customElements.define(
       const current = Math.max(0, ids.indexOf(this.#selected));
       const next = ids[(current + delta + ids.length) % ids.length];
       this.#select(next);
-      this.#caseEntries.get(next).tab.focus({ preventScroll: true });
+      this.#queue.focus({ preventScroll: true });
     }
 
     async #review(id, disposition) {
@@ -657,7 +741,21 @@ customElements.define(
           "aria-pressed",
           String(button.dataset.disposition === disposition),
         );
+      this.#paintOption(entry);
       this.#paintProgress();
+    }
+
+    #paintOption(entry) {
+      if (!entry.record) return;
+      const disposition = entry.article.dataset.disposition;
+      const status = disposition
+        ? DISPOSITION[disposition]
+        : CLASSIFICATION[entry.record.classification];
+      relabel(
+        entry.option,
+        `${entry.index + 1} of ${entry.total} · ${entry.record.title} · ${status}`,
+        { says: false },
+      );
     }
 
     #paintAvailability() {
@@ -673,7 +771,7 @@ customElements.define(
         ({ article }) => article.dataset.disposition,
       ).length;
       setText(
-        this.#footer,
+        this.#progress,
         total ? `${reviewed} of ${total} cases reviewed` : "No cases reviewed",
       );
     }

@@ -67,8 +67,8 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
   different navigation, responsive states, and authentication boundaries before
   treating its authoring choices as settled.
 
-- **Finish fast visual inspection with authored change regions.** Flip, side-by-side,
-  opacity, fit, and actual-size views now work without changing the visual-run contract
+- **Finish fast visual inspection with authored change regions.** Automatic compare,
+  flip, overlay, fit, and captured-size views now work without changing the visual-run contract
   or case ids. Add disclosed masks and changed-region navigation once repeated reviews
   establish the smallest useful authored region contract.
 

@@ -2977,6 +2977,46 @@ def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
     page.close()
 
 
+def test_notification_playground_authored_preview_matches_default_controls_before_upgrade(
+    browser, serve
+):
+    """The useful first paint shows one coherent brief while Leaf is still loading."""
+    source = Path(__file__).parents[1] / "examples" / "notification-playground.html"
+    boot = []
+    page = browser.new_page()
+    errors = watched(page)
+    page.route("**/leaf.js", lambda route: boot.append(route))
+
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(source), wait_until="commit")
+
+        card = page.locator("#notification-card")
+        expect(card).to_be_visible()
+        expect(card).to_have_accessible_name("Checkout 2.8.0 deployed")
+        expect(page.locator("#notification-healthy")).to_be_visible()
+        expect(page.locator("#notification-status-page")).to_be_visible()
+        expect(page.locator("#notification-watch")).to_be_hidden()
+        expect(page.locator("#notification-slack")).to_be_hidden()
+        expect(page.locator("#notification-owner")).to_be_hidden()
+        assert (
+            card.evaluate("node => getComputedStyle(node).borderTopLeftRadius") != "0px"
+        )
+        assert (
+            page.locator("#notification-progress").evaluate(
+                "node => getComputedStyle(node).backgroundColor"
+            )
+            != "rgba(0, 0, 0, 0)"
+        )
+        assert boot, "the positive control did not hold the Leaf runtime"
+        assert errors == []
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+        page.close()
+
+
 def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narrow(
     browser, serve
 ):

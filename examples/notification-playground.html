@@ -19,7 +19,7 @@
         padding: var(--sp-3);
         border: 1px solid var(--border-2);
         border-left: 5px solid var(--ok);
-        border-radius: var(--radius);
+        border-radius: var(--r);
         background: var(--card);
       }
 
@@ -29,29 +29,38 @@
         background: color-mix(in srgb, var(--danger) 8%, var(--card));
       }
 
-      #notification-playground[data-playground-show-owner="false"] #notification-owner {
+      #notification-watch,
+      #notification-slack,
+      #notification-owner {
         display: none;
       }
 
-      #notification-playground[data-playground-state="healthy"] #notification-watch,
       #notification-playground[data-playground-state="latency-watch"]
         #notification-healthy,
       #notification-playground[data-playground-channel="slack"]
-        #notification-status-page,
-      #notification-playground[data-playground-channel="status-page"]
-        #notification-slack {
+        #notification-status-page {
         display: none;
       }
 
+      #notification-playground[data-playground-state="latency-watch"]
+        #notification-watch,
+      #notification-playground[data-playground-show-owner="true"] #notification-owner {
+        display: block;
+      }
+
+      #notification-playground[data-playground-channel="slack"] #notification-slack {
+        display: inline;
+      }
+
       #notification-title::before {
-        content: var(--playground-title);
+        content: var(--playground-title, "Checkout 2.8.0 deployed");
       }
 
       #notification-progress {
         height: 0.42rem;
         overflow: hidden;
         border-radius: 999px;
-        background: var(--border);
+        background: var(--rule);
       }
 
       #notification-progress::before {

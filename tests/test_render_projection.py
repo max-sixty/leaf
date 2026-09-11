@@ -765,6 +765,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "after", "/media/a99a1b63048502d0.png"
     )
     expect(first.locator("lf-shot img")).to_have_count(2)
+    expect(first.locator(".lf-vr-frame-label")).to_have_text(["Base", "Candidate"])
     expect(
         first.locator(f'.lf-conversation-thread[data-thread="{case_thread["id"]}"]')
     ).to_have_count(1)
@@ -821,6 +822,9 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     opacity.press("ArrowLeft")
     opacity.press("ArrowLeft")
     expect(widget.locator(".lf-vr-opacity-value")).to_have_text("35%")
+    expect(widget.locator(".lf-vr-opacity-value")).not_to_have_attribute(
+        "data-lf-said", ""
+    )
     before_box, after_box = frames.evaluate_all(
         "nodes => nodes.map(node => node.getBoundingClientRect())"
     )

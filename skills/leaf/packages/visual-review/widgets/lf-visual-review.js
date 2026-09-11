@@ -367,7 +367,9 @@ customElements.define(
       opacity.dataset.active = String(active);
       slider.disabled = !active;
       slider.value = String(this.#opacity);
-      setText(opacity.querySelector(".lf-vr-opacity-value"), `${this.#opacity}%`);
+      const readout = opacity.querySelector(".lf-vr-opacity-value");
+      const percent = `${this.#opacity}%`;
+      if (readout.textContent !== percent) relabel(readout, percent, { says: false });
       for (const shot of this.querySelectorAll("lf-shot")) {
         const flip = this.#mode === "flip";
         if (flip) shot.removeAttribute("data-lf-shot-controls");
@@ -591,6 +593,7 @@ customElements.define(
         shot.setAttribute("before", record.before);
         shot.setAttribute("after", record.after);
         shot.setAttribute("alt", alt);
+        if (!entry.article.isConnected) this.#casesBody.append(entry.article);
         entry.shotHost.replaceChildren(shot);
       }
       for (const frame of shot.querySelectorAll(".lf-shotframe")) {

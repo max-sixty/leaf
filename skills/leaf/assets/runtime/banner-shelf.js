@@ -54,9 +54,9 @@ overflowMenu.lfInvoker = overflowBtn;
 overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   overflowBtn.setAttribute("aria-expanded", String(open));
-  // A keyboard opener lands on the first control rather than on the menu's box, and a
-  // reader already standing inside is left where they are.
-  if (open && !overflowMenu.contains(document.activeElement))
+  // A reader opening the disclosure lands on its first control. Toggle is deferred:
+  // returning through a folded destination can already have moved focus elsewhere.
+  if (open && document.activeElement === overflowBtn)
     folded()
       .find((control) => control.getClientRects().length)
       ?.focus();

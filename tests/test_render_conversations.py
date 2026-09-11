@@ -2827,9 +2827,6 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     page, errors = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    # The shortcut bar only draws while it has something to say, which is what a held key
-    # gives it. Held down, so the part is on screen for the press below.
-    page.keyboard.down("Alt")
     expect(page.locator(".lf-shortcut-bar")).to_be_visible()
 
     page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
@@ -2849,7 +2846,6 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     # Reduced motion makes both region-local scroll operations instant, so the read
     # directly after the press is the whole travel.
     after = page.evaluate(BOTH_BOXES)
-    page.keyboard.up("Alt")
 
     assert after == before, (
         f"a thread about a fixed part of the layer moved something: {before} -> {after}"

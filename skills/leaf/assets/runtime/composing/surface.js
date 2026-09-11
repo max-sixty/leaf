@@ -22,7 +22,8 @@
    80ch and then wraps, grows toward the available viewport edge, and finally scrolls.
    The target chooses a placement from the field's minimum footprint once. Later
    content and margin controls cannot re-seat it; Floating UI shifts and sizes that
-   placement inside the reading region as either one changes.
+   placement inside the reading region as either one changes. A region too small for
+   the compact control yields to the viewport so the reader keeps their response.
    When the target fills the viewport, the viewport still caps the field. When a
    covering panel leaves no usable band for the response bar, placement withdraws it
    without discarding its draft. If the disappearing bar held focus, the visible
@@ -192,6 +193,11 @@ export function createResponseSurface({
       boundary.width > 0 && Math.ceil(boundary.width) >= Math.ceil(minimumFabWidth())
     );
   };
+  const minimumFabHeight = () =>
+    composerOpen
+      ? Math.max(0, fabBar.offsetHeight - fabInput.offsetHeight) +
+        parseFloat(getComputedStyle(fabInput).minHeight)
+      : fabBar.offsetHeight;
 
   const answerFabPosition = (positioned) => {
     const waiters = fabPositionWaiters;
@@ -323,8 +329,19 @@ export function createResponseSurface({
     const owner = fabTargetAt();
     const block = fabAnchor.quote && owner;
     const readingRegion = owner && readingRegionFor(owner);
-    const regionBounds = readingRegion && shownRegionBounds(readingRegion);
-    const boundary = floatBoundary(regionBounds);
+    let regionBounds = readingRegion && shownRegionBounds(readingRegion);
+    let boundary = floatBoundary(regionBounds);
+    // Keep the response within its pane while that pane can hold the compact control.
+    // A resize can narrow the pane; scrolling can leave only a short visible strip.
+    // The response is already a viewport-plane overlay, so let the viewport carry it
+    // instead of withdrawing the draft and dropping focus while the reader types.
+    if (
+      regionBounds &&
+      (!fabFits(regionBounds) || boundary.height < minimumFabHeight())
+    ) {
+      regionBounds = null;
+      boundary = floatBoundary();
+    }
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     const clips = new Map();
     const parts = block ? shownParts(block) : [];
@@ -387,15 +404,11 @@ export function createResponseSurface({
     };
     if (fabPlacement === null) setWidth(boundary.width);
     setHeight(boundary.height);
-    const minimumHeight = composerOpen
-      ? Math.max(0, fabBar.offsetHeight - fabInput.offsetHeight) +
-        parseFloat(getComputedStyle(fabInput).minHeight)
-      : fabBar.offsetHeight;
     // The choices deliberately wrap inside the response surface, so their intrinsic
     // scroll width is not a fit requirement. Only the compact control's minimum is: a
     // covering panel may genuinely leave less than that, while an ordinary narrow page
     // still has a usable surface once the choices reflow below the field.
-    if (boundary.height < minimumHeight || !fabFits(regionBounds)) return false;
+    if (boundary.height < minimumFabHeight() || !fabFits(regionBounds)) return false;
 
     const reference = {
       contextElement: owner ?? document.documentElement,

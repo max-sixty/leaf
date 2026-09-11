@@ -295,6 +295,9 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     mark.click()
     expect(mark).to_have_attribute("aria-expanded", "true")
     expect(remove).to_be_visible()
+    expect(receipt_item.locator(":scope > .lf-reacts")).to_have_attribute(
+        "aria-keyshortcuts", "Escape"
+    )
     assert mark.evaluate(face) == resting_face
     assert events_model.read_events(serve.page_dir)[-1] == before_reveal
     page.locator("h1").click()
@@ -306,6 +309,9 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     remove.press("Escape")
     expect(mark).to_be_focused()
     expect(remove).to_be_hidden()
+    expect(receipt_item.locator(":scope > .lf-reacts")).not_to_have_attribute(
+        "aria-keyshortcuts", re.compile(r".+")
+    )
     mark.click()
     # The dedicated remove press is in the wire before the log is read: behind a bare
     # trip the read answers with the comment this press is taking back, which is the
@@ -763,7 +769,13 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
 @pytest.mark.parametrize("opener", ["click", "keyboard"])
 def test_comment_response_choices_expand_in_place(browser, serve, opener, width):
     """The ellipsis and Tab extend one placed rectangle without moving its left edge."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    # Leave a wide rail on desktop so the same field exercises both a horizontal
+    # extension and the narrow viewport's wrapped choices.
+    source = PANEL_PAGE.replace(
+        "</head>",
+        "<style>body > main { max-width: 320px; margin-inline: 24px; }</style></head>",
+    )
+    page, errors = open_page(browser, serve(source))
     resized(page, width, 900)
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
@@ -853,6 +865,8 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     expect(bar.locator(".lf-fab-suggest")).to_have_attribute("aria-label", "Suggest")
     assert suggest.get_attribute("aria-expanded") is None
     field.click()
+    field.press("ControlOrMeta+a")
+    field.press("ArrowRight")
     expect(bar).to_have_class(re.compile("lf-response-open"))
     expect(choices).to_have_count(7)
     page.keyboard.press("Tab")
@@ -1036,13 +1050,18 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     """
     page, errors = open_page(browser, serve(PANEL_PAGE))
     initial_events = events_model.read_events(serve.page_dir)
-    resized(page, 700, 900)
+    # Start with Threads beside the page. A covering panel makes the background inert,
+    # even when some of the page remains visible beyond its edge.
+    resized(page, 1000, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
     field = page.locator(".lf-fab-input")
     bar = page.locator(".lf-fab-bar")
 
     def enter_passage():
+        expect(page.locator(".lf-thread-panel")).not_to_have_attribute(
+            "aria-modal", "true"
+        )
         box = page.locator("#how-cap").bounding_box()
         select(
             page,
@@ -1066,7 +1085,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     resized(page, covered_width, 900)
     expect(bar).to_be_hidden()
     expect(search).to_be_focused()
-    resized(page, 700, 900)
+    resized(page, 1000, 900)
     enter_passage()
     expect(field).to_have_value(draft)
 
@@ -1079,7 +1098,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
 
     # A fresh reading proves the text survived in the draft store, rather than merely
     # remaining in the hidden textarea. The same passage regains it when room returns.
-    resized(page, 700, 900)
+    resized(page, 1000, 900)
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
     expect(field).to_be_visible()

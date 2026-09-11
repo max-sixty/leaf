@@ -2037,32 +2037,29 @@ def test_the_composer_never_stands_on_its_own_mark(browser, serve):
 
 
 def test_the_comment_field_scrolls_with_the_passage_it_is_about(browser, serve):
-    """The field points at a passage, so it lives in the document's coordinate space and
-    scrolling moves the two together. A viewport-fixed field would let the page scroll
-    underneath until the response sat over something it was never about.
-
-    Both readings and the scroll happen in one synchronous evaluate — writing
-    scrollTop reflows before the very next read — so there is no trip here to wait
-    on."""
+    """Floating UI's scroll observer keeps the field attached to its passage."""
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
     page.wait_for_selector(".lf-fab-input", state="visible")
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
-    moved = page.evaluate("""() => {
+    before = page.evaluate("""() => {
         const top = (el) => el.getBoundingClientRect().top;
         const composer = document.querySelector('.lf-fab-bar');
         const passage = document.getElementById('p30');
         const before = { composer: top(composer), passage: top(passage) };
         document.scrollingElement.scrollTop += 240;
-        return { composer: top(composer) - before.composer,
-                 passage: top(passage) - before.passage };
+        return before;
     }""")
-    assert moved["passage"] < 0, "the scroll must actually have moved the page"
-    assert moved["composer"] == moved["passage"], (
-        f"the box parted from its passage: the page moved {-moved['passage']}px "
-        f"and the composer {-moved['composer']}px"
+    page.wait_for_function(
+        """before => {
+          const composer = document.querySelector('.lf-fab-bar').getBoundingClientRect().top;
+          const passage = document.getElementById('p30').getBoundingClientRect().top;
+          return passage < before.passage
+            && composer - before.composer === passage - before.passage;
+        }""",
+        arg=before,
     )
     assert errors == []
     page.close()

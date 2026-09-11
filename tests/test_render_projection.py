@@ -952,14 +952,6 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(
         widget.locator(".lf-vr-case:not([hidden]) .lf-vr-frame-label").first
     ).to_be_visible()
-    resized(page, 1366, 900)
-    page.locator("html").evaluate("node => node.classList.add('lf-copy')")
-    copy_widths = widget.locator(".lf-vr-case lf-shot img").evaluate_all(
-        "images => images.map(image => image.getBoundingClientRect().width)"
-    )
-    assert copy_widths
-    assert max(copy_widths) <= 901
-    page.locator("html").evaluate("node => node.classList.remove('lf-copy')")
     page.emulate_media(media="print")
     expect(first).to_be_visible()
     expect(second).to_be_visible()
@@ -971,12 +963,27 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "nodes => nodes.map(node => node.getBoundingClientRect())"
     )
     assert after_box["top"] >= before_box["bottom"]
-    print_widths = widget.locator(".lf-vr-case lf-shot img").evaluate_all(
-        "images => images.map(image => image.getBoundingClientRect().width)"
-    )
-    assert print_widths
-    assert max(print_widths) <= 901
     page.emulate_media(media="screen")
+    assert errors == []
+    page.close()
+
+
+def test_visual_review_empty_navigation_is_unavailable(browser, serve):
+    url = live_url(
+        serve(
+            leaf_page(
+                "empty visual review",
+                '<lf-visual-review id="visual-run" source="missing-run"></lf-visual-review>',
+            ),
+            packages=("visual-review",),
+        )
+    )
+    page, errors = open_page(browser, url)
+    widget = page.locator("#visual-run")
+    expect(widget.get_by_role("button", name="Previous")).to_be_disabled()
+    expect(widget.get_by_role("combobox", name="Selected visual case")).to_be_disabled()
+    expect(widget.get_by_role("button", name="Next")).to_be_disabled()
+    expect(widget.get_by_text("Waiting for visual-run data.")).to_be_visible()
     assert errors == []
     page.close()
 
@@ -1088,6 +1095,23 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     expect(widget).to_have_attribute("data-compare-layout", "stack")
     shot_host.evaluate("node => node.style.removeProperty('height')")
     expect(widget).to_have_attribute("data-compare-layout", "stack")
+    page.locator("html").evaluate("node => node.classList.add('lf-copy')")
+    copy_widths = widget.locator(".lf-vr-case lf-shot img").evaluate_all(
+        "images => images.map(image => image.getBoundingClientRect().width)"
+    )
+    assert len(copy_widths) == 6
+    assert max(copy_widths) <= 901
+    page.locator("html").evaluate("node => node.classList.remove('lf-copy')")
+    widget.locator(".lf-vr-shot-host").evaluate_all(
+        "nodes => nodes.forEach(node => node.style.setProperty('--lf-vr-capture-width', '300px'))"
+    )
+    page.emulate_media(media="print")
+    print_widths = widget.locator(".lf-vr-case lf-shot img").evaluate_all(
+        "images => images.map(image => image.getBoundingClientRect().width)"
+    )
+    assert len(print_widths) == 6
+    assert max(print_widths) <= 301
+    page.emulate_media(media="screen")
     assert errors == []
     page.close()
 

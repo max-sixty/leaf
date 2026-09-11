@@ -525,6 +525,7 @@ customElements.define(
           throw new Error("visual run repeats a case id");
         setText(this.#title, this.#run.title);
         this.#reconcileCases(this.#run.cases);
+        this.#paintNavigation();
         const fallback = this.#run.cases.find(
           ({ classification }) => classification !== "clean",
         );
@@ -548,6 +549,7 @@ customElements.define(
         this.#sizes?.unobserve(shotHost);
       this.#caseEntries.clear();
       this.#selected = null;
+      this.#paintNavigation();
       const empty = make("p", "lf-vr-empty", "Waiting for visual-run data.");
       this.#casesBody.replaceChildren(empty);
       projectData(
@@ -778,10 +780,18 @@ customElements.define(
     }
 
     #step(delta) {
+      if (!this.#run?.cases.length) return;
       const ids = this.#run.cases.map(({ id }) => id);
       const current = Math.max(0, ids.indexOf(this.#selected));
       const next = ids[(current + delta + ids.length) % ids.length];
       this.#select(next);
+    }
+
+    #paintNavigation() {
+      const count = this.#caseEntries.size;
+      this.#queue.disabled = count === 0;
+      for (const button of this.#queueHost.querySelectorAll("button"))
+        button.disabled = count < 2;
     }
 
     async #review(id, disposition) {

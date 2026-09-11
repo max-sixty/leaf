@@ -66,17 +66,6 @@ function previewUrl(target, path) {
   return new URL(path.replace(/^\/+/, ""), base).href;
 }
 
-function captureText(capture) {
-  return [
-    `${capture.browser} ${capture.browserVersion}`,
-    `${capture.viewport.width} × ${capture.viewport.height}`,
-    `${capture.deviceScaleFactor}×`,
-    capture.colorScheme,
-    capture.locale,
-    capture.timezone,
-  ].join(" · ");
-}
-
 function link(className, label) {
   const anchor = offer("a", className, label);
   anchor.target = "_blank";
@@ -439,35 +428,35 @@ customElements.define(
       if (stageHeight <= 0) return;
 
       const gap = 8;
+      const frameBorder = 2;
       const labelHeight = 24;
       const sideScale = Math.min(
-        (stageWidth - gap) / (2 * width),
+        (stageWidth - gap - 2 * frameBorder) / (2 * width),
         (stageHeight - labelHeight) / Math.max(...heights),
       );
       const stackScale = Math.min(
-        stageWidth / width,
+        (stageWidth - frameBorder) / width,
         (stageHeight - 2 * labelHeight - gap) / (heights[0] + heights[1]),
       );
       // Geometry chooses the comparison, not another preference for the reader to
-      // manage. Wide captures keep their scan lines intact by stacking unless doing so
-      // would cost more than forty percent of the common scale; other pairs take the
-      // strictly larger arrangement. Both frames always share the chosen scale.
+      // manage. Wide captures stack so their scan lines remain readable in the scrolling
+      // stage; other pairs take the arrangement with the larger common scale.
       const wideCapture = width / Math.max(...heights) >= 1.5;
-      const compareLayout =
-        stackScale >= sideScale || (wideCapture && stackScale >= sideScale * 0.6)
-          ? "stack"
-          : "side";
+      const compareLayout = wideCapture || stackScale >= sideScale ? "stack" : "side";
       const fitScale =
         this.#mode === "compare"
           ? compareLayout === "stack"
             ? stackScale
             : sideScale
-          : Math.min(stageWidth / width, stageHeight / Math.max(...heights));
+          : Math.min(
+              (stageWidth - frameBorder) / width,
+              stageHeight / Math.max(...heights),
+            );
       // A stacked comparison is a vertical reading surface: fit each capture to the
       // available width and let the bounded stage scroll through the pair. Containing
       // both frames in the stage makes shallow captures unreadably small even when the
       // workspace has ample horizontal room.
-      const stackFitScale = stageWidth / width;
+      const stackFitScale = (stageWidth - frameBorder) / width;
       const scale =
         this.#scale === "actual"
           ? 1
@@ -478,6 +467,10 @@ customElements.define(
                 : fitScale,
             );
       this.dataset.compareLayout = compareLayout;
+      const beforeLabel = frames[0].querySelector(".lf-vr-frame-label");
+      if (beforeLabel)
+        beforeLabel.dataset.label =
+          compareLayout === "stack" ? "Base · Candidate below" : "Base";
       entry.shotHost.style.setProperty(
         "--lf-vr-frame-width",
         `${Math.max(1, width * scale)}px`,
@@ -648,10 +641,44 @@ customElements.define(
       const candidate = link("lf-btn lf-vr-candidate-link", "Open candidate");
       const trace = link("lf-btn lf-vr-trace-link", "Open trace");
       links.append(base, candidate, trace);
-      const path = make("code", "lf-vr-path");
-      const provenance = make("p", "lf-vr-provenance");
-      const details = make("div", "lf-vr-details");
-      details.append(path, provenance);
+      const details = make("details", "lf-vr-details");
+      const detailsSummary = offer(
+        "summary",
+        "lf-vr-details-summary",
+        "Capture details",
+      );
+      const provenance = make("dl", "lf-vr-provenance");
+      const revisions = make("div", "lf-vr-revisions");
+      for (const [group, fields] of [
+        [
+          provenance,
+          [
+            ["Path", "lf-vr-path", "code"],
+            ["Browser", "lf-vr-browser", "span"],
+            ["Viewport", "lf-vr-viewport", "span"],
+            ["Appearance", "lf-vr-appearance", "span"],
+            ["Observed", "lf-vr-observed", "time"],
+          ],
+        ],
+        [
+          revisions,
+          [
+            ["Base revision", "lf-vr-base-revision", "code"],
+            ["Candidate revision", "lf-vr-candidate-revision", "code"],
+          ],
+        ],
+      ]) {
+        for (const [name, valueClass, valueTag] of fields) {
+          const detail = make("div", "lf-vr-detail");
+          const value = make(valueTag, valueClass);
+          const definition = make("dd", "lf-vr-detail-value");
+          definition.append(value);
+          detail.append(make("dt", "lf-vr-detail-term", name), definition);
+          group.append(detail);
+        }
+      }
+      provenance.append(revisions);
+      details.append(detailsSummary, provenance);
       const support = make("footer", "lf-vr-support");
       support.append(links, details);
       const toolbar = make("div", "lf-vr-toolbar-slot", null, false);
@@ -679,8 +706,27 @@ customElements.define(
       setText(entry.article.querySelector(".lf-vr-action"), record.action);
       setText(entry.article.querySelector(".lf-vr-result"), record.result);
       setText(
-        entry.article.querySelector(".lf-vr-provenance"),
-        `${captureText(record.capture)} · observed ${this.#run.observedAt} · base ${this.#run.base.revision} · candidate ${this.#run.candidate.revision}`,
+        entry.article.querySelector(".lf-vr-browser"),
+        `${record.capture.browser} ${record.capture.browserVersion}`,
+      );
+      setText(
+        entry.article.querySelector(".lf-vr-viewport"),
+        `${record.capture.viewport.width} × ${record.capture.viewport.height} · ${record.capture.deviceScaleFactor}×`,
+      );
+      setText(
+        entry.article.querySelector(".lf-vr-appearance"),
+        `${record.capture.colorScheme} · ${record.capture.locale} · ${record.capture.timezone}`,
+      );
+      const observed = entry.article.querySelector(".lf-vr-observed");
+      setText(observed, this.#run.observedAt);
+      observed.dateTime = this.#run.observedAt;
+      setText(
+        entry.article.querySelector(".lf-vr-base-revision"),
+        this.#run.base.revision,
+      );
+      setText(
+        entry.article.querySelector(".lf-vr-candidate-revision"),
+        this.#run.candidate.revision,
       );
       const base = entry.article.querySelector(".lf-vr-base-link");
       const candidate = entry.article.querySelector(".lf-vr-candidate-link");

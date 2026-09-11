@@ -39,7 +39,7 @@ file-pointer queue fallback. Leaf does not answer approvals or user-input reques
 
 The implementation is in `skills/leaf/scripts/leaf/codex.py`. The operating
 contract is `skills/leaf/references/host-codex.md`; activity and delivery state are
-specified in `skills/leaf/references/internals/session-lifetime.md`.
+specified in `skills/leaf/scripts/leaf/session-lifetime.md`.
 
 ### Trying the prototype
 

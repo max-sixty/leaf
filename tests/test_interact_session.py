@@ -422,6 +422,7 @@ def codex_app_server():
                     "params": {
                         "threadId": "codex-thread",
                         "turnId": "turn-live",
+                        "startedAtMs": 1_000,
                         "item": {
                             "id": "command-live",
                             "type": "commandExecution",
@@ -941,6 +942,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "params": {
                 "threadId": "codex-thread",
                 "turnId": "turn-live",
+                "startedAtMs": 1_000,
                 "item": {
                     "id": "command-live",
                     "type": "commandExecution",
@@ -948,7 +950,16 @@ def test_app_server_events_report_semantic_codex_progress():
                 },
             },
         }
-    ) == {"turn": "turn-live", "activity": "Running uv run pytest tests"}
+    ) == {
+        "turn": "turn-live",
+        "item": {
+            "id": "command-live",
+            "type": "commandExecution",
+            "state": "started",
+            "atMs": 1_000,
+        },
+        "activity": "Running uv run pytest tests",
+    }
     assert events.read(
         {
             "method": "item/commandExecution/outputDelta",
@@ -960,24 +971,30 @@ def test_app_server_events_report_semantic_codex_progress():
             },
         }
     ) == {"turn": "turn-live", "activity": "Running uv run pytest tests"}
-    assert (
-        events.read(
-            {
-                "method": "item/started",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "turn-live",
-                    "item": {
-                        "id": "commentary-live",
-                        "type": "agentMessage",
-                        "phase": "commentary",
-                        "text": "I am checking the implementation.",
-                    },
+    assert events.read(
+        {
+            "method": "item/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "startedAtMs": 1_100,
+                "item": {
+                    "id": "commentary-live",
+                    "type": "agentMessage",
+                    "phase": "commentary",
+                    "text": "I am checking the implementation.",
                 },
-            }
-        )
-        is None
-    )
+            },
+        }
+    ) == {
+        "turn": "turn-live",
+        "item": {
+            "id": "commentary-live",
+            "type": "agentMessage",
+            "state": "started",
+            "atMs": 1_100,
+        },
+    }
     assert (
         events.read(
             {
@@ -992,24 +1009,31 @@ def test_app_server_events_report_semantic_codex_progress():
         )
         is None
     )
-    assert (
-        events.read(
-            {
-                "method": "item/completed",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "turn-live",
-                    "item": {
-                        "id": "commentary-live",
-                        "type": "agentMessage",
-                        "phase": "commentary",
-                        "text": "I am checking the implementation. Next I will run tests.",
-                    },
+    assert events.read(
+        {
+            "method": "item/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "completedAtMs": 1_200,
+                "item": {
+                    "id": "commentary-live",
+                    "type": "agentMessage",
+                    "phase": "commentary",
+                    "text": "I am checking the implementation. Next I will run tests.",
                 },
-            }
-        )
-        is None
-    )
+            },
+        }
+    ) == {
+        "turn": "turn-live",
+        "item": {
+            "id": "commentary-live",
+            "type": "agentMessage",
+            "state": "completed",
+            "atMs": 1_200,
+            "durationMs": 100,
+        },
+    }
     assert events.read(
         {
             "method": "item/agentMessage/delta",
@@ -1041,6 +1065,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "params": {
                 "threadId": "codex-thread",
                 "turnId": "turn-live",
+                "completedAtMs": 1_300,
                 "item": {
                     "id": "message-live",
                     "type": "agentMessage",
@@ -1050,6 +1075,12 @@ def test_app_server_events_report_semantic_codex_progress():
         }
     ) == {
         "turn": "turn-live",
+        "item": {
+            "id": "message-live",
+            "type": "agentMessage",
+            "state": "completed",
+            "atMs": 1_300,
+        },
         "message": {
             "item": "message-live",
             "phase": None,

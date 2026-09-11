@@ -36,7 +36,8 @@ alternatives. Allow multiple picks only when several options may stand.
 On the page the group's last cell is an option the reader writes, saying
 `Another option`, so author the alternatives you actually mean and no catch-all
 beside them: a `Something else` option takes a click where that cell takes the
-answer. Submitting the cell creates and selects a real option. It reaches you as
+answer. Its Ask address is the digit after the listed options when one of the nine
+addresses remains. Submitting the cell creates and selects a real option. It reaches you as
 the group's ordinary `choose` action, with `detail.additions` mapping the complete
 set of reader-added option ids to their words. In a thread the reply box already owns
 free-form words, so the group carries no add cell of its own.

@@ -7,6 +7,10 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>Leaf product gallery</title>
+    <meta
+      name="description"
+      content="Every working Leaf feature on one synthetic page, each with a live example and a focused replay of its motion."
+    />
     <meta name="lf-review" content="sign-off" />
     <meta
       http-equiv="Content-Security-Policy"
@@ -24,7 +28,7 @@
       }
 
       #bg-playground-card {
-        --lf-frame: 1;
+        --lf-block-frame: 1;
         --bg-playground-card-ink: var(--ink);
         --bg-playground-card-muted: var(--muted);
         --bg-playground-card-surface: var(--card);
@@ -160,6 +164,27 @@
         font: var(--t-5) / 1.45 var(--sans);
       }
 
+      .bg-target-card-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sp-3);
+      }
+
+      .bg-target-card {
+        --lf-block-frame: 1;
+        min-width: 0;
+        padding: var(--sp-3);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r);
+        background: var(--card);
+      }
+
+      @media screen and (max-width: 640px) {
+        .bg-target-card-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
       .interaction-gallery lf-tabs {
         margin-top: 14px;
         margin-bottom: 0;
@@ -174,17 +199,40 @@
         margin-top: 14px;
       }
 
-      /* Placement and density only. The runtime gives these ordinary actions the
-         shared lf-btn face; the gallery keeps their changing labels on one stable row. */
+      /* Placement and density only. The runtime gives the playback action the shared
+         lf-btn face; the gallery keeps its changing labels on one stable row. */
       .interaction-gallery .interaction-control {
         min-height: var(--aim-floor);
         padding: 6px 13px;
         font: 600 var(--t-6) / 1.2 var(--sans);
       }
 
-      /* Under the two presses rather than beside them, at every width. The runtime
-         rewrites this line as the demo runs, and prose that changes length on the line a
-         button stands on moves the row while the reader is aiming at it. */
+      .interaction-gallery .interaction-setting {
+        display: inline-flex;
+        min-height: var(--aim-floor);
+        align-items: center;
+        gap: 6px;
+        color: var(--ink-2);
+        font: var(--t-6) / 1.2 var(--sans);
+      }
+
+      .interaction-gallery .interaction-setting select {
+        min-height: var(--aim-floor);
+        padding: 5px 24px 5px 8px;
+        border: 1px solid var(--border-2);
+        border-radius: 6px;
+        background: var(--card);
+        color: var(--ink);
+        font: inherit;
+      }
+
+      .interaction-gallery .interaction-loop {
+        margin: 0;
+      }
+
+      /* Under the persistent controls rather than beside them, at every width. The
+         runtime rewrites this line as the demo runs, and changing prose on the button's
+         line would move the row while the reader is aiming at it. */
       .interaction-gallery .interaction-status {
         flex-basis: 100%;
         color: var(--muted);
@@ -211,35 +259,40 @@
           var(--paper);
       }
 
-      .interaction-stage-copy {
-        max-width: 42ch;
-        margin: 0;
-        font-size: var(--t-3);
-        line-height: 1.7;
-      }
-
-      .interaction-board-stage {
-        min-height: 22rem;
-        padding-inline: clamp(16px, 4vw, 40px);
-      }
-
-      .interaction-board-stage lf-board {
-        margin: 0;
-      }
-
       .interaction-frame-stage {
         height: 30rem;
         overflow: hidden;
         padding: 0;
       }
 
+      .interaction-suggestion-stage {
+        height: 24rem;
+      }
+
       .interaction-frame {
         display: none;
-        width: 100%;
-        height: 30rem;
+        width: var(--interaction-viewport-size, 200%);
+        height: var(--interaction-viewport-size, 200%);
         border: 0;
         opacity: 0;
         pointer-events: none;
+        transform: scale(var(--interaction-page-scale, 0.5));
+        transform-origin: top left;
+      }
+
+      .interaction-gallery[data-interaction-viewport="1"] {
+        --interaction-viewport-size: 100%;
+        --interaction-page-scale: 1;
+      }
+
+      .interaction-gallery[data-interaction-viewport="2"] {
+        --interaction-viewport-size: 200%;
+        --interaction-page-scale: 0.5;
+      }
+
+      .interaction-gallery[data-interaction-viewport="4"] {
+        --interaction-viewport-size: 400%;
+        --interaction-page-scale: 0.25;
       }
 
       .interaction-frame[data-interaction-ready] {
@@ -266,23 +319,9 @@
         display: none;
       }
 
-      .interaction-swipe-stage {
-        min-height: 25rem;
-        padding-inline: clamp(12px, 4vw, 40px);
-      }
-
-      .interaction-swipe-stage lf-ask {
-        display: block;
-        margin: 0;
-      }
-
-      .interaction-swipe-stage lf-ask > h3 {
-        margin-top: 0;
-      }
-
       .interaction-pointer {
         position: absolute;
-        z-index: 3;
+        z-index: 5;
         top: 0;
         left: 0;
         width: 22px;
@@ -313,31 +352,6 @@
         }
       }
 
-      @media screen and (max-width: 600px) {
-        .interaction-gallery lf-tabs.lf-rendered > lf-tab:not([hidden]) {
-          padding: 12px;
-        }
-
-        .interaction-board-stage {
-          padding-inline: 12px;
-        }
-
-        .interaction-board-stage lf-board {
-          grid-auto-flow: row;
-          grid-template-columns: minmax(0, 1fr);
-          gap: 6px;
-        }
-
-        .interaction-board-stage lf-column {
-          padding: 6px;
-        }
-
-        .interaction-board-stage lf-card {
-          font-size: 13px;
-          line-height: 1.4;
-        }
-      }
-
       @media print {
         .interaction-controls,
         .interaction-pointer {
@@ -363,9 +377,9 @@
         <lf-toc id="bg-contents" max-level="2"></lf-toc>
       </aside>
       <p id="bg-start">
-        Use the contents spine or Map to find a feature; each eyebrow lists its element
-        names. Leaf puts circular controls and status indicators at page edges. Hover
-        over one for its label, or Tab into a group and use ← / → and Enter. Press
+        Use the contents spine or Page Map to find a feature; each eyebrow lists its
+        element names. Leaf puts circular controls and status indicators at page edges.
+        Hover over one for its label, or Tab into a group and use ← / → and Enter. Press
         <kbd>a</kbd> to move through Asks. Changes persist on reload.
       </p>
 
@@ -393,13 +407,12 @@
           </lf-options>
         </lf-ask>
         <p id="bg-core-controls-guide">
-          The top bar also shows <strong>Threads</strong>, the
-          <strong>Versions</strong> menu, <strong>Map</strong> (<kbd>g</kbd> then
-          <kbd>Shift+M</kbd>), <strong>All keyboard shortcuts</strong> (<kbd>?</kbd>
-          twice), and <strong>All leaves</strong> when another Leaf page is live. A
-          quiet status line at the bottom right reports the current keyboard walk or a
-          useful command result. It moves above the bottom-left shortcuts when room is
-          tight.
+          The banner also shows <strong>Threads</strong>, the
+          <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd> then
+          <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd> twice),
+          and <strong>All leaves</strong> when another Leaf page is live. A quiet status
+          line at the bottom right reports the current keyboard walk or a useful command
+          result. It moves above the bottom-left shortcuts when room is tight.
         </p>
       </section>
 
@@ -470,7 +483,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </lf-draft>
         <p id="bg-history-guide">
           <strong>Picked up</strong> means the saved edit entered an agent turn. The
-          receipt and top bar derive their words from the same delivery, turn, and work
+          receipt and banner derive their words from the same delivery, turn, and work
           evidence.
         </p>
         <lf-draft id="bg-history">
@@ -506,8 +519,8 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </p>
         <p id="bg-resolved-text">
           <strong>A resolved conversation.</strong> The room has a projector. Its
-          earlier question is resolved. Open Threads in the top bar, select Resolved,
-          and try Reopen to bring its Thread control back to the page.
+          earlier question is resolved. Open Threads in the banner, select Resolved, and
+          try Reopen to bring its Thread control back to the page.
         </p>
         <p id="bg-new-thread">
           <strong>A clean passage.</strong> Select some of these words, or Alt-click
@@ -554,26 +567,26 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-margin-controls">
         <p class="eyebrow bg-feature-elements">
-          lf-margin-element-gallery · Action control · Disclosure control · Status
+          lf-margin-entry-gallery · Action control · Disclosure control · Status
           indicator · Lifecycle state · lf-suggestion
         </p>
         <h2>
-          <strong>Margin controls and status indicators</strong
-          ><span class="bg-feature-detail">: every role, tone, and state</span>
+          <strong>Margin entries</strong
+          ><span class="bg-feature-detail">: every rank, tone, and state</span>
         </h2>
         <p id="bg-margin-controls-guide">
-          <strong>Everything visible at once.</strong> The first row holds every role
+          <strong>Everything visible at once.</strong> The first row holds every rank
           and all three behaviors and tones. The second fixes every lifecycle state in
           place. Only busy paints a mark, because only busy has nothing else on the page
           saying it; engaged and failed still rank within the cluster and hold it open.
           These inert specimens use the same constructor and stylesheet as the live
           controls and status indicators.
         </p>
-        <lf-margin-element-gallery
+        <lf-margin-entry-gallery
           id="bg-margin-controls-specimens"
-        ></lf-margin-element-gallery>
+        ></lf-margin-entry-gallery>
         <h3>
-          <strong>Margin control lifecycle</strong
+          <strong>Margin entry lifecycle</strong
           ><span class="bg-feature-detail">: act, fail, settle, and hand off</span>
         </h3>
         <p id="bg-margin-control-workflow-guide">
@@ -623,7 +636,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           ><span class="bg-feature-detail">: answers in context</span>
         </h2>
         <p id="bg-readings-guide">
-          A recorded answer stays visible in the widget that owns it; the page map adds
+          A recorded answer stays visible in the widget that owns it; the Page Map adds
           no second status.
         </p>
         <lf-ask id="bg-outcome-ask">
@@ -679,9 +692,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           </h3>
           <p id="bg-drawing-comments-guide">
             Press <kbd>w</kbd> and draw anywhere across the page. Start over this guide
-            or in its margin to anchor the comment here; empty space with no item
-            alongside comments on the page whole. Send the drawing alone or add words
-            first.
+            or in its margin to anchor the comment here; empty space with no addressable
+            element alongside comments on the page whole. Send the drawing alone or add
+            words first.
           </p>
         </section>
 
@@ -696,11 +709,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
           <p id="bg-kept-draft-guide">
             Select a few words here, press <kbd>c</kbd>, and type a sentence without
             sending it. Press <kbd>Escape</kbd>: the box goes, the words stay, and a
-            notice names the address that returns to them. Scroll somewhere else, then
-            press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels back to this
-            passage and reopens the box on the sentence. That destination stands in the
-            sequence only while a kept draft does, so pressing <kbd>g</kbd> with nothing
-            written offers no such place to go.
+            notice names the destination that returns to them. Scroll somewhere else,
+            then press <kbd>g</kbd> and <kbd>Shift+D</kbd> — the page travels back to
+            this passage and reopens the box on the sentence. That destination stands in
+            the sequence only while a kept draft does, so pressing <kbd>g</kbd> with
+            nothing written offers no such place to go.
           </p>
         </section>
 
@@ -753,7 +766,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-external-data">
-        <p class="eyebrow bg-feature-elements">lf-diff · lf-source · lf-num</p>
+        <p class="eyebrow bg-feature-elements">lf-diff · lf-text-document · lf-num</p>
         <h2>
           <strong>External data</strong
           ><span class="bg-feature-detail"
@@ -780,9 +793,9 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </section>
 
         <section id="bg-source-captures">
-          <p class="eyebrow bg-feature-elements">lf-source</p>
+          <p class="eyebrow bg-feature-elements">lf-text-document</p>
           <h3>
-            <strong>Source</strong
+            <strong>Text document</strong
             ><span class="bg-feature-detail">: live and captured data</span>
           </h3>
           <p id="bg-source-guide">
@@ -790,18 +803,18 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             capture. Their captions show the file, capture label, and line range.
           </p>
           <p><strong>Live binding.</strong></p>
-          <lf-source
+          <lf-text-document
             id="bg-source-live"
             source="gallery-source"
             language="toml"
-          ></lf-source>
+          ></lf-text-document>
           <p><strong>Captured snapshot.</strong></p>
-          <lf-source
+          <lf-text-document
             id="bg-source-snapshot"
             source="gallery-source"
             snapshot="1"
             language="toml"
-          ></lf-source>
+          ></lf-text-document>
         </section>
 
         <section id="bg-measurement-lag">
@@ -1017,16 +1030,15 @@ gallery/
 
         <section id="bg-plans-and-history">
           <p class="eyebrow bg-feature-elements">
-            lf-milestones · lf-milestone · lf-timeline · lf-event
+            lf-milestones · lf-milestone · lf-chronology · lf-chronology-entry
           </p>
           <h3>
-            <strong>Milestones</strong>, <strong>Timeline</strong>, and
-            <strong>Events</strong
+            <strong>Milestones</strong> and <strong>Chronology</strong
             ><span class="bg-feature-detail">: state and history</span>
           </h3>
           <p id="bg-plans-guide">
-            Milestones show planned, active, and completed work. A Timeline orders
-            Events by time.
+            Milestones show planned, active, and completed work. A Chronology orders
+            entries by time.
           </p>
           <lf-milestones id="bg-milestones">
             <lf-milestone id="bg-milestone-survey" status="done" when="morning">
@@ -1044,23 +1056,27 @@ gallery/
               <strong>Write the note</strong>
             </lf-milestone>
           </lf-milestones>
-          <lf-timeline id="bg-timeline">
-            <lf-event id="bg-event-alert" at="09:14" kind="warning">
+          <lf-chronology id="bg-chronology">
+            <lf-chronology-entry id="bg-chronology-alert" at="09:14" kind="warning">
               <strong>Rain started</strong> The open path became slippery.
-            </lf-event>
-            <lf-event id="bg-event-closed" at="09:18" kind="failure">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="bg-chronology-closed" at="09:18" kind="failure">
               <strong>Path closed</strong> Standing water blocked the crossing.
-            </lf-event>
-            <lf-event id="bg-event-switch" at="09:20" kind="action">
+            </lf-chronology-entry>
+            <lf-chronology-entry
+              id="bg-chronology-switch"
+              at="09:20"
+              kind="intervention"
+            >
               <strong>Route changed</strong> The sample moved under cover.
-            </lf-event>
-            <lf-event id="bg-event-clear" at="09:42" kind="info">
+            </lf-chronology-entry>
+            <lf-chronology-entry id="bg-chronology-clear" at="09:42" kind="observation">
               <strong>Walk resumed</strong>
-            </lf-event>
-          </lf-timeline>
+            </lf-chronology-entry>
+          </lf-chronology>
         </section>
 
-        <section id="bg-workstream-tabs">
+        <section id="bg-tab-set">
           <p class="eyebrow bg-feature-elements">lf-tabs · lf-tab</p>
           <h3>
             <strong>Tabs</strong
@@ -1292,6 +1308,39 @@ gallery/
           </lf-ask>
         </section>
 
+        <section id="bg-targeting">
+          <p class="eyebrow bg-feature-elements">lf-targeting · lf-target-preview</p>
+          <h3>
+            <strong>Targeting</strong
+            ><span class="bg-feature-detail"
+              >: identify, preview, and submit edits</span
+            >
+          </h3>
+          <p id="bg-targeting-guide">
+            Select element and choose its Article boundary. Rename it, switch its scope
+            to Shared class, add and remove a style, then add a target-bound
+            instruction. Select the nested heading as a second target and inspect the
+            structured action before using Submit changes.
+          </p>
+          <lf-ask id="bg-targeting-ask">
+            <h4 id="bg-targeting-question">Which exact changes should be made?</h4>
+            <lf-targeting id="bg-targeting-workbench" submit-label="Submit changes">
+              <lf-target-preview id="bg-targeting-preview">
+                <div class="bg-target-card-grid">
+                  <article id="bg-target-release" class="bg-target-card">
+                    <h5 class="bg-target-heading">Release readiness</h5>
+                    <p>Keep the owner and remaining checks visible.</p>
+                  </article>
+                  <article id="bg-target-evidence" class="bg-target-card">
+                    <h5 class="bg-target-heading">Evidence trail</h5>
+                    <p>Link each claim to the exact run that supports it.</p>
+                  </article>
+                </div>
+              </lf-target-preview>
+            </lf-targeting>
+          </lf-ask>
+        </section>
+
         <section id="bg-quoted-and-visual">
           <p class="eyebrow bg-feature-elements">
             lf-specimen · lf-shot · lf-options · lf-option · lf-swipe-deck ·
@@ -1336,6 +1385,27 @@ gallery/
             after="/media/a99a1b63048502d0.png"
           ></lf-shot>
         </section>
+
+        <section id="bg-visual-review">
+          <p class="eyebrow bg-feature-elements">
+            lf-visual-review · visual-review package
+          </p>
+          <h3>
+            <strong>Visual review</strong
+            ><span class="bg-feature-detail"
+              >: an ordered run beside one focused comparison</span
+            >
+          </h3>
+          <p id="bg-visual-review-guide">
+            Choose a case, flip its aligned Before and After frames, open the exact
+            preview paths, and record a disposition. Use Arrow Up and Arrow Down while
+            standing in the review to move through the run.
+          </p>
+          <lf-visual-review
+            id="bg-visual-run"
+            source="gallery-visual-run"
+          ></lf-visual-review>
+        </section>
       </section>
 
       <section
@@ -1343,6 +1413,7 @@ gallery/
         id="bg-interactions"
         aria-labelledby="bg-interactions-title"
         data-interaction-gallery
+        data-interaction-viewport="2"
       >
         <p class="eyebrow bg-feature-elements">
           Core · lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board ·
@@ -1355,17 +1426,19 @@ gallery/
         </h2>
         <p id="bg-interactions-guide">
           Selecting a tab starts its focused sequence against Leaf’s production
-          component and transition code. Page-wide controls run inside the preview box,
-          so the gallery around it stays still. Pause while it plays, or replay from the
-          beginning; neither action writes to the page’s event log.
+          component and transition code. Each replay runs in a Leaf page inside the
+          preview box, so page-wide controls keep their real margin placement while the
+          gallery stays still. Viewport compares the same page at 1×, 2×, or 4× its
+          displayed size. Pause, replay, or loop the sequence; none writes to the page’s
+          event log.
         </p>
 
         <lf-tabs id="bg-interaction-tabs">
           <lf-tab id="bg-interaction-accept" label="Accept a suggestion">
             <figure class="interaction-demo" data-interaction-demo="accept">
-              <div class="interaction-stage">
+              <template data-interaction-page>
                 <p class="eyebrow">proposed release note</p>
-                <p class="interaction-stage-copy" id="bg-motion-accept-copy">
+                <p id="bg-motion-accept-copy">
                   The importer now
                   <lf-suggestion id="bg-motion-accept"
                     ><lf-old>usually finishes</lf-old
@@ -1373,6 +1446,18 @@ gallery/
                   >
                   before the next run begins.
                 </p>
+              </template>
+              <div
+                class="interaction-stage interaction-frame-stage interaction-suggestion-stage"
+              >
+                <iframe
+                  class="interaction-frame"
+                  data-interaction-frame
+                  name="interaction-accept"
+                  title="Contained Leaf suggestion animation"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></iframe>
                 <span class="interaction-pointer" hidden aria-hidden="true"></span>
               </div>
               <figcaption>
@@ -1384,16 +1469,27 @@ gallery/
 
           <lf-tab id="bg-interaction-move" label="Move a card">
             <figure class="interaction-demo" data-interaction-demo="move-card">
-              <div class="interaction-stage interaction-board-stage">
+              <template data-interaction-page>
+                <p class="eyebrow">migration checklist</p>
+                <h1>Schema migration</h1>
                 <lf-board id="bg-motion-board">
                   <lf-column id="bg-motion-ready" label="Ready">
-                    <lf-card id="bg-motion-card">
-                      <strong>Verify migration</strong>
-                      Run the schema sample.
-                    </lf-card>
+                    <lf-card id="bg-motion-card"
+                      ><strong>Verify migration</strong> Run the schema sample.</lf-card
+                    >
                   </lf-column>
                   <lf-column id="bg-motion-tried" label="Tried"></lf-column>
                 </lf-board>
+              </template>
+              <div class="interaction-stage interaction-frame-stage">
+                <iframe
+                  class="interaction-frame"
+                  data-interaction-frame
+                  name="interaction-move-card"
+                  title="Contained Leaf board animation"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></iframe>
                 <span class="interaction-pointer" hidden aria-hidden="true"></span>
               </div>
               <figcaption>
@@ -1407,16 +1503,21 @@ gallery/
             <figure
               class="interaction-demo"
               data-interaction-demo="send-comment"
+              data-interaction-target="bg-motion-comment-text"
               data-interaction-thread-id="2be2443f0bb6cc49fc86b52f340e6073"
             >
+              <template data-interaction-page>
+                <p class="eyebrow">review note</p>
+                <h1>Agenda draft</h1>
+                <p id="bg-motion-comment-text">
+                  The sample agenda has room for one more topic.
+                </p>
+              </template>
               <div class="interaction-stage interaction-frame-stage">
                 <iframe
                   class="interaction-frame"
                   data-interaction-frame
-                  data-interaction-eyebrow="review note"
-                  data-interaction-target="bg-thread-text"
-                  data-interaction-title="Agenda draft"
-                  data-interaction-copy="The sample agenda has room for one more topic."
+                  name="interaction-send-comment"
                   title="Contained Leaf comment animation"
                   tabindex="-1"
                   aria-hidden="true"
@@ -1438,14 +1539,18 @@ gallery/
 
           <lf-tab id="bg-interaction-threads" label="Open and close Threads">
             <figure class="interaction-demo" data-interaction-demo="open-threads">
+              <template data-interaction-page>
+                <p class="eyebrow">review workspace</p>
+                <h1>Release notes</h1>
+                <p id="bg-motion-threads-text">
+                  The sample agenda has room for one more topic.
+                </p>
+              </template>
               <div class="interaction-stage interaction-frame-stage">
                 <iframe
                   class="interaction-frame"
                   data-interaction-frame
-                  data-interaction-eyebrow="review workspace"
-                  data-interaction-title="Release notes"
-                  data-interaction-target="bg-thread-text"
-                  data-interaction-copy="The sample agenda has room for one more topic."
+                  name="interaction-open-threads"
                   title="Contained Leaf Threads animation"
                   tabindex="-1"
                   aria-hidden="true"
@@ -1453,9 +1558,9 @@ gallery/
                 <span class="interaction-pointer" hidden aria-hidden="true"></span>
               </div>
               <figcaption>
-                The pointer presses the real top-bar control inside a compact Leaf page;
-                the production Threads workspace opens and closes without changing this
-                gallery page.
+                The pointer presses the real top-bar control inside a zoomed-out Leaf
+                page; the production Threads panel opens and closes without changing
+                this gallery page.
               </figcaption>
             </figure>
           </lf-tab>
@@ -1466,7 +1571,9 @@ gallery/
               data-interaction-demo="swipe-card"
               data-interaction-module="/widgets/lf-swipe-deck.js"
             >
-              <div class="interaction-stage interaction-swipe-stage">
+              <template data-interaction-page>
+                <p class="eyebrow">design review</p>
+                <h1>Follow-ups</h1>
                 <lf-ask id="bg-motion-swipe-ask">
                   <h3>Keep this follow-up?</h3>
                   <lf-swipe-deck id="bg-motion-swipe">
@@ -1486,6 +1593,16 @@ gallery/
                     ></lf-swipe-pile>
                   </lf-swipe-deck>
                 </lf-ask>
+              </template>
+              <div class="interaction-stage interaction-frame-stage">
+                <iframe
+                  class="interaction-frame"
+                  data-interaction-frame
+                  name="interaction-swipe-card"
+                  title="Contained Leaf swipe animation"
+                  tabindex="-1"
+                  aria-hidden="true"
+                ></iframe>
                 <span class="interaction-pointer" hidden aria-hidden="true"></span>
               </div>
               <figcaption>
@@ -1499,19 +1616,19 @@ gallery/
       </section>
 
       <section id="bg-layout-family">
-        <p class="eyebrow bg-feature-elements">lf-workspace · lf-pane · lf-split</p>
+        <p class="eyebrow bg-feature-elements">lf-workspace · lf-pane · lf-partition</p>
         <h2>
           <strong>Workspace regions</strong
           ><span class="bg-feature-detail">: nested reading areas</span>
         </h2>
         <p id="bg-layout-guide">
           This workspace is embedded in a document, so its list, detail regions, and
-          action footer stay in document flow. The same pane and split markup can divide
-          a root workspace into columns and rows when the window has room.
+          action footer stay in document flow. The same pane and partition markup can
+          divide a root workspace into columns and rows when the window has room.
         </p>
         <lf-workspace id="bg-layout-workspace">
           <header><h3>Release candidate review</h3></header>
-          <lf-split id="bg-layout-columns" direction="columns">
+          <lf-partition id="bg-layout-columns" direction="columns">
             <lf-pane id="bg-layout-list" label="Changes">
               <header><h4>Changes</h4></header>
               <lf-tabs id="bg-layout-tabs">
@@ -1533,7 +1650,7 @@ gallery/
               </lf-tabs>
             </lf-pane>
 
-            <lf-split id="bg-layout-rows" direction="rows">
+            <lf-partition id="bg-layout-rows" direction="rows">
               <lf-pane id="bg-layout-evidence" label="Evidence">
                 <header><h4>Evidence</h4></header>
                 <article id="bg-layout-article">
@@ -1579,8 +1696,8 @@ switch --readers checkout-api,orders-api</code></pre>
                   </lf-ask>
                 </footer>
               </lf-pane>
-            </lf-split>
-          </lf-split>
+            </lf-partition>
+          </lf-partition>
         </lf-workspace>
       </section>
 

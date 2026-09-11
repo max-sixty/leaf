@@ -7,7 +7,7 @@ import {
   clockValue,
   conversationBox,
   declarationFor,
-  itemWord,
+  addressableWord,
   commands,
   matchesWhen,
   offer,
@@ -230,7 +230,7 @@ function renderGoal(goal) {
   else if (goal.stopped && goal.role.review?.includes(goal.state))
     signals.push("review");
   for (const intervention of goal.openInterventions) {
-    const word = itemWord(intervention);
+    const word = addressableWord(intervention);
     if (word && !signals.includes(word)) signals.push(word);
   }
   for (const signal of signals) meta.append(chip(signal, "lf-task-signal"));

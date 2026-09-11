@@ -88,15 +88,15 @@ export function invalidPaints() {
 // every tag the page simply does not contain. `document`, not `main`, so a widget frozen
 // into an agent's reply answers here too. That a declared module exists at all is a layer
 // fact and `package check` holds it; this is the page's half.
-export const missingUpgrades = (widgets) =>
-  Object.entries(widgets)
+export const missingUpgrades = (declarations) =>
+  Object.entries(declarations)
     .filter(
       ([tag, entry]) =>
         entry["x-upgrade"] && document.querySelector(tag) && !customElements.get(tag),
     )
     .map(([tag]) => tag);
-export const invalidVisualProviders = (widgets) =>
-  Object.entries(widgets)
+export const invalidVisualProviders = (declarations) =>
+  Object.entries(declarations)
     .filter(([, entry]) => entry["x-visual"] && typeof entry["x-visual"] === "object")
     .flatMap(([tag, entry]) =>
       [...document.querySelectorAll(tag)].map((el) => {
@@ -117,8 +117,8 @@ export const undeclaredShadowRoots = (registry) => [
       .map((el) => `<${el.localName}>`),
   ),
 ];
-export const missingConversations = (widgets) =>
-  Object.entries(widgets)
+export const missingConversations = (declarations) =>
+  Object.entries(declarations)
     .filter(([, entry]) => entry["x-conversation"])
     .flatMap(([tag, entry]) =>
       [...document.querySelectorAll(tag)]
@@ -159,7 +159,7 @@ export const missingConversations = (widgets) =>
 // `version check --render` uses to decide whether a version overrules the user.
 //
 // Deduped and reported per tag and attribute, because one mistake is on every instance.
-export function undeclaredAttrs(widgets) {
+export function undeclaredAttrs(declarations) {
   // What a module may write without declaring: the platform's own vocabulary for
   // what a control is and how it behaves, and the data-* namespace the runtime and
   // the widgets both paint in. `class` and `style` are the same kind of fact — a
@@ -168,7 +168,7 @@ export function undeclaredAttrs(widgets) {
   const platform = new Set(["role", "class", "style", "hidden", "tabindex"]);
   const all = openRoots(document);
   const found = [];
-  for (const [tag, entry] of Object.entries(widgets)) {
+  for (const [tag, entry] of Object.entries(declarations)) {
     if (!entry.properties) continue;
     for (const root of all)
       for (const el of root.querySelectorAll(tag))

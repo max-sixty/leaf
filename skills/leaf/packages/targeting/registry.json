@@ -1,0 +1,183 @@
+{
+  "lf-targeting": {
+    "description": "A visual targeting workbench for naming parts of an authored preview and submitting exact style changes or target-bound prose instructions. The reader arms selection, clicks or focuses an element inside the one lf-target-preview, chooses that element or one of at most three ancestors, and may retain several targets. Each target keeps an authored id when one exists and otherwise records its structural path plus visible context. Instance scope changes only that element; class scope changes every preview element carrying the chosen authored class. Local changes preview immediately and can be removed or reverted before the complete structured `submit` action is recorded. Put the workbench inside lf-ask when the proposed changes are a question for the reader.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "submit-label": {
+        "type": "string",
+        "minLength": 1
+      },
+      "restated": {
+        "type": "boolean"
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-guidance": {
+      "author": "Put the real operable markup in one lf-target-preview. Keep authored ids and meaningful classes on elements whose identity or shared styling should survive revisions. The submitted action contains structured targets and changes; use each change's target key rather than recovering identity from its prose."
+    },
+    "x-upgrade": true,
+    "x-awaits": {
+      "region": true,
+      "answers": ["submit"]
+    },
+    "x-state": {
+      "submit": {
+        "detail": {
+          "type": "object",
+          "properties": {
+            "targets": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "pattern": "^target-[1-9][0-9]*$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "scope": {
+                    "enum": ["instance", "class"]
+                  },
+                  "className": {
+                    "type": ["string", "null"]
+                  },
+                  "selector": {
+                    "type": "object",
+                    "properties": {
+                      "authoredId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "path": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9-]*$"
+                            },
+                            "index": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "required": ["tag", "index"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "label": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "text": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["path", "label", "text"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["key", "name", "scope", "className", "selector"],
+                "additionalProperties": false
+              }
+            },
+            "changes": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^change-[1-9][0-9]*$"
+                      },
+                      "target": {
+                        "type": "string",
+                        "pattern": "^target-[1-9][0-9]*$"
+                      },
+                      "kind": {
+                        "const": "style"
+                      },
+                      "property": {
+                        "enum": [
+                          "padding",
+                          "margin",
+                          "gap",
+                          "border-width",
+                          "border-radius",
+                          "width",
+                          "min-height"
+                        ]
+                      },
+                      "value": {
+                        "type": "string",
+                        "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?px$"
+                      }
+                    },
+                    "required": ["id", "target", "kind", "property", "value"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^change-[1-9][0-9]*$"
+                      },
+                      "target": {
+                        "type": "string",
+                        "pattern": "^target-[1-9][0-9]*$"
+                      },
+                      "kind": {
+                        "const": "instruction"
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": ["id", "target", "kind", "text"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          },
+          "required": ["targets", "changes"],
+          "additionalProperties": false
+        },
+        "facet": "configuration",
+        "unit": "widget"
+      }
+    },
+    "x-example": "<lf-ask id=\"landing-change-ask\"><h2>Which landing-page changes should the agent make?</h2><lf-targeting id=\"landing-targeting\"><lf-target-preview id=\"landing-preview\"><section id=\"hero\" class=\"landing-section\"><h3 class=\"section-title\">Build the next release</h3><p>Keep the request path visible.</p><button type=\"button\">Start review</button></section><section class=\"landing-section\"><h3 class=\"section-title\">Inspect the evidence</h3></section></lf-target-preview></lf-targeting></lf-ask>"
+  },
+  "lf-target-preview": {
+    "description": "The real authored markup a targeting workbench lets the reader identify and adjust. Its descendants remain operable until selection is armed; while armed, pointer or keyboard selection offers the exact element and at most three containing elements. Stable authored ids identify instances directly, while structure and visible context identify elements without ids.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-owners": ["lf-targeting"],
+    "x-content": "markup",
+    "x-upgrade": false
+  }
+}

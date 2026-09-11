@@ -122,8 +122,14 @@ class StructParser:
         # placement belong to the asset record: parallel lists made one fact several
         # representations and let a later parser edit silently misalign them.
         self.external_scripts = []
-        self.stylesheets = []
-        self.lf_metas = []  # {name, content, line} per <meta name="lf-*">
+        # Every <link>, whatever relation it declares. Two checks read these — the one
+        # stylesheet a page dresses itself with, and the canonical address only
+        # delivery may name — and indexing the tag answers both from one parse.
+        self.links = []
+        # {name, content, line} per <meta name>, lf- declarations and ordinary
+        # document metadata alike: one index of what the head names, so a reader
+        # after a description does not need a second parse of the same head.
+        self.named_metas = []
         self.http_equivs = []  # {equiv, content, line, position, raw} per meta
         # The authored page lives under one direct body > main because that is the
         # element the first-replay presentation boundary withholds. Both assets that
@@ -334,16 +340,17 @@ class StructParser:
                     "early_head": in_head and before_body,
                 }
             )
-        if tag == "link" and "stylesheet" in (attrs.get("rel") or ""):
-            self.stylesheets.append(
+        if tag == "link":
+            self.links.append(
                 {
                     "attrs": attrs,
                     "parent": parent_tag,
                     "early_head": in_head and before_body,
+                    "line": line,
                 }
             )
-        if tag == "meta" and (attrs.get("name") or "").startswith("lf-"):
-            self.lf_metas.append(
+        if tag == "meta" and attrs.get("name"):
+            self.named_metas.append(
                 {"name": attrs["name"], "content": attrs.get("content"), "line": line}
             )
         if tag == "meta" and attrs.get("http-equiv"):
@@ -375,7 +382,9 @@ class StructParser:
             if isinstance(value, str) and value.startswith(f"/{MEDIA_DIR}/")
         )
 
-        if tag in ("template", "noscript"):
+        if tag == "noscript" or (
+            tag == "template" and "data-interaction-page" not in attrs
+        ):
             self.errors.append(
                 f"<{tag}> at line {line}: the browser renders none of its content; "
                 "write it plainly or leave it out"
@@ -404,6 +413,69 @@ class StructParser:
                 self.within[identity] = record
             return record
         return None
+
+    @staticmethod
+    def _record_direct_contents(record: dict, element) -> None:
+        for child in element.children:
+            if isinstance(child, turbohtml.Element):
+                record["children"].append(child.tag)
+                record["direct"].append(child.tag)
+            elif isinstance(child, turbohtml.Text) and child.data.strip():
+                record["text"] = True
+                record["direct"].append("#text")
+        pre = next(
+            (
+                child
+                for child in element.children
+                if isinstance(child, turbohtml.Element) and child.tag == "pre"
+            ),
+            None,
+        )
+        if pre is not None:
+            record["body"] = "".join(
+                child.data
+                for child in pre.children
+                if isinstance(child, turbohtml.Text)
+            )
+
+    def _visit_interaction_page(
+        self,
+        node,
+        *,
+        parent_tag: str,
+        ancestors: tuple,
+        holder: dict | None = None,
+    ) -> None:
+        """Index widget declarations in one inert, separately rendered page."""
+        if isinstance(node, turbohtml.Element):
+            attrs = self._attrs(node)
+            record = None
+            if self._source_element(node) and node.tag.startswith("lf-"):
+                record = self._record_element(
+                    node,
+                    attrs,
+                    parent_tag=parent_tag,
+                    ancestors=ancestors,
+                    holder=holder,
+                )
+                self._record_direct_contents(record, node)
+            next_holder = record or holder
+            next_ancestors = (*ancestors, node.tag)
+            for child in node.children:
+                self._visit_interaction_page(
+                    child,
+                    parent_tag=node.tag,
+                    ancestors=next_ancestors,
+                    holder=next_holder,
+                )
+            return
+        for child in node.children:
+            self._visit_interaction_page(
+                child,
+                parent_tag=parent_tag,
+                ancestors=ancestors,
+                holder=holder,
+            )
 
     def _visit(
         self,
@@ -524,27 +596,7 @@ class StructParser:
 
         next_holder = record or holder
         if record is not None:
-            for child in element.children:
-                if isinstance(child, turbohtml.Element):
-                    record["children"].append(child.tag)
-                    record["direct"].append(child.tag)
-                elif isinstance(child, turbohtml.Text) and child.data.strip():
-                    record["text"] = True
-                    record["direct"].append("#text")
-            pre = next(
-                (
-                    child
-                    for child in element.children
-                    if isinstance(child, turbohtml.Element) and child.tag == "pre"
-                ),
-                None,
-            )
-            if pre is not None:
-                record["body"] = "".join(
-                    child.data
-                    for child in pre.children
-                    if isinstance(child, turbohtml.Text)
-                )
+            self._record_direct_contents(record, element)
 
         for child in element.children:
             if isinstance(child, turbohtml.Element):
@@ -562,6 +614,15 @@ class StructParser:
                     and element.tag not in {"script", "style", "title"}
                 ):
                     self.outside_main.append(f"text in <{element.tag}> at line {line}")
+
+        if element.tag == "template" and "data-interaction-page" in attrs:
+            for child in element.children:
+                self._visit_interaction_page(
+                    child,
+                    parent_tag="template",
+                    ancestors=next_ancestors,
+                    holder=None,
+                )
 
         if element.tag == "style":
             self.css += element.text
@@ -625,6 +686,16 @@ class StructParser:
         return sorted({i for i in self.all_ids if i.startswith("lf-")})
 
 
+def links_with_rel(links: list[dict], rel: str) -> list[dict]:
+    """The indexed links declaring one relation. `rel` carries a space-separated
+    token list, so a relation is a token in it rather than a substring of it."""
+    return [
+        link
+        for link in links
+        if rel in (link["attrs"].get("rel") or "").lower().split()
+    ]
+
+
 def parse_structure(markup: str) -> StructParser:
     """One structural reading of a document or fragment — fed and closed, so
     every reader gets the flushed parse rather than each restating the ritual."""
@@ -653,6 +724,6 @@ def revision_review_mode(page_dir: Path, revision: int):
     """The review decision declared by an exact working revision, or None."""
     parser = parse_revision(page_dir, revision)
     return next(
-        (meta["content"] for meta in parser.lf_metas if meta["name"] == "lf-review"),
+        (meta["content"] for meta in parser.named_metas if meta["name"] == "lf-review"),
         None,
     )

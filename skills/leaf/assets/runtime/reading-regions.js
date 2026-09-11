@@ -2,7 +2,7 @@
 
    `registerReadingRegion` binds one stable id to a host and body. The host makes focus
    in a pane's header or footer select that pane, while the body is the scroller only in
-   bounded posture. `registerArrangement` groups regions under one allocation owner;
+   bounded posture. `registerReadingArrangement` groups regions under one allocation owner;
    nested and compound owners inherit posture through DOM containment and read their
    assigned content box on demand. CSS still owns how that box is divided.
 
@@ -18,7 +18,7 @@ import { layoutChanged } from "./widget-elements.js";
 import { reachReadingScroller } from "./reach.js";
 
 const regions = new Map();
-const arrangements = new Set();
+const readingArrangements = new Set();
 const transitionWatchers = new Set();
 
 const depthOf = (node) => {
@@ -40,27 +40,31 @@ const hidden = (region) =>
   region.host.closest?.("[hidden], [aria-hidden='true']") !== null ||
   shownRect(region.host, new Map()) === null;
 
-const arrangementFor = (node) =>
-  [...arrangements]
+const readingArrangementFor = (node) =>
+  [...readingArrangements]
     .filter(
-      (arrangement) =>
-        arrangement.owner.isConnected && containsAcross(arrangement.owner, node),
+      (readingArrangement) =>
+        readingArrangement.owner.isConnected &&
+        containsAcross(readingArrangement.owner, node),
     )
     .sort((a, b) => depthOf(b.owner) - depthOf(a.owner))[0];
 
-const parentArrangement = (arrangement) =>
-  [...arrangements]
+const parentReadingArrangement = (readingArrangement) =>
+  [...readingArrangements]
     .filter(
       (candidate) =>
-        candidate !== arrangement &&
+        candidate !== readingArrangement &&
         candidate.owner.isConnected &&
-        containsAcross(candidate.content, arrangement.owner),
+        containsAcross(candidate.content, readingArrangement.owner),
     )
     .sort((a, b) => depthOf(b.owner) - depthOf(a.owner))[0];
 
-const postureOf = (arrangement) => {
-  if (!arrangement) return "flow";
-  return arrangement.posture ?? postureOf(parentArrangement(arrangement));
+const readingPostureOf = (readingArrangement) => {
+  if (!readingArrangement) return "flow";
+  return (
+    readingArrangement.posture ??
+    readingPostureOf(parentReadingArrangement(readingArrangement))
+  );
 };
 
 const regionRecord = (region) => ({
@@ -127,7 +131,7 @@ const asRegion = (regionOrNode) =>
       regions.get(readingRegionFor(regionOrNode)?.id));
 
 export const readingPosture = (regionOrNode) =>
-  postureOf(arrangementFor(asRegion(regionOrNode)?.host ?? regionOrNode));
+  readingPostureOf(readingArrangementFor(asRegion(regionOrNode)?.host ?? regionOrNode));
 
 export function effectiveScroller(regionOrNode) {
   const region = asRegion(regionOrNode);
@@ -165,9 +169,9 @@ export function shownRegionBounds(regionOrNode) {
 }
 
 export function readingAllocation(node) {
-  const arrangement = arrangementFor(asRegion(node)?.host ?? node);
-  if (!arrangement?.content?.isConnected) return null;
-  const box = shownBox(arrangement.content);
+  const readingArrangement = readingArrangementFor(asRegion(node)?.host ?? node);
+  if (!readingArrangement?.content?.isConnected) return null;
+  const box = shownBox(readingArrangement.content);
   return { width: box.width, height: box.height };
 }
 
@@ -180,16 +184,24 @@ const notify = (detail) => {
   for (const listener of transitionWatchers) listener(detail);
 };
 
-export function registerArrangement({ owner, content, regions: declared = [] }) {
+export function registerReadingArrangement({ owner, content, regions: declared = [] }) {
   if (!owner || !content)
-    throw new Error("leaf: an arrangement needs owner and content elements");
-  if ([...arrangements].some((arrangement) => arrangement.owner === owner))
-    throw new Error("leaf: arrangement owner is already live");
-  if ([...arrangements].some((arrangement) => arrangement.content === content))
-    throw new Error("leaf: arrangement content is already live");
+    throw new Error("leaf: a reading arrangement needs owner and content elements");
+  if (
+    [...readingArrangements].some(
+      (readingArrangement) => readingArrangement.owner === owner,
+    )
+  )
+    throw new Error("leaf: reading arrangement owner is already live");
+  if (
+    [...readingArrangements].some(
+      (readingArrangement) => readingArrangement.content === content,
+    )
+  )
+    throw new Error("leaf: reading arrangement content is already live");
   const cleanups = admitRegions(declared);
-  const arrangement = { owner, content, posture: null, generation: 0 };
-  arrangements.add(arrangement);
+  const readingArrangement = { owner, content, posture: null, generation: 0 };
+  readingArrangements.add(readingArrangement);
 
   const affectedRegions = () =>
     [...regions.values()]
@@ -197,28 +209,28 @@ export function registerArrangement({ owner, content, regions: declared = [] }) 
       .map(regionRecord);
 
   return {
-    async setPosture(posture) {
+    async setReadingPosture(posture) {
       if (!["bounded", "flow"].includes(posture))
         throw new Error(`leaf: unknown reading posture ${String(posture)}`);
-      const from = postureOf(arrangement);
-      if (from === posture && arrangement.posture === posture) return;
-      const generation = ++arrangement.generation;
+      const from = readingPostureOf(readingArrangement);
+      if (from === posture && readingArrangement.posture === posture) return;
+      const generation = ++readingArrangement.generation;
       const affected = affectedRegions();
       notify({ phase: "before", owner, from, to: posture, regions: affected });
-      arrangement.posture = posture;
-      owner.dataset.lfPosture = posture;
-      content.dataset.lfPosture = posture;
+      readingArrangement.posture = posture;
+      owner.dataset.lfReadingPosture = posture;
+      content.dataset.lfReadingPosture = posture;
       layoutChanged(owner);
       await new Promise((resolve) => requestAnimationFrame(resolve));
-      if (generation !== arrangement.generation) return;
+      if (generation !== readingArrangement.generation) return;
       notify({ phase: "after", owner, from, to: posture, regions: affected });
     },
     cleanup() {
-      arrangement.generation += 1;
-      arrangements.delete(arrangement);
+      readingArrangement.generation += 1;
+      readingArrangements.delete(readingArrangement);
       for (const cleanup of cleanups) cleanup();
-      owner.removeAttribute("data-lf-posture");
-      content.removeAttribute("data-lf-posture");
+      owner.removeAttribute("data-lf-reading-posture");
+      content.removeAttribute("data-lf-reading-posture");
     },
   };
 }

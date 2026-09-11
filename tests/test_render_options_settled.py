@@ -77,7 +77,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     row.focus()
     page.keyboard.press("?")
     page.keyboard.press("?")
-    settled_help = page.locator(".lf-shortcut-reference-section").filter(
+    settled_help = page.locator(".lf-command-reference-section").filter(
         has=page.get_by_role("heading", name="In a settled ask", exact=True)
     )
     expect(
@@ -155,7 +155,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator(".lf-panel .lf-quote", has_text="arrives logged out").click()
+    page.locator(".lf-thread-panel .lf-quote", has_text="arrives logged out").click()
     assert page.locator("#opt-strict").is_visible(), (
         "clicking a thread's quote must open the group holding it"
     )
@@ -248,7 +248,7 @@ def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
     )
     page, errors = open_page(browser, live_url(url))
     page.keyboard.press("c")
-    expect(page.locator(".lf-panel")).to_be_visible()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
 
     top = "el => el.getBoundingClientRect().top"
     for ask, group in (("done-decision", "done"), ("th-done-decision", "th-done")):

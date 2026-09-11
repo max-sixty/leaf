@@ -109,9 +109,9 @@ export function clippedControls() {
   return out;
 }
 
-export function tinyBoxes(widgets) {
+export function tinyBoxes(declarations) {
   const inline = new Set(
-    Object.entries(widgets)
+    Object.entries(declarations)
       .filter(([tag, entry]) => entry["x-inline"])
       .map(([tag]) => tag),
   );
@@ -152,7 +152,7 @@ export function tinyBoxes(widgets) {
 // imported rather than restated, so what the gate refuses a handover for and what the page
 // actually paints cannot come apart — the whole point of the pair being that there is one
 // answer to where an element is.
-export function unmarkableItems() {
+export function unmarkableElements() {
   const HTML = "http://www.w3.org/1999/xhtml";
   const found = [];
   for (const el of document.querySelectorAll("[id]")) {
@@ -160,7 +160,7 @@ export function unmarkableItems() {
     // step to. A rendered diagram's insides are none of those — they are one
     // picture, whose <lf-diagram> is the thing to point at and has a box of its
     // own — and they are full of shapes with ids and no layout box: every <marker>
-    // in a diagram's <defs> read as an item showing 11x11px of words.
+    // in a diagram's <defs> read as an addressable element showing 11x11px of words.
     if (el.namespaceURI !== HTML) continue;
     if (el.closest(".lf-chrome")) continue;
     const box = shownBox(el);

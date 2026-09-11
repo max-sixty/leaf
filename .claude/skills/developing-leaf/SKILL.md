@@ -10,6 +10,11 @@ Resolve the repository root three directories above this `SKILL.md`, then resolv
 continue only when it prints the same repository root. Use the absolute launcher
 throughout; a bare `leaf` command may resolve to the installed plugin instead.
 
+Read `references/glossary.md` before naming or revising reader-facing elements,
+interaction contexts, navigation, chrome, view state, or an identifier governed by
+those concepts. It is Leaf's canonical implementation vocabulary. The protocol between
+the page and its agent has separate owners under `<root>/skills/leaf/references/`.
+
 ## Explore an open design
 
 When a new interface leaves a material visual or interaction choice unsettled,
@@ -96,10 +101,10 @@ publication, reply, HTML, first contentful paint, JavaScript, state, upgrade, an
 presentation timings. It stops every process and removes the disposable reader page
 when it finishes.
 
-This fast loop bypasses the Cloudflare Worker, Workflow, container allocation and
+This fast loop bypasses the Cloudflare Worker, Queue, container allocation and
 resource limits, and outbound credential proxy. When a change touches one of those
 boundaries and `OPENAI_API_KEY` is exported, build the Worker and run the same check
-through Wrangler's local Workflow and Docker container:
+through Wrangler's local Queue and Docker container:
 
 ```bash
 npm ci --prefix <root>/worker
@@ -171,7 +176,8 @@ new checkout. If Worktrunk requests approval for the project commands, ask the u
 to run `wt config approvals add`. The refresh command captures every worked example,
 validates the rebuilt site, pushes the complete JPEG set to
 `max-sixty/leaf-assets`, and updates `example-previews.json` and the catalog links in
-this checkout. Because it pushes the asset repository immediately, run it only when
-the user has authorized that publication. The generator checks the required Charter
-and San Francisco fonts and fails rather than publishing images rendered with
-fallback fonts.
+this checkout. Run it after the example changes are ready, and rerun it after
+integrating `main` or making later fixes that change a first viewport. Those refreshes
+are part of the authorized change and need no separate authorization. The generator
+checks the required Charter and San Francisco fonts and fails rather than publishing
+images rendered with fallback fonts.

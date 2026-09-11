@@ -163,23 +163,24 @@ export function visualAt(target, { unclaimed = true } = {}) {
   return seat ? { element, id: seat.id, part: visualPartAt(element, target) } : null;
 }
 
-export const ITEM = '[id]:not(.lf-ui):not([id^="lf-"])';
+export const ADDRESSABLE = '[id]:not(.lf-ui):not([id^="lf-"])';
 
-// Generated visual descendants are not authored items even when their renderer minted
+// Generated visual descendants are not authored addressables even when their renderer minted
 // ids. Only the registered visual-part route may turn them into durable coordinates.
-export function isItem(at) {
-  if (!at.matches(ITEM) || inChrome(at) || inUi(at) || settledAway(at)) return false;
+export function isAddressable(at) {
+  if (!at.matches(ADDRESSABLE) || inChrome(at) || inUi(at) || settledAway(at))
+    return false;
   const visual = tagsDeclaring((entry) => entry["x-visual"]).join(",");
   return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
 }
 
-export function itemAt(node) {
+export function addressableAt(node) {
   let at = node?.nodeType === 1 ? node : node?.parentElement;
-  for (; at; at = parentAcross(at)) if (isItem(at)) return at;
+  for (; at; at = parentAcross(at)) if (isAddressable(at)) return at;
   return null;
 }
 
-export const annotationAt = (node) => blockAt(node) ?? itemAt(node);
+export const annotationAt = (node) => blockAt(node) ?? addressableAt(node);
 
 const HTML_WORDS = {
   input: "control",
@@ -209,53 +210,54 @@ const HTML_WORDS = {
   h6: "heading",
 };
 
-export function itemWord(item) {
-  if (!item) return "";
-  const tag = item.tagName.toLowerCase();
+export function addressableWord(addressable) {
+  if (!addressable) return "";
+  const tag = addressable.tagName.toLowerCase();
   if (registry[tag]?.["x-word"] === "module") {
-    const own = item.lfWord?.();
+    const own = addressable.lfWord?.();
     if (own) return own;
   }
   if (tag.startsWith("lf-")) return tag.slice(3);
-  if (tag === "pre") return item.querySelector(":scope > code") ? "code" : "block";
+  if (tag === "pre")
+    return addressable.querySelector(":scope > code") ? "code" : "block";
   return HTML_WORDS[tag] ?? tag;
 }
 
-const ITEM_SAYS_CAP = 52;
-// The label is rooted at the item and reads its authored words. Generated annotation
+const ADDRESSABLE_SAYS_CAP = 52;
+// The label is rooted at the addressable and reads its authored words. Generated annotation
 // chrome is excluded by the same passage reader used for anchor resolution.
-export function itemSays(item, omitted = null) {
-  if (!item) return "";
-  const subtracts = Boolean(omitted && item.contains(omitted));
+export function addressableSays(addressable, omitted = null) {
+  if (!addressable) return "";
+  const subtracts = Boolean(omitted && addressable.contains(omitted));
   const own =
-    !subtracts && registry[item.localName]?.["x-word"] === "module"
-      ? item.lfSays?.()
+    !subtracts && registry[addressable.localName]?.["x-word"] === "module"
+      ? addressable.lfSays?.()
       : "";
   const whole =
     own ||
     quoteFrom(
-      textNodesUnder(item).filter(
+      textNodesUnder(addressable).filter(
         (segment) => !subtracts || !omitted.contains(segment.node),
       ),
     );
-  if ([...whole].length <= ITEM_SAYS_CAP) return whole;
-  const short = cut(whole, 0, ITEM_SAYS_CAP);
+  if ([...whole].length <= ADDRESSABLE_SAYS_CAP) return whole;
+  const short = cut(whole, 0, ADDRESSABLE_SAYS_CAP);
   const at = short.lastIndexOf(" ");
-  return (at > ITEM_SAYS_CAP / 2 ? short.slice(0, at) : short).trimEnd() + "…";
+  return (at > ADDRESSABLE_SAYS_CAP / 2 ? short.slice(0, at) : short).trimEnd() + "…";
 }
 
 const aimLabel = (
-  item,
-  says = itemSays(item) ||
-    item?.getAttribute("aria-label") ||
-    item?.querySelector("[aria-label]")?.getAttribute("aria-label"),
-) => [itemWord(item), says].filter(Boolean).join(": ");
+  addressable,
+  says = addressableSays(addressable) ||
+    addressable?.getAttribute("aria-label") ||
+    addressable?.querySelector("[aria-label]")?.getAttribute("aria-label"),
+) => [addressableWord(addressable), says].filter(Boolean).join(": ");
 
-const itemAimTarget = (item) => ({
-  anchor: { section: item.id },
-  element: item,
-  label: aimLabel(item),
-  surface: wholeVisualSurface(item),
+const addressableAimTarget = (addressable) => ({
+  anchor: { section: addressable.id },
+  element: addressable,
+  label: aimLabel(addressable),
+  surface: wholeVisualSurface(addressable),
 });
 
 // The one coordinate minted from a projected datum. Pointer aim, passage capture, and
@@ -285,7 +287,7 @@ export function datumAimTarget(datum) {
   };
 }
 
-// Pointer aim and keyboard item hints share this reading. The returned element is the
+// Pointer aim and target-chooser hints share this reading. The returned element is the
 // element the coordinate resolves to, so the promise and eventual mark agree.
 export function aimTargetAt(node) {
   const visual = visualAt(node, { unclaimed: false });
@@ -298,13 +300,13 @@ export function aimTargetAt(node) {
     };
   const datum = closestAcross(node, DATUM);
   if (datum) return datumAimTarget(datum);
-  const item = itemAt(node);
-  return item ? itemAimTarget(item) : null;
+  const addressable = addressableAt(node);
+  return addressable ? addressableAimTarget(addressable) : null;
 }
 
 export function aimTargets() {
   const candidates = [
-    ...pageQueryAll(ITEM).filter(isItem),
+    ...pageQueryAll(ADDRESSABLE).filter(isAddressable),
     ...pageQueryAll(DATUM),
     ...pageQueryAll(declaredVisualSelector()).flatMap((visual) =>
       [...declaredVisualParts(visual)].flatMap((token) => {
@@ -411,7 +413,7 @@ export function resolveAnchor(anchor, text = "") {
   return segments.length
     ? resolvedPassage({
         // Attached chrome belongs beside the passage's readable block or authored item.
-        place: blockAt(segments[0].node) ?? itemAt(segments[0].node),
+        place: blockAt(segments[0].node) ?? addressableAt(segments[0].node),
         segments,
       })
     : null;

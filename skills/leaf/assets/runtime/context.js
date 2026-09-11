@@ -39,7 +39,8 @@ export const runtime = {
 // did not ask to go. Focus its chrome would place later is refused by the frame's body
 // rather than by this flag — `loadFrameDocument` writes that body `inert`, so a shown
 // dialog's focusing steps return against an inert subject and the reader never leaves
-// the page around the picture.
+// the page around the picture. It takes one initial state reading so its production
+// chrome has real data, then leaves the continuing state/news feed to the outer page.
 export const containedPage = document.body.hasAttribute("data-lf-contained");
 
 export const agentName = () => runtime.agent;

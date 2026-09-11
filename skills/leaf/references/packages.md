@@ -8,9 +8,9 @@ result that `page init` vendors after composing the kernel and packages.
 Read this reference when a design comment arrives with `"about": "layer"`, or
 when `/leaf` is invoked on a widget to build or a look to change.
 
-## Package roles
+## Package reach
 
-| Package                             | Reaches                            |
+| Package                             | Included in                        |
 | ----------------------------------- | ---------------------------------- |
 | a package selected with `--package` | pages that select its name or path |
 | the project's `.leaf/`              | pages initialized from the project |
@@ -66,10 +66,13 @@ Leaf also ships optional packages that select by bare name. `diagram` adds `lf-d
 and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
 technical backlog deck; `playground` adds declarative controls, presets, CSS-bound
-previews, and one typed configuration action; `command-hub` adds multi-agent
+previews, and one typed configuration action; `targeting` lets readers select preview
+elements and submit structured, reversible change proposals; `command-hub` adds multi-agent
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
 description and compact checks table, plus a data-backed unified call diff; `monitoring`
-adds an asymmetric overview, evidence, and exception workspace. `gallery`
+adds an asymmetric overview, evidence, and exception workspace; `visual-review` adds an
+ordered website run, aligned before-and-after evidence, exact preview links, and case
+dispositions. `gallery`
 adds the static gallery of page-edge action controls, disclosure controls, and status
 indicators used only by the developer feature gallery, so ordinary pages do not select it:
 
@@ -78,9 +81,11 @@ leaf page init --package diagram PAGE
 leaf page init --package diff PAGE
 leaf page init --package swipe PAGE
 leaf page init --package playground PAGE
+leaf page init --package targeting PAGE
 leaf page init --package command-hub PAGE
 leaf page init --package diff --package pr-review PAGE
 leaf page init --package monitoring PAGE
+leaf page init --package visual-review PAGE
 ```
 
 Those two renderers are about 3.2MB, and most pages draw neither, so they travel in
@@ -102,7 +107,7 @@ Every package has the same partial layout:
 
 ```text
 package/
-├── registry.json       widget entries and shared $ declarations
+├── registry.json       element declarations and shared $ declarations
 ├── theme.css           rules appended to the cascade
 ├── guidance/           Markdown guides named for their audiences
 ├── runtime/            browser modules and replacements by vendored path
@@ -114,8 +119,8 @@ package/
 
 No individual file is required. The kernel supplies the files every complete layer
 needs. Theme files concatenate. Runtime, icon, widget, and vendor files replace by
-path. A later package replaces a tag's complete registry entry and one member inside
-a shared `$` entry. A tag can be added or replaced whole, but it has no deletion marker.
+path. A later package replaces a tag's complete element declaration and one member inside
+a shared `$` declaration. A tag can be added or replaced whole, but it has no deletion marker.
 Shared `$` entries compose by member, and map-valued members compose one level further
 by key; `null` deletes at either of those shared-entry grains when the merged registry
 still validates. Guidance files with the same audience name concatenate in package order.
@@ -162,7 +167,7 @@ under `$idioms` in the package's
 Presentation unique to one page stays in that version's `<style>`.
 
 A rule that draws a box's inset — padding, border, or tinted field — declares
-`--lf-frame: 1` in the same rule. The shared layout uses that declaration to trim child
+`--lf-block-frame: 1` in the same rule. The shared layout uses that declaration to trim child
 margins and bound wide content, and the render gate reports a frame that omits it. The
 runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-wide]`, and
 `[data-lf-exhibit]`; shared selectors read those attributes instead of naming widget
@@ -186,43 +191,45 @@ uses the same stamp before it can capture or post a passage coordinate.
 
 ## A widget
 
-The registry entry is JSON Schema over the element's attributes, plus the `x-` keys that
+The element declaration is JSON Schema over the element's attributes, plus the `x-` keys that
 say how the layer treats the tag — its content model, whether a module upgrades it, which
 attributes the reader sees as words, its action verbs and their record forms, whether it
 stands as one of the page's Asks. The merged registry's `$keys` entry defines each key,
-and the shipped widget entries are the worked examples. Every widget entry carries a
+and the shipped element declarations are the worked examples. Every element declaration carries a
 non-empty `description`. Its first plain sentence identifies the widget's purpose; the
 rest explains its detailed contract. An entry's `x-example` must validate and is the
 markup an author queries with that entry.
 
-An items container that needs one child for every semantic role declares
-`x-children: {"CHILD-TAG": {"one-each": "ATTRIBUTE"}}`. The child's attribute is a
-required string enum, and the child admits the container through `x-parent`. `version
+An owned-members container that needs one member for every semantic role declares
+`x-required-members: {"CHILD-TAG": {"one-each": "ATTRIBUTE"}}`. The child's attribute is a
+required string enum, and the child admits the container through `x-owners`. `version
 check` then refuses a missing or repeated enum value. This keeps fixed role sets in the
 package contract without adding their tags or vocabulary to Leaf.
 
-A structural widget declares `x-layout` as `workspace`, `pane`, or `split` and keeps
-`x-content: prose`. Every role requires `id`; a pane also requires a string `label`, and
-a split requires `direction` with the complete `columns`/`rows` enum. A workspace has
+A structural element declares `x-reading-role` as `workspace`, `pane`, or `partition` and keeps
+`x-content: markup`. Every role requires `id`; a pane also requires a string `label`, and
+a partition requires `direction` with the complete `columns`/`rows` enum. A workspace has
 exactly one direct body element between its optional native `header` and `footer`. A
 pane may have one direct native `header` first and one direct native `footer` last. Its
 `label` names the accessible region; a visible heading belongs in the authored header.
-A split contains exactly two direct widgets whose own entries declare pane or split. The
+A partition contains exactly two direct widgets whose own entries declare pane or partition. The
 validator reads roles rather than tag names, so a package may supply a differently named
-member without changing Leaf or joining an `x-parent` list.
+member without changing Leaf or joining an `x-owners` list.
 
 Behavior modules compose these reading areas with
-`arrangeReadingElement({owner, kind, header, footer, regions})` from the public widget
-API. It returns `{body, content, arrangement}`; `kind` selects workspace, pane, or split.
+`arrangeReadingElement({owner, role, header, footer, regions})` from the public widget
+API. It returns `{body, content, readingArrangement}`; `role` selects workspace, pane,
+or partition.
 The optional header and footer are elements the caller identifies, including generated
 elements; shared slot classes carry their geometry. The helper groups the remaining
 children into the content body and registers any declared reading regions. On reconnect,
-`registerArrangedElement({owner, content, body, regions})` rebinds that existing DOM.
-Both helpers mark a workspace-kind owner `data-lf-root-workspace` when it is the only
-non-metadata element directly inside `body > main`; packages read that marker to choose
-bounded posture. The shared theme gives only a marked `.lf-workspace-arranged` owner the
+`registerReadingElement({owner, content, body, regions})` rebinds that existing DOM.
+Both helpers mark a workspace owner `data-lf-workspace-context="root"` when it is the only
+non-metadata element directly inside `body > main`; other workspaces receive `embedded`.
+Packages read that context to choose
+bounded posture. The shared theme gives only a marked `.lf-workspace-reading` owner the
 available page below the banner. Other workspaces keep document flow. For bounded
-allocation, the workspace body is itself an arranged structural or compound owner. A
+allocation, the workspace body is itself a registered structural or compound owner. A
 plain wrapper keeps its descendants in document flow.
 
 `defineReadingPaneElement(tagName)` supplies the complete lifecycle for an ordinary
@@ -230,18 +237,18 @@ named pane, including furniture, region registration, accessibility, and reconne
 it when a package-specific pane differs only through its registry contract and CSS;
 write a behavior module when the element owns another interaction.
 
-`fitRootReadingElement({owner, arrangement, minimumSize})` owns the root's observation
+`fitRootReadingElement({owner, readingArrangement, minimumSize})` owns the root's observation
 of available page width and height, window resize, and descendant layout changes. The
 caller supplies the complete minimum as `{width, height}` and keeps the composition's
-policy: the default workspace derives one recursively from equal splits, while an
+policy: the default workspace derives one recursively from equal partitions, while an
 asymmetric package root may read its own grid tracks. The returned `update()` promise
 joins initial settlement; `cleanup()` retires its observers and listeners.
 
 `registerReadingRegion({id, host, body})` binds identity separately from the current
-scroller, while `registerArrangement({owner, content, regions})` returns
-`setPosture("bounded"|"flow")` and `cleanup()`. Nested arrangements inherit the nearest
+scroller, while `registerReadingArrangement({owner, content, regions})` returns
+`setReadingPosture("bounded"|"flow")` and `cleanup()`. Nested reading arrangements inherit the nearest
 containing posture and read their assigned content box with `readingAllocation(node)`;
-CSS owns how that allocation is divided. Arrangement registration admits its complete
+CSS owns how that allocation is divided. Reading-arrangement registration admits its complete
 ownership and region collection atomically, so a rejected owner, content, or region
 collision leaves the DOM and every proposed id unchanged. One owner and content box
 belong to one live arrangement until its cleanup.
@@ -257,7 +264,7 @@ When a position action completes an Ask only after its own move empties a queue,
 declare `completion: {empty: {within: "CONTAINER-TAG", when: {ATTRIBUTE: [VALUE]}}}`
 on that x-state verb. `within` names an items container inside the answering widget and
 `when` selects exactly one instance by static authored attributes. POST overlays the
-candidate move on the authoritative holder relation before testing emptiness, and the
+candidate move on the authoritative ownership relation before testing emptiness, and the
 Ask projection uses the same condition for standing state. Do not add a second
 completed attribute or trust the browser's optimistic item count. Re-vendoring must
 preserve the completion condition for every recorded action.
@@ -290,8 +297,9 @@ Non-widget facets contain `units`, keyed by unit id, and position facets also co
 recordless units are undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
 `false` is the only return value state projection interprets: return it while a live
-edit prevents rendering. When the edit closes, dispatch `lf-projection` on `document`
-so Leaf retries deferred state after the gesture has finished staging its local action.
+edit prevents rendering. After the edit closes, call `projectionChanged()` so the state
+feed retries the deferred authoritative projection after the gesture has finished
+staging its local action.
 Projection ignores every other return value. A renderer may return the `Animation` for
 its production transition so an interaction-gallery scenario can join that motion to
 the gallery's playback controls; the same call must still reach its complete state when
@@ -301,13 +309,14 @@ value and must be removed when that value returns.
 ### A package-owned interaction replay
 
 The developer Product Gallery can replay a package widget's production motion without
-moving that package into the default layer. Its figure names the widget module with
+moving that package into the default layer. Its figure carries the contained page's
+authored markup in `template[data-interaction-page]` and names the widget module with
 `data-interaction-module`; that module exports one optional
 `interactionGalleryScenario` object with `reset(root)` and `play(context)` methods.
-`reset` receives the figure and restores its authored starting state without animation.
-`play` receives a frozen orchestration surface:
+`reset` receives the contained page's `Document` and restores its authored starting
+state without animation. `play` receives a frozen orchestration surface:
 
-- `root` is the same figure.
+- `root` is the same contained `Document`.
 - `arrive()` shows the illustrative pointer and waits for its opening beat.
 - `press(target)` moves the pointer to an element and shows the press.
 - `track(animation)` joins a returned `Animation` to pause, resume, and replay.
@@ -339,23 +348,34 @@ module and use relative imports, while third-party or data files can live under
 theme.
 
 A widget contributes each command once with `commands(source, title, rows, options)`.
-The dispatcher, shortcut bar, `?` reference, `aria-keyshortcuts`, and Ask projection all
+The dispatcher, shortcut bar, command reference, `aria-keyshortcuts`, and Ask projection all
 consume those same live rows. Set a row or route's `decision` to its concise, non-empty
-action-name string—or a function returning one—and give it `control` when that control
-answers, advances, or revises the Ask containing `source`. The action name is separate
-from `label`, which remains the command register's own-scope keycap override. In the
-complete reference, a keyless Decision command falls back to its action name rather than
-showing a blank keycap. The Ask projection always spells the binding it resolved beside
-the `decision` action name, so its inline hint says what the reader actually presses. A
-row may have zero or one live binding in the Decision role: zero receives the Ask's next
-free contextual `1` through `9`, while one keeps its canonical binding, such as
-`ArrowLeft`. Each action keeps one command id. Dispatch, the reference, the shortcut bar,
-its address, and `aria-keyshortcuts` all use that id. `address` may name an empty face a widget already positions; core
-writes the resolved binding there, so the package does not keep a second key map. Do
-not maintain a second Ask-control list.
-Otherwise core paints the binding at the visible control. Routes let one parameterized
-row contribute distinct controls and bindings. The control's own `click()` remains the
-single activation path.
+action-name string—or a function returning one—and give it `control` for the visible
+element that performs the action. A Decision action begins an answer, answers, advances,
+or revises the Ask containing `source`. The action name is separate from `label`, which
+remains the command register's own-scope keycap override. A row with no bindings when
+`commands()` registers it must provide a non-empty string `label`, a `label` function, or
+a Decision action name. This also applies when computed `keys` is initially empty and
+gains bindings later. The command reference uses a keyless Decision command's action name
+rather than a blank keycap.
+The Ask projection always spells the binding it resolved beside the `decision` action
+name, so its inline hint says what the reader actually presses. A row may have zero or one
+live binding in the Decision role: zero receives the Ask's next free contextual `1`
+through `9`, while one keeps its canonical binding, such as `ArrowLeft`. Each action keeps
+one command id. Dispatch, the command reference, the shortcut bar, its binding badge, and
+`aria-keyshortcuts` all use that id. `bindingBadge` may name an empty face a widget
+already positions. Each supplied face belongs to one action; core writes the resolved binding
+there while the whole face is connected, visible, and uncovered. Otherwise core paints its
+own binding badge at the visible control. The package does not keep a second key map or
+Ask-control list. Routes let one parameterized
+row contribute distinct controls and bindings. The Ask projection invokes the row's
+declared `run`; a run-less native command falls back to its control's `click()`.
+
+Every visible press a widget builds with `offer()` or `selectableOffer()` also joins the
+generated target map after `g`. Packages do not declare another `g` binding or repeat
+those controls in a destination list. Text and range inputs remain ordinary Tab stops;
+buttons, checkboxes, radios, and selectable controls are addressable because they have a
+discrete activation.
 
 When the scope belongs to an Ask, `options.answer` may read its concise current answer for
 the answered row in the Asks tray. Leaf normalizes whitespace and bounds the displayed
@@ -364,7 +384,7 @@ owned by the Ask, even when several descendant scopes contribute controls. Answe
 stays readable after a scope's availability condition closes, while the command rows remain gated.
 
 Register the command once, not every nearby button. Evidence nested inside an
-option is not an answer, and a shared-margin element may sit outside the Ask source. When
+option is not an answer, and a shared-margin entry may sit outside the Ask source. When
 controls or availability change, keep the row fields computed and call `paintKeys()`;
 every command projection then updates together. A package that needs the page-wide open
 Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)`
@@ -390,18 +410,18 @@ mapping; core owns the explicit Comment gestures, keyboard proxies, and paint.
 An `x-state` verb that lets the reader add real children declares
 `creates: {field, child}`. The named optional detail field has the canonical
 `{element-id: non-empty words}` map schema. The child tag admits the sender through
-`x-parent`, requires only its canonical `id`, and has `x-content: prose`. The append
+`x-owners`, requires only its canonical `id`, and has `x-content: markup`. The append
 transaction records the map's sorted ids in `generated`, allowing historical
 folds to retain their liveness while version checks enforce the declared tag and
-direct-parent relation.
+direct-ownership relation.
 
 Every row passed to `commands()` has a stable dotted `id`, such as `draft.save`. Keep that
 identity when its key or wording changes: the command browser and repeated widget
 instances use it instead of display prose. If one compact row binds keys with different
 meanings, add `routes` with an `id`, `binding`, and action sentence for each meaning. The
-shortcut bar stays compact, while the complete reference lists and runs each route on its own.
+shortcut bar stays compact, while the command reference lists and runs each route on its own.
 Use `runFromReference: false` only for a parameterized step that cannot be run without a
-choice the reference does not have, such as a generated hint tied to the live viewport. An
+choice the command reference does not have, such as a generated hint tied to the live viewport. An
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).
 
@@ -538,7 +558,7 @@ that really apply to the package as a whole.
     },
     "required": ["id", "source"],
     "additionalProperties": false,
-    "x-content": "none",
+    "x-content": "empty",
     "x-data": {
       "builds": {
         "contract": "build-status",
@@ -560,11 +580,11 @@ ids.
 
 ```html
 <lf-builds id="release-builds" source="release-ci"></lf-builds>
-<lf-source
+<lf-text-document
   id="release-notes-source"
   source="release-notes"
   language="markdown"
-></lf-source>
+></lf-text-document>
 ```
 
 The host gathers the value; Leaf does not run a provider or fetch a package URL. Set a
@@ -734,13 +754,13 @@ composer owned by that widget, then calls `end`. The adapter returns an element 
 the widget or `null`. It owns only outlet creation, removal, and layout. Core moves its
 one composer node or renders retained messages, replies, reactions, settlement controls,
 and receipts into each outlet. A claimed thread does not
-also appear in the living margin; the Threads panel remains the complete index. With
-Threads closed, `t`/`T` lands on this local surface before trying the living-margin
+also appear in the margin projection; the Threads panel remains the complete index. With
+Threads closed, `t`/`T` lands on this local surface before trying the margin-projection
 fallback. Opening Threads from the focused surface carries the same thread into the
 panel.
 
 The adapter returns `null` for data that is filtered, collapsed, or not yet hydrated.
-That keeps lazy widgets lazy and restores the living-margin fallback. Deliberate thread
+That keeps lazy widgets lazy and restores the margin-projection fallback. Deliberate thread
 travel may reveal the datum through `lfRevealDatum`; the ordinary reconciliation pass
 then asks the adapter again. The registration handle's `update()` invalidates layout-only
 visibility changes, and `unregister()` removes the surface when the widget disconnects.
@@ -763,9 +783,9 @@ After the main skill's re-vendoring route restores the recorded URL, run
 layer. Note the re-vendor in the next stamped version's changelog.
 
 The render gate is where a module's mistakes surface — an upgrade that defines no element, a widget of no
-size, a `x-verbatim` the rendered words contradict, a shadow root the entry doesn't
+size, a `x-verbatim` the rendered words contradict, a shadow root the declaration doesn't
 declare, a word the registry promised that never reached the page, an attribute left on
-the element that its entry doesn't declare, a `renderState` that changes the page when handed the same state again.
+the element that its declaration doesn't name, a `renderState` that changes the page when handed the same state again.
 
 Then put it on the page. A widget is reviewed in place: the version that follows the
 comment uses it where the comment asked, and the reader comments on it there. From the
@@ -778,7 +798,7 @@ The reader's design mode (`l` in the browser) posts a comment about the layer ra
 than the page: `"about": "layer"`, anchored on the element they clicked or the words they
 selected. The anchor's `section` is a widget's id, or the id of a runtime part —
 `lf-banner`, `lf-threads-toggle` (the panel), `lf-leaves` (the leaves panel), `lf-versions`,
-`lf-composer`, `lf-comment-button` (the margin's Comment control), `lf-shortcut-bar`, `lf-shortcut-reference` — and
+`lf-composer`, `lf-comment-button` (the margin's Comment control), `lf-shortcut-bar`, `lf-command-reference` — and
 `part` names the control the click landed on, where it landed on one (`Accept`,
 `Threads (2)`).
 

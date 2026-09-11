@@ -1,12 +1,12 @@
-/* The gallery lays the runtime's own margin element anatomy out for comparison. The package
- * owns only the specimen labels and grid; living-margin.js and chrome.css remain the
- * sole owners of each margin element's circle, icon, tone, role, and lifecycle witness. */
-lf-margin-element-gallery {
+/* The gallery lays the runtime's own margin entry anatomy out for comparison. The package
+ * owns only the specimen labels and grid; margin-projection.js and chrome.css remain the
+ * sole owners of each margin entry's circle, icon, tone, role, and lifecycle witness. */
+lf-margin-entry-gallery {
   display: block;
   margin-block: var(--sp-4);
 }
 
-.margin-element-gallery-group {
+.margin-entry-gallery-group {
   display: grid;
   grid-template-columns: minmax(7.5rem, .7fr) minmax(0, 3fr);
   gap: var(--sp-3);
@@ -15,30 +15,30 @@ lf-margin-element-gallery {
   border-block-start: 1px solid var(--rule);
 }
 
-.margin-element-gallery-group:last-child {
+.margin-entry-gallery-group:last-child {
   border-block-end: 1px solid var(--rule);
 }
 
-.margin-element-gallery-heading {
+.margin-entry-gallery-heading {
   color: var(--ink);
   font: 650 var(--t-5)/1.3 var(--sans);
 }
 
-.margin-element-gallery-summary {
+.margin-entry-gallery-summary {
   display: block;
   margin-block-start: var(--sp-1);
   color: var(--muted);
   font: 450 var(--t-6)/1.35 var(--sans);
 }
 
-.margin-element-gallery-items {
+.margin-entry-gallery-items {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(7.75rem, 1fr));
   gap: var(--sp-3) var(--sp-2);
   min-width: 0;
 }
 
-.margin-element-gallery-item {
+.margin-entry-gallery-item {
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
   gap: var(--sp-2);
@@ -46,25 +46,25 @@ lf-margin-element-gallery {
   min-width: 0;
 }
 
-.margin-element-gallery-copy {
+.margin-entry-gallery-copy {
   min-width: 0;
   font-family: var(--sans);
 }
 
-.margin-element-gallery-name,
-.margin-element-gallery-detail {
+.margin-entry-gallery-name,
+.margin-entry-gallery-detail {
   display: block;
   overflow-wrap: anywhere;
 }
 
-.margin-element-gallery-name {
+.margin-entry-gallery-name {
   color: var(--ink);
   font-size: var(--t-5);
   font-weight: 650;
   line-height: 1.25;
 }
 
-.margin-element-gallery-detail {
+.margin-entry-gallery-detail {
   margin-block-start: 2px;
   color: var(--muted);
   font-size: var(--t-6);
@@ -73,13 +73,13 @@ lf-margin-element-gallery {
 
 /* The nearby words expose each fixed specimen, so its transient hover label would say
  * the same thing over the next cell. Suppress that one presentation without changing
- * the canonical label and accessible name the margin element factory gives the control. */
-lf-margin-element-gallery .lf-margin-element > .lf-margin-element-label {
+ * the canonical label and accessible name the margin entry factory gives the control. */
+lf-margin-entry-gallery .lf-margin-entry > .lf-margin-entry-label {
   display: none;
 }
 
 @container lf-shell (max-width: 620px) {
-  .margin-element-gallery-group {
+  .margin-entry-gallery-group {
     grid-template-columns: 1fr;
   }
 }

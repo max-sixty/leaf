@@ -3,7 +3,7 @@
    This module combines registered contributions with core readings such as Threads,
    Asks, version changes, delivery receipts, and work claims. It reconciles one cluster
    and the inline thread card per target, then supplies the complete target projection to
-   `page-map.js`. `margin-elements.js` owns the public control grammar and contribution
+   `page-map-dialog.js`. `margin-entries.js` owns the public control grammar and contribution
    registry; `margin-layout.js` owns row measurement, rail claims, responsive docking,
    packing, and collision bands.
 
@@ -17,14 +17,14 @@
    expanded when focus moves within its work. Explicit owner focus temporarily derives
    the cluster from that contribution alone; closing it restores the ordinary cluster.
 
-   Controls are ordered by lifecycle state, semantic role, contribution key, and
+   Controls are ordered by lifecycle state, rank, contribution key, and
    control key. Generated readings follow contributed controls. One target's Threads
    share one reading and one card. Page Map also includes readings that deliberately
    have no target control, such as durable state provenance.
 
    Keyboard and pointer expansion share one state. Focus arrival through Tab unfolds a
    compact cluster, Left and Right walk it, and Escape folds only the layer that gesture
-   opened. Page-map and generated-address arrivals activate the exact visible control;
+   opened. Page Map and Go-to arrivals activate the exact visible control;
    they do not choose another action for the reader.
 
    The thread card stays attached to its owning cluster. Leaf prefers the right then left
@@ -45,25 +45,25 @@
 import {
   registerMarginRow,
   reserveRail,
-  scheduleMarginElementLabels,
+  scheduleMarginEntryLabels,
   scheduleMarginLayout,
   unregisterMarginRow,
   updateMarginRow,
 } from "./margin-layout.js";
 import {
   compareMarginContributions,
-  compareMarginControlRecords,
+  compareMarginEntryRecords,
   marginContributionEntries,
   marginContributionState,
-  marginElement,
-  marginElementRecord,
-  marginElements,
-  marginElementStateRank,
-  syncForwardedMarginElementState,
-  syncMarginElementCount,
+  marginEntry,
+  marginEntryRecord,
+  marginEntries,
+  marginEntryStateRank,
+  syncForwardedMarginEntryState,
+  syncMarginEntryCount,
   watchMarginContributions,
-} from "./margin-elements.js";
-import { mapButton } from "./page-map.js";
+} from "./margin-entries.js";
+import { mapButton } from "./page-map-dialog.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { focusDestination } from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
@@ -83,7 +83,7 @@ import { foldShelf } from "./banner-shelf.js";
 import { motion, scrollBehavior } from "./motion.js";
 import { panel } from "./conversation/panel-elements.js";
 import { blockAt, closestAcross, elementById, inChrome, says } from "./passages.js";
-import { itemSays, itemWord, visualAt } from "./anchor-resolution.js";
+import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
 import { updateSequence, workClaimState } from "./updates.js";
 import { threadList } from "./conversation/state.js";
@@ -102,18 +102,18 @@ import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
 let floatingUiModule = null;
 const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 
-export function createLivingMargin({
+export function createMarginProjection({
   panelIsOpen,
   openAsks,
-  designIsOn,
+  designModeActive,
   comparisonBase,
   comparisonChanges,
   inlineComparison,
   toggleInlineComparison,
   leavePageMap,
   openPageMap,
-  pageMapContextContains,
-  renderPageMap,
+  pageMapDialogContains,
+  renderPageMapDialog,
   standsWith,
   revealConversation,
   renderMarginThread,
@@ -171,8 +171,8 @@ export function createLivingMargin({
     },
     activity: { label: "Active", icon: "activity", priority: 4, state: "busy" },
   };
-  const RESTING_MARGIN_ELEMENT_BUDGET = 2;
-  const EXPANDED_MARGIN_ELEMENT_BUDGET = 6;
+  const RESTING_MARGIN_ENTRY_BUDGET = 2;
+  const EXPANDED_MARGIN_ENTRY_BUDGET = 6;
 
   const trimmed = (value, limit = 110) => {
     const text = String(value ?? "")
@@ -249,19 +249,19 @@ export function createLivingMargin({
 
   const acknowledgments = () => runtime.activity?.interactions ?? [];
   const renderMargin = clocked(document.body, renderNow);
-  // The margin element the reader is standing on, or null off one: the press row's words read it.
-  const focusedMarginElementBehavior = () => {
+  // The margin entry the reader is standing on, or null off one: the press row's words read it.
+  const focusedMarginEntryBehavior = () => {
     const control = focused();
-    return control?.matches?.(".lf-margin-element")
-      ? marginElementRecord(control).behavior
+    return control?.matches?.(".lf-margin-entry")
+      ? marginEntryRecord(control).behavior
       : null;
   };
 
-  const nav = el("nav", "lf-ui lf-living-margin");
+  const nav = el("nav", "lf-ui lf-margin-projection");
   // Every live page can gain an anchored comment, including one made entirely of prose.
 
   nav.dataset.lfGen = "1";
-  nav.setAttribute("aria-label", "Page map");
+  nav.setAttribute("aria-label", "Page Map");
   const toolbar = el("div", "lf-margin-toolbar");
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute(
@@ -309,11 +309,25 @@ export function createLivingMargin({
   );
   previewClose.append(iconElement("cross", "lf-action-icon"));
   previewClose.type = "button";
-  previewClose.setAttribute("aria-label", "Close thread");
-  previewClose.title = "Close thread (Esc)";
+  previewClose.setAttribute("aria-label", "Dismiss conversation view");
+  previewClose.title = "Dismiss conversation view (Esc)";
   previewHead.append(previewTitle, previewClose);
+  const previewNav = el("div", "lf-margin-preview-nav");
+  const previewPosition = el("span", "lf-margin-preview-position");
+  const previewPrevious = offer(
+    "button",
+    "lf-btn lf-icon-action lf-margin-preview-step",
+  );
+  previewPrevious.append(iconElement("previous", "lf-action-icon"));
+  previewPrevious.setAttribute("aria-label", "Previous conversation");
+  previewPrevious.title = "Previous conversation";
+  const previewNext = offer("button", "lf-btn lf-icon-action lf-margin-preview-step");
+  previewNext.append(iconElement("next", "lf-action-icon"));
+  previewNext.setAttribute("aria-label", "Next conversation");
+  previewNext.title = "Next conversation";
+  previewNav.append(previewPosition, previewPrevious, previewNext);
   const previewList = el("div", "lf-margin-preview-list");
-  preview.append(previewHead, previewList);
+  preview.append(previewHead, previewNav, previewList);
   let threadTransitionEpoch = 0;
   let threadTransitionMotions = [];
 
@@ -450,17 +464,18 @@ export function createLivingMargin({
   }
 
   const rows = new Map();
-  const moreMarginElements = new Map();
-  const spillMarginElements = new Map();
+  const moreMarginEntries = new Map();
+  const spillMarginEntries = new Map();
   const optionGroups = new Map();
   const controlProxies = new WeakMap();
-  const readingMarginElements = new Map();
+  const readingMarginEntries = new Map();
   const hosts = new Map();
   const inlineHosts = new Map();
   let optionsOrdinal = 0;
-  let pageMapEntries = [];
+  let pageInventory = [];
   let previewEntry = null;
-  let previewMarginElement = null;
+  let previewThreadItem = null;
+  let previewMarginEntry = null;
   let transferThreadFocus = false;
   let previewShowing = false;
   let pinnedKey = null;
@@ -468,15 +483,15 @@ export function createLivingMargin({
   let forcedInlineOptionsKey = null;
   let expandedOptionsKey = null;
   // An explicit mode can focus one contribution inside the target's existing cluster.
-  // The rail then shows that owner's complete control set without spending margin elements on
-  // standing readings or unrelated actions; Page map still reads the whole entry.
+  // The rail then shows that owner's complete control set without spending margin entries on
+  // standing readings or unrelated actions; Page Map still reads the whole entry.
   let expandedOptionsOwner = null;
   let hoveredHost = null;
   let settlingOptionsFocus = false;
   let suppressingOptionsArrival = false;
   let highlighted = null;
   let rovingFrame = 0;
-  const controlsOf = (offered) => marginElements(offered.controls);
+  const controlsOf = (offered) => marginEntries(offered.controls);
   const offerReadings = (offered) => {
     const items = typeof offered.items === "function" ? offered.items() : offered.items;
     return items ?? [];
@@ -494,7 +509,7 @@ export function createLivingMargin({
     ];
     return (
       states.sort(
-        (left, right) => marginElementStateRank(left) - marginElementStateRank(right),
+        (left, right) => marginEntryStateRank(left) - marginEntryStateRank(right),
       )[0] ?? "idle"
     );
   };
@@ -503,7 +518,7 @@ export function createLivingMargin({
   const entryEngaged = (entry) => entryState(entry) !== "idle";
   // A modal or contextual thread surface temporarily owns focus without ending the
   // document interaction beneath it. Preserve that context so its commands remain
-  // true and its owning margin element can receive focus when the surface closes.
+  // true and its owning margin entry can receive focus when the surface closes.
   const inRetainedContext = (node) =>
     node instanceof Element &&
     (Boolean(node.closest("dialog[open]")) ||
@@ -526,24 +541,24 @@ export function createLivingMargin({
       .flatMap((offered) =>
         controlsOf(offered).map((control) => ({ control, offered })),
       )
-      .sort(compareMarginControlRecords);
+      .sort(compareMarginEntryRecords);
   const directControls = (entry) =>
     directControlRecords(entry).map(({ control }) => control);
   const controlsShownByOwner = (controls) => {
     // The margin hides non-primary controls with `display: none`, so ask how this
     // batch paints while exempt from that rule. Write every exemption before the first
     // style read: alternating an attribute write and getComputedStyle would recalculate
-    // the whole page once per margin element. Contributor-owned `display` and `visibility`
+    // the whole page once per margin entry. Contributor-owned `display` and `visibility`
     // still apply — including the retired half of a settled pair.
     const wasPrimary = controls.map((control) =>
-      control.hasAttribute("data-lf-margin-element-primary"),
+      control.hasAttribute("data-lf-margin-entry-primary"),
     );
     const wasOverflow = controls.map((control) =>
-      control.hasAttribute("data-lf-margin-element-overflow"),
+      control.hasAttribute("data-lf-margin-entry-overflow"),
     );
     for (const control of controls) {
-      control.toggleAttribute("data-lf-margin-element-primary", true);
-      control.removeAttribute("data-lf-margin-element-overflow");
+      control.toggleAttribute("data-lf-margin-entry-primary", true);
+      control.removeAttribute("data-lf-margin-entry-overflow");
     }
     let shown;
     try {
@@ -555,8 +570,8 @@ export function createLivingMargin({
       });
     } finally {
       controls.forEach((control, index) => {
-        control.toggleAttribute("data-lf-margin-element-primary", wasPrimary[index]);
-        control.toggleAttribute("data-lf-margin-element-overflow", wasOverflow[index]);
+        control.toggleAttribute("data-lf-margin-entry-primary", wasPrimary[index]);
+        control.toggleAttribute("data-lf-margin-entry-overflow", wasOverflow[index]);
       });
     }
     return shown;
@@ -571,7 +586,7 @@ export function createLivingMargin({
   function syncControlRoles(entry) {
     const primary = choosePrimary(entry);
     for (const control of directControls(entry))
-      control.toggleAttribute("data-lf-margin-element-primary", control === primary);
+      control.toggleAttribute("data-lf-margin-entry-primary", control === primary);
     return primary;
   }
   const markerItems = (entry) => entry.items.filter((item) => item.marker !== false);
@@ -593,7 +608,7 @@ export function createLivingMargin({
     }
     if (threadList.length)
       choices.push({
-        // One target owns one thread margin element. Membership changes repaint its badge and
+        // One target owns one thread margin entry. Membership changes repaint its badge and
         // card without replacing the control that owns an open conversation.
         key: "threadList",
         kind: "comment",
@@ -612,13 +627,13 @@ export function createLivingMargin({
   const secondaryReadings = (entry, primaryControl) =>
     readingChoices(entry).slice(primaryControl ? 0 : 1);
 
-  function threadMarginElement(entry) {
+  function threadMarginEntry(entry) {
     const marker = rows.get(entry.key);
     if (marker && !marker.hidden && primaryReading(entry)?.kind === "comment")
       return marker;
     const choice = threadReading(entry);
     return choice
-      ? (readingMarginElements.get(readingKey(entry, choice)) ?? null)
+      ? (readingMarginEntries.get(readingKey(entry, choice)) ?? null)
       : null;
   }
   const secondaryControls = (entry, primary) =>
@@ -650,9 +665,9 @@ export function createLivingMargin({
   };
   // One peer is not overflow. It costs the same second circle as `…`, but the peer says
   // what it does and is immediately usable. Ellipsis earns its place only from the third
-  // margin element onward.
+  // margin entry onward.
   const optionsOffered = (entry, primary, options = {}) =>
-    secondaryCount(entry, primary, options) > RESTING_MARGIN_ELEMENT_BUDGET - 1;
+    secondaryCount(entry, primary, options) > RESTING_MARGIN_ENTRY_BUDGET - 1;
 
   function markerFace(entry) {
     const kinds = kindsIn(entry, { markerOnly: true });
@@ -663,8 +678,8 @@ export function createLivingMargin({
       kinds,
       face,
       label: faceCount > 1 ? `${face.label}s` : face.label,
-      // The badge describes this margin element's result. Other readings live behind `…`
-      // and must not make a thread margin element appear to open more threadList than it does.
+      // The badge describes this margin entry's result. Other readings live behind `…`
+      // and must not make a thread margin entry appear to open more threadList than it does.
       count: faceCount,
     };
   }
@@ -682,7 +697,7 @@ export function createLivingMargin({
       (choice?.items ?? [])
         .map((item) => item.state ?? item.acknowledgmentFace?.state ?? "idle")
         .sort(
-          (left, right) => marginElementStateRank(left) - marginElementStateRank(right),
+          (left, right) => marginEntryStateRank(left) - marginEntryStateRank(right),
         )[0] ?? "idle"
     );
   }
@@ -694,10 +709,10 @@ export function createLivingMargin({
     return choice.items[0].context ?? null;
   }
 
-  // A reading wears two promises over its life — a margin element while there is something to
+  // A reading wears two promises over its life — a margin entry while there is something to
   // open, a status once the move is made — and only one element may carry both, or the
   // seat moves under a reader standing in it. A <button> cannot stop being one, so the
-  // seat is a span and `marginElement` writes whichever promise the reading now makes.
+  // seat is a span and `marginEntry` writes whichever promise the reading now makes.
   // What the platform then does not supply is the press, which the margin's own scope
   // declares (margin.press) rather than a listener here: a key the register does not
   // hold is a key no surface can promise.
@@ -705,19 +720,18 @@ export function createLivingMargin({
 
   // The one writer over a reading's disclosure relation, settling `aria-controls` and
   // `aria-expanded` together because a control that says it opens something has to say
-  // whether it is open. Two shapes reach it. A thread margin element opens the local card while the
+  // whether it is open. Two shapes reach it. A thread margin entry opens the local card while the
   // panel is closed and the matching panel card while it is open. Any other reading is
   // asked what it discloses, and a single item
   // that answers has named the node and said which way it stands — the Change reading's
   // inline text diff. An item answering nothing promises nothing, which is what leaves a
-  // Change margin element over a block the comparison cannot align for the plain travel it
+  // Change margin entry over a block the comparison cannot align for the plain travel it
   // always was.
   function syncReadingRelation(control, choice) {
     if (choice?.kind === "comment") {
       const opensInline = !panelIsOpen();
       keeps(control, "aria-controls", opensInline ? preview.id : panel.id);
-      if (opensInline)
-        keeps(control, "aria-expanded", previewMarginElement === control);
+      if (opensInline) keeps(control, "aria-expanded", previewMarginEntry === control);
       else control.removeAttribute("aria-expanded");
       return;
     }
@@ -790,11 +804,11 @@ export function createLivingMargin({
     if (
       !preview.matches(":popover-open") ||
       !preview.hasAttribute("data-lf-thread") ||
-      !previewMarginElement?.isConnected
+      !previewMarginEntry?.isConnected
     )
       return Promise.resolve(false);
     const controls =
-      previewMarginElement.closest("[data-lf-margin-for]") ?? previewMarginElement;
+      previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
     const target = controls.getBoundingClientRect();
     const readingRegion = readingRegionFor(previewEntry?.target);
     const regionBounds = readingRegion && shownRegionBounds(readingRegion);
@@ -825,6 +839,10 @@ export function createLivingMargin({
       bottomChromeBoxes()
         .filter((box) => left < box.right && box.left < left + width)
         .reduce((edge, box) => Math.min(edge, box.top - gap), baseBottom);
+    const adjacentLeft = ({ name, left, right }, width) =>
+      name === "right"
+        ? Math.min(Math.max(target.right + gap, left), right - width)
+        : Math.max(left, Math.min(target.left - gap - width, right - width));
     const side = (
       main
         ? [
@@ -832,18 +850,17 @@ export function createLivingMargin({
             { name: "left", left: firstLeft, right: main.left - gap },
           ]
         : []
-    ).find(({ name, left, right }) => {
+    ).find((candidate) => {
+      const { left, right } = candidate;
       const width = Math.min(preferredWidth, right - left);
-      const cardLeft = name === "right" ? right - width : left;
+      const cardLeft = adjacentLeft(candidate, width);
       return right - left >= minimumWidth && bottomFor(cardLeft, width) > firstTop;
     });
     const boundaryLeft = side?.left ?? firstLeft;
     const boundaryRight = side?.right ?? lastRight;
     const width = Math.min(preferredWidth, boundaryRight - boundaryLeft);
     const cardLeft = side
-      ? side.name === "right"
-        ? boundaryRight - width
-        : boundaryLeft
+      ? adjacentLeft(side, width)
       : Math.max(firstLeft, Math.min(target.right - width, lastRight - width));
     const boundary = new DOMRect(
       boundaryLeft,
@@ -883,7 +900,7 @@ export function createLivingMargin({
     const stillCurrent = () =>
       epoch === previewPositionEpoch &&
       preview.matches(":popover-open") &&
-      previewMarginElement?.isConnected;
+      previewMarginEntry?.isConnected;
     return floatingUi()
       .then(({ computePosition, flip, hide, offset, shift, size }) =>
         computePosition(reference, preview, {
@@ -975,7 +992,7 @@ export function createLivingMargin({
     let group = groups.get(target);
     if (!group) {
       const key = targetPath(target);
-      const word = itemWord(target);
+      const word = addressableWord(target);
       group = {
         key,
         target,
@@ -1064,7 +1081,7 @@ export function createLivingMargin({
       add(groups, ask, {
         kind: "ask",
         id: `ask:${id}`,
-        text: trimmed(`${itemWord(ask)} · ${itemSays(ask) || id}`),
+        text: trimmed(`${addressableWord(ask)} · ${addressableSays(ask) || id}`),
         activate: () => {
           const standing = openAsks();
           const next = standing.find((candidate) => candidate.id === id);
@@ -1081,14 +1098,20 @@ export function createLivingMargin({
       add(groups, target, {
         kind: origin.origin,
         id: `state-origin:${origin.origin}:${origin.unit}`,
-        // Durable provenance belongs in Page map rather than another target margin element:
+        // Durable provenance belongs in Page Map rather than another target margin entry:
         // it remains explicit without changing the page's action density or geometry.
         marker: false,
         text: trimmed(
-          [face.label, itemWord(target), itemSays(target)].filter(Boolean).join(" · "),
+          [face.label, addressableWord(target), addressableSays(target)]
+            .filter(Boolean)
+            .join(" · "),
         ),
         activate: () =>
-          revealTarget(target, `${face.label}: ${itemSays(target)}`, scrollToElement),
+          revealTarget(
+            target,
+            `${face.label}: ${addressableSays(target)}`,
+            scrollToElement,
+          ),
       });
     }
     const claimActivity = new Map(
@@ -1103,7 +1126,11 @@ export function createLivingMargin({
       if (!target) continue;
       const receipt = receiptByCoordinate.get(coordinate);
       if (!receipt) continue;
-      const account = [itemWord(target), humanized(entry.e.action), itemSays(target)]
+      const account = [
+        addressableWord(target),
+        humanized(entry.e.action),
+        addressableSays(target),
+      ]
         .filter(Boolean)
         .join(" · ");
       const face = acknowledgmentFace(receipt);
@@ -1122,16 +1149,16 @@ export function createLivingMargin({
 
     const base = comparisonBase();
     comparisonChanges().forEach((target, index) => {
-      const account = `${itemWord(target)} changed${base == null ? "" : ` since v${base}`}`;
+      const account = `${addressableWord(target)} changed${base == null ? "" : ` since v${base}`}`;
       const inline = inlineComparison(target);
-      const mapAccount = inline ? `${itemWord(target)} changed` : account;
+      const mapAccount = inline ? `${addressableWord(target)} changed` : account;
       add(groups, target, {
         kind: "change",
         id: `change:${targetPath(target)}:${index}`,
-        text: trimmed(`${mapAccount} · ${itemSays(target)}`),
+        text: trimmed(`${mapAccount} · ${addressableSays(target)}`),
         // A disclosure has to say what it holds, or its one word reports a fact and
-        // promises nothing. The margin element's quieter line carries it, and a block the
-        // comparison holds nothing for has none, so no margin element offers a press it has
+        // promises nothing. The margin entry's quieter line carries it, and a block the
+        // comparison holds nothing for has none, so no margin entry offers a press it has
         // not got.
         ...(inline ? { context: inline.offer, mapContext: inline.offer } : {}),
         // What a Change reading holds, where the comparison kept the base version's
@@ -1139,7 +1166,7 @@ export function createLivingMargin({
         // passage and paints additions there, so the reader learns what changed without
         // travelling to the other version and back. Where it kept none, the press is the
         // travel it always was, and `discloses` answering null is what says so — to the
-        // margin element's relation, to the shortcut bar's word for the press, and to the
+        // margin entry's relation, to the shortcut bar's word for the press, and to the
         // reference.
         discloses: () => inlineComparison(target),
         activate: () => {
@@ -1234,7 +1261,7 @@ export function createLivingMargin({
             [
               group.subject ? null : subject.context,
               group.word,
-              group.subject ?? itemSays(group.target),
+              group.subject ?? addressableSays(group.target),
             ]
               .filter(Boolean)
               .join(" · "),
@@ -1263,7 +1290,7 @@ export function createLivingMargin({
     if (!target?.isConnected) return;
     scrollToElement(target, scrollBehavior(), "nearest");
     // The account goes to the bottom notice rather than to the live region alone:
-    // a Change margin element's target is usually already on screen, so the scroll moves nothing
+    // a Change margin entry's target is usually already on screen, so the scroll moves nothing
     // and a press that only announced was, to a sighted reader, a press that did nothing.
     notice(account);
   }
@@ -1285,7 +1312,7 @@ export function createLivingMargin({
           stable.push(primary);
         const marker = rows.get(entry.key);
         if (!primary && marker && !marker.hidden) stable.push(marker);
-        const more = moreMarginElements.get(entry.key);
+        const more = moreMarginEntries.get(entry.key);
         if (more && optionsOffered(entry, primary, { claimedOnly: true }))
           stable.push(more);
         const options = optionGroups.get(entry.key);
@@ -1294,7 +1321,7 @@ export function createLivingMargin({
           !optionsOffered(entry, primary, { claimedOnly: true }) &&
           secondaryCount(entry, primary, { claimedOnly: true }) > 0
         )
-          stable.push(...clusterMarginElements(options));
+          stable.push(...clusterMarginEntries(options));
         const widths = stable
           .map((part) => part.getBoundingClientRect().width)
           .filter(Boolean);
@@ -1320,7 +1347,7 @@ export function createLivingMargin({
       },
       shown: (target) =>
         Boolean(target && shownParts(target).some((part) => part.checkVisibility())),
-      // Compact mode has no page rail. Dock every contributed item even when a
+      // The compact margin projection has no page rail. Dock every contributed entry even when a
       // positioned widget happens to leave enough local room for the absolute
       // prototype; that accident must not give one nested target a desktop posture.
       hangs: () => !readingRegionFor(row.lfEntry?.target) && !panelWouldCover(),
@@ -1369,7 +1396,7 @@ export function createLivingMargin({
 
   function availableRows() {
     return [...rows.values()].filter(
-      (row) => !row.hidden && !row.closest(".lf-waiting") && row.checkVisibility(),
+      (row) => !row.hidden && !row.closest(".lf-withheld") && row.checkVisibility(),
     );
   }
 
@@ -1380,9 +1407,9 @@ export function createLivingMargin({
     });
   }
 
-  function clusterMarginElements(host) {
+  function clusterMarginEntries(host) {
     if (!host) return [];
-    return [...host.querySelectorAll(".lf-margin-element")].filter(
+    return [...host.querySelectorAll(".lf-margin-entry")].filter(
       (button) =>
         !button.disabled &&
         button.getAttribute("aria-disabled") !== "true" &&
@@ -1390,30 +1417,30 @@ export function createLivingMargin({
     );
   }
 
-  const marginElementHost = (target) =>
+  const marginEntryHost = (target) =>
     [...hosts.values()].find((host) => host.lfTarget === target) ?? null;
 
-  function marginElementContextContains(target, node) {
+  function marginEntryContextContains(target, node) {
     return (
-      Boolean(marginElementHost(target)?.contains(node)) ||
-      pageMapContextContains(target, node)
+      Boolean(marginEntryHost(target)?.contains(node)) ||
+      pageMapDialogContains(target, node)
     );
   }
 
-  function stepClusterMarginElements(binding) {
+  function stepClusterMarginEntries(binding) {
     const active = focused();
     const host = closestAcross(active, "[data-lf-margin-for]");
-    const buttons = clusterMarginElements(host);
+    const buttons = clusterMarginEntries(host);
     const at = buttons.indexOf(active);
     if (at < 0 || buttons.length < 2) return;
     const direction = binding === "ArrowRight" ? 1 : -1;
     buttons[(at + direction + buttons.length) % buttons.length].focus({
       preventScroll: true,
     });
-    beginWalk("margin-element", "Action", () => {
+    beginWalk("margin-entry", "Action", () => {
       const standing = focused();
       const standingHost = closestAcross(standing, "[data-lf-margin-for]");
-      return listWalkPosition(clusterMarginElements(standingHost), standing);
+      return listWalkPosition(clusterMarginEntries(standingHost), standing);
     });
   }
 
@@ -1439,11 +1466,11 @@ export function createLivingMargin({
     try {
       renderMargin.refresh();
       if (returnFocus && previousKey) {
-        const more = moreMarginElements.get(previousKey);
+        const more = moreMarginEntries.get(previousKey);
         if (more?.isConnected && !more.hidden) more.focus({ preventScroll: true });
       } else if (focusOption && nextKey) {
-        const choices = clusterMarginElements(optionGroups.get(nextKey));
-        const fallback = clusterMarginElements(hosts.get(nextKey));
+        const choices = clusterMarginEntries(optionGroups.get(nextKey));
+        const fallback = clusterMarginEntries(hosts.get(nextKey));
         const next =
           (focusOption === "last" ? choices.at(-1) : choices[0]) ??
           (focusOption === "last" ? fallback.at(-1) : fallback[0]);
@@ -1453,7 +1480,7 @@ export function createLivingMargin({
       settlingOptionsFocus = false;
     }
     if (previousGroup?.querySelector(".lf-margin-reactions"))
-      document.dispatchEvent(new CustomEvent("lf-margin-element-options-closed"));
+      document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
   }
 
   function focusForNavigation(control) {
@@ -1475,10 +1502,10 @@ export function createLivingMargin({
     return proxy?.checkVisibility() ? proxy : control;
   }
 
-  function openMarginElementOptions(target, { owner = null } = {}) {
+  function openMarginEntryOptions(target, { owner = null } = {}) {
     renderMargin.refresh();
-    const entry = pageMapEntries.find((candidate) => candidate.target === target);
-    const more = entry && moreMarginElements.get(entry.key);
+    const entry = pageInventory.find((candidate) => candidate.target === target);
+    const more = entry && moreMarginEntries.get(entry.key);
     const focusedOffer =
       owner && entry?.offers.find((offered) => offered.key === owner);
     if (!entry || !more || (owner && !focusedOffer)) return false;
@@ -1498,15 +1525,13 @@ export function createLivingMargin({
     return true;
   }
 
-  function visibleMarginElements() {
-    return pageMapEntries.flatMap((entry) =>
-      clusterMarginElements(hosts.get(entry.key)),
-    );
+  function visibleMarginEntries() {
+    return pageInventory.flatMap((entry) => clusterMarginEntries(hosts.get(entry.key)));
   }
 
   // A generated reading control has one exact meaning even when its target holds other
   // readings behind More. Contributed action controls have no core reading kind.
-  function marginElementKind(control) {
+  function marginEntryKind(control) {
     const host = closestAcross(control, "[data-lf-margin-for]");
     const entry = host?.lfEntry;
     if (!entry) return null;
@@ -1516,12 +1541,12 @@ export function createLivingMargin({
       : null;
   }
 
-  function activateMarginElement(control) {
+  function activateMarginEntry(control) {
     const item = closestAcross(control, "[data-lf-margin-for]");
     const entry = item?.lfEntry;
     if (!entry?.target || !control) return false;
     scrollToElement(entry.target, undefined, "nearest");
-    // Arrive before activation, then use the exact visible margin element's own press. A generated
+    // Arrive before activation, then use the exact visible margin entry's own press. A generated
     // route never chooses among the cluster's actions on the reader's behalf.
     focusForNavigation(control);
     control.click();
@@ -1621,56 +1646,55 @@ export function createLivingMargin({
     // it. Declared here rather than answered by a listener on the control: this is the
     // register's whole bargain — the line and the reference draw the key off the same row
     // the press is matched against, so neither can promise what the other does not do.
-    // Only the span-shaped readings, because a native margin element in this cluster answers its
+    // Only the span-shaped readings, because a native margin entry in this cluster answers its
     // own press and a second answer here would be two meanings for one key.
     {
       id: "margin.press",
       keys: PRESS,
-      // Said for the margin element under the reader, not for margin elements in general: "work this
-      // margin element" over a Change reading promised something, and Enter there scrolls to a
+      // Said for the margin entry under the reader, not for margin entries in general: "work this
+      // margin entry" over a Change reading promised something, and Enter there scrolls to a
       // paragraph already on screen. A reading's press goes to what it points at; a
       // disclosure's opens or closes it; an action's does the verb on its face.
-      // Read off the standing margin element, and only where there is one: the reference
+      // Read off the standing margin entry, and only where there is one: the reference
       // lists this row's sentence from anywhere on the page.
       does: () => {
-        const behavior = focusedMarginElementBehavior();
+        const behavior = focusedMarginEntryBehavior();
         if (behavior === "disclosure")
-          return "Open or close what the focused margin element holds";
-        if (behavior === "action") return "Press the focused margin element";
-        if (behavior) return "Go to what the focused margin element points at";
-        return "Work the focused margin element";
+          return "Open or close what the focused margin entry holds";
+        if (behavior === "action") return "Press the focused margin entry";
+        if (behavior) return "Go to what the focused margin entry points at";
+        return "Work the focused margin entry";
       },
       line: () => {
-        const behavior = focusedMarginElementBehavior();
+        const behavior = focusedMarginEntryBehavior();
         if (behavior === "disclosure") return "open / close";
         if (behavior === "action") return "press";
         if (behavior) return "go to it";
-        return "work this margin element";
+        return "work this margin entry";
       },
-      when: () => focused()?.matches?.('.lf-margin-element[role="button"]'),
+      when: () => focused()?.matches?.('.lf-margin-entry[role="button"]'),
       run: () => focused().click(),
     },
     {
       id: "margin.controls",
       keys: ["ArrowLeft", "ArrowRight"],
-      does: "Move through the margin elements on this target",
-      line: "move through margin elements",
+      does: "Move through the margin entries on this target",
+      line: "move through margin entries",
       repeat: true,
       when: () => {
         const active = focused();
         const host = closestAcross(active, "[data-lf-margin-for]");
         return (
-          active?.matches?.(".lf-margin-element") &&
-          clusterMarginElements(host).length > 1
+          active?.matches?.(".lf-margin-entry") && clusterMarginEntries(host).length > 1
         );
       },
-      run: stepClusterMarginElements,
+      run: stepClusterMarginEntries,
     },
     {
       id: "margin.walk",
       keys: ["ArrowUp", "ArrowDown"],
       does: "Walk the visible page-map markers",
-      line: "walk the page map",
+      line: "walk the Page Map",
       repeat: true,
       when: () => focused()?.matches?.(".lf-margin-marker") && visibleRows().length > 0,
       run: (binding) => walkMarkers(binding === "ArrowDown" ? 1 : -1),
@@ -1711,13 +1735,13 @@ export function createLivingMargin({
     row.lfEntry = entry;
     keepsHidden(row, suppressed || markerKinds.length === 0 || Boolean(primary));
     keeps(row, "data-lf-kinds", markerKinds.map(({ kind }) => kind).join(" "));
-    marginElement(row, {
+    marginEntry(row, {
       key: `reading:${choice?.key ?? "none"}`,
       icon: face.icon,
       label,
       context: readingContext(choice),
       behavior,
-      role: "reading",
+      rank: "reading",
       state: readingState(choice),
       writesRelation: false,
       writesSeat: false,
@@ -1725,7 +1749,7 @@ export function createLivingMargin({
     row.onclick = behavior === "status" ? null : pressMarker;
     syncReadingRelation(row, choice);
     row.removeAttribute("aria-pressed");
-    syncMarginElementCount(row, markerCount);
+    syncMarginEntryCount(row, markerCount);
     if (row.lfTakeFocus) {
       delete row.lfTakeFocus;
       (row.hidden ? document.body : row).focus({ preventScroll: true });
@@ -1756,7 +1780,7 @@ export function createLivingMargin({
     if (!main || !target || panelWouldCover()) return;
     const perch = externalPerch(target, main, flow);
     let after = perch;
-    for (const entry of pageMapEntries) {
+    for (const entry of pageInventory) {
       const candidate = hosts.get(entry.key);
       if (candidate === host) break;
       if (
@@ -1776,23 +1800,23 @@ export function createLivingMargin({
       node.type = "button";
       controlProxies.set(control, node);
     }
-    const record = marginElementRecord(control);
-    marginElement(node, {
+    const record = marginEntryRecord(control);
+    marginEntry(node, {
       key: `${record.key}:proxy`,
       ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
       label: record.label,
       context: record.context,
       behavior: record.behavior,
       tone: record.tone,
-      role: record.role,
+      rank: record.rank,
       state: record.state,
       writesRelation: record.writesRelation,
     });
-    syncForwardedMarginElementState(node, control);
+    syncForwardedMarginEntryState(node, control);
     node.lfForwardedControl = control;
     // The proxy carries the control's press, so it carries where that control stands.
     standsWith(node, control);
-    keeps(node, "data-lf-margin-element-owner", record.owner);
+    keeps(node, "data-lf-margin-entry-owner", record.owner);
     node.onclick = () => {
       control.click();
     };
@@ -1801,22 +1825,22 @@ export function createLivingMargin({
 
   function readingOptionNode(entry, choice) {
     const key = readingKey(entry, choice);
-    let node = readingMarginElements.get(key);
+    let node = readingMarginEntries.get(key);
     if (!node) {
       node = readingControl("lf-margin-reading-option");
-      readingMarginElements.set(key, node);
+      readingMarginEntries.set(key, node);
     }
     const face = readingFace(choice);
     const behavior = readingBehavior(face);
     const count = choice.items.length;
     const label = count > 1 ? `${face.label}s` : face.label;
-    marginElement(node, {
+    marginEntry(node, {
       key: `reading:${choice.key}`,
       icon: face.icon,
       label,
       context: readingContext(choice),
       behavior,
-      role: "reading",
+      rank: "reading",
       state: readingState(choice),
       writesRelation: false,
     });
@@ -1829,7 +1853,7 @@ export function createLivingMargin({
       "aria-label",
       `${label} for ${entry.title}${count > 1 ? `, ${count} items` : ""}`,
     );
-    syncMarginElementCount(node, count);
+    syncMarginEntryCount(node, count);
     node.onclick =
       behavior === "status"
         ? null
@@ -1869,7 +1893,7 @@ export function createLivingMargin({
         controlsOf(offered)
           .filter((control) => entry.shownControls.has(control))
           .map((control) => ({ control, offered }))
-          .sort(compareMarginControlRecords)
+          .sort(compareMarginEntryRecords)
           .map(({ control }) => control),
       ),
     ];
@@ -1878,19 +1902,19 @@ export function createLivingMargin({
   function syncOptionGroup(group, entry, primary, optionsOpen, focusedOffer = null) {
     const allNodes = optionNodes(entry, primary, focusedOffer);
     const unique = [...new Set(allNodes)];
-    // Peers may use the whole cluster budget only when no margin element stands outside this
+    // Peers may use the whole cluster budget only when no margin entry stands outside this
     // group. Reaction mode is the common case: it has neither a primary nor a reading
     // marker, so its six declared choices fit exactly. A reading-only target keeps its
-    // marker visible, and that margin element counts just as a contributed primary would.
+    // marker visible, and that margin entry counts just as a contributed primary would.
     const peerCapacity = Math.max(
       0,
-      EXPANDED_MARGIN_ELEMENT_BUDGET -
+      EXPANDED_MARGIN_ENTRY_BUDGET -
         (!focusedOffer && (primary || markerFace(entry).kinds.length) ? 1 : 0),
     );
     const needsSpill = unique.length > peerCapacity;
-    // The spill route consumes the last visible margin element; it does not increase the
+    // The spill route consumes the last visible margin entry; it does not increase the
     // cluster beyond its budget. A fully expanded cluster is therefore either one
-    // primary plus five peers, or one primary plus four peers plus the Page map route.
+    // primary plus five peers, or one primary plus four peers plus the Page Map route.
     const visibleCapacity = needsSpill ? peerCapacity - 1 : peerCapacity;
     const hidden = Math.max(0, unique.length - visibleCapacity);
     const direct = unique.slice(0, visibleCapacity);
@@ -1900,7 +1924,7 @@ export function createLivingMargin({
         : null;
     // An open thread card keeps its owning Thread control on the page edge. When the
     // ordinary order would put it beyond the six-control budget, spill the last unrelated
-    // peer in its place; the Page map still retains every action in canonical order.
+    // peer in its place; the Page Map still retains every action in canonical order.
     if (forcedThread && direct.length && !direct.includes(forcedThread))
       direct[direct.length - 1] = forcedThread;
     const visible = new Set(direct);
@@ -1914,43 +1938,40 @@ export function createLivingMargin({
       (node) => visible.has(node) && !afterControls.has(node),
     );
     // Keep contributor-owned groups intact: their keyboard scopes and event handlers
-    // belong to the real controls. Overflow hides individual margin elements, not the owner.
+    // belong to the real controls. Overflow hides individual margin entries, not the owner.
     for (const offered of after) {
       const controls = controlsOf(offered);
       for (const control of controls)
-        control.toggleAttribute(
-          "data-lf-margin-element-overflow",
-          !visible.has(control),
-        );
+        control.toggleAttribute("data-lf-margin-entry-overflow", !visible.has(control));
       offered.controls.toggleAttribute(
-        "data-lf-margin-element-overflow",
+        "data-lf-margin-entry-overflow",
         !controls.some((control) => visible.has(control)),
       );
       wanted.push(offered.controls);
     }
-    let spill = spillMarginElements.get(entry.key);
+    let spill = spillMarginEntries.get(entry.key);
     if (needsSpill) {
       if (!spill) {
         spill = offer("button", "lf-margin-spill");
         spill.type = "button";
-        spillMarginElements.set(entry.key, spill);
+        spillMarginEntries.set(entry.key, spill);
       }
-      marginElement(spill, {
+      marginEntry(spill, {
         key: "all-options",
         icon: "all",
-        label: `Show ${hidden} more in Page map`,
+        label: `Show ${hidden} more in Page Map`,
         behavior: "disclosure",
-        role: "overflow",
+        rank: "overflow",
         state: "idle",
       });
       keeps(spill, "data-lf-spill-count", hidden);
       spill.lfFirstSpilledOption = unique.find((node) => !visible.has(node));
-      keeps(spill, "aria-label", `Show ${hidden} more in Page map`);
+      keeps(spill, "aria-label", `Show ${hidden} more in Page Map`);
       spill.onclick = () => openPageMap(entry, { invoker: spill, focusSpill: true });
       wanted.push(spill);
     } else if (spill) {
       spill.remove();
-      spillMarginElements.delete(entry.key);
+      spillMarginEntries.delete(entry.key);
     }
     for (const child of [...group.children])
       if (!wanted.includes(child)) child.remove();
@@ -1975,7 +1996,7 @@ export function createLivingMargin({
     const primary = focusedOffer ? null : syncControlRoles(entry);
     if (focusedOffer)
       for (const control of directControls(entry))
-        control.removeAttribute("data-lf-margin-element-primary");
+        control.removeAttribute("data-lf-margin-entry-primary");
     const controls = focusedOffer
       ? []
       : directOffers(entry)
@@ -2027,8 +2048,8 @@ export function createLivingMargin({
       const next =
         (forwardedControl?.checkVisibility() ? forwardedControl : null) ??
         primary ??
-        clusterMarginElements(options)[0] ??
-        clusterMarginElements(host)[0];
+        clusterMarginEntries(options)[0] ??
+        clusterMarginEntries(host)[0];
       (next ?? document.body).focus({ preventScroll: true });
     }
     return primary;
@@ -2059,7 +2080,7 @@ export function createLivingMargin({
       }
       keeps(host, "data-lf-margin-for", target.id || targetPath(target));
       host.lfTarget = target;
-      keeps(host, "aria-label", `Actions for ${itemWord(target)}`);
+      keeps(host, "aria-label", `Actions for ${addressableWord(target)}`);
       const controls = (side) =>
         offers
           .filter((offered) => offered.side === side)
@@ -2113,24 +2134,24 @@ export function createLivingMargin({
     expandedOptionsOwner = null;
     renderMargin.refresh();
     if (previousGroup?.querySelector(".lf-margin-reactions"))
-      document.dispatchEvent(new CustomEvent("lf-margin-element-options-closed"));
+      document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
   }
 
   function transferThreadCard(
     button,
-    { returnFocus = document.activeElement === previewMarginElement } = {},
+    { returnFocus = document.activeElement === previewMarginEntry } = {},
   ) {
-    if (previewMarginElement === button) return;
+    if (previewMarginEntry === button) return;
     resetThreadPreviewPosition();
-    previewMarginElement = button;
+    previewMarginEntry = button;
     if (returnFocus) button.focus({ preventScroll: true });
   }
 
   // Paper is not a posture this can be read in. Print hides every injected control
-  // (`[data-lf-offer]` in the chrome stylesheet's print block) and the living margin
+  // (`[data-lf-offer]` in the chrome stylesheet's print block) and the margin projection
   // with it, so the one contributor-visibility reading a render is built on comes back
   // empty: every cluster folds to nothing, and what has been written down is the medium
-  // rather than the page. Nobody sees it on the sheet, where the margin does not print
+  // rather than the page. Nobody sees it on the dialog, where the margin does not print
   // at all, but the fold outlives the print preview and stands on screen until the next
   // render repairs it. It is the panel's head-room rule on the other surface that
   // measures: a reading taken where the box is `display: none` is not a measurement. So
@@ -2140,33 +2161,33 @@ export function createLivingMargin({
   function renderNow() {
     if (onPaper.matches) return;
     const threadOwnerHeld =
-      transferThreadFocus || document.activeElement === previewMarginElement;
+      transferThreadFocus || document.activeElement === previewMarginEntry;
     transferThreadFocus = false;
     const main = document.querySelector("main");
     if (!nav.isConnected) chromeRoot.append(nav);
     const mainRect = main?.getBoundingClientRect();
     measureMargin(mainRect)?.();
     syncInlineOffers();
-    pageMapEntries = collectEntries().filter((entry) => entry.target);
+    pageInventory = collectEntries().filter((entry) => entry.target);
     // Read contributor visibility once for the whole render, before folding any
     // controls. Placement and option counts share this reading; probing again
     // temporarily unfolds controls and forces style/layout work for every row.
     const shownControls = new Set(
       controlsShownByOwner([
-        ...new Set(pageMapEntries.flatMap((entry) => entry.offers.flatMap(controlsOf))),
+        ...new Set(pageInventory.flatMap((entry) => entry.offers.flatMap(controlsOf))),
       ]),
     );
-    for (const entry of pageMapEntries) entry.shownControls = shownControls;
+    for (const entry of pageInventory) entry.shownControls = shownControls;
     const liveHosts = new Set(
-      pageMapEntries.filter(entryHasMarginHost).map((entry) => entry.key),
+      pageInventory.filter(entryHasMarginHost).map((entry) => entry.key),
     );
     const liveReadingKeys = new Set(
-      pageMapEntries.flatMap((entry) =>
+      pageInventory.flatMap((entry) =>
         readingChoices(entry).map((choice) => readingKey(entry, choice)),
       ),
     );
-    for (const key of readingMarginElements.keys())
-      if (!liveReadingKeys.has(key)) readingMarginElements.delete(key);
+    for (const key of readingMarginEntries.keys())
+      if (!liveReadingKeys.has(key)) readingMarginEntries.delete(key);
     if (expandedOptionsKey && !liveHosts.has(expandedOptionsKey)) {
       expandedOptionsKey = null;
       expandedOptionsOwner = null;
@@ -2177,17 +2198,17 @@ export function createLivingMargin({
         unregisterMarginRow(host);
         host?.remove();
         rows.delete(key);
-        moreMarginElements.delete(key);
-        spillMarginElements.delete(key);
+        moreMarginEntries.delete(key);
+        spillMarginEntries.delete(key);
         optionGroups.delete(key);
         hosts.delete(key);
       }
     const externalDocks = new Map();
     let corePosition = 0;
-    pageMapEntries.forEach((entry) => {
+    pageInventory.forEach((entry) => {
       if (!entryHasMarginHost(entry)) return;
       let marker = rows.get(entry.key);
-      let more = moreMarginElements.get(entry.key);
+      let more = moreMarginEntries.get(entry.key);
       let options = optionGroups.get(entry.key);
       let host = hosts.get(entry.key);
       if (host) host.lfEntry = entry;
@@ -2195,24 +2216,24 @@ export function createLivingMargin({
         host = el("div", "lf-ui lf-margin-cluster");
         host.dataset.lfGen = "1";
         host.setAttribute("role", "group");
-        marker = marginElement(readingControl("lf-margin-marker"), {
+        marker = marginEntry(readingControl("lf-margin-marker"), {
           key: "reading",
           icon: "dot",
           label: "Open page details",
           behavior: "disclosure",
-          role: "reading",
+          rank: "reading",
           writesRelation: false,
           writesSeat: false,
         });
-        keys(host, "In the page map", marginKeys, () => marginKeysAvailable);
+        keys(host, "In the Page Map", marginKeys, () => marginKeysAvailable);
         host.lfEntry = entry;
         rows.set(entry.key, marker);
-        more = marginElement(offer("button", "lf-margin-more"), {
+        more = marginEntry(offer("button", "lf-margin-more"), {
           key: "options",
           icon: "more",
           label: "More options",
           behavior: "disclosure",
-          role: "overflow",
+          rank: "overflow",
         });
         options = el("div", "lf-margin-options");
         options.id = `lf-margin-options-${++optionsOrdinal}`;
@@ -2226,7 +2247,7 @@ export function createLivingMargin({
           });
         };
         host.addEventListener("focusin", (event) => {
-          const control = event.target.closest?.(".lf-margin-element");
+          const control = event.target.closest?.(".lf-margin-entry");
           if (
             settlingOptionsFocus ||
             suppressingOptionsArrival ||
@@ -2256,7 +2277,7 @@ export function createLivingMargin({
         const takePointerOwnership = (event) => {
           const control = document
             .elementFromPoint(event.clientX, event.clientY)
-            ?.closest?.(".lf-margin-element");
+            ?.closest?.(".lf-margin-entry");
           hoveredHost = control && host.contains(control) ? host : null;
           refreshHighlight();
         };
@@ -2286,12 +2307,12 @@ export function createLivingMargin({
           "click",
           (event) => {
             if (!expandedOptionsKey || entryEngaged(host.lfEntry)) return;
-            const primary = event.target.closest?.("[data-lf-margin-element-primary]");
+            const primary = event.target.closest?.("[data-lf-margin-entry-primary]");
             if (primary && host.contains(primary)) setOptionsOpen(host.lfEntry, false);
           },
           { capture: true },
         );
-        moreMarginElements.set(entry.key, more);
+        moreMarginEntries.set(entry.key, more);
         optionGroups.set(entry.key, options);
         hosts.set(entry.key, host);
         registerMarginRow(host, markerOptions(host));
@@ -2321,11 +2342,11 @@ export function createLivingMargin({
       });
     });
     // Geometry is one read-only batch after every row has reconciled. Reading a target
-    // between two marker writes forced one full document layout per Page-map entry —
+    // between two marker writes forced one full document layout per Page Map entry —
     // including on the two-second heartbeat. The spoken positions use the main rect
     // already read above and one final scroll height, then write every name together.
     const mainHeight = main?.scrollHeight ?? 0;
-    const positions = pageMapEntries.map((entry) =>
+    const positions = pageInventory.map((entry) =>
       entry.target && !readingRegionFor(entry.target) && mainRect && mainHeight
         ? Math.round(
             ((entry.target.getBoundingClientRect().top - mainRect.top) / mainHeight) *
@@ -2333,7 +2354,7 @@ export function createLivingMargin({
           )
         : null,
     );
-    const walked = pageMapEntries
+    const walked = pageInventory
       .map((entry, index) => ({ entry, position: positions[index] }))
       .filter(({ entry }) => entryHasMarginHost(entry));
     walked.forEach(({ entry, position }, index) => {
@@ -2341,22 +2362,22 @@ export function createLivingMargin({
       const name = markerName(entry, index, walked.length, position);
       keeps(marker, "aria-label", name);
     });
-    renderPageMap(pageMapEntries);
-    keepsHidden(nav, pageMapEntries.length === 0);
-    keeps(nav, "aria-label", `Page map, ${pageMapEntries.length} locations`);
+    renderPageMapDialog(pageInventory);
+    keepsHidden(nav, pageInventory.length === 0);
+    keeps(nav, "aria-label", `Page Map, ${pageInventory.length} locations`);
     if (previewEntry) {
-      const fresh = pageMapEntries.find((entry) => entry.key === previewEntry.key);
+      const fresh = pageInventory.find((entry) => entry.key === previewEntry.key);
       if (!fresh || !fresh.items.some((item) => item.kind === "comment"))
         closePreview(preview.contains(document.activeElement));
       else {
         previewEntry = fresh;
-        const owner = threadMarginElement(fresh);
+        const owner = threadMarginEntry(fresh);
         if (
           owner &&
           !owner.checkVisibility() &&
           forcedInlineKey !== fresh.key &&
           expandedOptionsKey !== fresh.key &&
-          !moreMarginElements.get(fresh.key)?.hidden
+          !moreMarginEntries.get(fresh.key)?.hidden
         ) {
           transferThreadFocus = threadOwnerHeld;
           unfoldOpenThreadOwner(fresh);
@@ -2369,7 +2390,7 @@ export function createLivingMargin({
           buildThreadCard(fresh);
           for (const row of rows.values())
             syncReadingRelation(row, primaryReading(row.lfEntry));
-          for (const reading of readingMarginElements.values())
+          for (const reading of readingMarginEntries.values())
             syncReadingRelation(reading, reading.lfChoice);
         }
       }
@@ -2377,35 +2398,42 @@ export function createLivingMargin({
     refreshHighlight();
     scheduleMarginLayout();
     scheduleRoving();
-    scheduleMarginElementLabels();
-    // Every Page-map host contributes the same keyboard section. Its capability is the
+    scheduleMarginEntryLabels();
+    // Every Page Map host contributes the same keyboard section. Its capability is the
     // map's existence; each row already asks the narrower question of whether its press
     // works from the current focus. Repeating live geometry in every scope's `when`
     // forced a layout per location when paintKeys reflected them.
-    marginKeysAvailable = pageMapEntries.length > 0;
+    marginKeysAvailable = pageInventory.length > 0;
     paintKeys();
   }
 
-  function buildThreadCard(entry) {
+  function buildThreadCard(entry, requestedItem = null) {
     const focusedNode = preview.contains(document.activeElement)
-      ? document.activeElement.closest?.("[data-lf-margin-element]")
+      ? document.activeElement.closest?.("[data-lf-margin-entry]")
       : null;
-    const focusedItem = focusedNode?.dataset.lfMarginElement ?? null;
+    const focusedItem = focusedNode?.dataset.lfMarginEntry ?? null;
     const threadItems = entry.items.filter((item) => item.kind === "comment");
+    const wanted = requestedItem ?? previewThreadItem ?? focusedItem;
+    const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
+    previewThreadItem = selected?.id ?? null;
     const targetHeading = entry.target?.querySelector(":scope > strong")?.textContent;
     // A target with a heading is named by it. One without — an aside, a paragraph —
-    // and holding one thread is headed by the passage that thread quotes, as the panel
-    // heads it: a card headed "aside · The fallback cookie is read-only…" over a comment
-    // on the aside's last sentence was a third name for one thread, and the least exact.
-    const quoted =
-      threadItems.length === 1 && threadItems[0].thread?.anchor
-        ? anchorLabel(threadItems[0].thread.anchor, threadItems[0].thread.root.about)
-        : null;
+    // is headed by the passage the selected thread quotes, as the panel heads it: a card
+    // headed "aside · The fallback cookie is read-only…" over a comment on the aside's
+    // last sentence was a third name for one thread, and the least exact.
+    const quoted = selected?.thread?.anchor
+      ? anchorLabel(selected.thread.anchor, selected.thread.root.about)
+      : null;
     const title = trimmed(targetHeading || quoted || entry.title, 72);
     keeps(preview, "data-lf-thread", "");
-    keeps(preview, "aria-label", `Thread for ${title}`);
+    keeps(preview, "aria-label", `Conversation for ${title}`);
     previewTitle.textContent = title;
-    const nodes = threadItems.map(previewItemNode);
+    previewNav.hidden = threadItems.length < 2;
+    const selectedIndex = Math.max(0, threadItems.indexOf(selected));
+    previewPosition.textContent = `${selectedIndex + 1} of ${threadItems.length}`;
+    previewPrevious.disabled = selectedIndex === 0;
+    previewNext.disabled = selectedIndex === threadItems.length - 1;
+    const nodes = selected ? [previewItemNode(selected)] : [];
     const keep = new Set(nodes);
     for (const child of [...previewList.children]) if (!keep.has(child)) child.remove();
     let cursor = previewList.firstChild;
@@ -2415,21 +2443,35 @@ export function createLivingMargin({
     }
     if (focusedItem && !focusedNode?.isConnected) {
       const replacement = [
-        ...previewList.querySelectorAll("[data-lf-margin-element]"),
-      ].find((candidate) => candidate.dataset.lfMarginElement === focusedItem);
+        ...previewList.querySelectorAll("[data-lf-margin-entry]"),
+      ].find((candidate) => candidate.dataset.lfMarginEntry === focusedItem);
       const destination = replacement?.matches("button, textarea:not([disabled])")
         ? replacement
-        : (replacement?.querySelector("textarea:not([disabled])") ??
-          replacement?.querySelector("button") ??
+        : (replacement?.querySelector(".lf-conversation-thread") ??
+          previewList.querySelector(".lf-conversation-thread") ??
           previewClose);
       destination.focus({ preventScroll: true });
     }
     placeThreadPreview();
   }
 
+  function stepPreviewThread(step) {
+    if (!previewEntry) return;
+    const threadItems = previewEntry.items.filter((item) => item.kind === "comment");
+    const current = threadItems.findIndex((item) => item.id === previewThreadItem);
+    const next = Math.max(0, Math.min(threadItems.length - 1, current + step));
+    if (next === current || !threadItems[next]) return;
+    buildThreadCard(previewEntry, threadItems[next].id);
+    const thread = previewList.querySelector(".lf-conversation-thread");
+    if (thread) {
+      thread.focus({ preventScroll: true });
+      revealConversation(thread, thread);
+    }
+  }
+
   function previewItemNode(item) {
     let node = [...previewList.children].find(
-      (candidate) => candidate.dataset.lfMarginElement === item.id,
+      (candidate) => candidate.dataset.lfMarginEntry === item.id,
     );
     if (!node?.classList.contains("lf-margin-thread")) {
       node?.remove();
@@ -2441,7 +2483,7 @@ export function createLivingMargin({
       node.querySelector(":scope > .lf-margin-thread-body"),
       item.thread,
     );
-    node.dataset.lfMarginElement = item.id;
+    node.dataset.lfMarginEntry = item.id;
     return node;
   }
 
@@ -2462,7 +2504,7 @@ export function createLivingMargin({
       (preview.contains(active) || preview.matches(":popover-open")
         ? hosts.get(previewEntry?.key)
         : null);
-    const entry = pageMapEntries.find(
+    const entry = pageInventory.find(
       (candidate) => candidate.key === source?.lfEntry?.key,
     );
     // A drawing already marks this target on the page. When every item at the location
@@ -2475,13 +2517,13 @@ export function createLivingMargin({
     highlight(drawingOnly ? null : (entry?.target ?? null));
   }
 
-  function showPreview(entry, button, retry = true) {
-    if (!entry || designIsOn()) return;
+  function showPreview(entry, button, retry = true, threadItem = null) {
+    if (!entry || designModeActive()) return;
     if (forcedInlineKey && forcedInlineKey !== entry.key) forcedInlineKey = null;
     if (previewEntry && previewEntry.key !== entry.key) clearThreadTransition();
     previewEntry = entry;
     transferThreadCard(button);
-    buildThreadCard(entry);
+    buildThreadCard(entry, threadItem);
     // The open pseudo-class is not observable until the browser's show operation
     // completes, and another auto popover may still be closing in this rendering turn.
     if (!preview.matches(":popover-open") && !previewShowing) {
@@ -2495,12 +2537,12 @@ export function createLivingMargin({
         // Chromium also refuses a second popover operation in the same rendering turn,
         // even when it belongs to another surface. Keep the requested marker current and
         // try the show once that turn has settled; a focus move meanwhile cancels it, and
-        // focus remains a usable Page-map arrival if the browser still refuses the preview.
+        // focus remains a usable Page Map arrival if the browser still refuses the preview.
         if (!(error instanceof DOMException) || error.name !== "InvalidStateError")
           throw error;
         if (retry)
           requestAnimationFrame(() => {
-            if (previewMarginElement === button && button.isConnected)
+            if (previewMarginEntry === button && button.isConnected)
               showPreview(entry, button, false);
           });
         else answerThreadPreviewPosition(false);
@@ -2513,38 +2555,39 @@ export function createLivingMargin({
     refreshHighlight();
     for (const row of rows.values())
       syncReadingRelation(row, primaryReading(row.lfEntry));
-    for (const button of readingMarginElements.values())
+    for (const button of readingMarginEntries.values())
       syncReadingRelation(button, button.lfChoice);
     paintKeys();
     return positioned;
   }
 
   function togglePinned(entry, button) {
-    if (pinnedKey === entry.key && previewMarginElement === button) {
+    if (pinnedKey === entry.key && previewMarginEntry === button) {
       pinnedKey = null;
       closePreview();
       return;
     }
     pinnedKey = entry.key;
     const positioned = showPreview(entry, button);
-    if (previewList.querySelector("textarea"))
+    if (previewList.querySelector(".lf-conversation-thread"))
       deferThreadPreviewFocus(positioned, () => {
         if (previewEntry?.key !== entry.key) return;
-        const reply = previewList.querySelector("textarea");
-        if (!reply) return;
-        reply.focus({ preventScroll: true });
-        revealConversation(reply.closest(".lf-conversation-thread"), reply);
+        const thread = previewList.querySelector(".lf-conversation-thread");
+        if (!thread) return;
+        thread.focus({ preventScroll: true });
+        revealConversation(thread, thread);
       });
   }
 
   function closePreview(returnFocus = false) {
     clearThreadTransition();
-    const button = previewMarginElement;
+    const button = previewMarginEntry;
     pinnedKey = null;
     forcedInlineKey = null;
     forcedInlineOptionsKey = null;
     previewEntry = null;
-    previewMarginElement = null;
+    previewThreadItem = null;
+    previewMarginEntry = null;
     previewFocusPending = null;
     answerThreadPreviewPosition(false);
     resetThreadPreviewPosition();
@@ -2552,7 +2595,7 @@ export function createLivingMargin({
     refreshHighlight();
     for (const row of rows.values())
       syncReadingRelation(row, primaryReading(row.lfEntry));
-    for (const reading of readingMarginElements.values())
+    for (const reading of readingMarginEntries.values())
       syncReadingRelation(reading, reading.lfChoice);
     if (returnFocus) {
       if (button?.isConnected && button.checkVisibility())
@@ -2562,7 +2605,7 @@ export function createLivingMargin({
     paintKeys();
   }
 
-  // The card and its owning margin element cluster are one page-map stack even though the card
+  // The card and its owning margin entry cluster are one page-map stack even though the card
   // is hoisted into the chrome. Expose the current rung to the one keyboard register so
   // it can stand ahead of reaction and navigation modes, preserving the local surface's
   // old order without another keydown listener. One press closes only the deepest rung.
@@ -2573,12 +2616,12 @@ export function createLivingMargin({
       preview.matches(":popover-open") &&
       (!atFocus ||
         preview.contains(active) ||
-        (previewMarginElement && host?.contains(previewMarginElement)))
+        (previewMarginEntry && host?.contains(previewMarginEntry)))
     )
       return {
         root: preview,
-        does: "Close the thread card",
-        says: "close thread",
+        does: "Dismiss the conversation view",
+        says: "dismiss conversation",
         out: () => closePreview(true),
       };
     const optionsHost = atFocus ? host : hosts.get(expandedOptionsKey);
@@ -2600,7 +2643,7 @@ export function createLivingMargin({
     const landsOnTarget = focusMap && !entryHasMarginHost(entry);
     if (focusMap && !landsOnTarget) focusMapControl(entry);
     item.activate();
-    // A Page-map-only location has no margin control to receive the handoff. Reveal its
+    // A Page Map-only location has no margin entry to receive the handoff. Reveal its
     // target first, then lend that authored element a programmatic tab stop so keyboard
     // focus and the visible arrival name the same place.
     if (landsOnTarget && entry.target?.isConnected) focusDestination(entry.target);
@@ -2620,10 +2663,10 @@ export function createLivingMargin({
 
   function openInlineThread(id, transition = null, onPositioned = null) {
     const itemId = marginThreadItem(threadList().find((t) => t.root.id === id));
-    const entry = pageMapEntries.find((candidate) =>
+    const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
     );
-    if (!entry || designIsOn() || panelIsOpen()) return null;
+    if (!entry || designModeActive() || panelIsOpen()) return null;
     const choice = threadReading(entry);
     if (!choice) return null;
     const previousForcedOptionsKey = forcedInlineOptionsKey;
@@ -2639,13 +2682,13 @@ export function createLivingMargin({
     }
     if (previousForcedOptionsKey && expandedOptionsKey === previousForcedOptionsKey)
       setOptionsOpen(null, false, { preservePreview: transfersPreview });
-    let button = threadMarginElement(entry);
+    let button = threadMarginEntry(entry);
     if (!button?.checkVisibility()) {
       forcedInlineOptionsKey = expandedOptionsKey === entry.key ? null : entry.key;
       if (forcedInlineOptionsKey)
         setOptionsOpen(entry, true, { preservePreview: transfersPreview });
       else renderMargin.refresh();
-      button = threadMarginElement(entry);
+      button = threadMarginEntry(entry);
     }
     if (!button?.isConnected) {
       const optionsKey = forcedInlineOptionsKey;
@@ -2656,9 +2699,9 @@ export function createLivingMargin({
       return null;
     }
     pinnedKey = entry.key;
-    const initiallyPositioned = showPreview(entry, button);
+    const initiallyPositioned = showPreview(entry, button, true, itemId);
     const item = [...previewList.children].find(
-      (candidate) => candidate.dataset.lfMarginElement === itemId,
+      (candidate) => candidate.dataset.lfMarginEntry === itemId,
     );
     item?.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
     const thread = item?.querySelector(".lf-conversation-thread") ?? null;
@@ -2668,7 +2711,7 @@ export function createLivingMargin({
     if (thread && onPositioned)
       deferThreadPreviewFocus(positioned, () => {
         const current = [...previewList.children]
-          .find((candidate) => candidate.dataset.lfMarginElement === itemId)
+          .find((candidate) => candidate.dataset.lfMarginEntry === itemId)
           ?.querySelector(".lf-conversation-thread");
         if (current) onPositioned(current);
       });
@@ -2676,7 +2719,7 @@ export function createLivingMargin({
   }
 
   // A route that starts on the page stays on the page while that thread has an inline
-  // address. Widget-local surfaces are already rendered, while a living-margin thread is
+  // destination. Widget-local surfaces are already rendered, while a margin-projection thread is
   // opened on demand. Threads remains the complete fallback for a detached or otherwise
   // unaddressable conversation. Callers choose only the landing within the conversation;
   // this function owns the surface choice so a mark, its accessibility note, and t/T
@@ -2736,11 +2779,10 @@ export function createLivingMargin({
   // moved the rows, and the card follows in that same frame, so a reader never sees it
   // standing above or below where its controls used to be.
 
-  const marginElementChoices = (target) =>
-    clusterMarginElements(marginElementHost(target));
-  const unfoldedMarginElements = () =>
+  const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));
+  const unfoldedMarginEntries = () =>
     expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
-  const foldMarginElementOptions = () => setOptionsOpen(null, false);
+  const foldMarginEntryOptions = () => setOptionsOpen(null, false);
   const activeInlineThread = () => {
     const active = focused();
     const direct = active?.closest?.(".lf-conversation-thread[data-thread]");
@@ -2760,7 +2802,7 @@ export function createLivingMargin({
       ".lf-margin-thread .lf-conversation-thread",
     );
     const pending = previewFocusPending?.key === previewEntry.key;
-    if (!pending && active !== previewMarginElement) return null;
+    if (!pending && active !== previewMarginEntry) return null;
     return conversations.length === 1 ? conversations[0] : null;
   };
 
@@ -2773,24 +2815,29 @@ export function createLivingMargin({
       if (!onPaper.matches) renderMargin.refresh();
     });
     previewClose.onclick = () => closePreview(true);
+    previewPrevious.onclick = () => stepPreviewThread(-1);
+    previewNext.onclick = () => stepPreviewThread(1);
     preview.addEventListener("focusin", keepThreadPreviewFocusVisible);
     preview.addEventListener("toggle", (event) => {
       if (event.newState !== "closed") return;
+      for (const reply of previewList.querySelectorAll("textarea"))
+        reply.lfCollapseReply?.();
       clearThreadTransition();
       if (!previewEntry) return;
-      const button = previewMarginElement;
+      const button = previewMarginEntry;
       pinnedKey = null;
       forcedInlineKey = null;
       forcedInlineOptionsKey = null;
       previewEntry = null;
-      previewMarginElement = null;
+      previewThreadItem = null;
+      previewMarginEntry = null;
       previewFocusPending = null;
       answerThreadPreviewPosition(false);
       resetThreadPreviewPosition();
       refreshHighlight();
       for (const row of rows.values())
         syncReadingRelation(row, primaryReading(row.lfEntry));
-      for (const reading of readingMarginElements.values())
+      for (const reading of readingMarginEntries.values())
         syncReadingRelation(reading, reading.lfChoice);
       paintKeys();
     });
@@ -2799,10 +2846,10 @@ export function createLivingMargin({
     document.addEventListener("lf-comparison", renderMargin);
     document.addEventListener("lf-margin-layout", () => {
       placeThreadPreview();
-      scheduleMarginElementLabels();
+      scheduleMarginEntryLabels();
     });
     for (const event of ["pointerover", "focusin"])
-      document.addEventListener(event, scheduleMarginElementLabels, { capture: true });
+      document.addEventListener(event, scheduleMarginEntryLabels, { capture: true });
     document.addEventListener(
       "pointerdown",
       (event) => {
@@ -2846,20 +2893,20 @@ export function createLivingMargin({
     threadTransitionOrigin,
     scheduleThreadPreviewPosition,
     marginTargetAt,
-    marginElementContextContains,
+    marginEntryContextContains,
     focusForNavigation,
     presentedControl,
-    openMarginElementOptions,
-    visibleMarginElements,
-    marginElementKind,
-    activateMarginElement,
+    openMarginEntryOptions,
+    visibleMarginEntries,
+    marginEntryKind,
+    activateMarginEntry,
     closePreview,
     keyboardRung,
     openInlineThread,
     openPageThread,
-    marginElementChoices,
-    unfoldedMarginElements,
-    foldMarginElementOptions,
+    marginEntryChoices,
+    unfoldedMarginEntries,
+    foldMarginEntryOptions,
     activeInlineThread,
     mount,
   };

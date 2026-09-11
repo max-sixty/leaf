@@ -34,8 +34,18 @@ _UPLOAD_TYPES = {
 }
 
 
+def media_name(data: bytes, suffix: str) -> str:
+    """The one name a page's media directory gives these bytes.
+
+    A caller that needs an image's public path before the page holds it — the site
+    build naming a social image it has already published — derives it here rather
+    than restating the digest rule.
+    """
+    return hashlib.sha256(data).hexdigest()[:16] + suffix
+
+
 def _store_media(page_dir: Path, data: bytes, suffix: str) -> str:
-    name = hashlib.sha256(data).hexdigest()[:16] + suffix
+    name = media_name(data, suffix)
     media_dir = page_dir / MEDIA_DIR
     target = media_dir / name
     # The short digest is the public format already carried by page histories. Serialize

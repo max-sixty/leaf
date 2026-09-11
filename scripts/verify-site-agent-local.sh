@@ -29,7 +29,7 @@ cp "$repo_root/worker/codex-config.toml" "$clean_codex_home/config.toml"
 cp "$host_codex_home/auth.json" "$clean_codex_home/auth.json"
 chmod 600 "$clean_codex_home/auth.json"
 
-CODEX_HOME="$clean_codex_home" LEAF_SITE_ROOT="$site_root" LEAF_AGENT_EPHEMERAL=1 \
+CODEX_HOME="$clean_codex_home" LEAF_SITE_ROOT="$site_root" \
   uv run --project "$repo_root" \
   python "$repo_root/worker/server.py" >"$log" 2>&1 &
 server=$!

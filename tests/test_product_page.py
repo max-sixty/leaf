@@ -1,6 +1,7 @@
 """The product pages are Leaf documents using the site's composed vocabulary."""
 
 import html
+import importlib.util
 import json
 import re
 import shlex
@@ -13,12 +14,21 @@ from click.testing import CliRunner
 from jsonschema import Draft202012Validator
 from leaf import cli as cli_model
 from leaf.registry import validation as registry_validation
+from leaf.structure import parse_structure
 from leaf.validation import compatibility as validation_model
+from PIL import Image
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "skills" / "leaf" / "assets"
 DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
+EXAMPLES = ROOT / "examples"
+
+_record_demo_spec = importlib.util.spec_from_file_location(
+    "record_demo", ROOT / "scripts" / "record-demo.py"
+)
+record_demo = importlib.util.module_from_spec(_record_demo_spec)
+_record_demo_spec.loader.exec_module(record_demo)
 
 
 def test_kernel_event_contracts_declare_closed_records():
@@ -52,6 +62,34 @@ def test_docs_pages_use_the_leaf_document_scaffold():
         assert text.count('<script type="module" src="/leaf.js"') == 1, page.name
         assert text.count("Content-Security-Policy") == 1, page.name
         assert '<body class="site-page' in text, page.name
+
+
+def test_every_published_source_says_what_its_page_is():
+    """A search result and an unfurled link show the title and the description.
+
+    The build composes the rest of a page's card from these two and refuses a page
+    without them, so the failure this catches is one that would stop a deploy.
+    """
+    sources = [
+        *DOCS.glob("*.html"),
+        *(page for page in EXAMPLES.glob("*.html") if page.stem != "corpus"),
+        EXAMPLES / "developer" / "feature-gallery.html",
+    ]
+    descriptions = {}
+    for page in sorted(sources):
+        parsed = parse_structure(page.read_text())
+        described = [
+            meta["content"]
+            for meta in parsed.named_metas
+            if meta["name"] == "description"
+        ]
+        assert parsed.title.strip(), page.name
+        assert len(described) == 1, page.name
+        assert described[0].strip(), page.name
+        descriptions[page.name] = described[0]
+    # A description repeated across pages tells a reader nothing about which one
+    # they found, and search engines fold the duplicates together.
+    assert len(set(descriptions.values())) == len(descriptions)
 
 
 def test_docs_pages_use_only_registered_widgets():
@@ -183,6 +221,25 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     )
 
 
+def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():
+    class FailedWait:
+        returncode = 2
+
+        def communicate(self, *, timeout):
+            assert timeout == 10
+            return "", "the page closed while waiting\n"
+
+    waiter = object.__new__(record_demo.DemoWaiter)
+    waiter.process = FailedWait()
+
+    with pytest.raises(
+        RuntimeError,
+        match="the demo waiter exited 2 with 0 page batches instead of one\\n"
+        "the page closed while waiting",
+    ):
+        waiter.receive()
+
+
 @pytest.mark.nightly
 def test_demo_recording_drives_the_browser_journey(tmp_path):
     output = tmp_path / "demo.gif"
@@ -204,3 +261,13 @@ def test_demo_recording_drives_the_browser_journey(tmp_path):
     )
     assert recorded.stdout.strip() == f"Recorded {output}"
     assert output.read_bytes().startswith(b"GIF89a")
+    # One staged scene, photographed for each surface that shows it: the landing
+    # page's figure in both schemes, and the card, at the 1.91:1 an unfurler draws.
+    # Shot at that shape rather than cropped to it, so the banner survives the trip.
+    for name, size in (
+        ("session-light.png", (1280, 953)),
+        ("session-dark.png", (1280, 953)),
+        ("session-card.png", (1200, 630)),
+    ):
+        with Image.open(output.parent / name) as still:
+            assert still.size == size, name

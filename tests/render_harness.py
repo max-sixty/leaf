@@ -884,7 +884,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
         "properties": {"id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}},
         "required": ["id"],
         "additionalProperties": False,
-        "x-content": "prose",
+        "x-content": "markup",
         "x-upgrade": upgrade,
         "x-example": f'<{tag} id="{tag.removeprefix("lf-")}-example">Example</{tag}>',
     }
@@ -901,7 +901,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
             "  border: 1px solid var(--rule);\n"
             "  border-radius: var(--r);\n"
             "  background: var(--card);\n"
-            "  --lf-frame: 1;\n"
+            "  --lf-block-frame: 1;\n"
             "}\n"
         )
     if upgrade:
@@ -936,7 +936,7 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
 # before the browser has reported the request is a wait on a page that has not started
 # moving.
 #
-# The line answers about room as well as about liveness: renderLine drops chips from the
+# The line answers about room as well as about liveness: renderShortcutBar drops chips from the
 # end when the window is too narrow to hold them, and the end is the outside of the
 # stack, where a page-level key like this one sits. So the wait needs the suite's
 # default 1200×900 or something near it; under a viewport set narrow on purpose it would
@@ -1497,7 +1497,7 @@ def panel_settled(page, open=True):
     test has stopped. Finishing polls because the carry starts in the gesture's own
     task: one that has not been made yet is finished on the next turn."""
     page.wait_for_function(
-        "(open) => document.querySelector('.lf-panel').classList.contains('open') === open",
+        "(open) => document.querySelector('.lf-thread-panel').classList.contains('open') === open",
         arg=open,
     )
     page.wait_for_function(

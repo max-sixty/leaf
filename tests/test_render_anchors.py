@@ -391,10 +391,10 @@ def test_quotes_cross_preserving_containers_and_remain_attached(
     </lf-ask>"""
     content = (
         f"""<lf-workspace id="workspace">
-          <lf-split id="split" direction="rows">
+          <lf-partition id="split" direction="rows">
             <lf-pane id="decision-pane" label="Decision">{ask}</lf-pane>
             <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
-          </lf-split>
+          </lf-partition>
         </lf-workspace>"""
         if workspace
         else ask
@@ -548,7 +548,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
 
 
 def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serve):
-    """A drag around a target offers Comment without deadening its margin elements.
+    """A drag around a target offers Comment without deadening its margin entries.
 
     The browser's native selection remains available while an exposed pointer action
     and a direct keyboard action both work."""
@@ -648,11 +648,7 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
     accept = page.locator("[data-lf-for='sug-refill'] .lf-sug-accept")
     if route == "g":
         page.keyboard.press("g")
-        page.keyboard.type(
-            address_code(
-                page, "Margin control or status indicator", "sug-refill", "accept"
-            )
-        )
+        page.keyboard.type(address_code(page, "Margin entry", "sug-refill", "accept"))
     else:
         accept.focus()
         page.keyboard.press(route)
@@ -743,20 +739,20 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     # single frame that cannot hold both.
     page.keyboard.press("c")
     page.locator("#tq-one .lf-pick").first.focus()
-    picked = page.locator("#tq-one .lf-address").first
+    picked = page.locator("#tq-one .lf-key-badge").first
     expect(picked).to_be_visible()
-    option = faces(page, "#tq-one .lf-address")[0]
+    option = faces(page, "#tq-one .lf-key-badge")[0]
     page.keyboard.press("g")
-    addressed = page.locator(CHIPS).first.locator("kbd").last
-    expect(addressed).to_be_visible()
-    assert addressed.get_attribute("data-lf-key-state") == "neutral"
+    sequence_step = page.locator(CHIPS).first.locator("kbd").last
+    expect(sequence_step).to_be_visible()
+    assert sequence_step.get_attribute("data-lf-sequence-step-state") == "neutral"
     sequence, legend = faces(
         page,
         f"{CHIPS} kbd:last-child",
-        '.lf-shortcut-bar .lf-key[data-lf-commands~="navigation.target"] kbd:last-child',
+        '.lf-shortcut-bar .lf-shortcut[data-lf-command-ids~="navigation.target"] kbd:last-child',
     )
 
-    # The option's address and the sequence's letter keep one physical key face. Both are
+    # The option's binding badge and the sequence's letter keep one physical key face. Both are
     # ordinary available bindings, so geometry and emphasis stay the same.
     assert option["key"] == sequence["key"], (
         "one physical key has two geometries:\n  "
@@ -769,14 +765,14 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     assert "mono" in option["key"]["font-family"]
     assert option["emphasis"] == sequence["emphasis"] == legend["emphasis"]
 
-    # Item selection uses letters rather than digits, but it names the same physical
-    # keys. Closing the address sequence and opening selection must not reveal a fourth face.
+    # Target chooser uses letters rather than digits, but it names the same physical
+    # keys. Closing the Go-to sequence and opening selection must not reveal a fourth face.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-goto-targets .lf-target-hint")).to_have_count(0)
+    expect(page.locator(".lf-go-to-hints .lf-go-to-hint")).to_have_count(0)
     page.keyboard.press("s")
     # With the go-to surface gone, compare an available selection key with the option
     # and sequence's neutral state.
-    selection_key = '.lf-targets .lf-target-hint kbd[data-lf-key-state="neutral"]'
+    selection_key = '.lf-target-chooser-hints .lf-target-chooser-hint kbd[data-lf-sequence-step-state="neutral"]'
     hint = page.locator(selection_key).first
     expect(hint).to_be_visible()
     # The standing paint can replace the hint layer between browser round trips. Read
@@ -965,7 +961,7 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     resized(page, 1400, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    card = page.locator(".lf-panel .lf-quote").first
+    card = page.locator(".lf-thread-panel .lf-quote").first
     expect(card).to_be_visible()
     into = card.bounding_box()
     # A paragraph level with the thread's quoted words, so the overshoot is sideways:
@@ -1051,7 +1047,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
     page.wait_for_function(
         f"() => document.querySelectorAll('.lf-thread').length === {len(forms)}"
     )
-    stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
+    stranded = page.locator(".lf-thread-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"quotes naming a passage that is right there: {stranded}"
 
     # The elasticity runs one way only. A quote is free to have gaps the page lacks; a
@@ -1070,7 +1066,7 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
     page.wait_for_function(
         f"() => document.querySelectorAll('.lf-thread').length === {len(forms) + 1}"
     )
-    assert page.locator(".lf-panel .lf-quote.detached").count() == 1, (
+    assert page.locator(".lf-thread-panel .lf-quote.detached").count() == 1, (
         "a quote gluing two of the page's words together still found a passage"
     )
 
@@ -1179,7 +1175,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#p").scroll_into_view_if_needed()
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
 
     # And the composer's own mark belongs to no thread, so it opens nothing. Its first
     # range runs up to the posted one, so this lands on the draft and nothing else.
@@ -1190,7 +1186,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
         "() => document.querySelector('.lf-composer').style.display === 'contents'"
     )
     page.mouse.click(*mark_point(page, "lf-pending"))
-    assert not page.locator(".lf-panel").evaluate(
+    assert not page.locator(".lf-thread-panel").evaluate(
         "el => el.classList.contains('open')"
     ), (
         "clicking the composer's own highlight opened the panel, but it belongs to no thread"
@@ -1223,7 +1219,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
         },
     )
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    if page.locator(".lf-panel.open").count():
+    if page.locator(".lf-thread-panel.open").count():
         page.get_by_role("button", name="Close threads").click()
         panel_settled(page, open=False)
 
@@ -1232,7 +1228,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.click(spot["x"], spot["y"])
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     expect(
         page.locator(".lf-fab-input"),
         "the click opened the thread and then offered to comment on it as well",
@@ -1388,7 +1384,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     # when its next poll asks.
     told(page)
     expect(page.locator(".lf-thread")).to_have_count(1)
-    expect(page.locator(".lf-panel .lf-quote.detached")).to_have_count(0)
+    expect(page.locator(".lf-thread-panel .lf-quote.detached")).to_have_count(0)
     # The mark is a painted range, so what it covers is read back off CSS.highlights
     # rather than off the DOM.
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -1416,7 +1412,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
         '# c\ncd x && ls -la | grep "a b" > /dev/null\n',
         '{"a": [1, 2, {"b": null}], "c": "<>&"}\n',
         "@@ -1 +1 @@\n-a <b>\n+c &d\n",
-        "SELECT * FROM t WHERE a = 'x''y'; -- note\n",
+        "TARGET_CHOOSER_SCOPE * FROM t WHERE a = 'x''y'; -- note\n",
         '<!doctype html>\n<a href="x?a=1&b=2">t &amp; u</a>\n',
     ]
     bad = page.evaluate(
@@ -2235,7 +2231,7 @@ def test_a_widgets_native_control_names_the_press_the_platform_makes(browser, se
     press is real, the reader can make it, and no surface says so.
 
     A widget may still declare the meaning of a native press when that meaning is worth
-    naming in Leaf's keyboard reference. The row describes the platform fact without
+    naming in Leaf's command reference. The row describes the platform fact without
     reimplementing it.
 
     The two differ in what they answer, and saying so is the point: a <summary> is
@@ -2332,7 +2328,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
         )
     page.locator(".lf-threads-toggle").click()
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
-    stranded = page.locator(".lf-panel .lf-quote.detached").all_text_contents()
+    stranded = page.locator(".lf-thread-panel .lf-quote.detached").all_text_contents()
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
     # The projected contour stays above the figure's own paint without putting any
     # paint over its contents.
@@ -2388,7 +2384,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
     assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
         "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
-        "to are not on the two marked items either side of it, so a press that read either "
+        "to are not on the two marked elements either side of it, so a press that read either "
         f"of them would pass this: {seam}"
     )
 
@@ -2516,7 +2512,7 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
     seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
     assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
         "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
-        "to are not on the two marked items either side of it, so a tap that read either "
+        "to are not on the two marked elements either side of it, so a tap that read either "
         f"of them would pass this: {seam}"
     )
 
@@ -3005,12 +3001,12 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
         "ret-steps-carve",
         "ret-title",
     ], marked
-    # A Change margin element's press says what it reached, in the notice slot: its target is
+    # A Change margin entry's press says what it reached, in the notice slot: its target is
     # usually on screen already, so the scroll moves nothing and a press that only spoke
     # to the live region was, to a sighted reader, a press that did nothing. What the
     # press also discloses is the next test's; this one holds it to naming its target.
     page.locator(
-        '.lf-margin-element:has(svg[data-lf-icon="change"]):visible'
+        '.lf-margin-entry:has(svg[data-lf-icon="change"]):visible'
     ).first.click()
     expect(page.locator(".lf-notice")).to_have_text(
         re.compile(r"^[a-z ]+ changed since v1\b")
@@ -3050,7 +3046,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
 def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, serve):
     """The other half of a comparison is one inline reading of what changed.
 
-    The Change margin element is a disclosure per block. Its press inserts dropped
+    The Change margin entry is a disclosure per block. Its press inserts dropped
     text at its aligned boundary and highlights added words in the current prose, so the
     reader need not compare the paragraph with a second copy underneath. Rewritten
     sentences stay whole; a local edit is refined to its words. Generated historical
@@ -3073,14 +3069,14 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     )
     expect(rewritten).to_have_attribute("aria-expanded", "false")
     # A disclosure says what it holds. "Change" alone reports a fact and promises no
-    # press, which is what the margin element said before it had one to make.
-    expect(rewritten.locator(".lf-margin-element-context")).to_have_text("v1 → v2")
+    # press, which is what the margin entry said before it had one to make.
+    expect(rewritten.locator(".lf-margin-entry-context")).to_have_text("v1 → v2")
 
-    # Page map carries the same provenance on each changed-passage row. The account
+    # Page Map carries the same provenance on each changed-passage row. The account
     # stays distinct from the versions, and both remain searchable away from the passage.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    sheet = page.get_by_role("dialog", name="Page map", exact=True)
+    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     mapped = sheet.locator('[data-lf-map-item^="change:"]').filter(has_text="v1 → v2")
     expect(mapped).to_have_count(5)
     paragraph = mapped.filter(has_text="paragraph changed · Two years")
@@ -3313,7 +3309,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                 },
                 "required": ["id"],
                 "additionalProperties": False,
-                "x-content": "prose",
+                "x-content": "markup",
                 "x-upgrade": True,
                 "x-example": '<lf-decoration id="decoration"></lf-decoration>',
             }
@@ -3335,7 +3331,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     )
     _publish(serve.page_dir, 2, second, "New route and map")
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
-    assert page.locator("main .lf-margin-element-icon").count() >= 2
+    assert page.locator("main .lf-margin-entry-icon").count() >= 2
     expect(page.locator("#decoration-icon[data-lf-gen]")).to_have_count(1)
 
     compare_with(page, 1)
@@ -3567,14 +3563,14 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # a second version is the first that has a list to walk.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text(
+    expect(page.locator(".lf-command-reference")).to_contain_text(
         "In the versions menu"
     )
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Later version")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Earlier version")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Open v1")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Later version")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Earlier version")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Open v1")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-reference")).not_to_have_class(re.compile("open"))
+    expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_visible()
 
     page.locator('.lf-version-row[data-lf-version="2"]').focus()
@@ -3716,7 +3712,7 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     )
     page, errors = open_page(browser, url.replace("v1.html", "v2.html"))
     menu = page.locator(".lf-version-menu")
-    panel = page.locator(".lf-panel")
+    panel = page.locator(".lf-thread-panel")
     line = page.locator(".lf-shortcut-bar")
     # Hold a desktop page size so opening the menu changes only the active keyboard scope.
     resized(page, 1200, 900)
@@ -3746,12 +3742,12 @@ def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
     expect(line).to_contain_text("more")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_be_visible()
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text(
+    expect(page.locator(".lf-command-reference")).to_be_visible()
+    expect(page.locator(".lf-command-reference")).to_contain_text(
         "In the versions menu"
     )
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-reference")).not_to_have_class(re.compile("open"))
+    expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_visible()
     expect(row).to_be_focused()
     expect(line).to_contain_text("walk — marking changes")
@@ -3872,10 +3868,10 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(compared.locator(".lf-shortcut-bar")).not_to_contain_text("leave backward")
     compared.keyboard.press("?")
     compared.keyboard.press("?")
-    expect(compared.locator(".lf-shortcut-reference")).to_contain_text(
+    expect(compared.locator(".lf-command-reference")).to_contain_text(
         "Leave the versions menu forward"
     )
-    expect(compared.locator(".lf-shortcut-reference")).not_to_contain_text(
+    expect(compared.locator(".lf-command-reference")).not_to_contain_text(
         "Leave the versions menu backward"
     )
     compared.keyboard.press("Escape")
@@ -3917,8 +3913,8 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("⏎ / space")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("⏎ / space")
-    expect(page.locator(".lf-shortcut-reference")).to_contain_text("Open that version")
+    expect(page.locator(".lf-command-reference")).to_contain_text("⏎ / space")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Open that version")
     page.keyboard.press("Escape")
 
     # And the key the row had been leaving unnamed does what the row now says it does.
@@ -4055,7 +4051,7 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     _publish(serve.page_dir, 3, INLINE_PAGE, "three")
     page, errors = open_page(browser, url, pin=True)
     menu = page.locator(".lf-version-menu")
-    help_el = page.locator(".lf-shortcut-reference")
+    help_el = page.locator(".lf-command-reference")
     expect(page.locator(".lf-latest-chip")).to_be_visible()
 
     # The menu's keys are one declaration, so the reference names this one beside the
@@ -4532,20 +4528,20 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
 
     page.evaluate("() => document.activeElement?.blur()")
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-hint")).not_to_have_count(0)
+    expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
     datum_hint = added.evaluate(
         """line => {
           const box = line.getBoundingClientRect();
-          return [...document.querySelectorAll('.lf-target-hint')]
+          return [...document.querySelectorAll('.lf-target-chooser-hint')]
             .sort((left, right) => {
               const a = left.getBoundingClientRect(), b = right.getBoundingClientRect();
               return Math.hypot(a.left - box.left, a.top - box.top)
                    - Math.hypot(b.left - box.left, b.top - box.top);
-            })[0].dataset.lfTarget;
+            })[0].dataset.lfHintCode;
         }"""
     )
     page.keyboard.type(datum_hint)
-    expect(page.locator(".lf-live")).to_contain_text("Selected app.py · new line 2")
+    expect(page.locator(".lf-live")).to_contain_text("Chosen app.py · new line 2")
     page.keyboard.press("Escape")
 
     line_comment = page.get_by_role(
@@ -4825,12 +4821,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
 
     page.keyboard.press("t")
     expect(thread).to_be_focused()
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     expect(panel_thread).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(thread).to_be_focused()
 
     note = page.locator("lf-diff .lf-mark-note")
@@ -4845,7 +4841,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     assert note.evaluate("el => getComputedStyle(el).opacity") == "1"
     note.press("Enter")
     expect(thread).to_be_focused()
-    expect(page.locator(".lf-panel")).to_be_hidden()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
     # The same draft has two views, across the shadow boundary. Empty Sends keep the
     # paper's neutral ground; typing enables the same primary face in either view.

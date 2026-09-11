@@ -1148,7 +1148,7 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     page.keyboard.press("Escape")
     expect(remove).to_be_hidden()
     expect(reaction_actions).to_be_focused()
-    expect(sheet).to_be_visible()
+    expect(dialog).to_be_visible()
     reaction_actions.click()
     expect(remove).to_be_focused()
     with sending(page, "the withdrawal of the spilled reaction"):

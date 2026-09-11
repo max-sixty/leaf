@@ -284,7 +284,7 @@ const anchorControls = createAnchorControls({
   messageReferenceRoot: panel,
   draftQuote: composerQuote,
   presentedControl: (control) =>
-    pageMap?.presentedControl(control) ?? app.margin.presentedControl(control),
+    pageMapDialog?.presentedControl(control) ?? app.margin.presentedControl(control),
   focused,
   keys,
   paintKeys,

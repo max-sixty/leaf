@@ -358,8 +358,8 @@ export function createPageMapDialog({
   // to the visible copy in this native layer. Owners closing a source-local disclosure
   // use this inverse reading to return to the control the reader can still see.
   const presentedControl = (control) =>
-    sheet.open
-      ? ([...sheetList.querySelectorAll(".lf-page-map-action")].find(
+    dialog.open
+      ? ([...dialogList.querySelectorAll(".lf-page-map-action")].find(
           (button) => button.lfMapControl === control && button.checkVisibility(),
         ) ?? null)
       : null;

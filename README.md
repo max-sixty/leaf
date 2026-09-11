@@ -135,10 +135,12 @@ Docker must be running. For a lighter single-example development loop,
 `scripts/preview.py triage-board` watches one page and its runtime with the real agent
 loop behind it, preserving reader feedback across edits. Add `--background` to keep
 watching between commands, or `--stop` to stop that preview.
-Synthetic feature specimens live together in
-[`examples/developer/feature-gallery.html`](examples/developer/feature-gallery.html);
-the website links that developer reference outside the visual catalog, and
-`scripts/preview.py feature-gallery` serves it from a checkout.
+Core feature specimens live in
+[`examples/developer/feature-gallery.html`](examples/developer/feature-gallery.html).
+Optional packages point to focused worked examples or developer pages from the
+[package catalog](docs/packages.html). The website links these references outside the
+visual catalog, and `scripts/preview.py feature-gallery` serves the core gallery from a
+checkout.
 
 Full-page regression journeys live under [`tests/fixtures/pages/`](tests/fixtures/pages/).
 They join the corpus and browser checks without appearing in the catalog. The catalog's

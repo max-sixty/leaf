@@ -14,11 +14,12 @@
    taken out of the document and put back replays every animation it wears and
    re-announces its live region. A phase change updates words and semantic color with no
    motion. Its live state span changes only with semantic phase or detail; the separate
-   age clock may repaint on a heartbeat without entering the live region. */
+   age clock may repaint on a heartbeat without entering the live region. A newly
+   constructed margin card uses the same writer on its detached subtree before display. */
 import { ago } from "../presence.js";
-import { el } from "../widget-elements.js";
+import { el, keeps } from "../widget-elements.js";
 import { runtime } from "../context.js";
-import { threadsBox } from "./panel-elements.js";
+import { agentWorkPhase, agentWorkTargetPhases } from "../updates.js";
 import { elementById, inChrome, pageQueryAll } from "../passages.js";
 import { threadList } from "./state.js";
 
@@ -31,6 +32,16 @@ const phaseText = (receipt) => {
   if (receipt.phase === "waiting") return "○ Waiting for pickup";
   return "✓ Sent";
 };
+
+function paintThreadWork(activity, query) {
+  const phases = agentWorkTargetPhases(activity, "thread");
+  for (const view of query(".lf-thread, .lf-conversation-thread")) {
+    const id = view.matches(".lf-thread") ? view.dataset.id : view.dataset.thread;
+    const phase = phases.get(id);
+    if (phase) keeps(view, "data-lf-agent-phase", phase);
+    else view.removeAttribute("data-lf-agent-phase");
+  }
+}
 
 // One retained node follows one reader move through every semantic phase. Only a
 // phase/detail change touches its live region; the heartbeat updates the separate
@@ -71,7 +82,10 @@ function paintReceipt(host, receipt, before, wanted, metadata = false) {
   const state = line.querySelector(":scope > .lf-receipt-state");
   const semantic = phaseText(receipt);
   if (state.textContent !== semantic) state.textContent = semantic;
-  line.classList.toggle("is-active", receipt.phase === "active");
+  if (state.title !== semantic) state.title = semantic;
+  const workPhase = agentWorkPhase(receipt);
+  line.classList.toggle("is-active", workPhase === "active");
+  line.classList.toggle("is-picked-up", workPhase === "picked_up");
   line.dataset.lfPhase = receipt.phase;
   line.toggleAttribute("data-lf-dropped", Boolean(receipt.dropped));
 
@@ -89,21 +103,21 @@ function paintReceipt(host, receipt, before, wanted, metadata = false) {
   }
 }
 
-export function paintAcknowledgmentsNow() {
+export function paintAcknowledgmentsNow(root = document) {
+  const query = (selector) =>
+    root === document ? pageQueryAll(selector) : [...root.querySelectorAll(selector)];
   const wanted = new Set();
   const receipts = runtime.activity?.interactions ?? [];
+  paintThreadWork(runtime.activity, query);
   for (const receipt of receipts) {
     const { kind, id } = receipt.target;
     if (kind === "thread") {
       const thread = threadList().find((candidate) => candidate.root.id === id);
       if (!thread || thread.resolved) continue;
-      const complete = threadsBox.querySelector(
-        `.lf-thread[data-id="${CSS.escape(id)}"]`,
+      const views = query(
+        `.lf-thread[data-id="${CSS.escape(id)}"], ` +
+          `.lf-conversation-thread[data-thread="${CSS.escape(id)}"]`,
       );
-      const views = [
-        complete,
-        ...pageQueryAll(`.lf-conversation-thread[data-thread="${CSS.escape(id)}"]`),
-      ].filter(Boolean);
       for (const view of views) {
         const source = receipt.event
           ? view.querySelector(
@@ -130,7 +144,8 @@ export function paintAcknowledgmentsNow() {
     }
     if (kind !== "widget") continue;
     if (receipt.revision > runtime.currentRevision) continue;
-    const owner = elementById(id);
+    const owner =
+      root === document ? elementById(id) : root.querySelector(`#${CSS.escape(id)}`);
     // Frozen widgets sent in a message have no page edge of their own, so their
     // event-backed receipt remains local to the conversation. A page widget uses
     // its existing target margin entry instead of growing another row inside authored
@@ -138,5 +153,5 @@ export function paintAcknowledgmentsNow() {
     if (owner && receipt.event && inChrome(owner))
       paintReceipt(owner, receipt, null, wanted);
   }
-  for (const line of pageQueryAll(".lf-receipt")) if (!wanted.has(line)) line.remove();
+  for (const line of query(".lf-receipt")) if (!wanted.has(line)) line.remove();
 }

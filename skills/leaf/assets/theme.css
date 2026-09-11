@@ -1319,10 +1319,16 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           border: 1px solid var(--accent); border-radius: var(--r); background: var(--card);
           color: var(--ink); box-shadow: 0 8px 24px var(--shade); }
 .lf-conversation { display: none; margin-top: var(--sp-2); overflow-wrap: anywhere; }
-.lf-conversation-thread { box-sizing: border-box; min-width: 0; position: relative;
+.lf-conversation-thread { --lf-thread-action-hit: max(28px, var(--aim-floor));
+          box-sizing: border-box; min-width: 0; position: relative;
           padding: var(--sp-1);
           font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
           color: var(--ink); overflow-wrap: anywhere; }
+/* Panel and inline thread cards mark current ownership without changing their geometry. */
+:is(.lf-thread, .lf-conversation-thread)[data-lf-agent-phase="picked_up"] {
+          box-shadow: inset 2px 0 var(--accent); }
+:is(.lf-thread, .lf-conversation-thread)[data-lf-agent-phase="active"] {
+          box-shadow: inset 3px 0 var(--ok-ink); }
 .lf-conversation-thread:is(:focus-within, .lf-focus-within) {
           outline: none; border-radius: var(--r); background: var(--here-surface); }
 @media (forced-colors: active) {
@@ -1334,6 +1340,13 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-thread > .lf-say:not([hidden]) { display: flex; }
 .lf-say textarea { flex: 1; min-width: 0; }
 .lf-conversation-thread > .lf-say { flex-direction: column; align-items: stretch; }
+.lf-conversation-thread > .lf-say.lf-reply-collapsed > :not(.lf-reply-disclosure) {
+          display: none; }
+.lf-reply-disclosure { width: 100%; padding: 7px 10px; border-color: var(--border);
+          background: transparent; color: var(--muted-2); text-align: start; }
+.lf-reply-disclosure[hidden] { display: none; }
+.lf-reply-disclosure:hover { border-color: var(--border-2); color: var(--ink);
+          background: var(--chip); }
 .lf-conversation-resolved { display: flex;
           align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .lf-conversation > .lf-say { margin-top: 0; }
@@ -1345,9 +1358,13 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-msg.claude { position: relative; }
 .lf-conversation-head { display: flex; align-items: baseline; gap: var(--sp-2);
           font-size: var(--t-6); }
-.lf-conversation-thread > .lf-thread-head { display: grid;
-          grid-template-columns: minmax(0, 1fr) auto; align-items: center;
-          margin-bottom: var(--sp-2); }
+.lf-conversation-thread > .lf-thread-head { position: absolute; z-index: 2;
+          inset-block-start: calc(var(--sp-1) + var(--sp-2)); inset-inline-end: var(--sp-1); }
+.lf-conversation-thread:has(> .lf-thread-head) >
+          .lf-conversation-msg:first-of-type > .lf-conversation-head {
+          box-sizing: border-box; min-height: var(--lf-thread-action-hit);
+          padding-inline-end: calc(var(--lf-thread-action-hit) + var(--sp-1));
+          align-items: center; }
 .lf-conversation-msg.claude .lf-conversation-head b { color: var(--accent); }
 .lf-conversation-head time { color: var(--muted-2); }
 .lf-conversation-head .lf-edited { color: var(--muted-2); }
@@ -1454,8 +1471,9 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
    acknowledges: Sent, Picked up, then Active when an explicit work claim names that
    subject. A message carries it in the metadata row it already owns. Frozen widgets and
    claims with no source message keep this full-width fallback; page targets present the
-   same projection through their existing margin entry. The state wraps; the age and
-   the explicit silence word do not. A phase change is a change of words and semantic
+   same projection through their existing margin entry. The state stays on one line,
+   with ellipsis and the full text on hover; the age and silence word keep their room.
+   A phase change is a change of words and semantic
    color, with no motion: the line answers a question the reader already asked, and a
    tint that replays is a flash.
    The shadow markers carry the same rule into any declared tree an authored subject
@@ -1465,25 +1483,26 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
   margin: var(--sp-2) 0 0; padding: 3px 8px; font-size: var(--t-6); color: var(--muted);
   border: 1px solid var(--border-2); border-radius: 6px;
   background: color-mix(in srgb, var(--field) 72%, transparent); }
-.lf-receipt-state { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.lf-receipt.is-active .lf-receipt-state { color: var(--accent); }
+.lf-receipt-state { flex: 1; min-width: 0; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis; }
+.lf-receipt.is-active .lf-receipt-state { color: var(--ok-ink); }
 .lf-receipt .lf-receipt-quiet { flex: none; color: var(--warn-ink);
   background: var(--warn-tint); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
 .lf-receipt time { color: var(--muted-2); white-space: nowrap; }
 .lf-receipt.lf-message-receipt { display: inline-flex; flex: 1 1 auto; align-items: baseline;
   width: auto; min-width: 0; margin: 0; padding: 0; clear: none; grid-column: auto;
-  border: 0; border-radius: 0; background: none; color: var(--ok-ink);
+  border: 0; border-radius: 0; background: none; color: var(--muted);
   font-size: inherit; font-weight: 600; line-height: inherit; }
 .lf-message-receipt::before { content: "·"; flex: none; color: var(--muted-2); }
 .lf-message-receipt[data-lf-phase="queued"],
-.lf-message-receipt[data-lf-phase="picked_up"],
-.lf-message-receipt[data-lf-phase="active"] { color: var(--accent); }
+.lf-message-receipt.is-picked-up { color: var(--accent); }
+.lf-message-receipt[data-lf-phase="sent"],
+.lf-message-receipt.is-active { color: var(--ok-ink); }
 .lf-message-receipt[data-lf-phase="waiting"],
 .lf-message-receipt[data-lf-dropped],
 .lf-message-receipt[data-lf-dropped] .lf-receipt-state { color: var(--warn-ink); }
 .lf-message-receipt .lf-receipt-state { flex: 0 1 auto; }
-/* Only the state wraps: the name and the age hold their own size, so a long
-   Active detail never breaks the message's timestamp across lines. */
+/* The name and age hold their size; the state uses the remaining width. */
 :is(.lf-msg-head, .lf-conversation-head):has(> .lf-message-receipt)
   > :is(b, time) { flex: none; }
 /* The runtime's mark on a static box whose computed overflow scrolls (reachScrollers,
@@ -2027,7 +2046,7 @@ html.lf-versioning::view-transition-new(root) {
 /* lf-shadow:start */
 .lf-btn { padding: 4px 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
 .lf-btn[hidden]:not([hidden="until-found"]) { display: none; }
-.lf-btn:hover { background: var(--chip); }
+.lf-btn:not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
 .lf-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--paper); }
 .lf-btn.primary:hover { filter: brightness(.92); }
 /* Two selectors, two mechanisms, one look: the platform's own on the banner's real
@@ -2065,6 +2084,65 @@ html.lf-versioning::view-transition-new(root) {
           border-color: transparent; background: transparent; color: var(--muted); }
 .lf-compose-submit:is(:disabled, [aria-disabled="true"])::before {
           border: 0; background: transparent; }
+/* Core may seat its one response bar in a widget's exact-datum Thread outlet. The
+   widget supplies only the layout location; these rules carry the canonical composer
+   through the same shadow-theme slice as the Thread view around it. */
+.lf-fab-bar[data-lf-presentation="inline"] { display: inline-flex; position: static;
+          box-sizing: border-box; align-items: flex-end; gap: 4px; width: 100%;
+          max-width: 760px; white-space: nowrap; color: var(--ink);
+          font: var(--t-5)/var(--lf-ui-lh) var(--sans); }
+.lf-fab-bar[data-lf-presentation="inline"] *,
+.lf-fab-bar[data-lf-presentation="inline"] *::before,
+.lf-fab-bar[data-lf-presentation="inline"] *::after { box-sizing: inherit; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer { display: contents; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer
+          > :not(.lf-compose-field, .lf-composer-media) { display: none !important; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-compose-field { flex: 1 1 auto; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-response-control {
+          min-height: 32px; margin: 0; border: 1px solid var(--border-2);
+          border-radius: var(--r); background: var(--card); color: var(--ink-2);
+          font: inherit; line-height: 1.3; box-shadow: 0 2px 8px var(--shade); }
+.lf-fab-bar[data-lf-presentation="inline"] textarea.lf-fab-input {
+          display: block; width: 100%; min-width: 0; max-width: none; max-height: 50vh;
+          padding: 6px max(40px, calc(var(--aim-floor) + 12px)) 6px 12px;
+          resize: none; field-sizing: content; overflow-y: auto; white-space: pre-wrap; }
+.lf-fab-bar[data-lf-presentation="inline"] textarea.lf-fab-input:is(:focus, .lf-focus) {
+          outline: var(--here-ring); outline-offset: 0; border-color: transparent;
+          --lf-here-ring: inline-response; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-compose-submit {
+          inset-inline-end: 2px; inset-block-end: 2px; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-response-action {
+          min-width: 30px; padding-inline: 9px; display: inline-flex;
+          align-items: center; justify-content: center; gap: 0; white-space: nowrap;
+          cursor: pointer; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-response-action[hidden],
+.lf-fab-bar[data-lf-presentation="inline"]:not([data-lf-target-only]) > .lf-fab,
+.lf-fab-bar[data-lf-presentation="inline"]:not(.lf-response-open)
+          > .lf-response-options { display: none !important; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-response-action[data-lf-collapse]
+          > :is(.lf-response-action-space, .lf-response-action-label) {
+          display: none; }
+.lf-fab-bar[data-lf-presentation="inline"].lf-response-open { flex-wrap: wrap; }
+.lf-fab-bar[data-lf-presentation="inline"].lf-response-open
+          > .lf-response-more { display: none !important; }
+.lf-fab-bar[data-lf-presentation="inline"].lf-response-open
+          > .lf-response-options { display: inline-flex; align-items: center;
+          flex-wrap: wrap; gap: 4px; max-width: 100%; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media { display: flex;
+          flex: none; gap: 6px; max-width: 148px; padding: 0; overflow-x: auto; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media[hidden] {
+          display: none !important; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-item {
+          position: relative; flex: none; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-open {
+          width: 42px; height: 34px; overflow: hidden; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-open img {
+          display: block; width: 100%; height: 100%; object-fit: cover; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-remove {
+          position: absolute; top: -5px; right: -5px; }
+@media print {
+  .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
+}
 .lf-resolve.lf-icon-action { position: relative; flex: none; margin-inline-start: auto;
           border: 0; background: transparent; color: var(--ink);
           box-shadow: none; }

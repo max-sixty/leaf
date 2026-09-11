@@ -5,7 +5,7 @@ import { ago } from "../presence.js";
 import { renderMessageMarkdown, syncEdited, syncStreamState } from "./messages.js";
 import { markdownReady } from "../markdown.js";
 import { el, offer } from "../widget-elements.js";
-import { seatRoot, turns } from "./model.js";
+import { seatRoot, threadKey, turns } from "./model.js";
 import { settlementControl } from "./folding.js";
 import { wireReply } from "./replies.js";
 import { focused } from "../keyboard/scopes.js";
@@ -14,6 +14,7 @@ import { paintReactStrips, removeConversationNode } from "./reaction-strips.js";
 import { elementById } from "../passages.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
+import { paintAcknowledgmentsNow } from "./acknowledgments.js";
 
 /* Textual conversation views rendered outside the retained Threads list.
 
@@ -91,7 +92,13 @@ function conversationMessageNode(thread, message, commands) {
   return node;
 }
 
-function conversationThreadNode(host, t, collapsible, commands) {
+function conversationThreadNode(
+  host,
+  t,
+  collapsible,
+  commands,
+  { compactReply = false } = {},
+) {
   const removeNode = (node) =>
     removeConversationNode(node, commands.reaction.closeReactionMode);
   let thread =
@@ -163,16 +170,44 @@ function conversationThreadNode(host, t, collapsible, commands) {
       tail = thread.querySelector(":scope > .lf-say");
       if (!tail) {
         tail = offer("div", "lf-say");
+        const reply = compactReply
+          ? offer("button", "lf-btn lf-reply-disclosure", "Reply")
+          : null;
         const input = offer("textarea");
         input.name = "reply";
         const send = offer("button", "lf-btn primary", "Send");
+        if (reply) tail.append(reply);
         tail.append(input, send);
-        wireReply(t, input, send, {
+        let replySync = null;
+        const hasReplyDraft = () => loadDraft("reply:" + threadKey(t)) !== null;
+        const revealReply = () => {
+          if (!reply) return;
+          tail.classList.remove("lf-reply-collapsed");
+          reply.hidden = true;
+          reply.setAttribute("aria-expanded", "true");
+        };
+        const collapseReply = () => {
+          if (!reply || hasReplyDraft()) return;
+          tail.classList.add("lf-reply-collapsed");
+          reply.hidden = false;
+          reply.setAttribute("aria-expanded", "false");
+        };
+        if (reply) {
+          input.lfRevealReply = revealReply;
+          input.lfCollapseReply = collapseReply;
+          reply.setAttribute("aria-expanded", "false");
+          reply.onclick = () => commands.landInConversation(input);
+        }
+        replySync = wireReply(t, input, send, {
           liveId,
           createReply: commands.reply.createReply,
           revealReplyEditor: commands.reply.revealReplyEditor,
           wireInput: commands.reply.wireInput,
+          onDraftLoaded: () => {
+            if (hasReplyDraft()) revealReply();
+          },
         });
+        collapseReply();
       }
     }
   }
@@ -198,7 +233,7 @@ function conversationThreadNode(host, t, collapsible, commands) {
   return thread;
 }
 
-export function renderThreadSurface(host, threads, commands) {
+export function renderThreadSurface(host, threads, commands, response = null) {
   const removeNode = (node) =>
     removeConversationNode(node, commands.reaction.closeReactionMode);
   const receipts = [...host.querySelectorAll(":scope > .lf-receipt")];
@@ -207,6 +242,7 @@ export function renderThreadSurface(host, threads, commands) {
     [
       ...threads.map((thread) => conversationThreadNode(host, thread, true, commands)),
       ...receipts,
+      ...(response ? [response] : []),
     ],
     removeNode,
   );
@@ -243,9 +279,12 @@ export function renderConversations(threads, commands) {
 }
 
 export function renderMarginThread(host, thread, commands) {
-  const node = conversationThreadNode(host, thread, false, commands);
+  const node = conversationThreadNode(host, thread, false, commands, {
+    compactReply: true,
+  });
   setChildren(host, [node], (removed) =>
     removeConversationNode(removed, commands.reaction.closeReactionMode),
   );
+  paintAcknowledgmentsNow(host);
   return node;
 }

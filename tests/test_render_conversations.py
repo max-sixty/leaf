@@ -2432,7 +2432,20 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "claude",
         "lf-compose-field",
         "lf-compose-submit",
+        # The one canonical composer can be seated in a widget's own Thread outlet,
+        # where the chrome's scoped rules cannot reach it. The authored theme dresses
+        # that seat at document level, under [data-lf-presentation="inline"], so every
+        # part of the response bar the seat carries — its bar, its field's wrapper,
+        # its target press and the response options behind it — wears a document face
+        # for the same reason .lf-margin-projection below does.
+        "lf-composer",
+        # A conversation keeps the authored theme's shared card and message-header
+        # structure when the margin projects it into the chrome.
+        "lf-conversation-head",
+        "lf-conversation-thread",
         "lf-edited",
+        "lf-fab",
+        "lf-fab-bar",
         "lf-focus-within",
         # The rail is chrome, and its whole document face — placement, the hidden
         # state, and the widths that fold it away — is the authored theme's. The
@@ -2447,6 +2460,17 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-react-trigger",
         "lf-react-trigger-icon",
         "lf-resolve",
+        # The inline seat again: the composer's own row of response actions.
+        "lf-response-action",
+        "lf-response-action-label",
+        "lf-response-action-space",
+        "lf-response-control",
+        "lf-response-more",
+        "lf-response-open",
+        "lf-response-options",
+        # A thread card marks which turn owns it, and the panel's card and an inline
+        # one take that paint from one document-level rule so the two cannot drift.
+        "lf-thread",
         # The same thread header owns settlement in the panel and in inline seats;
         # the authored theme gives both views the same label/control alignment.
         "lf-thread-head",
@@ -2531,6 +2555,11 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-margin-entry-label-word",
         "lf-margin-entry-context",
         "lf-margin-receipt",
+        # A margin entry and its Page Map row wear one turn-ownership paint, written as
+        # a single rule over both. The margin entry is in the page, so the rule is at
+        # document level, and the Page Map row is named here rather than in a second
+        # scoped copy the two could disagree through.
+        "lf-page-map-action",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.
         "lf-visual-actions",

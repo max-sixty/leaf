@@ -92,6 +92,14 @@ from render_support import (
 
 pytestmark = pytest.mark.nightly
 
+SWIPE_GALLERY = next(path for path in PAGE_FIXTURES if path.stem == "swipe-gallery")
+TARGETING_GALLERY = next(
+    path for path in PAGE_FIXTURES if path.stem == "targeting-gallery"
+)
+VISUAL_REVIEW_GALLERY = next(
+    path for path in PAGE_FIXTURES if path.stem == "visual-review-gallery"
+)
+
 
 CONTROL_STABILITY_PAGE = leaf_page(
     "control stability",
@@ -252,6 +260,24 @@ CONTROL_ARCHETYPES = (
         "coverage": ".interaction-controls > button",
         "target": "[data-interaction-toggle]",
     },
+    {
+        # The targeting package's box-model row. The property select can show labels
+        # from Padding through Minimum height beside the add press, so choosing the
+        # longest value proves that the row reserves enough room for every state.
+        "name": "targeting-box-model",
+        "example": TARGETING_GALLERY,
+        "coverage": ".lf-targeting-change-fields > :is(select, button)",
+        "target": ".lf-targeting-property",
+        "select": "min-height",
+    },
+    {
+        # A disposition changes both its selected paint and the case's durable review
+        # state while its opposite remains beside it.
+        "name": "visual-review-disposition",
+        "example": VISUAL_REVIEW_GALLERY,
+        "coverage": ".lf-vr-dispositions > button",
+        "target": ".lf-vr-case:not([hidden]) .lf-vr-needs-work",
+    },
 )
 CONTROL_ROW_PRESS = (
     "button, summary, select, "
@@ -261,19 +287,6 @@ CONTROL_ROW_PRESS = (
     "[role=spinbutton], [role=switch], [role=tab], [role=treeitem])"
 )
 CONTROL_ROW_NEIGHBOUR = CONTROL_ROW_PRESS + ", a[href]"
-
-
-def _pause_gallery_swipe(page):
-    """Expose the live swipe controls and hold the card in its unseen pile."""
-    page.get_by_role("tab", name="Swipe a card", exact=True).click()
-    status = page.locator("#bg-interactions [data-interaction-status]")
-    expect(status).to_have_text("Playing")
-    page.locator("#bg-interactions [data-interaction-toggle]").click()
-    expect(status).to_have_text("Paused")
-    frame = page.locator(
-        "#bg-interactions #bg-interaction-swipe [data-interaction-frame]"
-    ).content_frame
-    expect(frame.locator("#bg-motion-swipe-queue > lf-swipe-card")).to_have_count(1)
 
 
 def _touch_drag(cdp, x, y, *, dx=0, dy=0, steps=14):
@@ -760,22 +773,8 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     pinned.close()
 
 
-def test_a_wide_banner_spends_action_reach_before_status_copy(
-    browser, serve, other_leaf
-):
-    """At laptop width, the row gives up controls before the status gives up words.
-
-    It used to be the other way round. At 1280 the controls took their whole intrinsic
-    room first and the sentence took whatever was left, which was 199px of a 497px line:
-    "Claude last checked in 16m ago: W…". The offline line, the one that says what to do
-    about the server being gone, came out as "Server offline — reconnectin…". A status
-    readout that has stopped saying anything is worse than a control behind a menu, so
-    the sentence has a floor of its own now and the row folds to respect it.
-
-    The sentence may wrap to the two lines the banner has room for; what it may not do is
-    lose its end. Above that floor the sentence takes every pixel the controls leave, so
-    a row with room to spare reads on one line.
-    """
+def test_banner_status_is_one_line_with_full_hover_text(browser, serve, other_leaf):
+    """Long activity text ellipsizes without wrapping or compressing its controls."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -795,47 +794,24 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
             f"test is about: {on_the_row}"
         )
 
-    # Read the sentence, not a stand-in for it: these are the two longest lines the banner
-    # writes, and the offline one is the whole reason this rule exists.
-    fits = """(sentence) => {
-      const status = document.querySelector('.lf-status-text');
-      status.textContent = sentence;
-      const actions = document.querySelector('.lf-banner-actions');
-      const probe = document.createElement('span');
-      probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap';
-      probe.textContent = sentence;
-      status.after(probe);
-      const oneLine = probe.getBoundingClientRect().width;
-      probe.remove();
-      return {across: {shown: status.clientWidth, needed: status.scrollWidth},
-              down: {shown: status.clientHeight, needed: status.scrollHeight},
-              oneLine, shown: status.clientWidth,
-              actions: {shown: actions.clientWidth, needed: actions.scrollWidth}};
-    }"""
-    for sentence in (
-        "Claude last checked in 16m ago: Writing the page. Your comments are saved.",
-        "Server offline — reconnecting. Keep this page open so pending changes can send.",
-    ):
-        read = page.evaluate(fits, sentence)
-        # The pressure, said as the sentence outgrowing the box it is given rather than as
-        # a ratio between them. The row's cap is the sentence's floor stated from the other
-        # end (chrome.css), so a crowded row leaves the status its floor and no less —
-        # a margin over that floor is a number the design will not pay, and the fixture's
-        # own crowding is asserted where the row is read, below.
-        assert read["oneLine"] > read["shown"], (
-            f"the fixture put no pressure on the wide banner: {sentence!r} needs "
-            f"{read['oneLine']}px on one line and the status box is {read['shown']}px, "
-            "so the wrap this test is about never happened"
-        )
-        assert read["across"]["shown"] == read["across"]["needed"], (
-            f"the wide banner cut {sentence!r} off its own edge: {read}"
-        )
-        assert read["down"]["shown"] >= read["down"]["needed"], (
-            f"the wide banner clamped {sentence!r} past the lines it has: {read}"
-        )
-        assert read["actions"]["shown"] >= read["actions"]["needed"], (
-            f"the row kept more controls than it had room for: {read}"
-        )
+    detail = (
+        "Checking the whole page and its open threads before recording every update. "
+        * 4
+    )
+    session_model.cmd_status(serve.page_dir, "working", detail)
+    told(page)
+    expect(page.locator(".lf-status-text")).to_contain_text(detail.strip())
+    for width in (1280, 841, 390):
+        resized(page, width, 900)
+        read = page.evaluate(STATUS_FIT)
+        assert read["across"]["needed"] > read["across"]["shown"] > 0, read
+        assert read["down"]["shown"] == pytest.approx(read["lineHeight"], abs=1), read
+        assert read["down"]["shown"] == read["down"]["needed"], read
+        assert read["ellipsis"] == "ellipsis", read
+        assert read["title"] == read["text"], read
+        assert detail.strip() in read["title"], read
+        assert read["actions"]["shown"] >= read["actions"]["needed"], read
+    resized(page, 1280, 900)
 
     # Above the floor the sentence is the row's, not a share of it: a control folding
     # away hands the whole of its room to the line rather than leaving a gap.
@@ -858,6 +834,7 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
 
     # The complete real action set still gets its words. Where it does not fit, the row
     # gives a control to its menu rather than squeezing the ones it keeps.
+    resized(page, 1024, 900)
     crowded = page.evaluate(
         """() => {
           const actions = document.querySelector('.lf-banner-actions');
@@ -961,153 +938,40 @@ def test_a_wide_banner_spends_action_reach_before_status_copy(
     page.close()
 
 
-# The longest lines the banner writes about the page's own state, each at the widest
-# count it can carry. The floor the row reserves is two lines of the longest of them
-# (banner.js, reserveStatusRoom), and these are written here rather than read off the
-# runtime so that the list the runtime enumerates has something to be wrong against: a
-# line the writer gains and the enumeration misses is a floor that no longer covers what
-# the banner says, and it fails here. The website's line is longer than any of these and
-# is reserved only on the pages that write it; it is measured on one at the end.
-BANNER_LINES = (
-    "Server offline — reconnecting. Keep this page open so pending changes can send.",
-    (
-        "No session holds this page. 999 updates are saved. It picks up again when a "
-        "session does."
-    ),
-    "Claude isn't watching right now. 999 updates are saved. It picks them up next turn.",
-    # A claim whose turn ended and then went quiet is dated by the ending, which is the
-    # longer of the two datings, and it still owes the reader the remedy at the end.
-    (
-        "Claude left this when its turn ended 999d ago. 999 updates are saved. Nudge it "
-        "in the terminal."
-    ),
-    # The longest line the banner writes, and it is that line said on a page nobody has
-    # commented on yet: "Your comments are saved." is two characters and nineteen pixels
-    # wider than the count that replaces it. Which is why the runtime crosses the writer's
-    # facts rather than pinning each at the value that looks widest — pinned at its
-    # counted spelling, this line was 18px over the floor on this desk and 18 over it on
-    # CI's, and a fresh page lost "Nudge it in the terminal." off the end of the clamp.
-    (
-        "Claude left this when its turn ended 999d ago. Your comments are saved. Nudge "
-        "it in the terminal."
-    ),
-)
 WEBSITE_LINE = (
     "This is an example on the Leaf website. Leaf guide replies and revises this "
     "private copy. Install Leaf"
 )
 
-# The floor as a length, against the width the longest of those lines needs for two of
-# them — measured in the banner's own face, so a type token moving moves both together.
-FLOOR_VS_NEED = """(lines) => {
-  const banner = document.querySelector('.lf-banner');
-  const text = document.querySelector('.lf-status-text');
-  const gauge = document.createElement('span');
-  gauge.style.cssText =
-    'position:absolute;visibility:hidden;width:var(--lf-status-floor)';
-  banner.append(gauge);
-  const floor = gauge.getBoundingClientRect().width;
-  gauge.style.width = '1ch';
-  const ch = gauge.getBoundingClientRect().width;
-  gauge.remove();
-  const rig = text.cloneNode(false);
-  rig.style.cssText =
-    'position:absolute;left:-9999px;top:0;-webkit-line-clamp:none;display:block';
-  text.parentElement.append(rig);
-  const lh = parseFloat(getComputedStyle(rig).lineHeight);
-  const linesAt = (line, px) => {
-    rig.textContent = line;
-    rig.style.width = px + 'px';
-    return Math.round(rig.scrollHeight / lh);
-  };
-  let need = 0;
-  let widest = null;
-  for (const line of lines) {
-    let lo = 20, hi = 1400;
-    while (hi - lo > 0.05) {
-      const mid = (lo + hi) / 2;
-      if (linesAt(line, mid) <= 2) hi = mid; else lo = mid;
-    }
-    if (hi > need) { need = hi; widest = line; }
-  }
-  rig.remove();
-  return {floor: Math.round(floor), need: Math.ceil(need), ch: +ch.toFixed(2), widest};
-}"""
-
-# What the sentence is given and what it needs, in the box it is actually rendered in.
-STATUS_FIT = """(sentence) => {
+# Measure the real status and its complete hover text in the same rendering turn.
+STATUS_FIT = """() => {
   const status = document.querySelector('.lf-status-text');
-  status.textContent = sentence;
+  const style = getComputedStyle(status);
+  const actions = document.querySelector('.lf-banner-actions');
   return {across: {shown: status.clientWidth, needed: status.scrollWidth},
           down: {shown: status.clientHeight, needed: status.scrollHeight},
-          width: status.getBoundingClientRect().width};
+          lineHeight: parseFloat(style.lineHeight), ellipsis: style.textOverflow,
+          title: status.title, text: status.textContent,
+          actions: {shown: actions.clientWidth, needed: actions.scrollWidth}};
 }"""
 
-# The chip written in its other spelling, which is what a checkout going dirty does to it.
-# The reservation exists so that costs nothing: `renderPreview` measures both spellings and
-# floors the control at the wider, so the news of a dirty tree repaints the chip and moves
-# nothing. Read as boxes rather than as `min-width`, because a floor measured against the
-# wrong label is also a number, and only the row holding still says it was the right one.
-SPELLING_SWAP = """() => {
+# A closed menu has no geometry; measure the reserved label on the banner row.
+PREVIEW_WIDTH = """() => {
   const chip = document.querySelector('.lf-preview');
-  const row = [...document.querySelector('.lf-banner-actions').children];
-  const said = chip.textContent;
-  const dirty = said.endsWith('+') ? said : said + '+';
-  const clean = said.endsWith('+') ? said.slice(0, -1) : said;
+  const dirty = chip.textContent.endsWith('+') ? chip.textContent : chip.textContent + '+';
   const floor = parseFloat(getComputedStyle(chip).minWidth) || 0;
-  // What the wider spelling is worth on its own, so the floor can be compared against the
-  // thing it is supposed to be a measurement of. Measured in a copy of the chip seated on
-  // the row rather than in the chip itself: the chip may be behind the shut door, where
-  // every word is zero — which is the whole fault this reads for, and reading the chip in
-  // place would answer 0 for the floor and 0 for what it should have been, and call that
-  // agreement.
   const rig = chip.cloneNode(false);
   rig.textContent = dirty;
   rig.style.cssText = 'position:absolute;left:-9999px;top:0;min-width:0';
   document.querySelector('.lf-banner-actions').append(rig);
   const widest = rig.getBoundingClientRect().width;
   rig.remove();
-  // Then the rule the floor exists for, where the chip stands on the row to show it: the
-  // dirty spelling arrives and nothing before it moves.
-  const lefts = () => row.map((el) => el.getBoundingClientRect().left);
-  chip.textContent = clean;
-  const before = lefts();
-  const narrow = chip.getBoundingClientRect().width;
-  chip.textContent = dirty;
-  const after = lefts();
-  const wide = chip.getBoundingClientRect().width;
-  chip.textContent = said;
-  return {said, clean, dirty, floor, widest, wide, narrow, onRow: row.includes(chip),
-          moved: row
-            .map((el, i) => [el.className, Math.abs(after[i] - before[i])])
-            .filter(([, d]) => d > 0.5)};
+  return {floor, widest};
 }"""
 
 
 def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
-    """Developer diagnostics remain reachable without becoming permanent banner chrome.
-
-    The row reserves a floor for the status sentence and folds controls to keep it. The
-    reservation used to be stated for the whole status box, so anything else standing in
-    that box spent it first — and the preview chip is 240 pixels of exactly that. Measured
-    on the feature gallery at 1200: the sentence was left 114px, twelve characters, two of
-    the four lines it needed, while the chip beside it clipped its own name at scrollWidth
-    348 in a 238px box. At 1024 the sentence had 26 pixels.
-
-    So the floor is the sentence's own room now and the diagnostic stands with the
-    controls, permanently behind their shared door. Every line the banner writes still
-    fits the box it is given at every wide width.
-
-    The floor is two lines of the longest of those lines and no more, measured in the face
-    the row is set in rather than stated as a count of characters. Stated, it could not be
-    right about two faces at once: two lines of the same words take 37.5 characters where
-    `system-ui` is SF and 40.4 where it is DejaVu, which is what the image CI runs on
-    resolves the keyword to. Thirty-four was under both, and anything over 40.4 buys the
-    sentence room here that the row pays for in folded controls. The last stop is the
-    website's own line, which is longer than any line a reader's page can reach and is
-    reserved on the pages that write it: at 900 on a wide face it needs a third line in
-    the box the unreserved row left it.
-    """
+    """Developer diagnostics stay behind the menu and keep their reserved control width."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -1130,47 +994,8 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
     page, errors = open_page(browser, url)
     expect(page.locator(".lf-preview")).to_have_count(1)
 
-    # The floor from above as well as below, because reserving more than the longest of
-    # those lines needs is a control folded for nothing, and the margin is a handful of
-    # pixels: measured on the asks fixture at 900, where the row is fullest, the floor
-    # this desk measures leaves Asks standing and four pixels more take it behind the
-    # door — a reader losing a destination to buy the sentence room it was not asking for.
-    # (This fixture's own row is past that at 900 whatever the floor says, carrying the
-    # preview chip as well, so the bound is asserted here and the fold it protects is
-    # watched by the ask walk in test_render_widgets.py.)
-    #
-    # One pixel of slack either way, and nothing scaled by the face. The floor is measured
-    # rather than stated now, so both numbers here are readings of one width — the row's
-    # in the row's own face, this one in the same face beside it — and the only thing
-    # between them is that each is a bisection stopped within a twentieth of a pixel and
-    # rounded up, which can land on either side of an integer. A slack stated in
-    # characters could not have been written: the quantity bounded is `need / ch`, a
-    # line's average advance over the advance of a zero, and that is a property of the
-    # face rather than its size — 37.5 characters where `system-ui` is SF and 40.4 where
-    # it is DejaVu, which is what the image CI runs on resolves it to. Any constant wide
-    # enough for the second over-reserves on the first.
-    fit = page.evaluate(FLOOR_VS_NEED, list(BANNER_LINES))
-    assert fit["need"] <= fit["floor"] + 1, (
-        f"the floor is under what {fit['widest']!r} needs for two lines: {fit}"
-    )
-    assert fit["floor"] <= fit["need"] + 1, (
-        f"the floor reserves more than the longest line needs, which the row pays for in "
-        f"folded controls: {fit}"
-    )
-
-    # 841 is the narrowest row the cap applies to; the covering row below it is a layout
-    # of its own with the status on a line to itself.
     for width in (841, 1024, 1440):
         resized(page, width, 900)
-        for sentence in BANNER_LINES:
-            read = page.evaluate(STATUS_FIT, sentence)
-            assert read["across"]["shown"] == read["across"]["needed"], (
-                f"at {width} the banner cut {sentence!r} off its own edge: {read}"
-            )
-            assert read["down"]["shown"] >= read["down"]["needed"], (
-                f"at {width} the banner clamped {sentence!r} past the lines it has: "
-                f"{read}"
-            )
         standing = page.evaluate(
             """() => {
               const chip = document.querySelector('.lf-preview');
@@ -1182,58 +1007,29 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
                       shown: chip.clientWidth, needed: chip.scrollWidth};
             }"""
         )
-        # Where it stands is what makes the floor above hold rather than a second
-        # statement of it: inside the status box the chip spends the sentence's room, and
-        # on the row it spends the controls'.
         assert not standing["inStatus"], (
             f"at {width} the preview chip stood inside the status box: {standing}"
         )
         assert standing["folded"] and not standing["onRow"], (
             f"at {width} preview diagnostics left the banner overflow: {standing}"
         )
-    # News arriving without a gesture must not move a chrome control, and a checkout going
-    # dirty is that news: the chip gains a `+` where it stands. The reservation is what
-    # keeps the row still, and it is taken once, when the chip is first drawn — so it is a
-    # real number only if the row was standing when it was measured. A first read narrow
-    # enough to fold is where that goes wrong: the chip is seated first, so it is the first
-    # thing folded, and inside a shut popover every word measures zero. Measured on this
-    # fixture with the unfold removed: `min-width` 0px after a 900px first read, against
-    # 282px after a 1200px one. It stays 0px, because only a covering crossing re-measures
-    # and 900 is above that. Widening to where the chip stands again is where the reader
-    # finally pays, which is why this reads the row and not the floor.
+    # A first read that folds diagnostics must still measure its widest label.
     resized(page, 841, 900)
     page.reload()
     page.wait_for_function(BOTH_STAMPS)
     resized(page, 1600, 900)
-    swap = page.evaluate(SPELLING_SWAP)
+    swap = page.evaluate(PREVIEW_WIDTH)
     assert swap["floor"] >= swap["widest"] - 1, (
         f"the preview chip's reservation is under the wider of its two spellings, so it "
         f"was measured while the chip was folded away: {swap}"
     )
-    # And where the chip stands, the rule itself. A long checkout name can keep it behind
-    # the door at every width this fixture reaches, which is a fold working, not a floor
-    # failing — the reservation above is what says the floor is real either way.
-    if swap["onRow"]:
-        assert not swap["moved"], (
-            f"spelling the preview chip {swap['dirty']!r} instead of {swap['clean']!r} "
-            f"moved the row: {swap}"
-        )
-        assert swap["wide"] == swap["narrow"], (
-            f"the preview chip changed width between its two spellings: {swap}"
-        )
     page.locator(".lf-banner-more").click()
     expect(page.locator(".lf-banner-menu > .lf-preview")).to_be_visible()
     page.keyboard.press("Escape")
     assert errors == []
     page.close()
 
-    # The longest line of all, on the page that writes it. It is longer than anything a
-    # reader's own page can say, so it is in the reservation only where it is in the
-    # writing — and it has to be: the row here carries no Accept all, no Asks and no
-    # preview chip, and the room that left the sentence was still a line short of it at
-    # 900 on a face wider than this desk's, where it needs 356 pixels and was handed 351.
-    # A page that reserves its own longest line folds a control for those five pixels
-    # instead, which is the trade this whole row is arranged to make.
+    # A published page uses the same one-line status and complete hover text.
     site, site_errors = open_page(
         browser,
         serve(
@@ -1247,14 +1043,18 @@ def test_preview_diagnostics_stay_in_the_banner_overflow(browser, serve):
     )
     resized(site, 900, 900)
     expect(site.locator(".lf-status-text")).to_have_text(WEBSITE_LINE)
-    read = site.evaluate(STATUS_FIT, WEBSITE_LINE)
-    assert read["down"]["shown"] >= read["down"]["needed"], (
-        f"the website's own example line lost its end on the page that writes it: {read}"
-    )
-    fit = site.evaluate(FLOOR_VS_NEED, [WEBSITE_LINE])
-    assert fit["need"] <= fit["floor"] + 1, (
-        f"the page that writes the website's line did not reserve room for it: {fit}"
-    )
+    read = site.evaluate(STATUS_FIT)
+    assert read["down"]["shown"] == pytest.approx(read["lineHeight"], abs=1), read
+    assert read["title"] == WEBSITE_LINE, read
+    for width in (900, 390):
+        resized(site, width, 900)
+        install = site.get_by_role("link", name="Install Leaf")
+        expect(install).to_be_visible()
+        bounds = install.bounding_box()
+        assert 0 <= bounds["x"] < bounds["x"] + bounds["width"] <= width, bounds
+        assert install.evaluate("el => el.clientWidth === el.scrollWidth")
+        install.focus()
+        expect(install).to_be_focused()
     assert site_errors == []
     site.close()
 
@@ -2041,7 +1841,10 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     before = control.evaluate(NEIGHBOURHOOD, NEIGHBOUR)
     assert before["names"], f"{archetype['name']} has no neighbouring control to hold"
 
-    control.click()
+    if option := archetype.get("select"):
+        control.select_option(option)
+    else:
+        control.click()
     round_trip(page)
     page_at_rest(page)
     after = page.evaluate("() => window.__lfBoxes()")
@@ -2103,9 +1906,6 @@ def test_the_composed_corpus_declares_every_control_row_archetype(browser, serve
     for tab_label in labels:
         page.get_by_role("tab", name=tab_label, exact=True).click()
         collect_controls(tab_label)
-        if tab_label == "Features":
-            _pause_gallery_swipe(page)
-            collect_controls("Features > Swipe a card")
 
     assert not undeclared, (
         "controls with neighbours need one archetype:\n  " + "\n  ".join(undeclared)
@@ -2869,6 +2669,7 @@ def test_a_panel_row_follows_its_pages_status_live(
                 "kind": "reply",
                 "author": "claude",
                 "parent": comment["id"],
+                "responds": comment["id"],
                 "revision": 1,
                 "text": "Use the existing page directory.",
             },
@@ -5177,10 +4978,10 @@ RING_WALKS = (
     # These controls live behind exact page-owned view states. Give each one a focused
     # stop rather than changing the active panel for the whole page walk: selecting a
     # late outer corpus tab would make its preceding until-found panels part of that
-    # sequential walk, and a playing gallery would move the swipe card before Tab arrived.
+    # sequential walk.
     ("a settled decision", (), ("corpus",)),
     ("a settled option", (), ("corpus",)),
-    ("a swipe card", (), ("feature-gallery",)),
+    ("a swipe card", (), ("swipe-gallery",)),
     ("a contents link", (), ("feature-gallery",)),
     ("the comments", ("c",), ("ship-review",)),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
@@ -5277,7 +5078,7 @@ RING_SCOPE_CONTROL = {
         None,
         "#comparison-policy[settled] > lf-option > .lf-pick",
     ),
-    "a swipe card": (None, "#bg-motion-swipe-card"),
+    "a swipe card": (None, "#swipe-keyboard-card"),
     "a contents link": (None, "#bg-contents li a"),
 }
 # The window a scope's own surface stands in, where that is not the walk's own. These
@@ -5545,7 +5346,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     unnamed = set()
     opened, walked_in, errors = set(), set(), []
     stops = 0
-    examples = {example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY)}
+    examples = {
+        example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY, SWIPE_GALLERY)
+    }
     assert not (missing := set(RING_WALK_EXAMPLES) - set(examples)), (
         "the ring walk names examples that no longer exist: "
         + ", ".join(sorted(missing))
@@ -5634,8 +5437,6 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 expect(settled).to_be_visible()
                 if settled.get_attribute("aria-expanded") != "true":
                     settled.click()
-            elif scope == "a swipe card":
-                _pause_gallery_swipe(page)
             if scope == "the page":
                 pencil = page.locator(".lf-draft-controls .lf-draft-pencil").first
                 if pencil.count() and pencil.is_visible():

@@ -16,6 +16,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf.registry import storage as registry_storage
 from PIL import Image
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
     ADDRESSED_PAGE,
@@ -2351,6 +2352,25 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     page.close()
 
 
+FOCUSED_CONVERSATION = "document.activeElement?.closest('.lf-conversation-thread')"
+
+
+def conversation_a_press_opened(page):
+    """The conversation a press on a mark landed in, or None if none ever took focus.
+
+    The preview card the press opens places itself and only then hands over focus, from
+    the placement promise `deferThreadPreviewFocus` waits on — so the thread arrives a
+    frame after the press rather than inside it. This states that ordering rather than
+    reading across it. The wait's own timeout is short, and it answers None so a caller
+    still reports which conversation opened instead of raising over the reading.
+    """
+    try:
+        page.wait_for_function(f"() => {FOCUSED_CONVERSATION} != null", timeout=5000)
+    except PlaywrightTimeout:
+        return None
+    return page.evaluate(f"() => {FOCUSED_CONVERSATION}.innerText")
+
+
 def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     """The card the pointer lights and the card a press opens are one reading of one point.
 
@@ -2394,9 +2414,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     expect(promised).to_contain_text(f"About {seam['at']}.")
 
     page.mouse.click(seam["x"], seam["y"])
-    opened = page.evaluate(
-        "() => document.activeElement?.closest('.lf-conversation-thread')?.innerText ?? null"
-    )
+    opened = conversation_a_press_opened(page)
     assert opened and f"About {seam['at']}." in opened, (
         f"the hover promised the thread on {seam['at']}, and the press at the same point "
         f"opened: {opened}"
@@ -2407,7 +2425,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
 
 def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     """A pointer press briefly moves focus from an open thread to the page before its
-    click restores the reply field. The mark must not look deselected during that gap.
+    click lands back in the conversation. The mark must not look deselected in that gap.
 
     A reaction shares this target with the comment because that was the visible failure:
     losing the current-thread paint exposed the passive reaction contour underneath.
@@ -2453,7 +2471,9 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.move(*point)
     page.mouse.click(*point)
-    page.wait_for_function("() => document.activeElement?.matches('textarea.lf-ui')")
+    # The compact preview card reveals its reply box on request, so what a press lands on
+    # is the conversation itself; the paint under test is the same either way.
+    assert conversation_a_press_opened(page) is not None, "the press opened no thread"
     selected = mark.evaluate(look)
 
     page.mouse.move(*point)
@@ -2517,9 +2537,7 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
     )
 
     page.touchscreen.tap(seam["x"], seam["y"])
-    opened = page.evaluate(
-        "() => document.activeElement?.closest('.lf-conversation-thread')?.innerText ?? null"
-    )
+    opened = conversation_a_press_opened(page)
     assert opened and f"About {seam['at']}." in opened, (
         f"a tap on the quote for {seam['at']} opened: {opened}"
     )
@@ -2638,6 +2656,8 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
             "--json",
             str(d),
             "--to",
+            root["id"],
+            "--for",
             root["id"],
             "--section",
             "drift",
@@ -4371,7 +4391,7 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
 
 
 def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
-    """The file header is a durable target before its patch is fetched or opened."""
+    """A file comment starts inline without fetching or opening its patch."""
     authored = leaf_page(
         "file comment",
         '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch" '
@@ -4407,18 +4427,17 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
 
     details = page.locator("lf-diff details").first
     file_row = page.locator("lf-diff .lf-diff-file").first
-    summary = details.locator("summary")
     expect(details).not_to_have_attribute("open", "")
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
     expect(file_row).to_have_attribute("data-lf-datum", '["app.py","file"]')
     expect(file_row).to_have_attribute("data-lf-datum-label", "app.py · file")
 
-    summary.hover(position={"x": 100, "y": 10})
-    page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_be_visible()
-    page.keyboard.up("Alt")
-    summary.click(modifiers=["Alt"])
+    page.get_by_role("button", name="Comment on app.py", exact=True).click()
     expect(details).not_to_have_attribute("open", "")
+    expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
+    outlet = page.locator("lf-diff .lf-diff-file-thread-outlet")
+    expect(outlet).to_have_count(1)
+    expect(outlet.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator("#lf-composer-quote")).to_contain_text("§ app.py · file")
     page.locator(".lf-fab-input").fill("Review this file as a whole.")
     page.keyboard.press("ControlOrMeta+Enter")
@@ -4435,6 +4454,11 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             "data_revision": 1,
         }
     ]
+    expect(outlet.locator(".lf-conversation-thread")).to_contain_text(
+        "Review this file as a whole."
+    )
+    expect(details).not_to_have_attribute("open", "")
+    expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     expect(page.locator(".lf-thread .lf-quote")).to_have_text("§ app.py · file")
@@ -4540,10 +4564,42 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     expect(page.locator(".lf-live")).to_contain_text("Chosen app.py · new line 2")
     page.keyboard.press("Escape")
 
-    added.click(modifiers=["Alt"])
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    page.locator(".lf-fab-input").fill("Review the whole added line.")
+    line_comment = page.get_by_role(
+        "button", name="Comment on app.py · new line 2", exact=True
+    )
+    added.hover()
+    expect(line_comment).to_be_visible()
+    line_comment.click()
+    composer_outlet = page.locator(
+        f"lf-diff .lf-diff-thread-outlet[data-lf-thread-datum='{new_key}']"
+    )
+    expect(composer_outlet.locator(".lf-fab-bar")).to_be_visible()
+    input_ = composer_outlet.locator(".lf-fab-input")
+    expect(input_).to_be_focused()
+    page.emulate_media(media="print")
+    expect(composer_outlet.locator(".lf-fab-bar")).to_be_hidden()
+    page.emulate_media(media="screen")
+    expect(composer_outlet.locator(".lf-fab-bar")).to_be_visible()
+    input_.focus()
+    input_.fill("Review the whole added line.")
+    input_.evaluate("input => input.setSelectionRange(7, 16)")
+    page.evaluate("() => document.querySelector('#patch').threadSurface.update()")
+    expect(input_).to_be_focused()
+    assert input_.evaluate("input => [input.selectionStart, input.selectionEnd]") == [
+        7,
+        16,
+    ]
+    details.evaluate("element => { element.open = false; }")
+    expect(composer_outlet).to_have_count(0)
+    expect(page.locator(".lf-fab-input")).to_have_value("Review the whole added line.")
+    expect(page.locator(".lf-notice")).to_have_text("Draft kept — g D returns to it")
+    details.evaluate("element => { element.open = true; }")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+d")
+    expect(composer_outlet.locator(".lf-fab-input")).to_have_value(
+        "Review the whole added line."
+    )
+    expect(composer_outlet.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
     inline = page.locator("lf-diff .lf-diff-thread-outlet")
@@ -4761,6 +4817,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
             "author": "claude",
             "agent": "Codex",
             "parent": root["id"],
+            "responds": root["id"],
             "text": "The guard now covers the replacement path.",
         },
     )

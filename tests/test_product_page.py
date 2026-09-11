@@ -23,6 +23,7 @@ ASSETS = ROOT / "skills" / "leaf" / "assets"
 DEFAULT_PACKAGE = ROOT / "skills" / "leaf" / "packages" / "default"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
+DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
 _record_demo_spec = importlib.util.spec_from_file_location(
     "record_demo", ROOT / "scripts" / "record-demo.py"
@@ -73,7 +74,7 @@ def test_every_published_source_says_what_its_page_is():
     sources = [
         *DOCS.glob("*.html"),
         *(page for page in EXAMPLES.glob("*.html") if page.stem != "corpus"),
-        EXAMPLES / "developer" / "feature-gallery.html",
+        *DEVELOPER_PAGES,
     ]
     descriptions = {}
     for page in sorted(sources):
@@ -122,6 +123,24 @@ def test_package_guide_sits_beside_how_it_works():
     assert 'href="/packages/"' in (DOCS / "registry.html").read_text()
     for source in ("index.html", "how-it-works.html"):
         assert 'href="/packages/"' in (DOCS / source).read_text()
+
+
+def test_package_catalog_routes_every_optional_package_to_a_focused_page():
+    packages = (DOCS / "packages.html").read_text()
+    catalog = re.findall(
+        r'<a class="package-card" href="([^"]+)">\s*<strong>([^<]+)</strong>',
+        packages,
+    )
+    declared = json.loads((EXAMPLES / "layer.json").read_text())
+
+    # Gallery is the core page's own browser-test package rather than a product
+    # package. Every package a reader can opt into gets one catalog entry.
+    assert [name.casefold().replace(" ", "-") for _, name in catalog] == [
+        name for name in declared if name != "gallery"
+    ]
+    assert all(
+        href.startswith("/examples/") and href.endswith("/") for href, _ in catalog
+    )
 
 
 def test_package_tutorial_registry_entry_is_valid(page_dir):

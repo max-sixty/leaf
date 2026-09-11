@@ -191,7 +191,7 @@
     "additionalProperties": false,
     "x-owners": ["lf-playground"],
     "x-content": "markup",
-    "x-upgrade": false
+    "x-upgrade": true
   },
   "lf-playground-value": {
     "description": "One live value inside a playground instruction. `for` names a control in the enclosing playground. Numeric values include the control's unit.",

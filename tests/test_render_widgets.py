@@ -3575,6 +3575,7 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
     copy.goto(out.as_uri(), wait_until="load")
     playground = copy.locator("#notification-playground")
     expect(playground.locator(".lf-playground-actions")).to_be_hidden()
+    expect(playground.locator(".notification-demo-pressure")).to_be_hidden()
     expect(playground.locator("#notification-instruction")).to_contain_text(
         "deployment-notification.html"
     )

@@ -2,7 +2,7 @@
  *
  * Authors define controls, presets, real preview markup, and an instruction in light
  * DOM. This module owns the common mechanics: typed working state, native controls,
- * tab-local persistence, CSS reflection, value substitution, copying, commands, and
+ * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
  *
  * The host element is the extension boundary. Its `values` getter returns a fresh
@@ -34,6 +34,7 @@ import {
   sendAction,
   tabStore,
 } from "/runtime/widget-api.js";
+import "./lf-playground-output.js";
 
 const NAME = /^[a-z][a-z0-9-]*$/;
 const COLOR = /^#[0-9a-f]{6}$/i;
@@ -548,10 +549,7 @@ customElements.define(
         this.style.setProperty(`--playground-${name}`, this.#cssValue(control, value));
         keeps(this, `data-playground-${name}`, value);
       }
-      for (const slot of this.#output.querySelectorAll("lf-playground-value")) {
-        const name = slot.getAttribute("for");
-        slot.textContent = this.#formatted(this.#controlByName.get(name), values[name]);
-      }
+      this.#output.renderValues(values, this.#controlByName);
       this.#resetCopyFeedback();
       this.#paintPresets();
       if (remember) tabStore.set(this.#storeKey(), JSON.stringify(values));

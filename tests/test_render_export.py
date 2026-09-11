@@ -1413,6 +1413,59 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
     page.close()
 
 
+def test_a_copy_keeps_generated_native_controls_and_their_labels(
+    browser, serve, tmp_path
+):
+    source = leaf_page(
+        "Native controls in a copy",
+        """
+<h1>Native controls in a copy</h1>
+<section id="native-controls">
+  <p id="native-detail">The browser reveals this detail.</p>
+</section>
+<label>Review note <input name="review-note" value="Keep this note"></label>
+""",
+        head="""
+<style>
+  #native-detail { display: none; }
+  #native-toggle:checked ~ #native-detail { display: block; }
+</style>
+<script type="module">
+  import { offer } from '/runtime/widget-api.js';
+  const root = document.querySelector('#native-controls');
+  const wrapper = offer('div', 'native-label-wrapper');
+  const label = offer('label', '', 'Show detail');
+  label.htmlFor = 'native-toggle';
+  wrapper.append(label);
+  const input = offer('input', '', undefined, 'checkbox');
+  input.id = label.htmlFor;
+  root.prepend(wrapper, input, offer('button', '', 'Run scripted action'));
+</script>
+""",
+    )
+    url = serve(source)
+    live, errors = open_page(browser, url)
+    expect(live.get_by_role("checkbox", name="Show detail")).to_be_visible()
+    expect(live.get_by_role("button", name="Run scripted action")).to_be_visible()
+    assert errors == []
+    live.close()
+
+    out = tmp_path / "native-controls-copy.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    copy = browser.new_page()
+    copy.goto(out.as_uri(), wait_until="load")
+    expect(copy.get_by_role("button", name="Run scripted action")).to_have_count(0)
+    expect(copy.locator("#native-detail")).to_be_hidden()
+    copy.get_by_text("Show detail", exact=True).click()
+    expect(copy.get_by_role("checkbox", name="Show detail")).to_be_checked()
+    expect(copy.locator("#native-detail")).to_be_visible()
+    copy.get_by_role("textbox", name="Review note").fill("Retained native input")
+    expect(copy.get_by_role("textbox", name="Review note")).to_have_value(
+        "Retained native input"
+    )
+    copy.close()
+
+
 def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):
     source = leaf_page(
         "Export CSP",

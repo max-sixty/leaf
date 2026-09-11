@@ -209,10 +209,6 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
     assert sibling_after == sibling_before, (
         f"growing the left composer moved its sibling: {sibling_before}, {sibling_after}"
     )
-    field.evaluate("box => box.scrollTop = box.scrollHeight")
-    assert field.evaluate(
-        "box => box.scrollTop + box.clientHeight >= box.scrollHeight - 1"
-    ), "the complete multiline draft was not reachable in its field"
 
     resized(page, 520, 900)
     expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")

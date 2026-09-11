@@ -845,6 +845,79 @@ describe("website page agent", () => {
     vi.unstubAllGlobals();
   });
 
+  it("logs content-free model timings with the Codex turn", async () => {
+    const env = environment();
+    const responseBody = [
+      'data: {"type":"response.created"}',
+      "",
+      'data: {"type":"response.output_item.added","item":{"type":"reasoning","content":"private reasoning"}}',
+      "",
+      'data: {"type":"response.completed","response":{"output":[{"content":"private answer"}]}}',
+      "",
+      "data: [DONE]",
+      "",
+    ].join("\n");
+    const upstream = vi.fn(
+      async () =>
+        new Response(responseBody, {
+          headers: { "x-request-id": "upstream-request" },
+        }),
+    );
+    vi.stubGlobal("fetch", upstream);
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
+
+    try {
+      const response = await handler(
+        new Request("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            "x-codex-turn-metadata": JSON.stringify({
+              request_kind: "turn",
+              thread_id: "app-thread",
+              turn_id: "app-turn",
+              workspace: "private workspace",
+            }),
+          },
+          body: "private prompt",
+        }),
+        env,
+        { containerId: "reader-container", className: "LeafWebsiteSession" },
+      );
+
+      expect(await response.text()).toBe(responseBody);
+      const records = logged.mock.calls.map(([record]) => record);
+      expect(
+        records.map((record) => (record as Record<string, unknown>).event),
+      ).toEqual([
+        "model_request_started",
+        "model_response_headers",
+        "model_response_first_byte",
+        "model_response_first_output",
+        "model_response_completed",
+      ]);
+      expect(records[0]).toMatchObject({
+        component: "leaf-agent",
+        containerId: "reader-container",
+        requestKind: "turn",
+        threadId: "app-thread",
+        turnId: "app-turn",
+      });
+      expect(records[3]).toMatchObject({
+        responseEvent: "response.output_item.added",
+        outputType: "reasoning",
+        upstreamRequestId: "upstream-request",
+      });
+      expect(records[4]).toMatchObject({
+        status: 200,
+      });
+      expect(JSON.stringify(records)).not.toContain("private");
+    } finally {
+      logged.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("rejects other uses of the credential-injecting route", async () => {
     const handler = LeafWebsiteSession.outboundByHost["api.openai.com"];
     const response = await handler(

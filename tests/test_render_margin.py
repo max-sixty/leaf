@@ -1170,7 +1170,7 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
     atlas = page.locator("#bg-margin-controls-specimens")
     expect(atlas).to_be_visible()
     buttons = atlas.locator(".lf-margin-entry")
-    expect(buttons).to_have_count(13)
+    expect(buttons).to_have_count(11)
     records = buttons.evaluate_all(
         """buttons => buttons.map(button => ({
           behavior: button.dataset.lfBehavior,
@@ -1200,7 +1200,7 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
         )
 
     expect(atlas.locator(".margin-entry-gallery-heading")).to_have_text(
-        ["Rank and behavior", "Agent ownership", "Ownership with tone"]
+        ["Rank and behavior", "Agent ownership"]
     )
 
     not_held = specimen("not held")
@@ -1235,19 +1235,6 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
     expect(fallback.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
-    positive_pickup = specimen("positive pickup")
-    negative_pickup = specimen("negative pickup")
-    for control in (positive_pickup, negative_pickup):
-        expect(control).to_have_attribute("data-lf-agent-phase", "picked_up")
-        expect(control.locator(".lf-margin-entry-icon")).to_have_css(
-            "color", token_colour(page, "--ok-ink")
-        )
-    expect(positive_pickup).to_have_css(
-        "border-top-color", token_colour(page, "--ok-ink")
-    )
-    expect(negative_pickup).to_have_css(
-        "border-top-color", token_colour(page, "--danger-ink")
-    )
     expect(
         atlas.locator('[data-margin-entry-specimen="sent"] > .lf-margin-entry')
     ).to_have_attribute("role", "status")
@@ -1264,8 +1251,6 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
             "Picked up",
             "Working",
             "Activity fallback",
-            "Positive pickup",
-            "Negative pickup",
         ]
     )
 
@@ -2262,8 +2247,10 @@ def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_margin_entry_tone_colors_only_the_icon(browser, serve, scheme):
-    """Tone never recolors the shell or transient pending treatment."""
+def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
+    browser, serve, scheme
+):
+    """Tone keeps its meaning through interaction and agent-ownership states."""
     page, errors = open_page(
         browser,
         serve(leaf_page("margin entry tones", '<p id="target">A shared target</p>')),
@@ -2272,7 +2259,7 @@ def test_margin_entry_tone_colors_only_the_icon(browser, serve, scheme):
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, setMarginEntryState} =
+          const {offer, marginEntry, setMarginEntryState, syncMarginAgentPhase} =
             await import('/runtime/widget-api.js');
           const controls = document.createElement('div');
           controls.className = 'lf-ui';
@@ -2288,6 +2275,12 @@ def test_margin_entry_tone_colors_only_the_icon(browser, serve, scheme):
               setMarginEntryState(button, state);
               button.setAttribute('aria-disabled', String(state === 'busy'));
             }
+          };
+          window.setToneAgentPhase = phase => {
+            buttons.forEach((button, index) => syncMarginAgentPhase(
+              button,
+              phase ? {id: `tone-${index}`, target: {kind: 'widget', id: 'target'}, phase} : null
+            ));
           };
         }"""
     )
@@ -2336,6 +2329,19 @@ def test_margin_entry_tone_colors_only_the_icon(browser, serve, scheme):
     buttons[0].evaluate("button => { delete button.dataset.lfAgentPhase; }")
 
     page.evaluate("() => window.setToneState('idle')")
+    ordinary = [button.evaluate(read) for button in buttons]
+    page.evaluate("() => window.setToneAgentPhase('picked_up')")
+    picked_up = [button.evaluate(read) for button in buttons]
+    assert [reading["shell"][1] for reading in picked_up] == [
+        ordinary[0]["shell"][1],
+        token_colour(page, "--ok-ink"),
+        token_colour(page, "--danger-ink"),
+    ]
+    assert {reading["icon"] for reading in picked_up} == {
+        token_colour(page, "--ok-ink")
+    }
+    page.evaluate("() => window.setToneAgentPhase(null)")
+
     hovered = []
     focused = []
     for button in buttons:

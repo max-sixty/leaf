@@ -587,7 +587,6 @@ export function createResponseSurface({
   function dismissFab() {
     dismissedSelectionKeyup = Boolean(pageSelection() || fabAnchor?.quote);
     pageSelection()?.removeAllRanges();
-    if (composerOpen) hideComposer();
     showFab(null);
   }
   function refreshFab() {
@@ -698,6 +697,10 @@ export function createResponseSurface({
     if (origin) showFab(anchor, null, { origin });
     setTimeout(() => {
       targetActivation = false;
+      // A browser command or touch handle can replace the visual target while its
+      // selectionchange is held out above. Re-read once the explicit activation is
+      // complete so that real later selection is not discarded with the focus collapse.
+      scheduleSelectionUpdate();
     });
   }
   // Focusing text entry collapses a native page selection. Hold that browser-authored
@@ -811,6 +814,9 @@ export function createResponseSurface({
   let fabInputTakingFocus = false;
   const beginFabFocus = () => {
     fabInputTakingFocus = true;
+  };
+  const endFabFocus = () => {
+    fabInputTakingFocus = false;
   };
   function openComment(anchor, text, options = {}) {
     return openComposer(anchor, text, options);
@@ -1096,6 +1102,7 @@ export function createResponseSurface({
   return {
     fabPositioned,
     beginFabFocus,
+    endFabFocus,
     anchorStands,
     showFab,
     dismissFab,

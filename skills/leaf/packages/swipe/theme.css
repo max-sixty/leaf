@@ -305,11 +305,27 @@ lf-swipe-pile[verdict="keep"]
   }
 
   .lf-swipe-controls {
+    grid-template-columns: 1fr 1fr;
     gap: var(--sp-2);
   }
 
   .lf-swipe-progress {
+    grid-column: 1 / -1;
+    grid-row: 1;
     white-space: normal;
+  }
+
+  .lf-swipe-pass,
+  .lf-swipe-keep {
+    grid-row: 2;
+  }
+
+  .lf-swipe-pass {
+    grid-column: 1;
+  }
+
+  .lf-swipe-keep {
+    grid-column: 2;
   }
 }
 

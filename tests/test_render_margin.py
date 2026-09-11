@@ -2785,18 +2785,45 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     else:
         expect(marker).to_have_css("animation-name", "none")
     expect(marker).not_to_have_attribute("data-lf-agent-arrival", re.compile(".*"))
-    # Repaint the same canonical claim without another arrival.
-    page.evaluate("""async () => {
-      document.dispatchEvent(new CustomEvent('lf-actions'));
-      await new Promise(requestAnimationFrame);
-      await new Promise(requestAnimationFrame);
-    }""")
+    expect(marker).to_have_attribute("title", f"Threads · Working · {detail}")
+
+    # An unchanged claim neither replays its arrival nor restates its accessible
+    # ownership text. Observe every write, including a remove followed by a restore.
+    def ownership_text_mutations(control):
+        return control.evaluate("""async node => {
+          const writes = [];
+          const record = mutations => writes.push(...mutations.map(mutation => ({
+            attribute: mutation.attributeName, before: mutation.oldValue,
+            after: node.getAttribute(mutation.attributeName),
+          })));
+          const observer = new MutationObserver(record);
+          observer.observe(node, {attributes: true, attributeOldValue: true,
+            attributeFilter: ['title', 'aria-description']});
+          for (let pass = 0; pass < 3; pass++) {
+            document.dispatchEvent(new CustomEvent('lf-actions'));
+            await new Promise(requestAnimationFrame);
+            await new Promise(requestAnimationFrame);
+          }
+          record(observer.takeRecords());
+          observer.disconnect();
+          return writes;
+        }""")
+
+    assert ownership_text_mutations(marker) == []
     expect(marker).to_have_attribute("data-lf-agent-phase", "active")
     assert page.evaluate("window.agentArrivals.length") == expected_arrivals
     marker.focus()
     page.keyboard.press("Enter")
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-margin-thread")).to_have_count(2)
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    expect(preview.locator(".lf-margin-thread")).to_have_count(1)
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("1 of 2")
+    expect(preview).to_contain_text(COMMENT_ON_ASK["text"])
+    preview.get_by_role("button", name="Next conversation").click()
+    expect(preview.locator(".lf-margin-preview-position")).to_have_text("2 of 2")
+    expect(preview.locator(".lf-margin-thread")).to_have_count(1)
+    expect(preview).to_contain_text("Check the return visit too.")
+    expect(preview).not_to_contain_text(COMMENT_ON_ASK["text"])
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -2828,6 +2855,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
       });
       controls.append(edit, cancel);
       window.agentCarrier = edit;
+      window.agentCancel = cancel;
       window.agentContribution = registerMarginContribution({
         key: 'carrier-probe', target: document.querySelector('#bracket'), controls,
       });
@@ -2839,11 +2867,30 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
         "aria-description", f"Edit the proposed bracket · Working · {detail}"
     )
     expect(carrier).to_have_css("border-top-color", colors["--ok-ink"])
-    expect(carrier).to_have_attribute("title", f"Working · {detail}")
+    expect(carrier).to_have_attribute("title", f"Edit · Working · {detail}")
     assert page.evaluate("window.agentArrivals.length") == expected_arrivals, (
         "moving the same work claim to another semantic carrier replayed its arrival"
     )
-    page.evaluate("() => window.agentContribution.unregister()")
+    # A contributor can forward a control whose ownership was already painted.
+    # Use the same canonical receipt to exercise its real secondary option proxy.
+    page.evaluate("""async () => {
+      const {syncMarginAgentPhase} = await import('/runtime/widget-api.js');
+      const {runtime} = await import('/runtime/context.js');
+      const receipt = runtime.activity.interactions.find(item => item.phase === 'active');
+      syncMarginAgentPhase(window.agentCancel, receipt);
+    }""")
+    cluster.locator(":scope > .lf-margin-more").click()
+    proxy = cluster.locator(".lf-margin-option-proxy").filter(has_text="Cancel")
+    expect(proxy).to_be_visible()
+    assert proxy.evaluate("node => node.lfForwardedControl === window.agentCancel")
+    expect(proxy).to_have_attribute("title", f"Cancel · Working · {detail}")
+    expect(proxy).to_have_attribute("aria-description", f"Working · {detail}")
+    assert ownership_text_mutations(proxy) == []
+    page.evaluate("""async () => {
+      const {syncMarginAgentPhase} = await import('/runtime/widget-api.js');
+      syncMarginAgentPhase(window.agentCancel, null);
+      window.agentContribution.unregister();
+    }""")
     expect(marker).to_be_visible()
     assert (
         page.evaluate("() => window.agentCarrier.getAttribute('aria-description')")

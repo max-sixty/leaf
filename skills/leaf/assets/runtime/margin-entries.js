@@ -80,9 +80,7 @@ const FORWARDED_ATTRIBUTES = [
   "aria-expanded",
   "aria-haspopup",
   "aria-pressed",
-  "aria-description",
   "data-lf-agent-phase",
-  "title",
 ];
 
 const changed = () => {
@@ -166,6 +164,7 @@ function validateMarginEntries(offered) {
 // Ownership is independent of a control's action and delivery state. A semantic
 // carrier keeps its glyph and press while the canonical receipt supplies its color.
 const agentDescriptions = new WeakMap();
+const forwardedSources = new WeakMap();
 // Every claim gets one arrival window shared by its margin and Page Map carriers.
 // A new carrier can join the remaining pulse, but repainting cannot begin it again.
 const claimArrivals = new Map();
@@ -191,6 +190,51 @@ function syncAgentArrival(control, claim, phase) {
   );
 }
 
+// Both entry reconciliation and activity updates ask this one writer to compose
+// text. Rebuilding a control must not clear a tooltip whose ownership is unchanged.
+function paintAgentDescription(control) {
+  const source = forwardedSources.get(control);
+  if (source) {
+    for (const attribute of ["aria-description", "title"]) {
+      const value = source.getAttribute(attribute);
+      if (value === null) control.removeAttribute(attribute);
+      else keeps(control, attribute, value);
+    }
+    return;
+  }
+  const reading = agentDescriptions.get(control);
+  if (!reading) {
+    control.removeAttribute("title");
+    return;
+  }
+  if (!reading.phase) {
+    for (const [attribute, value] of [
+      ["aria-description", reading.description],
+      ["title", reading.title],
+    ]) {
+      if (value === null) control.removeAttribute(attribute);
+      else keeps(control, attribute, value);
+    }
+    return;
+  }
+  const work = [reading.phase === "active" ? "Working" : "Picked up", reading.detail]
+    .filter(Boolean)
+    .join(" · ");
+  const action = control[RECORD]?.label || control.getAttribute("aria-label");
+  keeps(
+    control,
+    "aria-description",
+    [reading.description, work].filter(Boolean).join(" · "),
+  );
+  keeps(
+    control,
+    "title",
+    [action, reading.title !== action && reading.title, work]
+      .filter(Boolean)
+      .join(" · "),
+  );
+}
+
 export function syncMarginAgentPhase(control, receipt) {
   const phase = agentWorkPhase(receipt);
   syncAgentArrival(
@@ -204,46 +248,22 @@ export function syncMarginAgentPhase(control, receipt) {
         description: control.getAttribute("aria-description"),
         title: control.getAttribute("title"),
       });
+    Object.assign(agentDescriptions.get(control), { phase, detail: receipt.detail });
     keeps(control, "data-lf-agent-phase", phase);
-    keeps(
-      control,
-      "aria-description",
-      [
-        agentDescriptions.get(control).description,
-        phase === "active" ? "Working" : "Picked up",
-        receipt.detail,
-      ]
-        .filter(Boolean)
-        .join(" · "),
-    );
-    keeps(
-      control,
-      "title",
-      [
-        agentDescriptions.get(control).title,
-        phase === "active" ? "Working" : "Picked up",
-        receipt.detail,
-      ]
-        .filter(Boolean)
-        .join(" · "),
-    );
+    paintAgentDescription(control);
   } else {
     control.removeAttribute("data-lf-agent-phase");
     if (agentDescriptions.has(control)) {
-      const original = agentDescriptions.get(control);
-      for (const [attribute, value] of [
-        ["aria-description", original.description],
-        ["title", original.title],
-      ]) {
-        if (value === null) control.removeAttribute(attribute);
-        else keeps(control, attribute, value);
-      }
+      agentDescriptions.get(control).phase = null;
+      paintAgentDescription(control);
       agentDescriptions.delete(control);
     }
   }
 }
 
 export function syncForwardedMarginEntryState(projection, source) {
+  forwardedSources.set(projection, source);
+  paintAgentDescription(projection);
   syncAgentArrival(
     projection,
     controlArrivals.get(source),
@@ -304,7 +324,7 @@ export function marginEntry(
 
   if (!control.classList.contains("lf-margin-entry"))
     control.classList.add("lf-margin-entry");
-  control.removeAttribute("title");
+  paintAgentDescription(control);
   keeps(control, "data-lf-margin-entry-key", record.key);
   keeps(control, "data-lf-behavior", record.behavior);
   keeps(control, "data-lf-tone", record.tone);

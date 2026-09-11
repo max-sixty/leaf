@@ -39,6 +39,7 @@ from render_support import (
     LIVE_V3,
     MARKDOWN_REPLY,
     ONE_FRAME,
+    PAGE_FIXTURES,
     REF_PAGE,
     RELATIVE_WIDGET_MODULE,
     RELATIVE_WIDGET_PAGE,
@@ -102,6 +103,10 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+VISUAL_REVIEW_GALLERY = next(
+    path for path in PAGE_FIXTURES if path.stem == "visual-review-gallery"
+)
 
 
 def test_inspection_and_browser_share_retirement_and_bound_input_origins(
@@ -678,8 +683,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     capture = {
         "browser": "Chrome",
         "browserVersion": "140.0.7339.80",
-        "viewport": {"width": 1280, "height": 900},
-        "deviceScaleFactor": 1,
+        "viewport": {"width": 900, "height": 373},
+        "deviceScaleFactor": 2,
         "colorScheme": "light",
         "locale": "en-US",
         "timezone": "America/Los_Angeles",
@@ -750,7 +755,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     second = cases.filter(has=page.locator(".lf-vr-case-title", has_text="Run detail"))
 
     expect(widget.locator(".lf-vr-title")).to_have_text(record["title"])
-    expect(widget.locator(".lf-vr-case-tab")).to_have_count(2)
+    case_select = widget.get_by_role("combobox", name="Selected visual case")
+    expect(case_select.locator("option")).to_have_count(2)
     expect(first).to_be_visible()
     expect(second).to_be_hidden()
     expect(first).to_have_attribute("data-lf-projection", "visual-run")
@@ -777,22 +783,28 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(first.get_by_role("link", name="Open trace")).to_have_attribute(
         "href", "https://trace.example/runs/17"
     )
-    expect(first.locator(".lf-vr-provenance")).to_contain_text(
-        "Chrome 140.0.7339.80 · 1280 × 900 · 1× · light · en-US"
+    expect(first.locator(".lf-vr-browser")).to_have_text("Chrome 140.0.7339.80")
+    expect(first.locator(".lf-vr-viewport")).to_have_text("900 × 373 · 2×")
+    expect(first.locator(".lf-vr-appearance")).to_have_text(
+        "light · en-US · America/Los_Angeles"
     )
 
-    expect(widget).to_have_attribute("data-inspection-mode", "flip")
+    expect(widget).to_have_attribute("data-inspection-mode", "compare")
     expect(widget).to_have_attribute("data-inspection-scale", "fit")
-    expect(widget.get_by_role("button", name="Flip")).to_have_attribute(
+    expect(widget.get_by_role("button", name="Compare")).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(widget.get_by_role("button", name="Flip")).to_have_css("box-shadow", "none")
-    opacity = widget.get_by_role("slider", name="Candidate opacity")
+    expect(widget.get_by_role("button", name="Compare")).to_have_css(
+        "box-shadow", "none"
+    )
+    opacity = first.locator(".lf-vr-opacity")
     expect(opacity).to_be_disabled()
+    expect(opacity).to_be_hidden()
 
-    widget.get_by_role("button", name="Side by side").click()
-    expect(widget).to_have_attribute("data-inspection-mode", "side")
-    expect(first.locator(".lf-vr-frame-label")).to_have_text(["Base", "Candidate"])
+    expect(widget).to_have_attribute("data-compare-layout", "stack")
+    assert first.locator(".lf-vr-frame-label").evaluate_all(
+        "nodes => nodes.map(node => node.dataset.label)"
+    ) == ["Base · Candidate below", "Candidate"]
     expect(first.locator("lf-shot")).to_have_attribute("data-lf-shot-controls", "off")
     expect(first.locator(".lf-shotflip")).to_be_hidden()
     expect(first.locator(".lf-shot-toggle")).to_be_hidden()
@@ -802,23 +814,56 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     before_box, after_box = frames.evaluate_all(
         "nodes => nodes.map(node => node.getBoundingClientRect())"
     )
-    assert after_box["left"] >= before_box["right"]
+    assert after_box["top"] >= before_box["bottom"]
 
-    widget.get_by_role("button", name="Actual size").click()
-    expect(widget).to_have_attribute("data-inspection-scale", "actual")
     shot_host = first.locator(".lf-vr-shot-host")
-    assert shot_host.evaluate("node => node.scrollWidth > node.clientWidth")
-    assert first.locator("lf-shot img").first.evaluate(
-        "image => image.getBoundingClientRect().width === image.naturalWidth"
+    resized(page, 1200, 480)
+    expect(widget).to_have_attribute("data-compare-layout", "stack")
+    before_box, after_box = frames.evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect())"
+    )
+    assert after_box["top"] >= before_box["bottom"]
+    resized(page, 1200, 900)
+    expect(widget).to_have_attribute("data-compare-layout", "stack")
+    flow_height = shot_host.evaluate("node => node.getBoundingClientRect().height")
+    page.evaluate(
+        "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
+    )
+    widget.get_by_role("button", name="Flip").evaluate("node => node.click()")
+    expect(widget).to_have_attribute("data-inspection-mode", "flip")
+    assert shot_host.evaluate(
+        "node => node.getBoundingClientRect().height"
+    ) == pytest.approx(flow_height, abs=1), (
+        "ordinary-flow evidence height must not depend on its viewport offset"
+    )
+    widget.get_by_role("button", name="Compare").evaluate("node => node.click()")
+    assert shot_host.evaluate(
+        "node => node.getBoundingClientRect().height"
+    ) == pytest.approx(flow_height, abs=1)
+
+    widget.get_by_role("button", name="100%").click()
+    expect(widget).to_have_attribute("data-inspection-scale", "actual")
+    assert shot_host.evaluate(
+        "node => node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight"
+    )
+    captured_width = first.locator("lf-shot img").first.evaluate(
+        "image => image.getBoundingClientRect().width"
+    )
+    assert captured_width == pytest.approx(900, abs=1), (
+        "100% is the captured CSS viewport width, not the retina bitmap width: "
+        f"{captured_width}px"
     )
 
     widget.get_by_role("button", name="Fit").click()
     widget.get_by_role("button", name="Flip").click()
     expect(first.locator("lf-shot[data-lf-shot-controls]")).to_have_count(0)
     expect(first.locator(".lf-vr-frame-label")).to_have_count(0)
-    widget.get_by_role("button", name="Opacity").click()
-    expect(widget).to_have_attribute("data-inspection-mode", "opacity")
+    widget.get_by_role("button", name="Overlay").click()
+    expect(widget).to_have_attribute("data-inspection-mode", "overlay")
     expect(opacity).to_be_enabled()
+    expect(opacity).to_be_visible()
+    expect(first.locator(".lf-vr-opacity-control")).to_contain_text("Candidate opacity")
+    expect(first.locator(".lf-vr-opacity-value")).to_have_css("white-space", "nowrap")
     opacity.press("ArrowLeft")
     opacity.press("ArrowLeft")
     opacity.press("ArrowLeft")
@@ -838,14 +883,30 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     with sending(page, "the first visual disposition"):
         first.get_by_role("button", name="Looks right").click()
     expect(first).to_have_attribute("data-disposition", "looks-right")
-    expect(widget.locator(".lf-vr-foot")).to_have_text("1 of 2 cases reviewed")
+    expect(widget.locator(".lf-vr-progress")).to_have_text("1 of 2 cases reviewed")
 
-    widget.locator('.lf-vr-case-tab[data-case="run-list"]').focus()
-    page.keyboard.press("ArrowDown")
+    next_button = widget.get_by_role("button", name="Next")
+    page.keyboard.press("g")
+    next_box = next_button.bounding_box()
+    assert next_box
+    next_code = page.locator(".lf-go-to-hint[data-lf-hint-code]").evaluate_all(
+        """(hints, target) => hints.map(hint => {
+          const box = hint.getBoundingClientRect();
+          const dx = box.x + box.width / 2 - (target.x + target.width / 2);
+          const dy = box.y + box.height / 2 - (target.y + target.height / 2);
+          return {code: hint.dataset.lfHintCode, distance: dx * dx + dy * dy};
+        }).sort((left, right) => left.distance - right.distance)[0].code""",
+        next_box,
+    )
+    page.keyboard.type(next_code)
     expect(first).to_be_hidden()
     expect(second).to_be_visible()
     expect(second.locator(".lf-vr-trace-link")).to_be_hidden()
-    expect(widget.locator('.lf-vr-case-tab[data-case="run-detail"]')).to_be_focused()
+    expect(case_select).to_have_value("run-detail")
+    expect(case_select).not_to_be_focused()
+    page.keyboard.press("g")
+    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
+    page.keyboard.press("Escape")
 
     inserted_case = record["cases"][1] | {
         "id": "run-middle",
@@ -876,24 +937,25 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     )
     expect(second).to_be_visible()
     expect(first).to_have_attribute("data-disposition", "looks-right")
-    expect(widget).to_have_attribute("data-inspection-mode", "opacity")
+    expect(widget).to_have_attribute("data-inspection-mode", "overlay")
     expect(widget.locator(".lf-vr-opacity")).to_have_value("35")
-    widget.locator('.lf-vr-case-tab[data-case="run-list"]').click()
-    page.keyboard.press("ArrowDown")
-    expect(widget.locator('.lf-vr-case-tab[data-case="run-middle"]')).to_be_focused()
+    case_select.select_option("run-list")
+    next_button.click()
+    expect(case_select).to_have_value("run-middle")
+    expect(next_button).to_be_focused()
 
     resized(page, 390, 900)
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
-    widget.get_by_role("button", name="Side by side").click()
+    widget.get_by_role("button", name="Compare").click()
     expect(
         widget.locator(".lf-vr-case:not([hidden]) .lf-vr-frame-label").first
     ).to_be_visible()
     page.emulate_media(media="print")
     expect(first).to_be_visible()
     expect(second).to_be_visible()
-    expect(widget.locator(".lf-vr-queue-region")).to_be_visible()
+    expect(widget.locator(".lf-vr-queue-region")).to_be_hidden()
     expect(widget.locator(".lf-vr-dispositions").first).to_be_hidden()
     expect(widget.locator(".lf-vr-inspector")).to_be_hidden()
     expect(widget.locator(".lf-vr-frame-label").first).to_be_hidden()
@@ -901,6 +963,154 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "nodes => nodes.map(node => node.getBoundingClientRect())"
     )
     assert after_box["top"] >= before_box["bottom"]
+    page.emulate_media(media="screen")
+    assert errors == []
+    page.close()
+
+
+def test_visual_review_empty_navigation_is_unavailable(browser, serve):
+    url = live_url(
+        serve(
+            leaf_page(
+                "empty visual review",
+                '<lf-visual-review id="visual-run" source="missing-run"></lf-visual-review>',
+            ),
+            packages=("visual-review",),
+        )
+    )
+    page, errors = open_page(browser, url)
+    widget = page.locator("#visual-run")
+    expect(widget.get_by_role("button", name="Previous")).to_be_disabled()
+    expect(widget.get_by_role("combobox", name="Selected visual case")).to_be_disabled()
+    expect(widget.get_by_role("button", name="Next")).to_be_disabled()
+    expect(widget.get_by_text("Waiting for visual-run data.")).to_be_visible()
+    assert errors == []
+    page.close()
+
+
+def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
+    """A focused review is a root workspace, not prose followed by a narrow widget.
+
+    The case chooser never taxes the evidence width, the disposition is available before
+    the pixels, and this wide, shallow pair stacks at a readable width inside a scrolling
+    evidence stage. Capture facts follow the comparison rather than delaying it.
+    """
+    page, errors = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    resized(page, 1366, 768)
+    widget = page.locator("#visual-review-run")
+    expect(widget).to_have_attribute("data-lf-workspace-context", "root")
+    expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
+    geometry = widget.evaluate(
+        """node => {
+          const box = selector => node.querySelector(selector).getBoundingClientRect();
+          const frames = [...node.querySelectorAll(
+            '.lf-vr-case:not([hidden]) .lf-shotframe')]
+            .map(frame => frame.getBoundingClientRect());
+          return {widget: node.getBoundingClientRect(), title: box('.lf-vr-case-title'),
+                  decision: box('.lf-vr-dispositions'), evidence: box('.lf-vr-shot-host'),
+                  support: box('.lf-vr-support'), frames};
+        }"""
+    )
+    assert geometry["widget"]["width"] > 1000
+    assert geometry["widget"]["bottom"] <= 768
+    assert geometry["decision"]["bottom"] <= geometry["evidence"]["top"]
+    assert geometry["evidence"]["top"] < 270, geometry
+    assert geometry["evidence"]["height"] >= 360
+    assert widget.get_attribute("data-compare-layout") == "stack", geometry
+    assert geometry["frames"][1]["top"] >= geometry["frames"][0]["bottom"]
+    assert geometry["frames"][0]["width"] >= 895, geometry
+    assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
+        "node => node.scrollHeight > node.clientHeight"
+    )
+    assert geometry["support"]["top"] >= geometry["evidence"]["bottom"]
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    claim_geometry = case.evaluate(
+        """node => {
+          const box = selector => node.querySelector(selector).getBoundingClientRect();
+          const style = selector => getComputedStyle(node.querySelector(selector));
+          return {
+            actionTerm: box('.lf-vr-action-term'), action: box('.lf-vr-action'),
+            resultTerm: box('.lf-vr-result-term'), result: box('.lf-vr-result'),
+            titleFamily: style('.lf-vr-case-title').fontFamily,
+            labelFamily: style('.lf-vr-action-term').fontFamily,
+            valueFamily: style('.lf-vr-action').fontFamily,
+          };
+        }"""
+    )
+    assert claim_geometry["titleFamily"] == claim_geometry["valueFamily"]
+    assert claim_geometry["labelFamily"] == claim_geometry["valueFamily"]
+    assert claim_geometry["actionTerm"]["left"] == pytest.approx(
+        claim_geometry["action"]["left"], abs=1
+    )
+    assert claim_geometry["resultTerm"]["left"] == pytest.approx(
+        claim_geometry["result"]["left"], abs=1
+    )
+    assert claim_geometry["actionTerm"]["bottom"] <= claim_geometry["action"]["top"]
+    assert claim_geometry["resultTerm"]["bottom"] <= claim_geometry["result"]["top"]
+    links = case.locator(".lf-vr-links > a:visible")
+    link_tops = links.evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect().top)"
+    )
+    assert max(link_tops) - min(link_tops) < 1
+    icon_geometry = links.first.evaluate(
+        """link => {
+          const mark = link.querySelector('.lf-external-mark').getBoundingClientRect();
+          const box = link.getBoundingClientRect();
+          return {width: mark.width, markMid: mark.top + mark.height / 2,
+                  linkMid: box.top + box.height / 2};
+        }"""
+    )
+    assert icon_geometry["width"] >= 12
+    assert icon_geometry["markMid"] == pytest.approx(icon_geometry["linkMid"], abs=1)
+    expect(case.get_by_text("Capture details", exact=True)).to_be_visible()
+    expect(case.locator(".lf-vr-provenance")).to_be_hidden()
+    case.get_by_text("Capture details", exact=True).click()
+    expect(case.locator(".lf-vr-provenance")).to_be_visible()
+    revision = case.locator(".lf-vr-candidate-revision")
+    assert revision.evaluate("node => node.getClientRects().length") == 1
+    details_box = case.locator(".lf-vr-details").bounding_box()
+    support_box = case.locator(".lf-vr-support").bounding_box()
+    assert details_box and support_box
+    assert details_box["x"] >= support_box["x"]
+    assert (
+        details_box["x"] + details_box["width"]
+        <= support_box["x"] + support_box["width"] + 1
+    )
+    revision.evaluate("node => node.textContent = 'a'.repeat(40)")
+    assert case.locator(".lf-vr-provenance").evaluate(
+        "node => node.scrollWidth <= node.clientWidth"
+    )
+    resized(page, 560, 720)
+    assert page.evaluate(
+        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+    resized(page, 390, 900)
+    assert page.evaluate(
+        "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+    resized(page, 1366, 768)
+    shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
+    shot_host.evaluate("node => node.style.height = '120px'")
+    expect(widget).to_have_attribute("data-compare-layout", "stack")
+    shot_host.evaluate("node => node.style.removeProperty('height')")
+    expect(widget).to_have_attribute("data-compare-layout", "stack")
+    page.locator("html").evaluate("node => node.classList.add('lf-copy')")
+    copy_widths = widget.locator(".lf-vr-case lf-shot img").evaluate_all(
+        "images => images.map(image => image.getBoundingClientRect().width)"
+    )
+    assert len(copy_widths) == 6
+    assert max(copy_widths) <= 901
+    page.locator("html").evaluate("node => node.classList.remove('lf-copy')")
+    widget.locator(".lf-vr-shot-host").evaluate_all(
+        "nodes => nodes.forEach(node => node.style.setProperty('--lf-vr-capture-width', '300px'))"
+    )
+    page.emulate_media(media="print")
+    print_widths = widget.locator(".lf-vr-case lf-shot img").evaluate_all(
+        "images => images.map(image => image.getBoundingClientRect().width)"
+    )
+    assert len(print_widths) == 6
+    assert max(print_widths) <= 301
     page.emulate_media(media="screen")
     assert errors == []
     page.close()

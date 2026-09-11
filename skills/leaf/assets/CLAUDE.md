@@ -573,20 +573,27 @@ then uses `ResizeObserver` or the shared layout signal for later changes. An asy
 producer's default may reserve space without painting; a box-derived reading taken before
 replay does paint, and `PRESENTATION` replaces it.
 
-Control state is paint: ink, fill, border, or an inset ring. Do not express it by
-changing font weight, size, padding, border width, or another metric. Reserve
-space before a generated control appears. Transient feedback may repaint a control or
+An action awaiting confirmation dims its existing control after the shared delay; it
+does not gain another mark or change geometry. Durable workflow state uses the control's
+semantic label or agent-ownership treatment. Reserve space before a generated control
+appears. Transient feedback may repaint a control or
 briefly replace its label, but neither may change its geometry; `reserve` measures all
 enumerable labels in the control's current font and sets a minimum width. Re-measure
 after changing type tokens. The banner status stays on one line with ellipsis and a
 complete hover title; its CSS reservation stays independent of changing copy. Pair
 local visual feedback with `notice` for an assistive announcement.
 
+Use one contour to carry one control state. Do not stack a colored border with an inset
+underline or ring on the same selected control; the second edge reads as a stray border.
+In a segmented group, keep one-pixel shared seams and let fill, ink, or one outline make
+the selection distinct without adding another line inside it.
+
 Agent ownership colors the existing semantic margin control: pickup is blue, working
-is green with an inset double ring and one arrival pulse. Sending uses a static neutral
-dashed ring. A separate Activity control appears only when no semantic carrier exists.
-Thread cards carry the same ownership color; quiet or ended claims release it. Reduced
-motion suppresses arrival, and repainting or replacing a carrier cannot replay it.
+is green with an inset double ring and one arrival pulse. A separate Activity control
+appears only when no semantic carrier exists. Conversation receipts carry the local
+claim beside its triggering message; thread cards do not repeat that ownership as a
+colored edge. Quiet or ended claims release ownership. Reduced motion suppresses arrival,
+and repainting or replacing a carrier cannot replay it.
 
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for

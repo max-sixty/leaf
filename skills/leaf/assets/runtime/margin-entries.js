@@ -5,15 +5,17 @@
    retains registrations while live documents and widgets reconnect. The margin projection
    consumes that registry to choose and place controls; contributors never place RHS rows.
 
-   Behavior, tone, rank, and lifecycle state are independent axes. An action performs an
+   Behavior, tone, rank, and interaction state are independent axes. An action performs an
    immediate effect, a disclosure reveals context, and a status reports a move already
    made without offering a press. Tone changes the icon color without changing the ring
-   or surface. Busy alone adds state paint because an in-flight press otherwise looks
-   idle; engaged and failed controls stand beside words that already state their condition.
+   or surface. Busy dims an in-flight press after the shared delay; engaged and failed
+   controls stand beside words that already state their condition. Interaction state
+   otherwise orders controls and keeps an active contribution open rather than becoming a
+   product-facing visual taxonomy.
    A disclosure's visible label ends in an ellipsis because it opens context; action and
    status labels do not.
 
-   Ordering follows lifecycle state, then rank, contribution key, and control key. Failed,
+   Ordering follows interaction state, then rank, contribution key, and control key. Failed,
    busy, and engaged contributions precede idle ones; completion and escape controls
    precede primary, secondary, reading, and overflow controls. Registration and DOM order
    never decide which unrelated action becomes primary.

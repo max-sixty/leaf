@@ -81,8 +81,9 @@ A page directory holds:
                          state — what the agent is doing while working, what it
                          needs from the reader while waiting;
                          "work" holds typed, sequence-bounded claims on comment
-                         threads or page widgets. At the state boundary these
-                         private records become canonical claim updates, which
+                         threads or page widgets; a thread claim records the
+                         unanswered source event when there is one. At the state
+                         boundary these private records become canonical claim updates, which
                          their local receipts show beside the page-wide banner
                          (`leaf status … --on`). An optional `stream` record holds
                          the latest session-, turn-, and event-floor-bound activity

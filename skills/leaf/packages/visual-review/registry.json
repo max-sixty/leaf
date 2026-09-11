@@ -184,7 +184,7 @@
     }
   },
   "lf-visual-review": {
-    "description": "A guided review of one typed visual run. Author an empty element with an id, bind its required `run` input through `source`, and optionally pin an immutable data revision through `snapshot`. The widget keeps an ordered case queue beside one focused before-and-after comparison, opens the exact base and candidate paths, shows capture provenance, records a disposition for each case, and seats case threads beside the selected evidence.",
+    "description": "A guided review of one typed visual run. Author an empty element with an id, bind its required `run` input through `source`, and optionally pin an immutable data revision through `snapshot`. The widget keeps an ordered case queue beside one focused before-and-after comparison with local flip, side-by-side, opacity, fit, and actual-size inspection, opens the exact base and candidate paths, shows capture provenance, records a disposition for each case, and seats case threads beside the selected evidence.",
     "type": "object",
     "properties": {
       "id": {

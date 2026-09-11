@@ -12,6 +12,9 @@
  * One two-ended rail stays fixed above the frames while CSS moves its active rule. Its
  * labels are generated page words, available to selection, and become the order key
  * above the two stacked frames on paper.
+ * A parent that reuses the aligned frames under another inspector sets
+ * `data-lf-shot-controls="off"`; lf-shot then withdraws its commands and margin action
+ * without disabling the native checkbox a standalone copy needs.
  * Commentary about the change belongs in authored prose around the widget. */
 import {
   PRESS,
@@ -34,6 +37,8 @@ customElements.define(
   class extends HTMLElement {
     #button;
     #margin;
+
+    static observedAttributes = ["data-lf-shot-controls"];
 
     connectedCallback() {
       if (!once(this)) {
@@ -91,7 +96,9 @@ customElements.define(
             line: `show ${state}`,
             // The frame already shown has nothing for this press to do, so the line
             // does not name it there.
-            when: () => box.checked !== (state === "after"),
+            when: () =>
+              this.dataset.lfShotControls !== "off" &&
+              box.checked !== (state === "after"),
             run: () => caption.click(),
           },
         ]);
@@ -124,6 +131,7 @@ customElements.define(
             keys: bindings,
             does: () => `Show the ${box.checked ? "before" : "after"} frame`,
             line: () => `show ${box.checked ? "before" : "after"}`,
+            when: () => this.dataset.lfShotControls !== "off",
           },
         ]);
       }
@@ -138,7 +146,18 @@ customElements.define(
       this.#margin = null;
     }
 
+    attributeChangedCallback() {
+      if (!this.isConnected) return;
+      this.#offer();
+      paintKeys();
+    }
+
     #offer() {
+      if (this.dataset.lfShotControls === "off") {
+        this.#margin?.unregister();
+        this.#margin = null;
+        return;
+      }
       if (!this.#button || this.#margin) return;
       this.#margin = registerMarginContribution({
         key: `shot:${this.id}`,

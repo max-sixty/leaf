@@ -437,6 +437,11 @@ def record_claim(page, **fields):
         "turn_closed": None,
         **fields,
     }
+    # A lifetime is one key, the way `take_claim` spreads it: a claim naming a job
+    # record or resting on activity states no pid, and a reader that saw one there
+    # would be reading a fixture rather than a shape leaf writes.
+    if fields.keys() & {"job", "activity"}:
+        record.pop("pid", None)
     path = service_model.claim_path(page)
     path.parent.mkdir(parents=True, exist_ok=True)
     files_model.write_json(path, record)
@@ -1203,12 +1208,17 @@ def under_codex(spawn, codex_program):
     own standard library in."""
     runner = (
         "import subprocess, sys; "
-        "sys.exit(subprocess.run(['/bin/sh', '-c', sys.argv[1]]).returncode)"
+        "sys.exit(subprocess.run(['/bin/sh', '-c', sys.argv[-1]]).returncode)"
     )
 
-    def start(command, env, **kwargs) -> subprocess.Popen:
+    def start(command, env, *, app_server=False, **kwargs) -> subprocess.Popen:
+        # `app-server` is the whole difference between the app's shared host and
+        # one session's own process — same program, same ancestry, one word in
+        # the argv — so it is the one factor this varies. The runner reads the
+        # last word either way, which is what keeps that the only difference.
+        hosting = ["app-server"] if app_server else []
         return spawn(
-            [str(codex_program), "-c", runner, f"{command}; exit"],
+            [str(codex_program), "-c", runner, *hosting, f"{command}; exit"],
             env={**env, "PYTHONHOME": sys.base_prefix},
             **kwargs,
         )

@@ -1161,21 +1161,22 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     page.close()
 
 
-def test_the_feature_gallery_displays_the_complete_margin_entry_schema(browser, serve):
-    """The gallery separates control state from ownership using the runtime paint."""
+def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
+    browser, serve
+):
+    """The gallery keeps the reader-visible ranks and ownership stages together."""
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
 
     atlas = page.locator("#bg-margin-controls-specimens")
     expect(atlas).to_be_visible()
     buttons = atlas.locator(".lf-margin-entry")
-    expect(buttons).to_have_count(15)
+    expect(buttons).to_have_count(11)
     records = buttons.evaluate_all(
         """buttons => buttons.map(button => ({
           behavior: button.dataset.lfBehavior,
           tone: button.dataset.lfTone,
           rank: button.dataset.lfRank,
-          state: button.dataset.lfState,
         }))"""
     )
     grammar = page.evaluate(
@@ -1188,7 +1189,6 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_schema(browser, 
         ("behavior", "behaviors"),
         ("tone", "tones"),
         ("rank", "ranks"),
-        ("state", "states"),
     ):
         assert {record[record_axis] for record in records} == set(grammar[grammar_axis])
     assert set(
@@ -1200,24 +1200,14 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_schema(browser, 
             f'[data-margin-entry-specimen="{name}"] > .lf-margin-entry'
         )
 
-    busy = specimen("busy")
     expect(atlas.locator(".margin-entry-gallery-heading")).to_have_text(
-        ["Rank and behavior", "Control state", "Agent ownership"]
+        ["Rank and behavior", "Agent ownership"]
     )
-    expect(busy).to_have_css("border-style", "dashed")
-    expect(busy).to_have_css("animation-name", "none")
-    expect(busy).to_have_attribute("aria-busy", "true")
-    for name in ("idle", "engaged", "busy", "failed"):
-        decorations = specimen(name).evaluate("""node => ({
-          before: getComputedStyle(node, '::before').content,
-          after: getComputedStyle(node, '::after').content,
-        })""")
-        assert decorations == {"before": "none", "after": "none"}, (name, decorations)
 
     not_held = specimen("not held")
     picked_up = specimen("picked up")
     working = specimen("working")
-    alone = specimen("working alone")
+    fallback = specimen("activity fallback")
     expect(not_held).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
     expect(picked_up).to_have_attribute("data-lf-agent-phase", "picked_up")
     expect(picked_up).to_have_css("border-top-color", token_colour(page, "--accent"))
@@ -1225,7 +1215,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_schema(browser, 
     expect(picked_up.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "comment"
     )
-    for control in (working, alone):
+    for control in (working, fallback):
         expect(control).to_have_attribute("data-lf-agent-phase", "active")
         expect(control).to_have_css("border-top-color", token_colour(page, "--ok-ink"))
         expect(control).to_have_css("background-color", token_colour(page, "--ok-tint"))
@@ -1233,7 +1223,7 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_schema(browser, 
     expect(working.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "comment"
     )
-    expect(alone.locator(".lf-margin-entry-icon")).to_have_attribute(
+    expect(fallback.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "activity"
     )
     expect(
@@ -1248,14 +1238,10 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_schema(browser, 
             "Thread",
             "More",
             "Sent",
-            "Idle",
-            "Engaged",
-            "Busy",
-            "Failed",
             "Not held",
             "Picked up",
             "Working",
-            "Working alone",
+            "Activity fallback",
         ]
     )
 
@@ -1290,8 +1276,9 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
 ):
     """The margin entry specimen shows the stable endpoints and exercises each transition.
 
-    Busy and Active depend on a request in flight and an external work claim, so the
-    journey holds each condition while checking its ring and semantic carrier.
+    A pending reader action and an external work claim are different facts, so the
+    journey holds each one long enough to prove that the former only dims until
+    confirmation while the latter keeps its ownership treatment.
     """
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
@@ -1317,7 +1304,7 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     waiting = page.locator('[data-lf-margin-for="bg-history"]').get_by_role(
         "status", name=re.compile(r"^Waiting for pickup for ")
     )
-    expect(waiting).to_have_attribute("data-lf-state", "busy")
+    expect(waiting).to_have_attribute("data-lf-state", "idle")
 
     workflow = page.locator('[data-lf-margin-for="bg-margin-control-workflow"]')
     accept = workflow.get_by_role(
@@ -1353,11 +1340,12 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     expect(pending_undo).to_have_attribute("aria-busy", "true")
     expect(page.locator("#bg-margin-control-workflow lf-old")).to_be_hidden()
     expect(page.locator("#bg-margin-control-workflow lf-new")).to_be_visible()
-    expect(pending_undo).to_have_css("border-style", "dashed")
-    expect(pending_undo).to_have_css("animation-name", "none")
+    expect(pending_undo).to_have_css("opacity", "0.5")
+    expect(pending_undo).to_have_css("border-style", "solid")
+    expect(pending_undo).to_have_css("animation-name", "lf-runtime-4f3c2a8d-working")
     assert pending_undo.evaluate(
         "button => getComputedStyle(button, '::after').content === 'none'"
-    ), "sending must mark the whole control, without a second status badge"
+    ), "sending must dim the control without adding a second status badge"
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -1371,11 +1359,13 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     expect(workflow.locator(".lf-margin-receipt")).to_have_count(0)
     undo_button = workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
     expect(undo_button).to_have_attribute("data-lf-state", "idle")
+    expect(undo_button).to_have_css("opacity", "1")
     action_shadow = undo_button.evaluate("node => getComputedStyle(node).boxShadow")
     assert action_shadow != "none"
     sent = workflow.get_by_role("status", name=re.compile(r"^Sent for "))
     expect(sent).to_be_visible()
-    expect(sent).to_have_attribute("data-lf-state", "busy")
+    expect(sent).to_have_attribute("data-lf-state", "idle")
+    expect(sent).to_have_css("opacity", "1")
 
     claimed = CliRunner().invoke(
         cli_model.cli,
@@ -1430,7 +1420,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
     expect(page.locator("#bg-grammar")).to_have_count(0)
     sections = {
         "bg-margin-controls": (
-            "Margin entries: every rank, tone, and state",
+            "Margin entries: every rank, tone, and ownership stage",
             "#bg-margin-controls-guide",
             "#bg-margin-controls-specimens",
         ),
@@ -1482,7 +1472,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
         for heading in headings
         if "margin entr" in heading.casefold()
     ] == [
-        "Margin entries: every rank, tone, and state",
+        "Margin entries: every rank, tone, and ownership stage",
         "Margin entry lifecycle: act, fail, settle, and hand off",
     ]
     expect(page.locator("#bg-buttons-line #bg-crowded")).to_be_visible()
@@ -2249,7 +2239,7 @@ def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_margin_entry_tone_colors_only_the_icon(browser, serve, scheme):
-    """Busy dashes the whole ring; tone colors only the icon at every state."""
+    """Tone never recolors the shell or transient pending treatment."""
     page, errors = open_page(
         browser,
         serve(leaf_page("margin entry tones", '<p id="target">A shared target</p>')),
@@ -2292,7 +2282,8 @@ def test_margin_entry_tone_colors_only_the_icon(browser, serve, scheme):
         shape: [face.borderTopStyle, face.borderRightStyle,
                 face.borderBottomStyle, face.borderLeftStyle],
         animation: face.animationName,
-        icon: getComputedStyle(button.querySelector('svg')).color
+        icon: getComputedStyle(button.querySelector('svg')).color,
+        opacity: face.opacity,
       };
     }"""
 
@@ -2305,14 +2296,20 @@ def test_margin_entry_tone_colors_only_the_icon(browser, serve, scheme):
         page.evaluate("state => window.setToneState(state)", state)
         for button in buttons:
             expect(button).to_have_attribute("data-lf-state", state)
+            expect(button).to_have_css("opacity", "0.5" if state == "busy" else "1")
         readings = [button.evaluate(read) for button in buttons]
         assert all(reading["mark"] is None for reading in readings)
-        border = "dashed" if state == "busy" else "solid"
-        assert [reading["shape"] for reading in readings] == [[border] * 4] * len(
+        assert [reading["shape"] for reading in readings] == [["solid"] * 4] * len(
             buttons
         )
-        assert all(reading["animation"] == "none" for reading in readings)
+        animation = "lf-runtime-4f3c2a8d-working" if state == "busy" else "none"
+        assert all(reading["animation"] == animation for reading in readings)
         assert_icon_only(readings)
+
+    page.evaluate("() => window.setToneState('busy')")
+    buttons[0].evaluate("button => { button.dataset.lfAgentPhase = 'active'; }")
+    expect(buttons[0]).to_have_css("opacity", "0.5")
+    buttons[0].evaluate("button => { delete button.dataset.lfAgentPhase; }")
 
     page.evaluate("() => window.setToneState('idle')")
     hovered = []
@@ -3095,17 +3092,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         )
 
     expected_ink = resolved_color("--ink-2")
-    busy_surface = page.evaluate("""() => {
-      const probe = document.createElement('span');
-      document.body.append(probe);
-      const colors = {};
-      for (const [name, amount] of [['background', 4], ['border', 50]]) {
-        probe.style.color = `color-mix(in srgb, var(--ink) ${amount}%, var(--paper))`;
-        colors[name] = getComputedStyle(probe).color;
-      }
-      probe.remove();
-      return colors;
-    }""")
+    expected_paper = resolved_color("--paper")
+    expected_rule = resolved_color("--rule")
     expected_label_ink = resolved_color("--paper")
     expected_label_background = resolved_color("--ink")
 
@@ -3130,6 +3118,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         expect(control.locator(":scope > .lf-margin-entry-label")).to_be_hidden()
         words_still()
         current = face(control)
+        expect(control).to_have_attribute("data-lf-state", "idle")
         pickup_ink = resolved_color("--accent")
         pickup_paper = resolved_color("--chip")
         assert current == {
@@ -3142,11 +3131,9 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
             "context": context,
             "tabIndex": -1,
             "cursor": "default",
-            "background": pickup_paper
-            if phase == "Picked up"
-            else busy_surface["background"],
-            "border": pickup_ink if phase == "Picked up" else busy_surface["border"],
-            "borderStyle": "solid" if phase == "Picked up" else "dashed",
+            "background": pickup_paper if phase == "Picked up" else expected_paper,
+            "border": pickup_ink if phase == "Picked up" else expected_rule,
+            "borderStyle": "solid",
             "animation": "none",
             "ink": pickup_ink if phase == "Picked up" else expected_ink,
             "opacity": "1",

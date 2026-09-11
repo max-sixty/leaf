@@ -30,7 +30,7 @@ from .service import (
     owned_pages,
     unacknowledged,
 )
-from .work import work_subject
+from .work import standing_work_claims, work_subject
 
 
 def check_local_claim(state: str, detail: str) -> None:
@@ -60,6 +60,16 @@ def cmd_status(
         if on is not None:
             check_local_claim(state, detail)
             work = work_subject(page_dir, page.events, on)
+            previous = next(
+                (
+                    claim
+                    for claim in standing_work_claims(page.status, page.events)
+                    if claim["subject"] == work["subject"]
+                ),
+                None,
+            )
+            if previous and previous.get("event"):
+                work["event"] = previous["event"]
         page.set_status(state, detail, work=work)
 
 

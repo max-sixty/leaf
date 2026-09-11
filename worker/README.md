@@ -88,9 +88,12 @@ the agent host's credential store rather than in this repository.
 Hosted turns also emit structured timing records under `component=leaf-agent`.
 Every request record carries the page's public session reference and canonical event
 id; the container continues with that event id through App Server availability, task
-and turn start, first notification, first model activity, and completion. Leaf's
-record omits message text, prompts, source IP keys, cookies, and private session ids.
-Cloudflare wraps it in invocation metadata. The trusted outbound handler adds
+and turn start, first notification, each App Server item start and completion, first
+model activity, first native model message, and turn completion. Item records carry
+the App Server timestamp, item type, duration, and command outcome where available;
+they never carry item content. Leaf's record omits message text, prompts, source IP
+keys, cookies, and private session ids. Cloudflare wraps it in invocation metadata.
+The trusted outbound handler adds
 content-free model request, response-header, first-byte, first-output, and completion
 records. Those records carry Codex's thread and turn ids, a per-request id, status and
 byte count, but never copy a prompt, output, or unrecognized Codex metadata.
@@ -143,7 +146,10 @@ query builder.
 The local end-to-end verifier prints the same container records and leaves them at
 `.tmp/website-agent-local.log` for a later agent to inspect. It gives the child App
 Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and
-website config, matching production without changing personal state.
+website config, matching production without changing personal state. Its JSON result
+records `responseVisibleMs` from the first non-empty agent reply the open Threads panel
+actually displays; `repliedMs` is the independent durable-state observation and is not a
+substitute for that reader-visible milestone.
 
 When Leaf accepts a reader message that its canonical activity projection says needs
 a response, the Worker returns the accepted state and starts the agent dispatch through

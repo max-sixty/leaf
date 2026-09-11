@@ -71,8 +71,9 @@ elements and submit structured, reversible change proposals; `command-hub` adds 
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
 description and compact checks table, plus a data-backed unified call diff; `monitoring`
 adds an asymmetric overview, evidence, and exception workspace; `visual-review` adds an
-ordered website run, aligned before-and-after evidence, exact preview links, and case
-dispositions. `gallery`
+ordered website run, aligned before-and-after evidence, local flip, side-by-side,
+opacity, fit, and actual-size inspection, exact preview links, and case dispositions.
+`gallery`
 adds the static gallery of page-edge action controls, disclosure controls, and status
 indicators used only by the developer feature gallery, so ordinary pages do not select it:
 

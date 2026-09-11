@@ -1,6 +1,6 @@
 {
   "lf-margin-entry-gallery": {
-    "description": "The developer gallery's complete static exhibit of page-edge action controls, disclosure controls, and status indicators across every rank, tone, control state, and agent ownership phase. It renders the canonical anatomy through the runtime's `marginEntry` and ownership helpers, but its specimens are disabled and record no gestures. Use it only in the feature gallery; ordinary pages demonstrate these ranks through the live widgets that own them.",
+    "description": "The developer gallery's static exhibit of page-edge action controls, disclosure controls, and status indicators across every rank, tone, and agent ownership phase. It renders the canonical anatomy through the runtime's `marginEntry` and ownership helpers, but its specimens are disabled and record no gestures. Use it only in the feature gallery; ordinary pages demonstrate these ranks through the live widgets that own them.",
     "type": "object",
     "properties": {
       "id": {

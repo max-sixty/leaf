@@ -586,9 +586,10 @@ then uses `ResizeObserver` or the shared layout signal for later changes. An asy
 producer's default may reserve space without painting; a box-derived reading taken before
 replay does paint, and `PRESENTATION` replaces it.
 
-Control state is paint: ink, fill, border, or an inset ring. Do not express it by
-changing font weight, size, padding, border width, or another metric. Reserve
-space before a generated control appears. Transient feedback may repaint a control or
+An action awaiting confirmation dims its existing control after the shared delay; it
+does not gain another mark or change geometry. Durable workflow state uses the control's
+semantic label or agent-ownership treatment. Reserve space before a generated control
+appears. Transient feedback may repaint a control or
 briefly replace its label, but neither may change its geometry; `reserve` measures all
 enumerable labels in the control's current font and sets a minimum width. Re-measure
 after changing type tokens. The banner status stays on one line with ellipsis and a
@@ -596,11 +597,11 @@ complete hover title; its CSS reservation stays independent of changing copy. Pa
 local visual feedback with `notice` for an assistive announcement.
 
 Agent ownership colors the existing semantic margin control: pickup is blue, working
-is green with an inset double ring and one arrival pulse. Sending uses a static neutral
-dashed ring. A separate Activity control appears only when no semantic carrier exists.
-Conversation receipts carry the local claim beside its triggering message; thread cards
-do not repeat that ownership as a colored edge. Quiet or ended claims release ownership.
-Reduced motion suppresses arrival, and repainting or replacing a carrier cannot replay it.
+is green with an inset double ring and one arrival pulse. A separate Activity control
+appears only when no semantic carrier exists. Conversation receipts carry the local
+claim beside its triggering message; thread cards do not repeat that ownership as a
+colored edge. Quiet or ended claims release ownership. Reduced motion suppresses arrival,
+and repainting or replacing a carrier cannot replay it.
 
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for
@@ -692,16 +693,17 @@ found list from its container and then walk its matches, while `t`/`T` stands do
 motion has one spelling in that scope. For page search, Enter accepts the current match and
 `n`/`N` walks the next or previous one. Letters remain query text while a search input has
 focus; Tab and Shift-Tab walk page-search matches before acceptance.
-While the reader stands anywhere in an Ask, its widget's
-ordered actions keep a canonical binding where they declare one and otherwise take the
-next free `1`–`9`. Core projects that exact list into the shortcut bar and visible control
-chips. Each action is a command route; that route is the one
-binding-to-control identity used by dispatch, the reference, the shortcut bar, its binding badge,
-and `aria-keyshortcuts`; core does not mint a second identity for the projection. A package
-may lend one empty binding-badge face per action. Core uses it only while the whole face is
-visible, uncovered, and claimed by that action alone; otherwise core draws its own badge. Tab
-walks the real controls without replacing that action map;
-a control's scope adds only its native or local mechanics. `j`/`k` scroll
+While the reader stands anywhere in an Ask, core gives each of its widget's ordered
+actions an independent contextual `1`–`9` route. An intrinsic widget route such as
+ArrowLeft or Mod+Enter remains unchanged and takes precedence only while focus stands in
+the widget scope that declares it. Core projects the reachable digit list into the
+shortcut bar and visible control chips. Each digit points to the original command by
+stable identity and source scope; it does not copy the command's callback or replace its
+intrinsic binding. Dispatch, the command reference, the shortcut bar, its binding badge,
+and `aria-keyshortcuts` therefore share one command and one invocation path. A package may
+lend one empty binding-badge face per action. Core uses it only while the whole face is
+visible, uncovered, and claimed by that action alone; otherwise core draws its own badge.
+Tab walks the real controls without replacing the action map. `j`/`k` scroll
 down/up by 60 pixels; `d`/`u` move 60% of
 the reading page. Both follow the active region, share a quick glide, and jump under
 reduced motion. Native Space stays with the platform and focused controls. Other letters come
@@ -713,12 +715,18 @@ Thread and Ask controls; their uppercase counterparts open the complete panels. 
 contains every visible margin control and status indicator. A key spelling something
 nothing on screen says is a key nobody reaches for twice.
 Approval spends no fixed page letter: its visible button stays in the Tab order and takes
-native Enter or Space, while the Ask-local list gives it a contextual binding. In particular,
-a conditional sequence mnemonic must not share its final key
-with a page action, or a dead destination can fall through into a different operation.
+native Enter or Space, while the Ask-local list gives it a contextual binding. A nearer
+scope owns every ordinary key for which it implements a Leaf invocation while that scope
+stands, even when the matching command is unavailable, so a state change cannot make the
+same press fall through into an outer operation. Escape remains the semantic unwind: a
+dead inner Escape declaration cannot strand the next live return. A row without `run` is
+presentation-only: it may name a native press or reword a shared outer handler, and does
+not shadow that handler.
 
-`c` is reserved for commenting. Enter keeps native activation or text editing, and the
-focused control's local continuation. A page option mark is a checkbox and toggles with
+In Leaf's outer page grammar, `c` means commenting. A nearer focused scope may declare
+`c` for its own operation; an undeclared `c` continues outward to Comment. Enter keeps
+native activation or text editing, and the focused control's local continuation. A page
+option mark is a checkbox and toggles with
 Space or its Ask digit; it gives Enter no second meaning. The Another option field is an
 ordinary Tab stop and takes the next Ask digit after the authored options when one of the
 nine addresses remains. It follows the same text-box contract as every other textarea:
@@ -742,6 +750,17 @@ on: `w` narrows the thread panel's list, while `/` searches it and `n`/`N` walk
 the results. Those bindings live in `PANEL`. The page's alphabet is small and every
 letter spent there is spent on every page, so a letter earns page scope only by acting
 on the page.
+
+Element-scope precedence follows focused composed-tree ancestry, not package load order
+or a reserved key list. An exact control or active mode stands first, then its nearest
+widget scope, ancestor widget scopes, Leaf's contextual and page scopes, and finally the
+browser. An element scope receives first refusal only for bindings whose rows implement
+Leaf invocation; every other key continues outward. Its implemented declaration owns
+precedence while the scope stands, while row liveness controls whether anything runs or
+is advertised. Leaf's static page tables are peers at one outer level and retain their
+live-command order. Native text and editing claims stand between an exact control scope
+and ancestor widgets, so a focused editor keeps characters, caret movement, and
+composition without preventing an exact Mod+Enter or Escape declaration.
 
 A surface may also hold the contextual form of a page intent. `c` always means
 comment; its destination follows what the reader is standing on. From the Threads

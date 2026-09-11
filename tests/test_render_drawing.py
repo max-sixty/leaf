@@ -14,6 +14,7 @@ from render_support import (
     FEATURE_GALLERY,
     RENDERED,
     TARGETS_PAGE,
+    leaf_page,
     live_url,
     nudge,
     open_page,
@@ -52,6 +53,28 @@ READ_BOX = """selector => {
   const box = document.querySelector(selector).getBoundingClientRect();
   return {x: box.x, y: box.y, width: box.width, height: box.height, scrollY};
 }"""
+
+DATA_REVISION_DIFF_PAGE = leaf_page(
+    "data revision drawing",
+    '<h1 id="title">Review</h1><lf-diff id="drawing-diff" source="drawing-patch">'
+    "<pre></pre></lf-diff>",
+)
+DATA_REVISION_DIFF = """diff --git a/review.py b/review.py
+--- a/review.py
++++ b/review.py
+@@ -1,2 +1,2 @@
+ def route():
+-    return "courtyard"
++    return "terrace"
+"""
+UPDATED_DATA_REVISION_DIFF = DATA_REVISION_DIFF.replace("terrace", "garden room")
+
+
+def open_data_revision_diff(browser, serve):
+    """Open one live data-backed diff at the first source revision."""
+    url = serve(DATA_REVISION_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "drawing-patch", DATA_REVISION_DIFF)
+    return open_page(browser, url)
 
 
 def mark_box(page, selector):
@@ -584,15 +607,13 @@ def test_draw_mode_cursor_matches_the_widget_controls_it_captures(browser, serve
     assert option.get_attribute("chosen") is None
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
-    shadow_line = page.locator("#bg-review-diff [data-line]").first
-    shadow_line.scroll_into_view_if_needed()
-    assert shadow_line.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
+    assert control.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
     page.evaluate(
         """() => document.querySelector('.lf-thread-panel').append(
-          document.querySelector('#bg-review-diff')
+          document.querySelector('#bg-choice-trail')
         )"""
     )
-    assert shadow_line.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+    assert control.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     assert errors == []
     page.close()
 
@@ -772,7 +793,7 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     assert event["kind"] == "comment"
     assert "text" not in event
     assert event["drawing"]["format"] == "leaf-drawing/1"
-    thread = page.get_by_role("dialog", name=re.compile("Thread for"))
+    thread = page.get_by_role("dialog", name=re.compile("Conversation for"))
     expect(thread).to_be_visible()
     expect(page.locator(".lf-drawing-preview")).to_have_count(0)
     expect(thread.locator(".lf-drawing-reference")).to_have_text("Drawing comment")
@@ -814,7 +835,7 @@ def test_an_inline_conversation_keeps_drawing_context_on_the_page(browser, serve
 def test_an_unsent_drawing_stands_down_when_its_data_revision_changes(browser, serve):
     """Draft ink consumes the anchor pass's outdated reading instead of stretching
     itself over the text-document widget after its original datum version disappears."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page, errors = open_data_revision_diff(browser, serve)
     target = page.locator(
         "lf-diff [data-line-type='change-deletion'][data-lf-datum]"
     ).first
@@ -823,15 +844,8 @@ def test_an_unsent_drawing_stands_down_when_its_data_revision_changes(browser, s
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     data_model.cmd_data_set(
         serve.page_dir,
-        "gallery-patch",
-        """diff --git a/gallery/review.py b/gallery/review.py
---- a/gallery/review.py
-+++ b/gallery/review.py
-@@ -1,2 +1,2 @@
- def route():
--    return "courtyard"
-+    return "garden room"
-""",
+        "drawing-patch",
+        UPDATED_DATA_REVISION_DIFF,
     )
     told(page)
 
@@ -844,7 +858,7 @@ def test_an_unsent_drawing_stands_down_when_its_data_revision_changes(browser, s
 def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, serve):
     """When a data revision detaches a drawing target, its thread still names the
     drawing without claiming that the suppressed stroke is visible on the page."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page, errors = open_data_revision_diff(browser, serve)
     target = page.locator(
         "lf-diff [data-line-type='change-deletion'][data-lf-datum]"
     ).first
@@ -856,15 +870,8 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
 
     data_model.cmd_data_set(
         serve.page_dir,
-        "gallery-patch",
-        """diff --git a/gallery/review.py b/gallery/review.py
---- a/gallery/review.py
-+++ b/gallery/review.py
-@@ -1,2 +1,2 @@
- def route():
--    return "courtyard"
-+    return "garden room"
-""",
+        "drawing-patch",
+        UPDATED_DATA_REVISION_DIFF,
     )
     told(page)
 

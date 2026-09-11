@@ -5,7 +5,8 @@
    stores no application service or generic event channel. */
 import { setChildren } from "../dom-children.js";
 import { reportPageError } from "../layer-client.js";
-import { containsAcross } from "../passages.js";
+import { datumAimTarget, resolveAnchor } from "../anchor-resolution.js";
+import { containsAcross, pageText } from "../passages.js";
 import { registry } from "../registry.js";
 import { renderThreadSurface } from "./inline.js";
 import { removeConversationNode } from "./reaction-strips.js";
@@ -25,7 +26,7 @@ function update(registration) {
 export function registerThreadSurface(
   owner,
   adapter,
-  { invalidate, closeReactionMode },
+  { invalidate, closeReactionMode, composition },
 ) {
   if (!(owner instanceof Element))
     throw new TypeError("registerThreadSurface owner must be a widget element");
@@ -47,6 +48,16 @@ export function registerThreadSurface(
     throw new TypeError("registerThreadSurface needs an invalidation function");
   if (typeof closeReactionMode !== "function")
     throw new TypeError("registerThreadSurface needs reaction teardown");
+  if (
+    !composition ||
+    typeof composition.open !== "function" ||
+    typeof composition.active !== "function" ||
+    typeof composition.node !== "function" ||
+    typeof composition.seat !== "function" ||
+    typeof composition.restore !== "function" ||
+    typeof composition.outlet !== "function"
+  )
+    throw new TypeError("registerThreadSurface needs composition presentation");
   if (registrations.has(owner))
     throw new Error(`registerThreadSurface(${owner.localName}) registered twice`);
   const registration = {
@@ -54,6 +65,7 @@ export function registerThreadSurface(
     owner,
     invalidate,
     closeReactionMode,
+    composition,
     outlets: new Set(),
     reconcileQueued: false,
   };
@@ -61,6 +73,20 @@ export function registerThreadSurface(
   update(registration);
   let active = true;
   return {
+    open(datum, { origin = null } = {}) {
+      if (!active) return false;
+      const target = datumAimTarget(datum);
+      if (
+        !target ||
+        target.anchor.section !== owner.id ||
+        !containsAcross(owner, target.element)
+      )
+        throw new TypeError(
+          `registerThreadSurface(${owner.localName}) can open only its own projected datum`,
+        );
+      composition.open(target, { origin });
+      return true;
+    },
     update: () => update(registration),
     unregister() {
       if (!active) return;
@@ -90,6 +116,8 @@ function reportFailure({ owner }, error) {
 }
 
 function clearRegistration(registration, commands) {
+  if (registration.outlets.has(registration.composition.outlet()))
+    registration.composition.restore();
   try {
     registration.adapter.begin();
     registration.adapter.end();
@@ -107,6 +135,8 @@ function clearRegistration(registration, commands) {
 
 export function renderSurfaces(threads, placedAt, commands) {
   const nextClaimed = new Set();
+  const activeComposition = commands.composition.active();
+  let compositionSeated = false;
   for (const registration of [...registrations.values()]) {
     const { adapter, owner } = registration;
     if (registrations.get(owner) !== registration) continue;
@@ -116,6 +146,8 @@ export function renderSurfaces(threads, placedAt, commands) {
       continue;
     }
     const byOutlet = new Map();
+    let compositionOutlet = null;
+    let compositionPrepared = false;
     try {
       adapter.begin();
       for (const thread of threads) {
@@ -135,6 +167,28 @@ export function renderSurfaces(threads, placedAt, commands) {
         held.push(thread);
         byOutlet.set(outlet, held);
       }
+      const anchor = activeComposition?.anchor;
+      if (anchor?.datum && anchor.section === owner.id) {
+        const placement = resolveAnchor(anchor, pageText());
+        if (
+          placement?.status === "exact" &&
+          placement.datumElement instanceof Element &&
+          containsAcross(owner, placement.datumElement)
+        ) {
+          compositionOutlet = adapter.outletFor({
+            anchor,
+            placement,
+            composition: activeComposition,
+          });
+          if (compositionOutlet instanceof Element && !byOutlet.has(compositionOutlet))
+            byOutlet.set(compositionOutlet, []);
+        }
+      }
+      const currentCompositionOutlet = commands.composition.outlet();
+      if (compositionOutlet instanceof Element)
+        compositionPrepared = commands.composition.seat(compositionOutlet);
+      else if (registration.outlets.has(currentCompositionOutlet))
+        commands.composition.restore();
       adapter.end();
       if (registrations.get(owner) !== registration) continue;
       for (const outlet of byOutlet.keys()) {
@@ -144,7 +198,13 @@ export function renderSurfaces(threads, placedAt, commands) {
             `registerThreadSurface(${owner.localName}) returned an outlet outside its widget`,
           );
       }
+      if (compositionPrepared) compositionSeated = true;
     } catch (error) {
+      if (
+        registration.outlets.has(commands.composition.outlet()) ||
+        compositionOutlet === commands.composition.outlet()
+      )
+        commands.composition.restore();
       clearOutlets(registration.outlets, commands);
       registration.outlets.clear();
       reportFailure(registration, error);
@@ -157,10 +217,15 @@ export function renderSurfaces(threads, placedAt, commands) {
     registration.outlets = new Set(byOutlet.keys());
     for (const [outlet, localThreads] of byOutlet) {
       outlet.dataset.lfThreadSurface = "";
-      renderThreadSurface(outlet, localThreads, commands);
+      const response =
+        compositionPrepared && outlet === compositionOutlet
+          ? commands.composition.node()
+          : null;
+      renderThreadSurface(outlet, localThreads, commands, response);
       for (const thread of localThreads) nextClaimed.add(thread.root.id);
     }
   }
+  if (!compositionSeated) commands.composition.restore();
   claimedIds = nextClaimed;
   return claimedIds;
 }

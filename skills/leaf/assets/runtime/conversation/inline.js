@@ -14,6 +14,7 @@ import { paintReactStrips, removeConversationNode } from "./reaction-strips.js";
 import { elementById } from "../passages.js";
 import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
+import { paintAcknowledgmentsNow } from "./acknowledgments.js";
 
 /* Textual conversation views rendered outside the retained Threads list.
 
@@ -232,7 +233,7 @@ function conversationThreadNode(
   return thread;
 }
 
-export function renderThreadSurface(host, threads, commands) {
+export function renderThreadSurface(host, threads, commands, response = null) {
   const removeNode = (node) =>
     removeConversationNode(node, commands.reaction.closeReactionMode);
   const receipts = [...host.querySelectorAll(":scope > .lf-receipt")];
@@ -241,6 +242,7 @@ export function renderThreadSurface(host, threads, commands) {
     [
       ...threads.map((thread) => conversationThreadNode(host, thread, true, commands)),
       ...receipts,
+      ...(response ? [response] : []),
     ],
     removeNode,
   );
@@ -283,5 +285,6 @@ export function renderMarginThread(host, thread, commands) {
   setChildren(host, [node], (removed) =>
     removeConversationNode(removed, commands.reaction.closeReactionMode),
   );
+  paintAcknowledgmentsNow(host);
   return node;
 }

@@ -79,15 +79,12 @@ OVERFLOW_PROPS = ("width", "min-width")
 # would silently declare nothing in the browser, so `version check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
-# The one CSP every page declares, required by `version check` the way the one
-# script tag is. The vendoring promise — an approved page can't change under its
-# user, and can't phone home — held by convention until the browser enforced it:
-# a vendored module or an inline handler could fetch any origin. 'self' is the
-# page directory whole; base-uri and form-action need their own directives because
-# default-src governs only fetches. data: admits the images `version export` inlines;
-# the theme arrives inline in a <style> on export, hence 'unsafe-inline' for styles
-# (scripts stay 'self'-only). Verified over the corpus — every widget, diagram
-# renderer and tokenizer included — before it was required.
+# The one CSP every page declares. The server adds hashes for the runtime bootstrap
+# and authored module blocks to this policy; the source declaration deliberately has
+# none, so opening unserved source never grants inline code authority. 'self' is the
+# immutable page layer whole; base-uri and form-action need their own directives
+# because default-src governs only fetches. data: admits the images `version export`
+# inlines, and the theme arrives inline in a <style> on export.
 PAGE_CSP = (
     "default-src 'self'; base-uri 'none'; form-action 'none'; "
     "img-src 'self' data:; style-src 'self' 'unsafe-inline'"
@@ -100,6 +97,7 @@ FRAME_ANCESTORS_CSP = "frame-ancestors 'none'"
 # module is also allowed beside main because shipped pages use both placements.
 DOCUMENT_WRAPPERS = {"html", "head", "body", "main"}
 HEAD_METADATA_TAGS = {"base", "link", "meta", "script", "style", "title"}
+SCRIPT_URL_ATTRIBUTES = {"action", "formaction", "href", "src", "xlink:href"}
 
 
 class StructParser:
@@ -122,6 +120,14 @@ class StructParser:
         # placement belong to the asset record: parallel lists made one fact several
         # representations and let a later parser edit silently misalign them.
         self.external_scripts = []
+        # Exact text of each inline script, retained for the HTTP projection's CSP
+        # hashes. Validation admits only authored modules; keeping the parser neutral
+        # lets it report the actual attributes on anything else.
+        self.inline_scripts = []
+        # Executable behavior has one visible source form: a module block. Event
+        # attributes and javascript: URLs are recorded here so the static door can
+        # refuse hidden second forms before a reader discovers them by acting.
+        self.executable_attributes = []
         # Every <link>, whatever relation it declares. Two checks read these — the one
         # stylesheet a page dresses itself with, and the canonical address only
         # delivery may name — and indexing the tag answers both from one parse.
@@ -331,15 +337,27 @@ class StructParser:
 
         in_head = "head" in ancestors
         in_main = "main" in ancestors
-        if tag == "script" and attrs.get("src"):
-            self.external_scripts.append(
-                {
-                    "attrs": attrs,
-                    "parent": parent_tag,
-                    "position": (line, column),
-                    "early_head": in_head and before_body,
-                }
-            )
+        if tag == "script":
+            script = {
+                "attrs": attrs,
+                "parent": parent_tag,
+                "position": (line, column),
+                "early_head": in_head and before_body,
+                "line": line,
+            }
+            if attrs.get("src"):
+                self.external_scripts.append(script)
+            else:
+                self.inline_scripts.append({**script, "body": element.text})
+        for name, value in attrs.items():
+            if (len(name) > 2 and name.startswith("on")) or (
+                name in SCRIPT_URL_ATTRIBUTES
+                and isinstance(value, str)
+                and "".join(value.split()).lower().startswith("javascript:")
+            ):
+                self.executable_attributes.append(
+                    {"tag": tag, "line": line, "name": name, "value": value}
+                )
         if tag == "link":
             self.links.append(
                 {

@@ -145,8 +145,13 @@ import {
   standingStatusBoxes,
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
-import { activeRowLabel, availableCommands } from "./runtime/keyboard/dispatch.js";
-import { focused, paintKeys, reflectFirstScopes } from "./runtime/keyboard/scopes.js";
+import { activeRowLabel } from "./runtime/keyboard/dispatch.js";
+import {
+  focused,
+  keys,
+  paintKeys,
+  reflectFirstScopes,
+} from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
 import { createStanding } from "./runtime/standing.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
@@ -278,8 +283,11 @@ const anchorControls = createAnchorControls({
   invalidatePageGeometry: pageGeometry.invalidate,
   messageReferenceRoot: panel,
   draftQuote: composerQuote,
-  presentedControl: (control) => app.margin.presentedControl(control),
+  presentedControl: (control) =>
+    pageMapDialog?.presentedControl(control) ?? app.margin.presentedControl(control),
   focused,
+  keys,
+  paintKeys,
 });
 
 const version = createVersionController({
@@ -321,6 +329,17 @@ app = mountApplication({
     drawing: pendingDrawing,
   }),
   activeActionAnchor: () => responseSurface.fabAnchorAt(),
+  compositionSurface: {
+    active: () =>
+      composerOpen && responseSurface?.fabAnchorAt()
+        ? { anchor: responseSurface.fabAnchorAt() }
+        : null,
+    node: () => fabBar,
+    open: (...args) => responseSurface.commentOnTarget(...args),
+    outlet: () => responseSurface?.fabInlineOutlet() ?? null,
+    seat: (...args) => responseSurface.seatFab(...args),
+    restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
+  },
   landInConversation: (...args) => landing.landInConversation(...args),
   showThread: (...args) => landing.showThread(...args),
   setPanel: (...args) => threadPanelController.setPanel(...args),
@@ -398,7 +417,6 @@ asks = createAskView({
   scrollToElement: anchorTravel.scrollToElement,
   refreshConversation: () => app.refreshConversation(),
   placeBulkAnswer: (button) => versionBtn.before(button),
-  availableCommands,
   announce,
   repaint,
 });
@@ -464,6 +482,7 @@ responseSurface = createResponseSurface({
   openPageThread: app.margin.openPageThread,
   drawModeActive: () => drawing.drawModeActive(),
   refreshConversation: app.refreshConversation,
+  responseHome: chromeRoot,
 });
 reactions = createReactionController({
   marginEntryChoices: app.margin.marginEntryChoices,

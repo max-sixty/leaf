@@ -211,7 +211,7 @@ function scopesWithin(root, activeOnly) {
 }
 export function commandsWithin(root) {
   return scopesWithin(root, true).flatMap(({ source, scope }) =>
-    scope.rows.filter(live).map((row) => ({ source, row })),
+    scope.rows.filter(live).map((row) => ({ source, scope, row })),
   );
 }
 // Command-scope metadata under one widget, in declaration order. The action rows and
@@ -385,14 +385,32 @@ export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
 
 // The element scopes covering a node, innermost first — the climb crosses a shadow
 // boundary the way `closest` climbs inside one, so a widget staging its controls in a
-// shadow tree declares them the same way.
+// shadow tree declares them the same way. A projected margin control carries the source
+// control's semantic scopes ahead of the projection's containing scopes: its press and
+// local Escape still mean what the contributor declared, while the sheet or margin it
+// was projected into remains the surrounding keyboard context.
 export function scopesFor(node) {
   const found = [];
-  for (let a = node; a; a = upFrom(a)) {
-    const scope = elementScopes.get(a);
-    if (scope) found.push(scope);
-    if (a.hasAttribute?.("data-lf-thread-surface")) break;
-  }
+  const seen = new Set();
+  const collect = (start, projectedAt = null) => {
+    for (let a = start; a; a = upFrom(a)) {
+      const scope = elementScopes.get(a);
+      if (scope && !seen.has(scope)) {
+        // A projection carries the source command into its own native layer. Keep the
+        // declaration and its liveness closures, but root this active reading at the
+        // visible control so a modal floor does not mistake it for an inert-page scope.
+        found.push(projectedAt ? { ...scope, el: projectedAt } : scope);
+        seen.add(scope);
+        // Projection replaces the source control's container. Carry its nearest
+        // semantic scope, then let the visible projection contribute its own ancestors.
+        if (projectedAt) break;
+      }
+      if (a.hasAttribute?.("data-lf-thread-surface")) break;
+    }
+  };
+  const source = node?.lfForwardedControl;
+  if (source) collect(source, node);
+  collect(node);
   return found;
 }
 // Whether the focused control has claimed Escape for itself. Asked of the control's own

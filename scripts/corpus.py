@@ -16,6 +16,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from example_data import regression_sources
+from leaf.structure import parse_structure
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
@@ -33,7 +34,15 @@ PUBLIC_TABS = [
     ("security-boundary", "Security"),
     ("command-hub", "Command"),
 ]
-FEATURE_GALLERY = EXAMPLES_DIR / "developer" / "feature-gallery.html"
+DEVELOPER_TABS = [
+    (EXAMPLES_DIR / "developer" / "feature-gallery.html", "Core features"),
+    (EXAMPLES_DIR / "developer" / "swipe-gallery.html", "Swipe package"),
+    (EXAMPLES_DIR / "developer" / "targeting-gallery.html", "Targeting package"),
+    (
+        EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
+        "Visual review package",
+    ),
+]
 CONTENTS_SIDEBAR = re.compile(
     r'\s*<aside class="sidebar" id="[^"]+">\s*'
     r"<lf-toc\b[^>]*></lf-toc>\s*</aside>"
@@ -44,7 +53,7 @@ TABS = [
         (source, source.stem.replace("-", " ").title())
         for source in regression_sources()
     ),
-    (FEATURE_GALLERY, "Features"),
+    *DEVELOPER_TABS,
 ]
 
 HEAD = """\
@@ -151,20 +160,32 @@ def build() -> str:
             f"{sorted(on_disk ^ in_table)}"
         )
     developer_pages = set((EXAMPLES_DIR / "developer").glob("*.html"))
-    if developer_pages != {FEATURE_GALLERY}:
+    declared_developer_pages = {source for source, _ in DEVELOPER_TABS}
+    if developer_pages != declared_developer_pages:
         sys.exit(
-            "developer feature fixtures must share feature-gallery.html: "
-            f"{sorted(path.name for path in developer_pages ^ {FEATURE_GALLERY})}"
+            "developer pages and the DEVELOPER_TABS table disagree: "
+            f"{sorted(path.name for path in developer_pages ^ declared_developer_pages)}"
         )
 
     _, capture_revisions = composed_data()
     owner = {"corpus": CORPUS.name, "corpus-lede": CORPUS.name}
     tabs = []
+    authored_assets = []
     for source, label in TABS:
         stem = source.stem
         text = source.read_text(encoding="utf-8")
         scan = _Scan()
         scan.feed(text)
+        parsed = parse_structure(text)
+        if parsed.css.strip():
+            authored_assets.append(
+                f"<!-- {source.name} authored styles -->\n<style>{parsed.css}</style>"
+            )
+        authored_assets.extend(
+            f'<!-- {source.name} authored module -->\n<script type="module">'
+            f"{script['body']}</script>"
+            for script in parsed.inline_scripts
+        )
         for i in ["corpus-" + stem] + scan.ids:
             if i in owner:
                 sys.exit(
@@ -188,7 +209,8 @@ def build() -> str:
         body = CONTENTS_SIDEBAR.sub("", body)
         tabs.append(f'<lf-tab id="corpus-{stem}" label="{label}">\n{body}\n</lf-tab>\n')
 
-    return HEAD + "\n" + "\n".join(tabs) + "\n" + FOOT
+    head = HEAD.replace("</head>", "\n".join(authored_assets) + "\n</head>")
+    return head + "\n" + "\n".join(tabs) + "\n" + FOOT
 
 
 def build_data() -> dict:

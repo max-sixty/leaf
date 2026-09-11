@@ -3329,11 +3329,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         session_model.record_pickup(transaction, [comments[0]])
     told(page)
     expect(held_receipt).to_contain_text("✓ Picked up")
-    expect(held_thread).to_have_attribute("data-lf-agent-phase", "picked_up")
+    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
     expect(other_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
-    assert token_colour(page, "--accent") in held_thread.evaluate(
-        "node => getComputedStyle(node).boxShadow"
-    )
+    assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(held_receipt).to_have_attribute("data-identity-probe", "kept")
     expect(other_receipt).to_contain_text("✓ Sent")
     expect(page.locator(".lf-status-text")).to_have_text("Claude is handling 1 update")
@@ -3368,11 +3366,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         told(page)
 
     status("working", "reading the reconnect traces", "--on", held)
-    expect(held_thread).to_have_attribute("data-lf-agent-phase", "active")
+    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
     expect(other_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
-    assert token_colour(page, "--ok-ink") in held_thread.evaluate(
-        "node => getComputedStyle(node).boxShadow"
-    )
+    assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     # One line, on the thread it names: a mark that stood on every open thread would
     # say only that the agent is busy, which the banner above already says.
     expect(receipts).to_have_count(2)
@@ -3390,6 +3386,27 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "&& node.nextElementSibling === null"
     )
 
+    # New words do not detach the claim from the comment that started the work.
+    followup = events_model.append_event(
+        d,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": held,
+            "revision": 1,
+            "text": "Also compare the retry after reconnecting.",
+        },
+    )
+    told(page)
+    followup_receipt = held_thread.locator(
+        f'.lf-msg.user[data-mid="{followup["id"]}"] > .lf-msg-head '
+        f'> .lf-receipt[data-receipt-id="{followup["id"]}"]'
+    )
+    expect(held_receipt).to_have_text("● Active — reading the reconnect traces")
+    expect(followup_receipt).to_contain_text("✓ Sent")
+    expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
+    assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
+
     # A later claim about the page as a whole is not an answer to the thread, so the
     # line stands: the two seats are one claim, and only one of them has been rewritten.
     status("working", "drafting v2")
@@ -3406,7 +3423,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
             "kind": "reply",
             "author": "claude",
             "parent": held,
-            "responds": held,
+            "responds": followup["id"],
             "revision": 1,
             "text": "The traces say it is the vendor's timer, not ours.",
         },
@@ -3638,6 +3655,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
                     {
                         "id": "trace-check",
                         "subject": {"kind": "thread", "id": held},
+                        "event": held,
                         "detail": "reading the reconnect traces",
                         "ts": claim_ts,
                         "after": next(
@@ -3658,7 +3676,8 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(work_line).to_have_count(1)
     expect(work_line).not_to_contain_text("quiet")
     expect(work_button).to_have_count(1)
-    expect(held_thread).to_have_attribute("data-lf-agent-phase", "active")
+    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(work_button).to_have_attribute("data-lf-agent-phase", "active")
 
     quiet_ts = (datetime.now().astimezone() - timedelta(minutes=40)).isoformat(
@@ -3723,7 +3742,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     )
     expect(work_line).not_to_contain_text("quiet")
     expect(work_line.locator("time")).to_have_count(0)
-    expect(held_thread).to_have_attribute("data-lf-agent-phase", "active")
+    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
     expect(work_button).to_have_attribute("data-lf-agent-phase", "active")
 
     # And it goes when the claim is kept again, so the word tracks the claim rather
@@ -3732,9 +3751,10 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     claim(events_model.now_iso())
     expect(work_line).not_to_contain_text("quiet")
     expect(work_line).to_have_count(1)
-    expect(held_thread).to_have_attribute("data-lf-agent-phase", "active")
+    expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
     expect(work_button).to_have_attribute("data-lf-agent-phase", "active")
-    # The same ownership reading follows the conversation into its inline card.
+    # The semantic Target button carries ownership; the thread card does not repeat it
+    # as a decorative gutter in either presentation.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
     work_button.click()
@@ -3742,10 +3762,8 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         f'.lf-margin-preview .lf-conversation-thread[data-thread="{held}"]'
     )
     expect(inline).to_be_visible()
-    expect(inline).to_have_attribute("data-lf-agent-phase", "active")
-    assert token_colour(page, "--ok-ink") in inline.evaluate(
-        "node => getComputedStyle(node).boxShadow"
-    )
+    expect(inline).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+    assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     claim(quiet_ts)
     expect(inline.locator(".lf-receipt")).to_contain_text("quiet")
     expect(inline).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))

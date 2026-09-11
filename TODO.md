@@ -1,7 +1,8 @@
 # TODO
 
-Items are ordered by priority. Each names the result; investigation detail belongs in
-the relevant design note or in git history.
+Items are ordered by priority. Each names the result. When an item needs active
+investigation detail, keep it in a linked note. Completed work and rejected alternatives
+remain in git history.
 
 ## Now
 
@@ -62,14 +63,19 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Let readers disable character bindings.** Define one route filter with a complete
+  persistence and accessibility contract. Commands, non-character routes, and visible
+  controls remain available.
+
 - **Review the guided-still workflow across repeated website changes.** The initial
   visual-review package passed one end-to-end five-case run. Use it on changes with
   different navigation, responsive states, and authentication boundaries before
   treating its authoring choices as settled.
 
-- **Add fast inspection modes to visual reviews.** Extend each existing case with
-  side-by-side and opacity views, disclosed masks, fit and actual-size zoom, and
-  changed-region navigation. Keep the current visual-run contract and case ids.
+- **Finish fast visual inspection with authored change regions.** Flip, side-by-side,
+  opacity, fit, and actual-size views now work without changing the visual-run contract
+  or case ids. Add disclosed masks and changed-region navigation once repeated reviews
+  establish the smallest useful authored region contract.
 
 - **Open visual-review targets beside Leaf through the host.** Coordinate the exact
   case URL in a real browser pane and report mutable-preview staleness without treating
@@ -78,11 +84,6 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 - **Add typed motion evidence after the media boundary supports it.** Define durable
   video, poster, caption, transcript, and chapter handling in Leaf core; then let visual
   runs attach motion only to cases whose timing or continuity is under review.
-
-- **Name the keyboard's visible carriers once the command-route model settles.** Add
-  *key badge* and *binding badge* to the developer glossary, then cut code, docs, and
-  tests over. A key badge carries a binding or transient hint code; a binding badge is
-  a key badge showing a currently resolved command binding.
 
 - **Add a foreground path for other agent hosts.** Document a blocking `leaf wait` flow
   for any host that can run a command, then use that experience to define a shared host

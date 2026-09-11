@@ -2,6 +2,7 @@
 
 import os
 import secrets
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -23,7 +24,12 @@ from leaf.host import (
     state_home,
 )
 from leaf.locations import page_key, paths_same
-from leaf.schema import EVENTS_FILE, STATUS_FILE, WIDGET_KINDS
+from leaf.schema import (
+    ACTIVITY_GRACE_SECS,
+    EVENTS_FILE,
+    STATUS_FILE,
+    WIDGET_KINDS,
+)
 
 # A repeated live detail carries only liveness. Renew it comfortably before the
 # fifteen-minute activity boundary without turning tool output into file churn.
@@ -42,15 +48,52 @@ def page_claim(page_dir: Path) -> dict | None:
 
 def claim_is_active(claim: dict | None) -> bool:
     """Whether a claim still names a live owner: the job record a background
-    job's claim points at, or the process every other claim's pid names
-    (`session_lifetime`). The only reading of that rule: the hooks reach it
-    through `uv` rather than keeping a copy, so a host that states its lifetime a
-    new way joins here alone."""
+    job's claim points at, the recent touch an `activity` claim stands on, or
+    the process every other claim's pid names (`session_lifetime`). The only
+    reading of that rule: the hooks reach it through `uv` rather than keeping a
+    copy, so a host that states its lifetime a new way joins here alone."""
     if not claim or claim["released"] is not None:
         return False
     if "job" in claim:
         return (Path(claim["job"]) / "state.json").is_file()
+    if "activity" in claim:
+        return _touched_recently(Path(claim["page"]), claim["ts"])
     return pid_alive(claim["pid"])
+
+
+def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
+    """Whether anything has touched this page inside ACTIVITY_GRACE_SECS.
+
+    The page directory is the record of its own use, and it already holds both
+    halves. The session appends events and writes status there; the server
+    writes `viewed.json` every thirty seconds for as long as a tab holds the
+    page's news stream, so a reader looking at the page is a touch too. Neither
+    side has to stamp a heartbeat for this, and one shallow `iterdir` reads both
+    — shallow because every file a touch moves sits at the top level, and this is
+    read on the serving watchdog's poll.
+
+    Only a *visible* tab, though: `state-feed.js` closes the stream from its
+    `visibilitychange` listener, so a page sitting in a background tab goes
+    untouched until the reader returns to it. That gap, not the agent's, is what
+    ACTIVITY_GRACE_SECS has to clear, and it is why that constant is hours.
+
+    `served_state/reading.py` deliberately excludes `viewed.json` from the
+    page's own reading token, where counting it would have a stream answer its
+    own question. There is no such loop here: ownership feeds the watchdog, not
+    the token.
+
+    The claim's own timestamp joins the files for the page that has been served
+    but not yet written to, whose newest file can predate the claim."""
+    newest = datetime.fromisoformat(claimed_at).timestamp()
+    try:
+        for entry in page_dir.iterdir():
+            try:
+                newest = max(newest, entry.stat().st_mtime)
+            except OSError:  # replaced under us; the next pass sees its successor
+                continue
+    except (FileNotFoundError, NotADirectoryError):
+        return False  # the page is gone, and a claim on it owns nothing
+    return time.time() - newest < ACTIVITY_GRACE_SECS
 
 
 def claim_records() -> list:
@@ -487,6 +530,8 @@ def claim_update_sources(status: dict) -> list[dict]:
             "agent": claim.get("agent"),
             "session": claim.get("session"),
         }
+        if event := claim.get("event"):
+            source["event"] = event
         if target["kind"] == "widget":
             source["revision"] = claim["revision"]
         sources.append(source)

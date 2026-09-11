@@ -73,36 +73,6 @@ const GROUPS = [
     ],
   },
   {
-    heading: "Control state",
-    summary: "Idle, engaged, busy, failed · what this control is doing",
-    specimens: [
-      {
-        name: "Idle",
-        detail: "no mark",
-        icon: "dot",
-        state: "idle",
-      },
-      {
-        name: "Engaged",
-        detail: "no mark · ranks above idle",
-        icon: "edit",
-        state: "engaged",
-      },
-      {
-        name: "Busy",
-        detail: "sending · static dashed ring",
-        icon: "sent",
-        state: "busy",
-      },
-      {
-        name: "Failed",
-        detail: "no mark · ranks first",
-        icon: "retry",
-        state: "failed",
-      },
-    ],
-  },
-  {
     heading: "Agent ownership",
     summary: "Not held, picked up, working · whether the agent has the item",
     specimens: [
@@ -130,8 +100,8 @@ const GROUPS = [
         agentPhase: "active",
       },
       {
-        name: "Working alone",
-        detail: "Activity dot · no other control can carry it",
+        name: "Activity fallback",
+        detail: "Working · no target control available",
         icon: "activity",
         behavior: "disclosure",
         rank: "reading",

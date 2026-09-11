@@ -207,20 +207,12 @@
   border-color: var(--rule); color: var(--ink-2);
   box-shadow: none; cursor: default;
 }
-/* Tone colours only the icon. Category and interaction own the ring and fill;
-   sending keeps its neutral dashed ring. */
+/* Tone colours only the icon. Category and agent ownership own the ring and fill. */
 .lf-margin-entry[data-lf-tone="positive"] > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
 .lf-margin-entry[data-lf-tone="negative"] > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--danger-ink);
-}
-/* Sending belongs to the control, while ownership belongs to the agent. The
-   static neutral dashed ring replaces the corner spinner on every control. */
-.lf-margin-entry[data-lf-state="busy"]:not([data-lf-agent-phase]) {
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--ink) 50%, var(--paper));
-  background: color-mix(in srgb, var(--ink) 4%, var(--paper));
 }
 /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
    and tab stop from standing reaction marks, which retain their shape without
@@ -333,21 +325,20 @@
    that window would be a second flicker put where the first one was removed. Past
    the delay there is something to say, and the cases where there is are the ones
    that need it: a heavy page, or a reader who reached a --host page across a
-   network. So a surface without a margin entry goes quiet only once the wait has run long enough
-   to notice, and a fast answer never shows this rule at all. A margin entry already
-   carries the separate busy-state ring, so dimming it or replacing its pointer would
-   state the same fact twice and make its hover feedback look disabled. The
-   reduced-motion guard (theme.css) zeroes the duration and leaves the delay standing,
+   network. So a surface goes quiet only once the wait has run long enough to notice,
+   and a fast answer never shows this rule at all. Agent ownership remains legible
+   through the fade, so one control can carry both durable ownership and its transient
+   confirmation wait. The reduced-motion guard (theme.css) zeroes the duration and leaves the delay standing,
    which is the right reading of it: the fade is what a reader asked not to have, the
    waiting is not.
 
    Opacity and the cursor, never geometry: the line a press is made on holds still
    (lf-suggestion.js), and a busy surface that reflowed would move the control out
    from under the pointer that just pressed it. */
-[aria-busy="true"]:not(.lf-margin-entry) {
+[aria-busy="true"] {
   animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
 }
-[aria-busy="true"]:not(.lf-margin-entry),
+[aria-busy="true"],
 [aria-busy="true"] :is(button, [role="button"]) {
   cursor: progress;
 }
@@ -1727,8 +1718,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   /* Inset, because a row here fills the list to its own edge and the list is a
      scroller: there is nothing outside the row for a ring to be drawn in, and an
      outset one is cut on both sides by the box it scrolls in. The layer's rule for
-     a box whose edge touches something that paints (CLAUDE.md, "Standing somewhere").
-     The ring's width is the inset, so the band lands just inside the row's own edge. */
+     a box whose edge touches something that paints. The ring's width is the inset,
+     so the band lands just inside the row's own edge. */
   .lf-page-map-action:focus-visible {
     outline: var(--here-ring); --lf-here-ring: page-map-action;
     outline-offset: calc(-1 * var(--here-ring-w)); }

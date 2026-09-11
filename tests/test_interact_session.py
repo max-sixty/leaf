@@ -96,6 +96,7 @@ def fake_codex_cli(tmp_path: Path) -> tuple[Path, Path]:
 import json
 import os
 import sys
+import time
 
 log = os.environ["FAKE_CODEX_LOG"]
 arguments = sys.argv[1:]
@@ -110,6 +111,12 @@ if arguments == ["queue", "--help"]:
 if arguments[:1] != ["queue"]:
     print("unsupported command", file=sys.stderr)
     sys.exit(2)
+waiting = os.environ.get("FAKE_CODEX_QUEUE_WAIT")
+if waiting:
+    with open(waiting + ".started", "w", encoding="utf-8"):
+        pass
+    while not os.path.exists(waiting + ".release"):
+        time.sleep(0.01)
 failure = os.environ.get("FAKE_CODEX_QUEUE_FAILURE_ONCE")
 if failure and not os.path.exists(failure):
     with open(failure, "w", encoding="utf-8") as failed:
@@ -422,6 +429,7 @@ def codex_app_server():
                     "params": {
                         "threadId": "codex-thread",
                         "turnId": "turn-live",
+                        "startedAtMs": 1_000,
                         "item": {
                             "id": "command-live",
                             "type": "commandExecution",
@@ -559,6 +567,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     assert (status["state"], status["detail"]) == ("working", "reading the traces")
     work = status["work"][0]
     assert work["subject"] == {"kind": "thread", "id": "c1"}
+    assert work["event"] == "c1"
     assert work["detail"] == "reading the traces" and work["ts"] == status["ts"]
     assert work["after"] == comment_seq
     assert work["agent"] == "Trace reader" and work["id"] and work["session"]
@@ -571,6 +580,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
         {
             "id": work["id"],
             "target": {"kind": "thread", "id": "c1"},
+            "event": "c1",
             "source": "claim",
             "action": "working",
             "detail": {"text": "reading the traces"},
@@ -599,8 +609,31 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     # exact reader events and leaves the page-wide status alone.
     serving(page_dir, 1)
     events_model.append_event(
-        page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "and this?"}
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "c2",
+            "author": "user",
+            "parent": "c1",
+            "text": "and this?",
+        },
     )
+    activity = page_state(page_dir)["activity"]
+    assert [
+        (receipt["event"], receipt["phase"]) for receipt in activity["interactions"]
+    ] == [("c1", "active"), ("c2", "sent")]
+    assert all("anchor" not in receipt for receipt in activity["interactions"])
+    assert (activity["counts"]["total"], activity["counts"]["active"]) == (1, 0)
+    assert (
+        _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
+    )
+    renewed = files_model.read_json(page_dir / "status.json")["work"][0]
+    assert renewed["event"] == "c1"
+    assert [
+        (receipt["event"], receipt["phase"])
+        for receipt in page_state(page_dir)["activity"]["interactions"]
+    ] == [("c1", "active"), ("c2", "sent")]
+    assert _status(page_dir, "waiting", "look at v2").exit_code == 0
     assert session_model.cmd_wait(page_dir) == 0
     capsys.readouterr()
     handed = files_model.read_json(page_dir / "status.json")
@@ -612,6 +645,34 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
 
     session_model.cmd_status(page_dir, "idle", "")
     assert "work" not in files_model.read_json(page_dir / "status.json")
+
+
+def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
+    )
+    assert (
+        _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
+    )
+    with service_model.PageTransaction(page_dir) as transaction:
+        session_model.record_pickup(transaction, [comment])
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "c2",
+            "author": "user",
+            "parent": "c1",
+            "text": "and this?",
+        },
+    )
+
+    interactions = page_state(page_dir)["activity"]["interactions"]
+    assert [(item["event"], item["phase"]) for item in interactions] == [
+        (None, "active"),
+        ("c2", "sent"),
+    ]
 
 
 def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir):
@@ -941,6 +1002,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "params": {
                 "threadId": "codex-thread",
                 "turnId": "turn-live",
+                "startedAtMs": 1_000,
                 "item": {
                     "id": "command-live",
                     "type": "commandExecution",
@@ -948,7 +1010,16 @@ def test_app_server_events_report_semantic_codex_progress():
                 },
             },
         }
-    ) == {"turn": "turn-live", "activity": "Running uv run pytest tests"}
+    ) == {
+        "turn": "turn-live",
+        "item": {
+            "id": "command-live",
+            "type": "commandExecution",
+            "state": "started",
+            "atMs": 1_000,
+        },
+        "activity": "Running uv run pytest tests",
+    }
     assert events.read(
         {
             "method": "item/commandExecution/outputDelta",
@@ -960,24 +1031,30 @@ def test_app_server_events_report_semantic_codex_progress():
             },
         }
     ) == {"turn": "turn-live", "activity": "Running uv run pytest tests"}
-    assert (
-        events.read(
-            {
-                "method": "item/started",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "turn-live",
-                    "item": {
-                        "id": "commentary-live",
-                        "type": "agentMessage",
-                        "phase": "commentary",
-                        "text": "I am checking the implementation.",
-                    },
+    assert events.read(
+        {
+            "method": "item/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "startedAtMs": 1_100,
+                "item": {
+                    "id": "commentary-live",
+                    "type": "agentMessage",
+                    "phase": "commentary",
+                    "text": "I am checking the implementation.",
                 },
-            }
-        )
-        is None
-    )
+            },
+        }
+    ) == {
+        "turn": "turn-live",
+        "item": {
+            "id": "commentary-live",
+            "type": "agentMessage",
+            "state": "started",
+            "atMs": 1_100,
+        },
+    }
     assert (
         events.read(
             {
@@ -992,24 +1069,31 @@ def test_app_server_events_report_semantic_codex_progress():
         )
         is None
     )
-    assert (
-        events.read(
-            {
-                "method": "item/completed",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "turn-live",
-                    "item": {
-                        "id": "commentary-live",
-                        "type": "agentMessage",
-                        "phase": "commentary",
-                        "text": "I am checking the implementation. Next I will run tests.",
-                    },
+    assert events.read(
+        {
+            "method": "item/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "completedAtMs": 1_200,
+                "item": {
+                    "id": "commentary-live",
+                    "type": "agentMessage",
+                    "phase": "commentary",
+                    "text": "I am checking the implementation. Next I will run tests.",
                 },
-            }
-        )
-        is None
-    )
+            },
+        }
+    ) == {
+        "turn": "turn-live",
+        "item": {
+            "id": "commentary-live",
+            "type": "agentMessage",
+            "state": "completed",
+            "atMs": 1_200,
+            "durationMs": 100,
+        },
+    }
     assert events.read(
         {
             "method": "item/agentMessage/delta",
@@ -1041,6 +1125,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "params": {
                 "threadId": "codex-thread",
                 "turnId": "turn-live",
+                "completedAtMs": 1_300,
                 "item": {
                     "id": "message-live",
                     "type": "agentMessage",
@@ -1050,6 +1135,12 @@ def test_app_server_events_report_semantic_codex_progress():
         }
     ) == {
         "turn": "turn-live",
+        "item": {
+            "id": "message-live",
+            "type": "agentMessage",
+            "state": "completed",
+            "atMs": 1_300,
+        },
         "message": {
             "item": "message-live",
             "phase": None,
@@ -1451,6 +1542,19 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(page_dir
     )
     claimed = _status(page_dir, "working", "reading it", "--on", comment["id"])
     assert claimed.exit_code == 0, claimed.output
+    followup = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": comment["id"],
+            "text": "one more detail",
+        },
+    )
+    assert [
+        (receipt["event"], receipt["phase"])
+        for receipt in page_state(page_dir)["activity"]["interactions"]
+    ] == [(comment["id"], "active"), (followup["id"], "sent")]
     status = files_model.read_json(page_dir / "status.json")
     files_model.write_json(
         page_dir / "status.json",
@@ -1463,6 +1567,7 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(page_dir
     activity = page_state(page_dir)["activity"]
     assert (activity["kind"], activity["held"]) == ("unheld", False)
     [receipt] = activity["interactions"]
+    assert receipt["event"] == followup["id"]
     assert receipt["phase"] == "sent"
     assert (receipt["agent"], receipt["detail"]) == (None, None)
 
@@ -3689,7 +3794,7 @@ def test_codex_recovery_ignores_delivery_records_from_the_previous_adapter():
         },
     )
 
-    assert not codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert not codex_model._recover_receipt("codex-thread")
     assert not codex_model._has_delivery_work("codex-thread")
     assert files_model.read_json(legacy)["delivery_id"] == "legacy-delivery"
 
@@ -3727,8 +3832,8 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     files_model.write_json(directory / "z-old.json", epoch(first, created_at=1))
     files_model.write_json(directory / "a-new.json", epoch(second, created_at=2))
 
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
     pickups = [
         event for event in events_model.read_events(page) if event["kind"] == "pickup"
     ]
@@ -3775,10 +3880,10 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
         },
     )
 
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
     first_pass = files_model.read_json(epoch_path)["batches"]
     assert [batch["receipted"] for batch in first_pass] == [True, False]
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
 
     history = epoch_path.parent / "history" / epoch_path.name
     assert all(
@@ -3829,7 +3934,7 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
     epoch["state"] = "accepted"
     files_model.write_json(epoch_path, epoch)
 
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
     batches = files_model.read_json(epoch_path)["batches"]
     [received] = [batch for batch in batches if batch["receipted"]]
     [pending] = [batch for batch in batches if not batch["receipted"]]
@@ -3837,7 +3942,7 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
     # Reinitializing a page path starts its cursor again. Its batch is recovery
     # history, while the other page's batch is still live transport work.
     files_model.write_json(Path(received["page"]) / "cursor.json", {"seq": 0})
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
     history = epoch_path.parent / "history" / epoch_path.name
     assert files_model.read_json(history)["batches"] == [
         {**batch, "receipted": True} for batch in batches
@@ -3880,7 +3985,7 @@ def test_one_conversation_delivery_starts_and_receipts_its_app_server_turn(
         lambda *_: pytest.fail("the addressed delivery used the Codex queue fallback"),
     )
 
-    assert codex_model._recover_delivery(
+    assert codex_model._offer_queued_delivery(
         "codex",
         "codex-thread",
         "ws://127.0.0.1:4500",
@@ -3892,7 +3997,7 @@ def test_one_conversation_delivery_starts_and_receipts_its_app_server_turn(
     [(path, queue)] = codex_queues("codex-thread")
     assert queue["transport"] == {"phase": "opened", "turn": "app-server-turn"}
 
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
     pickup = next(
         event for event in events_model.read_events(page) if event["kind"] == "pickup"
     )
@@ -3944,7 +4049,7 @@ def test_multi_conversation_delivery_uses_the_same_app_server_envelope(
         lambda *_: pytest.fail("an idle App Server delivery was queued"),
     )
 
-    assert codex_model._recover_delivery(
+    assert codex_model._offer_queued_delivery(
         "codex",
         "codex-thread",
         "ws://127.0.0.1:4500",
@@ -3991,7 +4096,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
 
     monkeypatch.setattr(codex_model, "queue_delivery", queue_delivery)
     offering = threading.Thread(
-        target=lambda: codex_model._recover_delivery("codex", "codex-thread")
+        target=lambda: codex_model._offer_queued_delivery("codex", "codex-thread")
     )
     offering.start()
     assert queue_started.wait(timeout=5)
@@ -4010,7 +4115,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
         event["id"] for batch in payload["batches"] for event in batch["events"]
     ] == ["first"]
 
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
     with service_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
@@ -4328,6 +4433,127 @@ def test_codex_adapter_exits_after_its_offline_page_cannot_restart(
         encoding="utf-8"
     )
     assert adapter_log.count("server is not running") == 2
+
+
+def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
+    codex_claimed_page, spawn, codex_env, tmp_path, dead_pid
+):
+    page = codex_claimed_page
+    program, log = fake_codex_cli(tmp_path)
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    claim = service_model.page_claim(page)
+    files_model.write_json(
+        service_model.claim_path(page), {**claim, "pid": os.getpid()}
+    )
+    adapter = spawn(
+        [str(launcher), "codex", "run", "--codex-path", str(program)],
+        env=codex_env
+        | {
+            "CODEX_THREAD_ID": "codex-thread",
+            "FAKE_CODEX_LOG": str(log),
+            "FAKE_CODEX_QUEUE_FAILURE_ONCE": str(tmp_path / "failed-queue"),
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and not codex_model.adapter_is_live(
+            "codex-thread"
+        ):
+            time.sleep(0.05)
+        assert codex_model.adapter_is_live("codex-thread")
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "hello adapter"}
+        )
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            queues = codex_queues("codex-thread")
+            calls = (
+                [json.loads(line) for line in log.read_text().splitlines()]
+                if log.exists()
+                else []
+            )
+            if queues and queues[0][1]["state"] == "offering" and len(calls) > 1:
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the adapter did not reach its delivery retry")
+
+        claim = service_model.page_claim(page)
+        files_model.write_json(
+            service_model.claim_path(page), {**claim, "pid": dead_pid}
+        )
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and codex_model.adapter_is_live(
+            "codex-thread"
+        ):
+            time.sleep(0.05)
+        assert not codex_model.adapter_is_live("codex-thread")
+        assert adapter.wait(timeout=5) == 0
+        assert codex_queues("codex-thread")[0][1]["state"] == "offering"
+        assert files_model.read_json(page / "cursor.json") is None
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        assert len(calls) == 2
+    finally:
+        with service_model.PageTransaction(page) as transaction:
+            transaction.release_claim()
+
+
+def test_codex_adapter_finishes_an_accepted_receipt_after_ownership_transfers(
+    codex_claimed_page, spawn, codex_env, tmp_path
+):
+    page = codex_claimed_page
+    program, log = fake_codex_cli(tmp_path)
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    claim = service_model.page_claim(page)
+    files_model.write_json(
+        service_model.claim_path(page), {**claim, "pid": os.getpid()}
+    )
+    queue_wait = tmp_path / "held-queue"
+    adapter = spawn(
+        [str(launcher), "codex", "run", "--codex-path", str(program)],
+        env=codex_env
+        | {
+            "CODEX_THREAD_ID": "codex-thread",
+            "FAKE_CODEX_LOG": str(log),
+            "FAKE_CODEX_QUEUE_WAIT": str(queue_wait),
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not codex_model.adapter_is_live(
+        "codex-thread"
+    ):
+        time.sleep(0.05)
+    assert codex_model.adapter_is_live("codex-thread")
+
+    events_model.append_event(
+        page, {"kind": "comment", "author": "user", "text": "hello adapter"}
+    )
+    comment = events_model.read_events(page)[-1]
+    started = queue_wait.with_name(f"{queue_wait.name}.started")
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not started.exists():
+        time.sleep(0.05)
+    assert started.exists()
+
+    successor = record_claim(page, id="successor", host="codex", agent="Codex")
+    queue_wait.with_name(f"{queue_wait.name}.release").write_text("", encoding="utf-8")
+    assert adapter.wait(timeout=10) == 0
+
+    assert files_model.read_json(page / "cursor.json") == {"seq": comment["seq"]}
+    assert service_model.page_claim(page) == successor
+    pickups = [
+        event for event in events_model.read_events(page) if event["kind"] == "pickup"
+    ]
+    assert len(pickups) == 1 and pickups[0]["events"] == [comment["id"]]
 
 
 def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
@@ -5798,6 +6024,52 @@ def test_only_serving_or_watching_a_page_puts_the_session_under_the_guard(
     assert "no watcher" in json.loads(capsys.readouterr().out)["reason"]
 
 
+def test_the_app_s_shared_codex_is_not_taken_for_one_session_s_lifetime(
+    tmp_path, under_codex, codex_env
+):
+    """The one word that separates the two Codex shapes, and the claim each writes.
+
+    `session_lifetime` finds a session by walking for the nearest `codex`
+    ancestor. Under the CLI that process is the session and its pid is exact.
+    The ChatGPT app runs one `codex ... app-server` for the whole app and every
+    conversation hangs off it, so the same walk handed every session one pid
+    that outlives them all: a session-managed server checks `pid_alive` and
+    never sees it die, and the page stays served until the app quits. Found in
+    the wild as 133 unreleased claims naming a single app-server pid, 49 of
+    their servers still up, the oldest 28 hours past its conversation.
+
+    Both runs go through the real claim door under a real process of that name,
+    so what is asserted is the claim leaf writes rather than a reading of the
+    walk. Nothing varies between them but the word.
+    """
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+
+    def claimed(name, *, app_server):
+        page = tmp_path / name
+        subprocess.run([launcher, "page", "init", page], env=codex_env, check=True)
+        started = under_codex(
+            shlex.join([str(launcher), "server", "start", str(page)]),
+            codex_env | {"CODEX_THREAD_ID": name},
+            app_server=app_server,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        out, err = started.communicate(timeout=60)
+        assert started.returncode == 0, f"{out}{err}"
+        claim = service_model.page_claim(page)
+        subprocess.run([launcher, "server", "stop", page], env=codex_env, check=True)
+        return claim
+
+    session = claimed("cli-thread", app_server=False)
+    assert session["pid"] > 0
+    assert "activity" not in session
+
+    app = claimed("app-thread", app_server=True)
+    assert "pid" not in app
+    assert app["activity"] == "codex-app-server"
+
+
 def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     tmp_path, monkeypatch, dead_pid
 ):
@@ -5836,6 +6108,41 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     # Deleting the job takes its record; the directory can stay behind empty.
     (job / "state.json").unlink()
     assert not service_model.claim_is_active(service_model.page_claim(page))
+
+    # A host that multiplexes every session into one process states no process at
+    # all, so the claim stands on when the page was last touched. Both halves of
+    # that reading: the claim's own stamp carries a page nothing has written to,
+    # and a file under it carries one the session or a reader has since moved.
+    activity = tmp_path / "activity"
+    activity.mkdir()
+    record_claim(
+        activity,
+        id="multiplexed",
+        host="codex",
+        activity="codex-app-server",
+        ts=events_model.now_iso(),
+    )
+    claim = service_model.page_claim(activity)
+    assert "pid" not in claim
+    assert service_model.claim_is_active(claim)
+
+    stale = (
+        datetime.now().astimezone()
+        - timedelta(seconds=schema_model.ACTIVITY_GRACE_SECS + 60)
+    ).isoformat(timespec="seconds")
+    record_claim(
+        activity,
+        id="multiplexed",
+        host="codex",
+        activity="codex-app-server",
+        ts=stale,
+    )
+    assert not service_model.claim_is_active(service_model.page_claim(activity))
+
+    # A touch inside the grace revives the same claim, which is what keeps a page
+    # the session is still writing to — or a reader still commenting on — served.
+    (activity / "events.jsonl").write_bytes(b"")
+    assert service_model.claim_is_active(service_model.page_claim(activity))
 
     # A dead claim answers for its own page and no more: the session's other
     # records are still walked, and the live one is still the session's page.

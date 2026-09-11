@@ -9,24 +9,25 @@ and requests another reading at its next deadline; it does not run a second fold
 
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
-| work declaration: state, detail, event floor, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
+| work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` or `leaf ack` process, held open for its life | process exit |
 | acknowledgement cursor | `cursor.json` | `leaf ack`, after the complete batch reached its durable consumer | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
 | pickup transition | a `pickup` event in `events.jsonl` | the carrier records `queued` when Codex accepts a batch; the prompt hook or a plugin-free embedded host's App Server observer records `opened` with session and turn identity when the queued turn opens; direct delivery records `opened` itself | never; each event/phase/session/turn transition is idempotent |
-| page claim | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on (the pid, or the background job's directory) is gone |
+| page claim | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab closes the news stream and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
-| Codex queue state | the host state home's session records | the detached adapter or an embedded App Server host | accepted and every batch receipted, then moved under `history/` |
+| Codex queue state | the host state home's session records | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted |
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | any carrier freezes the host-neutral envelope before presenting it | never; every transport resolves the same immutable id |
 
 Delivery acceptance is a different fact from authored work, but it is exact agent
-activity. Pickup never rewrites `status.json`. The server projects one interaction
+activity. Pickup never rewrites `status.json`. Page activity counts one interaction
 per subject and unit, for the newest unsettled reader move on it (a tick and the Done
-press that followed are one), on the subject's existing target margin entry or a compact
-local row: append is **Sent**, then **Waiting for pickup** after the short grace;
+press that followed are one). A thread's local views may also retain **Active** beside
+the earlier message that prompted its standing claim. On the subject's existing target
+margin entry or a compact local row, append is **Sent**, then **Waiting for pickup** after the short grace;
 Codex acceptance is **Queued**; entry into a named open turn is **Picked up**; a
-later `status … --on` claim on the same subject is **Active**. That same evidence
+later `status … --on` claim on the same reader move is **Active**. That same evidence
 makes page activity **queued**, **handling**, or **picked up; turn ended**. A reply,
 resolution, or authored state that honors the move settles the interaction; a later
 version note settles a page action whose verb has no authored record form, and a note
@@ -43,9 +44,10 @@ not a second work declaration; the declaration remains underneath and becomes cu
 again when the turn or observer ends.
 
 A work declaration has to be renewed, and `leaf status` renews it. `--on` names the thread
-or widget the work is about, so one check-in moves the banner, the Target
-margin entry, and the local receipt under the reader's words; those stand until the
-agent's next word in that thread. Nothing in a session touches `status.json`
+or widget the work is about. A thread claim also records the current unanswered message,
+so one check-in keeps **Active** beside the words that prompted the work even when the
+reader adds another comment. Widget work appears on the Target margin entry. These
+readings stand until the agent's next word in that thread. Nothing in a session touches `status.json`
 while its turn is over, so work handed to a delegate is renewed from the
 delegate's own hands or not at all.
 
@@ -104,8 +106,11 @@ ordered events.
 In Codex, the adapter collects available input, then freezes the delivery before
 handing its bounded id-only `leaf-delivery` pointer to Codex's durable same-task queue.
 Input collected after that boundary belongs to a later delivery. A failed or
-uncertain queue call retries the same frozen pointer; a successful call marks only
-that delivery accepted.
+uncertain queue call retries the same frozen pointer while the session owns a page;
+losing its final page leaves the collecting or offering record standing but inactive
+until the same session claims a page again. A successful call marks only that delivery
+accepted. Acceptance has crossed the external-effect boundary, so its remaining page
+receipts are reconciled before the adapter checks ownership and retires.
 If every website startup retry fails, its deterministic fallback settles the
 triggering event and removes the unaccepted queue record. The immutable payload
 remains at its permanent path for a turn whose acceptance may have raced the failed

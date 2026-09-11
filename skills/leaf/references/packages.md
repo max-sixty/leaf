@@ -65,15 +65,15 @@ machine needs the same package installed there.
 Leaf also ships optional packages that select by bare name. `diagram` adds `lf-diagram`
 and the Beautiful Mermaid renderer it draws with; `diff` adds `lf-diff`, the
 `unified-diff` data contract, and the Pierre renderer; `swipe` adds a pass-or-keep
-classification deck; `playground` adds declarative controls, presets, CSS-bound
+technical backlog deck; `playground` adds declarative controls, presets, CSS-bound
 previews, and one typed configuration action; `targeting` lets readers select preview
 elements and submit structured, reversible change proposals; `command-hub` adds multi-agent
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
 description and compact checks table, plus a data-backed unified call diff; `monitoring`
 adds a release workspace with current state, checks, a run log, and a bound rollback
-request; `visual-review` adds an
-ordered website run, aligned before-and-after evidence, exact preview links, and case
-dispositions. `gallery`
+request; `visual-review` adds an ordered website run, aligned before-and-after evidence,
+local flip, side-by-side, opacity, fit, and actual-size inspection, exact preview links,
+and case dispositions. `gallery`
 adds the static gallery of page-edge action controls, disclosure controls, and status
 indicators used only by the developer feature gallery, so ordinary pages do not select it:
 
@@ -270,6 +270,15 @@ Ask projection uses the same condition for standing state. Do not add a second
 completed attribute or trust the browser's optimistic item count. Re-vendoring must
 preserve the completion condition for every recorded action.
 
+A composition allocates a Leaf element's outer box. The package owns how the element's
+contents use that allocation, based on its available inline size rather than the page
+shell or a reading posture. Prefer intrinsic grid or flex layout. When the contents need
+a discrete breakpoint, make the element a query container and apply the conditional
+rules to its descendants. A host rule inside that block does not fail: an unnamed query
+answers from the nearest ancestor container, and `body` is a container, so the rule
+silently follows the page shell instead. Keep the host's own layout intrinsic, or put
+the properties that change on a descendant layout box.
+
 A package is for behavior, styling, or vocabulary reused across pages. Page-specific
 behavior belongs in an authored inline module and needs no package entry. A CSS-only
 widget is an entry and a theme rule. One with reusable behavior takes a module.
@@ -349,6 +358,8 @@ The widget still owns its implementation: supporting modules can sit beside its 
 module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
+
+### Commands and keyboard routes
 
 A widget contributes each command once with `commands(source, title, rows, options)`.
 The dispatcher, shortcut bar, command reference, `aria-keyshortcuts`, and Ask projection all

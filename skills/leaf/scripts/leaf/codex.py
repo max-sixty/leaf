@@ -130,10 +130,21 @@ def _app_server_connect(endpoint: str):
         "open_timeout": START_TIMEOUT,
         "close_timeout": 1,
         "compression": None,
+        # App Server completion items include complete command output. A page read can
+        # therefore exceed websockets' 1 MiB message default even though the local
+        # protocol and the command both completed normally.
+        "max_size": None,
     }
-    if socket_path is not None:
-        return unix_connect(str(socket_path), uri="ws://localhost/rpc", **options)
-    return connect(endpoint, **options)
+    connection = (
+        unix_connect(str(socket_path), uri="ws://localhost/rpc", **options)
+        if socket_path is not None
+        else connect(endpoint, **options)
+    )
+    # Website delivery transfers this connection to its turn-following thread, so its
+    # owner closes it explicitly rather than retaining the context manager here. Enter
+    # it before transfer: this is a no-op in websockets 15-16 and the supported direct
+    # connection path in 17, without splitting Leaf by dependency version.
+    return connection.__enter__()
 
 
 def _head(text: str, limit: int = 180) -> str:
@@ -156,6 +167,7 @@ class AppServerEvents:
         self.text: dict[str, str] = {}
         self.message_phases: dict[str, str | None] = {}
         self.message_order: list[str] = []
+        self.item_started_at: dict[str, int] = {}
 
     def read(self, message: dict) -> dict | None:
         """Return one transient activity or turn-completion update."""
@@ -171,6 +183,7 @@ class AppServerEvents:
             self.text.clear()
             self.message_phases.clear()
             self.message_order.clear()
+            self.item_started_at.clear()
             return {"turn": self.turn_id, "activity": "Starting"}
 
         turn_id = params.get("turnId") or self.turn_id
@@ -180,6 +193,7 @@ class AppServerEvents:
             if self.turn_id == completed:
                 self.turn_id = None
                 self.details.clear()
+                self.item_started_at.clear()
             return {
                 "turn": completed,
                 "completed": turn.get("status", "completed"),
@@ -202,33 +216,41 @@ class AppServerEvents:
 
         if method == "item/started":
             item = params["item"]
+            lifecycle = self._item_lifecycle(params, "started")
             if item["type"] == "agentMessage":
                 self._record_message(item)
                 if item.get("phase") == "commentary":
-                    return None
+                    return {"turn": turn_id, "item": lifecycle}
                 if item.get("text"):
                     return {
                         "turn": turn_id,
+                        "item": lifecycle,
                         "message": self._message_update(item["id"], complete=False),
                     }
-                return None
+                return {"turn": turn_id, "item": lifecycle}
             detail = self._item_detail(item)
             if detail:
                 self.details[item["id"]] = detail
-            return {"turn": turn_id, "activity": detail} if detail else None
+            return {
+                "turn": turn_id,
+                "item": lifecycle,
+                **({"activity": detail} if detail else {}),
+            }
 
         if method == "item/completed":
             item = params["item"]
+            lifecycle = self._item_lifecycle(params, "completed")
             self.details.pop(item["id"], None)
             if item["type"] == "agentMessage":
                 self._record_message(item)
                 if item.get("phase") == "commentary":
-                    return None
+                    return {"turn": turn_id, "item": lifecycle}
                 return {
                     "turn": turn_id,
+                    "item": lifecycle,
                     "message": self._message_update(item["id"], complete=True),
                 }
-            return None
+            return {"turn": turn_id, "item": lifecycle}
 
         if method == STREAM_MESSAGE_METHOD:
             item_id = params["itemId"]
@@ -297,6 +319,35 @@ class AppServerEvents:
             "phase": self.message_phases.get(item_id),
             "text": self._visible_text(),
             "complete": complete,
+        }
+
+    def _item_lifecycle(self, params: dict, state: str) -> dict:
+        """Return the App Server's content-free item timing vocabulary."""
+        item = params["item"]
+        item_id = item["id"]
+        if state == "started":
+            at = params["startedAtMs"]
+            self.item_started_at[item_id] = at
+            return {
+                "id": item_id,
+                "type": item["type"],
+                "state": state,
+                "atMs": at,
+            }
+        at = params["completedAtMs"]
+        started_at = self.item_started_at.pop(item_id, None)
+        return {
+            "id": item_id,
+            "type": item["type"],
+            "state": state,
+            "atMs": at,
+            **({"durationMs": at - started_at} if started_at is not None else {}),
+            **({"status": item["status"]} if item.get("status") else {}),
+            **(
+                {"exitCode": item["exitCode"]}
+                if item.get("exitCode") is not None
+                else {}
+            ),
         }
 
     @staticmethod
@@ -521,21 +572,15 @@ class AppServerClient:
         turn_id = update["turn"]
         if message.get("method") == "turn/started":
             _open_stream_turn(self.thread_id, turn_id)
-        detail = update.get("activity")
-        if detail is None and (message_update := update.get("message")):
-            detail = _tail(message_update["text"])
-        if detail:
-            now = time.monotonic()
-            if (
-                message.get("method") in STREAM_THROTTLED_METHODS
-                and now - self.last_activity_update < STREAM_UPDATE_INTERVAL
-            ):
-                pass
-            else:
-                _set_stream_activity(self.thread_id, turn_id, detail)
-                self.last_activity_update = now
+        self.last_activity_update = project_app_server_activity(
+            self.events,
+            message,
+            update,
+            self.last_activity_update,
+            _set_stream_activity,
+            _clear_stream_activity,
+        )
         if update.get("completed"):
-            _clear_stream_activity(self.thread_id, turn_id)
             _close_stream_turn(self.thread_id, turn_id)
 
     def _run(self) -> None:
@@ -790,19 +835,48 @@ def _record_receipt(path: Path, batch_index: int) -> None:
         _write_queue(path, queue)
 
 
-def _recover_delivery(
-    codex_path: str,
-    session_id: str,
-    app_server: str | None = None,
-    app_client: AppServerClient | None = None,
-) -> bool:
-    """Advance one durable queue or page-receipt transition."""
+def _recover_receipt(session_id: str) -> bool:
+    """Reconcile one accepted batch with its page, regardless of ownership."""
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
         queues = _queues(session_id)
         for path, queue in queues:
             _sync_receipts(path, queue)
+        pending = min(
+            (
+                (path, index, dict(batch), queue.get("transport"))
+                for path, queue in _queues(session_id)
+                if queue["state"] == "accepted"
+                for index, batch in enumerate(queue["batches"])
+                if not batch["receipted"]
+            ),
+            key=lambda pending: (
+                pending[2]["page"],
+                min(event["seq"] for event in pending[2]["events"]),
+            ),
+            default=None,
+        )
+    if pending is None:
+        return False
+    path, batch_index, batch, transport = pending
+    _finish_batch(batch, transport)
+    with flocked(lock):
+        _record_receipt(path, batch_index)
+    return True
+
+
+def _offer_queued_delivery(
+    codex_path: str,
+    session_id: str,
+    app_server: str | None = None,
+    app_client: AppServerClient | None = None,
+) -> bool:
+    """Offer one collecting delivery through the selected Codex transport."""
+    lock = delivery_lock_path(session_id)
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with flocked(lock):
+        queues = _queues(session_id)
         unoffered = next(
             (
                 (path, queue)
@@ -835,29 +909,7 @@ def _recover_delivery(
                 queue["transport"] = transport
                 _write_queue(path, queue)
         return True
-
-    with flocked(lock):
-        pending = min(
-            (
-                (path, index, dict(batch), queue.get("transport"))
-                for path, queue in _queues(session_id)
-                if queue["state"] == "accepted"
-                for index, batch in enumerate(queue["batches"])
-                if not batch["receipted"]
-            ),
-            key=lambda pending: (
-                pending[2]["page"],
-                min(event["seq"] for event in pending[2]["events"]),
-            ),
-            default=None,
-        )
-    if pending is None:
-        return False
-    path, batch_index, batch, transport = pending
-    _finish_batch(batch, transport)
-    with flocked(lock):
-        _record_receipt(path, batch_index)
-    return True
+    return False
 
 
 def _has_delivery_work(session_id: str) -> bool:
@@ -929,6 +981,8 @@ def run_adapter(
         )
     leases_released = False
     app_client = None
+    start_lock = adapter_start_lock_path(identity["id"])
+    start_lock.parent.mkdir(parents=True, exist_ok=True)
     try:
         check_queue_command(codex_path)
         if app_server is not None:
@@ -941,17 +995,25 @@ def run_adapter(
         failures = 0
         while True:
             try:
-                queue_server = (
-                    app_server
-                    if app_client is not None and app_client.available.is_set()
-                    else None
-                )
-                recovered = _recover_delivery(
-                    codex_path,
-                    identity["id"],
-                    queue_server,
-                    app_client if queue_server is not None else None,
-                )
+                recovered = _recover_receipt(identity["id"])
+                if not recovered:
+                    with flocked(start_lock):
+                        if not owned_pages(identity["id"]):
+                            watch.release()
+                            lease.close()
+                            leases_released = True
+                            return 0
+                    queue_server = (
+                        app_server
+                        if app_client is not None and app_client.available.is_set()
+                        else None
+                    )
+                    recovered = _offer_queued_delivery(
+                        codex_path,
+                        identity["id"],
+                        queue_server,
+                        app_client if queue_server is not None else None,
+                    )
             except (OSError, RuntimeError) as error:
                 failures += 1
                 if failures == 1:
@@ -978,14 +1040,14 @@ def run_adapter(
             if captured:
                 continue
             if reading.outcome is not None or not reading.live:
-                start_lock = adapter_start_lock_path(identity["id"])
-                start_lock.parent.mkdir(parents=True, exist_ok=True)
                 with flocked(start_lock):
                     captured = False
                     reading = read_watch_pass(watch, None, deliver=capture)
                     if captured or (reading.outcome is None and reading.live):
                         continue
-                    if _has_delivery_work(identity["id"]):
+                    if owned_pages(identity["id"]) and _has_delivery_work(
+                        identity["id"]
+                    ):
                         time.sleep(1)
                         continue
                     watch.release()

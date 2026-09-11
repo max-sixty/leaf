@@ -92,6 +92,14 @@ from render_support import (
 
 pytestmark = pytest.mark.nightly
 
+SWIPE_GALLERY = next(path for path in PAGE_FIXTURES if path.stem == "swipe-gallery")
+TARGETING_GALLERY = next(
+    path for path in PAGE_FIXTURES if path.stem == "targeting-gallery"
+)
+VISUAL_REVIEW_GALLERY = next(
+    path for path in PAGE_FIXTURES if path.stem == "visual-review-gallery"
+)
+
 
 CONTROL_STABILITY_PAGE = leaf_page(
     "control stability",
@@ -252,6 +260,24 @@ CONTROL_ARCHETYPES = (
         "coverage": ".interaction-controls > button",
         "target": "[data-interaction-toggle]",
     },
+    {
+        # The targeting package's box-model row. The property select can show labels
+        # from Padding through Minimum height beside the add press, so choosing the
+        # longest value proves that the row reserves enough room for every state.
+        "name": "targeting-box-model",
+        "example": TARGETING_GALLERY,
+        "coverage": ".lf-targeting-change-fields > :is(select, button)",
+        "target": ".lf-targeting-property",
+        "select": "min-height",
+    },
+    {
+        # A disposition changes both its selected paint and the case's durable review
+        # state while its opposite remains beside it.
+        "name": "visual-review-disposition",
+        "example": VISUAL_REVIEW_GALLERY,
+        "coverage": ".lf-vr-dispositions > button",
+        "target": ".lf-vr-case:not([hidden]) .lf-vr-needs-work",
+    },
 )
 CONTROL_ROW_PRESS = (
     "button, summary, select, "
@@ -261,19 +287,6 @@ CONTROL_ROW_PRESS = (
     "[role=spinbutton], [role=switch], [role=tab], [role=treeitem])"
 )
 CONTROL_ROW_NEIGHBOUR = CONTROL_ROW_PRESS + ", a[href]"
-
-
-def _pause_gallery_swipe(page):
-    """Expose the live swipe controls and hold the card in its unseen pile."""
-    page.get_by_role("tab", name="Swipe a card", exact=True).click()
-    status = page.locator("#bg-interactions [data-interaction-status]")
-    expect(status).to_have_text("Playing")
-    page.locator("#bg-interactions [data-interaction-toggle]").click()
-    expect(status).to_have_text("Paused")
-    frame = page.locator(
-        "#bg-interactions #bg-interaction-swipe [data-interaction-frame]"
-    ).content_frame
-    expect(frame.locator("#bg-motion-swipe-queue > lf-swipe-card")).to_have_count(1)
 
 
 def _touch_drag(cdp, x, y, *, dx=0, dy=0, steps=14):
@@ -2041,7 +2054,10 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     before = control.evaluate(NEIGHBOURHOOD, NEIGHBOUR)
     assert before["names"], f"{archetype['name']} has no neighbouring control to hold"
 
-    control.click()
+    if option := archetype.get("select"):
+        control.select_option(option)
+    else:
+        control.click()
     round_trip(page)
     page_at_rest(page)
     after = page.evaluate("() => window.__lfBoxes()")
@@ -2103,9 +2119,6 @@ def test_the_composed_corpus_declares_every_control_row_archetype(browser, serve
     for tab_label in labels:
         page.get_by_role("tab", name=tab_label, exact=True).click()
         collect_controls(tab_label)
-        if tab_label == "Features":
-            _pause_gallery_swipe(page)
-            collect_controls("Features > Swipe a card")
 
     assert not undeclared, (
         "controls with neighbours need one archetype:\n  " + "\n  ".join(undeclared)
@@ -5177,10 +5190,10 @@ RING_WALKS = (
     # These controls live behind exact page-owned view states. Give each one a focused
     # stop rather than changing the active panel for the whole page walk: selecting a
     # late outer corpus tab would make its preceding until-found panels part of that
-    # sequential walk, and a playing gallery would move the swipe card before Tab arrived.
+    # sequential walk.
     ("a settled decision", (), ("corpus",)),
     ("a settled option", (), ("corpus",)),
-    ("a swipe card", (), ("feature-gallery",)),
+    ("a swipe card", (), ("swipe-gallery",)),
     ("a contents link", (), ("feature-gallery",)),
     ("the comments", ("c",), ("ship-review",)),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
@@ -5277,7 +5290,7 @@ RING_SCOPE_CONTROL = {
         None,
         "#comparison-policy[settled] > lf-option > .lf-pick",
     ),
-    "a swipe card": (None, "#bg-motion-swipe-card"),
+    "a swipe card": (None, "#swipe-keyboard-card"),
     "a contents link": (None, "#bg-contents li a"),
 }
 # The window a scope's own surface stands in, where that is not the walk's own. These
@@ -5545,7 +5558,9 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
     unnamed = set()
     opened, walked_in, errors = set(), set(), []
     stops = 0
-    examples = {example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY)}
+    examples = {
+        example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY, SWIPE_GALLERY)
+    }
     assert not (missing := set(RING_WALK_EXAMPLES) - set(examples)), (
         "the ring walk names examples that no longer exist: "
         + ", ".join(sorted(missing))
@@ -5634,8 +5649,6 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
                 expect(settled).to_be_visible()
                 if settled.get_attribute("aria-expanded") != "true":
                     settled.click()
-            elif scope == "a swipe card":
-                _pause_gallery_swipe(page)
             if scope == "the page":
                 pencil = page.locator(".lf-draft-controls .lf-draft-pencil").first
                 if pencil.count() and pencil.is_visible():

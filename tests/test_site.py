@@ -43,6 +43,7 @@ ROOT = Path(__file__).parent.parent
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
+DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 
 _spec = importlib.util.spec_from_file_location("site", ROOT / "scripts" / "site.py")
 site_build = importlib.util.module_from_spec(_spec)
@@ -117,8 +118,8 @@ def framed_root_examples():
 
 def published_pages():
     """The worked examples plus the linked developer reference."""
-    assert FEATURE_GALLERY.is_file(), "the feature gallery is missing"
-    return [*authored_examples(), FEATURE_GALLERY]
+    assert FEATURE_GALLERY in DEVELOPER_PAGES, "the core feature gallery is missing"
+    return [*authored_examples(), *DEVELOPER_PAGES]
 
 
 @pytest.fixture(scope="module")
@@ -870,7 +871,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
         published = {
             path.name for path in (site / "examples").iterdir() if path.is_dir()
         }
-        assert published == authored | {FEATURE_GALLERY.stem}
+        assert published == authored | {source.stem for source in DEVELOPER_PAGES}
         expect(page.locator("#pages .example-link")).to_have_count(6)
         expect(page.locator("#specialized .example-link")).to_have_count(3)
         assert page.evaluate(
@@ -879,8 +880,8 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
             " & Node.DOCUMENT_POSITION_FOLLOWING)"
         )
         product_gallery = developer_galleries.locator("#product-gallery")
-        expect(product_gallery).to_contain_text("Product gallery")
-        expect(product_gallery).to_contain_text("focused interaction replays")
+        expect(product_gallery).to_contain_text("Core product gallery")
+        expect(product_gallery).to_contain_text("focused core interaction replays")
         expect(product_gallery).to_have_attribute("href", "/examples/feature-gallery/")
         assert not errors, errors[:3]
     finally:
@@ -1099,40 +1100,6 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         expect(threads_frame.locator(".lf-thread-panel")).to_be_hidden()
         assert read_events(page_dir) == before
 
-        swipe_tab = gallery.get_by_role("tab", name="Swipe a card")
-        swipe_tab.click()
-        swipe_frame = gallery.locator(
-            "#bg-interaction-swipe [data-interaction-frame]"
-        ).content_frame
-        swipe_card = swipe_frame.locator("#bg-motion-swipe-card")
-        swipe_keep = swipe_frame.locator(".lf-swipe-keep")
-        expect(status).to_have_text("Playing")
-        expect(swipe_keep).to_be_enabled()
-        assert swipe_card.evaluate("card => card.parentElement.id") == (
-            "bg-motion-swipe-queue"
-        )
-        expect(status).to_have_text("Complete", timeout=10_000)
-        expect(swipe_keep).to_be_disabled()
-        assert swipe_card.evaluate("card => card.parentElement.id") == (
-            "bg-motion-swipe-keep"
-        )
-        expect(page.locator("body")).not_to_have_attribute(
-            "data-lf-auxiliary-surface", "threads"
-        )
-        assert read_events(page_dir) == before
-
-        toggle.click()
-        expect(status).to_have_text("Playing")
-        expect(swipe_keep).to_be_enabled()
-        assert swipe_card.evaluate("card => card.parentElement.id") == (
-            "bg-motion-swipe-queue"
-        )
-        expect(status).to_have_text("Complete", timeout=10_000)
-        assert swipe_card.evaluate("card => card.parentElement.id") == (
-            "bg-motion-swipe-keep"
-        )
-        assert read_events(page_dir) == before
-
         replacement_installed = gallery.evaluate(
             """gallery => {
                 const replacement = gallery.cloneNode(true);
@@ -1185,14 +1152,14 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         page.wait_for_function(BOTH_STAMPS)
         gallery = page.locator("#bg-interactions")
         ready = gallery.locator("[data-interaction-frame][data-interaction-ready]")
-        expect(ready).to_have_count(5)
+        expect(ready).to_have_count(4)
         expect(page.locator("body")).to_have_attribute(
             "data-lf-auxiliary-surface", "threads"
         )
         assert page.evaluate(
             """() => [...document.querySelectorAll('[data-interaction-frame]')].map(
                  (frame) => frame.contentDocument?.body.hasAttribute('data-lf-auxiliary-surface'))"""
-        ) == [False, False, False, False, False]
+        ) == [False, False, False, False]
         assert page.evaluate("() => document.activeElement?.tagName") != "IFRAME"
         # The positive ready edge is where each inner page would open its own news
         # stream and two-second heartbeat. Hold through that interval: only the outer
@@ -1445,7 +1412,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         navigate(page, errors, f"{url}#bg-interactions")
         gallery = page.locator("#bg-interactions")
         expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
-            5, timeout=20_000
+            4, timeout=20_000
         )
         assert gallery.locator("iframe[data-interaction-ready]").evaluate_all(
             """frames => frames.every(frame =>
@@ -1500,7 +1467,7 @@ def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
         navigate(page, errors, f"{url}#bg-interactions")
         gallery = page.locator("#bg-interactions")
         expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
-            5, timeout=20_000
+            4, timeout=20_000
         )
         page.wait_for_timeout(2_200)
         target = gallery.locator('[name="interaction-accept"]')
@@ -1582,7 +1549,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             if source == FEATURE_GALLERY:
                 expect(
                     page.locator("#bg-interactions iframe[data-interaction-ready]")
-                ).to_have_count(5, timeout=15_000)
+                ).to_have_count(4, timeout=15_000)
             assert not errors, f"{source.name}: {errors[:3]}"
 
     finally:

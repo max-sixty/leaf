@@ -30,6 +30,7 @@ export {
   registerMarginContribution,
 } from "./margin-entries.js";
 export { loadMarkdown, renderMarkdown } from "./markdown.js";
+export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 export { pageScroller } from "./scrolling.js";
 export {
   compoundReadingRegionId,

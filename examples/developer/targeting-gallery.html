@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
+    <title>Leaf targeting package</title>
+    <meta
+      name="description"
+      content="Select exact interface targets and submit structured edits with the optional Leaf targeting package."
+    />
+    <link rel="stylesheet" href="/theme.css" />
+    <style>
+      .target-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sp-3);
+      }
+      .target-card {
+        padding: var(--sp-4);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+      }
+      .target-card h3 {
+        margin-top: 0;
+      }
+      @media (max-width: 560px) {
+        .target-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+    <script type="module" src="/leaf.js"></script>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">targeting package</p>
+      <h1 id="targeting-title">Point at the interface change</h1>
+      <p class="lede" id="targeting-lede">
+        Targeting turns a visual selection into a structured set of exact element,
+        scope, attribute, style, and instruction changes.
+      </p>
+      <lf-ask id="targeting-ask">
+        <h2>Which exact changes should be made?</h2>
+        <lf-targeting id="targeting-workbench" submit-label="Submit changes">
+          <lf-target-preview id="targeting-preview">
+            <div class="target-grid">
+              <article id="target-release" class="target-card">
+                <h3 class="target-heading">Release readiness</h3>
+                <p>Keep the owner and remaining checks visible.</p>
+              </article>
+              <article id="target-evidence" class="target-card">
+                <h3 class="target-heading">Evidence trail</h3>
+                <p>Link each claim to the exact run that supports it.</p>
+              </article>
+            </div>
+          </lf-target-preview>
+        </lf-targeting>
+      </lf-ask>
+    </main>
+  </body>
+</html>

@@ -886,12 +886,17 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
+    widget.get_by_role("button", name="Side by side").click()
+    expect(
+        widget.locator(".lf-vr-case:not([hidden]) .lf-vr-frame-label").first
+    ).to_be_visible()
     page.emulate_media(media="print")
     expect(first).to_be_visible()
     expect(second).to_be_visible()
     expect(widget.locator(".lf-vr-queue-region")).to_be_visible()
     expect(widget.locator(".lf-vr-dispositions").first).to_be_hidden()
     expect(widget.locator(".lf-vr-inspector")).to_be_hidden()
+    expect(widget.locator(".lf-vr-frame-label").first).to_be_hidden()
     before_box, after_box = first.locator(".lf-shotframe").evaluate_all(
         "nodes => nodes.map(node => node.getBoundingClientRect())"
     )

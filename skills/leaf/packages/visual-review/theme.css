@@ -481,6 +481,7 @@ html.lf-copy .lf-vr-case + .lf-vr-case {
 
 @media print {
   .lf-vr-dispositions,
+  .lf-vr-frame-label,
   .lf-vr-inspector {
     display: none !important;
   }

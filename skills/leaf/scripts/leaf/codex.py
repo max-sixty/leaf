@@ -835,19 +835,48 @@ def _record_receipt(path: Path, batch_index: int) -> None:
         _write_queue(path, queue)
 
 
-def _recover_delivery(
-    codex_path: str,
-    session_id: str,
-    app_server: str | None = None,
-    app_client: AppServerClient | None = None,
-) -> bool:
-    """Advance one durable queue or page-receipt transition."""
+def _recover_receipt(session_id: str) -> bool:
+    """Reconcile one accepted batch with its page, regardless of ownership."""
     lock = delivery_lock_path(session_id)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with flocked(lock):
         queues = _queues(session_id)
         for path, queue in queues:
             _sync_receipts(path, queue)
+        pending = min(
+            (
+                (path, index, dict(batch), queue.get("transport"))
+                for path, queue in _queues(session_id)
+                if queue["state"] == "accepted"
+                for index, batch in enumerate(queue["batches"])
+                if not batch["receipted"]
+            ),
+            key=lambda pending: (
+                pending[2]["page"],
+                min(event["seq"] for event in pending[2]["events"]),
+            ),
+            default=None,
+        )
+    if pending is None:
+        return False
+    path, batch_index, batch, transport = pending
+    _finish_batch(batch, transport)
+    with flocked(lock):
+        _record_receipt(path, batch_index)
+    return True
+
+
+def _offer_queued_delivery(
+    codex_path: str,
+    session_id: str,
+    app_server: str | None = None,
+    app_client: AppServerClient | None = None,
+) -> bool:
+    """Offer one collecting delivery through the selected Codex transport."""
+    lock = delivery_lock_path(session_id)
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with flocked(lock):
+        queues = _queues(session_id)
         unoffered = next(
             (
                 (path, queue)
@@ -880,29 +909,7 @@ def _recover_delivery(
                 queue["transport"] = transport
                 _write_queue(path, queue)
         return True
-
-    with flocked(lock):
-        pending = min(
-            (
-                (path, index, dict(batch), queue.get("transport"))
-                for path, queue in _queues(session_id)
-                if queue["state"] == "accepted"
-                for index, batch in enumerate(queue["batches"])
-                if not batch["receipted"]
-            ),
-            key=lambda pending: (
-                pending[2]["page"],
-                min(event["seq"] for event in pending[2]["events"]),
-            ),
-            default=None,
-        )
-    if pending is None:
-        return False
-    path, batch_index, batch, transport = pending
-    _finish_batch(batch, transport)
-    with flocked(lock):
-        _record_receipt(path, batch_index)
-    return True
+    return False
 
 
 def _has_delivery_work(session_id: str) -> bool:
@@ -974,6 +981,8 @@ def run_adapter(
         )
     leases_released = False
     app_client = None
+    start_lock = adapter_start_lock_path(identity["id"])
+    start_lock.parent.mkdir(parents=True, exist_ok=True)
     try:
         check_queue_command(codex_path)
         if app_server is not None:
@@ -985,19 +994,26 @@ def run_adapter(
             ready_fd = None
         failures = 0
         while True:
-            recovery_failed = False
             try:
-                queue_server = (
-                    app_server
-                    if app_client is not None and app_client.available.is_set()
-                    else None
-                )
-                recovered = _recover_delivery(
-                    codex_path,
-                    identity["id"],
-                    queue_server,
-                    app_client if queue_server is not None else None,
-                )
+                recovered = _recover_receipt(identity["id"])
+                if not recovered:
+                    with flocked(start_lock):
+                        if not owned_pages(identity["id"]):
+                            watch.release()
+                            lease.close()
+                            leases_released = True
+                            return 0
+                    queue_server = (
+                        app_server
+                        if app_client is not None and app_client.available.is_set()
+                        else None
+                    )
+                    recovered = _offer_queued_delivery(
+                        codex_path,
+                        identity["id"],
+                        queue_server,
+                        app_client if queue_server is not None else None,
+                    )
             except (OSError, RuntimeError) as error:
                 failures += 1
                 if failures == 1:
@@ -1006,11 +1022,11 @@ def run_adapter(
                         file=sys.stderr,
                         flush=True,
                     )
-                recovery_failed = True
-            else:
+                time.sleep(min(30, 2 ** min(failures, 5)))
+                continue
+            if recovered:
                 failures = 0
-                if recovered:
-                    continue
+                continue
 
             captured = False
 
@@ -1020,35 +1036,25 @@ def run_adapter(
                 captured = capture_batch(identity["id"], reading)
                 return False
 
-            def observe(_reading) -> bool:
-                return False
-
-            deliver = observe if recovery_failed else capture
-            reading = read_watch_pass(watch, None, deliver=deliver)
+            reading = read_watch_pass(watch, None, deliver=capture)
             if captured:
                 continue
-            watch_ended = not reading.live or (
-                not recovery_failed and reading.outcome is not None
-            )
-            if watch_ended:
-                start_lock = adapter_start_lock_path(identity["id"])
-                start_lock.parent.mkdir(parents=True, exist_ok=True)
+            if reading.outcome is not None or not reading.live:
                 with flocked(start_lock):
                     captured = False
-                    reading = read_watch_pass(watch, None, deliver=deliver)
-                    watch_ended = not reading.live or (
-                        not recovery_failed and reading.outcome is not None
-                    )
-                    inactive = not captured and watch_ended
-                    if inactive and (
-                        recovery_failed or not _has_delivery_work(identity["id"])
+                    reading = read_watch_pass(watch, None, deliver=capture)
+                    if captured or (reading.outcome is None and reading.live):
+                        continue
+                    if owned_pages(identity["id"]) and _has_delivery_work(
+                        identity["id"]
                     ):
-                        watch.release()
-                        lease.close()
-                        leases_released = True
-                        return reading.outcome or 0
-            delay = min(30, 2 ** min(failures, 5)) if recovery_failed else 1
-            time.sleep(delay)
+                        time.sleep(1)
+                        continue
+                    watch.release()
+                    lease.close()
+                    leases_released = True
+                    return reading.outcome or 0
+            time.sleep(1)
     except BaseException as error:
         if ready_fd is not None:
             os.write(

@@ -1,7 +1,8 @@
 # TODO
 
-Items are ordered by priority. Each names the result; investigation detail belongs in
-the relevant design note or in git history.
+Items are ordered by priority. Each names the result. When an item needs active
+investigation detail, keep it in a linked note. Completed work and rejected alternatives
+remain in git history.
 
 ## Now
 
@@ -62,6 +63,10 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Let readers disable character bindings.** Define one route filter with a complete
+  persistence and accessibility contract. Commands, non-character routes, and visible
+  controls remain available.
+
 - **Review the guided-still workflow across repeated website changes.** The initial
   visual-review package passed one end-to-end five-case run. Use it on changes with
   different navigation, responsive states, and authentication boundaries before
@@ -78,11 +83,6 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 - **Add typed motion evidence after the media boundary supports it.** Define durable
   video, poster, caption, transcript, and chapter handling in Leaf core; then let visual
   runs attach motion only to cases whose timing or continuity is under review.
-
-- **Name the keyboard's visible carriers once the command-route model settles.** Add
-  *key badge* and *binding badge* to the developer glossary, then cut code, docs, and
-  tests over. A key badge carries a binding or transient hint code; a binding badge is
-  a key badge showing a currently resolved command binding.
 
 - **Add a foreground path for other agent hosts.** Document a blocking `leaf wait` flow
   for any host that can run a command, then use that experience to define a shared host

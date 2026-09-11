@@ -121,6 +121,8 @@ spine instead.
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
 | **Walk** | Ordered semantic movement among same-kind destinations |
 | **Return** | Restoration of the origin captured before an entered transition; Escape unwinds an inner interaction before returning when necessary |
+| **Key badge** | A keycap-shaped carrier for a binding or transient hint code |
+| **Binding badge** | A key badge showing a command's currently resolved binding |
 
 Reserve *mode* for Design mode and Draw mode, which persist until explicit exit. `g`
 opens a sequence and `s` opens a chooser. A scope is the command-resolution mechanism

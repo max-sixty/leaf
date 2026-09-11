@@ -786,6 +786,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget.get_by_role("button", name="Flip")).to_have_attribute(
         "aria-pressed", "true"
     )
+    expect(widget.get_by_role("button", name="Flip")).to_have_css("box-shadow", "none")
     opacity = widget.get_by_role("slider", name="Candidate opacity")
     expect(opacity).to_be_disabled()
 

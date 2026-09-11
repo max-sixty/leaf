@@ -147,7 +147,6 @@ lf-visual-review > .lf-reading-after {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, var(--card));
   color: var(--accent);
-  box-shadow: inset 0 -2px var(--accent);
 }
 
 .lf-vr-opacity-control {

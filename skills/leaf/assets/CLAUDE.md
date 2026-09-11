@@ -595,6 +595,11 @@ after changing type tokens. The banner status stays on one line with ellipsis an
 complete hover title; its CSS reservation stays independent of changing copy. Pair
 local visual feedback with `notice` for an assistive announcement.
 
+Use one contour to carry one control state. Do not stack a colored border with an inset
+underline or ring on the same selected control; the second edge reads as a stray border.
+In a segmented group, keep one-pixel shared seams and let fill, ink, or one outline make
+the selection distinct without adding another line inside it.
+
 Agent ownership colors the existing semantic margin control: pickup is blue, working
 is green with an inset double ring and one arrival pulse. Sending uses a static neutral
 dashed ring. A separate Activity control appears only when no semantic carrier exists.

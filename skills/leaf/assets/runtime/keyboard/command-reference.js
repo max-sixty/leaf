@@ -336,6 +336,7 @@ function showCommandReference(open, restoreFocus, invokeCommand, captureOrigin) 
           if (!prior || (!prior.available && candidate.available))
             preferredCommands.set(id, candidate);
         }
+    const presentedCommands = new Set();
     const availableWhere = (row, scopeTitle, scopeReach) => {
       const place = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
       return `Available ${place.charAt(0).toLocaleLowerCase()}${place.slice(1)}`;
@@ -348,8 +349,13 @@ function showCommandReference(open, restoreFocus, invokeCommand, captureOrigin) 
         for (const presentation of commandPresentations(row)) {
           const { id, route } = presentation;
           const preferred = preferredCommands.get(id);
-          if (preferred?.row !== row || preferred.binding !== (route?.binding ?? null))
+          if (
+            preferred?.row !== row ||
+            preferred.binding !== (route?.binding ?? null) ||
+            presentedCommands.has(id)
+          )
             continue;
+          presentedCommands.add(id);
           const does = route?.does ?? word(row.does);
           const tr = document.createElement("tr");
           tr.dataset.lfCommand = id;

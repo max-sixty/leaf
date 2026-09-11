@@ -6,10 +6,10 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>Leaf product gallery</title>
+    <title>Leaf core product gallery</title>
     <meta
       name="description"
-      content="Every working Leaf feature on one synthetic page, each with a live example and a focused replay of its motion."
+      content="Leaf's core page vocabulary on one synthetic page, with live examples and focused replays of its interactions."
     />
     <meta name="lf-review" content="sign-off" />
     <meta
@@ -25,164 +25,6 @@
 
       .bg-feature-elements {
         margin-bottom: 4px;
-      }
-
-      #bg-playground-card {
-        --lf-block-frame: 1;
-        --bg-playground-card-ink: var(--ink);
-        --bg-playground-card-muted: var(--muted);
-        --bg-playground-card-surface: var(--card);
-        position: relative;
-        isolation: isolate;
-        display: grid;
-        grid-template-rows: auto 1fr auto;
-        gap: var(--sp-3);
-        width: min(100%, 21rem);
-        min-height: 15rem;
-        overflow: hidden;
-        padding: var(--sp-4);
-        border: 1px solid
-          color-mix(in srgb, var(--playground-accent) 72%, var(--border-2));
-        border-radius: var(--playground-radius);
-        background: color-mix(
-          in srgb,
-          var(--playground-accent) 4%,
-          var(--bg-playground-card-surface)
-        );
-        box-shadow: none;
-        color: var(--bg-playground-card-ink);
-        text-align: left;
-      }
-
-      #bg-playground-card::before {
-        position: absolute;
-        z-index: -1;
-        inset: 0 auto 0 0;
-        width: 5px;
-        background: var(--playground-accent);
-        content: "";
-      }
-
-      #bg-card-playground[data-playground-compact="true"] #bg-playground-card {
-        min-height: 12.5rem;
-        gap: var(--sp-2);
-        padding: var(--sp-3);
-      }
-
-      #bg-card-playground[data-playground-tone="bold"] #bg-playground-card {
-        --bg-playground-card-ink: var(--paper);
-        --bg-playground-card-muted: color-mix(in srgb, var(--paper) 72%, transparent);
-        --bg-playground-card-surface: color-mix(
-          in srgb,
-          var(--ink) 90%,
-          var(--playground-accent)
-        );
-        border-color: var(--playground-accent);
-      }
-
-      #bg-card-playground[data-playground-tone="tinted"] #bg-playground-card {
-        --bg-playground-card-muted: var(--ink-2);
-        background: color-mix(
-          in srgb,
-          var(--playground-accent) 13%,
-          var(--bg-playground-card-surface)
-        );
-      }
-
-      #bg-card-playground[data-playground-alignment="center"] #bg-playground-card {
-        text-align: center;
-      }
-
-      #bg-card-playground[data-playground-alignment="center"]
-        :is(.bg-playground-card-head, .bg-playground-card-foot) {
-        justify-content: center;
-      }
-
-      #bg-card-playground[data-playground-elevated="true"] #bg-playground-card {
-        box-shadow: 0 16px 38px color-mix(in srgb, var(--ink) 16%, transparent);
-        transform: translateY(-2px);
-      }
-
-      .bg-playground-card-head,
-      .bg-playground-card-foot {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        gap: var(--sp-1) var(--sp-3);
-        color: var(--bg-playground-card-muted);
-        font: 550 var(--t-6) / 1.3 var(--sans);
-      }
-
-      .bg-playground-card-distance,
-      .bg-playground-card-foot {
-        font-variant-numeric: tabular-nums;
-      }
-
-      .bg-playground-route {
-        align-self: center;
-        width: 100%;
-        min-height: 4.5rem;
-        overflow: visible;
-      }
-
-      .bg-playground-contour {
-        fill: none;
-        stroke: var(--bg-playground-card-muted);
-        stroke-width: 1;
-        opacity: 0.22;
-      }
-
-      .bg-playground-path {
-        fill: none;
-        stroke: var(--playground-accent);
-        stroke-linecap: round;
-        stroke-linejoin: round;
-        stroke-width: 3;
-      }
-
-      .bg-playground-point {
-        fill: var(--playground-accent);
-        stroke: var(--bg-playground-card-surface);
-        stroke-width: 3;
-      }
-
-      .bg-playground-card-copy h5 {
-        margin: 0;
-        color: inherit;
-        font: 600 var(--t-2) / 1.12 var(--serif);
-        letter-spacing: -0.012em;
-      }
-
-      .bg-playground-card-copy h5::before {
-        content: var(--playground-title);
-      }
-
-      .bg-playground-card-copy p {
-        max-width: 31ch;
-        margin: var(--sp-1) auto 0;
-        color: var(--bg-playground-card-muted);
-        font: var(--t-5) / 1.45 var(--sans);
-      }
-
-      .bg-target-card-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: var(--sp-3);
-      }
-
-      .bg-target-card {
-        --lf-block-frame: 1;
-        min-width: 0;
-        padding: var(--sp-3);
-        border: 1px solid var(--border-2);
-        border-radius: var(--r);
-        background: var(--card);
-      }
-
-      @media screen and (max-width: 640px) {
-        .bg-target-card-grid {
-          grid-template-columns: minmax(0, 1fr);
-        }
       }
 
       .interaction-gallery lf-tabs {
@@ -367,11 +209,11 @@
   </head>
   <body>
     <main>
-      <p class="eyebrow">developer playground</p>
-      <h1 id="bg-title">Leaf product gallery</h1>
+      <p class="eyebrow">core developer playground</p>
+      <h1 id="bg-title">Leaf core product gallery</h1>
       <p class="lede" id="bg-lede">
-        Try Leaf’s working features on one synthetic page. Each section names a feature
-        and provides a live example, including focused replays of its motion.
+        Try Leaf chrome and the default package on one synthetic page. Optional widgets
+        have focused working pages in the package catalog.
       </p>
       <aside class="sidebar" id="bg-sidebar">
         <lf-toc id="bg-contents" max-level="2"></lf-toc>
@@ -654,13 +496,11 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
 
       <section id="bg-reader-workflows">
         <p class="eyebrow bg-feature-elements">
-          Approve version · Design mode · Draw mode · Kept draft · Requests
+          Approve version · Design mode · Draw mode · Kept draft
         </p>
         <h2>
           <strong>Reader workflows</strong
-          ><span class="bg-feature-detail"
-            >: approval, interface comments, and requests</span
-          >
+          ><span class="bg-feature-detail">: approval and interface comments</span>
         </h2>
 
         <section id="bg-signoff">
@@ -720,81 +560,16 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             nothing written offers no such place to go.
           </p>
         </section>
-
-        <section id="bg-request-lifecycle">
-          <p class="eyebrow bg-feature-elements">
-            lf-command · lf-task · lf-agent · lf-worktree · lf-operations · lf-operation
-          </p>
-          <h3>
-            <strong>Requests</strong
-            ><span class="bg-feature-detail">: send instructions to the host</span>
-          </h3>
-          <p id="bg-request-guide">
-            <code>lf-operations</code> is the answer widget inside an
-            <code>lf-ask</code> when its answer should make the host act. Leaf records
-            one typed, one-shot instruction; the host carries it out and returns a
-            receipt. Failure reopens the Ask, while success closes it. A refused send
-            shows <strong>Retry</strong> and <strong>Cancel</strong>.
-          </p>
-          <lf-command id="bg-request-command" label="Synthetic request lifecycle">
-            <lf-task id="bg-request-live-task" status="blocked">
-              <strong>Ready request</strong> No request has left this seat yet.
-              <lf-agent id="bg-request-live-worker" state="waiting">
-                <strong>gallery-ready</strong> Owns the disposable sample branch.
-                <lf-worktree
-                  id="bg-request-live-tree"
-                  source="gallery-worktrees"
-                ></lf-worktree>
-              </lf-agent>
-              <lf-ask id="bg-request-live-decision">
-                <h4>What should the sample host do?</h4>
-                <lf-operations
-                  id="bg-request-live"
-                  target="bg-request-live-task"
-                  worker="bg-request-live-worker"
-                  worktree="bg-request-live-tree"
-                >
-                  <lf-operation verb="restart">
-                    <strong>Restart the sample worker</strong> Preserve its fictional
-                    branch and begin a fresh attempt.
-                  </lf-operation>
-                  <lf-operation verb="drop">
-                    <strong>Drop the sample worker</strong> Archive the fictional
-                    branch.
-                  </lf-operation>
-                </lf-operations>
-              </lf-ask>
-            </lf-task>
-          </lf-command>
-        </section>
       </section>
 
       <section id="bg-external-data">
-        <p class="eyebrow bg-feature-elements">lf-diff · lf-text-document · lf-num</p>
+        <p class="eyebrow bg-feature-elements">lf-text-document · lf-num</p>
         <h2>
           <strong>External data</strong
           ><span class="bg-feature-detail"
             >: live values, snapshots, and provenance</span
           >
         </h2>
-
-        <section id="bg-inline-diff-threads">
-          <p class="eyebrow bg-feature-elements">lf-diff · inline Thread</p>
-          <h3>
-            <strong>Inline diff threads</strong
-            ><span class="bg-feature-detail">: line comments in review context</span>
-          </h3>
-          <p id="bg-inline-diff-guide">
-            The seeded Thread follows its added line. Reply or resolve in place. Use the
-            plus beside the file or a line to start another Thread in that review
-            context. Close the file to move the line Thread to the page margin, then
-            reopen it to return the conversation to the diff. Mark the file reviewed to
-            exercise persistent file progress.
-          </p>
-          <lf-diff id="bg-review-diff" source="gallery-patch" review>
-            <pre></pre>
-          </lf-diff>
-        </section>
 
         <section id="bg-source-captures">
           <p class="eyebrow bg-feature-elements">lf-text-document</p>
@@ -846,9 +621,7 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         <p class="eyebrow bg-feature-elements">Default package</p>
         <h2>
           <strong>Evidence widgets</strong
-          ><span class="bg-feature-detail"
-            >: charts, diagrams, and structured views</span
-          >
+          ><span class="bg-feature-detail">: charts and structured views</span>
         </h2>
         <p id="bg-default-guide">
           These shipped widgets use synthetic data so each feature has a focused
@@ -897,35 +670,6 @@ second, 9, 2
 third, 12, 0
 </pre>
           </lf-chart>
-        </section>
-
-        <section id="bg-diagrams">
-          <p class="eyebrow bg-feature-elements">lf-diagram · diagram package</p>
-          <h3>
-            <strong>Diagram</strong
-            ><span class="bg-feature-detail">: structure, shape, and state</span>
-          </h3>
-          <p id="bg-diagrams-guide">
-            Diagram nodes keep their authored shapes and can use Leaf’s semantic color
-            tokens. A plain click leaves the drawing alone. Alt-click a declared node to
-            comment on that box alone, or press <kbd>s</kbd> to choose the same target.
-          </p>
-          <lf-diagram
-            id="bg-diagram"
-            parts="node:Request node:Choice node:Success node:Retry"
-          >
-            <pre>
-flowchart LR
-  Request([Request]) --> Choice{Valid?}
-  Choice -->|yes| Success[(Stored)]
-  Choice -->|no| Retry([Retry])
-  Retry -.-> Request
-  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
-  classDef warning fill:var(--warn-tint),stroke:var(--warn),color:var(--warn-ink)
-  class Success done
-  class Retry warning
-</pre>
-          </lf-diagram>
         </section>
 
         <section id="bg-code-and-tree">
@@ -1099,256 +843,9 @@ gallery/
           </lf-tabs>
         </section>
 
-        <section id="bg-playground">
-          <p class="eyebrow bg-feature-elements">
-            lf-playground · lf-playground-control · lf-playground-choice ·
-            lf-playground-preset · lf-playground-setting · lf-playground-preview ·
-            lf-playground-output · lf-playground-value
-          </p>
-          <h3>
-            <strong>Playground</strong
-            ><span class="bg-feature-detail">: configure, preview, and choose</span>
-          </h3>
-          <p id="bg-playground-guide">
-            Start with one of the agent’s three recommendations, then tune the controls.
-            The card and instruction update at once while the event log stays unchanged;
-            Apply card sends the complete configuration as one decision.
-          </p>
-          <lf-ask id="bg-card-playground-ask">
-            <h4 id="bg-card-playground-question">How should the sample card look?</h4>
-            <lf-playground id="bg-card-playground" submit-label="Apply card">
-              <lf-playground-control
-                name="radius"
-                label="Corner radius"
-                kind="range"
-                value="12"
-                min="0"
-                max="28"
-                step="1"
-                unit="px"
-              ></lf-playground-control>
-              <lf-playground-control
-                name="compact"
-                label="Compact spacing"
-                kind="toggle"
-                value="false"
-              ></lf-playground-control>
-              <lf-playground-control
-                name="tone"
-                label="Tone"
-                kind="choice"
-                value="quiet"
-              >
-                <lf-playground-choice
-                  value="quiet"
-                  label="Quiet"
-                ></lf-playground-choice>
-                <lf-playground-choice
-                  value="tinted"
-                  label="Tinted"
-                ></lf-playground-choice>
-                <lf-playground-choice value="bold" label="Bold"></lf-playground-choice>
-              </lf-playground-control>
-              <lf-playground-control
-                name="alignment"
-                label="Alignment"
-                kind="choice"
-                value="left"
-              >
-                <lf-playground-choice value="left" label="Left"></lf-playground-choice>
-                <lf-playground-choice
-                  value="center"
-                  label="Center"
-                ></lf-playground-choice>
-              </lf-playground-control>
-              <lf-playground-control
-                name="elevated"
-                label="Lift from page"
-                kind="toggle"
-                value="false"
-              ></lf-playground-control>
-              <lf-playground-control
-                name="accent"
-                label="Accent"
-                kind="color"
-                value="#4f766f"
-              ></lf-playground-control>
-              <lf-playground-control
-                name="title"
-                label="Card title"
-                kind="text"
-                value="Field note"
-                placeholder="Card title"
-              ></lf-playground-control>
-              <lf-playground-preset label="Field note">
-                <lf-playground-setting for="radius" value="12"></lf-playground-setting>
-                <lf-playground-setting
-                  for="compact"
-                  value="false"
-                ></lf-playground-setting>
-                <lf-playground-setting for="tone" value="quiet"></lf-playground-setting>
-                <lf-playground-setting
-                  for="alignment"
-                  value="left"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="elevated"
-                  value="false"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="accent"
-                  value="#4f766f"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="title"
-                  value="Field note"
-                ></lf-playground-setting>
-              </lf-playground-preset>
-              <lf-playground-preset label="Trail alert">
-                <lf-playground-setting for="radius" value="4"></lf-playground-setting>
-                <lf-playground-setting
-                  for="compact"
-                  value="true"
-                ></lf-playground-setting>
-                <lf-playground-setting for="tone" value="bold"></lf-playground-setting>
-                <lf-playground-setting
-                  for="alignment"
-                  value="left"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="elevated"
-                  value="true"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="accent"
-                  value="#b6533c"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="title"
-                  value="Trail alert"
-                ></lf-playground-setting>
-              </lf-playground-preset>
-              <lf-playground-preset label="Evening invite">
-                <lf-playground-setting for="radius" value="24"></lf-playground-setting>
-                <lf-playground-setting
-                  for="compact"
-                  value="false"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="tone"
-                  value="tinted"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="alignment"
-                  value="center"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="elevated"
-                  value="true"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="accent"
-                  value="#8b4a5f"
-                ></lf-playground-setting>
-                <lf-playground-setting
-                  for="title"
-                  value="Evening walk"
-                ></lf-playground-setting>
-              </lf-playground-preset>
-
-              <lf-playground-preview id="bg-card-preview">
-                <article
-                  id="bg-playground-card"
-                  aria-labelledby="bg-playground-card-title"
-                >
-                  <header class="bg-playground-card-head">
-                    <span>North ridge</span>
-                    <span class="bg-playground-card-distance">4.8 km</span>
-                  </header>
-                  <svg
-                    class="bg-playground-route"
-                    viewBox="0 0 320 96"
-                    aria-hidden="true"
-                    focusable="false"
-                  >
-                    <path
-                      class="bg-playground-contour"
-                      d="M-8 73 C35 36 76 36 111 58 S179 89 217 54 S282 10 330 32"
-                    ></path>
-                    <path
-                      class="bg-playground-contour"
-                      d="M-12 90 C30 56 74 55 112 75 S182 104 220 72 S284 30 333 48"
-                    ></path>
-                    <path
-                      class="bg-playground-path"
-                      d="M10 75 C54 69 61 28 104 33 S156 78 195 59 S239 19 303 24"
-                    ></path>
-                    <circle class="bg-playground-point" cx="10" cy="75" r="5"></circle>
-                    <circle class="bg-playground-point" cx="303" cy="24" r="5"></circle>
-                  </svg>
-                  <div class="bg-playground-card-copy">
-                    <h5 id="bg-playground-card-title"></h5>
-                    <p>Follow the alder trail to the dusk overlook.</p>
-                  </div>
-                  <footer class="bg-playground-card-foot">
-                    <span>Depart 18:40</span>
-                    <span>11 °C · light rain</span>
-                  </footer>
-                </article>
-              </lf-playground-preview>
-              <lf-playground-output id="bg-card-instruction">
-                Style the card with a corner radius of
-                <lf-playground-value for="radius"></lf-playground-value>, compact
-                spacing set to
-                <lf-playground-value for="compact"></lf-playground-value>, a
-                <lf-playground-value for="tone"></lf-playground-value> tone,
-                <lf-playground-value for="alignment"></lf-playground-value> alignment,
-                elevation set to
-                <lf-playground-value for="elevated"></lf-playground-value>, and
-                <lf-playground-value for="accent"></lf-playground-value> accents. Keep
-                the title “<lf-playground-value for="title"></lf-playground-value>.”
-              </lf-playground-output>
-            </lf-playground>
-          </lf-ask>
-        </section>
-
-        <section id="bg-targeting">
-          <p class="eyebrow bg-feature-elements">lf-targeting · lf-target-preview</p>
-          <h3>
-            <strong>Targeting</strong
-            ><span class="bg-feature-detail"
-              >: identify, preview, and submit edits</span
-            >
-          </h3>
-          <p id="bg-targeting-guide">
-            Select element and choose its Article boundary. Rename it, switch its scope
-            to Shared class, add and remove a style, then add a target-bound
-            instruction. Select the nested heading as a second target and inspect the
-            structured action before using Submit changes.
-          </p>
-          <lf-ask id="bg-targeting-ask">
-            <h4 id="bg-targeting-question">Which exact changes should be made?</h4>
-            <lf-targeting id="bg-targeting-workbench" submit-label="Submit changes">
-              <lf-target-preview id="bg-targeting-preview">
-                <div class="bg-target-card-grid">
-                  <article id="bg-target-release" class="bg-target-card">
-                    <h5 class="bg-target-heading">Release readiness</h5>
-                    <p>Keep the owner and remaining checks visible.</p>
-                  </article>
-                  <article id="bg-target-evidence" class="bg-target-card">
-                    <h5 class="bg-target-heading">Evidence trail</h5>
-                    <p>Link each claim to the exact run that supports it.</p>
-                  </article>
-                </div>
-              </lf-target-preview>
-            </lf-targeting>
-          </lf-ask>
-        </section>
-
         <section id="bg-quoted-and-visual">
           <p class="eyebrow bg-feature-elements">
-            lf-specimen · lf-shot · lf-options · lf-option · lf-swipe-deck ·
-            lf-swipe-pile · lf-swipe-card
+            lf-specimen · lf-shot · lf-options · lf-option
           </p>
           <h3>
             <strong>Specimen</strong> and <strong>Shot</strong
@@ -1364,20 +861,6 @@ gallery/
               </lf-option>
             </lf-options>
           </lf-specimen>
-          <lf-specimen id="bg-swipe-specimen" label="a classified swipe deck">
-            <lf-swipe-deck id="bg-swipe-completed">
-              <lf-swipe-pile id="bg-swipe-completed-queue" verdict="unseen">
-              </lf-swipe-pile>
-              <lf-swipe-pile id="bg-swipe-completed-pass" verdict="pass">
-              </lf-swipe-pile>
-              <lf-swipe-pile id="bg-swipe-completed-keep" verdict="keep">
-                <lf-swipe-card id="bg-swipe-completed-card">
-                  <strong>Keep the explicit expiry bound</strong>
-                  <p>The card's pile carries its recorded classification.</p>
-                </lf-swipe-card>
-              </lf-swipe-pile>
-            </lf-swipe-deck>
-          </lf-specimen>
           <p id="bg-shot-guide">
             Specimen labels invented content. Choose Before or After above the image, or
             press the Shot control or image to flip.
@@ -1388,27 +871,6 @@ gallery/
             before="/media/051bee487bfb5d13.png"
             after="/media/a99a1b63048502d0.png"
           ></lf-shot>
-        </section>
-
-        <section id="bg-visual-review">
-          <p class="eyebrow bg-feature-elements">
-            lf-visual-review · visual-review package
-          </p>
-          <h3>
-            <strong>Visual review</strong
-            ><span class="bg-feature-detail"
-              >: an ordered run beside one focused comparison</span
-            >
-          </h3>
-          <p id="bg-visual-review-guide">
-            Choose a case, flip its aligned Before and After frames, open the exact
-            preview paths, and record a disposition. Use Arrow Up and Arrow Down while
-            standing in the review to move through the run.
-          </p>
-          <lf-visual-review
-            id="bg-visual-run"
-            source="gallery-visual-run"
-          ></lf-visual-review>
         </section>
       </section>
 
@@ -1421,8 +883,7 @@ gallery/
       >
         <p class="eyebrow bg-feature-elements">
           Core · lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board ·
-          lf-column · lf-card · Thread control · Threads panel · Swipe package ·
-          lf-swipe-deck · lf-swipe-pile · lf-swipe-card
+          lf-column · lf-card · Thread control · Threads panel
         </p>
         <h2 id="bg-interactions-title">
           <strong>Interactions</strong
@@ -1565,54 +1026,6 @@ gallery/
                 The pointer presses the real top-bar control inside a zoomed-out Leaf
                 page; the production Threads panel opens and closes without changing
                 this gallery page.
-              </figcaption>
-            </figure>
-          </lf-tab>
-
-          <lf-tab id="bg-interaction-swipe" label="Swipe a card">
-            <figure
-              class="interaction-demo"
-              data-interaction-demo="swipe-card"
-              data-interaction-module="/widgets/lf-swipe-deck.js"
-            >
-              <template data-interaction-page>
-                <p class="eyebrow">design review</p>
-                <h1>Follow-ups</h1>
-                <lf-ask id="bg-motion-swipe-ask">
-                  <h3>Keep this follow-up?</h3>
-                  <lf-swipe-deck id="bg-motion-swipe">
-                    <lf-swipe-pile id="bg-motion-swipe-queue" verdict="unseen">
-                      <lf-swipe-card id="bg-motion-swipe-card">
-                        <strong>Document the keyboard route</strong>
-                        <p>Keep the interaction reachable without a pointer.</p>
-                      </lf-swipe-card>
-                    </lf-swipe-pile>
-                    <lf-swipe-pile
-                      id="bg-motion-swipe-pass"
-                      verdict="pass"
-                    ></lf-swipe-pile>
-                    <lf-swipe-pile
-                      id="bg-motion-swipe-keep"
-                      verdict="keep"
-                    ></lf-swipe-pile>
-                  </lf-swipe-deck>
-                </lf-ask>
-              </template>
-              <div class="interaction-stage interaction-frame-stage">
-                <iframe
-                  class="interaction-frame"
-                  data-interaction-frame
-                  name="interaction-swipe-card"
-                  title="Contained Leaf swipe animation"
-                  tabindex="-1"
-                  aria-hidden="true"
-                ></iframe>
-                <span class="interaction-pointer" hidden aria-hidden="true"></span>
-              </div>
-              <figcaption>
-                The pointer presses Keep; the swipe package plays its real exit motion
-                while the projected placement moves the card into Kept. Return to queue
-                on that row reverses the classification.
               </figcaption>
             </figure>
           </lf-tab>

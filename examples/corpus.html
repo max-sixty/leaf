@@ -813,6 +813,53 @@ catalog.</p>
       </lf-board>
 </lf-tab>
 
+<lf-tab id="corpus-ideas-to-implement" label="Ideas">
+<lf-ask id="ideas-decision">
+        <h1>Ideas to implement</h1>
+        <p class="lede" id="ideas-premise">
+          Keep adds an idea to this round; Pass removes it. Each can ship on its own.
+          When the queue is clear, approve the set to start work.
+        </p>
+        <lf-swipe-deck id="ideas-deck">
+          <lf-swipe-pile id="ideas-queue" verdict="unseen">
+            <lf-swipe-card id="idea-shared-filters">
+              <strong>Keep filters in shared links</strong>
+              <p>
+                Shared analytics links currently reopen unfiltered. Put the existing
+                team, date, and status filters in the URL. Frontend only; about half a
+                day.
+              </p>
+            </lf-swipe-card>
+            <lf-swipe-card id="idea-draft-warning">
+              <strong>Protect unsaved drafts</strong>
+              <p>
+                Closing the editor can silently discard local text. Warn only when the
+                draft differs from the saved version. Frontend only; about half a day.
+              </p>
+            </lf-swipe-card>
+            <lf-swipe-card id="idea-csv-export">
+              <strong>Export the filtered table</strong>
+              <p>
+                Operations copies this view into a spreadsheet each Friday. Export the
+                visible rows and columns with the current permission checks. One API
+                endpoint; about two days.
+              </p>
+            </lf-swipe-card>
+            <lf-swipe-card id="idea-report-prefetch">
+              <strong>Preload the next report</strong>
+              <p>
+                After a report opens, fetch the next one in the list during browser
+                idle. The next switch is faster, but one request may go unused; about
+                one day.
+              </p>
+            </lf-swipe-card>
+          </lf-swipe-pile>
+          <lf-swipe-pile id="ideas-pass" verdict="pass"></lf-swipe-pile>
+          <lf-swipe-pile id="ideas-keep" verdict="keep"></lf-swipe-pile>
+        </lf-swipe-deck>
+      </lf-ask>
+</lf-tab>
+
 <lf-tab id="corpus-release-notes" label="Notes">
 <h1>Review the four user-visible notes</h1>
       <p class="lede" id="rn-lede">

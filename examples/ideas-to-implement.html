@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Choose ideas to implement</title>
+    <meta
+      name="description"
+      content="Review four independent product improvements, shortlist the ones to build, and approve the final implementation set."
+    />
+    <meta name="lf-review" content="sign-off" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    />
+    <link rel="stylesheet" href="/theme.css" />
+    <script type="module" src="/leaf.js"></script>
+  </head>
+  <body>
+    <main>
+      <lf-ask id="ideas-decision">
+        <h1>Ideas to implement</h1>
+        <p class="lede" id="ideas-premise">
+          Keep adds an idea to this round; Pass removes it. Each can ship on its own.
+          When the queue is clear, approve the set to start work.
+        </p>
+        <lf-swipe-deck id="ideas-deck">
+          <lf-swipe-pile id="ideas-queue" verdict="unseen">
+            <lf-swipe-card id="idea-shared-filters">
+              <strong>Keep filters in shared links</strong>
+              <p>
+                Shared analytics links currently reopen unfiltered. Put the existing
+                team, date, and status filters in the URL. Frontend only; about half a
+                day.
+              </p>
+            </lf-swipe-card>
+            <lf-swipe-card id="idea-draft-warning">
+              <strong>Protect unsaved drafts</strong>
+              <p>
+                Closing the editor can silently discard local text. Warn only when the
+                draft differs from the saved version. Frontend only; about half a day.
+              </p>
+            </lf-swipe-card>
+            <lf-swipe-card id="idea-csv-export">
+              <strong>Export the filtered table</strong>
+              <p>
+                Operations copies this view into a spreadsheet each Friday. Export the
+                visible rows and columns with the current permission checks. One API
+                endpoint; about two days.
+              </p>
+            </lf-swipe-card>
+            <lf-swipe-card id="idea-report-prefetch">
+              <strong>Preload the next report</strong>
+              <p>
+                After a report opens, fetch the next one in the list during browser
+                idle. The next switch is faster, but one request may go unused; about
+                one day.
+              </p>
+            </lf-swipe-card>
+          </lf-swipe-pile>
+          <lf-swipe-pile id="ideas-pass" verdict="pass"></lf-swipe-pile>
+          <lf-swipe-pile id="ideas-keep" verdict="keep"></lf-swipe-pile>
+        </lf-swipe-deck>
+      </lf-ask>
+    </main>
+  </body>
+</html>

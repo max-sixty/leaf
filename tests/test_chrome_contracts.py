@@ -219,15 +219,10 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     panel_comment(serve.page_dir, "Is this ready?", author="claude")
     page, errors = open_page(browser, url)
     expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
-    expect(page.locator(".lf-signoff")).to_be_visible()
-    signoff_paint = page.locator(".lf-signoff").evaluate(
-        "el => ({ink: getComputedStyle(el).color, "
-        "        fill: getComputedStyle(el).backgroundColor})"
+    expect(page.locator(".lf-signoff")).to_be_disabled()
+    expect(page.locator(".lf-signoff")).to_have_attribute(
+        "title", "Answer every Ask before approving this work"
     )
-    assert signoff_paint == {
-        "ink": token_colour(page, "--paper"),
-        "fill": token_colour(page, "--accent"),
-    }, f"the banner's primary action lost its readable face: {signoff_paint}"
     expect(page.locator(".lf-answer-all")).to_be_visible()
 
     orders = {}

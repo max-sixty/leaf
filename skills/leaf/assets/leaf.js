@@ -169,7 +169,8 @@ import { offer } from "./runtime/widget-elements.js";
 import { FOCUSABLE } from "./runtime/reach.js";
 
 let app;
-const paintVersionApproval = () => paintApproval(app.pendingApprovals());
+const paintVersionApproval = () =>
+  paintApproval(app.pendingApprovals(), app.unansweredAsks());
 let threadPanelController;
 let trays;
 let layout;

@@ -3886,6 +3886,111 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     page.close()
 
 
+def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
+    """The worked example keeps the decision and both actions in one phone view,
+    then records a rapid mix of touch, button, and keyboard classifications."""
+    source = Path(__file__).parent.parent / "examples" / "ideas-to-implement.html"
+    url = serve(source)
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page, errors = open_page(browser, url, context=context)
+    deck = page.locator("#ideas-deck")
+    approve = page.locator(".lf-signoff")
+    expect(approve).to_be_disabled()
+    expect(approve).to_have_attribute(
+        "title", "Answer every Ask before approving this work"
+    )
+    first = page.locator("#idea-shared-filters")
+
+    layout = page.evaluate(
+        """() => {
+          const card = document.querySelector('#idea-shared-filters').getBoundingClientRect();
+          const controls = document.querySelector('.lf-swipe-controls').getBoundingClientRect();
+          return {
+            cardBottom: card.bottom,
+            controlsBottom: controls.bottom,
+            viewportHeight: innerHeight,
+            pageWidth: document.documentElement.scrollWidth,
+            viewportWidth: document.documentElement.clientWidth,
+          };
+        }"""
+    )
+    assert layout["cardBottom"] <= layout["viewportHeight"]
+    assert layout["controlsBottom"] <= layout["viewportHeight"]
+    assert layout["pageWidth"] == layout["viewportWidth"] == 390
+
+    box = first.bounding_box()
+    assert box
+    x = round(box["x"] + box["width"] / 2)
+    y = round(box["y"] + box["height"] / 2)
+    cdp = context.new_cdp_session(page)
+    cdp.send(
+        "Input.dispatchTouchEvent",
+        {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]},
+    )
+    for step in range(1, 8):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {
+                "type": "touchMove",
+                "touchPoints": [
+                    {"x": x + round(box["width"] * 0.35 * step / 7), "y": y}
+                ],
+            },
+        )
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    expect(page.locator("#ideas-keep > #idea-shared-filters")).to_have_count(1)
+
+    deck.get_by_role("button", name="← Pass", exact=True).click()
+    page.locator("#idea-csv-export").focus()
+    page.keyboard.press("ArrowRight")
+    deck.get_by_role("button", name="← Pass", exact=True).click()
+    round_trip(page)
+
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    assert page.eval_on_selector_all(
+        "#ideas-pass > lf-swipe-card", "cards => cards.map(card => card.id)"
+    ) == ["idea-draft-warning", "idea-report-prefetch"]
+    assert page.eval_on_selector_all(
+        "#ideas-keep > lf-swipe-card", "cards => cards.map(card => card.id)"
+    ) == ["idea-shared-filters", "idea-csv-export"]
+    assert [
+        (event["detail"]["card"], event["detail"]["to"])
+        for event in actions(serve.page_dir)
+    ] == [
+        ("idea-shared-filters", "ideas-keep"),
+        ("idea-draft-warning", "ideas-pass"),
+        ("idea-csv-export", "ideas-keep"),
+        ("idea-report-prefetch", "ideas-pass"),
+    ]
+
+    page.set_viewport_size({"width": 1200, "height": 900})
+    wide = page.evaluate(
+        """() => {
+          const passed = document.querySelector('#ideas-pass').getBoundingClientRect();
+          const kept = document.querySelector('#ideas-keep').getBoundingClientRect();
+          return {
+            passedTop: passed.top,
+            keptTop: kept.top,
+            pageWidth: document.documentElement.scrollWidth,
+            viewportWidth: document.documentElement.clientWidth,
+          };
+        }"""
+    )
+    assert wide["passedTop"] == pytest.approx(wide["keptTop"], abs=0.02)
+    assert wide["pageWidth"] == wide["viewportWidth"] == 1200
+
+    expect(approve).to_have_text("Approve version")
+    expect(approve).to_be_enabled()
+    approve.click()
+    round_trip(page)
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "done"
+    assert errors == []
+    page.close()
+    context.close()
+
+
 def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve):
     """Every input route ends at a button click, and quick classifications retain
     gesture order while the outbox serializes their requests."""

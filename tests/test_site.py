@@ -899,7 +899,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
             path.name for path in (site / "examples").iterdir() if path.is_dir()
         }
         assert published == authored | {source.stem for source in DEVELOPER_PAGES}
-        expect(page.locator("#pages .example-link")).to_have_count(6)
+        expect(page.locator("#pages .example-link")).to_have_count(7)
         expect(page.locator("#specialized .example-link")).to_have_count(3)
         assert page.evaluate(
             "() => Boolean(document.querySelector('#pages')"

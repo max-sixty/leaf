@@ -577,7 +577,7 @@ function currentBannerReservations() {
 
 let approving = false;
 
-export function paintApproval(pendingApprovals) {
+export function paintApproval(pendingApprovals, unansweredAsks = []) {
   const approved = [
     ...(runtime.browser?.conversation?.done ?? []),
     ...pendingApprovals,
@@ -591,6 +591,7 @@ export function paintApproval(pendingApprovals) {
     approving ||
     runtime.currentStamp === null ||
     !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
+    unansweredAsks.length > 0 ||
     approved;
   approveBtn.textContent = approved ? "✓ Version approved" : "Approve version";
   // The word and the title turn over together. The title read "Approve this work; the
@@ -600,6 +601,8 @@ export function paintApproval(pendingApprovals) {
   // out of it, which is `z` like every other reader gesture.
   approveBtn.title = approved
     ? "Approved. Press z to take it back while it is still your last gesture"
-    : "Approve this work; the page stays open for follow-up";
+    : unansweredAsks.length
+      ? "Answer every Ask before approving this work"
+      : "Approve this work; the page stays open for follow-up";
   repaint();
 }

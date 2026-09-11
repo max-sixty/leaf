@@ -4551,9 +4551,7 @@ def test_codex_adapter_finishes_an_accepted_receipt_after_ownership_transfers(
     assert files_model.read_json(page / "cursor.json") == {"seq": comment["seq"]}
     assert service_model.page_claim(page) == successor
     pickups = [
-        event
-        for event in events_model.read_events(page)
-        if event["kind"] == "pickup"
+        event for event in events_model.read_events(page) if event["kind"] == "pickup"
     ]
     assert len(pickups) == 1 and pickups[0]["events"] == [comment["id"]]
 

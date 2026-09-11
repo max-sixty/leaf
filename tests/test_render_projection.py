@@ -781,6 +781,60 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "Chrome 140.0.7339.80 · 1280 × 900 · 1× · light · en-US"
     )
 
+    expect(widget).to_have_attribute("data-inspection-mode", "flip")
+    expect(widget).to_have_attribute("data-inspection-scale", "fit")
+    expect(widget.get_by_role("button", name="Flip")).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(widget.get_by_role("button", name="Flip")).to_have_css("box-shadow", "none")
+    opacity = widget.get_by_role("slider", name="Candidate opacity")
+    expect(opacity).to_be_disabled()
+
+    widget.get_by_role("button", name="Side by side").click()
+    expect(widget).to_have_attribute("data-inspection-mode", "side")
+    expect(first.locator(".lf-vr-frame-label")).to_have_text(["Base", "Candidate"])
+    expect(first.locator("lf-shot")).to_have_attribute("data-lf-shot-controls", "off")
+    expect(first.locator(".lf-shotflip")).to_be_hidden()
+    expect(first.locator(".lf-shot-toggle")).to_be_hidden()
+    expect(first.locator(".lf-shotcap[aria-keyshortcuts]")).to_have_count(0)
+    expect(first.locator(".lf-shotflip[aria-keyshortcuts]")).to_have_count(0)
+    frames = first.locator(".lf-shotframe")
+    before_box, after_box = frames.evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect())"
+    )
+    assert after_box["left"] >= before_box["right"]
+
+    widget.get_by_role("button", name="Actual size").click()
+    expect(widget).to_have_attribute("data-inspection-scale", "actual")
+    shot_host = first.locator(".lf-vr-shot-host")
+    assert shot_host.evaluate("node => node.scrollWidth > node.clientWidth")
+    assert first.locator("lf-shot img").first.evaluate(
+        "image => image.getBoundingClientRect().width === image.naturalWidth"
+    )
+
+    widget.get_by_role("button", name="Fit").click()
+    widget.get_by_role("button", name="Flip").click()
+    expect(first.locator("lf-shot[data-lf-shot-controls]")).to_have_count(0)
+    expect(first.locator(".lf-vr-frame-label")).to_have_count(0)
+    widget.get_by_role("button", name="Opacity").click()
+    expect(widget).to_have_attribute("data-inspection-mode", "opacity")
+    expect(opacity).to_be_enabled()
+    opacity.press("ArrowLeft")
+    opacity.press("ArrowLeft")
+    opacity.press("ArrowLeft")
+    expect(widget.locator(".lf-vr-opacity-value")).to_have_text("35%")
+    expect(widget.locator(".lf-vr-opacity-value")).not_to_have_attribute(
+        "data-lf-said", ""
+    )
+    before_box, after_box = frames.evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect())"
+    )
+    assert abs(before_box["left"] - after_box["left"]) < 1
+    assert abs(before_box["width"] - after_box["width"]) < 1
+    expect(first.locator('.lf-shotframe[data-lf-state="after"]')).to_have_css(
+        "opacity", "0.35"
+    )
+
     with sending(page, "the first visual disposition"):
         first.get_by_role("button", name="Looks right").click()
     expect(first).to_have_attribute("data-disposition", "looks-right")
@@ -822,6 +876,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     )
     expect(second).to_be_visible()
     expect(first).to_have_attribute("data-disposition", "looks-right")
+    expect(widget).to_have_attribute("data-inspection-mode", "opacity")
+    expect(widget.locator(".lf-vr-opacity")).to_have_value("35")
     widget.locator('.lf-vr-case-tab[data-case="run-list"]').click()
     page.keyboard.press("ArrowDown")
     expect(widget.locator('.lf-vr-case-tab[data-case="run-middle"]')).to_be_focused()
@@ -830,11 +886,21 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
+    widget.get_by_role("button", name="Side by side").click()
+    expect(
+        widget.locator(".lf-vr-case:not([hidden]) .lf-vr-frame-label").first
+    ).to_be_visible()
     page.emulate_media(media="print")
     expect(first).to_be_visible()
     expect(second).to_be_visible()
     expect(widget.locator(".lf-vr-queue-region")).to_be_visible()
     expect(widget.locator(".lf-vr-dispositions").first).to_be_hidden()
+    expect(widget.locator(".lf-vr-inspector")).to_be_hidden()
+    expect(widget.locator(".lf-vr-frame-label").first).to_be_hidden()
+    before_box, after_box = first.locator(".lf-shotframe").evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect())"
+    )
+    assert after_box["top"] >= before_box["bottom"]
     page.emulate_media(media="screen")
     assert errors == []
     page.close()

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .acknowledgments import page_action_unsettled
 from .asks import asking, quoted_in, replayed_attrs
-from .events import build_threads, note_settlements
+from .events import awaits_agent, build_threads, note_settlements, spoken_turns
 from .files import latest_revision, revision_path
 from .passages import enclosing_of, page_passages
 from .projection import (
@@ -148,10 +148,17 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
             sys.exit(
                 f"{target} is a resolved comment thread; reopen it before claiming work"
             )
-        return {
+        work = {
             "subject": {"kind": "thread", "id": target},
             "after": events[-1]["seq"] if events else 0,
         }
+        if awaits_agent(thread):
+            work["event"] = next(
+                message["id"]
+                for message in reversed(spoken_turns(thread))
+                if message["author"] != "claude"
+            )
+        return work
     if widget is not None:
         assert (
             registry is not None and widget_projection is not None and html is not None

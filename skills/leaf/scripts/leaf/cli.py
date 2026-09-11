@@ -590,7 +590,8 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     standing "select text to comment".
 
     --on names the open conversation or local page widget that detail is about,
-    and the reader sees it beside that subject as well as in the banner. Thread
+    and the reader sees it beside that subject as well as in the banner. Conversation
+    work stays beside the message that awaited your reply when the claim began. Thread
     work stands until your next reply there. Widget work stands until a later
     version stamp explicitly names it with --completes. Work in flight — a
     delegate, a long tool run — therefore reads as picked up rather than as

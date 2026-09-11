@@ -174,6 +174,7 @@ def canonical_acknowledgments(
                 # Any weaker phase is a second delivery receipt on a subject whose
                 # newest move already carries one.
                 if anchor["phase"] == "active":
+                    anchor["anchor"] = True
                     acknowledgments.append(anchor)
 
     # A page action stays unsettled only while the authored document still lags

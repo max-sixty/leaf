@@ -1503,6 +1503,19 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(page_dir
     )
     claimed = _status(page_dir, "working", "reading it", "--on", comment["id"])
     assert claimed.exit_code == 0, claimed.output
+    followup = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": comment["id"],
+            "text": "one more detail",
+        },
+    )
+    assert [
+        (receipt["event"], receipt["phase"])
+        for receipt in page_state(page_dir)["activity"]["interactions"]
+    ] == [(comment["id"], "active"), (followup["id"], "sent")]
     status = files_model.read_json(page_dir / "status.json")
     files_model.write_json(
         page_dir / "status.json",
@@ -1515,6 +1528,7 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(page_dir
     activity = page_state(page_dir)["activity"]
     assert (activity["kind"], activity["held"]) == ("unheld", False)
     [receipt] = activity["interactions"]
+    assert receipt["event"] == followup["id"]
     assert receipt["phase"] == "sent"
     assert (receipt["agent"], receipt["detail"]) == (None, None)
 

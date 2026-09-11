@@ -68,7 +68,7 @@ def _canonical_interactions(
             )
             quiet = _quiet(item["ts"], now, WORKING_GRACE) or dropped
             if not held:
-                if item.get("event") is None:
+                if item.get("event") is None or item.get("anchor"):
                     continue
                 phase = item.get("fallback_phase", "sent")
                 item["ts"] = item.get("fallback_ts", item["ts"])

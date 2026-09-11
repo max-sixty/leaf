@@ -2678,12 +2678,13 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_r
     first, first_errors = open_page(browser, url, context=one_reader)
     second, second_errors = open_page(browser, url, context=one_reader)
 
+    height = "ta => Math.round(ta.getBoundingClientRect().height)"
+    compose(first, "#p3")
+    compact_height = first.locator(".lf-composer textarea").evaluate(height)
     opened = "This paragraph buries the point."
-    compose(first, "#p3", opened)
+    first.locator(".lf-composer textarea").fill(opened)
     compose(second, "#p3")
     expect(second.locator(".lf-composer textarea")).to_have_value(opened)
-    height = "ta => Math.round(ta.getBoundingClientRect().height)"
-    compact_height = second.locator(".lf-composer textarea").evaluate(height)
 
     grown = opened + "\n\n" + "And the one after it says the same thing again. " * 4
     first.locator(".lf-composer textarea").fill(grown)

@@ -283,7 +283,8 @@
      chip was when it was measured, and a package redeclaring the ladder grows the chip
      into whatever the column was holding beside it. */
   --lf-key-badge-size: calc(round(var(--t-6) * 1.478 + 2px, 1px));
-  --ok-tint: #dfeddf;     --ok-ink: #2f6b40;
+  --ok-tint: #dfeddf;     --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
+  --ok-ink: #2f6b40;
   --warn-tint: #f7ecd2;   --warn-ink: #8a5a12;
   --danger-tint: #f7e0da; --danger-ink: #9c3526;
   --add-tint: #e4efe0; --del-tint: #f7e2dc; --hi-tint: #fff8c5;

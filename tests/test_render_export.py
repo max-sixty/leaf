@@ -140,7 +140,143 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
 
     assert preview.source_packages(source) == ["diagram"]
     assert preview.media_source(source) == media
-    assert examples / "layer.json" in preview.watch_paths(source, ROOT, [], {})
+    paths, _ = preview.watch_paths(source, ROOT, [], {})
+    assert examples / "layer.json" in paths
+
+
+def test_preview_reexpands_inputs_only_when_directory_membership_changes(
+    tmp_path, monkeypatch
+):
+    import preview
+
+    source = tmp_path / "examples" / "page.html"
+    source.parent.mkdir()
+    source.write_text("first", encoding="utf-8")
+    runtime = tmp_path / "runtime"
+    scripts = runtime / "skills" / "leaf" / "scripts" / "nested"
+    scripts.mkdir(parents=True)
+    existing_script = scripts / "existing.py"
+    existing_script.write_text("first", encoding="utf-8")
+    layer = tmp_path / "layer"
+    widgets = layer / "widgets"
+    widgets.mkdir(parents=True)
+
+    expansions = 0
+    expand = preview.watch_paths
+
+    def counted_expansion(*args):
+        nonlocal expansions
+        expansions += 1
+        return expand(*args)
+
+    monkeypatch.setattr(preview, "watch_paths", counted_expansion)
+    watched = preview.WatchedInputs(source, runtime, [layer], {})
+    baseline = watched.read()
+    initial_expansions = expansions
+    assert watched.read() == baseline
+    assert expansions == initial_expansions
+
+    ignored = scripts / "README.md"
+    ignored.write_text("ignored", encoding="utf-8")
+    before = expansions
+    assert watched.read() == baseline
+    assert expansions > before
+
+    existing_script.write_text("changed size", encoding="utf-8")
+    before = expansions
+    assert watched.read() != baseline
+    assert expansions == before
+
+    added_script = scripts / "added.py"
+    added_script.write_text("new", encoding="utf-8")
+    before = expansions
+    assert str(added_script) in watched.read()
+    assert expansions > before
+
+    renamed_script = scripts / "renamed.py"
+    added_script.rename(renamed_script)
+    before = expansions
+    renamed = watched.read()
+    assert str(added_script) not in renamed
+    assert str(renamed_script) in renamed
+    assert expansions > before
+
+    renamed_script.unlink()
+    before = expansions
+    assert str(renamed_script) not in watched.read()
+    assert expansions > before
+
+    versions = source.parent / "versions"
+    versions.mkdir()
+    version = versions / "page.v1.html"
+    version.write_text("version", encoding="utf-8")
+    before = expansions
+    assert str(version) in watched.read()
+    assert expansions > before
+
+    widget = widgets / "lf-new.js"
+    widget.write_text("export {};", encoding="utf-8")
+    before = expansions
+    assert str(widget.resolve()) in watched.read()
+    assert expansions > before
+
+
+def test_preview_reexpands_when_a_nearer_media_directory_appears(tmp_path):
+    import preview
+
+    checkout = tmp_path / "checkout"
+    source = checkout / "examples" / "developer" / "page.html"
+    source.parent.mkdir(parents=True)
+    source.write_text("page", encoding="utf-8")
+    launcher = checkout / "bin" / "leaf"
+    launcher.parent.mkdir()
+    launcher.touch()
+    manifest = checkout / "examples" / "layer.json"
+    manifest.write_text("[]", encoding="utf-8")
+    inherited_media = checkout / "examples" / "media"
+    inherited_media.mkdir()
+    inherited = inherited_media / "inherited.png"
+    inherited.write_bytes(b"inherited")
+
+    watched = preview.WatchedInputs(source, checkout, [], {})
+    assert str(inherited) in watched.read()
+
+    nearer_media = source.parent / "media"
+    nearer_media.mkdir()
+    nearer = nearer_media / "nearer.png"
+    nearer.write_bytes(b"nearer")
+    current = watched.read()
+    assert str(nearer) in current
+    assert str(inherited) not in current
+
+
+def test_preview_does_not_swallow_a_file_created_during_expansion(
+    tmp_path, monkeypatch
+):
+    import preview
+
+    source = tmp_path / "page.html"
+    source.write_text("page", encoding="utf-8")
+    scripts = tmp_path / "skills" / "leaf" / "scripts"
+    scripts.mkdir(parents=True)
+    added = scripts / "added.py"
+    watched = preview.WatchedInputs(source, tmp_path, [], {})
+    watched.read()
+    expand = preview.watch_paths
+    raced = False
+
+    def racing_expansion(*args):
+        nonlocal raced
+        result = expand(*args)
+        if not raced:
+            added.write_text("created after enumeration", encoding="utf-8")
+            raced = True
+        return result
+
+    monkeypatch.setattr(preview, "watch_paths", racing_expansion)
+    (scripts / "trigger.py").write_text("trigger expansion", encoding="utf-8")
+    watched.read()
+    assert str(added) in watched.read()
 
 
 def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path):
@@ -1358,10 +1494,10 @@ def test_a_copy_keeps_applied_widget_state_and_drops_live_handoff_status(
     live.goto(url, wait_until="load")
     resized(live, 1200, 900)
     # A handoff colors the target's surviving semantic control rather than standing up
-    # a second margin row of its own, so the live reading is the pencil's phase.
-    expect(
-        live.locator("[data-lf-margin-for='d-open'] [data-lf-agent-phase]:visible")
-    ).to_have_attribute("data-lf-agent-phase", "picked_up")
+    # a second margin row of its own, so read the exact pencil the draft currently owns.
+    edit = live.get_by_role("button", name="Edit d-open", exact=True)
+    expect(edit).to_be_visible()
+    expect(edit).to_have_attribute("data-lf-agent-phase", "picked_up")
     expect(live.get_by_text("Outcome", exact=True)).to_have_count(0)
     live.close()
 
@@ -1415,6 +1551,59 @@ def test_a_copy_speaks_reader_origin_after_live_map_is_removed(
     expect(page.locator(".lf-chrome")).to_have_count(0)
     assert errors == []
     page.close()
+
+
+def test_a_copy_keeps_generated_native_controls_and_their_labels(
+    browser, serve, tmp_path
+):
+    source = leaf_page(
+        "Native controls in a copy",
+        """
+<h1>Native controls in a copy</h1>
+<section id="native-controls">
+  <p id="native-detail">The browser reveals this detail.</p>
+</section>
+<label>Review note <input name="review-note" value="Keep this note"></label>
+""",
+        head="""
+<style>
+  #native-detail { display: none; }
+  #native-toggle:checked ~ #native-detail { display: block; }
+</style>
+<script type="module">
+  import { offer } from '/runtime/widget-api.js';
+  const root = document.querySelector('#native-controls');
+  const wrapper = offer('div', 'native-label-wrapper');
+  const label = offer('label', '', 'Show detail');
+  label.htmlFor = 'native-toggle';
+  wrapper.append(label);
+  const input = offer('input', '', undefined, 'checkbox');
+  input.id = label.htmlFor;
+  root.prepend(wrapper, input, offer('button', '', 'Run scripted action'));
+</script>
+""",
+    )
+    url = serve(source)
+    live, errors = open_page(browser, url)
+    expect(live.get_by_role("checkbox", name="Show detail")).to_be_visible()
+    expect(live.get_by_role("button", name="Run scripted action")).to_be_visible()
+    assert errors == []
+    live.close()
+
+    out = tmp_path / "native-controls-copy.html"
+    out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
+    copy = browser.new_page()
+    copy.goto(out.as_uri(), wait_until="load")
+    expect(copy.get_by_role("button", name="Run scripted action")).to_have_count(0)
+    expect(copy.locator("#native-detail")).to_be_hidden()
+    copy.get_by_text("Show detail", exact=True).click()
+    expect(copy.get_by_role("checkbox", name="Show detail")).to_be_checked()
+    expect(copy.locator("#native-detail")).to_be_visible()
+    copy.get_by_role("textbox", name="Review note").fill("Retained native input")
+    expect(copy.get_by_role("textbox", name="Review note")).to_have_value(
+        "Retained native input"
+    )
+    copy.close()
 
 
 def test_an_export_keeps_the_non_fetch_policy(browser, serve, tmp_path):

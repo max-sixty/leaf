@@ -1,6 +1,6 @@
 {
   "lf-monitor": {
-    "description": "A bounded monitoring workspace with a compact overview, a wider evidence stream, and a persistent exception decision. Its optional direct header and footer frame exactly one lf-monitor-grid body. The root chooses bounded or flow posture from the grid's asymmetric minimum; the authored region order remains overview, evidence, exception when the page flows or prints.",
+    "description": "A bounded release workspace with one primary release panel beside the checks and log that support its current state. Its optional direct header and footer frame exactly one lf-monitor-grid body. The root chooses bounded or flow posture from the grid's asymmetric minimum; the authored region order remains release, checks, log when the page flows or prints.",
     "type": "object",
     "properties": {
       "id": {
@@ -16,10 +16,10 @@
     "x-reading-role": "workspace",
     "x-upgrade": true,
     "x-verbatim": true,
-    "x-example": "<lf-monitor id=\"release-monitor\"><header><h1>Release monitor</h1></header><lf-monitor-grid id=\"release-regions\"><lf-monitor-region id=\"release-overview\" label=\"Overview\" zone=\"overview\"><p>Four checks remain.</p></lf-monitor-region><lf-monitor-region id=\"release-evidence\" label=\"Evidence\" zone=\"evidence\"><pre>14:32 rollback healthy</pre></lf-monitor-region><lf-monitor-region id=\"release-exception\" label=\"Exception\" zone=\"exception\"><p>One export needs review.</p></lf-monitor-region></lf-monitor-grid></lf-monitor>"
+    "x-example": "<lf-monitor id=\"release-monitor\"><header><h1>Checkout release</h1></header><lf-monitor-grid id=\"release-regions\"><lf-monitor-region id=\"release-state\" label=\"Release\" zone=\"release\"><p>Canary paused at 25%.</p></lf-monitor-region><lf-monitor-region id=\"release-checks\" label=\"Checks\" zone=\"checks\"><p>Four of five checks pass.</p></lf-monitor-region><lf-monitor-region id=\"release-log\" label=\"Run log\" zone=\"log\"><pre>14:32 rollout paused</pre></lf-monitor-region></lf-monitor-grid></lf-monitor>"
   },
   "lf-monitor-grid": {
-    "description": "The three-region body of an lf-monitor. It contains exactly one lf-monitor-region for each zone in overview, evidence, exception order. The grid registers as one compound allocation while each region keeps its own reading position.",
+    "description": "The three-region body of an lf-monitor. It contains exactly one lf-monitor-region for each zone in release, checks, log order. In bounded posture the release region occupies the left column while checks sit above the log; in flow the authored order keeps the current state ahead of its evidence. The grid registers as one compound allocation while each region keeps its own reading position.",
     "type": "object",
     "properties": {
       "id": {
@@ -42,10 +42,10 @@
     },
     "x-upgrade": true,
     "x-verbatim": true,
-    "x-example": "<lf-monitor id=\"release-monitor\"><lf-monitor-grid id=\"release-regions\"><lf-monitor-region id=\"release-overview\" label=\"Overview\" zone=\"overview\"><p>Four checks remain.</p></lf-monitor-region><lf-monitor-region id=\"release-evidence\" label=\"Evidence\" zone=\"evidence\"><pre>14:32 rollback healthy</pre></lf-monitor-region><lf-monitor-region id=\"release-exception\" label=\"Exception\" zone=\"exception\"><p>One export needs review.</p></lf-monitor-region></lf-monitor-grid></lf-monitor>"
+    "x-example": "<lf-monitor id=\"release-monitor\"><lf-monitor-grid id=\"release-regions\"><lf-monitor-region id=\"release-state\" label=\"Release\" zone=\"release\"><p>Canary paused at 25%.</p></lf-monitor-region><lf-monitor-region id=\"release-checks\" label=\"Checks\" zone=\"checks\"><p>Four of five checks pass.</p></lf-monitor-region><lf-monitor-region id=\"release-log\" label=\"Run log\" zone=\"log\"><pre>14:32 rollout paused</pre></lf-monitor-region></lf-monitor-grid></lf-monitor>"
   },
   "lf-monitor-region": {
-    "description": "One named reading region in a monitoring workspace. The zone fixes its place and relative width: overview is compact, evidence receives the most room, and exception stays visible beside it. The label names the region for navigation and assistive technology; a direct header supplies its visible heading.",
+    "description": "One named reading region in a release workspace. The zone fixes its place and role: release holds current state and the intervention path, checks holds the named release gates, and log holds the changing evidence stream. The label names the region for navigation and assistive technology; a direct header supplies its visible heading.",
     "type": "object",
     "properties": {
       "id": {
@@ -58,9 +58,9 @@
       },
       "zone": {
         "enum": [
-          "overview",
-          "evidence",
-          "exception"
+          "release",
+          "checks",
+          "log"
         ]
       }
     },
@@ -77,6 +77,84 @@
     "x-reading-role": "pane",
     "x-upgrade": true,
     "x-verbatim": true,
-    "x-example": "<lf-monitor id=\"release-monitor\"><lf-monitor-grid id=\"release-regions\"><lf-monitor-region id=\"release-overview\" label=\"Overview\" zone=\"overview\"><p>Four checks remain.</p></lf-monitor-region><lf-monitor-region id=\"release-evidence\" label=\"Evidence\" zone=\"evidence\"><pre>14:32 rollback healthy</pre></lf-monitor-region><lf-monitor-region id=\"release-exception\" label=\"Exception\" zone=\"exception\"><p>One export needs review.</p></lf-monitor-region></lf-monitor-grid></lf-monitor>"
+    "x-example": "<lf-monitor id=\"release-monitor\"><lf-monitor-grid id=\"release-regions\"><lf-monitor-region id=\"release-state\" label=\"Release\" zone=\"release\"><p>Canary paused at 25%.</p></lf-monitor-region><lf-monitor-region id=\"release-checks\" label=\"Checks\" zone=\"checks\"><p>Four of five checks pass.</p></lf-monitor-region><lf-monitor-region id=\"release-log\" label=\"Run log\" zone=\"log\"><pre>14:32 rollout paused</pre></lf-monitor-region></lf-monitor-grid></lf-monitor>"
+  },
+  "lf-release-actions": {
+    "description": "Consequential operations offered for one active release. Each direct lf-release-action names a package-declared one-shot request; the holder binds that request to the authored candidate and stable release so a crafted event cannot retarget it. The operation paints immediately as requested, remains locked while the host works, and finishes only when the host appends its receipt. A failed receipt reopens the same seat. This is an optional intervention surface, not automatically an Ask: use it when the operator may need a safe escape path without claiming the release currently needs their decision.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "candidate": {
+        "type": "string",
+        "minLength": 1
+      },
+      "stable": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "id",
+      "candidate",
+      "stable"
+    ],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-request": {
+      "offers": {
+        "lf-release-action": "verb"
+      },
+      "verbs": {
+        "rollback": {
+          "bind": {
+            "candidate": "candidate",
+            "stable": "stable"
+          },
+          "detail": {
+            "type": "object",
+            "properties": {
+              "candidate": {
+                "type": "string",
+                "minLength": 1
+              },
+              "stable": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "candidate",
+              "stable"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    "x-upgrade": true,
+    "x-example": "<lf-release-actions id=\"release-actions\" candidate=\"checkout-v2\" stable=\"checkout-v1\"><lf-release-action verb=\"rollback\"><strong>Request rollback to checkout-v1</strong> Return all traffic to the verified stable release.</lf-release-action></lf-release-actions>"
+  },
+  "lf-release-action": {
+    "description": "One reader-facing intervention inside lf-release-actions. The required verb selects the holder's typed request; the authored prose names the operation and states its consequence. The holder owns the control, target binding, and request lifecycle.",
+    "type": "object",
+    "properties": {
+      "verb": {
+        "enum": [
+          "rollback"
+        ]
+      }
+    },
+    "required": [
+      "verb"
+    ],
+    "additionalProperties": false,
+    "x-owners": [
+      "lf-release-actions"
+    ],
+    "x-content": "markup",
+    "x-upgrade": false
   }
 }

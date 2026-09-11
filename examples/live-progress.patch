@@ -1,0 +1,33 @@
+diff --git a/services/checkout/refunds.py b/services/checkout/refunds.py
+index 83da1c2..1de44a7 100644
+--- a/services/checkout/refunds.py
++++ b/services/checkout/refunds.py
+@@ -41,4 +41,13 @@ def apply_refund(order, adjustment):
+-    order.state = "refunded"
+-    order.refunded_minor = adjustment.amount
+-    ledger.write(order)
+-    return order
++    order.refunded += adjustment.amount
++    order.state = (
++        "refunded"
++        if order.refunded == order.total
++        else "partially_refunded"
++    )
++    ledger.write(order)
++    finance_export.write_adjustment(
++        order_id=order.id,
++        amount=adjustment.amount,
++        state=order.state,
++    )
++    return order
+diff --git a/tests/test_refunds.py b/tests/test_refunds.py
+index 972bef0..661cc87 100644
+--- a/tests/test_refunds.py
++++ b/tests/test_refunds.py
+@@ -68 +68,6 @@ def test_full_refund_is_exported():
+     assert export.rows == [{"order": "co_1", "state": "refunded"}]
++
++def test_partial_refund_is_exported():
++    row = export(partial_refund(amount=38))
++    assert row.amount == 38
++    assert row.state == "partially_refunded"

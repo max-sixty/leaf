@@ -951,7 +951,7 @@ export function createPageKeys({
 
   function buildPageScopes() {
     // What a press acts on is whose scope it belongs to: the page holds the presses whose
-    // subject is the page — `t`/`T` and `a`/`A` walk its open sets, and `g` opens its
+    // subject is the page — `a`/`A` walks its open asks, and `g` opens its
     // destinations — while a surface holds presses for its own contents. `w` narrows this
     // list and `/` searches it, and a list the reader is not looking at is neither a thing
     // to narrow nor a thing to search. `c` is the one row here whose subject is not this
@@ -966,6 +966,29 @@ export function createPageKeys({
     // page has this scope: its general box stands and takes words from the first paint —
     // the offline banner says a comment will not send, not that there is nowhere to write
     // it. Whether the waiting filter is useful is `w`'s own condition, said on that row.
+    // The thread walk follows the surface presenting the threads. Sharing its row with
+    // covering workspace keeps t/T available inside the panel's modal scope boundary.
+    const THREAD_WALK = {
+      id: "thread.walk",
+      // A walk's letter names its category; Shift reverses it. The two existing
+      // page categories therefore use the same compact, repeatable grammar.
+      keys: ["t", "Shift+t"],
+      routes: [
+        { id: "thread.next", binding: "t", does: "Next open thread" },
+        { id: "thread.previous", binding: "Shift+t", does: "Previous open thread" },
+      ],
+      does: "Next / previous open thread",
+      line: "threads",
+      // Once textual search owns the panel, n/N are the canonical walk there. Keep
+      // t/T as the page's open-thread walk without leaving two spellings for the same
+      // panel action.
+      when: () =>
+        hasThreads() &&
+        (!coveringAuxiliarySurface() || inPanel()) &&
+        !(threadSearchActive() && inPanel()),
+      repeat: true,
+      run: (binding) => stepThread(binding === "t" ? 1 : -1),
+    };
     const PANEL = {
       title: "In the thread panel",
       root: focused,
@@ -1108,24 +1131,7 @@ export function createPageKeys({
         // Search remains one press from the shelf and named in full by the reference.
         PAGE_SEARCH,
         REPEAT_PAGE_SEARCH,
-        {
-          id: "thread.walk",
-          // A walk's letter names its category; Shift reverses it. The two existing
-          // page categories therefore use the same compact, repeatable grammar.
-          keys: ["t", "Shift+t"],
-          routes: [
-            { id: "thread.next", binding: "t", does: "Next open thread" },
-            { id: "thread.previous", binding: "Shift+t", does: "Previous open thread" },
-          ],
-          does: "Next / previous open thread",
-          line: "threads",
-          // Once textual search owns the panel, n/N are the canonical walk there. Keep
-          // t/T as the page's open-thread walk without leaving two spellings for the same
-          // panel action.
-          when: () => hasThreads() && !(threadSearchActive() && inPanel()),
-          repeat: true,
-          run: (binding) => stepThread(binding === "t" ? 1 : -1),
-        },
+        THREAD_WALK,
         {
           id: "ask.walk",
           keys: ["a", "Shift+a"],
@@ -1223,6 +1229,7 @@ export function createPageKeys({
         PAGE_MOVE,
         SCROLL_MOVE,
         OPEN_GO_TO,
+        THREAD_WALK,
         { ...BACK_OUT, when: () => Boolean(rung()) },
       ],
     };

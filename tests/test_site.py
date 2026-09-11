@@ -554,6 +554,26 @@ def test_the_published_notification_example_runs_its_authored_module(
         page.close()
 
 
+def test_published_visual_evidence_loads_from_its_page(served_example, browser):
+    """Typed media paths resolve under the same page as authored media."""
+    _, url = served_example("visual-review-gallery")
+    page, errors = open_page(browser, url)
+    try:
+        review = page.locator("#visual-review-run")
+        for index in (0, 1):
+            review.locator(".lf-vr-case-tab").nth(index).click()
+            comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
+            expect(comparison).to_be_visible()
+            images = comparison.locator("img")
+            expect(images).to_have_count(2)
+            for image in images.all():
+                expect(image).to_have_js_property("complete", True)
+                assert image.evaluate("image => image.naturalWidth") > 0
+        assert errors == []
+    finally:
+        page.close()
+
+
 def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, browser):
     """A lower sequence from a replacement cannot be applied over vanished state."""
     _, url = served_example("triage-board")
@@ -625,9 +645,21 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
     follower = context.new_page()
     errors = [*watched(leader), *watched(follower)]
     try:
+
+        def passive_session(route):
+            response = route.fetch()
+            headers = response.headers
+            headers["leaf-session"] = "passive"
+            route.fulfill(response=response, headers=headers)
+
+        servers = []
         for page in (leader, follower):
-            page.goto(url, wait_until="load")
+            page.route("**/api/state*", passive_session)
+            response = page.goto(url, wait_until="load")
+            assert response
+            servers.append(response.header_value("Leaf-Server"))
             page.wait_for_function(BOTH_STAMPS)
+        assert servers[0] and servers[0] == servers[1]
         follower.evaluate(
             """() => {
               window.__leafActivated = 0;
@@ -635,18 +667,21 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
             }"""
         )
         leader.evaluate(
-            """async () => {
+            """async server => {
               const script = document.querySelector("script[data-lf-runtime]");
               const url = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
               const client = await import(url.href);
               client.observeSession(new Response(null, {headers: {
-                "Leaf-Session": "active", "Leaf-Server": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                "Leaf-Session": "active", "Leaf-Server": server
               }}));
-            }"""
+            }""",
+            servers[0],
         )
-        follower.wait_for_function("window.__leafActivated === 1", timeout=5_000)
+        follower.wait_for_function("() => window.__leafActivated === 1", timeout=5_000)
         assert errors == []
     finally:
+        for page in (leader, follower):
+            page.unroute_all(behavior="ignoreErrors")
         context.close()
 
 
@@ -845,7 +880,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     """
     expected = {source.stem for source in catalog_sources()}
     authored = {source.stem for source in authored_examples()}
-    assert authored == expected | {"command-hub"}
+    assert authored == expected | {"command-hub", "security-boundary"}
     previews = site_build.example_previews()
     assert {path.name for path in previews.glob("example-*.jpg")} >= {
         f"example-{stem}.jpg" for stem in expected
@@ -900,7 +935,7 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
         }
         assert published == authored | {source.stem for source in DEVELOPER_PAGES}
         expect(page.locator("#pages .example-link")).to_have_count(6)
-        expect(page.locator("#specialized .example-link")).to_have_count(3)
+        expect(page.locator("#specialized .example-link")).to_have_count(2)
         assert page.evaluate(
             "() => Boolean(document.querySelector('#pages')"
             ".compareDocumentPosition(document.querySelector('#developer-galleries'))"

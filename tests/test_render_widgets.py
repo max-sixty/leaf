@@ -467,26 +467,29 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
     page.close()
 
 
-def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
+def test_the_monitoring_root_fits_its_release_regions_and_returns_from_flow(
     browser, serve
 ):
     """The concrete package root owns its shape while the shared lifecycle fits it.
 
-    Its evidence column is the widest region at a desk. A short or narrow reading and
-    Threads turn the page back into authored flow; removing that furniture restores the
-    bounded reading. Reconnection leaves exactly one registration for each region."""
+    Its release panel stands beside checks over a log at a desk. A short or narrow
+    reading and Threads turn the page back into authored flow; removing that furniture
+    restores the bounded reading. Reconnection leaves one registration per region."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
-    context = browser.new_context(viewport={"width": 1100, "height": 780})
+    context = browser.new_context(viewport={"width": 1100, "height": 900})
     page, errors = open_page(browser, live_url(serve(example)), context=context)
     monitor = page.locator("#lp-monitor")
 
     expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
     desk = page.evaluate(
-        """() => Object.fromEntries(['lp-overview', 'lp-evidence', 'lp-exception']
+        """() => Object.fromEntries(['lp-release', 'lp-checks', 'lp-log']
           .map(id => [id, document.querySelector(`#${id}`).getBoundingClientRect()]))"""
     )
-    assert desk["lp-evidence"]["width"] > desk["lp-exception"]["width"]
-    assert desk["lp-exception"]["width"] > desk["lp-overview"]["width"]
+    assert desk["lp-checks"]["width"] > desk["lp-release"]["width"]
+    assert desk["lp-checks"]["x"] == desk["lp-log"]["x"]
+    assert desk["lp-checks"]["width"] == desk["lp-log"]["width"]
+    assert desk["lp-checks"]["top"] < desk["lp-log"]["top"]
+    assert desk["lp-release"]["height"] > desk["lp-checks"]["height"]
     assert page.evaluate(
         "document.documentElement.scrollHeight === document.documentElement.clientHeight"
     )
@@ -507,7 +510,7 @@ def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
     first_overflowing.evaluate("body => body.scrollTop = body.scrollHeight")
     expect(first_overflowing).not_to_have_attribute("data-lf-more-below", "")
 
-    resized(page, 1100, 500)
+    resized(page, 1100, 780)
     expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
     resized(page, 820, 780)
     expect(monitor).to_have_attribute("data-lf-reading-posture", "flow")
@@ -515,8 +518,12 @@ def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
         "regions => regions.map(region => region.getBoundingClientRect().top)"
     )
     assert flow == sorted(flow) and len(set(flow)) == 3, flow
+    resized(page, 390, 844)
+    log = page.locator("#lp-live-log pre")
+    expect(log).to_be_visible()
+    assert log.evaluate("node => node.scrollWidth <= node.clientWidth")
 
-    resized(page, 1100, 780)
+    resized(page, 1100, 900)
     expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -538,7 +545,7 @@ def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
     assert page.evaluate(
         """async () => {
           const {readingRegions} = await import('/runtime/widget-api.js');
-          const wanted = ['lp-overview', 'lp-evidence', 'lp-exception'];
+          const wanted = ['lp-release', 'lp-checks', 'lp-log'];
           const ids = readingRegions().map(region => region.id);
           return wanted.every(id => ids.filter(candidate => candidate === id).length === 1);
         }"""
@@ -560,117 +567,120 @@ def test_the_monitoring_root_fits_its_asymmetric_regions_and_returns_from_flow(
     context.close()
 
 
-def test_monitoring_evidence_moves_without_stealing_position_or_the_decision(
-    browser, serve
-):
-    """Replaceable evidence does not become the authority for durable reader state."""
+def test_release_rollback_is_a_bound_host_request_not_local_page_state(browser, serve):
+    """The release escape path names exact releases and waits for a host receipt."""
     example = Path(__file__).parent.parent / "examples" / "live-progress.html"
     page, errors = open_page(browser, live_url(serve(example)))
-    evidence = page.locator("#lp-evidence > .lf-pane-content > .lf-pane-body")
-    option = page.locator("#lp-quarantine-order")
+    holder = page.locator("#lp-release-actions")
+    button = holder.get_by_role("button", name="Request rollback to checkout-v1")
+
+    expect(button).to_be_enabled()
+    with sending(page, "the rollback request"):
+        button.click()
+
+    request = events_model.read_events(serve.page_dir)[-1]
+    assert (request["kind"], request["widget"], request["action"]) == (
+        "request",
+        "lp-release-actions",
+        "rollback",
+    )
+    assert request["detail"] == {
+        "candidate": "checkout-v2",
+        "stable": "checkout-v1",
+    }
+    expect(holder).to_contain_text("Rollback requested · waiting for the host")
+    expect(button).to_have_attribute("aria-disabled", "true")
+    expect(page.locator(".lf-asks-row")).to_have_count(0)
+    assert errors == []
+    page.close()
+
+
+def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
+    browser, serve
+):
+    """Replaceable log evidence does not become the authority for release state."""
+    example = Path(__file__).parent.parent / "examples" / "live-progress.html"
+    page, errors = open_page(browser, live_url(serve(example)))
+    evidence = page.locator("#lp-log > .lf-pane-content > .lf-pane-body")
     log = page.locator("#lp-live-log")
 
     evidence.evaluate("body => body.scrollTop = 120")
     page.wait_for_function(
-        "() => document.querySelector('#lp-evidence > .lf-pane-content > .lf-pane-body').scrollTop === 120"
+        "() => document.querySelector('#lp-log > .lf-pane-content > .lf-pane-body').scrollTop === 120"
     )
     original = log.text_content()
     data_model.cmd_data_set(
         serve.page_dir,
-        "rehearsal-log",
-        f"{original.rstrip()}\n14:24:19 observer INFO sample 49: checkout remains healthy\n",
+        "release-log",
+        f"{original.rstrip()}\n14:24:49 observer  checkout remains healthy\n",
     )
     told(page)
-    expect(log).to_contain_text("sample 49: checkout remains healthy")
+    expect(log).to_contain_text("14:24:49 observer  checkout remains healthy")
     assert evidence.evaluate("body => body.scrollTop") == 120
-
-    with sending(page, "the finance containment decision"):
-        option.locator(".lf-pick").click()
-    expect(option).to_have_attribute("chosen", "")
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "rehearsal-log",
-        f"{original.rstrip()}\n14:25:03 ledger WARN co_18427 remains quarantined\n",
-    )
-    told(page)
-    expect(option).to_have_attribute("chosen", "")
-    expect(log).to_contain_text("co_18427 remains quarantined")
 
     current = (serve.page_dir / "index.html").read_text(encoding="utf-8")
     incorporated = current
     revisions = (
         (
-            "while one finance-export exception needs a containment decision.",
-            "while one finance-export exception is contained and Ledger rebuilds its fixture.",
-        ),
-        (
-            "traffic; finance export remains isolated from the customer path.",
-            "traffic; ordinary finance exports continue while co_18427 stays quarantined.",
-        ),
-        (
-            '<lf-metric id="lp-k-running" value="0">running now</lf-metric>',
-            '<lf-metric id="lp-k-running" value="1">running now</lf-metric>',
-        ),
-        (
-            '<lf-metric id="lp-k-blocked" value="1">needs decision</lf-metric>',
-            '<lf-metric id="lp-k-blocked" value="0">blocked checks</lf-metric>',
-        ),
-        (
             (
-                '<lf-agent id="lp-agent-ledger" state="blocked">\n'
-                "                <strong>ledger</strong> Waiting on the finance containment choice.\n"
-                "              </lf-agent>"
+                "The production canary is paused at 25%. Customer checkout is healthy, but\n"
+                "            finance export is one row short and must reconcile before traffic expands."
             ),
             (
-                '<lf-agent id="lp-agent-ledger" state="working" overruled>\n'
-                "                <strong>ledger</strong> Rebuilding the partial-refund fixture;\n"
-                "                <code>co_18427</code> is quarantined.\n"
-                "              </lf-agent>"
+                "Finance export parity now passes. The production release is expanding from\n"
+                "            the 25% canary to all checkout traffic."
             ),
         ),
         (
-            (
-                '<lf-agent id="lp-agent-scribe" state="idle">\n'
-                "                <strong>scribe</strong> Ready to record the containment decision.\n"
-                "              </lf-agent>"
-            ),
-            (
-                '<lf-agent id="lp-agent-scribe" state="done">\n'
-                "                <strong>scribe</strong> Recorded the quarantine decision for the handoff.\n"
-                "              </lf-agent>"
-            ),
+            "<strong>Paused at 25%</strong>",
+            "<strong>Promoting to 100%</strong>",
         ),
         (
             (
-                '<lf-milestone id="lp-finance-gate" status="blocked" when="now">\n'
-                "                <strong>Resume the finance export</strong> Waiting on safeguards for the\n"
-                "                missing partial refund.\n"
-                "              </lf-milestone>"
+                "Automatic promotion stopped when the finance-parity check failed. The\n"
+                "              candidate remains live for canary traffic while Ledger traces a\n"
+                "              partial-refund fixture mismatch; the exact failing producer is not yet\n"
+                "              established."
             ),
             (
-                '<lf-milestone id="lp-finance-gate" status="active" when="rebuilding">\n'
-                "                <strong>Repair the partial-refund export</strong> The order is\n"
-                "                quarantined while Ledger rebuilds the fixture.\n"
-                "              </lf-milestone>"
+                "The rebuilt export contains every expected order. Traffic is increasing\n"
+                "              while the observer keeps the release checks active."
             ),
         ),
         (
-            (
-                "and not in the finance file. The export stays isolated until this choice\n"
-                "              is recorded."
-            ),
-            (
-                "and not in the finance file. The reader quarantined this order; ordinary\n"
-                "              exports continue while the partial-refund path stays isolated."
-            ),
+            '<lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>',
+            '<lf-metric id="lp-k-traffic" value="100%">target traffic</lf-metric>',
         ),
         (
-            '<lf-options id="lp-finance-cases" choose multiple>',
-            '<lf-options id="lp-finance-cases" choose multiple settled>',
+            '<lf-metric id="lp-k-checks" value="4 of 5">checks passing</lf-metric>',
+            '<lf-metric id="lp-k-checks" value="5 of 5">checks passing</lf-metric>',
         ),
         (
-            '<lf-option id="lp-quarantine-order">',
-            '<lf-option id="lp-quarantine-order" chosen>',
+            '<lf-milestone id="lp-step-checks" status="blocked" when="now">',
+            '<lf-milestone id="lp-step-checks" status="done" when="14:25">',
+        ),
+        (
+            (
+                "<strong>Pass release checks</strong> Finance export has 1,998 of 1,999\n"
+                "                expected rows."
+            ),
+            "<strong>Pass release checks</strong> All five production checks pass.",
+        ),
+        (
+            '<lf-milestone id="lp-step-promote" status="planned">',
+            '<lf-milestone id="lp-step-promote" status="active" when="now">',
+        ),
+        (
+            "Four checks pass. One blocks promotion.",
+            "All five checks pass. Promotion is running.",
+        ),
+        (
+            '<span class="release-check-result" data-status="fail">Fail</span>',
+            '<span class="release-check-result" data-status="pass">Pass</span>',
+        ),
+        (
+            "<code>1,998</code> / <code>1,999</code> rows",
+            "<code>1,999</code> / <code>1,999</code> rows",
         ),
     )
     for before, after in revisions:
@@ -679,38 +689,54 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_decision(
     stamp = stamp_page(
         serve.page_dir,
         incorporated,
-        "Quarantine co_18427 and rebuild the partial-refund fixture",
+        "Pass finance parity and promote checkout-v2",
     )
     wait_for_revision(page, stamp["version"])
-    expect(page.locator("#lp-lede")).to_contain_text("exception is contained")
-    expect(page.locator("#lp-active")).to_contain_text(
-        "ordinary finance exports continue"
+    expect(page.locator("#lp-lede")).to_contain_text("expanding")
+    expect(page.locator("#lp-current-state")).to_contain_text("Promoting to 100%")
+    expect(page.locator("#lp-k-traffic")).to_have_attribute("value", "100%")
+    expect(page.locator("#lp-k-checks")).to_have_attribute("value", "5 of 5")
+    expect(page.locator("#lp-step-checks")).to_have_attribute("status", "done")
+    expect(page.locator("#lp-step-promote")).to_have_attribute("status", "active")
+    expect(page.locator("#lp-checks-note")).to_have_text(
+        "All five checks pass. Promotion is running."
     )
-    expect(page.locator("#lp-k-running")).to_have_attribute("value", "1")
-    expect(page.locator("#lp-k-blocked")).to_have_attribute("value", "0")
-    expect(page.locator("#lp-k-blocked")).to_contain_text("blocked checks")
-    expect(page.locator("#lp-agent-ledger")).to_have_attribute("state", "working")
-    expect(page.locator("#lp-agent-ledger")).to_have_attribute("overruled", "")
-    expect(page.locator("#lp-agent-ledger")).to_contain_text(
-        "Rebuilding the partial-refund fixture"
+    expect(page.locator("#lp-check-finance .release-check-result")).to_have_text("Pass")
+    expect(log).to_contain_text("14:24:49 observer  checkout remains healthy")
+    assert errors == []
+    page.close()
+
+
+def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser, serve):
+    """The specialized report's signature path reaches reviewable source evidence."""
+    example = Path(__file__).parent.parent / "examples" / "pr-walkthrough.html"
+    page, errors = open_page(browser, live_url(serve(example)))
+
+    page.get_by_role("tab", name="CallDiff").click()
+    call_diff = page.locator("#pr-call-diagram")
+    expect(call_diff.locator(".lf-call-line")).to_have_count(30)
+    location = call_diff.get_by_role("link", name="src/summary.rs:259").first
+    expect(location).to_be_visible()
+    location.click()
+
+    line = page.locator(
+        '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
     )
-    expect(page.locator("#lp-agent-scribe")).to_have_attribute("state", "done")
-    expect(page.locator("#lp-agent-scribe")).to_contain_text(
-        "Recorded the quarantine decision"
+    expect(page).to_have_url(re.compile(r"#pr-exact-patch$"))
+    expect(line).to_be_in_viewport()
+    expect(page.locator(".lf-live")).to_have_text(
+        "Opened src/summary.rs:259 in the exact patch"
     )
-    expect(page.locator("#lp-finance-gate")).to_have_attribute("status", "active")
-    expect(page.locator("#lp-finance-gate")).to_contain_text(
-        "quarantined while Ledger rebuilds"
+
+    line.click(modifiers=["Alt"])
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    page.locator(".lf-composer textarea").fill(
+        "Does this preserve sparse-checkout behavior?"
     )
-    expect(page.locator("#lp-finance-note")).to_contain_text(
-        "reader quarantined this order"
-    )
-    settled = page.locator("#lp-finance-cases")
-    expect(settled).to_have_attribute("settled", "")
-    expect(settled.locator(".lf-settled")).to_contain_text("Quarantine this order")
-    expect(page.locator("#lp-quarantine-order")).to_have_attribute("chosen", "")
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/0")
-    expect(page.locator("#lp-live-log")).to_contain_text("co_18427 remains quarantined")
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    expect(page.locator(".lf-thread .lf-quote").first).to_contain_text("src/summary.rs")
+
     assert errors == []
     page.close()
 
@@ -781,6 +807,11 @@ PLAYGROUND_PAGE = leaf_page(
     """
 <h1>Card playground</h1>
 <style>
+  #card-playground {
+    --playground-accent: #4f766f;
+    --playground-radius: 12px;
+    --playground-title: "Field note";
+  }
   #playground-card {
     --lf-block-frame: 1;
     border: 2px solid var(--playground-accent);
@@ -3575,6 +3606,7 @@ def test_notification_playground_export_flows_at_another_width_and_on_paper(
     copy.goto(out.as_uri(), wait_until="load")
     playground = copy.locator("#notification-playground")
     expect(playground.locator(".lf-playground-actions")).to_be_hidden()
+    expect(playground.locator(".notification-demo-pressure")).to_be_hidden()
     expect(playground.locator("#notification-instruction")).to_contain_text(
         "deployment-notification.html"
     )
@@ -3783,6 +3815,53 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     page.close()
 
 
+def test_a_swipe_deck_reflows_with_its_parent_allocation(browser, serve):
+    page, errors = open_page(browser, serve(SWIPE_PAGE))
+    decision = page.locator("#session-triage-decision")
+    deck = page.locator("#session-triage")
+
+    def layout(width):
+        decision.evaluate("(element, value) => element.style.width = value", width)
+        return deck.evaluate(
+            """element => {
+              const box = node => {
+                const rect = node.getBoundingClientRect();
+                return {
+                  left: rect.left,
+                  right: rect.right,
+                  top: rect.top,
+                  bottom: rect.bottom,
+                  width: rect.width,
+                };
+              };
+              return {
+                deck: box(element),
+                columns: getComputedStyle(element).gridTemplateColumns.split(" "),
+                queue: box(element.querySelector('[verdict="unseen"]')),
+                controls: box(element.querySelector('.lf-swipe-controls')),
+                passed: box(element.querySelector('[verdict="pass"]')),
+                kept: box(element.querySelector('[verdict="keep"]')),
+              };
+            }"""
+        )
+
+    narrow = layout("20rem")
+    assert len(narrow["columns"]) == 1, narrow
+    for name in ("queue", "controls", "passed", "kept"):
+        assert narrow[name]["width"] == pytest.approx(narrow["deck"]["width"]), narrow
+    assert narrow["queue"]["bottom"] < narrow["controls"]["top"], narrow
+    assert narrow["controls"]["bottom"] < narrow["passed"]["top"], narrow
+    assert narrow["passed"]["bottom"] < narrow["kept"]["top"], narrow
+
+    wide = layout("44rem")
+    assert len(wide["columns"]) == 2, wide
+    assert wide["passed"]["top"] == pytest.approx(wide["kept"]["top"]), wide
+    assert wide["passed"]["right"] < wide["kept"]["left"], wide
+
+    assert errors == []
+    page.close()
+
+
 def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     """The Ask supplies digits; focus inside the deck exposes its directional keys.
 
@@ -3791,8 +3870,12 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     """
     page, errors = open_page(browser, serve(SWIPE_PAGE))
     decision = page.locator("#session-triage-decision")
+    deck = page.locator("#session-triage")
 
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect(deck).to_have_attribute(
+        "aria-label", "Which session-store follow-ups should we keep?"
+    )
     # Outside the Ask projection, the package command still spells its real binding;
     # the Decision action name is not a keycap override.
     page.keyboard.press("?")
@@ -4365,6 +4448,7 @@ def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
     page, errors = open_page(browser, serve(source))
     deck = page.locator("#session-triage")
 
+    expect(deck).to_have_attribute("aria-label", "Card classification")
     expect(deck.locator(".lf-swipe-controls")).to_have_count(0)
     expect(deck.get_by_role("button")).to_have_count(0)
     expect(deck.locator("lf-swipe-card[tabindex]")).to_have_count(0)
@@ -5685,14 +5769,18 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
 
     # Tab remains the complementary route into the widget's controls. Read after the
     # landing above, because a Tab onto a control below the fold scrolls to it and would
-    # take the arrival's own geometry with it. The Ask action context remains the same.
+    # take the arrival's own geometry with it. The Ask action context remains the same;
+    # its key badges may move to the shared chrome when Linux font metrics leave a local
+    # badge clipped, but the controls retain the same semantic routes.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
-    expect(
-        page.locator(
-            "#storage-options > lf-option > .lf-key-badge[data-lf-ask-binding-badge]"
-        )
-    ).to_have_text(["1", "2"])
+    picks = page.locator("#storage-options .lf-pick")
+    expect(picks.nth(0)).to_have_attribute(
+        "aria-keyshortcuts", "ArrowUp ArrowDown Space 1"
+    )
+    expect(picks.nth(1)).to_have_attribute(
+        "aria-keyshortcuts", "ArrowUp ArrowDown Space 2"
+    )
 
     # And nothing of the borrowed stop is left behind: PAGE_PAINT_ATTRIBUTES is the whole
     # of what the runtime may leave on an author's element, and `tabindex` is not in it.

@@ -2468,9 +2468,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-response-more",
         "lf-response-open",
         "lf-response-options",
-        # A thread card marks which turn owns it, and the panel's card and an inline
-        # one take that paint from one document-level rule so the two cannot drift.
-        "lf-thread",
         # The same thread header owns settlement in the panel and in inline seats;
         # the authored theme gives both views the same label/control alignment.
         "lf-thread-head",
@@ -2555,11 +2552,6 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         "lf-margin-entry-label-word",
         "lf-margin-entry-context",
         "lf-margin-receipt",
-        # A margin entry and its Page Map row wear one turn-ownership paint, written as
-        # a single rule over both. The margin entry is in the page, so the rule is at
-        # document level, and the Page Map row is named here rather than in a second
-        # scoped copy the two could disagree through.
-        "lf-page-map-action",
         # Visual reactions add a quiet keyboard proxy beside the authored target and
         # an outline on the target while its shared action bar is standing.
         "lf-visual-actions",
@@ -2852,9 +2844,6 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     page, errors = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    # The shortcut bar only draws while it has something to say, which is what a held key
-    # gives it. Held down, so the part is on screen for the press below.
-    page.keyboard.down("Alt")
     expect(page.locator(".lf-shortcut-bar")).to_be_visible()
 
     page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
@@ -2874,7 +2863,6 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     # Reduced motion makes both region-local scroll operations instant, so the read
     # directly after the press is the whole travel.
     after = page.evaluate(BOTH_BOXES)
-    page.keyboard.up("Alt")
 
     assert after == before, (
         f"a thread about a fixed part of the layer moved something: {before} -> {after}"

@@ -210,6 +210,13 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
     assert sibling_after == sibling_before, (
         f"growing the left composer moved its sibling: {sibling_before}, {sibling_after}"
     )
+    page.evaluate(RENDERED)
+    assert field.evaluate(
+        """box => {
+          box.scrollTop = box.scrollHeight;
+          return box.scrollTop + box.clientHeight >= box.scrollHeight - 1;
+        }"""
+    ), "the complete multiline draft was not reachable in its field"
 
     resized(page, 520, 900)
     expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
@@ -4143,6 +4150,42 @@ def test_clamped_leaf_lists_share_the_walk_position(browser, serve, live_leaf):
     page.keyboard.press("ArrowDown")
     expect(position).to_have_text(re.compile(r"^Marker 2 of \d+$"))
 
+    assert errors == []
+    page.close()
+
+
+def test_a_banner_disclosure_does_not_retake_focus_from_a_list(
+    browser, serve, live_leaf
+):
+    """A deferred disclosure opening cannot undo a newer focus destination."""
+    live_leaf("second", "A second leaf")
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    resized(page, 700, 850)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+a")
+    asks = page.locator("button.lf-asks-row")
+    expect(asks.first).to_be_focused()
+    more = page.locator(".lf-banner-more")
+    expect(more).to_be_visible()
+    expect(page.locator(".lf-asks-panel")).not_to_have_attribute("aria-modal", "true")
+    more.focus()
+    expect(more).to_be_focused()
+
+    # Native popover toggle events are deferred. Put the opening and a subsequent
+    # focus move in one task, as rapid tray navigation can do, then await that event.
+    # The list must retain focus after all opening listeners have run.
+    page.evaluate(
+        """() => new Promise(resolve => {
+          const menu = document.querySelector('.lf-banner-menu');
+          menu.addEventListener('toggle', () => resolve(), {once: true});
+          const more = document.querySelector('.lf-banner-more');
+          more.click();
+          document.querySelector('button.lf-asks-row').focus();
+        })"""
+    )
+    expect(page.locator(".lf-banner-menu")).to_be_visible()
+    expect(page.locator(".lf-banner-menu .lf-others")).to_be_visible()
+    expect(asks.first).to_be_focused()
     assert errors == []
     page.close()
 

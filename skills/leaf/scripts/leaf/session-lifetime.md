@@ -17,7 +17,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | pickup transition | a `pickup` event in `events.jsonl` | the carrier records `queued` when Codex accepts a batch; the prompt hook or a plugin-free embedded host's App Server observer records `opened` with session and turn identity when the queued turn opens; direct delivery records `opened` itself | never; each event/phase/session/turn transition is idempotent |
 | page claim | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab closes the news stream and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
-| Codex queue state | the host state home's session records | the detached adapter or an embedded App Server host | accepted and every batch receipted, then moved under `history/` |
+| Codex queue state | the host state home's session records | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted |
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | any carrier freezes the host-neutral envelope before presenting it | never; every transport resolves the same immutable id |
 
 Delivery acceptance is a different fact from authored work, but it is exact agent
@@ -106,8 +106,11 @@ ordered events.
 In Codex, the adapter collects available input, then freezes the delivery before
 handing its bounded id-only `leaf-delivery` pointer to Codex's durable same-task queue.
 Input collected after that boundary belongs to a later delivery. A failed or
-uncertain queue call retries the same frozen pointer; a successful call marks only
-that delivery accepted.
+uncertain queue call retries the same frozen pointer while the session owns a page;
+losing its final page leaves the collecting or offering record standing but inactive
+until the same session claims a page again. A successful call marks only that delivery
+accepted. Acceptance has crossed the external-effect boundary, so its remaining page
+receipts are reconciled before the adapter checks ownership and retires.
 If every website startup retry fails, its deterministic fallback settles the
 triggering event and removes the unaccepted queue record. The immutable payload
 remains at its permanent path for a turn whose acceptance may have raced the failed

@@ -4929,6 +4929,17 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page, False)
 
+    question = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root["id"],
+            "revision": 1,
+            "text": "Please check the inline placement in both thread views.",
+        },
+    )
+    told(page)
     claimed = CliRunner().invoke(
         cli_model.cli,
         [
@@ -4942,9 +4953,33 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    expect(thread.locator(":scope > .lf-receipt")).to_contain_text(
-        "● Active — checking the inline placement"
+    followup = events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root["id"],
+            "revision": 1,
+            "text": "And keep a later comment visibly separate.",
+        },
     )
+    told(page)
+    for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):
+        active = view.locator(
+            f'.lf-conversation-msg[{message_attr}="{question["id"]}"] '
+            if message_attr == "data-event"
+            else f'.lf-msg[{message_attr}="{question["id"]}"] '
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) > .lf-receipt")
+        sent = view.locator(
+            f'.lf-conversation-msg[{message_attr}="{followup["id"]}"] '
+            if message_attr == "data-event"
+            else f'.lf-msg[{message_attr}="{followup["id"]}"] '
+        ).locator(":scope > :is(.lf-conversation-head, .lf-msg-head) > .lf-receipt")
+        expect(active).to_contain_text("● Active — checking the inline placement")
+        expect(sent).to_contain_text("✓ Sent")
+        expect(view.locator(":scope > .lf-receipt")).to_have_count(0)
+        expect(view).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
+        assert view.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
     strip = thread.locator(
         f'.lf-conversation-msg[data-event="{reply["id"]}"] .lf-react-strip'
@@ -4997,7 +5032,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(
         page.keyboard.press("Enter")
     expect(thread).not_to_have_attribute("open", "")
     summary = thread.locator(".lf-conversation-summary")
-    expect(summary).to_have_text("Resolved · 2 messages")
+    expect(summary).to_have_text("Resolved · 4 messages")
     summary_box = summary.evaluate(
         """element => {
           const style = getComputedStyle(element);

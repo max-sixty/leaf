@@ -422,6 +422,7 @@ def codex_app_server():
                     "params": {
                         "threadId": "codex-thread",
                         "turnId": "turn-live",
+                        "startedAtMs": 1_000,
                         "item": {
                             "id": "command-live",
                             "type": "commandExecution",
@@ -559,6 +560,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     assert (status["state"], status["detail"]) == ("working", "reading the traces")
     work = status["work"][0]
     assert work["subject"] == {"kind": "thread", "id": "c1"}
+    assert work["event"] == "c1"
     assert work["detail"] == "reading the traces" and work["ts"] == status["ts"]
     assert work["after"] == comment_seq
     assert work["agent"] == "Trace reader" and work["id"] and work["session"]
@@ -571,6 +573,7 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
         {
             "id": work["id"],
             "target": {"kind": "thread", "id": "c1"},
+            "event": "c1",
             "source": "claim",
             "action": "working",
             "detail": {"text": "reading the traces"},
@@ -599,8 +602,31 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
     # exact reader events and leaves the page-wide status alone.
     serving(page_dir, 1)
     events_model.append_event(
-        page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "and this?"}
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "c2",
+            "author": "user",
+            "parent": "c1",
+            "text": "and this?",
+        },
     )
+    activity = page_state(page_dir)["activity"]
+    assert [
+        (receipt["event"], receipt["phase"]) for receipt in activity["interactions"]
+    ] == [("c1", "active"), ("c2", "sent")]
+    assert all("anchor" not in receipt for receipt in activity["interactions"])
+    assert (activity["counts"]["total"], activity["counts"]["active"]) == (1, 0)
+    assert (
+        _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
+    )
+    renewed = files_model.read_json(page_dir / "status.json")["work"][0]
+    assert renewed["event"] == "c1"
+    assert [
+        (receipt["event"], receipt["phase"])
+        for receipt in page_state(page_dir)["activity"]["interactions"]
+    ] == [("c1", "active"), ("c2", "sent")]
+    assert _status(page_dir, "waiting", "look at v2").exit_code == 0
     assert session_model.cmd_wait(page_dir) == 0
     capsys.readouterr()
     handed = files_model.read_json(page_dir / "status.json")
@@ -612,6 +638,34 @@ def test_an_active_receipt_says_which_thread_the_agent_is_on(
 
     session_model.cmd_status(page_dir, "idle", "")
     assert "work" not in files_model.read_json(page_dir / "status.json")
+
+
+def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
+    )
+    assert (
+        _status(page_dir, "working", "reading the traces", "--on", "c1").exit_code == 0
+    )
+    with service_model.PageTransaction(page_dir) as transaction:
+        session_model.record_pickup(transaction, [comment])
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "c2",
+            "author": "user",
+            "parent": "c1",
+            "text": "and this?",
+        },
+    )
+
+    interactions = page_state(page_dir)["activity"]["interactions"]
+    assert [(item["event"], item["phase"]) for item in interactions] == [
+        (None, "active"),
+        ("c2", "sent"),
+    ]
 
 
 def test_a_working_claim_can_name_a_widget_until_a_version_completes_it(page_dir):
@@ -941,6 +995,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "params": {
                 "threadId": "codex-thread",
                 "turnId": "turn-live",
+                "startedAtMs": 1_000,
                 "item": {
                     "id": "command-live",
                     "type": "commandExecution",
@@ -948,7 +1003,16 @@ def test_app_server_events_report_semantic_codex_progress():
                 },
             },
         }
-    ) == {"turn": "turn-live", "activity": "Running uv run pytest tests"}
+    ) == {
+        "turn": "turn-live",
+        "item": {
+            "id": "command-live",
+            "type": "commandExecution",
+            "state": "started",
+            "atMs": 1_000,
+        },
+        "activity": "Running uv run pytest tests",
+    }
     assert events.read(
         {
             "method": "item/commandExecution/outputDelta",
@@ -960,24 +1024,30 @@ def test_app_server_events_report_semantic_codex_progress():
             },
         }
     ) == {"turn": "turn-live", "activity": "Running uv run pytest tests"}
-    assert (
-        events.read(
-            {
-                "method": "item/started",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "turn-live",
-                    "item": {
-                        "id": "commentary-live",
-                        "type": "agentMessage",
-                        "phase": "commentary",
-                        "text": "I am checking the implementation.",
-                    },
+    assert events.read(
+        {
+            "method": "item/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "startedAtMs": 1_100,
+                "item": {
+                    "id": "commentary-live",
+                    "type": "agentMessage",
+                    "phase": "commentary",
+                    "text": "I am checking the implementation.",
                 },
-            }
-        )
-        is None
-    )
+            },
+        }
+    ) == {
+        "turn": "turn-live",
+        "item": {
+            "id": "commentary-live",
+            "type": "agentMessage",
+            "state": "started",
+            "atMs": 1_100,
+        },
+    }
     assert (
         events.read(
             {
@@ -992,24 +1062,31 @@ def test_app_server_events_report_semantic_codex_progress():
         )
         is None
     )
-    assert (
-        events.read(
-            {
-                "method": "item/completed",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "turn-live",
-                    "item": {
-                        "id": "commentary-live",
-                        "type": "agentMessage",
-                        "phase": "commentary",
-                        "text": "I am checking the implementation. Next I will run tests.",
-                    },
+    assert events.read(
+        {
+            "method": "item/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "turn-live",
+                "completedAtMs": 1_200,
+                "item": {
+                    "id": "commentary-live",
+                    "type": "agentMessage",
+                    "phase": "commentary",
+                    "text": "I am checking the implementation. Next I will run tests.",
                 },
-            }
-        )
-        is None
-    )
+            },
+        }
+    ) == {
+        "turn": "turn-live",
+        "item": {
+            "id": "commentary-live",
+            "type": "agentMessage",
+            "state": "completed",
+            "atMs": 1_200,
+            "durationMs": 100,
+        },
+    }
     assert events.read(
         {
             "method": "item/agentMessage/delta",
@@ -1041,6 +1118,7 @@ def test_app_server_events_report_semantic_codex_progress():
             "params": {
                 "threadId": "codex-thread",
                 "turnId": "turn-live",
+                "completedAtMs": 1_300,
                 "item": {
                     "id": "message-live",
                     "type": "agentMessage",
@@ -1050,6 +1128,12 @@ def test_app_server_events_report_semantic_codex_progress():
         }
     ) == {
         "turn": "turn-live",
+        "item": {
+            "id": "message-live",
+            "type": "agentMessage",
+            "state": "completed",
+            "atMs": 1_300,
+        },
         "message": {
             "item": "message-live",
             "phase": None,
@@ -1451,6 +1535,19 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(page_dir
     )
     claimed = _status(page_dir, "working", "reading it", "--on", comment["id"])
     assert claimed.exit_code == 0, claimed.output
+    followup = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": comment["id"],
+            "text": "one more detail",
+        },
+    )
+    assert [
+        (receipt["event"], receipt["phase"])
+        for receipt in page_state(page_dir)["activity"]["interactions"]
+    ] == [(comment["id"], "active"), (followup["id"], "sent")]
     status = files_model.read_json(page_dir / "status.json")
     files_model.write_json(
         page_dir / "status.json",
@@ -1463,6 +1560,7 @@ def test_unheld_activity_drops_interaction_claims_from_the_same_reading(page_dir
     activity = page_state(page_dir)["activity"]
     assert (activity["kind"], activity["held"]) == ("unheld", False)
     [receipt] = activity["interactions"]
+    assert receipt["event"] == followup["id"]
     assert receipt["phase"] == "sent"
     assert (receipt["agent"], receipt["detail"]) == (None, None)
 

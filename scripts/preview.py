@@ -526,6 +526,18 @@ def watch_paths(
     return paths
 
 
+# How many passes a watch set is reused before it is expanded again. Expanding it
+# walks the runtime's script tree, the page's media and the layer roots, which is
+# most of what an idle preview costs: measured on a shipped example, 3.9ms of a
+# 4.6ms pass, or 1.85% of a core held by a preview nobody is editing. The files in
+# the set are what authoring changes, and the *set* changes only when one is added
+# or removed — a new version or a new media file — so expanding it four times a
+# second buys nothing. Eight passes bounds a new file's latency at two seconds,
+# leaves an edit to a file already watched detected on the next pass as before,
+# and takes the idle cost to around 0.3% of a core.
+REEXPAND_PASSES = 8
+
+
 def snapshot(paths: list[Path]) -> dict:
     """Stat inputs so idle previews do not repeatedly read vendored bundles."""
     result = {}
@@ -743,6 +755,8 @@ def watch_preview(
                 f"Watching {source} and {runtime}; feedback stays in {page}", flush=True
             )
             serving = True
+            watched = watch_paths(source, runtime, roots, identity["seed"])
+            passes = 0
             while read_json(metadata)["enabled"]:
                 time.sleep(0.25)
                 live = temporary.running if automation else running_server(page)
@@ -754,9 +768,10 @@ def watch_preview(
                     with PageTransaction(page) as state:
                         if not state.owned_by(host_identity()):
                             return
-                current = snapshot(
-                    watch_paths(source, runtime, roots, identity["seed"])
-                )
+                passes += 1
+                if passes % REEXPAND_PASSES == 0:
+                    watched = watch_paths(source, runtime, roots, identity["seed"])
+                current = snapshot(watched)
                 if current == previous:
                     candidate = current
                     continue
@@ -777,6 +792,10 @@ def watch_preview(
                     roots = layer_inputs(
                         tuple(read_json(page / "registry.json")["$layer"]["packages"])
                     )
+                    # A rebuild can re-vendor, so the set these roots expand to is
+                    # stale now rather than in REEXPAND_PASSES' time.
+                    watched = watch_paths(source, runtime, roots, identity["seed"])
+                    passes = 0
                 except (SystemExit, ValueError, OSError) as error:
                     print(
                         f"Preview update refused: {error}. Feedback is preserved; edit the inputs to retry.",

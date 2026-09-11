@@ -374,6 +374,22 @@ customElements.define(
         const flip = this.#mode === "flip";
         if (flip) shot.removeAttribute("data-lf-shot-controls");
         else shot.dataset.lfShotControls = "off";
+        for (const frame of shot.querySelectorAll(".lf-shotframe")) {
+          const oldLabel = frame.querySelector(":scope > .lf-vr-frame-label");
+          if (this.#mode !== "side") {
+            oldLabel?.remove();
+            continue;
+          }
+          if (oldLabel) continue;
+          const label = make(
+            "span",
+            "lf-vr-frame-label lf-ui",
+            frame.dataset.lfState === "before" ? "Base" : "Candidate",
+            false,
+          );
+          label.setAttribute("aria-hidden", "true");
+          frame.prepend(label);
+        }
       }
       layoutChanged(this);
       paintKeys();
@@ -593,20 +609,7 @@ customElements.define(
         shot.setAttribute("before", record.before);
         shot.setAttribute("after", record.after);
         shot.setAttribute("alt", alt);
-        if (!entry.article.isConnected) this.#casesBody.append(entry.article);
         entry.shotHost.replaceChildren(shot);
-      }
-      for (const frame of shot.querySelectorAll(".lf-shotframe")) {
-        if (frame.querySelector(":scope > .lf-vr-frame-label")) continue;
-        const label = make(
-          "span",
-          "lf-vr-frame-label",
-          frame.dataset.lfState === "before" ? "Base" : "Candidate",
-          false,
-        );
-        label.dataset.lfGen = "1";
-        label.setAttribute("aria-hidden", "true");
-        frame.prepend(label);
       }
     }
 

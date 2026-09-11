@@ -765,7 +765,6 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "after", "/media/a99a1b63048502d0.png"
     )
     expect(first.locator("lf-shot img")).to_have_count(2)
-    expect(first.locator(".lf-vr-frame-label")).to_have_text(["Base", "Candidate"])
     expect(
         first.locator(f'.lf-conversation-thread[data-thread="{case_thread["id"]}"]')
     ).to_have_count(1)
@@ -793,6 +792,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
 
     widget.get_by_role("button", name="Side by side").click()
     expect(widget).to_have_attribute("data-inspection-mode", "side")
+    expect(first.locator(".lf-vr-frame-label")).to_have_text(["Base", "Candidate"])
     expect(first.locator("lf-shot")).to_have_attribute("data-lf-shot-controls", "off")
     expect(first.locator(".lf-shotflip")).to_be_hidden()
     expect(first.locator(".lf-shot-toggle")).to_be_hidden()
@@ -815,6 +815,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     widget.get_by_role("button", name="Fit").click()
     widget.get_by_role("button", name="Flip").click()
     expect(first.locator("lf-shot[data-lf-shot-controls]")).to_have_count(0)
+    expect(first.locator(".lf-vr-frame-label")).to_have_count(0)
     widget.get_by_role("button", name="Opacity").click()
     expect(widget).to_have_attribute("data-inspection-mode", "opacity")
     expect(opacity).to_be_enabled()

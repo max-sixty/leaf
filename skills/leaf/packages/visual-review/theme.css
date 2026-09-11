@@ -309,10 +309,6 @@ lf-visual-review > .lf-reading-after {
   margin: 0;
 }
 
-.lf-vr-frame-label {
-  display: none;
-}
-
 @media screen {
   html:not(.lf-copy) {
     lf-visual-review[data-inspection-mode="side"] .lf-vr-shot-host lf-shot,

@@ -168,12 +168,18 @@ diff --git a/gateway/limits.py b/gateway/limits.py
     head='<meta name="lf-review" content="sign-off">',
 )
 
+SIGNOFF_STABILITY_PAGE = LONG_PAGE.replace(
+    "<title>long</title>",
+    '<title>long</title><meta name="lf-review" content="sign-off">',
+)
+
 # The rendered control mechanisms whose rows must keep their geometry across a press.
 # `coverage` classifies the mechanisms rendered by the composed corpus; `target` is
 # the one causal transition that proves the mechanism's stability contract.
 CONTROL_ARCHETYPES = (
     {
         "name": "banner",
+        "source": SIGNOFF_STABILITY_PAGE,
         "coverage": ".lf-banner-actions > button",
         "target": ".lf-signoff",
     },
@@ -256,7 +262,7 @@ CONTROL_ARCHETYPES = (
         # a scenario the module names rather than markup a page can compose, so the
         # mechanism stands on the gallery and nowhere a synthetic page reaches.
         "name": "interaction-playback",
-        "example": FEATURE_GALLERY,
+        "source": FEATURE_GALLERY,
         "coverage": ".interaction-controls > button",
         "target": "[data-interaction-toggle]",
     },
@@ -265,7 +271,7 @@ CONTROL_ARCHETYPES = (
         # from Padding through Minimum height beside the add press, so choosing the
         # longest value proves that the row reserves enough room for every state.
         "name": "targeting-box-model",
-        "example": TARGETING_GALLERY,
+        "source": TARGETING_GALLERY,
         "coverage": ".lf-targeting-change-fields > :is(select, button)",
         "target": ".lf-targeting-property",
         "select": "min-height",
@@ -274,7 +280,7 @@ CONTROL_ARCHETYPES = (
         # A disposition changes both its selected paint and the case's durable review
         # state while its opposite remains beside it.
         "name": "visual-review-disposition",
-        "example": VISUAL_REVIEW_GALLERY,
+        "source": VISUAL_REVIEW_GALLERY,
         "coverage": ".lf-vr-dispositions > button",
         "target": ".lf-vr-case:not([hidden]) .lf-vr-needs-work",
     },
@@ -325,6 +331,14 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
     page, errors = open_page(browser, serve(html))
     button = page.locator(".lf-signoff")
     expect(button).to_be_visible()
+    signoff_paint = button.evaluate(
+        "el => ({ink: getComputedStyle(el).color, "
+        "        fill: getComputedStyle(el).backgroundColor})"
+    )
+    assert signoff_paint == {
+        "ink": token_colour(page, "--paper"),
+        "fill": token_colour(page, "--accent"),
+    }, f"the banner's primary action lost its readable face: {signoff_paint}"
     expect(button).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
     )
@@ -1813,13 +1827,14 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
 def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
     """Each row mechanism holds its other controls still across its causal transition."""
     # The synthetic page composes every mechanism a page can author, and carries the
-    # standing comment the margin entry's row is made of. An archetype naming an example
-    # is one no page can compose, so its proof runs where the mechanism lives.
-    example = archetype.get("example")
+    # standing comment the margin entry's row is made of. An archetype naming another
+    # source is one whose causal state cannot coexist with that composed page, or whose
+    # mechanism lives only in a shipped gallery.
+    source = archetype.get("source")
     page, errors = open_page(
         browser,
-        serve(example)
-        if example
+        serve(source)
+        if source
         else serve(
             CONTROL_STABILITY_PAGE,
             media={SHOT_SRC[name]: data for name, data in SHOTS.items()},

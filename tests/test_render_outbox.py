@@ -2378,9 +2378,9 @@ customElements.define('lf-preparation', class extends HTMLElement {
 
 def test_a_failed_candidate_restores_the_prior_version_approval(browser, serve):
     """Approval chrome follows the complete state boundary when application rolls back."""
-    signoff_page = SUGGESTION_PAGE.replace(
-        "<title>suggestions</title>",
-        '<title>suggestions</title><meta name="lf-review" content="sign-off">',
+    signoff_page = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
     )
     page, errors = open_page(browser, _serve_preparing_thread(serve, signoff_page))
     approval = page.locator(".lf-signoff")

@@ -17,9 +17,9 @@
    age clock may repaint on a heartbeat without entering the live region. A newly
    constructed margin card uses the same writer on its detached subtree before display. */
 import { ago } from "../presence.js";
-import { el, keeps } from "../widget-elements.js";
+import { el } from "../widget-elements.js";
 import { runtime } from "../context.js";
-import { agentWorkPhase, agentWorkTargetPhases } from "../updates.js";
+import { agentWorkPhase } from "../updates.js";
 import { elementById, inChrome, pageQueryAll } from "../passages.js";
 import { threadList } from "./state.js";
 
@@ -32,16 +32,6 @@ const phaseText = (receipt) => {
   if (receipt.phase === "waiting") return "○ Waiting for pickup";
   return "✓ Sent";
 };
-
-function paintThreadWork(activity, query) {
-  const phases = agentWorkTargetPhases(activity, "thread");
-  for (const view of query(".lf-thread, .lf-conversation-thread")) {
-    const id = view.matches(".lf-thread") ? view.dataset.id : view.dataset.thread;
-    const phase = phases.get(id);
-    if (phase) keeps(view, "data-lf-agent-phase", phase);
-    else view.removeAttribute("data-lf-agent-phase");
-  }
-}
 
 // One retained node follows one reader move through every semantic phase. Only a
 // phase/detail change touches its live region; the heartbeat updates the separate
@@ -108,7 +98,6 @@ export function paintAcknowledgmentsNow(root = document) {
     root === document ? pageQueryAll(selector) : [...root.querySelectorAll(selector)];
   const wanted = new Set();
   const receipts = runtime.activity?.interactions ?? [];
-  paintThreadWork(runtime.activity, query);
   for (const receipt of receipts) {
     const { kind, id } = receipt.target;
     if (kind === "thread") {

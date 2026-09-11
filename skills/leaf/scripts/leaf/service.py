@@ -530,6 +530,8 @@ def claim_update_sources(status: dict) -> list[dict]:
             "agent": claim.get("agent"),
             "session": claim.get("session"),
         }
+        if event := claim.get("event"):
+            source["event"] = event
         if target["kind"] == "widget":
             source["revision"] = claim["revision"]
         sources.append(source)

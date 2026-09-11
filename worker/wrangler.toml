@@ -10,6 +10,9 @@ directory = "../.tmp/site-assets"
 binding = "ASSETS"
 run_worker_first = true
 
+[vars]
+AGENT_PREWARM = "true"
+
 [secrets]
 required = ["OPENAI_API_KEY"]
 
@@ -38,16 +41,6 @@ rollout_active_grace_period = 600
 [[durable_objects.bindings]]
 name = "PAGES"
 class_name = "LeafWebsiteSession"
-
-[[queues.producers]]
-binding = "AGENT_QUEUE"
-queue = "leaf-website-agent"
-
-[[queues.consumers]]
-queue = "leaf-website-agent"
-max_batch_size = 1
-max_batch_timeout = 0
-max_retries = 6
 
 [[analytics_engine_datasets]]
 binding = "WEBSITE_EVENTS"
@@ -91,6 +84,9 @@ routes = []
   binding = "ASSETS"
   run_worker_first = true
 
+  [env.dev.vars]
+  AGENT_PREWARM = "true"
+
   [env.dev.secrets]
   required = ["OPENAI_API_KEY"]
 
@@ -105,16 +101,6 @@ routes = []
   [[env.dev.durable_objects.bindings]]
   name = "PAGES"
   class_name = "LeafWebsiteSession"
-
-  [[env.dev.queues.producers]]
-  binding = "AGENT_QUEUE"
-  queue = "leaf-website-agent-dev"
-
-  [[env.dev.queues.consumers]]
-  queue = "leaf-website-agent-dev"
-  max_batch_size = 1
-  max_batch_timeout = 0
-  max_retries = 6
 
   [[env.dev.analytics_engine_datasets]]
   binding = "WEBSITE_EVENTS"

@@ -432,7 +432,7 @@ identity when its key or wording changes: the command browser and repeated widge
 instances use it instead of display prose. If one compact row binds keys with different
 meanings, add `routes` with an `id`, `binding`, and action sentence for each meaning. The
 shortcut bar stays compact, while the command reference lists and runs each route on its own.
-Use `runFromReference: false` only for a parameterized step that cannot be run without a
+Use `runFromCommandReference: false` only for a parameterized step that cannot be run without a
 choice the command reference does not have, such as a generated hint tied to the live viewport. An
 optional `reach` on a row or scope supplies the short place phrase shown when a command
 is not available (for example, `in an open draft editor`).

@@ -36,6 +36,7 @@ SAFE_FIELDS = (
     "reference",
     "route",
     "durationMs",
+    "attempts",
     "status",
     "buffered",
     "turnId",
@@ -144,7 +145,11 @@ def indexed_events(lookup: str, token: str) -> dict[str, int]:
     return events
 
 
-def safe_records(responses: list[dict], wanted_event_ids: set[str]) -> list[dict]:
+def safe_records(
+    responses: list[dict],
+    wanted_event_ids: set[str],
+    wanted_reference: str | None = None,
+) -> list[dict]:
     """Deduplicate telemetry and keep Leaf's declared timing fields."""
     records = []
     seen = set()
@@ -167,7 +172,11 @@ def safe_records(responses: list[dict], wanted_event_ids: set[str]) -> list[dict
         }
         if isinstance(source.get("eventId"), str):
             carried_event_ids.add(source["eventId"])
-        if carried_event_ids.isdisjoint(wanted_event_ids):
+        carries_event = not carried_event_ids.isdisjoint(wanted_event_ids)
+        carries_reference = (
+            wanted_reference is not None and source.get("reference") == wanted_reference
+        )
+        if not carries_event and not carries_reference:
             continue
         record = {
             "timestamp": item.get("timestamp"),
@@ -236,7 +245,10 @@ def main(arguments: list[str]) -> int:
         query(event_id, accepted_ms, token)
         for event_id, accepted_ms in sorted(events.items())
     ]
-    records = safe_records(responses, wanted_event_ids)
+    reference = lookup if SESSION_REFERENCE.fullmatch(lookup) else None
+    if reference is not None and events:
+        responses.append(query(reference, min(events.values()), token))
+    records = safe_records(responses, wanted_event_ids, reference)
     if not records:
         print(f"no recent leaf-agent logs found for {lookup}", file=sys.stderr)
         return 1

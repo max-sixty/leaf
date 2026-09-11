@@ -6,23 +6,23 @@
 
    Two numbers here are spelled again in the runtime, and a layer test holds each pair
    equal: the covering queries `(width <= 840px)` and `(width > 840px)` are twice
-   PANEL_W (chrome-layout.js), `(width <= 600px)` is twice TRAY_W (trays.js), and the
-   tray that takes a strip, `[data-lf-tray="asks"]`, is trays.js's STRIP_TRAYS. A
+   THREAD_PANEL_W (chrome-layout.js), `(width <= 600px)` is twice TRAY_SLOT_W (trays.js), and the
+   tray that takes a strip, `[data-lf-auxiliary-surface="asks"]`, is trays.js's BESIDE_TRAYS. A
    container or media query cannot read a custom property, which is why each query is a
-   literal rather than the --lf-panel-w the runtime writes. */
+   literal rather than the --lf-thread-panel-width the runtime writes. */
 /* `.lf-chrome` is one fixed runtime root containing the banner, tray panel, thread panel,
    composer, floating comment control, live region, shortcut bar and status, help,
-   inspection paint, legend, and address layer. The page and panel are separate scroll
+   inspection paint, legend, and Go-to hint layer. The page and panel are separate scroll
    regions.
 
    The runtime's private stylesheet is one `@scope` rooted at `.lf-chrome`. Private class
    names do not escape that root. The global vocabulary is deliberately small: shared
-   `.lf-ui`, `.lf-btn`, `.lf-chip`, `.lf-address`, `.lf-skip`, and the markers the runtime
+   `.lf-ui`, `.lf-btn`, `.lf-chip`, `.lf-key-badge`, `.lf-skip`, and the markers the runtime
    paints on page elements. Adding a global selector widens the widget contract and must
    be covered by the render suite.
 
    A shared class owns only the look shared on both sides of the scope line. Placement
-   remains with each surface. For example, an address chip may share type, border, and
+   remains with each surface. For example, a key badge may share type, border, and
    color while a reply box and an option reserve and position it differently.
 
    Typography follows Data projections. An authored `lf-note` inside `lf-code` takes
@@ -34,7 +34,7 @@
    A control that draws the band on itself draws it only where nothing else holds that
    box's one outline. A decision written out around the control wears the band already,
    and the log's news about the content — `restated`, `reader-override`, `reported` — has
-   no second carrier, while the band also has the washed cell and the address chips.
+   no second carrier, while the band also has the washed cell and the key badges.
 
    Every rule that draws the ring names it in `--lf-here-ring`, in the same declaration
    (theme.css carries why). Whether a box wears a ring is the paint's answer — the
@@ -60,9 +60,9 @@
    choice on one baseline with one type, border, corner, and elevation; the bar keeps its
    DOM owner and accessible name while its contents change. Comment restores the field and
    Suggest restores it in replacement-text mode. Their structural icons use the same
-   stroked SVG vocabulary as target margin elements; only authored reaction tokens supply text
+   stroked SVG vocabulary as target margin entries; only authored reaction tokens supply text
    glyphs. */
-/* Workspace state changes the shell's size immediately; only this presentation
+/* Auxiliary chrome state changes the shell's size immediately; only this presentation
    offset moves. Registering the length lets Web Animations interpolate it while
    container queries continue to read the one final shell width. */
 @property --lf-shell-motion-x {
@@ -71,7 +71,7 @@
   initial-value: 0px;
 }
 /* Page-attached chrome is absolute against the initial containing block, not against
-   body. Body is the layout shell and may move or narrow for standing workspaces; the
+   body. Body is the page shell and may move or narrow for standing auxiliary surfaces; the
    document coordinate system does neither, and root scrolling still carries absolute
    chrome with the passage it stands beside. */
 /* The chrome's line box, said once, because one control in the banner cannot be
@@ -107,7 +107,7 @@
 }
 .lf-ui:is([role="button"], [role="checkbox"]):not([data-lf-said]):not(:has([data-lf-said])) { user-select: none; -webkit-user-select: none; }
 /* Chips remain the compact label shape used by chrome and conversation surfaces.
-   Target actions use .lf-margin-element below: one stricter control type shared by
+   Target actions use .lf-margin-entry below: one stricter control type shared by
    content widgets, page-map information, and communication gestures. */
 /* Words for a reader listening, silent on screen: real text, the one thing every
    screen reader announces in every mode, clipped to nothing where paint already says
@@ -176,10 +176,10 @@
 .lf-chip { font-size: var(--t-6); line-height: 1.7; padding: 0 8px; border: 1px solid var(--border-2); border-radius: var(--chip-r); background: var(--card); color: var(--ink-2); white-space: nowrap; }
 .lf-chip:is(button, [role="button"]) { cursor: pointer; }
 .lf-chip:is(button, [role="button"]):hover { background: var(--chip); }
-/* The pluggable RHS margin element. Contributors choose glyph, label, tone, and behavior
-   through marginElement(); this declaration owns every visual and interactive
+/* The pluggable RHS margin entry. Contributors choose glyph, label, tone, and behavior
+   through marginEntry(); this declaration owns every visual and interactive
    constant that makes unlike verbs read as one family. */
-.lf-margin-element {
+.lf-margin-entry {
   position: relative; box-sizing: border-box; width: 32px; min-width: 32px;
   height: 32px; min-height: 32px; padding: 0;
   border: 1px solid var(--border-2); border-radius: 50%;
@@ -188,88 +188,99 @@
   font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
   scroll-margin-block: var(--here-ring-room);
 }
-.lf-margin-element[hidden] { display: none; }
-/* A margin element carries one of three promises on the same paper surface.
+.lf-margin-entry[hidden] { display: none; }
+/* A margin entry carries one of three promises on the same paper surface.
    An action's heavier ring and lower shadow say this press acts now; a disclosure's
    firmer single ring says it opens context; read-only status keeps only the page's
    ghost hairline. All three keep one circular silhouette and one place in the cluster,
    while the static status alone has no raised or responsive material. */
-.lf-margin-element[data-lf-behavior="action"] {
+.lf-margin-entry[data-lf-behavior="action"] {
   border-width: 2px;
   color: var(--ink);
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
-.lf-margin-element[data-lf-behavior="disclosure"] {
+.lf-margin-entry[data-lf-behavior="disclosure"] {
   border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
   color: var(--ink-2); box-shadow: none;
 }
-.lf-margin-element[data-lf-behavior="status"] {
+.lf-margin-entry[data-lf-behavior="status"] {
   border-color: var(--rule); color: var(--ink-2);
   box-shadow: none; cursor: default;
 }
 /* Tone colours only the icon. Category and interaction own the ring and fill;
-   work in flight keeps its separate neutral mark. */
-.lf-margin-element[data-lf-tone="positive"] > :is(.lf-margin-element-icon, .lf-margin-element-glyph) {
+   sending keeps its neutral dashed ring. */
+.lf-margin-entry[data-lf-tone="positive"] > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
-.lf-margin-element[data-lf-tone="negative"] > :is(.lf-margin-element-icon, .lf-margin-element-glyph) {
+.lf-margin-entry[data-lf-tone="negative"] > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--danger-ink);
 }
-/* Work in flight gets a small lower-right witness, a moving open ring, and it is the
-   only state that gets one. It changes neither the margin element's ring nor its tone. Busy
-   earns the paint because nothing else on the page states it: a busy margin element keeps its
-   full opacity and its pointer, so with no ring an in-flight press looks exactly like
-   an idle one. Every other state is already said in words beside the margin element — a failure
-   by the receipt reading "Failed" and the Retry it swaps in, an open interaction by the
-   editor standing open — and a filled shape this size cannot be told from its
-   neighbours at 1x, so a second mark for them bought a smudge and no fact. The witness
-   is decoration: it must not extend the margin element's pointer target into the gap beside
-   it. */
-.lf-margin-element[data-lf-state="busy"]:not([data-lf-behavior="status"])::after {
-  content: ""; position: absolute; z-index: 2; inline-size: 8px; block-size: 8px;
-  inset-inline-end: -2px; inset-block-end: -2px; box-sizing: border-box;
-  background: var(--paper); border: 2px solid currentColor;
-  border-block-start-color: transparent; border-radius: 50%;
-  pointer-events: none;
-  animation: lf-runtime-4f3c2a8d-margin-element-busy 650ms linear infinite;
-}
-@keyframes lf-runtime-4f3c2a8d-margin-element-busy { to { transform: rotate(360deg); } }
-/* The same `:not(...)` the rule above carries, so this override matches its specificity
-   and, standing later, wins. Without it the ring keeps turning for a reader who asked
-   for stillness. */
-@media (prefers-reduced-motion: reduce) {
-  .lf-margin-element[data-lf-state="busy"]:not([data-lf-behavior="status"])::after {
-    animation: none;
-  }
+/* Sending belongs to the control, while ownership belongs to the agent. The
+   static neutral dashed ring replaces the corner spinner on every control. */
+.lf-margin-entry[data-lf-state="busy"]:not([data-lf-agent-phase]) {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--ink) 50%, var(--paper));
+  background: color-mix(in srgb, var(--ink) 4%, var(--paper));
 }
 /* Pointer and hover feedback belong to interactive offers. BAKE removes the role
    and tab stop from standing reaction marks, which retain their shape without
    promising a press. A status keeps its ghost ring in the page-map walk, while its
    hand and hover response go. */
-.lf-margin-element:is(button, [role="button"]):not([data-lf-behavior="status"]):not(:disabled):not([aria-disabled="true"]) {
+.lf-margin-entry:is(button, [role="button"]):not([data-lf-behavior="status"]):not(:disabled):not([aria-disabled="true"]) {
   cursor: pointer;
 }
-.lf-margin-element:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not([aria-disabled="true"]) {
+.lf-margin-entry:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not([aria-disabled="true"]) {
+  background: var(--lf-agent-tint, var(--chip));
+}
+.lf-margin-entry[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
+  border-color: var(--lf-agent-color, var(--accent));
+}
+.lf-margin-entry:is(:focus-visible, .lf-focus-visible) {
+  outline: var(--here-ring); --lf-here-ring: margin-entry; outline-offset: 1px;
+}
+.lf-margin-entry[aria-disabled="true"] { cursor: default; }
+.lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
 }
-.lf-margin-element[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
-  border-color: var(--accent);
+/* Agent ownership colors the semantic carrier without changing its glyph or action.
+   The inset working ring leaves the keyboard focus outline independent. */
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="picked_up"] {
+  --lf-agent-color: var(--accent);
+  --lf-agent-tint: var(--chip);
 }
-.lf-margin-element:is(:focus-visible, .lf-focus-visible) {
-  outline: var(--here-ring); --lf-here-ring: margin-element; outline-offset: 1px;
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase="active"] {
+  --lf-agent-color: var(--ok-ink);
+  --lf-agent-tint: var(--ok-tint);
+  --lf-agent-stage-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--ok-ink);
+  box-shadow: var(--lf-agent-stage-shadow);
 }
-.lf-margin-element[aria-disabled="true"] { cursor: default; }
-.lf-margin-element.lf-react[aria-pressed="true"] {
-  background: var(--chip);
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-phase] {
+  color: var(--lf-agent-color); border-color: var(--lf-agent-color);
+  background: var(--lf-agent-tint);
 }
-.lf-margin-element-glyph { line-height: 1; }
-.lf-margin-element-icon {
+.lf-margin-entry[data-lf-agent-phase="active"][data-lf-behavior="action"] {
+  --lf-agent-stage-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--ok-ink),
+    0 1px 0 var(--border-2), 0 3px 6px var(--shade);
+}
+:is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] {
+  animation: lf-runtime-4f3c2a8d-agent-work-arrival 520ms ease-out var(--lf-agent-arrival-delay, 0ms) 1;
+}
+@keyframes lf-runtime-4f3c2a8d-agent-work-arrival {
+  0% { box-shadow: var(--lf-agent-stage-shadow), 0 0 0 0 color-mix(in srgb, var(--ok-ink) 42%, transparent); }
+  58% { box-shadow: var(--lf-agent-stage-shadow), 0 0 0 7px color-mix(in srgb, var(--ok-ink) 16%, transparent); }
+  100% { box-shadow: var(--lf-agent-stage-shadow), 0 0 0 10px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.lf-margin-entry, .lf-page-map-action)[data-lf-agent-arrival] { animation: none; }
+}
+.lf-margin-entry-glyph { line-height: 1; }
+.lf-margin-entry-icon {
   inline-size: 16px; block-size: 16px; overflow: visible;
   fill: none; stroke: currentColor; stroke-width: 1.6;
   stroke-linecap: round; stroke-linejoin: round;
 }
-.lf-margin-element > .lf-margin-element-space { display: none; }
-.lf-margin-element > .lf-margin-element-label {
+.lf-margin-entry > .lf-margin-entry-space { display: none; }
+.lf-margin-entry > .lf-margin-entry-label {
   position: absolute; z-index: 3; inset-block-start: calc(100% + 6px);
   inset-inline-end: 0; display: block; width: max-content; max-width: 180px;
   padding: 4px 7px; border-radius: 4px;
@@ -280,37 +291,37 @@
   transform: translateY(-2px);
   transition: opacity 90ms ease, transform 90ms ease, visibility 0s linear 90ms;
 }
-.lf-margin-element-label-word,
-.lf-margin-element-context { display: block; }
-.lf-margin-element-context {
+.lf-margin-entry-label-word,
+.lf-margin-entry-context { display: block; }
+.lf-margin-entry-context {
   margin-block-start: 2px; color: color-mix(in srgb, var(--paper) 72%, transparent);
   font-size: 10px; line-height: 1.25; font-weight: 450;
 }
-.lf-margin-element[data-lf-label-side] > .lf-margin-element-label {
+.lf-margin-entry[data-lf-label-side] > .lf-margin-entry-label {
   inset: auto; left: var(--lf-label-x); top: var(--lf-label-y);
 }
-.lf-margin-element:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])
-  > .lf-margin-element-label {
+.lf-margin-entry:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])
+  > .lf-margin-entry-label {
   opacity: 1; visibility: visible; transform: translateY(0);
   transition-delay: 90ms;
 }
 /* A keyboard destination says its label at once. Besides avoiding a needless delay for
-   the reader, this keeps a contribution that is rebuilt while the living margin settles
+   the reader, this keeps a contribution that is rebuilt while the margin projection settles
    from restarting three paint-only transitions at time zero forever. Pointer discovery
    retains the short delay and reveal above. */
-.lf-margin-element:is(:focus-visible, .lf-focus-visible):not([aria-expanded="true"])
-  > .lf-margin-element-label {
+.lf-margin-entry:is(:focus-visible, .lf-focus-visible):not([aria-expanded="true"])
+  > .lf-margin-entry-label {
   transition: none;
 }
 .lf-margin-cluster > .lf-margin-contribution >
-  .lf-margin-element:not([data-lf-margin-element-primary]),
-.lf-margin-cluster > .lf-margin-element.lf-margin-contribution:not([data-lf-margin-element-primary]) {
+  .lf-margin-entry:not([data-lf-margin-entry-primary]),
+.lf-margin-cluster > .lf-margin-entry.lf-margin-contribution:not([data-lf-margin-entry-primary]) {
   display: none;
 }
-.lf-margin-cluster > .lf-margin-contribution:not(.lf-margin-element):not([data-lf-margin-receipt]):not(:has(> [data-lf-margin-element-primary])) {
+.lf-margin-cluster > .lf-margin-contribution:not(.lf-margin-entry):not([data-lf-margin-receipt]):not(:has(> [data-lf-margin-entry-primary])) {
   display: none;
 }
-.lf-margin-options [data-lf-margin-element-overflow] { display: none; }
+.lf-margin-options [data-lf-margin-entry-overflow] { display: none; }
 .lf-margin-receipt { color: var(--ink-2); font-weight: 600; }
 [data-lf-margin-receipt="failed"] > .lf-margin-receipt { color: var(--danger-ink); }
 /* A gesture the log has not answered yet, in the platform's own word for it, which
@@ -322,8 +333,8 @@
    that window would be a second flicker put where the first one was removed. Past
    the delay there is something to say, and the cases where there is are the ones
    that need it: a heavy page, or a reader who reached a --host page across a
-   network. So a surface without a margin element goes quiet only once the wait has run long enough
-   to notice, and a fast answer never shows this rule at all. A margin element already
+   network. So a surface without a margin entry goes quiet only once the wait has run long enough
+   to notice, and a fast answer never shows this rule at all. A margin entry already
    carries the separate busy-state ring, so dimming it or replacing its pointer would
    state the same fact twice and make its hover feedback look disabled. The
    reduced-motion guard (theme.css) zeroes the duration and leaves the delay standing,
@@ -333,10 +344,10 @@
    Opacity and the cursor, never geometry: the line a press is made on holds still
    (lf-suggestion.js), and a busy surface that reflowed would move the control out
    from under the pointer that just pressed it. */
-[aria-busy="true"]:not(.lf-margin-element) {
+[aria-busy="true"]:not(.lf-margin-entry) {
   animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
 }
-[aria-busy="true"]:not(.lf-margin-element),
+[aria-busy="true"]:not(.lf-margin-entry),
 [aria-busy="true"] :is(button, [role="button"]) {
   cursor: progress;
 }
@@ -348,26 +359,26 @@
 
    Each states its own gap, because they stand at different densities and the ring may
    not reach its neighbour: the standing gap is what a box with room around it takes,
-   the composer's row puts 6px between two buttons, and margin elements sit 4px
+   the composer's row puts 6px between two buttons, and margin entries sit 4px
    apart out in the margin. The chip's rule was the suggestion family's, which is a
    family stating a fact about a shape the runtime owns — its own rules there are for
    what a decided suggestion adds, and a focus ring is nothing a decision changes. */
 .lf-btn:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: btn; outline-offset: 2px; }
 .lf-chip:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: chip; outline-offset: 1px; }
-/* One sequential step keeps one geometry in options, the shortcut bar, page addresses and
+/* One sequential step keeps one geometry in options, the shortcut bar, banner controls and
    the reference. A sequence composes these fixed boxes instead of making spaces inside
    one keycap carry time. A compact choice label such as g / G remains one decision
-   point. The address chip is worn on both sides of the scope — an option's own corner
-   in the page, and the sequence's chips in the chrome's address layer — so its box is
+   point. The key badge is worn on both sides of the scope — an option's own corner
+   in the page, and the sequence's hints in the chrome's Go-to hint layer — so its box is
    stated here, at document level, where a rule inside the @scope block could not reach
    the chip in the page. The chrome's own step keys wear the same box, spelled again
-   inside the scope (`.lf-key-sequence > kbd`), because naming them here would put two
+   inside the scope (`.lf-binding-sequence > kbd`), because naming them here would put two
    private names on the document-level surface the coined-class probe pins; keep the
-   two declaration lists identical. An address is an available key, so this neutral
+   two declaration lists identical. A binding is an available key, so this neutral
    face is also its complete colour statement; completed steps take the pressed face
    below. */
-.lf-address { box-sizing: border-box;
-  min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px;
+.lf-key-badge { box-sizing: border-box;
+  min-width: var(--lf-key-badge-size); height: var(--lf-key-badge-size); padding: 0 4px;
   border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
   color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
   line-height: 1.478; text-align: center; white-space: nowrap;
@@ -452,17 +463,17 @@ body.lf-over-mark { cursor: pointer; }
    naming .lf-chrome here to hold the chrome out would put that class into the
    document-level surface, and the class the chrome is rooted at is not vocabulary a
    widget wears. The chrome holds itself out instead, from inside its own scope. */
-body:is(.lf-aiming, .lf-design) { cursor: default; }
-body:is(.lf-aiming, .lf-design).lf-over-item { cursor: pointer; }
+body:is(.lf-aiming, [data-lf-design-mode]) { cursor: default; }
+body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item { cursor: pointer; }
 /* Every non-chrome point on the page accepts a drawing press. The crosshair therefore
    belongs to the whole document plane; an aim box adds semantic context where one is
    available but no longer decides whether the drag can begin. */
-html:has(body.lf-drawing),
-body.lf-drawing { cursor: crosshair; touch-action: none; }
-body.lf-drawing main,
-body.lf-drawing main * { cursor: crosshair !important; }
-body.lf-drawing main .lf-conversation,
-body.lf-drawing main .lf-conversation * { cursor: auto !important; }
+html:has(body[data-lf-draw-mode]),
+body[data-lf-draw-mode] { cursor: crosshair; touch-action: none; }
+body[data-lf-draw-mode] main,
+body[data-lf-draw-mode] main * { cursor: crosshair !important; }
+body[data-lf-draw-mode] main .lf-conversation,
+body[data-lf-draw-mode] main .lf-conversation * { cursor: auto !important; }
 /* Element feedback is one hollow contour. Unlike a text highlight, an element mark
    is projected above everything the target draws, so any interior paint can obscure
    the target's own words or picture. The target painter keeps this contour above those
@@ -478,9 +489,9 @@ body.lf-drawing main .lf-conversation * { cursor: auto !important; }
    cannot hover the words to find out whether anything is there. */
 html.lf-copy mark.lf-react { background: var(--react); color: inherit;
   text-decoration: underline 2px solid var(--mark-ink); text-underline-offset: 3px; }
-/* The glyphs of the reactions standing on a target — a margin element per reaction, the margin element
+/* The glyphs of the reactions standing on a target — a margin entry per reaction, the margin entry
    revealing the reaction's separate eraser (anchor-controls.js seatReactions). This is an unpositioned
-   contribution: the living margin joins it to the target's other RHS controls and
+   contribution: the margin projection joins it to the target's other RHS controls and
    decides whether their one complete item hangs or docks. */
 .lf-reacts { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .lf-react-mark { text-align: center; }
@@ -491,7 +502,7 @@ html.lf-copy mark.lf-react { background: var(--react); color: inherit;
   border-width: 2px; border-color: var(--border-2); color: var(--ink);
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
-.lf-margin-element.lf-react-mark[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
+.lf-margin-entry.lf-react-mark[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
   border-color: var(--border-2);
 }
 /* The draft's own passage uses the accent contour. An open composer is on screen
@@ -514,8 +525,8 @@ html.lf-copy mark.lf-react { background: var(--react); color: inherit;
    hand here is the aim's answer rather than the thread's: it stands where the aim has
    an item and comes off where it hasn't, which is the same promise the body is making
    and not the mark's own "open this thread". */
-body:is(.lf-aiming, .lf-design) .lf-mark-el { cursor: default; }
-body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
+body:is(.lf-aiming, [data-lf-design-mode]) .lf-mark-el { cursor: default; }
+body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: pointer; }
 /* The chrome layer projects every element mark above the element's own descendants,
    so source paint would duplicate it. */
 :is(.lf-mark-el, .lf-react-el, .lf-action-target).lf-projected-mark {
@@ -553,7 +564,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
    the new text; a newly added block keeps the wash because every word is new.
 
    The quiet version label and historical deletions wear `.lf-ui`, so comments, copies,
-   and the next comparison keep reading the current page. The margin and Page map name
+   and the next comparison keep reading the current page. The margin and Page Map name
    the compared versions; only changed words appear in the visible passage. The deletion
    inherits the document's face, keeping the diff one passage. */
 .lf-ins-block.lf-version-inline { background: transparent; box-shadow: none; }
@@ -640,7 +651,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      takes. Scoped rather than written at document level, where it would widen the
      shared vocabulary by this container's own class. Design mode's rules outside
      outrank this at a weight it cannot reach and draw the arrow here too, which is
-     the same answer arrived at twice: the aim never lands in the chrome (isItem), so
+     the same answer arrived at twice: the aim never lands in the chrome (isAddressable), so
      the hand it promises is not one this mark could offer either. */
   .lf-mark-el { cursor: auto; }
   /* What the layer inherits from the document, answered at the layer's root, because
@@ -669,7 +680,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      instead of the 67 aimed at, and the composer quoted the page from that passage down
      through every widget. Answered at the root, because a rule per surface is a list
      that stops being complete: the banner, the shortcut bar and the panel's head were named
-     and the panel itself, the trays, the shelf's menu, the keyboard reference, the find
+     and the panel itself, the trays, the shelf's menu, the command reference, the find
      row and the asks list were left open, all of them selectable and every one of them
      the same drag. What a reader may still copy out of here says so for itself, at
      .lf-quote and .lf-msg-body below. */
@@ -693,25 +704,25 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
 
      A floor and not a size: every one of these is free to be bigger, and most are. It
      is written as a minimum on both axes because a target is a box and a control that
-     is tall and two pixels wide is as hard to hit as a short one. Margin elements centre their
+     is tall and two pixels wide is as hard to hit as a short one. Margin entries centre their
      own label, so nothing here has to say where the words go.
 
      .lf-chip is halved on how it is spelled, because the class dresses a standing chip
      as well as a press and a chip is not something to aim at. */
   :is(.lf-btn, .lf-chip:is(button, [role="button"]), .lf-thread-action,
-    .lf-preview, .lf-react, .lf-version-diff, .lf-version-row, .lf-shortcut-reference-command,
-    .lf-quote, .lf-margin-element) { min-height: var(--aim-floor); min-width: var(--aim-floor); }
-  /* Page paint belongs under a covering workspace. Paint whose target is inside the
-     chrome belongs above that workspace, including when the same aim or response bar moves
+    .lf-preview, .lf-react, .lf-version-diff, .lf-version-row, .lf-command-reference-command,
+    .lf-quote, .lf-margin-entry) { min-height: var(--aim-floor); min-width: var(--aim-floor); }
+  /* Page paint belongs under a covering auxiliary surface. Paint whose target is inside the
+     chrome belongs above that auxiliary surface, including when the same aim or response bar moves
      between the two. The target owner states the plane; document order keeps aim,
      response bar, and inspect in their ordinary order within it. */
   :is(.lf-page-paint, .lf-target-paint) { z-index: 8890; }
   /* The rail cannot trap a raised item below the page paint it summons. Only the item
      under pointer or focus crosses that paint; the full-page toolbar stays at rest. */
-  .lf-living-margin { z-index: auto; }
+  .lf-margin-projection { z-index: auto; }
   .lf-margin-cluster:is(:hover, :focus-within) { z-index: 8895; }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: 9060; }
-  /* Every living-margin control traces the content it concerns through one quiet
+  /* Every margin-projection control traces the content it concerns through one quiet
      overlay. Painting above the target keeps a package-owned frame from covering the
      contour; the keyboard's stronger accent ring remains a separate focus fact. */
   .lf-target-trace { position: absolute; display: none; pointer-events: none;
@@ -722,15 +733,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     border: 0; border-radius: 0 !important; background: none; }
   .lf-target-trace-shape {
     display: block; width: 100%; height: 100%; overflow: hidden; }
-  /* The gap between anything on this row, said once here because the cap below has to
-     agree about it. The third number the cap names is --lf-status-floor, and it is not
-     written here: banner.js measures the lines this page can say and states the floor
-     in pixels on this element (reserveStatusRoom). The floor is the sentence's own room
-     and nothing else's — the cap adds the furniture back itself — because a floor
-     stated for the status box as a whole is one the mark and anything else standing in
-     that box spends first, and it was: a developer preview's identity chip left the
-     line 114 pixels, twelve characters, two of the four lines it had to say. */
-  .lf-banner { --lf-banner-gap: 10px;
+  .lf-banner { --lf-banner-gap: 10px; --lf-status-floor: 24ch;
     position: fixed; top: 0; left: 0; right: 0; z-index: 9000; height: var(--lf-banner-h);
     display: flex;
     align-items: center; gap: var(--lf-banner-gap);
@@ -739,76 +742,25 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     background: var(--veil); backdrop-filter: blur(6px); border-bottom: 1px solid var(--rule); }
   .lf-banner-status, .lf-banner-actions { display: flex; align-items: center;
     gap: var(--lf-banner-gap); }
-  /* The sentence wins the row. It takes whatever the addresses leave and keeps a floor
+  /* The sentence wins the row. It takes whatever the controls leave and keeps a floor
      of its own below that, which is what the shelf's cap on the next rule states from
      the other end. Growing into free space rather than reserving its own words is what
      keeps the row still: a status ageing from "is working" to "last checked in" is a
      longer sentence in a box that has not changed size, so nothing beside it moves. */
   .lf-banner-status { flex: 1 1 auto; min-width: 0; }
-  /* The addresses take the room the sentence's floor leaves them, and whatever does not
-     fit that cap folds into the shelf's own menu (foldShelf). So the row sheds
-     addresses before the status sheds words, and it sheds them into somewhere rather
-     than off an edge: there is no strip here to scroll, and no address reachable only
-     by discovering that there is.
-
-     The floor is not written here. banner.js asks its own status writer for every line
-     this page can say, measures the narrowest box they all fit the clamp below in, and
-     states that in pixels on .lf-banner (reserveStatusRoom). A number here could not
-     have been right: the quantity is the width a wrapped line of those words sets in the
-     face this row is using, and neither pixels nor characters track it. Pixels stopped
-     covering the line the day --t-5 went from 13.5px to 14px. Characters read as though
-     they would — both ends measured in the same face, so the size cancels — but what is
-     bounded is a line's average advance over the advance of a zero, and that is a
-     property of the face rather than of its size: two lines of the banner's longest
-     sentence take 37.5 characters where system-ui is SF — this desk — and 40.4 where it
-     is DejaVu, which is what the image CI runs on resolves it to. Thirty-four was under
-     both. Measured, it is the same statement on either, and on the next face nobody has
-     looked at.
-
-     Two lines, and no more than the words need. A floor generous enough to hold any of
-     them on one line would be paid for in addresses folded away at widths that had room
-     for them; two lines is what readable means here. A published page's own line ("This
-     is an example on the Leaf website. … Install Leaf") is longer than any line a
-     reader's own page can reach, and it is in the reservation exactly where it is in the
-     writing: on the pages that say it, whose rows carry no Accept all and no Asks and
-     can afford it.
-
-     The row does not shrink. A flexible one gives up room in the same breath the
-     sentence does, so a row already folded to its floor goes on clipping while the
-     sentence beside it has room to spare — the cap, not the shrink, is what decides
-     who yields, and the fold is what the row yields with.
-
-     Nor does the row wrap. A banner that took a second line when its contents stopped
-     fitting would be answering the right question with the one measurement it must not
-     move: --lf-banner-h is the document's own top offset, so the height changing walks
-     the whole page down. What could legally decide it is a set that cannot change under
-     a reader — and the standing addresses are not that set. Asks is absent until a page
-     has one, and the first ask arriving with no gesture behind it would then push the
-     document down while somebody was reading it, which is the fault every reservation on
-     this row exists to prevent. The set that is stable is every address that could ever
-     stand, at its reserved width — and most of it is not there: on a pinned version that
-     is the latest chip's 251 reserved pixels for news that has not arrived, so the
-     banner would take two rows on a 1200px window showing four addresses. The row is an
-     open layer besides, and a package can seat an address after boot, so that set is not
-     knowable for the page's life either. The fold is the answer: what a crowded row
-     cannot hold goes behind a door standing where it would have, reachable by press and
-     by key, and the page under the banner never moves.
-
-     The row packs against its end, so a control changing size moves itself and
-     whatever stands before it while everything after it keeps its place. Safe
-     alignment is what keeps that true while a fold is still being measured: an
-     overflowing end-packed row hangs off its start edge, where nothing can see it.
-     Four pixels around the contents belong to the controls' outset focus ring. */
+  /* Keep a readable start of the status sentence while the shelf folds complete
+     controls into its menu. The reservation is independent of changing status copy,
+     so updates cannot move controls under the reader's pointer. */
   .lf-banner-actions { flex: 0 0 auto; min-width: 0;
     max-width: calc(100% - var(--lf-status-floor) - var(--lf-mark-w)
       - 2 * var(--lf-banner-gap));
     justify-content: safe flex-end; overflow: hidden;
     padding: 4px 5px; }
-  /* An address keeps its words at every width, and says so: a flex item's default
+  /* A control keeps its words at every width, and says so: a flex item's default
      minimum is its own words, but the aim floor states a minimum width in pixels for
      every control in the layer, and a stated minimum lets the item shrink past its
-     words to that number. A row of clipped addresses overflows nothing, so the fold,
-     which reads overflow, would never fire; an address that cannot shrink is what
+     words to that number. A row of clipped controls overflows nothing, so the fold,
+     which reads overflow, would never fire; a control that cannot shrink is what
      hands the fold something to measure. */
   .lf-banner-actions > .lf-btn { flex: none; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)) { border-color: transparent;
@@ -816,9 +768,9 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
   /* .lf-btn.on states a comparison or a narrowing with an accent border and a fill,
      and the resting rule above clears both at the same specificity — so on this row
-     the class would paint ink alone. Restate the treatment the open workspace wears,
+     the class would paint ink alone. Restate the treatment the open auxiliary surface wears,
      which the reader already reads as "this control is doing something": neither the
-     fill nor the ring is a metric, so the address keeps the width it reserved. */
+     fill nor the ring is a metric, so the control keeps the width it reserved. */
   .lf-banner-actions > .lf-btn.on {
     background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
   /* Leaf's state is carried by the leaf rather than an anonymous traffic light. The
@@ -833,8 +785,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-dot.listening { background: var(--ok); }
   .lf-dot.away { background: var(--warn); }
   .lf-dot.offline { background: var(--danger); }
-  /* The developer preview is an address like the rest, but the shelf keeps it behind
-     the overflow door at every width. It stays here in the shared address vocabulary
+  /* The developer preview is a key badge like the rest, but the shelf keeps it behind
+     the overflow door at every width. It stays here in the shared key-badge vocabulary
      because the menu moves the same node rather than constructing a second diagnostic.
      A press copies the diagnostics, so its text is one line however long the name is. */
   .lf-preview { padding: 2px 7px;
@@ -843,33 +795,30 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     cursor: pointer; }
   .lf-preview:hover { color: var(--ink); }
   .lf-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  /* Two lines, because one was not enough for the sentences the banner actually writes:
-     the offline line is eighty-four characters and a single row of them ellipsized at
-     "Server offline — reconnectin…", which is a status readout that has stopped saying
-     what to do about it. The clamp is what keeps a runaway detail from growing the
-     banner instead; the title carries the whole line either way. It is also the number
-     the floor is measured against — the runtime reads this declaration rather than
-     restating it, so a clamp changed here changes the room the row keeps with it. */
+  /* One stable line at every width; the title exposes the complete sentence. */
   .lf-status-text { color: var(--ink-2); min-width: 0; overflow: hidden;
-    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
-    line-height: 1.35; }
+    display: block; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
   .lf-status-text .lf-age { color: var(--muted); }
-  /* The door onto the folded addresses. It stands where they would have: at the row's
+  /* The website invitation truncates its copy while its install action stays reachable. */
+  .lf-status-text:has(.lf-publication-install) { display: flex; gap: 0.3em; }
+  .lf-publication-copy { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .lf-publication-install { flex: none; }
+  /* The door onto the folded controls. It stands where they would have: at the row's
      start, so the menu's contents read straight on into the row's and the two are one
      order rather than two to keep in step. */
   .lf-banner-more { anchor-name: --lf-banner-more; flex: none; }
   /* The row's own .lf-btn rule states a display, and an author's display outranks the
      UA's for [hidden], so a door with nothing behind it goes on standing there. Said
-     here for the same reason the page map says it: hidden is a display of its own. */
+     here for the same reason the Page Map says it: hidden is a display of its own. */
   .lf-banner-more[hidden] { display: none; }
   .lf-banner-more[data-lf-news] { border-color: var(--accent); color: var(--accent); }
-  /* The open workspace wears the same accent face, from the state it already
-     publishes: showTray and the Threads toggle keep aria-expanded true on exactly
-     the one workspace standing, so the tint is that fact painted rather than a
-     second class to keep in step. Scoped, because lf-workspace is worn only by the
+  /* The open auxiliary surface wears the same accent face, from the state it already
+     publishes: setOpenTray and the Threads toggle keep aria-expanded true on exactly
+     the one surface standing, so the tint is that fact painted rather than a
+     second class to keep in step. Scoped, because lf-auxiliary-toggle is worn only by the
      banner's own controls — All leaves, Asks, Threads — and a rule for it at
      document level would widen the shared vocabulary by a name no widget wears. */
-  .lf-btn.lf-workspace[aria-expanded="true"] {
+  .lf-btn.lf-auxiliary-toggle[aria-expanded="true"] {
     border-color: transparent; color: var(--accent); background: var(--chip);
     box-shadow: inset 0 -2px var(--accent); }
   /* Anchored under its own press, and every side it does not name said out loud. The
@@ -888,23 +837,23 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
     box-shadow: 0 8px 24px var(--shade); padding: 4px; }
   .lf-banner-menu:popover-open { display: flex; }
-  /* A folded address is the same control, so it keeps its own paint and states its own
+  /* A folded control is the same control, so it keeps its own paint and states its own
      words; what the menu decides is that it reads as a row rather than as a chip. It
-     does not state display: whether an address is drawn at all belongs to the address,
+     does not state display: whether a control is drawn at all belongs to the control,
      and a rule here stating it for the whole menu would put a control the page has
      taken away — the map above 900, a chip with no news — into the list as a blank. */
   .lf-banner-menu > .lf-btn { width: 100%; text-align: left; }
   .lf-banner-menu > .lf-btn:where(:not(.primary)) { border-color: transparent;
     background: none; }
   .lf-banner-menu > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
-  /* The fold moves the row's own node, so an address folded while it is doing
+  /* The fold moves the row's own node, so a control folded while it is doing
      something has to go on saying so. The menu's resting rule clears the same two
      declarations the row's does, and for the same reason, so `.on` needs the same
-     answer here: the treatment the open workspace already keeps in the menu on its
+     answer here: the treatment the open auxiliary surface already keeps in the menu on its
      own specificity. The menu reserves no width, so nothing is spent restating it. */
   .lf-banner-menu > .lf-btn.on {
     background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
-  /* The addresses stay packed against the row's end. That decides who pays for a
+  /* The controls stay packed against the row's end. That decides who pays for a
      control changing size: it moves itself and the controls to its left, while
      everything to its right keeps its place. It is also what the fold rests on — the
      widest a control may ever say is the width it already holds, so the fold's answer
@@ -946,8 +895,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      far edges stay pinned to the viewport's corner and its margins centre the box in
      the band between them and the anchor, nowhere near the button. */
   .lf-version { anchor-name: --lf-version-btn; }
-  /* A pinned or deferred page keeps the full destination in the Latest address, but
-     that address may be behind the fold. Mark its stable Versions door with the same
+  /* A pinned or deferred page keeps the full destination in the Latest control, but
+     that control may be behind the fold. Mark its stable Versions door with the same
      border-and-ink vocabulary as a folded-news door, without adding words or width. */
   :is(.lf-banner-actions, .lf-banner-menu) > .lf-version[data-lf-news] {
     border-color: var(--accent); color: var(--accent); }
@@ -1001,25 +950,25 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-version-row.lf-compared::before { content: ""; position: absolute;
     left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
   /* The trays' edge: the thread panel's mirror on the left, holding one tray at a
-     time (showTray), each its own scroll region so one wheel gesture moves one region.
+     time (setOpenTray), each its own scroll region so one wheel gesture moves one region.
      Every metric is the edge's rather than either tray's — a reader who has both keys
      should not find two different regions where they learned one — and it is stated once
      here for both. It used to be stated twice, in two rules with every declaration
      duplicated, and by the time anyone looked one copy was carrying a literal 300 where
      the other read the constant; what the two trays differ in is the row, below. */
   .lf-tray-panel { position: fixed; top: var(--lf-banner-h); left: 0; bottom: 0;
-    z-index: 8900; width: var(--lf-tray-w); background: var(--card);
+    z-index: 8900; width: var(--lf-tray-slot-width); background: var(--card);
     border-right: 1px solid var(--rule); display: none; flex-direction: column;
     padding-bottom: var(--lf-safe-bottom); padding-left: var(--lf-safe-left); }
   .lf-tray-panel.open { display: flex; }
-  /* A modal workspace takes the whole window: the banner is one of the inert siblings,
+  /* A covering auxiliary surface takes the whole window: the banner is one of the inert siblings,
      not an available strip above it. Its shared scrim therefore stands above the banner
      and below the active surface. Chrome-owned targeting and native top-layer dialogs
-     keep their higher planes so a command inside the workspace can still show its aim. */
-  .lf-workspace-scrim { position: fixed; inset: 0;
+     keep their higher planes so a command inside the auxiliary surface can still show its aim. */
+  .lf-auxiliary-scrim { position: fixed; inset: 0;
     z-index: 9010; background: color-mix(in srgb, var(--ink) 24%, transparent); }
-  .lf-workspace-scrim[hidden] { display: none; }
-  :is(.lf-tray-panel, .lf-panel)[aria-modal="true"] { z-index: 9020; }
+  .lf-auxiliary-scrim[hidden] { display: none; }
+  :is(.lf-tray-panel, .lf-thread-panel)[aria-modal="true"] { z-index: 9020; }
   /* The rows scroll in a box of their own rather than in the tray, which is the comment
      panel's shape (.lf-threads) reflected, and here it is what lets the edge exist at
      all: a scroll container clips to its padding box, so an edge straddling the border
@@ -1078,12 +1027,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     color: var(--ok-ink); }
   .lf-asks[data-lf-complete] { border-color: var(--ok);
     background: var(--ok-tint); color: var(--ok-ink); }
-  /* Version news remains a legible address at every width. When the row runs out of
+  /* Version news remains a legible control at every width. When the row runs out of
      room the shelf above scrolls; clipping the one control instead left a visible
      eighteen-pixel button containing none of its words. */
   .lf-latest-chip { background: var(--warn-tint); border: 1px solid var(--warn); color: var(--warn-ink); border-radius: 6px; padding: 3px 8px; flex: none; }
-  .lf-panel { position: fixed; inset: var(--lf-banner-h) 0 0 auto;
-    width: var(--lf-panel-w); height: auto; max-width: none; max-height: none; margin: 0;
+  .lf-thread-panel { position: fixed; inset: var(--lf-banner-h) 0 0 auto;
+    width: var(--lf-thread-panel-width); height: auto; max-width: none; max-height: none; margin: 0;
     box-sizing: border-box;
     z-index: 8900; color: var(--ink); font: inherit;
     background: var(--card); border: 0; border-left: 1px solid var(--rule); display: none;
@@ -1100,8 +1049,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
        sides are the tray's, mirrored: this sheet takes the right inset and that one the
        left, and both take the bottom. */
     padding: 0 var(--lf-safe-right) var(--lf-safe-bottom) 0; }
-  .lf-panel[open] { display: flex; }
-  /* A covering panel shares the workspace scrim with the trays. A beside panel leaves
+  .lf-thread-panel[open] { display: flex; }
+  /* A covering panel shares the auxiliary scrim with the trays. A beside panel leaves
      that scrim hidden, so this non-modal dialog needs no ::backdrop of its own. */
   /* An edge, offered as a thing to take hold of — the thread panel's on the right of
      the page, the trays' on the left, and nothing here knows which it is drawing except
@@ -1148,7 +1097,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      drag that follows it. */
   .lf-edge:hover::before, .lf-edge:is(:focus-visible, .lf-focus-visible)::before { opacity: 1; }
   .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: edge; }
-  .lf-panel-head, .lf-tray-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
+  .lf-thread-panel-head, .lf-tray-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-weight: 600; }
   /* The words in here, against the apparatus the root has already answered for: a reply
      and the passage it is about. A quote is the page's own words and a message is
      somebody's, so a reader copying either is copying what was said rather than the
@@ -1235,7 +1184,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-threads-frame { flex: 1; min-height: 0; display: grid; }
   .lf-threads-frame::after, .lf-threads { grid-area: 1 / 1; min-height: 0; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
-    --lf-list-inset: 10px; padding: var(--lf-list-inset) 14px; --lf-frame: 1;
+    --lf-list-inset: 10px; padding: var(--lf-list-inset) 14px; --lf-block-frame: 1;
     scroll-padding: calc(var(--lf-head-room, 0px) + var(--here-ring-room)) 0
       var(--here-ring-room); }
   /* An Escape rung lands on the list (general box → list). The list's pinned headings
@@ -1292,7 +1241,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-thread, .lf-going { --lf-thread-pad: 8px; position: relative;
     border: 1px solid transparent; border-block-end-color: var(--rule);
     padding: var(--lf-thread-pad); margin-bottom: 8px;
-    --lf-frame: 1; }
+    --lf-block-frame: 1; }
   /* The panel half of the mark the pointer is indicating (paintHover). The quote is
      the bounded panel representation of that passage; painting the card made a long
      conversation one off-screen wash. The fallback keeps a custom theme without the
@@ -1330,7 +1279,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-quote { margin: 0 0 8px; padding: 2px 8px 2px 12px;
     border-inline-start: 3px solid var(--mark-ink); color: var(--muted);
     font-style: italic; cursor: pointer; overflow-wrap: anywhere; }
-  /* The thread header owns its address and settlement action. Its columns keep their
+  /* The thread header owns its quoted target and settlement action. Its columns keep their
      complete hit boxes disjoint. */
   .lf-thread-head { display: grid; grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 8px; align-items: stretch; margin-bottom: 8px; }
@@ -1394,7 +1343,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* The foot is a column of its own so the composer and the page's reaction strip keep
      the flex-item margins they had as the panel's own children, and so the one box the
      chrome measures for its lift is the one the reader sees standing there. */
-  .lf-panel-foot { display: flex; flex-direction: column; flex: none; }
+  .lf-thread-panel-foot { display: flex; flex-direction: column; flex: none; }
   /* Every composer gives its field the row; its submit action lives inside that field. */
   .lf-general { display: flex; gap: 6px; align-items: flex-end; }
   .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
@@ -1424,7 +1373,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      raised over the reader's sentence. Where a control stands decides which it
      wears. In the runtime's own furniture — the banner, the panel, the composer — a
      press is a .lf-btn and looks like one; beside page content it is the shared
-     .lf-margin-element.
+     .lf-margin-entry.
 
      The shadow is the one thing this control adds, and it earns it: this response
      control floats over the page's own content rather than standing in the empty rail,
@@ -1558,9 +1507,9 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   @media (hover: none) {
     .lf-react-strip > .lf-react-trigger { opacity: 1; }
   }
-  .lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]) { border-color: transparent;
+  .lf-react-palette > .lf-react:not(.lf-margin-entry, [aria-pressed="true"]) { border-color: transparent;
     background: transparent; color: var(--muted); }
-  .lf-react-palette > .lf-react:not(.lf-margin-element, [aria-pressed="true"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-busy="true"]) {
+  .lf-react-palette > .lf-react:not(.lf-margin-entry, [aria-pressed="true"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-busy="true"]) {
     border-color: var(--border-2); background: var(--chip); color: var(--ink-2); }
   .lf-fab-bar .lf-react-palette > .lf-response-action:not([aria-pressed="true"]) {
     background: var(--card); }
@@ -1645,14 +1594,14 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-msg-body.lf-suggest-body { background: var(--add-tint); padding: 4px 8px;
     border-radius: 6px; white-space: pre-wrap; }
   .lf-live { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .lf-shortcut-reference { position: fixed; z-index: 9300; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  .lf-command-reference { position: fixed; z-index: 9300; top: 50%; left: 50%; transform: translate(-50%, -50%);
     width: min(520px, calc(100vw - 32px - var(--lf-safe-left) - var(--lf-safe-right)));
     max-height: min(80dvh, calc(100dvh - var(--lf-safe-top) - var(--lf-safe-bottom) - 32px));
     overflow: hidden; display: none; margin: 0;
     background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
     box-shadow: 0 12px 32px var(--shade); padding: 14px 18px; }
-  .lf-shortcut-reference.open { display: flex; flex-direction: column; }
-  .lf-shortcut-reference::backdrop { background: color-mix(in srgb, var(--ink) 24%, transparent); }
+  .lf-command-reference.open { display: flex; flex-direction: column; }
+  .lf-command-reference::backdrop { background: color-mix(in srgb, var(--ink) 24%, transparent); }
   .lf-media-viewer { position: fixed; inset: 0; z-index: 9400;
     width: min(960px, calc(100vw - var(--lf-safe-left) - var(--lf-safe-right) - 32px));
     height: min(82dvh, 760px); box-sizing: border-box; margin: auto; padding: 0;
@@ -1669,51 +1618,51 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     display: grid; place-items: center; padding: 12px; background: var(--paper); }
   .lf-media-viewer-stage img { display: block; max-width: 100%; max-height: 100%;
     object-fit: contain; }
-  .lf-shortcut-reference-head { display: flex; align-items: center; justify-content: space-between;
+  .lf-command-reference-head { display: flex; align-items: center; justify-content: space-between;
     gap: 12px; margin-bottom: 8px; }
-  .lf-shortcut-reference-title { font-weight: 600; }
-  .lf-shortcut-reference-close { flex: none; }
-  .lf-shortcut-reference-search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px;
+  .lf-command-reference-title { font-weight: 600; }
+  .lf-command-reference-close { flex: none; }
+  .lf-command-reference-search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px;
     border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
     color: var(--ink); }
-  .lf-shortcut-reference-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: help-search; outline-offset: 1px; }
-  .lf-shortcut-reference-meta { min-height: 1.2em; margin-top: 6px; color: var(--muted);
+  .lf-command-reference-search:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: help-search; outline-offset: 1px; }
+  .lf-command-reference-meta { min-height: 1.2em; margin-top: 6px; color: var(--muted);
     font-size: var(--t-6); }
-  .lf-shortcut-reference-results { min-height: 0; overflow-y: auto; }
-  .lf-shortcut-reference-empty { padding: 20px 0 8px; color: var(--muted); text-align: center; }
-  .lf-shortcut-reference h3 { margin: 12px 0 4px; font-size: var(--t-6); font-weight: 600;
+  .lf-command-reference-results { min-height: 0; overflow-y: auto; }
+  .lf-command-reference-empty { padding: 20px 0 8px; color: var(--muted); text-align: center; }
+  .lf-command-reference h3 { margin: 12px 0 4px; font-size: var(--t-6); font-weight: 600;
     text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-  .lf-shortcut-reference table { display: table; width: 100%; table-layout: auto;
+  .lf-command-reference table { display: table; width: 100%; table-layout: auto;
     border-collapse: collapse; }
-  .lf-shortcut-reference td { padding: 3px 0; vertical-align: top; }
-  .lf-shortcut-reference tr.lf-sequence-control td { padding-top: 8px;
+  .lf-command-reference td { padding: 3px 0; vertical-align: top; }
+  .lf-command-reference tr.lf-sequence-command td { padding-top: 8px;
     border-top: 1px solid var(--rule); }
-  .lf-shortcut-reference td:first-child { width: 104px; padding-right: 8px; white-space: nowrap; }
-  .lf-shortcut-reference-binding-matches .lf-shortcut-reference-action {
+  .lf-command-reference td:first-child { width: 104px; padding-right: 8px; white-space: nowrap; }
+  .lf-command-reference-binding-matches .lf-command-reference-action {
     display: flex; align-items: baseline;
     justify-content: space-between; gap: 8px; }
-  .lf-shortcut-reference-binding-matches .lf-shortcut-reference-command { flex: 1; width: auto; }
-  .lf-shortcut-reference-scope { flex: none; color: var(--muted); font-size: var(--t-6); }
+  .lf-command-reference-binding-matches .lf-command-reference-command { flex: 1; width: auto; }
+  .lf-command-reference-scope { flex: none; color: var(--muted); font-size: var(--t-6); }
   @media (max-width: 640px) {
-    .lf-shortcut-reference-binding-matches .lf-shortcut-reference-action { display: block; }
-    .lf-shortcut-reference-binding-matches .lf-shortcut-reference-command { width: 100%; }
-    .lf-shortcut-reference-binding-matches .lf-shortcut-reference-scope {
+    .lf-command-reference-binding-matches .lf-command-reference-action { display: block; }
+    .lf-command-reference-binding-matches .lf-command-reference-command { width: 100%; }
+    .lf-command-reference-binding-matches .lf-command-reference-scope {
       display: block; margin-top: 1px; }
   }
   @media (max-width: 360px) {
-    .lf-shortcut-reference .lf-key-label > kbd {
+    .lf-command-reference .lf-key-label > kbd {
       width: max-content; max-width: 132px; height: auto;
-      min-height: var(--lf-key-box); padding-block: 1px; line-height: 1.3;
+      min-height: var(--lf-key-badge-size); padding-block: 1px; line-height: 1.3;
       white-space: normal; }
   }
-  .lf-shortcut-reference-command { width: 100%; margin: -3px -6px; padding: 3px 6px;
+  .lf-command-reference-command { width: 100%; margin: -3px -6px; padding: 3px 6px;
     border: 0; border-radius: 4px; background: transparent; color: inherit;
     font: inherit; text-align: left; cursor: pointer; }
-  .lf-shortcut-reference-command:is(:hover, :focus-visible),
-  .lf-shortcut-reference-command[data-lf-selected="true"] { background: var(--chip); }
-  .lf-shortcut-reference-command:focus-visible { outline: var(--here-ring);
+  .lf-command-reference-command:is(:hover, :focus-visible),
+  .lf-command-reference-command[data-lf-selected="true"] { background: var(--chip); }
+  .lf-command-reference-command:focus-visible { outline: var(--here-ring);
     --lf-here-ring: help-command; outline-offset: 1px; }
-  .lf-shortcut-reference-command[data-lf-available="false"] { color: var(--muted); }
+  .lf-command-reference-command[data-lf-available="false"] { color: var(--muted); }
   .lf-page-map-toggle { display: none; }
   .lf-margin-preview { position: fixed;
     z-index: 9150; width: min(320px, calc(100vw - 24px));
@@ -1733,21 +1682,41 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
       calc(100vh - var(--lf-banner-h) - 16px)); margin: 0; }
   .lf-margin-preview-head, .lf-page-map-head { display: flex; align-items: center;
     gap: 8px; }
+  .lf-margin-preview[data-lf-thread] .lf-margin-preview-head {
+    align-items: flex-start; }
   .lf-page-map-head > strong { flex: 1; }
   .lf-margin-preview-title { flex: 1; min-width: 0; font-size: var(--t-5);
     line-height: 1.35; }
+  .lf-margin-preview[data-lf-thread] .lf-margin-preview-title {
+    padding-inline-end: calc(max(28px, var(--aim-floor)) + 4px); }
   .lf-margin-preview-close { flex: none; }
+  .lf-margin-preview-nav { display: flex; align-items: center; justify-content: flex-end;
+    gap: 4px; margin-top: 5px; color: var(--muted-2); font-size: var(--t-6); }
+  .lf-margin-preview-nav[hidden] { display: none; }
+  .lf-margin-preview-position { margin-inline-end: 2px; }
+  .lf-margin-preview-step { --lf-icon-action-hit: 28px; border: 0;
+    background: transparent; color: var(--muted); }
+  .lf-margin-preview-step:not(:disabled):hover { background: var(--chip);
+    color: var(--ink); }
   .lf-margin-preview-list { display: grid; gap: 4px; margin-top: 10px; }
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
   .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
   .lf-margin-thread .lf-say { align-items: stretch; }
   .lf-margin-thread .lf-say textarea { min-width: 0; }
+  .lf-margin-preview[data-lf-thread] .lf-margin-thread-body > .lf-conversation-thread {
+    position: static; }
+  .lf-margin-preview[data-lf-thread] .lf-conversation-thread > .lf-thread-head {
+    inset-block-start: 12px;
+    inset-inline-end: calc(12px + max(28px, var(--aim-floor)) + 4px); }
+  .lf-margin-preview[data-lf-thread] .lf-conversation-thread:has(> .lf-thread-head) >
+      .lf-conversation-msg:first-of-type > .lf-conversation-head {
+    min-height: 0; padding-inline-end: 0; align-items: baseline; }
   .lf-page-map-action { width: 100%; min-width: 0;
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
     color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
-  .lf-page-map-action:is(:hover, :focus-visible) { background: var(--chip); }
+  .lf-page-map-action:is(:hover, :focus-visible) { background: var(--lf-agent-tint, var(--chip)); }
   .lf-page-map-action .lf-margin-kind { width: 16px; height: 16px;
     align-self: center; fill: none; stroke: currentColor; stroke-width: 1.5;
     stroke-linecap: round; stroke-linejoin: round; }
@@ -1763,7 +1732,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-page-map-action:focus-visible {
     outline: var(--here-ring); --lf-here-ring: page-map-action;
     outline-offset: calc(-1 * var(--here-ring-w)); }
-  .lf-page-map-sheet { position: fixed; z-index: 9300; width: min(560px, calc(100vw - 24px));
+  .lf-page-map-dialog { position: fixed; z-index: 9300; width: min(560px, calc(100vw - 24px));
     max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
     border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
     color: var(--ink); box-shadow: 0 18px 54px var(--shade); }
@@ -1774,8 +1743,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      and off the bottom edge, and its own focus ring was drawn outside the card. Said on
      [open] because the author sheet would otherwise beat the UA's display:none for a
      dialog that is shut. */
-  .lf-page-map-sheet[open] { display: flex; flex-direction: column; }
-  .lf-page-map-sheet::backdrop { background: color-mix(in srgb, var(--ink) 26%, transparent); }
+  .lf-page-map-dialog[open] { display: flex; flex-direction: column; }
+  .lf-page-map-dialog::backdrop { background: color-mix(in srgb, var(--ink) 26%, transparent); }
   .lf-page-map-search { width: 100%; box-sizing: border-box; margin-top: 10px;
     padding: 7px 9px; border: 1px solid var(--border-2); border-radius: var(--r);
     background: var(--paper); color: var(--ink); font: inherit; }
@@ -1789,12 +1758,12 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   .lf-page-map-actions { display: grid; gap: 2px; }
   @media (max-width: 899px) {
     .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
-    .lf-page-map-sheet { inset: auto 8px 8px; width: calc(100vw - 16px);
+    .lf-page-map-dialog { inset: auto 8px 8px; width: calc(100vw - 16px);
       max-height: min(82vh, 720px); margin: 0; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
     .lf-page-map-action { min-height: 44px; }
   }
   @media (forced-colors: active) {
-    .lf-margin-preview, .lf-page-map-sheet { border: 1px solid CanvasText; box-shadow: none; }
+    .lf-margin-preview, .lf-page-map-dialog { border: 1px solid CanvasText; box-shadow: none; }
     .lf-page-map-action:focus-visible {
       outline: 2px solid Highlight; }
   }
@@ -1818,22 +1787,23 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     max-width: calc(100vw - var(--lf-shortcut-bar-right, 0px) - 36px
       - var(--lf-safe-left) - var(--lf-safe-right));
     overflow: hidden; white-space: nowrap; }
-  .lf-shortcut-bar[data-lf-wrap="true"] { width: max-content; flex-wrap: wrap;
+  .lf-shortcut-bar[data-lf-multiline="true"] { width: max-content; flex-wrap: wrap;
     row-gap: 6px; align-items: baseline; }
   .lf-shortcut-bar:not(:has(> :not([hidden]))) { display: none; }
   .lf-bottom-status { position: fixed;
     right: calc(18px + var(--lf-safe-right) + var(--lf-shortcut-bar-right, 0px));
     bottom: calc(14px + var(--lf-safe-bottom));
-    z-index: 8940; pointer-events: none;
+    /* Passive feedback remains visible above a covering auxiliary surface. */
+    z-index: 9030; pointer-events: none;
     max-width: calc(100vw - var(--lf-shortcut-bar-right, 0px) - 36px
       - var(--lf-safe-left) - var(--lf-safe-right));
-    width: max-content; min-height: calc(var(--lf-key-box) + 12px); align-content: center;
+    width: max-content; min-height: calc(var(--lf-key-badge-size) + 12px); align-content: center;
     white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis; }
-  .lf-bottom-status:not(:has(> .lf-context-status:not([hidden]),
+  .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]),
       > .lf-walk-position:not([hidden]), > .lf-notice.show)) { display: none; }
   .lf-walk-position { font-variant-numeric: tabular-nums; }
-  .lf-context-status { white-space: normal; }
+  .lf-go-to-status { white-space: normal; }
   .lf-bottom-status:has(> .lf-walk-position[data-lf-boundary], > .lf-notice.show) {
     border-color: var(--accent); background: var(--accent); color: var(--card); }
   .lf-walk-position[hidden] { display: none; }
@@ -1841,11 +1811,8 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     white-space: normal; min-width: 0; }
   .lf-notice.show { display: block; }
   .lf-bottom-status:has(> .lf-notice.show) > :not(.lf-notice) { display: none; }
-  .lf-bottom-status:has(> .lf-context-status:not([hidden])) > .lf-walk-position {
+  .lf-bottom-status:has(> .lf-go-to-status:not([hidden])) > .lf-walk-position {
     display: none; }
-  @media screen and (width <= 840px) {
-    .lf-bottom-status { right: auto; left: calc(18px + var(--lf-safe-left)); }
-  }
   /* A touch device has no keyboard hints to advertise, so the resting line stands down
      whole rather than shrinking. Every hint on it names a key the reader cannot press,
      and the box they cost stands over the words and the controls of a page whose window
@@ -1858,36 +1825,36 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   @media (pointer: coarse) {
     .lf-shortcut-bar { display: none; }
   }
-  .lf-shortcut-bar .lf-key { display: inline-flex; gap: 5px; align-items: baseline; }
-  .lf-shortcut-bar .lf-key[hidden] { display: none; }
-  .lf-shortcut-bar .lf-sequence-control { margin-inline-start: 4px;
+  .lf-shortcut-bar .lf-shortcut { display: inline-flex; gap: 5px; align-items: baseline; }
+  .lf-shortcut-bar .lf-shortcut[hidden] { display: none; }
+  .lf-shortcut-bar .lf-sequence-command { margin-inline-start: 4px;
     padding-inline-start: 12px; border-inline-start: 1px solid var(--rule); }
   /* The chrome's own step boxes: the shortcut bar's sequences and its More key, and the
      reference's routes. Every element wearing these stands inside the runtime's
-     container, so the rules do too; the box is the one `.lf-address` states at
+     container, so the rules do too; the box is the one `.lf-key-badge` states at
      document level, and the two lists stay identical. */
-  .lf-key-sequence > kbd, .lf-key-more kbd { box-sizing: border-box;
-    min-width: var(--lf-key-box); height: var(--lf-key-box); padding: 0 4px;
+  .lf-binding-sequence > kbd, .lf-shortcut-more kbd { box-sizing: border-box;
+    min-width: var(--lf-key-badge-size); height: var(--lf-key-badge-size); padding: 0 4px;
     border: 1px solid var(--border-2); border-radius: 4px; background: var(--chip);
     color: var(--ink-2); font-family: var(--mono); font-size: var(--t-6);
     line-height: 1.478; text-align: center; white-space: nowrap;
     display: inline-flex; align-items: center; justify-content: center; }
-  .lf-key-more kbd[hidden] { display: none; }
-  .lf-key-sequence { display: inline-flex; align-items: center; gap: 1px;
+  .lf-shortcut-more kbd[hidden] { display: none; }
+  .lf-binding-sequence { display: inline-flex; align-items: center; gap: 1px;
     white-space: nowrap; }
-  .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: var(--accent);
+  .lf-binding-sequence > kbd[data-lf-sequence-step-state="pressed"] { border-color: var(--accent);
     background: var(--accent); color: var(--card); }
-  .lf-key-more { display: inline-flex; gap: 5px; align-items: baseline; flex: none;
+  .lf-shortcut-more { display: inline-flex; gap: 5px; align-items: baseline; flex: none;
     pointer-events: auto; margin: -3px -4px; padding: 3px 4px; border: 0;
     border-radius: 4px; background: none; color: inherit; font: inherit; cursor: pointer; }
-  .lf-key-more:hover { color: var(--ink-2); }
+  .lf-shortcut-more:hover { color: var(--ink-2); }
   /* Inside, because the line clips: the button pulls itself out of the row by 3px so
      its own padding does not grow the line, and a ring drawn a further pixel out lands
      past the line's padding box, which overflow: hidden cuts. A control packed into
      a list states its own inset (theme.css, --here-ring) — the joined option group does
      the same — and here the line's own border is what stands
      the whole thing off the page. */
-  .lf-key-more:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: key-more;
+  .lf-shortcut-more:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: key-more;
     outline-offset: calc(-1 * var(--here-ring-w)); }
   /* Design mode: the reader is commenting on the layer rather than the page, and for
      as long as they are the page shows its bones. Every item — a widget, a section, a
@@ -1896,7 +1863,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      outside the border box so a thread's mark, one pixel inside it, still shows
      beside. Every item but a widget's parts wears its name above the box's corner
      too — the tag and id a fix is written against, the words the composer and the
-     thread will carry — and the parts (a card, an option, a milestone: what x-parent
+     thread will carry — and the parts (a card, an option, a milestone: what x-owners
      declares) keep the hairline alone and are named under the pointer, or a board
      would wear a tag on every card and say nothing. Dashed rather than solid because
      a legend is structural while the solid rail is the annotation's (.lf-mark-el).
@@ -1905,47 +1872,52 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
      edge as well. Nothing here is something to press: pointer-events stands down so a
      click still lands on the item the box outlines. */
-  /* Predictable numeric addresses belong to local Ask controls. */
-  .lf-addresses { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
-  .lf-addresses > .lf-address { position: absolute; display: block;
+  /* Predictable numeric binding badges belong to local Ask controls. */
+  .lf-key-badges { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
+  .lf-key-badges > .lf-key-badge { position: absolute; display: block;
     transform: translate(-50%, -100%); }
-  /* Ask addresses sit on the answer control's upper-left corner. Unlike a route name
+  /* Ask binding badges sit on the answer control's upper-left corner. Unlike a route name
      above prose, the single digit is a local label for the control it touches. */
-  .lf-ask-addresses > .lf-ask-address { transform: translate(-50%, -50%); }
-  /* Item selection and go-to navigation both give visible targets generated, prefix-free
-     names for the few seconds their mode stands. Every hint remains visible: the face is
+  .lf-ask-binding-badges > .lf-ask-binding-badge { transform: translate(-50%, -50%); }
+  /* The Target chooser and Go-to sequence both give visible targets generated, prefix-free
+     names while their interaction stands. Every hint remains visible: the face is
      the route itself, not a reminder of a predictable ordinal. */
-  .lf-targets { position: fixed; inset: 0; z-index: 9070; pointer-events: none; }
-  .lf-targets > .lf-target-hint { position: absolute; display: block;
+  .lf-target-chooser-hints, .lf-go-to-hints {
+    position: fixed; inset: 0; z-index: 9070; pointer-events: none;
+  }
+  :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint {
+    position: absolute; display: block;
     min-width: 0; height: auto; padding: 0; border: 0; background: transparent;
     transform: translate(-50%, -50%); }
-  .lf-targets > .lf-target-hint.lf-in { transform: translate(-50%, 0); }
+  :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint.lf-in {
+    transform: translate(-50%, 0);
+  }
   /* The hint the keyboard is browsing is where the reader is standing in this mode, so
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
      focus has no outline state to hang it on. */
-  .lf-targets > .lf-target-hint.lf-current { font-weight: 700;
+  :is(.lf-target-chooser-hints, .lf-go-to-hints) > .lf-key-hint.lf-current { font-weight: 700;
     --lf-here-ring: target-hint; box-shadow: var(--here-shadow) var(--accent); }
   /* Search has one active result, painted as a quiet wash rather than a second native
      selection. The real Selection is made only on Enter, when the ordinary comment
      surface takes over. One inset line survives over both light and dark authored fills
      without changing the page's layout or wrapping its words. */
-  .lf-target-match { position: absolute; box-sizing: border-box; pointer-events: none;
+  .lf-page-search-match { position: absolute; box-sizing: border-box; pointer-events: none;
     background: color-mix(in srgb, var(--accent) 17%, transparent);
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent); }
-  .lf-target-search { position: fixed; z-index: 9080;
+  .lf-page-search { position: fixed; z-index: 9080;
     top: calc(var(--lf-banner-h) + 10px); left: 50%; transform: translateX(-50%);
     width: min(390px, calc(100vw - 28px)); box-sizing: border-box;
     display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
     gap: 10px; padding: 7px; border: 1px solid var(--border-2);
     border-radius: var(--r); background: var(--card);
     box-shadow: 0 8px 24px var(--shade); }
-  .lf-target-search[hidden] { display: none; }
-  .lf-target-search-box { min-width: 0; box-sizing: border-box; font: inherit;
+  .lf-page-search[hidden] { display: none; }
+  .lf-page-search-box { min-width: 0; box-sizing: border-box; font: inherit;
     padding: 6px 8px; border: 1px solid var(--border-2); border-radius: 5px;
     background: var(--paper); color: var(--ink); }
-  .lf-target-search-box:focus-visible { outline: var(--here-ring);
+  .lf-page-search-box:focus-visible { outline: var(--here-ring);
     --lf-here-ring: target-search; outline-offset: 1px; }
-  .lf-target-search-status { min-width: 58px; color: var(--muted);
+  .lf-page-search-status { min-width: 58px; color: var(--muted);
     font-size: var(--t-6); text-align: right; white-space: nowrap; }
   .lf-legend-box { position: absolute; pointer-events: none;
     box-sizing: border-box;
@@ -1958,7 +1930,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
   /* Under the banner there is no room above the box, so the tag sits inside its
      corner instead. */
   .lf-legend-box.lf-in .lf-legend-tag { bottom: auto; top: 0; border: 0; }
-  .lf-banner:is(.lf-designing, .lf-drawing) {
+  .lf-banner:is([data-lf-design-mode], [data-lf-draw-mode]) {
     background: color-mix(in srgb, var(--accent) 14%, var(--veil)); }
   /* Document-anchored like the box it names (paintInspect adds the scroll), so the
      two move together between the events that re-derive them. */
@@ -1967,22 +1939,21 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
     padding: 1px 6px; border-radius: 3px; font-size: var(--t-6); line-height: 1.5;
     background: var(--accent); color: var(--paper); }
   .lf-inspect.lf-shown { display: block; }
-  /* On a phone the banner is a status line with the page's addresses under it, not a
-     cropped desktop row. The status gets the first line to itself, so the addresses
+  /* On a phone the banner is a status line with the page's controls under it, not a
+     cropped desktop row. The status gets the first line to itself, so the controls
      have the whole width to fit in; what still does not fit folds into the same menu it
-     folds into on a desk. One row of addresses, in the row's one order, at every width
+     folds into on a desk. One row of controls, in the row's one order, at every width
      — the reader who learned this banner on a laptop finds it here.
 
      The status keeps to one line in its own 36px row. Two would be a row that changes
-     height as a sentence ages, which moves every address under it for no gesture; the
-     whole line is a press away in the title, as the wide row's runaway detail is. */
+     height as a sentence ages, which moves every control under it for no gesture; the
+     complete status remains available in its hover title at every width. */
   @media screen and (width <= 840px) {
     .lf-banner { display: grid; grid-template-columns: minmax(0, 1fr);
       grid-template-rows: 36px minmax(0, 1fr); gap: 0;
       padding: var(--lf-safe-top) 0 0; }
     .lf-banner-status { grid-row: 1; padding: 0 calc(14px + var(--lf-safe-right)) 0
         calc(14px + var(--lf-safe-left)); gap: 9px; }
-    .lf-status-text { -webkit-line-clamp: 1; }
     .lf-banner-actions { grid-row: 2; width: 100%; max-width: 100%; min-width: 0;
       justify-content: flex-start;
       padding: 4px calc(10px + var(--lf-safe-right)) 4px
@@ -1998,7 +1969,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
        weight, so it has to carry the floor itself or a touch shelf loses four pixels.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 6px; }
-    /* The address run starts at the left on this two-row banner. Keep its menu under
+    /* The control run starts at the left on this two-row banner. Keep its menu under
        the same door; pinning the menu to the viewport's right made it appear to belong
        to Threads after the Versions door wrapped to the left. Its viewport max-width
        above still keeps the far edge inside the phone. */
@@ -2022,10 +1993,10 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
        named none at all, so Reopen, the page preview, a version's Compare, a command in the
        reference, a quote and the panel's chips were small under both pointers. They
        are all in AIMS now, and AIMS reads --aim-floor, which is where the query lives. */
-    .lf-margin-element { width: 44px; height: 44px; }
+    .lf-margin-entry { width: 44px; height: 44px; }
     :is(.lf-fab-bar, .lf-response-control) { --lf-response-height: 44px; }
     .lf-chip:is(button, [role="button"]) { display: inline-flex; align-items: center; }
-    .lf-key-more { min-width: 44px; min-height: 44px; align-items: center; }
+    .lf-shortcut-more { min-width: 44px; min-height: 44px; align-items: center; }
     .lf-edge { top: 50%; bottom: auto; width: 44px; height: 44px;
       transform: translateY(-50%); }
     .lf-edge[data-lf-side="right"] { left: var(--here-ring-w); }
@@ -2041,7 +2012,7 @@ body:is(.lf-aiming, .lf-design).lf-over-item .lf-mark-el { cursor: pointer; }
      product palette with forced-color-adjust. */
   @media (forced-colors: active) {
     .lf-dot { background: CanvasText !important; }
-    .lf-key-sequence > kbd[data-lf-key-state="pressed"] { border-color: Highlight;
+    .lf-binding-sequence > kbd[data-lf-sequence-step-state="pressed"] { border-color: Highlight;
       background: Highlight; color: HighlightText; }
     .lf-thread:is(:focus-within, .lf-focus-within) { border-color: Highlight !important; }
     :scope :focus-visible { outline: 2px solid Highlight !important;

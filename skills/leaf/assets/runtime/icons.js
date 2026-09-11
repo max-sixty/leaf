@@ -2,7 +2,7 @@
    module: composing/selection.js builds its response button with an icon as it
    evaluates. */
 
-// Built-in margin element faces use one stroked, currentColor icon vocabulary. Reaction tokens
+// Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
 // are authored content and may supply emoji; structural Leaf faces keep their line
 // weight and baseline stable across systems.
 const SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
@@ -22,6 +22,8 @@ const ICONS = {
   dot: '<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
   edit: '<path d="m3.25 10.75-.5 2.5 2.5-.5 6.9-6.9-2-2zM9.25 4.75l2 2"/>',
   more: '<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>',
+  next: '<path d="m6 3.5 4.5 4.5L6 12.5"/>',
+  previous: '<path d="m10 3.5-4.5 4.5 4.5 4.5"/>',
   all: '<path d="M3 4h6M3 8h6M3 12h6M12 8v4M10 10h4"/>',
   pickup: '<path d="M8 2.75v6.5M5.5 6.75 8 9.25l2.5-2.5M3 10.5v2h10v-2"/>',
   question:
@@ -35,7 +37,7 @@ const ICONS = {
   waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>',
 };
 
-export function iconElement(icon, className = "lf-margin-element-icon") {
+export function iconElement(icon, className = "lf-margin-entry-icon") {
   if (!ICONS[icon]) throw new TypeError(`Unknown Leaf icon: ${icon}`);
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 16 16");

@@ -1,7 +1,7 @@
 /* This module owns the machine-leaves tray's rows, presence words, and walk. */
 import { ago, clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
-import { leavesList, openTray, othersBtn, othersPanel } from "./trays.js";
+import { leavesList, trayIsOpen, othersBtn, othersPanel } from "./trays.js";
 import { showNews } from "./banner-shelf.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { walkRows } from "./keyboard/bindings.js";
@@ -17,7 +17,7 @@ let others = [];
 // disagree about whether there is a tray to open. A leaves tray of one — the page the
 // reader is already on — is not worth a control.
 export const leavesOffered = () =>
-  pagePresented() && (others.length > 0 || openTray("leaves"));
+  pagePresented() && (others.length > 0 || trayIsOpen("leaves"));
 export const paintLeavesOffer = () => showNews(othersBtn, leavesOffered());
 
 // The tray's own scope. The walk is the tray's rather than the page's, because ArrowUp

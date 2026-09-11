@@ -31,11 +31,11 @@ import { createDrawingController } from "./runtime/composing/drawing.js";
 import { createDrawingPaint } from "./runtime/composing/drawing-paint.js";
 import { createAim } from "./runtime/composing/aim.js";
 import {
-  createTargetSelection,
-  selectionLayer,
-  selectionSearch,
-} from "./runtime/composing/targets.js";
-import { createStandingItem } from "./runtime/composing/standing.js";
+  createTargetChooser,
+  targetChooserHintLayer,
+  pageSearchSurface,
+} from "./runtime/composing/target-chooser.js";
+import { createStandingElement } from "./runtime/composing/standing.js";
 import {
   createReactionController,
   reactionTokens,
@@ -81,17 +81,17 @@ import {
   mountPanelReadingRegion,
   panelWouldCover,
 } from "./runtime/conversation/panel-elements.js";
-import { createLivingMargin } from "./runtime/living-margin.js";
-import { createPageMap } from "./runtime/page-map.js";
+import { createMarginProjection } from "./runtime/margin-projection.js";
+import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createAskView } from "./runtime/asks/view.js";
 import { askActionLayer, ASK_CONTROL } from "./runtime/asks/view-elements.js";
-import { createDesignController, inspectEl, legendRoot } from "./runtime/design.js";
+import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createChromeLayout } from "./runtime/chrome-layout.js";
 import {
   createPanelVisibility,
-  createPanelWorkspace,
-  PANEL_KEY,
-} from "./runtime/panel-workspace.js";
+  createThreadPanelController,
+  THREAD_PANEL_KEY,
+} from "./runtime/thread-panel.js";
 import {
   createTrays,
   asksPanel,
@@ -100,9 +100,9 @@ import {
   othersPanel,
   reserveListClearance,
 } from "./runtime/trays.js";
-import { createWorkspaceNavigation } from "./runtime/workspace.js";
-import { createWorkspaceModality } from "./runtime/workspace-modality.js";
-import { restoreArrangements } from "./runtime/arrangements.js";
+import { createAuxiliaryChromeNavigation } from "./runtime/auxiliary-chrome.js";
+import { createAuxiliaryModality } from "./runtime/auxiliary-modality.js";
+import { restoreReaderView } from "./runtime/restore-state.js";
 import { readerStore } from "./runtime/storage.js";
 import { createVersionController, versionBtn, versionMenu } from "./runtime/version.js";
 import {
@@ -127,17 +127,20 @@ import {
 } from "./runtime/live-leaves.js";
 import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
 import { replaceClaimState } from "./runtime/updates.js";
-import { createAddress, addressLayer } from "./runtime/keyboard/address.js";
+import {
+  createGoToSequence,
+  goToHintLayer,
+} from "./runtime/keyboard/go-to-sequence.js";
 import { createPageKeys } from "./runtime/keyboard/page.js";
 import { mountKeyboard } from "./runtime/keyboard/controller.js";
 import { registerPageScopes } from "./runtime/keyboard/register.js";
-import { shortcutReferenceDialog } from "./runtime/keyboard/reference.js";
+import { commandReferenceDialog } from "./runtime/keyboard/command-reference.js";
 import {
   bottomChromeBoxes,
-  less,
+  closeShortcutShelf,
   mountShortcutBar,
-  REFERENCE,
-  renderLine,
+  SHORTCUT_HELP,
+  renderShortcutBar,
   shortcutBarEl,
   standingStatusBoxes,
   bottomStatusEl,
@@ -162,11 +165,11 @@ import { FOCUSABLE } from "./runtime/reach.js";
 
 let app;
 const paintVersionApproval = () => paintApproval(app.pendingApprovals());
-let panelWorkspace;
+let threadPanelController;
 let trays;
 let layout;
 let landing;
-let pageMap;
+let pageMapDialog;
 let asks;
 let panelComposer;
 let selectionComposer;
@@ -176,22 +179,22 @@ let aim;
 let targets;
 let reactions;
 let pageGeometry;
-let address;
+let goToSequence;
 let pageKeys;
 
 const panelVisibility = createPanelVisibility();
 const { panelIsOpen } = panelVisibility;
-const workspaceModality = createWorkspaceModality({ chromeRoot, focusable: FOCUSABLE });
+const auxiliaryModality = createAuxiliaryModality({ chromeRoot, focusable: FOCUSABLE });
 const navigation = createNavigation({
   panelIsOpen,
-  coveringWorkspaceScroller: workspaceModality.coveringScroller,
+  coveringAuxiliaryScroller: auxiliaryModality.coveringScroller,
 });
-const panelModality = workspaceModality.register({
+const panelModality = auxiliaryModality.registerAuxiliarySurface({
   surface: panel,
   scroller: () => threadsBox,
   covers: navigation.panelCovers,
   focus: () => threadsBox,
-  dismiss: () => panelWorkspace.setPanel(false),
+  dismiss: () => threadPanelController.setPanel(false),
 });
 
 const targetPaintCaps = {
@@ -220,7 +223,7 @@ const drawingPaint = createDrawingPaint({
   activeDrawing: () => drawing.activeDrawing(),
   draftDrawings: () => drawing.draftDrawings(),
 });
-const design = createDesignController({
+const designMode = createDesignMode({
   pageGeometry: {
     refreshAim: () => pageGeometry.refreshAim(),
     pageShifted: () => pageGeometry.pageShifted(),
@@ -240,17 +243,17 @@ aim = createAim({
   refreshAim: () => pageGeometry.refreshAim(),
   commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
   standDown: (...args) => responseSurface.standDown(...args),
-  drawingIsOn: () => drawing.isDrawing(),
-  design,
+  drawModeActive: () => drawing.drawModeActive(),
+  designMode,
 });
 pageGeometry = createPageGeometry({
   refreshAnchorHover: anchorPaint.refreshHover,
   aim: { isOn: aim.aimIsOn, target: aim.aimedTarget },
   pointer: pointerAt,
-  design,
+  designMode,
   targetPaint: targetPaintCaps,
   shiftDrawings: drawingPaint.shifted,
-  queueLegend: design.queueLegend,
+  queueLegend: designMode.queueLegend,
   activeActionAnchor: () => responseSurface.fabAnchorAt(),
   refreshActionBar: () => responseSurface.refreshFab(),
 });
@@ -262,7 +265,7 @@ const anchorTravel = createAnchorTravel({
   focused,
 });
 landing = createConversationLanding({
-  setPanel: (...args) => panelWorkspace.setPanel(...args),
+  setPanel: (...args) => threadPanelController.setPanel(...args),
   scrollToThread: anchorTravel.scrollToThread,
   revealThread: (id) => revealThread(id, app.refreshNarrowing),
 });
@@ -280,8 +283,8 @@ const anchorControls = createAnchorControls({
 });
 
 const version = createVersionController({
-  designIsOn: design.isOn,
-  paintLegend: design.paintLegend,
+  designModeActive: designMode.active,
+  paintLegend: designMode.paintLegend,
   midComposition: () => app.midComposition(),
   readAndApply: (...args) => app.readAndApply(...args),
   banner,
@@ -295,7 +298,7 @@ const version = createVersionController({
 
 const inputs = createCompositionInputs({
   uploadMedia,
-  inputAddress: () => ({
+  inputHint: () => ({
     box: pageKeys.commentBox(),
     label: activeRowLabel(pageKeys.commentRows()),
   }),
@@ -303,7 +306,7 @@ const inputs = createCompositionInputs({
 
 app = mountApplication({
   createEngagement,
-  isSelecting: () => targets.isSelecting(),
+  targetChooserOpen: () => targets.targetChooserOpen(),
   pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
   wireInput: inputs.wireInput,
   anchorPaint,
@@ -318,9 +321,20 @@ app = mountApplication({
     drawing: pendingDrawing,
   }),
   activeActionAnchor: () => responseSurface.fabAnchorAt(),
+  compositionSurface: {
+    active: () =>
+      composerOpen && responseSurface?.fabAnchorAt()
+        ? { anchor: responseSurface.fabAnchorAt() }
+        : null,
+    node: () => fabBar,
+    open: (...args) => responseSurface.commentOnTarget(...args),
+    outlet: () => responseSurface?.fabInlineOutlet() ?? null,
+    seat: (...args) => responseSurface.seatFab(...args),
+    restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
+  },
   landInConversation: (...args) => landing.landInConversation(...args),
   showThread: (...args) => landing.showThread(...args),
-  setPanel: (...args) => panelWorkspace.setPanel(...args),
+  setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
   panelCovers: () => layout.panelCovers(),
   onConversationChanged: repaint,
@@ -339,18 +353,18 @@ app = mountApplication({
   closeReactionMode: () => reactions.setReact(false),
   sendReaction,
   updateFab: (...args) => responseSurface.updateFab(...args),
-  createLivingMargin,
+  createMarginProjection,
   margin: {
     bottomChromeBoxes,
-    designIsOn: design.isOn,
+    designModeActive: designMode.active,
     comparisonBase: version.comparisonBase,
     comparisonChanges: version.comparisonChanges,
     inlineComparison: version.inlineComparison,
     toggleInlineComparison: version.toggleInlineComparison,
-    leavePageMap: (...args) => pageMap.leavePageMap(...args),
-    openPageMap: (...args) => pageMap.openPageMap(...args),
-    pageMapContextContains: (...args) => pageMap.pageMapContextContains(...args),
-    renderPageMap: (...args) => pageMap.renderPageMap(...args),
+    leavePageMap: (...args) => pageMapDialog.leavePageMap(...args),
+    openPageMap: (...args) => pageMapDialog.openPageMap(...args),
+    pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
+    renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     standsWith: (...args) => asks.standsWith(...args),
     revealConversation,
     goToAsk: (...args) => asks.goToAsk(...args),
@@ -374,7 +388,7 @@ app = mountApplication({
   },
 });
 
-pageMap = createPageMap({
+pageMapDialog = createPageMapDialog({
   activeInMargin: app.margin.pageMapActive,
   activateItem: app.margin.activateMapItem,
   faceFor: app.margin.faceForMap,
@@ -388,8 +402,8 @@ asks = createAskView({
   readingBlock: version.readingBlock,
   focusForNavigation: app.margin.focusForNavigation,
   presentedControl: app.margin.presentedControl,
-  setPanel: (...args) => panelWorkspace.setPanel(...args),
-  showTray: (...args) => trays.showTray(...args),
+  setPanel: (...args) => threadPanelController.setPanel(...args),
+  setOpenTray: (...args) => trays.setOpenTray(...args),
   trayCovers: () => trays.traysEdge.over.matches,
   readableDestination: anchorTravel.readableDestination,
   scrollToElement: anchorTravel.scrollToElement,
@@ -399,24 +413,24 @@ asks = createAskView({
   repaint,
 });
 
-const standingItem = createStandingItem({
+const standingElement = createStandingElement({
   isAskControl: (node) => node?.matches?.(ASK_CONTROL),
   askPlace: asks.askPlace,
   standingIn: asks.standingIn,
 });
 
 panelComposer = createPanelComposer({
-  designIsOn: design.isOn,
+  designModeActive: designMode.active,
   wireInput: inputs.wireInput,
   createPageComment: app.createPageComment,
   showThread: landing.showThread,
-  setPanel: (...args) => panelWorkspace.setPanel(...args),
+  setPanel: (...args) => threadPanelController.setPanel(...args),
   paintDrawings: () => drawingPaint.paint(allThreads()),
 });
 selectionComposer = createSelectionComposer({
   panelIsOpen,
   setReact: (...args) => reactions.setReact(...args),
-  designIsOn: design.isOn,
+  designModeActive: designMode.active,
   marginOpenInlineThread: app.margin.openInlineThread,
   threadTransitionOrigin: app.margin.threadTransitionOrigin,
   anchorStands: (...args) => responseSurface.anchorStands(...args),
@@ -427,7 +441,7 @@ selectionComposer = createSelectionComposer({
   beginFabFocus: (...args) => responseSurface.beginFabFocus(...args),
   refreshFab: (...args) => responseSurface.refreshFab(...args),
   showFab: (...args) => responseSurface.showFab(...args),
-  goAddress: (...args) => address.goAddress(...args),
+  formatGoToAddress: (...args) => goToSequence.formatGoToAddress(...args),
   createComment: app.createComment,
   focusSurface,
   showThread: landing.showThread,
@@ -445,29 +459,30 @@ responseSurface = createResponseSurface({
   responseOptionsAvailable: selectionComposer.responseOptionsAvailable,
   setResponseOptions: selectionComposer.setResponseOptions,
   syncResponseOptions: selectionComposer.syncResponseOptions,
-  designIsOn: design.isOn,
-  designTarget: design.target,
-  openOnDesign: design.open,
+  designModeActive: designMode.active,
+  designTarget: designMode.target,
+  openOnDesign: designMode.open,
   isReactArmed: () => reactions.isReactArmed(),
   reactionContextContains: (...args) => reactions.reactionContextContains(...args),
   reactionTokens,
   setReact: (...args) => reactions.setReact(...args),
   banner,
   bottomChromeBoxes,
-  less: (...args) => less(...args),
+  closeShortcutShelf: (...args) => closeShortcutShelf(...args),
   closeVersionMenu: version.closeVersionMenu,
   versionMenuIsOpen: () => versionMenu.matches(":popover-open"),
   openPageThread: app.margin.openPageThread,
-  isDrawing: () => drawing.isDrawing(),
+  drawModeActive: () => drawing.drawModeActive(),
   refreshConversation: app.refreshConversation,
+  responseHome: chromeRoot,
 });
 reactions = createReactionController({
-  marginElementChoices: app.margin.marginElementChoices,
-  marginElementContextContains: app.margin.marginElementContextContains,
-  foldMarginElementOptions: app.margin.foldMarginElementOptions,
-  openMarginElementOptions: app.margin.openMarginElementOptions,
-  unfoldedMarginElements: app.margin.unfoldedMarginElements,
-  designIsOn: design.isOn,
+  marginEntryChoices: app.margin.marginEntryChoices,
+  marginEntryContextContains: app.margin.marginEntryContextContains,
+  foldMarginEntryOptions: app.margin.foldMarginEntryOptions,
+  openMarginEntryOptions: app.margin.openMarginEntryOptions,
+  unfoldedMarginEntries: app.margin.unfoldedMarginEntries,
+  designModeActive: designMode.active,
   hideComposer: selectionComposer.hideComposer,
   syncResponseOptions: selectionComposer.syncResponseOptions,
   fabAnchorAt: responseSurface.fabAnchorAt,
@@ -477,9 +492,9 @@ reactions = createReactionController({
   showFab: responseSurface.showFab,
   visualActionAnchor: anchorControls.visualActionAnchor,
   standingConversation,
-  standingItem,
+  standingElement,
 });
-targets = createTargetSelection({
+targets = createTargetChooser({
   scrollToRange: anchorTravel.scrollToRange,
   banner,
   bottomChromeBoxes,
@@ -503,8 +518,8 @@ drawing = createDrawingController({
   openAnchoredDrawing: (anchor, drawing) =>
     selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
   openPageDrawing: panelComposer.openPageDrawing,
-  setDesign: design.set,
-  stopSelecting: targets.stopSelecting,
+  setDesignMode: designMode.setActive,
+  closeTargetChooser: targets.closeTargetChooser,
   closeReactionMode: () => reactions.setReact(false),
   banner,
   announce,
@@ -529,7 +544,7 @@ layout = createChromeLayout({
   bottomChromeBoxes,
   reserveListClearance,
   restateTrayEdge: () => trays.traysEdge.state(),
-  syncWorkspaces: workspaceModality.sync,
+  syncAuxiliarySurfaces: auxiliaryModality.sync,
   syncReactLayout: reactions.syncReactLayout,
   refreshFab: responseSurface.refreshFab,
   dockSeats: anchorControls.dockSeats,
@@ -538,12 +553,12 @@ layout = createChromeLayout({
   repaint,
   repaintPage,
 });
-panelWorkspace = createPanelWorkspace({
+threadPanelController = createThreadPanelController({
   visibility: panelVisibility,
   layout,
   elements: { panel, toggleBtn },
   hideTray: ({ remember }) => {
-    if (currentTray()) trays.showTray(null, { remember });
+    if (currentTray()) trays.setOpenTray(null, { remember });
   },
   activeInlineThread: app.margin.activeInlineThread,
   showThread: landing.showThread,
@@ -552,70 +567,70 @@ panelWorkspace = createPanelWorkspace({
   closePreview: app.margin.closePreview,
   syncGeneral: panelComposer.syncGeneral,
   refreshHover: anchorPaint.refreshHover,
-  rememberOpen: (open) => readerStore.set(PANEL_KEY, open ? "1" : "0"),
+  rememberOpen: (open) => readerStore.set(THREAD_PANEL_KEY, open ? "1" : "0"),
   modality: panelModality,
   repaint,
 });
 trays = createTrays({
   landEdge: layout.landEdge,
-  moveShell: layout.moveShell,
+  moveContentFrame: layout.moveContentFrame,
   panelIsOpen,
-  setPanel: panelWorkspace.setPanel,
+  setPanel: threadPanelController.setPanel,
   syncLayout: layout.syncLayout,
   closePreview: app.margin.closePreview,
   leavesOffered,
   paintLeavesOffer,
   renderAsks: asks.renderAsks,
   renderMargin: app.margin.renderMargin,
-  registerModalWorkspace: workspaceModality.register,
+  registerAuxiliarySurface: auxiliaryModality.registerAuxiliarySurface,
 });
-const workspace = createWorkspaceNavigation({
+const auxiliaryChrome = createAuxiliaryChromeNavigation({
   panelIsOpen,
-  setPanel: panelWorkspace.setPanel,
-  showTray: trays.showTray,
+  setPanel: threadPanelController.setPanel,
+  setOpenTray: trays.setOpenTray,
   openInlineThread: app.margin.openInlineThread,
 });
-address = createAddress({
+goToSequence = createGoToSequence({
   panelIsOpen,
   panelCovers: navigation.panelCovers,
   elements: { banner, toggleBtn, shortcutBarEl },
   standingStatusBoxes,
   directDestinations: () => [version.CHOOSER, selectionComposer.KEPT_DRAFT],
-  workspaceState: workspace.workspaceState,
-  restoreWorkspace: workspace.restoreWorkspace,
-  setPanel: panelWorkspace.setPanel,
-  showTray: trays.showTray,
+  captureAuxiliaryChromeState: auxiliaryChrome.captureAuxiliaryChromeState,
+  restoreAuxiliaryChromeState: auxiliaryChrome.restoreAuxiliaryChromeState,
+  setPanel: threadPanelController.setPanel,
+  setOpenTray: trays.setOpenTray,
   scrollToElement: anchorTravel.scrollToElement,
   showThread: landing.showThread,
   leavesOffered,
   othersLinks,
-  activateMarginElement: app.margin.activateMarginElement,
+  activateMarginEntry: app.margin.activateMarginEntry,
   activeInlineThread: app.margin.activeInlineThread,
-  marginElementKind: app.margin.marginElementKind,
-  visibleMarginElements: app.margin.visibleMarginElements,
+  marginEntryKind: app.margin.marginEntryKind,
+  visibleMarginEntries: app.margin.visibleMarginEntries,
   glideTo,
   placeThreadEdge,
   seenScroller: navigation.seenScroller,
   stopGlide,
-  coveringWorkspaceSurface: workspaceModality.coveringSurface,
-  enterPageMap: pageMap.enterPageMap,
-  leavePageMap: pageMap.leavePageMap,
-  pageMapIsActive: pageMap.pageMapIsActive,
+  coveringAuxiliarySurface: auxiliaryModality.coveringSurface,
+  enterPageMap: pageMapDialog.enterPageMap,
+  leavePageMap: pageMapDialog.leavePageMap,
+  pageMapIsActive: pageMapDialog.pageMapIsActive,
 });
 pageKeys = createPageKeys({
   panelIsOpen,
-  coveringWorkspaceSurface: workspaceModality.coveringSurface,
+  coveringAuxiliarySurface: auxiliaryModality.coveringSurface,
   stepReading: navigation.stepReading,
   openAsks: app.openAsks,
-  GO: address.GO,
-  GOTO: address.GOTO,
+  GO_TO_SCOPE: goToSequence.GO_TO_SCOPE,
+  OPEN_GO_TO: goToSequence.OPEN_GO_TO,
   undoable: app.undoable,
   undoLast: app.undoLast,
   unaccountedGesture: app.unaccountedGesture,
-  setPanel: panelWorkspace.setPanel,
-  showTray: trays.showTray,
-  workspaceState: workspace.workspaceState,
-  restoreWorkspace: workspace.restoreWorkspace,
+  setPanel: threadPanelController.setPanel,
+  setOpenTray: trays.setOpenTray,
+  captureAuxiliaryChromeState: auxiliaryChrome.captureAuxiliaryChromeState,
+  restoreAuxiliaryChromeState: auxiliaryChrome.restoreAuxiliaryChromeState,
   widen: () => widen(app.refreshNarrowing),
   landIn: landing.landIn,
   stepAsk: asks.stepAsk,
@@ -634,7 +649,7 @@ pageKeys = createPageKeys({
   dismissFab: responseSurface.dismissFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
   fabOptionsAvailable: responseSurface.fabOptionsAvailable,
-  commentOnItem: responseSurface.commentOnItem,
+  commentOnAddressable: responseSurface.commentOnAddressable,
   focusFabComment: responseSurface.focusFabComment,
   showFabOptions: responseSurface.showFabOptions,
   updateFab: responseSurface.updateFab,
@@ -643,30 +658,31 @@ pageKeys = createPageKeys({
   reactionTokens,
   setReact: reactions.setReact,
   undoSentence: () => undoSentence(app.undoable),
-  designIsOn: design.isOn,
-  setDesign: design.set,
+  designModeActive: designMode.active,
+  setDesignMode: designMode.setActive,
   PAGE_SEARCH: targets.PAGE_SEARCH,
   REPEAT_PAGE_SEARCH: targets.REPEAT_PAGE_SEARCH,
-  SELECT: targets.SELECT,
-  startSelecting: targets.startSelecting,
+  TARGET_CHOOSER_SCOPE: targets.TARGET_CHOOSER_SCOPE,
+  PAGE_SEARCH_SCOPE: targets.PAGE_SEARCH_SCOPE,
+  openTargetChooser: targets.openTargetChooser,
   AIM: aim.AIM,
-  isDrawing: drawing.isDrawing,
-  setDrawing: drawing.setDrawing,
+  drawModeActive: drawing.drawModeActive,
+  setDrawMode: drawing.setDrawMode,
   generalHint: panelComposer.generalHint,
   CHOOSER: version.CHOOSER,
   NEWEST: version.NEWEST,
   VERSIONS: version.VERSIONS,
   activeInlineThread: app.margin.activeInlineThread,
   keyboardRung: app.margin.keyboardRung,
-  standingItem,
+  standingElement,
   actionRow: asks.actionRow,
 });
 const standing = createStanding({
   markHere: asks.markHere,
   paintStanding: anchorPaint.paintStanding,
-  renderLine: () => renderLine(address.addressStatus),
-  paintAddresses: address.paintAddresses,
-  paintTargets: targets.paintTargets,
+  renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),
+  paintGoToHints: goToSequence.paintGoToHints,
+  paintTargetChooserHints: targets.paintTargetChooserHints,
   paintCoreControls: pageKeys.paintCoreControls,
   paintInputs: inputs.paintInputs,
 });
@@ -689,10 +705,10 @@ chromeRoot.append(
   asksPanel,
   panel,
   legendRoot,
-  addressLayer,
+  goToHintLayer,
   askActionLayer,
-  selectionLayer,
-  selectionSearch,
+  targetChooserHintLayer,
+  pageSearchSurface,
   targetPaint.visualMarkLayer,
   drawingPaint.layer,
   targetPaint.targetTraceBox,
@@ -700,8 +716,8 @@ chromeRoot.append(
   fabBar,
   liveEl,
   mediaViewer,
-  shortcutReferenceDialog,
-  workspaceModality.scrim,
+  commandReferenceDialog,
+  auxiliaryModality.scrim,
   bottomStatusEl,
   shortcutBarEl,
   inspectEl,
@@ -721,8 +737,8 @@ mountBanner({
   paintApproval: paintVersionApproval,
 });
 reserveBannerControls();
-registerPageScopes(pageKeys.scopes, REFERENCE, pageKeys.typing, workspaceModality);
-workspaceModality.mount();
+registerPageScopes(pageKeys.scopes, SHORTCUT_HELP, pageKeys.typing, auxiliaryModality);
+auxiliaryModality.mount();
 panelComposer.mount();
 selectionComposer.mount();
 responseSurface.mount();
@@ -735,7 +751,7 @@ anchorPaint.mount();
 anchorControls.mount();
 anchorTravel.mount();
 pageGeometry.mount();
-pageMap.mount(chromeRoot);
+pageMapDialog.mount(chromeRoot);
 asks.mount();
 app.margin.mount();
 app.mountConversation();
@@ -744,17 +760,17 @@ wireThreadLanding();
 wireThreadCards();
 wireNarrowing(app.refreshNarrowing);
 trays.mountTrays();
-panelWorkspace.mountPanelWorkspace();
+threadPanelController.mountThreadPanel();
 layout.mountLayoutObservers();
-address.mountAddress();
+goToSequence.mountGoToSequence();
 mountShortcutBar({
-  setSequence: address.setSequence,
+  setGoToSequence: goToSequence.setGoToSequence,
   setReact: reactions.setReact,
   captureReturnPlace: version.captureReturnPlace,
 });
 mountKeyboard({
-  isSequenceActive: address.isSequenceActive,
-  setSequence: address.setSequence,
+  goToSequenceActive: goToSequence.goToSequenceActive,
+  setGoToSequence: goToSequence.setGoToSequence,
   REACT: reactions.REACT,
   setReact: reactions.setReact,
   captureReturnPlace: version.captureReturnPlace,
@@ -774,7 +790,7 @@ mountRepaint({
 window.leafInteractionGalleryFrame?.mount({
   toggleBtn,
   panelIsOpen,
-  setPanel: panelWorkspace.setPanel,
+  setPanel: threadPanelController.setPanel,
   detachComposer: selectionComposer.detachComposer,
   fabInput,
   openComposer: selectionComposer.openComposer,
@@ -782,7 +798,7 @@ window.leafInteractionGalleryFrame?.mount({
   openInlineThread: app.margin.openInlineThread,
   threadTransitionOrigin: app.margin.threadTransitionOrigin,
   currentTray,
-  showTray: trays.showTray,
+  setOpenTray: trays.setOpenTray,
 });
 
 const initialStateRead = app.beginRead();
@@ -811,12 +827,12 @@ document.addEventListener(PAGE_INTERFACE, (event) =>
 );
 
 if (!containedPage) {
-  restoreArrangements({
+  restoreReaderView({
     commentsEdge: layout.commentsEdge,
     traysEdge: trays.traysEdge,
-    setPanel: panelWorkspace.setPanel,
+    setPanel: threadPanelController.setPanel,
     restoreTrays: trays.restoreTrays,
-    setDesign: design.set,
+    setDesignMode: designMode.setActive,
   });
   letGo();
 }

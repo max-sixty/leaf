@@ -26,7 +26,6 @@ from .files import read_json, write_json
 from .host import host_identity, state_home
 from .leases import adapter_is_live, adapter_lease_path, take_waiter_lease
 from .schema import EVENTS_FILE
-from .server import running_server
 from .service import (
     PageTransaction,
     owned_pages,
@@ -625,19 +624,8 @@ def _offer_delivery(path: Path, queue: dict) -> PreparedDelivery:
             raise RuntimeError("the Codex delivery payload is missing")
         return PreparedDelivery(_prompt(path.stem), payload)
 
-    urls = {}
-    for batch in queue["batches"]:
-        page = batch["page"]
-        if page not in urls:
-            server = running_server(Path(page))
-            urls[page] = server["url"] if server else None
-        batch["url"] = urls[page]
-
     payload = freeze_delivery(
-        [
-            {key: value for key, value in batch.items() if key != "receipted"}
-            for batch in queue["batches"]
-        ],
+        queue["batches"],
         delivery_id=path.stem,
         created_at=queue["created_at"],
     )
@@ -718,13 +706,10 @@ def _append_batch(
     if not fresh:
         return None
 
-    server = running_server(page_dir)
-    url = server["url"] if server else None
     data = batch_data(page_dir, transaction, fresh)
     entry = {
         "page": data["page"],
         "session": session_id,
-        "url": url,
         "through_seq": data["through_seq"],
         "conversations": data["conversations"],
         "handling": data["handling"],

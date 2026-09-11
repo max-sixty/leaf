@@ -4,7 +4,7 @@
 page directory. Leaf's kernel comes first, followed by the bundled default package,
 any explicitly selected packages, the user's package (~/.config/leaf/), and the
 project's package (./.leaf/). Theme stylesheets concatenate in that order, so a package
-can override one token or rule without copying the defaults. Registry entries
+can override one token or rule without copying the defaults. Registry declarations
 merge by top-level name, with a later package replacing one complete entry rather
 than deep-merging its schema; runtime, widget, and vendor files replace by path.
 The page directory itself lives wherever the caller says —

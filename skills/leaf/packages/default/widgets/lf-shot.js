@@ -1,7 +1,7 @@
 /* lf-shot: registered before/after screenshots in one fixed frame.
  *
- * The target's shared margin element shows a split circle: left filled for before, right for after.
- * Enter, Space, and clicks flip the comparison without moving the margin element.
+ * The target's shared margin entry shows a split circle: left filled for before, right for after.
+ * Enter, Space, and clicks flip the comparison without moving the margin entry.
  * Each rail label chooses its own frame. Clicking the image works a transparent native
  * checkbox directly, keeping focus at the clicked frame even when a tall comparison
  * extends beyond the viewport. Every door changes that checkbox; CSS alone chooses the
@@ -18,11 +18,13 @@ import {
   once,
   offer,
   failSoft,
+  isCanonicalMediaUrl,
   commands,
-  marginElement,
+  marginEntry,
   paintKeys,
   relabel,
   registerMarginContribution,
+  scopedMediaUrl,
   selectableOffer,
   settle,
 } from "/runtime/widget-api.js";
@@ -62,7 +64,8 @@ customElements.define(
         frame.dataset.lfState = state;
 
         const img = document.createElement("img");
-        img.src = this.getAttribute(state);
+        const source = this.getAttribute(state);
+        img.src = isCanonicalMediaUrl(source) ? scopedMediaUrl(source) : source;
         img.alt = `${state}: ${alt}`;
         shots.push(img);
         frame.append(img);
@@ -101,7 +104,7 @@ customElements.define(
           caption.setAttribute("aria-pressed", String(state === visible));
         const label = `Show ${box.checked ? "before" : "after"}`;
         this.#button.ariaLabel = `${label} — ${alt}`;
-        marginElement(this.#button, {
+        marginEntry(this.#button, {
           key: "toggle",
           icon: box.checked ? "compare-after" : "compare-before",
           label,

@@ -79,15 +79,12 @@ OVERFLOW_PROPS = ("width", "min-width")
 # would silently declare nothing in the browser, so `version check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
-# The one CSP every page declares, required by `version check` the way the one
-# script tag is. The vendoring promise — an approved page can't change under its
-# user, and can't phone home — held by convention until the browser enforced it:
-# a vendored module or an inline handler could fetch any origin. 'self' is the
-# page directory whole; base-uri and form-action need their own directives because
-# default-src governs only fetches. data: admits the images `version export` inlines;
-# the theme arrives inline in a <style> on export, hence 'unsafe-inline' for styles
-# (scripts stay 'self'-only). Verified over the corpus — every widget, diagram
-# renderer and tokenizer included — before it was required.
+# The one CSP every page declares. The server adds hashes for the runtime bootstrap
+# and authored module blocks to this policy; the source declaration deliberately has
+# none, so opening unserved source never grants inline code authority. 'self' is the
+# immutable page layer whole; base-uri and form-action need their own directives
+# because default-src governs only fetches. data: admits the images `version export`
+# inlines, and the theme arrives inline in a <style> on export.
 PAGE_CSP = (
     "default-src 'self'; base-uri 'none'; form-action 'none'; "
     "img-src 'self' data:; style-src 'self' 'unsafe-inline'"
@@ -100,6 +97,7 @@ FRAME_ANCESTORS_CSP = "frame-ancestors 'none'"
 # module is also allowed beside main because shipped pages use both placements.
 DOCUMENT_WRAPPERS = {"html", "head", "body", "main"}
 HEAD_METADATA_TAGS = {"base", "link", "meta", "script", "style", "title"}
+SCRIPT_URL_ATTRIBUTES = {"action", "formaction", "href", "src", "xlink:href"}
 
 
 class StructParser:
@@ -122,7 +120,18 @@ class StructParser:
         # placement belong to the asset record: parallel lists made one fact several
         # representations and let a later parser edit silently misalign them.
         self.external_scripts = []
-        self.stylesheets = []
+        # Exact text of each inline script, retained for the HTTP projection's CSP
+        # hashes. Validation admits only authored modules; keeping the parser neutral
+        # lets it report the actual attributes on anything else.
+        self.inline_scripts = []
+        # Executable behavior has one visible source form: a module block. Event
+        # attributes and javascript: URLs are recorded here so the static door can
+        # refuse hidden second forms before a reader discovers them by acting.
+        self.executable_attributes = []
+        # Every <link>, whatever relation it declares. Two checks read these — the one
+        # stylesheet a page dresses itself with, and the canonical address only
+        # delivery may name — and indexing the tag answers both from one parse.
+        self.links = []
         # {name, content, line} per <meta name>, lf- declarations and ordinary
         # document metadata alike: one index of what the head names, so a reader
         # after a description does not need a second parse of the same head.
@@ -328,21 +337,34 @@ class StructParser:
 
         in_head = "head" in ancestors
         in_main = "main" in ancestors
-        if tag == "script" and attrs.get("src"):
-            self.external_scripts.append(
+        if tag == "script":
+            script = {
+                "attrs": attrs,
+                "parent": parent_tag,
+                "position": (line, column),
+                "early_head": in_head and before_body,
+                "line": line,
+            }
+            if attrs.get("src"):
+                self.external_scripts.append(script)
+            else:
+                self.inline_scripts.append({**script, "body": element.text})
+        for name, value in attrs.items():
+            if (len(name) > 2 and name.startswith("on")) or (
+                name in SCRIPT_URL_ATTRIBUTES
+                and isinstance(value, str)
+                and "".join(value.split()).lower().startswith("javascript:")
+            ):
+                self.executable_attributes.append(
+                    {"tag": tag, "line": line, "name": name, "value": value}
+                )
+        if tag == "link":
+            self.links.append(
                 {
                     "attrs": attrs,
                     "parent": parent_tag,
-                    "position": (line, column),
                     "early_head": in_head and before_body,
-                }
-            )
-        if tag == "link" and "stylesheet" in (attrs.get("rel") or ""):
-            self.stylesheets.append(
-                {
-                    "attrs": attrs,
-                    "parent": parent_tag,
-                    "early_head": in_head and before_body,
+                    "line": line,
                 }
             )
         if tag == "meta" and attrs.get("name"):
@@ -378,7 +400,9 @@ class StructParser:
             if isinstance(value, str) and value.startswith(f"/{MEDIA_DIR}/")
         )
 
-        if tag in ("template", "noscript"):
+        if tag == "noscript" or (
+            tag == "template" and "data-interaction-page" not in attrs
+        ):
             self.errors.append(
                 f"<{tag}> at line {line}: the browser renders none of its content; "
                 "write it plainly or leave it out"
@@ -407,6 +431,69 @@ class StructParser:
                 self.within[identity] = record
             return record
         return None
+
+    @staticmethod
+    def _record_direct_contents(record: dict, element) -> None:
+        for child in element.children:
+            if isinstance(child, turbohtml.Element):
+                record["children"].append(child.tag)
+                record["direct"].append(child.tag)
+            elif isinstance(child, turbohtml.Text) and child.data.strip():
+                record["text"] = True
+                record["direct"].append("#text")
+        pre = next(
+            (
+                child
+                for child in element.children
+                if isinstance(child, turbohtml.Element) and child.tag == "pre"
+            ),
+            None,
+        )
+        if pre is not None:
+            record["body"] = "".join(
+                child.data
+                for child in pre.children
+                if isinstance(child, turbohtml.Text)
+            )
+
+    def _visit_interaction_page(
+        self,
+        node,
+        *,
+        parent_tag: str,
+        ancestors: tuple,
+        holder: dict | None = None,
+    ) -> None:
+        """Index widget declarations in one inert, separately rendered page."""
+        if isinstance(node, turbohtml.Element):
+            attrs = self._attrs(node)
+            record = None
+            if self._source_element(node) and node.tag.startswith("lf-"):
+                record = self._record_element(
+                    node,
+                    attrs,
+                    parent_tag=parent_tag,
+                    ancestors=ancestors,
+                    holder=holder,
+                )
+                self._record_direct_contents(record, node)
+            next_holder = record or holder
+            next_ancestors = (*ancestors, node.tag)
+            for child in node.children:
+                self._visit_interaction_page(
+                    child,
+                    parent_tag=node.tag,
+                    ancestors=next_ancestors,
+                    holder=next_holder,
+                )
+            return
+        for child in node.children:
+            self._visit_interaction_page(
+                child,
+                parent_tag=parent_tag,
+                ancestors=ancestors,
+                holder=holder,
+            )
 
     def _visit(
         self,
@@ -527,27 +614,7 @@ class StructParser:
 
         next_holder = record or holder
         if record is not None:
-            for child in element.children:
-                if isinstance(child, turbohtml.Element):
-                    record["children"].append(child.tag)
-                    record["direct"].append(child.tag)
-                elif isinstance(child, turbohtml.Text) and child.data.strip():
-                    record["text"] = True
-                    record["direct"].append("#text")
-            pre = next(
-                (
-                    child
-                    for child in element.children
-                    if isinstance(child, turbohtml.Element) and child.tag == "pre"
-                ),
-                None,
-            )
-            if pre is not None:
-                record["body"] = "".join(
-                    child.data
-                    for child in pre.children
-                    if isinstance(child, turbohtml.Text)
-                )
+            self._record_direct_contents(record, element)
 
         for child in element.children:
             if isinstance(child, turbohtml.Element):
@@ -565,6 +632,15 @@ class StructParser:
                     and element.tag not in {"script", "style", "title"}
                 ):
                     self.outside_main.append(f"text in <{element.tag}> at line {line}")
+
+        if element.tag == "template" and "data-interaction-page" in attrs:
+            for child in element.children:
+                self._visit_interaction_page(
+                    child,
+                    parent_tag="template",
+                    ancestors=next_ancestors,
+                    holder=None,
+                )
 
         if element.tag == "style":
             self.css += element.text
@@ -626,6 +702,16 @@ class StructParser:
     def reserved_ids(self) -> list:
         """Ids that trespass on the runtime's own namespace (see reserved_ids_error)."""
         return sorted({i for i in self.all_ids if i.startswith("lf-")})
+
+
+def links_with_rel(links: list[dict], rel: str) -> list[dict]:
+    """The indexed links declaring one relation. `rel` carries a space-separated
+    token list, so a relation is a token in it rather than a substring of it."""
+    return [
+        link
+        for link in links
+        if rel in (link["attrs"].get("rel") or "").lower().split()
+    ]
 
 
 def parse_structure(markup: str) -> StructParser:

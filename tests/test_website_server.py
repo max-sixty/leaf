@@ -84,7 +84,12 @@ class FakeCodexHost:
     def __init__(self):
         self.attached = []
 
-    def attach(self, page_dir: Path, event_id: str) -> str:
+    def attach(self, page_dir: Path, event_id: str) -> str | None:
+        if not website_server.agent_event_pending(page_dir, event_id):
+            return None
+        thread_id = website_server.agent_event_thread(page_dir, event_id)
+        if thread_id is not None:
+            return thread_id
         self.attached.append(page_dir)
         return "codex-thread"
 
@@ -126,7 +131,11 @@ PAGE_SOURCE = """<!doctype html>
     ),
 )
 def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
-    """A crawler reads absolute URLs, and reads them from inside the head."""
+    """An unfurler reads absolute URLs, and reads them from inside the head.
+
+    The canonical link is not here: every Leaf document names its own page root,
+    published or not, so a publication only adds what needs the site's origin.
+    """
     page = {
         "kind": kind,
         "title": 'Choose the "next" fix',
@@ -137,15 +146,20 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         PAGE_SOURCE.encode(), page_root, page
     ).decode()
     head = served[: served.index("</head>")]
-    assert f'<link rel="canonical" href="{url}">' in head
-    assert f'<meta property="og:url" content="{url}">' in head
+    assert 'rel="canonical"' not in head
+    assert f'<meta property="og:url" content="{url}" data-lf-runtime>' in head
     assert (
-        '<meta property="og:image" content="https://leaf.page/media/card.png">' in head
+        '<meta property="og:image" content="https://leaf.page/media/card.png"'
+        " data-lf-runtime>" in head
     )
     assert (
-        '<meta property="og:title" content="Choose the &quot;next&quot; fix">' in head
+        '<meta property="og:title" content="Choose the &quot;next&quot; fix"'
+        " data-lf-runtime>" in head
     )
-    assert '<meta name="twitter:card" content="summary_large_image">' in head
+    assert (
+        '<meta name="twitter:card" content="summary_large_image" data-lf-runtime>'
+        in head
+    )
     # The sitenote is website chrome for the examples, and rides the runtime
     # boundary rather than the head the metadata went into.
     assert ("sitenote.js" in served) is (kind == "example")
@@ -193,11 +207,22 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
                         },
                     },
                     {
+                        "timestamp": 950,
+                        "dataset": "workers",
+                        "source": {
+                            "component": "leaf-agent",
+                            "event": "container_prewarm_completed",
+                            "reference": "123456789012",
+                            "route": "/examples/decision",
+                            "durationMs": 800,
+                        },
+                    },
+                    {
                         "timestamp": 1000,
                         "dataset": "workers",
                         "source": {
                             "component": "leaf-agent",
-                            "event": "workflow_started",
+                            "event": "dispatch_started",
                             "eventId": "reader-event",
                             "reference": "123456789012",
                             "route": "/examples/decision",
@@ -208,7 +233,7 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
                         "dataset": "workers",
                         "source": {
                             "component": "leaf-agent",
-                            "event": "workflow_started",
+                            "event": "dispatch_started",
                             "eventId": "another-event",
                         },
                     },
@@ -217,15 +242,26 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
         }
     }
 
-    assert query_site_agent_logs.safe_records([response], {"reader-event"}) == [
+    assert query_site_agent_logs.safe_records(
+        [response], {"reader-event"}, "123456789012"
+    ) == [
+        {
+            "timestamp": 950,
+            "dataset": "workers",
+            "event": "container_prewarm_completed",
+            "reference": "123456789012",
+            "route": "/examples/decision",
+            "durationMs": 800,
+            "elapsedMs": 0,
+        },
         {
             "timestamp": 1000,
             "dataset": "workers",
-            "event": "workflow_started",
+            "event": "dispatch_started",
             "eventId": "reader-event",
             "reference": "123456789012",
             "route": "/examples/decision",
-            "elapsedMs": 0,
+            "elapsedMs": 50,
         },
         {
             "timestamp": 1200,
@@ -234,7 +270,7 @@ def test_the_agent_log_query_follows_one_event_across_cloudflare_datasets():
             "eventId": "reader-event",
             "durationMs": 125,
             "turnId": "app-turn",
-            "elapsedMs": 200,
+            "elapsedMs": 250,
         },
     ]
 
@@ -287,6 +323,7 @@ def test_the_agent_log_query_deduplicates_a_batched_turn(monkeypatch, capsys):
                 }
             }
         },
+        "123456789012": {"result": {"events": {"events": []}}},
     }
     monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "token")
     monkeypatch.setattr(
@@ -436,6 +473,7 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         tmp_path / "app-server.log",
     )
     process = type("Process", (), {"pid": 41})()
+    monkeypatch.setattr(website_server, "agent_event_pending", lambda *_: True)
     monkeypatch.setattr(host, "_ensure_server", lambda: process)
     monkeypatch.setattr(
         website_server,
@@ -818,6 +856,7 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
     fail_prewarm = threading.Event()
     calls = []
     process = type("Process", (), {"pid": 41})()
+    monkeypatch.setattr(website_server, "agent_event_pending", lambda *_: True)
 
     def ensure_server():
         calls.append(None)
@@ -845,6 +884,54 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
 
     assert attached == ["hosted-thread"]
     assert calls == [None, None]
+
+
+def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
+    host = website_server.WebsiteCodexHost("codex")
+    process = type("Process", (), {"pid": 41})()
+    started = threading.Event()
+    release = threading.Event()
+    second_called = threading.Event()
+    accepted = []
+    start_calls = []
+
+    monkeypatch.setattr(website_server, "agent_event_pending", lambda *_: True)
+    monkeypatch.setattr(
+        website_server,
+        "agent_event_thread",
+        lambda *_: accepted[0] if accepted else None,
+    )
+    monkeypatch.setattr(host, "_ensure_server", lambda: process)
+    monkeypatch.setattr(website_server, "page_claim", lambda page: None)
+
+    def start_thread(*args):
+        start_calls.append(None)
+        started.set()
+        release.wait(timeout=2)
+        accepted.append("hosted-thread")
+        return "hosted-thread"
+
+    monkeypatch.setattr(host, "_start_thread", start_thread)
+    attached = []
+    first = threading.Thread(
+        target=lambda: attached.append(host.attach(page_dir, "reader-event"))
+    )
+
+    def attach_second():
+        second_called.set()
+        attached.append(host.attach(page_dir, "reader-event"))
+
+    second = threading.Thread(target=attach_second)
+    first.start()
+    assert started.wait(timeout=2)
+    second.start()
+    assert second_called.wait(timeout=2)
+    release.set()
+    first.join(timeout=2)
+    second.join(timeout=2)
+
+    assert attached == ["hosted-thread", "hosted-thread"]
+    assert start_calls == [None]
 
 
 def test_the_website_host_prewarms_app_server_in_the_background(monkeypatch):

@@ -25,8 +25,8 @@ from render_harness import (
     told,
 )
 
-ADDRESS_PAGE = leaf_page(
-    "addresses",
+BINDING_BADGE_PAGE = leaf_page(
+    "binding badges",
     """
 <h1 id="h">Two questions, two forms</h1>
 <lf-ask id="cards-decision"><h2>How should the bath be heated?</h2>
@@ -114,7 +114,7 @@ OVER_WORDS = """(el, id) => {
 #
 # The option's width and the opening of its prose come back with the chip, because where
 # the chip belongs is a relation rather than a pinned number. A compact row keeps its
-# address before that opening; a titled card puts it after the opening in the trailing
+# binding badge before that opening; a titled card puts it after the opening in the trailing
 # header-state slot. Both keep it inside the cell and off the authored words.
 INSIDE_ITS_OPTION = """el => {
     const chip = el.getBoundingClientRect();
@@ -261,30 +261,30 @@ session.</p></details>
 )
 # Generated go-to hints, painted in their own transient layer. The code is metadata on the
 # chip because its visible text also carries the ellipsis marking a sequence in progress.
-CHIPS = ".lf-goto-targets > .lf-sequence-address[data-lf-address]"
+CHIPS = ".lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]"
 
 
 def address_codes(page):
     page.evaluate(RENDERED)
     return page.locator(CHIPS).evaluate_all(
-        "chips => chips.map(chip => chip.dataset.lfAddress)"
+        "chips => chips.map(chip => chip.dataset.lfHintCode)"
     )
 
 
-def address_code(page, kind, target, margin_element=None):
-    selector = f'{CHIPS}[data-lf-address-kind="{kind}"][data-lf-address-for="{target}"]'
-    if margin_element:
-        selector += f'[data-lf-address-margin-element="{margin_element}"]'
+def address_code(page, kind, target, margin_entry=None):
+    selector = f'{CHIPS}[data-lf-go-to-kind="{kind}"][data-lf-go-to-target="{target}"]'
+    if margin_entry:
+        selector += f'[data-lf-go-to-margin-entry="{margin_entry}"]'
     chip = page.locator(selector)
     expect(chip).to_have_count(1)
-    code = chip.get_attribute("data-lf-address")
+    code = chip.get_attribute("data-lf-hint-code")
     assert code
     return code
 
 
-def go_to_address(page, kind, target, margin_element=None):
+def go_to_address(page, kind, target, margin_entry=None):
     page.keyboard.press("g")
-    code = address_code(page, kind, target, margin_element)
+    code = address_code(page, kind, target, margin_entry)
     page.keyboard.type(code)
     return code
 
@@ -477,7 +477,7 @@ CONTROL_LABEL_PAGE = leaf_page(
     "labels",
     """
 <h1 id="h">Aviary projects</h1>
-<p id="lede">Two workstreams, one page.</p>
+<p id="lede">Two views, one page.</p>
 <lf-tabs id="projects">
   <lf-tab id="tab-feeders" label="Winter feeders">
     <p id="p-feeders">Two of the four feeders are mounted; the south pair waits on brackets.</p>
@@ -1010,7 +1010,7 @@ def data_projection_page(serve):
         },
         "required": ["id", "source"],
         "additionalProperties": False,
-        "x-content": "none",
+        "x-content": "empty",
         "x-data": {"rows": {"contract": "deployment-rows", "source": "source"}},
         "x-upgrade": True,
         "x-example": ('<lf-feed id="feed-example" source="deployments"></lf-feed>'),

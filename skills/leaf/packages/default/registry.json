@@ -16,14 +16,14 @@
     }
   },
   "lf-ask": {
-    "description": "One complete Ask for the reader: begin with one direct heading stating the question, then include any context or evidence needed to answer it and exactly one non-quoted widget whose entry declares a local Ask through x-awaits or x-request.ask. The nested widget still owns the action or external-request lifecycle and determines whether the Ask is open. The authored heading is the Ask's title: it stays in the document's reading, gives the Asks tray its name, and is where `a`/`A` arrives. Keep an ordinary semantic section around the Ask when the document needs a section landmark. The wrapper adds no frame or caption of its own.",
+    "description": "One complete Ask for the reader: begin with one direct heading stating the question, then include any context or evidence needed to answer it and exactly one non-quoted widget whose declaration names a local Ask through x-awaits or x-request.ask. The nested widget still owns the action or external-request lifecycle and determines whether the Ask is open. The authored heading is the Ask's title: it stays in the document's reading, gives the Asks tray its name, and is where `a`/`A` arrives. Keep an ordinary semantic section around the Ask when the document needs a section landmark. The wrapper adds no frame or caption of its own.",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "prose",
+    "x-content": "markup",
     "x-ask-surface": true,
     "x-upgrade": true,
     "x-verbatim": true,
@@ -46,7 +46,7 @@
       "tip"
     ],
     "additionalProperties": false,
-    "x-content": "prose",
+    "x-content": "markup",
     "x-inline": true,
     "x-says": {
       "tip": "after"
@@ -78,7 +78,7 @@
     },
     "required": ["source", "at"],
     "additionalProperties": false,
-    "x-content": "prose",
+    "x-content": "markup",
     "x-data": {
       "measurement": {
         "contract": "measured-scalar",
@@ -93,8 +93,8 @@
     "x-upgrade": false,
     "x-example": "The import now takes <lf-num source=\"import-latency\" at=\"2026-08-27T09:00:00Z\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
-  "lf-source": {
-    "description": "A file-backed text document supplied through Leaf data. `source` binds the page-owned feed. `snapshot` selects an immutable capture; omit it to follow the current value. `language` colors the source with one of $languages. The capture's label and selected line range appear above the exact text. Put the widget inside ordinary details or an lf-tab when the source should begin collapsed or in a separate view.",
+  "lf-text-document": {
+    "description": "A file-backed text document supplied through Leaf data. `source` binds the page-owned feed. `snapshot` selects an immutable capture; omit it to follow the current value. `language` colors the document with one of $languages. The capture's label and selected line range appear above the exact text. Put the widget inside ordinary details or an lf-tab when the document should begin collapsed or in a separate view.",
     "type": "object",
     "properties": {
       "id": {
@@ -115,7 +115,7 @@
     },
     "required": ["id", "source"],
     "additionalProperties": false,
-    "x-content": "none",
+    "x-content": "empty",
     "x-data": {
       "document": {
         "contract": "text-document",
@@ -125,7 +125,7 @@
     },
     "x-language": "language",
     "x-upgrade": true,
-    "x-example": "<lf-source id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-source>"
+    "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>"
   },
   "lf-toc": {
     "description": "A table of contents derived from the page's h2-h6 headings. `max-level` sets the deepest heading included when lower-level headings are local detail rather than page destinations; omitting it includes every level. A scrolling document with two or more included headings places one in an `aside.sidebar` near the opening by default; omit it when the outline is already visible at a glance. Workspaces use their region navigation instead of a page-wide contents sidebar. In the roomy margin, the runtime distributes the page title and headings down a full-height spine according to the sections they lead, paints the visible band of the document on that spine, and reveals every generated label on pointer or keyboard entry. Crowded destinations bend together on one fitted scale so every marker and label remains distinct; when the labels cannot physically fit, the widget becomes an ordinary open, scrollable outline. In flow, on paper, and in a standalone copy, it remains an ordinary open outline. A heading that titles an identified section links to the section, keeping an eyebrow and heading together at arrival and giving the public fragment the section's id. Otherwise an existing heading id becomes the target; for an id-less heading, the widget adds a position-derived target beside it without changing the authored heading. Live links reveal headings inside disclosures or tabs, and a copied link returns to the same version's section. A stable authored section or heading id keeps that target across versions. The generated labels are link apparatus rather than a second commentable copy of each heading, and version diffs ignore them as generated navigation. Write the element empty and give it a stable id.",
@@ -144,7 +144,7 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-content": "none",
+    "x-content": "empty",
     "x-outline": true,
     "x-upgrade": true,
     "x-example": "<h1>Migration plan</h1>\n<aside class=\"sidebar\" id=\"plan-sidebar\">\n  <lf-toc id=\"plan-contents\"></lf-toc>\n</aside>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
@@ -182,7 +182,7 @@
       ]
     },
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-word": "module",
     "x-upgrade": true,
     "x-awaits": {
@@ -281,10 +281,10 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-options"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-refers": {
       "for": {}
     },
@@ -303,17 +303,17 @@
       }
     },
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-option",
       "lf-variant"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-inline": true,
     "x-tone": "tone",
     "x-upgrade": false
   },
   "lf-milestones": {
-    "description": "A timeline of milestones with status dots on a rail. Children are lf-milestone elements only.",
+    "description": "A milestone schedule with status markers on a rail. Its members are lf-milestone elements only.",
     "type": "object",
     "properties": {
       "id": {
@@ -322,12 +322,12 @@
       }
     },
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-upgrade": false,
     "x-example": "<lf-milestones>\n  <lf-milestone id=\"m-survey\" status=\"done\" when=\"week 1\">\n    <strong>Survey the sites</strong> Map sun and squirrel routes.\n  </lf-milestone>\n  <lf-milestone id=\"m-build\" status=\"active\" when=\"weeks 2-3\" tags=\"wood,solar\">\n    <strong>Build the feeders</strong> Two classic, two heated.\n  </lf-milestone>\n  <lf-milestone id=\"m-install\" status=\"planned\" when=\"week 4\">\n    <strong>Install and watch</strong>\n  </lf-milestone>\n</lf-milestones>"
   },
   "lf-milestone": {
-    "description": "One milestone. Lead with a <strong> title; prose follows. `status` colors the timeline dot; `when` is a free-text schedule label; `tags` is a comma-separated list rendered as chips.",
+    "description": "One milestone. Lead with a <strong> title; prose follows. `status` colors the rail marker; `when` is a free-text schedule label; `tags` is a comma-separated list rendered as chips.",
     "type": "object",
     "properties": {
       "id": {
@@ -355,17 +355,17 @@
       "status"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-milestones"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-paints": [
       "status"
     ],
     "x-upgrade": true
   },
-  "lf-timeline": {
-    "description": "A chronological event log — the incident-report shape. Children are lf-event elements only. Where lf-milestones tracks planned work by status, lf-timeline records what happened, when.",
+  "lf-chronology": {
+    "description": "A chronology of what happened and when — the incident-report shape. Its members are lf-chronology-entry elements only. Where lf-milestones tracks planned work by status, lf-chronology records observed facts and interventions.",
     "type": "object",
     "properties": {
       "id": {
@@ -374,12 +374,12 @@
       }
     },
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-upgrade": false,
-    "x-example": "<lf-timeline>\n  <lf-event id=\"e-alert\" at=\"09:14\" kind=\"warning\">\n    <strong>Feeder camera offline</strong> Battery alert from the north feeder.\n  </lf-event>\n  <lf-event id=\"e-swap\" at=\"09:40\" kind=\"action\">\n    <strong>Battery swapped</strong>\n  </lf-event>\n  <lf-event id=\"e-ok\" at=\"09:41\" kind=\"info\">\n    <strong>Camera back</strong> Feed resumed.\n  </lf-event>\n</lf-timeline>"
+    "x-example": "<lf-chronology>\n  <lf-chronology-entry id=\"e-alert\" at=\"09:14\" kind=\"warning\">\n    <strong>Feeder camera offline</strong> Battery alert from the north feeder.\n  </lf-chronology-entry>\n  <lf-chronology-entry id=\"e-swap\" at=\"09:40\" kind=\"intervention\">\n    <strong>Battery swapped</strong>\n  </lf-chronology-entry>\n  <lf-chronology-entry id=\"e-ok\" at=\"09:41\" kind=\"observation\">\n    <strong>Camera back</strong> Feed resumed.\n  </lf-chronology-entry>\n</lf-chronology>"
   },
-  "lf-event": {
-    "description": "One event on a timeline. Lead with a <strong> title; prose follows. `at` is a free-text time label; `kind` colors the dot.",
+  "lf-chronology-entry": {
+    "description": "One entry in a chronology. Lead with a <strong> title; prose follows. `at` is a free-text time label; `kind` colors the rail marker.",
     "type": "object",
     "properties": {
       "id": {
@@ -391,8 +391,8 @@
       },
       "kind": {
         "enum": [
-          "info",
-          "action",
+          "observation",
+          "intervention",
           "warning",
           "failure"
         ]
@@ -402,10 +402,10 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-parent": [
-      "lf-timeline"
+    "x-owners": [
+      "lf-chronology"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-says": {
       "at": "before"
     },
@@ -424,7 +424,7 @@
       }
     },
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-upgrade": false,
     "x-example": "<lf-compare>\n  <lf-variant id=\"v-cedar\"><strong>Cedar</strong> Weathers silver; no sealant.</lf-variant>\n  <lf-variant id=\"v-pine\"><strong>Pine</strong> Cheaper; seal it yearly.</lf-variant>\n</lf-compare>"
   },
@@ -441,10 +441,10 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-compare"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-upgrade": false
   },
   "lf-metrics": {
@@ -457,7 +457,7 @@
       }
     },
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-upgrade": false,
     "x-example": "<lf-metrics>\n  <lf-metric id=\"k-visits\" value=\"312\" delta=\"+41\" direction=\"up-good\">daily visits</lf-metric>\n  <lf-metric id=\"k-refills\" value=\"2.1/wk\" delta=\"+0.4\" direction=\"up-bad\">refills</lf-metric>\n  <lf-metric id=\"k-species\" value=\"14\">species seen</lf-metric>\n</lf-metrics>"
   },
@@ -488,10 +488,10 @@
       "value"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-metrics"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-says": {
       "value": "before",
       "delta": "after"
@@ -560,10 +560,10 @@
       "at"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-code"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-lines": [
       "at"
     ],
@@ -604,7 +604,7 @@
     "x-example": "<lf-chart id=\"review-latency\" kind=\"line\" y=\"hours to first review\"><pre>\nweek, backend, frontend\n2026-05-04, 31, 18\n2026-05-11, 26, 21\n2026-05-18, 19, 14\n2026-05-25, 12, 11\n</pre></lf-chart>"
   },
   "lf-shot": {
-    "description": "A before/after pair of screenshots in one fixed frame. Choose Before or After from the rail above the image, or click the target’s round margin element or the image to flip between states; a short accent rule marks the visible state. The margin element’s split circle fills the left half for before and the right half for after, and its hover label names the next view. Image clicks and Space keep working in standalone exports. `before` and `after` are served image paths — `leaf page media <page> <file>…` copies author-chosen files into the page directory and prints the path to write; a screenshot is far too many bytes to inline. `alt` says what the pair shows, for a reader who can't see it. The element takes no content: what the page has to say about the change is ordinary prose written around it, where the user can quote it. Where the change is what a decision turns on, the pair goes inside the lf-option proposing it, so the reader flips it and presses in one place. Reach for it when the change reads at page scale — layout, spacing, a component swapped out. Below that scale the column's width is against you: crop the pair to the part that moved, or show the element itself before and after at real size.",
+    "description": "A before/after pair of screenshots in one fixed frame. Choose Before or After from the rail above the image, or click the target’s round margin entry or the image to flip between states; a short accent rule marks the visible state. The margin entry’s split circle fills the left half for before and the right half for after, and its hover label names the next view. Image clicks and Space keep working in standalone exports. `before` and `after` are served image paths — `leaf page media <page> <file>…` copies author-chosen files into the page directory and prints the path to write; a screenshot is far too many bytes to inline. `alt` says what the pair shows, for a reader who can't see it. The element takes no content: what the page has to say about the change is ordinary prose written around it, where the user can quote it. Where the change is what a decision turns on, the pair goes inside the lf-option proposing it, so the reader flips it and presses in one place. Reach for it when the change reads at page scale — layout, spacing, a component swapped out. Below that scale the column's width is against you: crop the pair to the part that moved, or show the element itself before and after at real size.",
     "type": "object",
     "properties": {
       "id": {
@@ -630,7 +630,7 @@
       "alt"
     ],
     "additionalProperties": false,
-    "x-content": "none",
+    "x-content": "empty",
     "x-upgrade": true,
     "x-visual": "whole",
     "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"
@@ -648,7 +648,7 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-upgrade": true,
     "x-state": {
       "move": {
@@ -703,10 +703,10 @@
       "label"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-board"
     ],
-    "x-content": "items",
+    "x-content": "members",
     "x-upgrade": false,
     "x-says": {
       "label": "before"
@@ -728,15 +728,15 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-column"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-work": {"seat": "content"},
     "x-upgrade": false
   },
   "lf-tabs": {
-    "description": "Workstreams on one page: use one family when several are live at once. Keep the shared title and lede before it, put the current stream first, and remove an earlier run once the current work no longer depends on it, keeping the context it still needs, and any passage whose id anchors an open thread or holds a standing decision, in a collapsed details inside the relevant tab. Ordering gives the first panel emphasis and makes it the default for a reader with no remembered panel or reading position. A saved panel or restored position takes precedence because the open tab is the reader's view state — remembered per browser tab like scroll position, never an action, never carried by a version. Each lf-tab is a self-contained sub-context with its own prose and widgets, while Threads, Asks, versions, and sign-off remain global. Find-in-page, Ask travel, and comment-anchor jumps open the owning tab. Children are lf-tab elements only; unupgraded, panels stack as labeled sections.",
+    "description": "A tab set presenting several views of one page. Keep the shared title and lede before it, put the primary current view first, and remove an earlier view once the current work no longer depends on it, keeping the context it still needs, and any passage whose id anchors an open thread or holds a standing decision, in a collapsed details inside the relevant tab. Ordering gives the first panel emphasis and makes it the default for a reader with no remembered panel or reading position. A saved panel or restored position takes precedence because the open tab is the reader's display state — remembered per browser tab like scroll position, never an action, never carried by a version. Each lf-tab is a self-contained view with its own prose and widgets, while Threads, Asks, versions, and sign-off remain global. Find-in-page, Ask travel, and comment-anchor jumps open the owning tab. Its members are lf-tab elements only; unupgraded, panels stack as labeled sections.",
     "type": "object",
     "properties": {
       "id": {
@@ -748,12 +748,12 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-upgrade": true,
-    "x-example": "<lf-tabs id=\"workstreams\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
+    "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tab": {
-    "description": "One workstream panel. `label` names its tab in the strip (and the stacked heading before upgrade); content is open — prose, sections, and other widgets nest freely. Ids inside share the page's one universe, so keep them distinct across tabs.",
+    "description": "One view in a tab set. `label` names its tab in the strip (and the stacked heading before upgrade); content is open — prose, sections, and other widgets nest freely. Ids inside share the page's one universe, so keep them distinct across tabs.",
     "type": "object",
     "properties": {
       "id": {
@@ -769,10 +769,10 @@
       "label"
     ],
     "additionalProperties": false,
-    "x-parent": [
+    "x-owners": [
       "lf-tabs"
     ],
-    "x-content": "prose",
+    "x-content": "markup",
     "x-upgrade": false
   },
   "lf-draft": {
@@ -848,7 +848,7 @@
       "id"
     ],
     "additionalProperties": false,
-    "x-content": "prose",
+    "x-content": "markup",
     "x-says": {
       "label": "before"
     },
@@ -864,8 +864,8 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "prose",
-    "x-layout": "workspace",
+    "x-content": "markup",
+    "x-reading-role": "workspace",
     "x-upgrade": true,
     "x-verbatim": true,
     "x-example": "<lf-workspace id=\"review-workspace\"><header><h1>Review</h1></header><lf-pane id=\"review-body\" label=\"Proposal\"><p>Read the proposal.</p></lf-pane></lf-workspace>"
@@ -879,14 +879,14 @@
     },
     "required": ["id", "label"],
     "additionalProperties": false,
-    "x-content": "prose",
-    "x-layout": "pane",
+    "x-content": "markup",
+    "x-reading-role": "pane",
     "x-upgrade": true,
     "x-verbatim": true,
-    "x-example": "<lf-pane id=\"detail\" label=\"Selected item\"><p>Read the selected item.</p></lf-pane>"
+    "x-example": "<lf-pane id=\"detail\" label=\"Selected record\"><p>Read the selected record.</p></lf-pane>"
   },
-  "lf-split": {
-    "description": "Two structural regions divided in columns or rows. Each direct child declares the pane or split role through x-layout; tag names do not define membership.",
+  "lf-partition": {
+    "description": "A binary structural partition in columns or rows. Each direct child declares the pane or partition role through x-reading-role; tag names do not define membership.",
     "type": "object",
     "properties": {
       "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
@@ -894,11 +894,11 @@
     },
     "required": ["id", "direction"],
     "additionalProperties": false,
-    "x-content": "prose",
-    "x-layout": "split",
+    "x-content": "markup",
+    "x-reading-role": "partition",
     "x-upgrade": true,
     "x-verbatim": true,
-    "x-example": "<lf-split id=\"review-regions\" direction=\"columns\"><lf-pane id=\"queue\" label=\"Items\"><p>Queue</p></lf-pane><lf-pane id=\"detail\" label=\"Selected item\"><p>Detail</p></lf-pane></lf-split>"
+    "x-example": "<lf-partition id=\"review-regions\" direction=\"columns\"><lf-pane id=\"queue\" label=\"Items\"><p>Queue</p></lf-pane><lf-pane id=\"detail\" label=\"Selected item\"><p>Detail</p></lf-pane></lf-partition>"
   },
   "$reactions": {
     "tokens": {

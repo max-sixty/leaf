@@ -1,5 +1,5 @@
 /* This module owns how a binding is drawn: the steps a row's sequence or label breaks
- * into, which leading steps match presses the active mode has accepted, and the
+ * into, which leading steps match presses the active interaction has accepted, and the
  * key-sequence element every surface renders them as. */
 import { labelOf, spell, word } from "./bindings.js";
 
@@ -41,7 +41,7 @@ export function keySequence(steps, states = neutralStates(steps), spokenSteps = 
     throw new Error("leaf: a key sequence needs one state and spoken label per step");
 
   const sequence = document.createElement("span");
-  sequence.className = "lf-key-sequence";
+  sequence.className = "lf-binding-sequence";
   sequence.setAttribute("role", "group");
   sequence.setAttribute(
     "aria-label",
@@ -51,7 +51,7 @@ export function keySequence(steps, states = neutralStates(steps), spokenSteps = 
     const state = states[i];
     if (!STATES.has(state)) throw new Error(`leaf: unknown key state ${String(state)}`);
     const key = document.createElement("kbd");
-    key.dataset.lfKeyState = state;
+    key.dataset.lfSequenceStepState = state;
     key.setAttribute("aria-hidden", "true");
     key.textContent = step;
     sequence.append(key);

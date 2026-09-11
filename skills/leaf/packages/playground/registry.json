@@ -1,6 +1,6 @@
 {
   "lf-playground": {
-    "description": "A reusable interactive playground that turns declarative controls into one local value set, reflects it into an operable preview and authored instruction, and sends the final configuration as one `choose` action. Put it inside lf-ask when the configuration is a question for the reader. Direct children are controls, presets, one preview, and one output. Control edits and presets stay in this browser tab; Use these settings records the complete typed value map. CSS previews read `--playground-NAME` and `data-playground-NAME` on this element. A companion widget can read the public `values` property and listen for `lf-playground-change` when behavior or computation requires JavaScript.",
+    "description": "A reusable interactive playground that turns declarative controls into one local value set, reflects it into one operable preview and authored instruction, and sends the final configuration as one `choose` action. Put it inside lf-ask when the configuration is a question for the reader. Direct children are controls, presets, one preview, and one output. An A/B preview keeps both candidates together so one control edit or preview gesture can drive both from the same input. Control edits, preview gestures, and presets stay in this browser tab; Use these settings records the complete typed value map. CSS previews read `--playground-NAME` and `data-playground-NAME` on this element. Page modules can read the public `values` property and listen for `lf-playground-change` when behavior or computation requires JavaScript.",
     "type": "object",
     "properties": {
       "id": {
@@ -17,9 +17,9 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "items",
+    "x-content": "members",
     "x-guidance": {
-      "author": "Use controls for candidates and parameters the reader should vary together. The reader performs the interaction being judged in the preview. Keep that preview as real page markup, bind simple changes with `--playground-NAME` or `data-playground-NAME`, and use a companion package when behavior or computation requires JavaScript. Write the instruction as prose in `lf-playground-output`, with `lf-playground-value` where a current value belongs."
+      "author": "Use controls for candidates and parameters the reader should vary together. Keep A/B candidates in the same preview and apply each control edit or custom gesture to both from one shared state; show live measurements when they affect the choice. Wrap the real artifact and load its vendored or page-media assets from the page's origin. Bind simple changes with `--playground-NAME` or `data-playground-NAME`, and use an inline page module for behavior or computation. Write a self-contained task in `lf-playground-output`; `choose` sends every typed control value whether or not the prose repeats it."
     },
     "x-upgrade": true,
     "x-awaits": {
@@ -53,7 +53,7 @@
         "unit": "widget"
       }
     },
-    "x-example": "<lf-ask id=\"card-design-ask\"><h2>How should the card feel?</h2><lf-playground id=\"card-design\"><lf-playground-control name=\"radius\" label=\"Corner radius\" kind=\"range\" value=\"12\" min=\"0\" max=\"24\" step=\"1\" unit=\"px\"></lf-playground-control><lf-playground-control name=\"compact\" label=\"Compact spacing\" kind=\"toggle\" value=\"false\"></lf-playground-control><lf-playground-control name=\"tone\" label=\"Tone\" kind=\"choice\" value=\"quiet\"><lf-playground-choice value=\"quiet\" label=\"Quiet\"></lf-playground-choice><lf-playground-choice value=\"bold\" label=\"Bold\"></lf-playground-choice></lf-playground-control><lf-playground-preview><article><strong>Preview card</strong><p>The real page markup responds to the controls.</p></article></lf-playground-preview><lf-playground-output>Use a <lf-playground-value for=\"radius\"></lf-playground-value> corner radius and a <lf-playground-value for=\"tone\"></lf-playground-value> tone.</lf-playground-output></lf-playground></lf-ask>"
+    "x-example": "<lf-ask id=\"notification-ask\"><h2>Which notification should we build?</h2><lf-playground id=\"notification-playground\" submit-label=\"Create notification\"><lf-playground-control name=\"format\" label=\"Format\" kind=\"choice\" value=\"banner\"><lf-playground-choice value=\"banner\" label=\"Banner\"></lf-playground-choice><lf-playground-choice value=\"status strip\" label=\"Status strip\"></lf-playground-choice></lf-playground-control><lf-playground-control name=\"radius\" label=\"Corner radius\" kind=\"range\" value=\"10\" min=\"0\" max=\"24\" step=\"1\" unit=\"px\"></lf-playground-control><lf-playground-preview><section aria-label=\"Notification candidates\"><article data-candidate=\"banner\"><h3>Banner</h3><p>The real banner responds to the shared controls.</p></article><article data-candidate=\"status strip\"><h3>Status strip</h3><p>The real status strip responds to the same controls.</p></article></section></lf-playground-preview><lf-playground-output>Build the <lf-playground-value for=\"format\"></lf-playground-value> notification with <lf-playground-value for=\"radius\"></lf-playground-value> corners. Replace the notification component and show me its browser test.</lf-playground-output></lf-playground></lf-ask>"
   },
   "lf-playground-control": {
     "description": "One typed input in a playground. `name` is the stable key in the submitted value map and in the reflected CSS property and data attribute. `label` names the generated native control. Every kind declares its initial value as a string: a finite number for range, `true` or `false` for toggle, one child value for choice, a six-digit hex colour for color, and arbitrary text for text. Range controls must add max and may add min, step, and unit. Choice controls contain one or more lf-playground-choice children; other kinds are empty.",
@@ -109,8 +109,8 @@
       }
     ],
     "additionalProperties": false,
-    "x-parent": ["lf-playground"],
-    "x-content": "items",
+    "x-owners": ["lf-playground"],
+    "x-content": "members",
     "x-upgrade": false
   },
   "lf-playground-choice": {
@@ -128,8 +128,8 @@
     },
     "required": ["value", "label"],
     "additionalProperties": false,
-    "x-parent": ["lf-playground-control"],
-    "x-content": "none",
+    "x-owners": ["lf-playground-control"],
+    "x-content": "empty",
     "x-upgrade": false
   },
   "lf-playground-preset": {
@@ -143,8 +143,8 @@
     },
     "required": ["label"],
     "additionalProperties": false,
-    "x-parent": ["lf-playground"],
-    "x-content": "items",
+    "x-owners": ["lf-playground"],
+    "x-content": "members",
     "x-upgrade": false
   },
   "lf-playground-setting": {
@@ -161,12 +161,12 @@
     },
     "required": ["for", "value"],
     "additionalProperties": false,
-    "x-parent": ["lf-playground-preset"],
-    "x-content": "none",
+    "x-owners": ["lf-playground-preset"],
+    "x-content": "empty",
     "x-upgrade": false
   },
   "lf-playground-preview": {
-    "description": "The real, operable markup a playground previews. Page CSS may bind it to reflected values on the enclosing lf-playground; a companion widget inside may consume the playground's public values and change event and own behavior that requires JavaScript.",
+    "description": "The real, operable artifact a playground previews. An A/B comparison keeps both candidates here and drives them from one shared input state. Page CSS may bind reflected values from the enclosing lf-playground. An inline page module may consume the playground's public values and change event, own gestures and computed state, and load vendored or page-media assets from the page's origin.",
     "type": "object",
     "properties": {
       "id": {
@@ -175,12 +175,12 @@
       }
     },
     "additionalProperties": false,
-    "x-parent": ["lf-playground"],
-    "x-content": "prose",
+    "x-owners": ["lf-playground"],
+    "x-content": "markup",
     "x-upgrade": false
   },
   "lf-playground-output": {
-    "description": "The natural-language instruction produced by a playground. Write complete prose and place lf-playground-value elements where current values belong. The package keeps this output live and offers a copy button.",
+    "description": "The natural-language instruction produced by a playground. Write a self-contained task rather than a value dump, and place lf-playground-value elements where selected values make the task more precise. The choose action separately sends the complete typed value map. The package keeps this output live and offers a copy button.",
     "type": "object",
     "properties": {
       "id": {
@@ -189,8 +189,8 @@
       }
     },
     "additionalProperties": false,
-    "x-parent": ["lf-playground"],
-    "x-content": "prose",
+    "x-owners": ["lf-playground"],
+    "x-content": "markup",
     "x-upgrade": false
   },
   "lf-playground-value": {
@@ -204,8 +204,8 @@
     },
     "required": ["for"],
     "additionalProperties": false,
-    "x-parent": ["lf-playground-output"],
-    "x-content": "none",
+    "x-owners": ["lf-playground-output"],
+    "x-content": "empty",
     "x-inline": true,
     "x-upgrade": false
   }

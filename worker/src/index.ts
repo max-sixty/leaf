@@ -8,7 +8,9 @@
  * so one reader can exercise the real event log without changing another reader's page.
  * During an image rollout, a layer mismatch pins that reader briefly to the container's
  * complete shell so a static document never reloads against an older API in a loop.
- * Accepted browser events also emit content-free canonical metadata to Analytics Engine.
+ * Accepted browser events start their agent task in the already-selected reader
+ * container without holding the browser acknowledgement open, and emit content-free
+ * canonical metadata to Analytics Engine.
  */
 
 import {
@@ -17,13 +19,7 @@ import {
   type OutboundHandlerContext,
 } from "@cloudflare/containers";
 export { ContainerProxy } from "@cloudflare/containers";
-import {
-  type DurableObject,
-  WorkflowEntrypoint,
-  type WorkflowEvent,
-  type WorkflowStep,
-} from "cloudflare:workers";
-import { NonRetryableError } from "cloudflare:workflows";
+import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
 
 import {
@@ -49,23 +45,19 @@ import {
 export interface Env {
   ASSETS: Fetcher;
   PAGES: DurableObjectNamespace<LeafWebsiteSession>;
-  AGENT_WORKFLOW: Workflow<AgentWorkflowParams>;
+  AGENT_PREWARM: "true" | "false";
   WEBSITE_EVENTS: AnalyticsEngineDataset;
   SOURCE_AGENT_RATE_LIMITER: RateLimit;
   OPENAI_API_KEY: string;
 }
 
-const agentWorkflowParamsSchema = z.object({
-  sessionId: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
-  reference: z.string().check(z.regex(/^\d{12}$/)),
-  route: z
-    .string()
-    .check(z.regex(/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/)),
-  eventId: z.string().check(z.regex(/^[A-Za-z0-9_-]{1,128}$/)),
-  sourceId: z.string().check(z.minLength(1), z.maxLength(64)),
-});
-
-export type AgentWorkflowParams = z.infer<typeof agentWorkflowParamsSchema>;
+interface AgentTaskParams {
+  sessionId: string;
+  reference: string;
+  route: string;
+  eventId: string;
+  sourceId: string;
+}
 
 const settledAgentResultSchema = z.object({ status: z.literal("settled") });
 const agentResultSchemas = {
@@ -168,13 +160,9 @@ function sessionReference(sessionId: string): string {
   return (BigInt(`0x${sessionId}`) % 1_000_000_000_000n).toString().padStart(12, "0");
 }
 
-function agentWorkflowId(reference: string, eventId: string): string {
-  return `reply-${reference}-${eventId}`;
-}
-
 function agentLog(
   event: string,
-  params: Pick<AgentWorkflowParams, "reference" | "route" | "eventId">,
+  params: Pick<AgentTaskParams, "reference" | "route" | "eventId">,
   fields: Record<string, unknown> = {},
 ): void {
   console.log({
@@ -187,9 +175,24 @@ function agentLog(
   });
 }
 
+function prewarmLog(
+  event: string,
+  reference: string,
+  route: string,
+  fields: Record<string, unknown> = {},
+): void {
+  console.log({
+    component: "leaf-agent",
+    event,
+    reference,
+    route,
+    ...fields,
+  });
+}
+
 async function measuredAgentOperation<T>(
   event: string,
-  params: AgentWorkflowParams,
+  params: AgentTaskParams,
   operation: () => Promise<T>,
 ): Promise<T> {
   const started = Date.now();
@@ -207,16 +210,8 @@ async function measuredAgentOperation<T>(
   }
 }
 
-function validatedAgentParams(value: unknown): AgentWorkflowParams {
-  const result = agentWorkflowParamsSchema.safeParse(value);
-  if (!result.success) {
-    throw new NonRetryableError("invalid website agent workflow parameters");
-  }
-  return result.data;
-}
-
 function agentRequest(
-  params: AgentWorkflowParams,
+  params: AgentTaskParams,
   action: "start" | "reply",
   body: object,
 ): Request {
@@ -230,7 +225,7 @@ function agentRequest(
 
 async function askContainer(
   env: Env,
-  params: AgentWorkflowParams,
+  params: AgentTaskParams,
   action: "start" | "reply",
   body: object,
 ): Promise<AgentResult> {
@@ -239,94 +234,108 @@ async function askContainer(
   );
   const raw = await response.text();
   if (!response.ok) {
-    const message = `website agent ${action} failed (${response.status}): ${raw}`;
-    if (response.status < 500) throw new NonRetryableError(message);
-    throw new Error(message);
+    throw new Error(`website agent ${action} failed (${response.status}): ${raw}`);
   }
   let value: unknown;
   try {
     value = JSON.parse(raw);
   } catch {
-    throw new NonRetryableError(`invalid website agent ${action} response`);
+    throw new Error(`invalid website agent ${action} response`);
   }
   const result = agentResultSchemas[action].safeParse(value);
   if (!result.success) {
-    throw new NonRetryableError(`invalid website agent ${action} response`);
+    throw new Error(`invalid website agent ${action} response`);
   }
   return result.data;
 }
 
-export async function runAgentWorkflow(
+async function runAgentTask(
   env: Env,
-  params: AgentWorkflowParams,
-  step: WorkflowStep,
+  params: AgentTaskParams,
 ): Promise<AgentResult> {
-  let fallback = GENERATION_FAILURE_REPLY;
-  let appendStep = "append startup failure";
-  agentLog("workflow_started", params);
-  try {
-    const allowed = await step.do(
-      "reserve model capacity",
-      {
-        retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-        timeout: "1 minute",
-      },
-      () =>
-        measuredAgentOperation(
-          "capacity_reservation",
-          params,
-          async () =>
-            (
-              await env.SOURCE_AGENT_RATE_LIMITER.limit({
-                key: params.sourceId,
-              })
-            ).success,
-        ),
+  const allowed = await measuredAgentOperation(
+    "capacity_reservation",
+    params,
+    async () =>
+      (
+        await env.SOURCE_AGENT_RATE_LIMITER.limit({
+          key: params.sourceId,
+        })
+      ).success,
+  );
+  if (allowed) {
+    return measuredAgentOperation("container_start", params, () =>
+      askContainer(env, params, "start", { event: params.eventId }),
     );
-    if (allowed) {
-      return await step.do(
-        "start Codex task",
-        {
-          retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-          timeout: "2 minutes",
-        },
-        () =>
-          measuredAgentOperation("container_start", params, () =>
-            askContainer(env, params, "start", { event: params.eventId }),
-          ),
-      );
-    } else {
-      fallback = RATE_LIMIT_REPLY;
-      appendStep = "append rate limit";
-    }
-  } catch (error) {
-    // The deterministic fallback closes the exact event after startup retries.
-    agentLog("workflow_startup_failed", params, {
-      error: error instanceof Error ? error.name : "unknown",
-    });
   }
-  return step.do(
-    appendStep,
-    {
-      retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
-      timeout: "1 minute",
-    },
-    () =>
-      measuredAgentOperation("fallback_reply", params, () =>
-        askContainer(env, params, "reply", {
-          event: params.eventId,
-          text: fallback,
-        }),
-      ),
+  return measuredAgentOperation("fallback_reply", params, () =>
+    askContainer(env, params, "reply", {
+      event: params.eventId,
+      text: RATE_LIMIT_REPLY,
+    }),
   );
 }
 
-export class LeafWebsiteAgentWorkflow extends WorkflowEntrypoint<
-  Env,
-  AgentWorkflowParams
-> {
-  async run(event: WorkflowEvent<AgentWorkflowParams>, step: WorkflowStep) {
-    return runAgentWorkflow(this.env, validatedAgentParams(event.payload), step);
+async function dispatchAgentTask(
+  env: Env,
+  params: AgentTaskParams,
+): Promise<void> {
+  const started = Date.now();
+  agentLog("dispatch_started", params);
+  try {
+    const result = await runAgentTask(env, params);
+    agentLog("dispatch_completed", params, {
+      durationMs: Date.now() - started,
+      status: result.status,
+    });
+  } catch (error) {
+    agentLog("dispatch_failed", params, {
+      durationMs: Date.now() - started,
+      error: error instanceof Error ? error.name : "unknown",
+    });
+    try {
+      await measuredAgentOperation("fallback_reply", params, () =>
+        askContainer(env, params, "reply", {
+          event: params.eventId,
+          text: GENERATION_FAILURE_REPLY,
+        }),
+      );
+    } catch (fallbackError) {
+      agentLog("dispatch_abandoned", params, {
+        error: fallbackError instanceof Error ? fallbackError.name : "unknown",
+      });
+    }
+  }
+}
+
+async function prewarmContainer(
+  env: Env,
+  sessionId: string,
+  reference: string,
+  route: string,
+  sourceId: string,
+): Promise<void> {
+  const started = Date.now();
+  prewarmLog("container_prewarm_started", reference, route);
+  try {
+    const allowed = await env.SOURCE_AGENT_RATE_LIMITER.limit({
+      key: `prewarm:${sourceId}`,
+    });
+    if (!allowed.success) {
+      prewarmLog("container_prewarm_denied", reference, route, {
+        durationMs: Date.now() - started,
+      });
+      return;
+    }
+    await getContainer(env.PAGES, sessionId).start();
+    prewarmLog("container_prewarm_completed", reference, route, {
+      durationMs: Date.now() - started,
+    });
+  } catch (error) {
+    prewarmLog("container_prewarm_failed", reference, route, {
+      durationMs: Date.now() - started,
+      error: error instanceof Error ? error.name : "unknown",
+    });
   }
 }
 
@@ -374,34 +383,6 @@ function recordAcceptedEvent(
     ],
     doubles: [accepted.event.revision ?? 0, accepted.needsReply ? 1 : 0],
   });
-}
-
-async function resumeFailedWorkflow(env: Env, workflowId: string): Promise<void> {
-  const instance = await env.AGENT_WORKFLOW.get(workflowId);
-  const state = await instance.status();
-  if (state.status === "errored" || state.status === "terminated") {
-    await instance.restart();
-  }
-}
-
-async function startAgentWorkflow(
-  env: Env,
-  params: AgentWorkflowParams,
-): Promise<void> {
-  const started = Date.now();
-  const workflowId = agentWorkflowId(params.reference, params.eventId);
-  try {
-    await env.AGENT_WORKFLOW.create({ id: workflowId, params });
-  } catch (error) {
-    // Treat a duplicate id as success and revive a failed prior attempt. Preserve
-    // the outbox's retry signal when no workflow exists to answer the durable event.
-    try {
-      await resumeFailedWorkflow(env, workflowId);
-    } catch {
-      throw error;
-    }
-  }
-  agentLog("workflow_admitted", params, { durationMs: Date.now() - started });
 }
 
 function staticAssetResponse(response: Response): Response {
@@ -553,8 +534,16 @@ export default {
         headers.set("Leaf-Session-Reference", reference);
         if (existing === null) {
           headers.append("Set-Cookie", sessionCookie(sessionId, secure));
-        } else if (active) {
-          ctx.waitUntil(getContainer(env.PAGES, sessionId).start());
+        }
+        if (
+          env.AGENT_PREWARM === "true" &&
+          request.method === "GET" &&
+          request.headers.get("Sec-Fetch-Dest") === "document"
+        ) {
+          const sourceId = request.headers.get("CF-Connecting-IP") ?? "unknown";
+          ctx.waitUntil(
+            prewarmContainer(env, sessionId, reference, route.root, sourceId),
+          );
         }
         return new Response(response.body, {
           status: response.status,
@@ -585,7 +574,11 @@ export default {
         agentLog("event_accepted", params, {
           durationMs: Date.now() - requestStarted,
         });
-        await startAgentWorkflow(env, params);
+        // TODO(2026-09-10): Persist the accepted event and active Codex turn identity
+        // in this container's Durable Object before returning the acknowledgement.
+        // TODO(2026-09-10): Add an alarm/status hook that recovers a dispatch when
+        // its container disappears or it exceeds the Worker's waitUntil window.
+        ctx.waitUntil(dispatchAgentTask(env, params));
       }
     }
     const requestLayer = request.headers.get("Leaf-Layer");

@@ -11,7 +11,12 @@ from .files import (
     stamped_version,
     version_revisions,
 )
-from .http import scope_document_routes, scope_page_routes, supervised_document
+from .http import (
+    scope_document_routes,
+    scope_script_routes,
+    scope_stylesheet_routes,
+    supervised_document,
+)
 from .registry.storage import layer_metadata
 from .schema import BROWSER_DIRS, MEDIA_DIR, SERVED_PATH, VENDORED_FILES
 
@@ -58,6 +63,7 @@ def write_live_shell(
                 bootstrap=bootstrap,
                 release_id=release_id,
                 page_root=page_root,
+                asset_root=asset_root,
             ),
             page_root,
             asset_root=asset_root,
@@ -84,6 +90,8 @@ def write_live_shell(
             if not SERVED_PATH.fullmatch(f"/{relative.as_posix()}"):
                 continue
             body = file.read_bytes()
-            if file.suffix in {".css", ".js"}:
-                body = scope_page_routes(body, page_root, asset_root=asset_root)
+            if file.suffix == ".css":
+                body = scope_stylesheet_routes(body, page_root, asset_root=asset_root)
+            elif file.suffix == ".js":
+                body = scope_script_routes(body, page_root, asset_root=asset_root)
             write(relative, body)

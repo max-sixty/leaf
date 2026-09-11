@@ -1,7 +1,7 @@
 /* Swipe decks are RFC index cards, not a second app shell: one queue holds the eye,
  * literal verdict rails state the operation, and compact ledgers retain the result. */
 lf-swipe-deck {
-  --lf-frame: 1;
+  --lf-block-frame: 1;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sp-3);
@@ -107,7 +107,7 @@ lf-swipe-pile[verdict="unseen"] {
 }
 
 lf-swipe-card {
-  --lf-frame: 1;
+  --lf-block-frame: 1;
   display: block;
   box-sizing: border-box;
   min-width: 0;

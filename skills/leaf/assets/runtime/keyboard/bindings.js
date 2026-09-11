@@ -10,25 +10,27 @@
    A row has these meanings:
 
    - `id` is its stable dotted identity. Words and keys may change without changing the
-     route the reference and the other projections use.
+     route the command reference and the other projections use.
    - `keys` is a binding or computed list of bindings: "a", "Escape", "Mod+Enter",
      "Shift+a", "d"; a function where the set is the page's (an option group's 1–N).
    - `routes` are optional stable subcommands when those bindings mean different things.
-     The shortcut bar keeps the compact row; the reference presents each route separately. A
+     The shortcut bar keeps the compact row; the command reference presents each route separately. A
      route may override `line` and `label` for the case where a nearer scope shadows only
      its sibling binding.
    - `label` optionally overrides the compact keycap in the command's own scope. A keyless
-     Decision command falls back to its `decision` action name in the complete reference.
+     row must declare one, unless a Decision command can fall back to its `decision` action
+     name in the command reference.
      An Ask instead shows the resolved binding beside that separate action name, so an
      inline hint always says what the reader actually presses.
    - `control` is the visible element that activates the capability. `decision` is a
      non-empty action-name string or a function returning one; it includes that command in
-     its containing Ask. The row may carry an existing `address`. Routes may carry the
-     same fields when one row describes a parameterized family of controls. Every Decision
-     receives an independent contextual digit from the Ask projection; intrinsic widget
-     bindings remain available in the widget's own focus scope. The projection keeps a
-     scoped reference to the original command rather than copying its callback, so key,
-     Ask, and reference invocation share liveness, activation, and return-frame behavior.
+     its containing Ask. The row may carry an existing `bindingBadge`. Routes may carry
+     the same fields when one row describes a parameterized family of controls. Every
+     Decision receives an independent contextual digit from the Ask projection; intrinsic
+     widget bindings remain available in the widget's own focus scope. The projection
+     keeps a scoped reference to the original command rather than copying its callback, so
+     key, Ask, and command-reference invocation share liveness, activation, and
+     return-frame behavior.
    - `does` is the sentence for the press, or a function when the current state changes
      the sentence.
    - `line` is the shortcut bar's word: a row carrying one stands on the shortcut bar, and a row
@@ -37,10 +39,10 @@
      the field was optional and its absence read exactly like a decision. A row with no
      `run` may carry one all the same, since a press can be real and immediate without
      being the runtime's: Enter opens the focused leaf because the row is a link. What
-     carries no word is reference, named in the "?" overlay and never promised as the
+     carries no word is reference-only, named in the command reference and never promised as the
      next press — F7, ⌥ click, a press on a draft's own box.
    - `lineWhen` is optional projection-only visibility on the shortcut bar. Unlike `when`, it
-     never changes whether the command dispatches or appears in the reference, and an
+     never changes whether the command dispatches or appears in the command reference, and an
      active sequence shows every live row regardless of it.
    - `promoteEscape` says whether an Escape row takes the line's second visible slot. On
      by default; a local action that happens to clear state can leave the slot to the
@@ -59,8 +61,8 @@
      dispatcher captures the origin before `run`, validates the descriptor, and pushes it
      only if the layer is active afterwards. Do not call the return stack from a command
      or restore focus in the command's close path; declaring the frame is what makes
-     keyboard invocation and reference invocation obey the same stack. A command surface
-     that already displaced the reader, such as the modal reference, passes its saved
+     keyboard invocation and command-reference invocation obey the same stack. A command surface
+     that already displaced the reader, such as the modal command reference, passes its saved
      origin into dispatcher invocation instead of letting a closing implementation
      control become the origin.
    - `native: true` performs `run` without preventing the platform default. Use it when
@@ -72,7 +74,7 @@
      rows too, independently of whether their platform default repeats.
 
    `live` answers the declared liveness once for every projection. Do not repeat a guard
-   inside `run` if the guard changes whether the key should be shown. When the reference
+   inside `run` if the guard changes whether the key should be shown. When the command reference
    needs to describe a page capability while the shortcut bar needs to promise an immediate
    press, keep `pageHas` and `readerIn` separate.
 
@@ -99,7 +101,7 @@
    dispatcher accepts both. The attribute cannot express a sequential sequence: spaces
    separate alternatives. An associated `control` in a sequence scope therefore omits
    `aria-keyshortcuts` and exposes the complete route through its title and the keyboard
-   reference. Call `paintKeys` when a state change moves row liveness so this projection
+   command reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
 // Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
@@ -146,7 +148,7 @@ export const parsed = (binding) => {
 // A modifier joins its key with nothing between them where its glyph is a symbol and with
 // a + where it is a word, so "⌘⏎" and "Ctrl+⏎" are each their own platform's spelling.
 // Shift on a letter is the letter's own uppercase, which is how a keyboard draws it and
-// how this page's reference always has: the binding says Shift+a because that is what the
+// how this page's command reference always has: the binding says Shift+a because that is what the
 // dispatcher must ask for, and the chip says A because that is what the reader presses.
 export const spell = (binding) => {
   const { key, mods } = parsed(binding);
@@ -199,10 +201,10 @@ export const commandEntries = (row, active = bindings(row)) => {
 };
 // The command identities a visual presentation gives one row. Rows whose bindings are
 // distinct commands expand into routes; a compact row and one deliberately unavailable
-// from the reference keep their own identity. The reference and shortcut bar both consume this
+// from the command reference keep their own identity. The command reference and shortcut bar both consume this
 // projection so route additions cannot reach one surface without the other.
 export const commandPresentations = (row, active = bindings(row)) => {
-  if (row.runFromReference === false) return [{ id: row.id, route: null }];
+  if (row.runFromCommandReference === false) return [{ id: row.id, route: null }];
   return commandEntries(row, active);
 };
 // A row's rendering is made of its own bindings, so it cannot advertise a key it does not
@@ -231,7 +233,7 @@ export const labelOf = (row) => {
 export const live = (row) => !row.when || row.when();
 
 // Prose is allowed to change; a command's identity is not. The register uses this name
-// to merge repeated widget instances and to route an action chosen in the reference back
+// to merge repeated widget instances and to route an action chosen in the command reference back
 // through the scope that owns it. Dotted, lowercase names keep the namespace visible and
 // rule out accidentally using the current sentence as an identifier.
 const COMMAND_ID = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$/;
@@ -291,11 +293,11 @@ export function activeRows(rows, where = "a scope") {
 
 // The controls one ordered command set contributes to an Ask. `decision` names the
 // command's action in that Ask; it is not another command registry. The dispatcher, key
-// line, reference and Ask projection all read the same row. Routes may name distinct
-// controls when one compact row owns a family of parameterized bindings. Each result
-// carries a scoped reference to the original command. A projection may bind that command
-// independently without copying `run` or treating its intrinsic binding as the projected
-// one.
+// line, command reference and Ask projection all read the same row. Routes may name
+// distinct controls when one compact row owns a family of parameterized bindings. Each
+// result carries a scoped reference to the original command. A projection may bind that
+// command independently without copying `run` or treating its intrinsic binding as the
+// projected one.
 export function decisionControls(commands, where = "an Ask") {
   const controls = new Map();
   for (const { source, scope, row } of commands) {
@@ -310,13 +312,13 @@ export function decisionControls(commands, where = "an Ask") {
       const contribution = route ?? row;
       const control = word(contribution.control ?? row.control);
       const label = decisionName(contribution, where);
-      const address = word(contribution.address ?? row.address) ?? null;
+      const bindingBadge = word(contribution.bindingBadge ?? row.bindingBadge) ?? null;
       const active = route ? [route.binding] : bindings(row);
       if (!(control instanceof Element))
         throw new TypeError(`leaf: ${contribution.id} in ${where} has no control`);
-      if (address !== null && !(address instanceof Element))
+      if (bindingBadge !== null && !(bindingBadge instanceof Element))
         throw new TypeError(
-          `leaf: ${contribution.id} in ${where} has no Element address`,
+          `leaf: ${contribution.id} in ${where} has no Element binding badge`,
         );
       const binding = active[0] ?? null;
       const record = {
@@ -324,7 +326,7 @@ export function decisionControls(commands, where = "an Ask") {
         source,
         control,
         label,
-        address,
+        bindingBadge,
         intrinsicBindings: active,
         command: Object.freeze({
           id: contribution.id,
@@ -340,7 +342,7 @@ export function decisionControls(commands, where = "an Ask") {
         if (
           prior.id !== record.id ||
           prior.label !== record.label ||
-          prior.address !== record.address ||
+          prior.bindingBadge !== record.bindingBadge ||
           prior.command.source !== record.command.source ||
           prior.command.scope !== record.command.scope ||
           prior.command.row !== record.command.row
@@ -412,7 +414,7 @@ export function answers(binding, ev) {
 // register was built for, wearing its smallest form — a page step existed for as
 // long as the runtime has had them and no always-visible surface ever named them, because
 // the word was an optional field and its absence read exactly like a decision. So the
-// absence is refused rather than defaulted: falling back to the reference's sentence would
+// absence is refused rather than defaulted: falling back to the command reference's sentence would
 // have kept the row visible and spent the room of the four behind it, and there is nothing
 // to compute a short word from. A row with no `run` is asked for none, since the press it
 // names is not the runtime's — it either belongs to the platform, and says a word anyway
@@ -462,6 +464,16 @@ export function checked(rows, where) {
     if (ids.has(row.id)) throw new Error(`leaf: ${where} declares ${row.id} twice`);
     ids.add(row.id);
     const declared = declaredBindings(row);
+    const declaredLabel = row.label;
+    if (
+      !declared.length &&
+      row.decision === undefined &&
+      !(
+        (typeof declaredLabel === "string" && declaredLabel.trim()) ||
+        typeof declaredLabel === "function"
+      )
+    )
+      throw new Error(`leaf: ${row.id} has no binding, label, or Decision action name`);
     const routes = commandRoutes(row);
     const routed = new Set();
     for (const route of routes) {

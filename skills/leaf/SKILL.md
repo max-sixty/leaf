@@ -52,7 +52,9 @@ checkout keeps the launcher at `bin/leaf`.
 
 1. Run `leaf page init <page>`. Optional shapes need their packages named here:
    `diagram` for Mermaid, `diff` for a unified diff, `swipe` for rapid
-   pass-or-keep triage, and `playground` for declarative interactive explorers, as in
+   pass-or-keep triage, `playground` for declarative interactive explorers,
+   `visual-review` for an ordered website run with aligned before-and-after evidence,
+   and `targeting` for selecting and proposing changes to preview elements, as in
    `leaf page init --package diagram --package diff <page>`. Re-running `page init`
    with the selection adds it to a page already written.
 2. Read `references/page-authoring.md`, then the authoring reference each part of
@@ -161,8 +163,8 @@ so a phase does not depend on discovering a chain of references.
 - `references/serving-pages.md`: for the first handoff, `--export`, an unreachable
   URL, `--host`, a standing page, re-vendoring a served page, or resuming another
   session's page.
-- `references/packages.md`: for a package-design request or an event with
-  `"about": "layer"`.
+- `references/packages.md`: for a package-design request, a page-authored module, or
+  an event with `"about": "layer"`.
 
 ### Change Leaf itself
 

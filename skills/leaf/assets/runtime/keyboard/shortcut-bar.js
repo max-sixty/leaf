@@ -4,7 +4,7 @@
    The status keeps navigation state out of the command list. It appears after a
    semantic list walk and briefly takes the accent face when a repeated press cannot move
    from its destination. The bar gives compact hints rather than reproducing the
-   keyboard reference. It walks outward from the reader's innermost scope and drops
+   command reference. It walks outward from the reader's innermost scope and drops
    bindings shadowed there. The
    ordinary shortlist is the first live row, then a promotable Escape or the next row.
    At rest on the page that
@@ -68,7 +68,7 @@ import {
 import { el } from "../widget-elements.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
 
-import { referenceOpen, openReference } from "./reference.js";
+import { commandReferenceOpen, openCommandReference } from "./command-reference.js";
 import { announce, noticeEl, setNoticeContext } from "../notifications.js";
 import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
@@ -82,11 +82,11 @@ export const bottomStatusEl = el("div", "lf-ui lf-bottom-status");
 export const walkPositionEl = el("span", "lf-walk-position");
 walkPositionEl.hidden = true;
 walkPositionEl.setAttribute("aria-hidden", "true");
-const contextStatusEl = el("span", "lf-context-status");
-contextStatusEl.hidden = true;
-contextStatusEl.setAttribute("aria-hidden", "true");
-bottomStatusEl.append(contextStatusEl, walkPositionEl, noticeEl);
-export const shortcutBarMore = el("button", "lf-key-more");
+const goToStatusEl = el("span", "lf-go-to-status");
+goToStatusEl.hidden = true;
+goToStatusEl.setAttribute("aria-hidden", "true");
+bottomStatusEl.append(goToStatusEl, walkPositionEl, noticeEl);
+export const shortcutBarMore = el("button", "lf-shortcut-more");
 shortcutBarMore.type = "button";
 shortcutBarMore.title = "More keyboard shortcuts";
 shortcutBarMore.setAttribute("aria-label", "? more");
@@ -100,12 +100,12 @@ const boxesOf = (nodes) =>
     .map((node) => node.getBoundingClientRect())
     .filter((box) => box.height > 0 && box.width > 0);
 
-// Fixed boxes that generated addresses and target hints must not cover. The bottom-only
+// Fixed boxes that Go-to hints and target-chooser hints must not cover. The bottom-only
 // subset also bounds composers and reserves the document's foot. A transient notice
 // alone does not change page geometry; over a standing walk or command context it keeps
 // that surface's last stable footprint rather than making a four-second message reflow
-// the page and its addresses.
-const standingStatus = () => !walkPositionEl.hidden || !contextStatusEl.hidden;
+// the page and its hints.
+const standingStatus = () => !walkPositionEl.hidden || !goToStatusEl.hidden;
 let standingStatusBox = null;
 export const standingStatusBoxes = () => {
   if (!standingStatus()) {
@@ -178,10 +178,10 @@ function lineRows(scopes) {
   }
   return rows;
 }
-let expanded = false;
-const shortcutAvailable = () => bindings(REFERENCE).length > 0;
+let shortcutShelfIsOpen = false;
+const shortcutHelpAvailable = () => bindings(SHORTCUT_HELP).length > 0;
 const arrange = (rows) => {
-  const referenceAt = rows.findIndex((row) => sourceRow(row) === REFERENCE);
+  const referenceAt = rows.findIndex((row) => sourceRow(row) === SHORTCUT_HELP);
   const reference = referenceAt === -1 ? null : rows[referenceAt];
   const withoutReference =
     referenceAt === -1
@@ -197,7 +197,9 @@ const arrange = (rows) => {
   const short = new Set(
     [first, wayOut ?? candidates.find((row) => row !== first)].filter(Boolean),
   );
-  const tail = withoutReference.includes(LESS_SHORTCUTS) ? LESS_SHORTCUTS : null;
+  const tail = withoutReference.includes(CLOSE_SHORTCUT_SHELF)
+    ? CLOSE_SHORTCUT_SHELF
+    : null;
   return { candidates, reference, short, tail };
 };
 const completeLine = (scopes, candidates) => {
@@ -213,37 +215,38 @@ const completeLine = (scopes, candidates) => {
     rows,
   };
 };
-const openAllShortcuts = (captureReturnPlace) =>
-  openReference(
+const openCompleteReference = (captureReturnPlace) =>
+  openCommandReference(
     (id, origin) => executeCommand(id, origin, beforeShortcutCommand),
     captureReturnPlace,
   );
-function more(captureReturnPlace) {
-  if (!shortcutAvailable() || expanded) return openAllShortcuts(captureReturnPlace);
+function advanceShortcutHelp(captureReturnPlace) {
+  if (!shortcutHelpAvailable() || shortcutShelfIsOpen)
+    return openCompleteReference(captureReturnPlace);
   const scopes = stack();
   const { candidates, short } = arrange(lineRows(scopes));
   const shown = completeLine(scopes, candidates)?.rows ?? short;
   if (!candidates.some((row) => !shown.has(row)))
-    return openAllShortcuts(captureReturnPlace);
-  expanded = true;
+    return openCompleteReference(captureReturnPlace);
+  shortcutShelfIsOpen = true;
   repaint();
   announce(
-    "More keyboard shortcuts shown. Press question mark again for all shortcuts, or Escape to show less.",
+    "Shortcut shelf expanded. Press question mark again for Command reference, or Escape to collapse it.",
   );
 }
-export function less({ silent = false } = {}) {
-  if (!expanded) return;
-  expanded = false;
+export function closeShortcutShelf({ silent = false } = {}) {
+  if (!shortcutShelfIsOpen) return;
+  shortcutShelfIsOpen = false;
   repaint();
-  if (!silent) announce("Fewer keyboard shortcuts shown.");
+  if (!silent) announce("Shortcut shelf collapsed.");
 }
-export function renderLine(addressStatus) {
+export function renderShortcutBar(goToStatus) {
   // One walk, read twice: `at` and `when` are the page's own state and a second walk would
   // ask every one of them again for the same frame.
   const scopes = stack();
   const rows = lineRows(scopes);
-  if (!shortcutAvailable()) expanded = false;
-  const shelf = expanded && !referenceOpen();
+  if (!shortcutHelpAvailable()) shortcutShelfIsOpen = false;
+  const shelf = shortcutShelfIsOpen && !commandReferenceOpen();
   // `?` has its own permanent More control, so its ordinary row remains in the DOM only as
   // the register's hidden projection. In the shelf, the current Escape is drawn after that
   // control so both disclosure choices finish the second row.
@@ -251,10 +254,10 @@ export function renderLine(addressStatus) {
   const complete = completeLine(scopes, candidates);
   const shown = complete?.rows ?? short;
   const position = walkPosition();
-  const contextStatus = addressStatus();
-  setNoticeContext(Boolean(contextStatus));
-  contextStatusEl.textContent = contextStatus ?? "";
-  contextStatusEl.hidden = !contextStatus;
+  const goToReading = goToStatus();
+  setNoticeContext(Boolean(goToReading));
+  goToStatusEl.textContent = goToReading ?? "";
+  goToStatusEl.hidden = !goToReading;
   if (position) {
     walkPositionEl.dataset.kind = position.kind;
     walkPositionEl.textContent = position.text;
@@ -265,8 +268,8 @@ export function renderLine(addressStatus) {
     walkPositionEl.removeAttribute("data-kind");
     walkPositionEl.removeAttribute("data-lf-boundary");
   }
-  shortcutBarEl.dataset.lfExpanded = String(shelf);
-  shortcutBarEl.dataset.lfWrap = String(shelf || Boolean(complete));
+  shortcutBarEl.dataset.lfShelfOpen = String(shelf);
+  shortcutBarEl.dataset.lfMultiline = String(shelf || Boolean(complete));
   // Keep the two contextual hints together at the front of the ordinary line.
   // The shelf and a sequence retain registry order because each is a fuller reading of one
   // scene rather than a ranked shortlist.
@@ -286,8 +289,8 @@ export function renderLine(addressStatus) {
   // the surviving row also keeps the face, accessible shortcut, label, and dispatch from
   // becoming four independent claims about the binding.
   const referenceBinding = reference ? bindings(reference)[0] : null;
-  const referenceDoes = word(REFERENCE.does);
-  const referenceLine = word(REFERENCE.line);
+  const referenceDoes = word(SHORTCUT_HELP.does);
+  const referenceLine = word(SHORTCUT_HELP.line);
   shortcutBarMoreKey.hidden = !referenceBinding;
   if (referenceBinding) shortcutBarMoreKey.textContent = spell(referenceBinding);
   shortcutBarMoreText.textContent = referenceLine;
@@ -305,7 +308,7 @@ export function renderLine(addressStatus) {
   else shortcutBarMore.removeAttribute("aria-keyshortcuts");
   // Read where it is painted, like every other cell. Every destination keeps its complete
   // sequence while the reader advances through it: completed keys change face, but no key is
-  // added, removed, or moved. A sequence control such as Escape is a way out of the mode, not
+  // added, removed, or moved. A sequence control such as Escape is a way out of the interaction, not
   // another destination, so it keeps its ordinary one-step face.
   const sequenceScope = complete?.scope;
   const sequence = word(sequenceScope?.sequence) ?? [];
@@ -320,13 +323,13 @@ export function renderLine(addressStatus) {
     if (node !== shortcutBarMore) node.remove();
   const seated = shortcutBarMore.parentElement === shortcutBarEl;
   const chip = (steps, said, states, afterMore = false, row = null) => {
-    const span = el("span", "lf-key");
+    const span = el("span", "lf-shortcut");
     span.setAttribute("aria-hidden", "true");
     if (row) {
       const active = bindings(row);
       const commands = commandPresentations(row, active).map(({ id }) => id);
-      span.dataset.lfCommands = commands.join(" ");
-      if (row.sequenceControl) span.classList.add("lf-sequence-control");
+      span.dataset.lfCommandIds = commands.join(" ");
+      if (row.sequenceControl) span.classList.add("lf-sequence-command");
     }
     span.append(keySequence(steps, states));
     if (said) span.append(el("span", "", said));
@@ -339,14 +342,14 @@ export function renderLine(addressStatus) {
     const steps = inSequence ? [sequence[0], ...rowSteps(row)] : rowSteps(row);
     const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
     const span = chip(steps, word(row.line), states, false, row);
-    span.hidden = sourceRow(row) === REFERENCE || (!shelf && !shown.has(row));
+    span.hidden = sourceRow(row) === SHORTCUT_HELP || (!shelf && !shown.has(row));
     return { row, span };
   });
   // The door is not useful behind the room it opens. While the reference stands, its
   // own Escape row is the short line and More leaves the focus order with the page. This
   // is the one removal that is meant: a reader standing on the door when the room opens
-  // is a state change rather than a repaint, and the shortcut reference takes focus anyway.
-  if (referenceOpen()) shortcutBarMore.remove();
+  // is a state change rather than a repaint, and the command reference takes focus anyway.
+  if (commandReferenceOpen()) shortcutBarMore.remove();
   else if (!seated) shortcutBarEl.append(shortcutBarMore);
 
   if (shelf && tail) {
@@ -380,7 +383,7 @@ export function renderLine(addressStatus) {
     while (rowsUsed() > 2 && removable.length) removable.shift().hidden = true;
     return;
   }
-  // A sequence is the complete menu of the mode it names. Its live rows wrap rather than
+  // A sequence is the complete menu of the interaction it names. Its live rows wrap rather than
   // disappearing, even where the ordinary shortlist would yield a lower-ranked hint.
   if (complete) return;
   // On a window narrower than those two
@@ -396,48 +399,47 @@ export function renderLine(addressStatus) {
   }
 }
 
-export const shortcutBarExpanded = () => expanded && shortcutAvailable();
+export const shortcutShelfOpen = () => shortcutShelfIsOpen && shortcutHelpAvailable();
 
-// Boot supplies the two transient modes More closes. The shelf renderer and its
+// Boot supplies the two transient interactions More closes. The shelf renderer and its
 // reference rows never import those command owners to draw their current declarations.
-export function mountShortcutBar({ setSequence, setReact, captureReturnPlace }) {
+export function mountShortcutBar({ setGoToSequence, setReact, captureReturnPlace }) {
   shortcutBarMore.onclick = () => {
-    setSequence(false);
+    setGoToSequence(false);
     setReact(false);
-    more(captureReturnPlace);
+    advanceShortcutHelp(captureReturnPlace);
   };
   // A narrower window changes which rows fit even without another reader input.
   addEventListener("resize", repaint);
   repaint();
 }
 
-export const REFERENCE = {
-  id: "reference.open",
-  runFromReference: false,
+export const SHORTCUT_HELP = {
+  id: "command.reference.open",
+  runFromCommandReference: false,
   keys: ["?"],
-  does: () =>
-    shortcutBarExpanded() ? "All keyboard shortcuts" : "More keyboard shortcuts",
-  line: () => (shortcutBarExpanded() ? "all shortcuts" : "more"),
+  does: () => (shortcutShelfOpen() ? "Command reference" : "More keyboard shortcuts"),
+  line: () => (shortcutShelfOpen() ? "command reference" : "more"),
   control: () => shortcutBarMore,
   run: () => shortcutBarMore.click(),
 };
 
-export const LESS_SHORTCUTS = {
-  id: "shortcuts.less",
+export const CLOSE_SHORTCUT_SHELF = {
+  id: "shortcut.shelf.close",
   keys: ["Escape"],
   does: "Show fewer keyboard shortcuts",
   line: "less",
-  referenceWhen: () => false,
-  runFromReference: false,
-  run: () => less(),
+  commandReferenceWhen: () => false,
+  runFromCommandReference: false,
+  run: () => closeShortcutShelf(),
 };
 
 export const beforeShortcutCommand = (row) => {
   if (
-    shortcutBarExpanded() &&
-    !referenceOpen() &&
-    row !== REFERENCE &&
-    row !== LESS_SHORTCUTS
+    shortcutShelfOpen() &&
+    !commandReferenceOpen() &&
+    row !== SHORTCUT_HELP &&
+    row !== CLOSE_SHORTCUT_SHELF
   )
-    less({ silent: true });
+    closeShortcutShelf({ silent: true });
 };

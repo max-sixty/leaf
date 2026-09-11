@@ -3,8 +3,10 @@
 
    `showThread` reveals a directly requested thread or message. It clears a narrowing
    that hides the destination and finishes an outgoing resolution fold before choosing
-   its lifecycle state. A thread opens in its reply box, or on its card when
-   resolved; a message takes focus at its own words so Tab reaches its controls. A
+   its lifecycle state. A thread reached in the complete panel opens in its reply box;
+   the compact margin view opens on its card and reveals that box only when the reader
+   asks to reply. A resolved thread opens on its card. A message takes focus at its own
+   words so Tab reaches its controls. A
    thread too tall for its scrollport starts at the earliest complete content block
    that still leaves its reply area visible. That puts the first visible content on a
    clean boundary instead of leaving an arbitrary partial message line below the pinned
@@ -19,7 +21,7 @@
    `boxReturnFrame` and `standingConversation` climb the same conversation relation, so
    “comment on the thread” going in and “back to thread” coming out name one element. The
    panel's general box returns to the Threads list when it was entered there, and to the
-   prior page place and workspace when page `c` entered it directly. `backFromBox` remains
+   prior page place and auxiliary chrome state when page `c` entered it directly. `backFromBox` remains
    the fallback for Tab or pointer arrival, where no keyboard entry exists to restore. A
    page-owned first-message seat has no standing place of its own; a widget control that
    explicitly enters its box supplies the caller-owned return target through
@@ -69,7 +71,7 @@ export function revealConversation(held, control, behavior = scrollBehavior()) {
 
 const conversationInputOf = (held) => {
   const box = held?.querySelector(SAY_BOX);
-  return box && shownBox(box).height ? box : null;
+  return box && (shownBox(box).height || box.lfRevealReply) ? box : null;
 };
 
 // Start a long direct arrival on the earliest complete content block that still leaves
@@ -337,6 +339,7 @@ export function createConversationLanding({ setPanel, scrollToThread, revealThre
     const prepared = prepareLanding(destination);
     if (!prepared) return false;
     const { held, box } = prepared;
+    box.lfRevealReply?.();
     box.focus({ preventScroll: true });
     revealConversation(held, box);
     if (held.dataset.id) scrollToThread(held.dataset.id);

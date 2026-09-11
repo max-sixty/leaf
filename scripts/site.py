@@ -7,7 +7,7 @@ build-generated initial projection at the edge, then gives an interacting browse
 private copy through Leaf's canonical Python server. The catalog previews come from the
 external revision pinned in `example-previews.json`.
 
-The worked examples and developer feature gallery become complete Leaf page directories
+The worked examples and developer package galleries become complete Leaf page directories
 under examples/<name>/. The same preparation path that serves a local fixture vendors
 each page's selected layer, stamps its authored versions, applies its companion event
 log and data, and closes the finished page without claiming it for an agent. A second,
@@ -51,7 +51,7 @@ LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 INTERNAL_EXAMPLES = {"corpus"}
-FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
+DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
 OUT = (
     ROOT / ".tmp" / "site"
 )  # gitignored; the container consumes the complete private page directories
@@ -68,7 +68,14 @@ PRODUCT_ROUTES = {
 SITE_PACKAGE = "./docs/package"
 # The card a link to a product page unfurls into. An example names its own catalog
 # preview instead, so a shared example shows the page rather than the product shot.
-DEFAULT_SOCIAL_IMAGE = DOCS / "session-light.png"
+#
+# Its own file rather than the landing page's still, because the two are shown at
+# different shapes: an unfurler draws a card at 1.91:1, and the still is 4:3, so
+# serving the still here handed every reader a centre crop of it with the banner cut
+# off the top — the version control, the approval, the thread count, everything that
+# says a page is live. `record-demo.py` shoots this off the same scene at the card's
+# own shape, so it stays as true as the stills beside it.
+DEFAULT_SOCIAL_IMAGE = DOCS / "session-card.png"
 
 
 class Links(HTMLParser):
@@ -197,10 +204,10 @@ def worked_example_sources() -> list[Path]:
 
 
 def published_page_sources() -> list[Path]:
-    """Authored pages the public site publishes, including its developer reference."""
-    if not FEATURE_GALLERY.is_file():
-        sys.exit("the developer feature gallery is missing")
-    return [*worked_example_sources(), FEATURE_GALLERY]
+    """Authored pages the public site publishes, including developer references."""
+    if not DEVELOPER_PAGES:
+        sys.exit("examples/developer holds no authored pages")
+    return [*worked_example_sources(), *DEVELOPER_PAGES]
 
 
 def product_sources() -> list[Path]:

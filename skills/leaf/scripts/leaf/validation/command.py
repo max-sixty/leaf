@@ -34,7 +34,7 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
             print(f"  · {line}", file=sys.stderr)
         return 1
     print(
-        "✓ index.html: parses, widgets validate, one module script + theme link, "
+        "✓ index.html: parses, widgets and authored modules validate, theme linked, "
         "protected ids and decisions carried over, nothing overflows the "
         f"{result.column}px column"
     )

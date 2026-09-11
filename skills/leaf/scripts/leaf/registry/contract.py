@@ -105,7 +105,7 @@ def visual_part_attribute(entry: dict) -> str | None:
 
 
 def visual_parts(record: dict, registry: dict) -> tuple[str, ...]:
-    """Stable visual-part ids declared by one authored widget instance."""
+    """Stable visual-part ids declared by one authored Leaf element."""
     attribute = visual_part_attribute(registry.get(record.get("tag"), {}))
     value = record.get("attrs", {}).get(attribute) if attribute else None
     return tuple(value.split()) if value else ()
@@ -169,8 +169,8 @@ class RegistryError(click.ClickException):
             click.echo(self.message, file=file)
 
 
-def read_registry_entries(path: Path):
-    """Read the top-level entries one registry layer contributes."""
+def read_registry_declarations(path: Path):
+    """Read the top-level declarations one registry layer contributes."""
     if (path.exists() or path.is_symlink()) and not path.is_file():
         raise RegistryError(f"{path}: registry.json must be a file")
     try:
@@ -191,7 +191,9 @@ def read_registry_entries(path: Path):
         name for name, entry in registry.items() if not isinstance(entry, dict)
     ]
     if non_objects:
-        raise RegistryError(f"{path}: registry entries must be objects: {non_objects}")
+        raise RegistryError(
+            f"{path}: registry declarations must be objects: {non_objects}"
+        )
     return registry
 
 
@@ -203,7 +205,7 @@ def declares_string(field_schema) -> bool:
 
 
 def state_specs(entry: dict):
-    """The state and report verb declarations on one widget entry."""
+    """The state and report verb declarations on one element declaration."""
     for channel in ("x-state", "x-report"):
         for verb, spec in entry.get(channel, {}).items():
             yield channel, verb, spec

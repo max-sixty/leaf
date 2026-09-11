@@ -88,14 +88,14 @@ entry and preventing an enclosing deck from taking its arrows.
 An active mode owns its continuations and inverse. Leaf orders nested Escape behavior
 through the return stack; one press unwinds one layer.
 
-### Leaf assigns collection-wide addresses
+### Leaf assigns collection-wide bindings
 
 Some routes are properties of a complete collection rather than any one widget:
 
 - Ask assigns `1` through `9` to the ordered live Decisions in the Ask.
 - Go-to assigns generated addresses after reading every visible destination.
 
-Packages contribute commands and controls, not those contextual addresses. Every Ask
+Packages contribute commands and controls, not those contextual bindings. Every Ask
 Decision consumes one digit while capacity remains, even when the command also has an
 intrinsic widget binding. ArrowLeft remains Swipe's local route; `1` is the Ask's
 independent route to the same `swipe.pass` command.

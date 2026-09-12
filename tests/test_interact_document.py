@@ -531,9 +531,7 @@ def test_check_leaves_the_layers_policy_to_delivery(page_dir):
 def test_check_leaves_the_documents_encoding_to_delivery(page_dir):
     """One declaration at delivery's first-byte boundary owns document encoding."""
     version = page_dir / ".fixture-versions" / "v1.html"
-    authored = version.read_text().replace(
-        "</head>", '<meta charset="utf-8">\n</head>'
-    )
+    authored = version.read_text().replace("</head>", '<meta charset="utf-8">\n</head>')
     version.write_text(authored)
     result = check(page_dir)
     assert result.exit_code == 1

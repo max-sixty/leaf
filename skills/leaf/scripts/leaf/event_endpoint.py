@@ -15,7 +15,7 @@ from .event_contracts import (
 )
 from .event_log import AttemptConflict
 from .events import build_threads, undo_error
-from .files import list_revisions, revision_path, version_revisions
+from .files import list_revisions, version_revisions
 from .passages import active_enclosing
 from .projection import (
     generated_children,
@@ -119,17 +119,17 @@ class _TransactionValidation:
                 '<meta name="lf-review" content="sign-off">, so it has no '
                 "approval to record",
             )
-        html = revision_path(self.page_dir, self.event["revision"]).read_text(
-            encoding="utf-8"
+        document = parse_revision(self.page_dir, self.event["revision"])
+        page = page_reading(
+            document, self.events, self.registry, self.event["revision"]
         )
-        page = page_reading(html, self.events, self.registry, self.event["revision"])
         threads = build_threads(self.events, page.within)
-        document = read_document(page, threads)
+        document_state = read_document(page, threads)
         conversation, _reading = browser_conversation(
             self.events, self.registry, threads
         )
         unanswered = [
-            *document.asks["unanswered"],
+            *document_state.asks["unanswered"],
             *conversation["asks"]["unanswered"],
         ]
         if unanswered:

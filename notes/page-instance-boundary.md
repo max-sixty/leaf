@@ -53,21 +53,23 @@ dependencies that document uses; a historical revision never imports replacement
 bytes. The server never serves mutable author source directly.
 
 Relative module imports, CSS imports, and CSS URL dependencies stay within the captured
-page graph. Page modules may import only the public layer entry points recorded in the
-revision manifest, including `runtime/widget-api.js`. An unresolved dependency, network
-dependency, arbitrary filesystem escape, or import of an undeclared layer-internal path
-refuses activation. The revision store may deduplicate bytes by digest, but deduplication
-is not part of the author contract.
+page graph. Page modules may import only the public layer entry points documented by
+[package authoring](../skills/leaf/references/packages.md), with
+`/runtime/widget-api.js` as the complete browser API. The captured revision manifest
+records the resolved graph; it does not define the public contract. An unresolved
+dependency, network dependency, arbitrary filesystem escape, or import of an undeclared
+layer-internal path refuses activation. The revision store may deduplicate bytes by
+digest, but deduplication is not part of the author contract.
 
 Every live revision activates in a fresh document execution environment. Markup-only DOM
 replacement and executable reload are not separate paths, and candidate page modules
 never run in the old environment. Automatic activation waits while composition or
-dragging is active. Before navigation, Leaf records only its explicit continuity state;
-the new document revalidates recoverable drafts, reading position, and standing
-destinations, and reconciles the reactive runtime's bounded unresolved ledger. Element
-instances, arbitrary module state, and exact focus inside an interrupted interaction do
-not cross the boundary. Leaf may optimize activation later only if a measurement
-justifies it and the optimized path preserves this lifecycle.
+dragging is active and until every local semantic attempt has settled. Before navigation,
+Leaf records only its explicit continuity state; the new document revalidates recoverable
+drafts, reading position, and standing destinations against its fresh authoritative
+reading. Unresolved commands, element instances, arbitrary module state, and exact focus
+inside an interrupted interaction do not cross the boundary. Leaf may optimize activation
+later only if a measurement justifies it and the optimized path preserves this lifecycle.
 
 Inline modules remain valid and keep their exact CSP hashes. Captured external modules
 are explicit same-origin module sources served with strict MIME types. Classic scripts,
@@ -151,32 +153,41 @@ original intent.
 
 ### #5 — Export states its execution mode
 
-Static export remains a script-free snapshot. Interactive export captures the active
-revision's page-owned and layer-owned local dependencies, preserves local computation
-and navigation, and disables every host-dependent action. A disabled action says that no
-agent or server is available; it never appears accepted.
+The completed static export remains a script-free snapshot. The remaining interactive
+export captures the active revision's page-owned and layer-owned local dependencies,
+preserves local computation and navigation, and disables every host-dependent action. A
+disabled action says that no agent or server is available; it never appears accepted.
 
 Interactive export follows dependency capture in #1. It is not a reason to retain live
 networking, bootstrap probes, event submission, or host chrome in a standalone file.
 The reactive runtime's normal renderers and presentation barrier serve both live and
 offline-interactive documents; export does not add a parallel page runtime.
 
-Done means the same playground can be exported either as a readable static record or as
-an offline interactive artifact whose local controls work and whose host actions cannot
-run.
+Done means the same structured page can be exported either as a readable static record
+or as an offline interactive artifact whose local controls work and whose host actions
+cannot run.
 
 ## Implementation order
 
-1. Complete #1's dependency capture and fresh-document activation path.
-2. Use the reactive runtime's joint validation slice to establish its final public
-   behavior API and compose one revision-bound page declaration through the existing
-   registry and event machinery (#2).
-3. Complete the reactive publisher, rendering, and presentation cutover against that
-   page-owned case.
-4. Separate design intent from source ownership and expose identity controllers needed
-   by #7.
-5. Build interactive export on the captured revision graph and shared presentation
-   barrier (#5).
+Revision capture, page-owned composition, static export, Lit, Signals, and the locked
+contributor build are foundations for the remaining work rather than open choices. The
+program proceeds in this order:
+
+1. Seal `/runtime/widget-api.js` and
+   [package authoring](../skills/leaf/references/packages.md) as the public behavior
+   contract, then move every semantic consumer to the one publisher.
+2. Establish the semantic-epoch and presentation-ticket coordinator before converting
+   rendering ownership.
+3. Separate design intent from source ownership and finish the Targeting controllers
+   needed by #7.
+4. Convert Leaf-owned generated regions to Lit by ownership boundary while retaining
+   authored nodes.
+5. Prove fresh-document activation waits for local attempts to settle and restores only
+   the explicit continuity state from #1.
+6. Add interactive export on the captured revision graph and shared presentation
+   barrier without replacing or weakening static export (#5).
+7. Move the lasting rules into their canonical contracts, remove superseded paths, and
+   dissolve these implementation notes.
 
 Each slice replaces the corresponding future-tense rules here with implementation
 contracts beside the owning code. The final slice deletes this note and its link from the

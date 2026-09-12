@@ -18,10 +18,16 @@ transition covers start, stop, init, contract-bearing CLI writes, and preview
 reads. Stop retains it through the server's release, so no operation can cross
 the old process's contract.
 
-The registry is shared by the JS runtime, the POST and re-vendor action gates,
-`leaf version check` and thread-markup validation, the passage reader
-`leaf comment` anchors through, and the selective queries the agent runs. Each
-successful init records two deliberately different identities under `$layer`:
+The effective registry is shared by the JS runtime, the POST and candidate-version
+gates, thread-markup validation, the passage reader `leaf comment` anchors through,
+and the selective queries the agent runs. A candidate must retain every page action or
+report whose sender it retains, including superseded predecessors that a later undo can
+expose. It must also retain all frozen thread markup and the actions and requests sent
+from it, because that document has no revision boundary. Page events whose senders the
+candidate removes are historical-only and remain interpretable through the registry
+captured with their immutable revisions. Re-vendoring composes page-owned declarations
+over the prospective layer before running this same candidate check. Each successful
+init records two deliberately different identities under `$layer`:
 
 - `generation` is a fresh epoch embedded in both `runtime/layer-client.js` and the
   registry. State reports it and event requests carry it; the server repeats it on

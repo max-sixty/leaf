@@ -88,7 +88,6 @@ def declared_action_error(
     page_by_id: dict,
     thread_by_id: dict,
     registry: dict,
-    prior_registry: dict | None = None,
     *,
     stored: bool = True,
 ):
@@ -126,18 +125,6 @@ def declared_action_error(
             f"<{tag}> action {event['action']!r} has a generated snapshot but its "
             "declaration creates no children"
         )
-    if prior_registry is not None:
-        prior = (
-            prior_registry.get(tag, {})
-            .get("x-state", {})
-            .get(event["action"], {})
-            .get("creates")
-        )
-        if prior != creates:
-            return (
-                f"<{tag}> action {event['action']!r} changes its recorded creates "
-                f"declaration from {prior!r} to {creates!r}"
-            )
     # The exhibit rule at the door, not only in the shipped runtime's
     # sendAction: an exhibited widget is a mention, and the log outranks the
     # document — an action taken here would replay as a decision the reader

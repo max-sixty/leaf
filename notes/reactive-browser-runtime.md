@@ -11,7 +11,7 @@ turn that handles the gesture. An authoritative server response replaces the acc
 base and rebases unresolved gestures over it. Server-owned facts such as canonical agent
 activity remain unchanged until that response supplies a new value.
 
-The browser implementation should use:
+The settled implementation foundation uses:
 
 - a plain TypeScript domain model for authored state, authoritative state, unresolved
   gestures, receipts, and the effective state derived from them;
@@ -85,10 +85,11 @@ media, native disclosure, and a drag already in progress.
 
 A revision change is different: it starts a fresh document and therefore cannot retain
 custom-element instances or arbitrary module state. Automatic activation waits while
-composition or dragging is active. The new document restores only continuity that Leaf
-records explicitly and can revalidate against stable identity: recoverable drafts,
-reading position, standing destinations, and the bounded unresolved ledger. This is a
-continuity handoff, not DOM or JavaScript-heap preservation.
+composition or dragging is active and until every local semantic attempt has settled.
+The new document restores only continuity that Leaf records explicitly and can revalidate
+against stable identity: recoverable drafts, reading position, and standing destinations.
+This is a continuity handoff, not command retry, DOM preservation, or JavaScript-heap
+preservation.
 
 ### An open widget layer
 
@@ -108,19 +109,19 @@ renderers it never uses.
 
 Export waits for the same presentation contract as a live page and follows the two modes
 defined by [the page-instance boundary](page-instance-boundary.md#5--export-states-its-execution-mode).
-Static export materializes lazy content, serializes declared shadow content, inlines CSS
-and media, removes scripts, and strips or disarms controls whose behavior required
-JavaScript. Interactive export packages the active revision's captured local behavior,
-preserves local controls and navigation, removes host chrome and networking, and disables
-host-dependent commands before dispatch. Both open without a server or external request.
+The completed static path materializes lazy content, serializes declared shadow content,
+inlines CSS and media, removes scripts, and strips or disarms controls whose behavior
+required JavaScript. The remaining interactive path packages the active revision's
+captured local behavior, preserves local controls and navigation, removes host chrome and
+networking, and disables host-dependent commands before dispatch. Both open without a
+server or external request.
 
 ## Non-goals
 
 - The server event model, append-only log, revision store, and Python projection do not
   move into a frontend framework.
 - Leaf does not become a single-page application and gains no client router, frontend
-  server rendering, hydration protocol, or application framework such as SvelteKit or
-  Next.js.
+  server rendering, hydration protocol, or application framework.
 - The server does not gain a second renderer for package widgets.
 - A renderer does not own `body > main` or reconstruct arbitrary authored markup from
   strings.
@@ -216,30 +217,33 @@ The public widget API supplies five capabilities:
 5. A presentation ticket for asynchronous work whose visible result is required before
    the current epoch is presented.
 
-`runtime/widget-api.js` is the only Leaf browser import path content modules use. It
+`/runtime/widget-api.js` is the only Leaf browser import path content modules use. It
 exports the minimum Lit primitives needed by a shipped widget and the Leaf
 reading/controller capabilities above; it does not expose writable Signals values or
-internal vendor paths. The validation slice fixes that initial export list and records
-it in the build manifest. Further Lit helpers join only when a concrete page or package
-needs them.
+internal vendor paths. That module's exports and the corresponding rules and examples in
+[package authoring](../skills/leaf/references/packages.md) jointly own the public
+contract. The contributor-build manifest records how committed output was produced; it
+does not define or extend this API. Further Lit helpers join only when a concrete page or
+package needs them.
 
 Lit is the default renderer, not a mandatory content-module language. A plain-JavaScript
 custom element or page interaction module can consume the same read-only projection,
 dispatch, subscription, local-edit, and presentation interfaces without extending
 `LitElement`.
 
-### Contributor build
+### Locked contributor build
 
-TypeScript and dependency bundling run in development and when committed browser
-artifacts are regenerated. The authoritative source and generated destinations are
-declared by one build script. Resolved dependency versions are locked, and CI verifies
-that committed ESM and CSS match their sources.
+The contributor build is settled. TypeScript and dependency bundling run in development
+and when committed browser artifacts are regenerated. The build script owns source and
+generated destinations, the lockfile fixes dependency versions, and CI verifies that
+committed ESM and CSS match their sources. Its manifest is generated evidence about
+inputs, outputs, dependencies, and byte identity, not an author-facing contract.
 
-The output keeps the current distribution properties:
+The committed output keeps these distribution properties:
 
-- core and each optional package have separate entry points;
-- shared Lit and Signals code is vendored under the runtime and addressed by stable
-  relative imports;
+- one self-contained internal runtime bundle supplies locked Lit and Signals code;
+- optional packages remain independently vendored browser modules and consume the
+  public widget API rather than embedding a second framework copy;
 - generated artifacts contain no CDN URL, dynamic package resolution, `eval`, or runtime
   compiler;
 - `page init` copies committed output and does not invoke Node;
@@ -264,7 +268,7 @@ TypeScript shape belongs beside the implementation, but it contains these concep
 | --- | --- |
 | document | Active revision, effective registry, captured dependency-graph and layer identities, and typed authored baselines |
 | authoritative | One complete accepted `/api/state` view and calibrated server time |
-| unresolved | Ordered local attempts, dependencies, receipts, and delivery status |
+| unresolved | Ordered local attempts, dependencies, receipts, and delivery status for the active document |
 | effective | Pure fold of the first three readings |
 | semanticEpoch | Monotonic identity of the active document and effective semantic reading |
 
@@ -276,7 +280,8 @@ into a widget-specific queue.
 The document context is one revision-bound value. Markup, page and package modules, the
 effective registry, layer generation, and captured dependencies cannot advance
 independently. Candidate state and commands retain the context against which they were
-prepared or admitted; another document cannot interpret them under a newer schema.
+prepared or admitted; another document cannot interpret or retry them under a newer
+schema.
 
 The snapshot is immutable by convention and by development assertions. Publisher
 operations create the next snapshot, batch the root write with any derived invalidation,
@@ -333,23 +338,18 @@ that just completed.
 
 Revision validation and dependency capture finish before activation. Automatic
 activation waits while the current document owns an active composition or drag, then
-records the explicit continuity handoff and navigates to a fresh execution environment
-for the complete candidate revision. Candidate page modules are never evaluated in the
-old document.
+waits until the active document's unresolved ledger is settled. It then records the
+explicit continuity handoff and navigates to a fresh execution environment for the
+complete candidate revision. Candidate page modules are never evaluated in the old
+document, and unresolved commands are neither serialized nor retried across the document
+boundary.
 
-The continuity handoff carries the one unresolved ledger's bounded records: each original
-command payload and document context, ordering and dependencies, stable attempt identity,
-delivery state, and known receipt. The new environment boots one publisher from the
-revision-bound document context and first reconciles those records with authoritative
-events and receipts under their original context. Only then does it test a still-
-unaccepted command against the new revision and retry or surface refusal. A removed
-target never causes Leaf to forget an attempt that may already have been accepted.
-
-The new environment restores recoverable drafts, reading position, and standing
-destinations only when their stable identities still resolve. It does not preserve prior
-element instances, arbitrary page-module state, or exact focus inside an interaction
-that could not cross the activation boundary. Historical navigation uses the same
-document lifecycle without inventing additional continuity.
+The new environment boots one publisher from its revision-bound document context and a
+fresh authoritative reading. It restores recoverable drafts, reading position, and
+standing destinations only when their stable identities still resolve. It does not
+preserve prior element instances, arbitrary page-module state, or exact focus inside an
+interaction that could not cross the activation boundary. Historical navigation uses the
+same document lifecycle without inventing additional continuity.
 
 ## Presentation contract
 
@@ -394,182 +394,88 @@ application fact. A caret move, draft keystroke, hover, open `<details>`, or dra
 placeholder can repaint locally. The eventual semantic drop or send goes through the
 publisher.
 
-## Alternatives
-
-### Svelte 5
-
-Svelte provides the strongest integrated contributor experience: compiler diagnostics,
-templates, scoped styles, transitions, and a widely recognized component model. It is
-the fallback if the Lit validation slice needs substantial adapter code.
-
-It is not the first choice because Leaf's composition boundary is independently
-authored custom elements rather than one component tree. Svelte custom elements wrap an
-inner component, publish DOM on a later tick, cannot share ordinary Svelte context
-across separate custom elements, and cannot use native slots when configured without a
-shadow root. Leaf would still need the external domain store and explicit custom-element
-bridge, reducing the advantage of the integrated component language.
-
-SvelteKit is not a contender. Leaf needs neither its routing nor its server application
-model.
-
-### Preact with Signals and HTM
-
-Preact is the conservative no-build alternative. Its signals integrate directly, and
-HTM avoids JSX compilation. It fits Leaf-owned application chrome well. A virtual
-component tree is less natural for arbitrary authored children, independently upgraded
-custom elements, and nodes that move between owners while retaining identity.
-
-### HTMX
-
-HTMX makes a server's HTML response the update mechanism. That is useful for navigation
-and server-confirmed forms. Leaf's primary gestures change several semantic surfaces
-before a response exists and must later rebase over a newer authoritative view. HTMX
-does not remove that model. Adding HTML swaps beside it would create a second rendering
-authority and make focus, selection, nested widget identity, and anchor continuity
-harder to guarantee.
-
-### Solid, Vue, and React
-
-Solid's fine-grained reactivity is technically strong, but JSX compilation and
-component-root ownership offer less direct custom-element composition than Lit. Vue has
-a capable custom-element mode but no stronger fit at Leaf's document boundary. React
-has the broadest ecosystem but would require the most deliberate isolation from its
-root-owned rendering assumptions. None supplies Leaf's receipt, rebase, revision, or
-exact-undo semantics.
-
-The framework comparison was reviewed against the following primary documentation on
-2026-09-11:
-
-- [Lit components](https://lit.dev/docs/components/overview/),
-  [reactive controllers](https://lit.dev/docs/composition/controllers/), and
-  [lifecycle](https://lit.dev/docs/components/lifecycle/)
-- [Signals Core](https://github.com/preactjs/signals/tree/main/packages/core)
-- [Svelte custom elements](https://svelte.dev/docs/svelte/custom-elements)
-- [Preact no-build workflows](https://preactjs.com/guide/v10/no-build-workflows/)
-- [HTMX requests and swaps](https://htmx.org/docs/) and
-  [preserved elements](https://htmx.org/attributes/hx-preserve/)
-
 ## Implementation plan
 
-### 1. Prove the joint boundary
+### 1. Seal the public API and its consumers
 
-First complete revision capture and fresh-document activation from #1 of the
-[page-instance boundary](page-instance-boundary.md). Then build one unshipped structured
-Playground page with Lit, Signals Core, the real server transport, one page-owned module,
-and one page-owned declaration that reuses a package implementation. This slice
-establishes the final public behavior API and the minimum end-to-end page-declaration
-path rather than adapting either later. It contains:
+Finish the one immutable publisher and move widget state, action availability, exact
+Undo, Ask completion, request lifecycle, conversation, receipts, local delivery, banner,
+margin contributions, and authoritative agent activity display to computed readings from
+it. Only the active document's publisher writes accepted history, unresolved attempts,
+document context, and the effective semantic root. Canonical activity derivation and the
+agent-stop gate remain in Python.
 
-- an authored board whose cards move between parents;
-- a nested editable draft with retained focus and selection;
-- an options Ask;
-- generated Ask, Undo, margin, receipt, local-delivery, server-activity, and conversation
-  surfaces;
-- one lazy content renderer and one declared shadow root.
+Expose the resulting read, command, subscription, local-edit, and presentation
+capabilities through `/runtime/widget-api.js`, and specify their package-facing use in
+[package authoring](../skills/leaf/references/packages.md). Those two surfaces are the
+public contract; the generated build manifest remains build evidence. Module-boundary
+tests reject forbidden imports, direct writes, duplicate pending stores, and consumers
+that independently combine server events with local attempts.
 
-Hold one response, make a later gesture, publish a newer server view, undo the first
-gesture, refuse an attempt, and move a card while its editor is active. The slice passes
-only if every semantic surface agrees before each visible frame, element instances and
-text anchors survive moves within the active document, a complete revision restart
-restores only the declared continuity, and reloading reaches the same final state.
+### 2. Establish the presentation coordinator
 
-Export the settled page statically and open it with scripting disabled. Block all
-external requests and run under the real CSP. Change authored prose, widget attributes,
-and ordinary page JavaScript and activate them without running a frontend build. Step 6
-reuses this fixture to prove offline-interactive export. If the slice requires state
-synchronization effects, DOM reconstruction within one revision, or a growing framework
-adapter, implement the same slice in Svelte 5 and compare the code and behavior before
-proceeding.
+Implement the ticketed semantic/presented epoch contract before changing rendering
+ownership. Adapt first load, authoritative adoption, widget upgrade, external data,
+revision readiness, conversations, render gates, screenshots, and external automation to
+the same coordinator. Verify that stale renderer instances, disconnected regions, prior
+documents, and superseded epochs cannot complete the active barrier; required descendants
+join before membership seals, and fail-soft work always settles its ticket.
 
-### 2. Establish the build and public framework seam
+### 3. Complete design intent and Targeting
 
-The validation slice must finish with a build manifest naming the authoritative source
-roots, committed output roots, lockfile owner, exact build and stale-output-check
-commands, public `runtime/widget-api.js` import path, and every externalized shared
-module. It also distinguishes layer-owned output from browser-ready page modules captured
-with a revision. That manifest is the authority for the full cutover rather than a
-checklist each later package or page interprets again.
+Record design comments as presentation or interaction intent without assigning source
+ownership. Finish the stable Targeting controllers for multi-role references, detached
+and ambiguous targets, hit testing, keyboard targeting, and declared-reference
+validation. The same gesture must remain anchored whether the resulting edit belongs to
+the page, a package, or core Leaf.
 
-Add the pinned dependencies, deterministic build, generated destinations, and CI check
-described by that manifest. Expose only the Lit and state-reading capabilities content
-modules need through `runtime/widget-api.js`; internal package names do not become a
-second public API.
+### 4. Convert rendering ownership to Lit
 
-The build must preserve optional-package splitting, self-only CSP, plugin installation
-without Node, and source maps useful from the vendored page directory. Optional package
-builds externalize the exact shared Lit and Signals artifacts named by the manifest;
-tests reject an embedded second copy. Measure generated request counts and bytes before
-choosing chunk boundaries.
+Use the locked contributor build and convert generated regions by ownership boundary:
+widget controls, Ask and request controls, conversation surfaces, margin entries, and
+remaining chrome. Each Lit owner receives one read-only computed value and invokes the
+sealed semantic command. Move authored children into explicit retained regions before a
+template owns adjacent generated children.
 
-### 3. Introduce the one application publisher
+Preserve transient interaction within one document through retained nodes and explicit
+local controllers. When the last caller of an imperative reconciliation helper moves,
+delete the helper and its implementation-coupled tests. Preserve refusal, pending exact
+Undo, frozen-thread scope, draft generations, repeated anchors, and cross-parent widget
+continuity through the public API.
 
-Define the snapshot and publisher operations. Move the current pure projection,
-pending, Ask, request, and conversation folds behind computed readings without changing
-their server inputs. Make the application's state adoption path build a private
-candidate and publish once.
+### 5. Prove the fresh-document rule
 
-At the end of this step, only the active document's publisher writes accepted history,
-unresolved attempts, document context, and the effective semantic root. Module-boundary
-tests reject direct writes and forbidden imports. Delete replaced mutable runtime fields
-and projection-specific pending stores in the same change.
+Exercise complete revision activation with the real server and browser. Automatic
+activation waits for composition and dragging to end and for every local semantic
+attempt to settle, then navigates once. The new publisher starts from the new revision and
+a fresh authoritative reading; only recoverable drafts, reading position, and standing
+destinations are restored after stable-identity validation. Tests reject any serialization
+or retry of an unresolved command across the document boundary and any execution of a
+candidate page module in the old document.
 
-### 4. Cut semantic consumers over
+### 6. Add interactive export
 
-Move widget state, action availability, exact Undo, Ask completion, request lifecycle,
-conversation, receipts, local delivery, banner, margin contributions, and the display of
-authoritative agent activity to computed readings from the snapshot. Keep canonical
-activity derivation and the agent-stop gate in Python. Keep one semantic command for each
-browser result and route visible controls and keyboard bindings to it.
+Keep the completed script-free static path and add offline-interactive export on the
+captured revision graph. It uses the same renderers and presentation coordinator,
+materializes serializable shadow roots and styles for screen and print, exposes no host
+transport or command path, and performs no external request. Static and interactive
+copies of the same structured page must preserve the appropriate visible state without a
+second export runtime.
 
-Use the held-response journeys to cut over all consumers before removing their previous
-read paths. The final merged state has no consumer that combines server events and
-pending gestures independently.
+### 7. Dissolve the implementation contracts
 
-### 5. Cut rendering over to Lit
+Remove transition adapters, unused DOM state attributes, old subscriptions, duplicate
+lifecycle stores, and obsolete read paths. Run import-boundary and unused-export checks
+over the final graph. Move lasting state and publication invariants to repository
+`CLAUDE.md`; browser ownership and presentation rules to
+`skills/leaf/assets/CLAUDE.md` and module headers; public module usage to
+`skills/leaf/references/packages.md`; build ownership to `scripts/CLAUDE.md` and the
+build script; and reader-visible behavior to its authoring references. Delete this note
+and its joint `TODO.md` link only after the page-instance outcome is complete too.
 
-Convert generated regions by ownership boundary rather than by visual proximity:
-widget controls, Ask, request controls, conversation surfaces, margin entries, and
-remaining chrome. Each conversion retains the existing semantic command and receives a
-read-only computed value. Move authored children into an explicit retained region before
-letting a template own adjacent generated children.
-
-Preserve transient interaction within an active document through node retention and
-explicit local controllers. Cross-revision continuity uses the bounded handoff from step
-1, not a generalized DOM transaction, module-state serializer, or rollback mechanism.
-When the last caller of an imperative reconciliation helper moves, delete the helper and
-implementation-coupled tests. Move every surviving behavioral case to the new public
-entry point, including refusal, pending exact Undo, frozen-thread scope, draft
-generations, repeated anchors, and cross-parent widget continuity.
-
-### 6. Unify presentation readiness and export
-
-Replace owner-specific commit proof with the ticketed semantic/presented epoch contract.
-Adapt widget upgrade, external data, revision activation, conversations, render gates,
-and export to the same barrier. Verify that stale renderer instances and superseded
-epochs cannot complete the active barrier. Verify serializable shadow roots and
-stylesheet materialization in screen and print. Reuse the structured Playground fixture
-to prove both outputs: a script-disabled static copy and an offline-interactive copy that
-uses the same captured renderers while exposing no host transport or command path.
-
-### 7. Remove transition code and publish the contract
-
-Remove adapters used only during the branch, unused DOM state attributes, old event
-subscriptions, and duplicate lifecycle stores. Run the import-boundary and unused-export
-checks over the final graph.
-
-Move the stable contracts from this note into their owners:
-
-- cross-runtime state and publication invariants into repository `CLAUDE.md`;
-- browser ownership, presentation, local-state, and build boundaries into
-  `skills/leaf/assets/CLAUDE.md` and module headers;
-- package authoring and plain-JavaScript usage into
-  `skills/leaf/references/packages.md`;
-- contributor build commands and generated-output ownership into
-  `scripts/CLAUDE.md` and the build script's help;
-- reader-visible effects into the appropriate public authoring references.
-
-Delete this note and its link from the joint `TODO.md` item once those homes are complete.
-Keep that item until the page-instance outcome is complete too.
+The separate [Playground capability plan](playground-capability-plan.md) consumes these
+primitives after this program establishes them; it is not an implementation step in this
+runtime cutover.
 
 ## Acceptance
 
@@ -579,7 +485,8 @@ The cutover is complete when all of the following hold:
    receipt, conversation, and local delivery readings immediately, before a held request
    resolves. Canonical agent activity remains the server-supplied reading.
 2. Multiple unresolved gestures remain ordered across accepted, refused, duplicated,
-   delayed, and overlapping state responses. A reload matches the final local result.
+   delayed, and overlapping state responses. After they settle, a reload matches the
+   final authoritative result.
 3. An authoritative read prepared before a later gesture rebases over that gesture at
    commit instead of overwriting it. A read that finishes preparing after a newer server
    reading committed is discarded, including when the newer response changes non-event
@@ -588,11 +495,10 @@ The cutover is complete when all of the following hold:
    standing report, or authored value in that order.
 5. Within one active document, focus, caret, text selection, draft generations, media,
    disclosure, drag state, reading position, and nested custom-element instances survive
-   every applicable render. Automatic revision activation waits for active composition
-   and drag to end, then a fresh document restores only recoverable drafts, reading
-   position, and standing destinations whose stable identities remain valid. It carries
-   the bounded unresolved ledger, reconciles known acceptance first, and only then tests
-   remaining commands against the new document context.
+   every applicable render. Automatic revision activation waits for active composition,
+   drag, and every unresolved semantic attempt to settle. A fresh document then restores
+   only recoverable drafts, reading position, and standing destinations whose stable
+   identities remain valid; it serializes and retries no unresolved command.
 6. Authored and projected passages resolve to the same visible words before and after
    rendering. Anonymous repeated widgets and nested preserving boundaries retain their
    identities.
@@ -632,20 +538,3 @@ Record the dependency and generated-output sizes by core and optional package. A
 work before `data-lf-presented` needs a reader-visible reason; parsing a component that
 is absent from the page is not one. Confirm that a plain page and each package load no
 bundle outside their declared layer.
-
-## Implementation handoff
-
-The next session starts with complete revision capture from the page-instance boundary,
-then the joint validation slice, not a repository-wide mechanical conversion. It should
-treat the current optimistic projection fold as source material, not preserve every
-surrounding browser interface. The spike decides whether the Lit boundary is as small as
-expected; its acceptance evidence authorizes the full cutover. Page-owned declarations
-then land through that final public API, the remaining semantic and rendering consumers
-cut over, and interactive export follows the shared presentation contract. Playground
-package expansion comes after those primitives exist.
-
-The implementation stays one architecture: one publisher, one immutable snapshot, one
-pending ledger, computed semantic readings, and renderers that receive values. A
-temporary adapter may exist within the unmerged branch to keep the test suite runnable,
-but no compatibility layer, feature flag, duplicate store, or old read path remains in
-the final change.

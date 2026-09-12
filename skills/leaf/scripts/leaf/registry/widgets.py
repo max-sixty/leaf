@@ -36,6 +36,14 @@ def element_declarations(registry: dict, path) -> dict:
     return {tag: entry for tag, entry in registry.items() if tag.startswith("lf-")}
 
 
+def _recorded_attributes(entry: dict) -> set[str]:
+    return {
+        record["attr"]
+        for _channel, _verb, spec in state_specs(entry)
+        if (record := spec.get("record")) and "attr" in record
+    }
+
+
 def validate_widget_schemas(declarations: dict, path) -> None:
     # First validate every declaration in isolation. Cross-declaration checks run only after this
     # pass, so their result cannot depend on which widget happened to be written first.
@@ -64,11 +72,7 @@ def validate_widget_schemas(declarations: dict, path) -> None:
                 for verb, spec in entry.get("x-request", {}).get("verbs", {}).items()
             ),
         ]
-        recorded_attributes = {
-            record["attr"]
-            for _channel, _verb, spec in state_specs(entry)
-            if (record := spec.get("record")) and "attr" in record
-        }
+        recorded_attributes = _recorded_attributes(entry)
         for channel, verb, spec in declared_verbs:
             try:
                 Draft202012Validator.check_schema(spec["detail"])
@@ -289,6 +293,11 @@ def _validate_widget_structure(
                 raise RegistryError(
                     f"{path}: <{tag}> x-request offer <{member}> attribute "
                     f"`{attribute}` must be required"
+                )
+            if attribute in _recorded_attributes(member_entry):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-request offer <{member}> attribute "
+                    f"`{attribute}` is written by x-state or x-report"
                 )
             if unknown := sorted(set(values) - verbs):
                 raise RegistryError(

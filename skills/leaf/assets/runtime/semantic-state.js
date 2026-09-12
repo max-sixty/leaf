@@ -42,6 +42,17 @@ export const whenWidgetsPresented = (widgets) =>
       `widget:${widget}:preparation`,
     ]),
   );
+export const whenApplicationRegionsPresented = (regions, current) =>
+  presentation.whenCurrentRegionsPresented(
+    () =>
+      current()
+        ? {
+            document: documentToken,
+            semanticEpoch: readApplication().semanticEpoch,
+          }
+        : null,
+    regions,
+  );
 export const readApplicationPresentation = presentation.read;
 export function setPresentationFailureReporter(report) {
   if (typeof report !== "function")

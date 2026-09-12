@@ -4960,16 +4960,25 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
             if (deliveries > 1)
               return Promise.reject(new Error('update projection failed'));
           });
+          let throwingDeliveries = 0;
+          const stopThrowing = watchData(widget, 'rows', () => {
+            throwingDeliveries += 1;
+            if (throwingDeliveries > 1)
+              throw new Error('synchronous update projection failed');
+          });
           const revision = runtime.data.revision + 1;
           const next = structuredClone(runtime.data);
           next.revision = revision;
           next.sources.deployments.revision = revision;
           acceptData(next);
           await notifyDataSubscribers();
+          await notifyDataSubscribers();
           stopUpdate();
+          stopThrowing();
           return {
             before,
             mountDeliveries,
+            throwingDeliveries,
             afterMount,
             afterUpdate: document.body.getAttribute('data-lf-data-revision'),
             revision,
@@ -4977,12 +4986,20 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
         }"""
     )
     assert result["mountDeliveries"] == 1, result
+    assert result["throwingDeliveries"] == 2, result
     assert result["afterMount"] == result["before"], result
     assert result["afterUpdate"] == str(result["revision"]), result
     assert (
         sum("data subscriber failed: mount projection failed" in e for e in errors) == 1
     )
     assert any("data subscriber failed: update projection failed" in e for e in errors)
+    assert (
+        sum(
+            "data subscriber failed: synchronous update projection failed" in e
+            for e in errors
+        )
+        == 1
+    )
     page.close()
 
 
@@ -5017,6 +5034,37 @@ def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
     )
     assert result["before"] == {"complete": False, "calls": 2, "ready": "1"}
     assert result["after"] == str(result["revision"])
+    assert errors == []
+    page.close()
+
+
+def test_data_readiness_does_not_wait_for_an_unrelated_widget_region(browser, serve):
+    """The data stamp waits for data subscribers, not every deferred page paint."""
+    page, errors = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {attachApplicationPresentation} =
+            await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          const unrelated = attachApplicationPresentation(
+            'widget:unrelated:render', document.body,
+          );
+          let release;
+          const held = unrelated.present(
+            'held', new Promise(resolve => { release = resolve; }),
+          );
+          let ready = false;
+          const data = notifyDataSubscribers().then(() => { ready = true; });
+          await Promise.resolve();
+          await new Promise(resolve => setTimeout(resolve, 0));
+          const beforeRelease = ready;
+          release();
+          await Promise.all([held, data]);
+          unrelated.disconnect();
+          return beforeRelease;
+        }"""
+    )
+    assert result is True
     assert errors == []
     page.close()
 

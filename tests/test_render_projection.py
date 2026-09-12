@@ -834,9 +834,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         """frame => {
           const box = frame.getBoundingClientRect();
           const label = frame.querySelector('.lf-vr-frame-label').getBoundingClientRect();
-          const viewport = frame.querySelector('.lf-vr-image-viewport');
-          const viewportBox = viewport.getBoundingClientRect();
-          const image = frame.querySelector('img').getBoundingClientRect();
+          const imageNode = frame.querySelector('img');
+          const image = imageNode.getBoundingClientRect();
           const labelHit = document.elementFromPoint(
             label.left + label.width / 2,
             label.top + label.height / 2,
@@ -844,19 +843,17 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
           return {
             box,
             label,
-            viewport: viewportBox,
-            overflow: getComputedStyle(viewport).overflow,
             image,
+            objectViewBox: getComputedStyle(imageNode).objectViewBox,
+            transform: getComputedStyle(imageNode).transform,
             labelVisible: labelHit?.closest('.lf-vr-frame-label') === frame.querySelector('.lf-vr-frame-label'),
           };
         }"""
     )
-    assert crop["overflow"] == "hidden"
     assert crop["labelVisible"]
-    assert crop["viewport"]["top"] == pytest.approx(crop["label"]["bottom"], abs=1)
-    assert crop["image"]["width"] > crop["box"]["width"]
-    assert crop["image"]["left"] < crop["viewport"]["left"]
-    assert crop["image"]["top"] < crop["viewport"]["top"]
+    assert crop["image"]["top"] == pytest.approx(crop["label"]["bottom"], abs=1)
+    assert crop["objectViewBox"] == "inset(160px 280px 146px 240px)"
+    assert crop["transform"] == "none"
     resized(page, 1200, 480)
     expect(widget).to_have_attribute("data-compare-layout", "stack")
     before_box, after_box = frames.evaluate_all(
@@ -1071,6 +1068,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     told(page)
     expect(widget.locator(".lf-error")).to_have_count(0)
     expect(first.locator("lf-shot img")).to_have_count(2)
+    widget.get_by_role("button", name="Full frame").click()
     widget.get_by_role("button", name="100%").click()
     decoded_css_width = first.locator("lf-shot img").first.evaluate(
         "image => image.naturalWidth / 2"
@@ -1079,6 +1077,12 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "image => image.getBoundingClientRect().width"
     ) == pytest.approx(decoded_css_width, abs=1), (
         "captured CSS coordinates must render against the decoded image, not stale viewport metadata"
+    )
+    assert (
+        shot_host.evaluate(
+            "node => getComputedStyle(node).getPropertyValue('--lf-vr-capture-width').trim()"
+        )
+        == f"{decoded_css_width}px"
     )
     with sending(page, "a corrected visual disposition"):
         first.get_by_role("button", name="Needs work").click()
@@ -1106,12 +1110,141 @@ def test_visual_review_empty_navigation_is_unavailable(browser, serve):
     page.close()
 
 
+def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve):
+    authored = leaf_page(
+        "visual review replacement",
+        '<lf-visual-review id="visual-run" source="docs-run"></lf-visual-review>',
+    )
+    media = {
+        "/media/3cf0e3efe80c6b01.png": (
+            EXAMPLE_MEDIA / "3cf0e3efe80c6b01.png"
+        ).read_bytes(),
+        "/media/4f465a0582ab00fe.png": (
+            EXAMPLE_MEDIA / "4f465a0582ab00fe.png"
+        ).read_bytes(),
+    }
+    url = live_url(serve(authored, packages=("visual-review",), media=media))
+    capture = {
+        "browser": "Chrome",
+        "browserVersion": "140",
+        "viewport": {"width": 900, "height": 373},
+        "deviceScaleFactor": 2,
+        "colorScheme": "light",
+        "locale": "en-US",
+        "timezone": "America/Los_Angeles",
+    }
+
+    def run(before, after, *, viewport_width):
+        return {
+            "title": "Replacement run",
+            "observedAt": "2026-09-10T10:30:00-07:00",
+            "base": {"revision": "base", "url": "https://base.example/"},
+            "candidate": {
+                "revision": "candidate",
+                "url": "https://candidate.example/",
+            },
+            "cases": [
+                {
+                    "id": "changed",
+                    "title": "Changed surface",
+                    "path": "/changed",
+                    "action": "Open the surface.",
+                    "result": "The evidence remains aligned.",
+                    "classification": "changed",
+                    "capture": capture
+                    | {"viewport": capture["viewport"] | {"width": viewport_width}},
+                    "focus": {"x": 20, "y": 80, "width": 300, "height": 150},
+                    "before": before,
+                    "after": after,
+                }
+            ],
+        }
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "docs-run",
+        run(
+            "/media/3cf0e3efe80c6b01.png",
+            "/media/4f465a0582ab00fe.png",
+            viewport_width=900,
+        ),
+    )
+    context = browser.new_context(viewport={"width": 1200, "height": 900})
+    held = []
+    context.route("**/media/slow-*.svg", lambda route: held.append(route))
+    page = None
+    try:
+        page, errors = open_page(browser, url, context=context)
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "docs-run",
+            run(
+                "/media/slow-before.svg",
+                "/media/slow-after.svg",
+                viewport_width=900,
+            ),
+        )
+        told(page)
+        expect(page.locator("#visual-run lf-shot img")).to_have_count(2)
+        page.evaluate(
+            "window.oldVisualReviewImages = [...document.querySelectorAll('#visual-run lf-shot img')]"
+        )
+        expect(page.locator("#visual-run lf-shot img").first).to_have_js_property(
+            "naturalWidth", 0
+        )
+        assert len(held) == 2
+
+        host = page.locator("#visual-run .lf-vr-shot-host")
+        host.evaluate(
+            """node => {
+              const replacement = document.createElement('lf-shot');
+              replacement.setAttribute('before', '/media/3cf0e3efe80c6b01.png');
+              replacement.setAttribute('after', '/media/4f465a0582ab00fe.png');
+              replacement.setAttribute('alt', 'Replacement evidence');
+              node.replaceChildren(replacement);
+              node.style.setProperty('--lf-vr-capture-width', '390px');
+            }"""
+        )
+        expect(host.locator("lf-shot img")).to_have_count(2)
+        expect(host.locator("lf-shot img").first).to_have_js_property(
+            "naturalWidth", 780
+        )
+        assert (
+            host.evaluate(
+                "node => getComputedStyle(node).getPropertyValue('--lf-vr-capture-width').trim()"
+            )
+            == "390px"
+        )
+
+        stale_svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="746"/>'
+        )
+        while held:
+            held.pop(0).fulfill(content_type="image/svg+xml", body=stale_svg)
+        page.wait_for_function(
+            "() => window.oldVisualReviewImages.every(image => image.naturalWidth === 1800)"
+        )
+        assert (
+            host.evaluate(
+                "node => getComputedStyle(node).getPropertyValue('--lf-vr-capture-width').trim()"
+            )
+            == "390px"
+        )
+        assert errors == []
+    finally:
+        while held:
+            held.pop(0).abort()
+        if page:
+            page.close()
+        context.close()
+
+
 def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     """A focused review is a root workspace, not prose followed by a narrow widget.
 
     The case chooser never taxes the evidence width, the disposition is available before
-    the pixels, and a tall mobile pair keeps its captured width side by side inside the
-    scrolling evidence stage. Capture facts follow the comparison rather than delaying it.
+    the pixels, and a tall mobile pair keeps its authored focus width side by side inside
+    the scrolling evidence stage. Capture facts follow the comparison rather than delaying it.
     """
     page, errors = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
@@ -1142,7 +1275,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     case_image_width = widget.locator(
         ".lf-vr-case:not([hidden]) .lf-shotframe img"
     ).first.evaluate("node => node.getBoundingClientRect().width")
-    assert case_image_width == pytest.approx(390, abs=1), geometry
+    assert case_image_width == pytest.approx(350, abs=1), geometry
     assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
         "node => node.scrollHeight > node.clientHeight"
     )
@@ -1219,7 +1352,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     expect(widget).to_have_attribute("data-compare-layout", "side")
     assert widget.locator(".lf-vr-case:not([hidden]) .lf-shotframe img").first.evaluate(
         "node => node.getBoundingClientRect().width"
-    ) == pytest.approx(390, abs=1)
+    ) == pytest.approx(350, abs=1)
     shot_host.evaluate("node => node.style.removeProperty('height')")
     expect(widget).to_have_attribute("data-compare-layout", "side")
     page.locator("html").evaluate("node => node.classList.add('lf-copy')")
@@ -1265,6 +1398,43 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
         "node => node.scrollHeight > node.clientHeight"
     )
+    assert errors == []
+    page.close()
+
+
+def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
+    browser, serve
+):
+    page, errors = open_page(
+        browser,
+        serve(VISUAL_REVIEW_GALLERY),
+        init_script="""
+          const supports = CSS.supports.bind(CSS);
+          CSS.supports = (property, value) =>
+            property === 'object-view-box' ? false : supports(property, value);
+        """,
+    )
+    widget = page.locator("#visual-review-run")
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    host = case.locator(".lf-vr-shot-host")
+    expect(widget).to_have_attribute("data-inspection-scope", "full")
+    expect(widget.get_by_role("group", name="Scope")).to_be_hidden()
+    expect(host).to_have_attribute("data-focus-authored", "true")
+    expect(host).to_have_attribute("data-focus-active", "false")
+    image = case.locator(".lf-shotframe img").first.evaluate(
+        """node => ({
+          renderedRatio: node.getBoundingClientRect().width / node.getBoundingClientRect().height,
+          naturalRatio: node.naturalWidth / node.naturalHeight,
+          objectViewBox: getComputedStyle(node).objectViewBox,
+        })"""
+    )
+    assert image["renderedRatio"] == pytest.approx(image["naturalRatio"], rel=0.01)
+    assert image["objectViewBox"] == "none"
+    marker = case.locator(".lf-shotframe").first.evaluate(
+        "frame => getComputedStyle(frame, '::after').getPropertyValue('content')"
+    )
+    assert marker == '""'
+    expect(case.locator(".lf-vr-focus")).to_have_text("20, 100 · 350 × 640 CSS px")
     assert errors == []
     page.close()
 

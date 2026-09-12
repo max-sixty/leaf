@@ -55,6 +55,13 @@ const SCOPE = {
   full: "Full frame",
 };
 
+// The object-view-box crop keeps the image itself at the focused size without an
+// overflowing render surface. Browsers that do not ship it still show the complete
+// evidence and the authored region, rather than presenting a distorted full image as
+// a focused crop.
+const FOCUS_CROP_SUPPORTED =
+  globalThis.CSS?.supports?.("object-view-box", "inset(0px)") === true;
+
 function make(tag, className, text = null, says = true) {
   const element = document.createElement(tag);
   element.className = className;
@@ -343,7 +350,10 @@ customElements.define(
 
     #setScope(scope) {
       if (!(scope in SCOPE) || scope === this.#scope) return;
-      if (scope === "focus" && !this.#caseEntries.get(this.#selected)?.record.focus)
+      if (
+        scope === "focus" &&
+        (!FOCUS_CROP_SUPPORTED || !this.#caseEntries.get(this.#selected)?.record.focus)
+      )
         return;
       this.#scope = scope;
       this.#paintInspector();
@@ -375,11 +385,12 @@ customElements.define(
       this.dataset.inspectionMode = this.#mode;
       this.dataset.inspectionScale = this.#scale;
       const focus = this.#caseEntries.get(this.#selected)?.record?.focus;
-      const scope = focus ? this.#scope : "full";
+      const focusAvailable = Boolean(focus && FOCUS_CROP_SUPPORTED);
+      const scope = focusAvailable ? this.#scope : "full";
       this.dataset.inspectionScope = scope;
       this.style.setProperty("--lf-vr-opacity", String(this.#opacity / 100));
       const scopeGroup = this.#inspector.querySelector(".lf-vr-scope-group");
-      scopeGroup.hidden = !focus;
+      scopeGroup.hidden = !focusAvailable;
       for (const button of scopeGroup.querySelectorAll("[data-scope]"))
         button.setAttribute("aria-pressed", String(button.dataset.scope === scope));
       for (const button of this.#inspector.querySelectorAll("[data-mode]"))
@@ -403,15 +414,6 @@ customElements.define(
         if (flip) shot.removeAttribute("data-lf-shot-controls");
         else shot.dataset.lfShotControls = "off";
         for (const frame of shot.querySelectorAll(".lf-shotframe")) {
-          let viewport = frame.querySelector(":scope > .lf-vr-image-viewport");
-          if (!viewport) {
-            const image = frame.querySelector(":scope > img");
-            if (image) {
-              viewport = make("div", "lf-vr-image-viewport", null, false);
-              image.before(viewport);
-              viewport.append(image);
-            }
-          }
           const oldLabel = frame.querySelector(":scope > .lf-vr-frame-label");
           if (this.#mode !== "compare") {
             oldLabel?.remove();
@@ -487,7 +489,8 @@ customElements.define(
         );
         return;
       }
-      const activeFocus = focus && this.#scope === "focus" ? focus : null;
+      const activeFocus =
+        focus && FOCUS_CROP_SUPPORTED && this.#scope === "focus" ? focus : null;
       // Focus coordinates name captured CSS pixels, so the decoded capture and the
       // rendered source must share one width authority. The recorded viewport remains
       // provenance; using it here could silently shift a valid focus when they differ.
@@ -537,12 +540,8 @@ customElements.define(
       // made tall mobile captures unreadably small even when both fit side by side.
       const scale = this.#scale === "actual" ? 1 : Math.min(1, fitScale);
       this.dataset.compareLayout = compareLayout;
-      entry.shotHost.dataset.focusAvailable = String(Boolean(focus));
+      entry.shotHost.dataset.focusAuthored = String(Boolean(focus));
       entry.shotHost.dataset.focusActive = String(Boolean(activeFocus));
-      entry.shotHost.style.setProperty(
-        "--lf-vr-source-width",
-        `${Math.max(1, sourceWidth * scale)}px`,
-      );
       if (focus) {
         entry.shotHost.style.setProperty("--lf-vr-focus-x", `${focus.x * scale}px`);
         entry.shotHost.style.setProperty("--lf-vr-focus-y", `${focus.y * scale}px`);
@@ -554,6 +553,14 @@ customElements.define(
           "--lf-vr-focus-height",
           `${focus.height * scale}px`,
         );
+        frames.forEach((frame, index) => {
+          const image = images[index];
+          frame.style.setProperty(
+            "--lf-vr-focus-view",
+            `inset(${focus.y * ratio}px ${image.naturalWidth - (focus.x + focus.width) * ratio}px ` +
+              `${image.naturalHeight - (focus.y + focus.height) * ratio}px ${focus.x * ratio}px)`,
+          );
+        });
       }
       const beforeLabel = frames[0].querySelector(".lf-vr-frame-label");
       if (beforeLabel)
@@ -677,6 +684,7 @@ customElements.define(
       }
       orderChildren(this.#queue, options);
       orderChildren(this.#casesBody, articles);
+      for (const entry of this.#caseEntries.values()) this.#syncCaptureWidth(entry);
       projectData(
         this,
         cases,
@@ -787,10 +795,6 @@ customElements.define(
       entry.record = record;
       entry.index = index;
       entry.total = total;
-      entry.shotHost.style.setProperty(
-        "--lf-vr-capture-width",
-        `${record.capture.viewport.width}px`,
-      );
       this.#paintOption(entry);
       setText(
         entry.article.querySelector(".lf-vr-case-position"),
@@ -855,6 +859,29 @@ customElements.define(
         shot.setAttribute("alt", alt);
         entry.shotHost.replaceChildren(shot);
       }
+    }
+
+    #syncCaptureWidth(entry) {
+      const shot = entry.shotHost.querySelector("lf-shot");
+      const images = shot ? [...shot.querySelectorAll("img")] : [];
+      if (images.length !== 2) return;
+      const ratio = entry.record.capture.deviceScaleFactor;
+      const paint = () => {
+        // A source update replaces the lf-shot. A load event from the detached pair
+        // must not project its dimensions through the new record.
+        if (entry.shotHost.querySelector("lf-shot") !== shot) return false;
+        const currentImages = [...shot.querySelectorAll("img")];
+        const widths = currentImages.map((image) => image.naturalWidth / ratio);
+        if (widths.some((width) => !width)) return false;
+        entry.shotHost.style.setProperty(
+          "--lf-vr-capture-width",
+          `${Math.max(1, widths[0])}px`,
+        );
+        return true;
+      };
+      if (paint()) return;
+      for (const image of images)
+        if (!image.complete) image.addEventListener("load", paint, { once: true });
     }
 
     #select(id) {

@@ -167,8 +167,8 @@ records `responseVisibleMs` from the first non-empty agent reply the open Thread
 actually displays; `repliedMs` is the independent durable-state observation and is not a
 substitute for that reader-visible milestone.
 
-When Leaf accepts a reader message that its canonical activity projection says needs
-a response, the Worker returns the accepted state and starts the agent dispatch through
+When Leaf accepts a reader event that remains in its canonical activity interactions,
+the Worker returns the accepted state and starts the agent dispatch through
 `waitUntil`. The browser does not wait for Container or App Server startup, and there is
 no second scheduler between the request and its already-selected reader container. The
 dispatch reserves source capacity, then asks that container to create or resume one
@@ -183,8 +183,8 @@ revise `index.html`, validate it, append thread replies, and leave the page wait
 initiating App Server connection projects the turn's native activity notifications back
 through Leaf. For queued input it stays subscribed through the active turn, records the
 queued turn opening, and observes that turn to its terminal state. The container's
-pickup is idempotent, so a repeated dispatch does not start the work twice. A task
-startup failure appends a short failure reply through the same event log. The accepted
+pickup is idempotent, so a repeated dispatch does not start the work twice. Page actions
+reach the agent even when they require no conversational reply. The accepted
 event and active turn are not yet mirrored into Durable Object storage, and no alarm
 recovers work that exceeds the Worker's 30-second `waitUntil` window.
 Container startup warms App Server and the Leaf CLI entrypoint concurrently, reducing
@@ -194,10 +194,18 @@ of starting another Python process with Leaf's dependency graph. That adapter st
 calls the canonical `leaf reply` implementation, including source validation and
 publication; `$LEAF` remains the interface for delivery reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
-Only explicit `leaf reply`, a page revision closed with `leaf resolve`, and `leaf
-receipt` settle accepted input; the turn's final assistant message remains in the
-Codex transcript.
-A failed or interrupted turn still gets a deterministic failure reply from the host.
+The canonical response contract determines settlement: a reply answers a conversation,
+authored state incorporates a page action, a version response also requires its
+conversation's resolution, and a request receives a terminal receipt. The turn's final
+assistant message remains in the Codex transcript.
+
+Startup failure or rate limiting produces a failure reply when the event permits one.
+A failed page action instead gets an anchored retry conversation. The same conversation
+appears when an accepted action's turn fails or its final source cannot publish. The
+notice leaves the action unsettled and tells the reader to reply to retry; it does not
+invent a reply obligation or claim the change succeeded. Turn closure remains visible
+through canonical activity. Invalid working source leaves the last valid revision
+active, and reader input can still reach the agent to repair it.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the
@@ -208,7 +216,7 @@ handler permits the Responses API request and replaces that dummy value with the
 Worker's `OPENAI_API_KEY`. The actual secret never enters model-visible processes or
 files. One Cloudflare-native brake allows twenty task starts per source IP per minute
 in each Cloudflare location and, under a separate key, twenty model calls per reader
-container per minute. An over-limit turn receives a visible busy reply or a model-rate
+container per minute. An over-limit turn receives a visible busy notice or a model-rate
 error without sending anything to OpenAI. There is no site-wide quota.
 
 Run the complete local site with Docker available:

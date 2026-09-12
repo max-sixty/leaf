@@ -1030,11 +1030,17 @@ describe("website page agent", () => {
   });
 
   it.each([
-    ["product", "/api/event", "/"],
-    ["example", "/examples/triage-board/api/event", "/examples/triage-board"],
+    ["product", "comment", "/api/event", "/"],
+    ["product", "action", "/api/event", "/"],
+    [
+      "example",
+      "comment",
+      "/examples/triage-board/api/event",
+      "/examples/triage-board",
+    ],
   ])(
-    "acknowledges an accepted %s-page event before its direct dispatch completes",
-    async (_kind, pathname, route) => {
+    "acknowledges an accepted %s-page %s before its direct dispatch completes",
+    async (pageKind, kind, pathname, route) => {
       const sessionId = "01".repeat(16);
       const sessionReference = "911497130241";
       const eventId = "02".repeat(16);
@@ -1048,8 +1054,11 @@ describe("website page agent", () => {
           return Response.json({
             ok: true,
             state: {
-              events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
-              activity: { obligations: [{ event: eventId }] },
+              events: [{ id: eventId, attempt, kind, revision: 1 }],
+              activity: {
+                interactions: [{ event: eventId }],
+                obligations: kind === "comment" ? [{ event: eventId }] : [],
+              },
             },
           });
         }
@@ -1067,7 +1076,7 @@ describe("website page agent", () => {
             "CF-Connecting-IP": "203.0.113.1",
             Cookie: `__Host-leaf-page=${sessionId}`,
           },
-          body: JSON.stringify({ kind: "comment", attempt }),
+          body: JSON.stringify({ kind, attempt }),
         }),
         env,
         { waitUntil } as unknown as ExecutionContext,
@@ -1077,8 +1086,8 @@ describe("website page agent", () => {
       expect(waitUntil).toHaveBeenCalledOnce();
       expect(env.WEBSITE_EVENTS.writeDataPoint).toHaveBeenCalledWith({
         indexes: [eventId],
-        blobs: [route, _kind, "comment", null, RELEASE, sessionReference],
-        doubles: [1, 1],
+        blobs: [route, pageKind, kind, null, RELEASE, sessionReference],
+        doubles: [1, kind === "comment" ? 1 : 0],
       });
 
       resolveAgentStart(Response.json({ status: "started", thread: "codex-thread" }));
@@ -1090,7 +1099,7 @@ describe("website page agent", () => {
     },
   );
 
-  it("does not dispatch work after Leaf says the accepted event is settled", async () => {
+  it.each(["comment", "action"])("does not dispatch a settled %s", async (kind) => {
     const sessionId = "06".repeat(16);
     const attempt = "settled-attempt-1";
     vi.mocked(getContainer).mockReturnValue({
@@ -1098,8 +1107,11 @@ describe("website page agent", () => {
         Response.json({
           ok: true,
           state: {
-            events: [{ id: "07".repeat(16), attempt, kind: "comment", revision: 1 }],
-            activity: { obligations: [] },
+            events: [{ id: "07".repeat(16), attempt, kind, revision: 1 }],
+            activity: {
+              interactions: [{ event: null }, { event: "another-reader-event" }],
+              obligations: [],
+            },
           },
         }),
     } as never);
@@ -1112,7 +1124,7 @@ describe("website page agent", () => {
           "Content-Type": "application/json",
           Cookie: `__Host-leaf-page=${sessionId}`,
         },
-        body: JSON.stringify({ kind: "comment", attempt }),
+        body: JSON.stringify({ kind, attempt }),
       }),
       environment(),
       { waitUntil } as unknown as ExecutionContext,
@@ -1121,7 +1133,7 @@ describe("website page agent", () => {
     expect(waitUntil).not.toHaveBeenCalled();
   });
 
-  it("settles an over-limit direct dispatch visibly", async () => {
+  it.each(["comment", "action"])("reports an over-limit %s dispatch visibly", async (kind) => {
     const sessionId = "13".repeat(16);
     const eventId = "14".repeat(16);
     const attempt = "over-limit-attempt";
@@ -1131,8 +1143,11 @@ describe("website page agent", () => {
         Response.json({
           ok: true,
           state: {
-            events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
-            activity: { obligations: [{ event: eventId }] },
+            events: [{ id: eventId, attempt, kind, revision: 1 }],
+            activity: {
+              interactions: [{ event: eventId }],
+              obligations: kind === "comment" ? [{ event: eventId }] : [],
+            },
           },
         }),
       )
@@ -1151,7 +1166,7 @@ describe("website page agent", () => {
           "CF-Connecting-IP": "203.0.113.2",
           Cookie: `__Host-leaf-page=${sessionId}`,
         },
-        body: JSON.stringify({ kind: "comment", attempt }),
+        body: JSON.stringify({ kind, attempt }),
       }),
       environment({ SOURCE_AGENT_RATE_LIMITER: { limit: deny } as RateLimit }),
       { waitUntil } as unknown as ExecutionContext,
@@ -1165,7 +1180,7 @@ describe("website page agent", () => {
     });
   });
 
-  it("settles a failed direct startup with a visible failure reply", async () => {
+  it.each(["comment", "action"])("reports a failed %s startup visibly", async (kind) => {
     const sessionId = "08".repeat(16);
     const eventId = "09".repeat(16);
     const attempt = "failed-start-attempt";
@@ -1175,8 +1190,11 @@ describe("website page agent", () => {
         Response.json({
           ok: true,
           state: {
-            events: [{ id: eventId, attempt, kind: "comment", revision: 1 }],
-            activity: { obligations: [{ event: eventId }] },
+            events: [{ id: eventId, attempt, kind, revision: 1 }],
+            activity: {
+              interactions: [{ event: eventId }],
+              obligations: kind === "comment" ? [{ event: eventId }] : [],
+            },
           },
         }),
       )
@@ -1194,7 +1212,7 @@ describe("website page agent", () => {
           "Content-Type": "application/json",
           Cookie: `__Host-leaf-page=${sessionId}`,
         },
-        body: JSON.stringify({ kind: "comment", attempt }),
+        body: JSON.stringify({ kind, attempt }),
       }),
       environment(),
       { waitUntil } as unknown as ExecutionContext,

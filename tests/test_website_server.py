@@ -15,8 +15,9 @@ from types import SimpleNamespace
 import pytest
 from leaf.codex import _queues as codex_queues
 from leaf.event_log import append_event, read_events
-from leaf.hosting import server_at
+from leaf.hosting import TemporaryPageServer, server_at
 from leaf.http import supervised_document
+from leaf.registry.storage import load_registry
 
 ROOT = Path(__file__).parent.parent
 _spec = importlib.util.spec_from_file_location(
@@ -687,7 +688,6 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "$LEAF delivery read ID" in website_server.CODEX_INSTRUCTIONS
     assert '$LEAF_REPLY EVENT_ID "..."' in website_server.CODEX_INSTRUCTIONS
     assert "no separate `leaf publish` command" in website_server.CODEX_INSTRUCTIONS
-    assert "$LEAF version check" not in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF status" not in website_server.CODEX_INSTRUCTIONS
     assert (
         "$LEAF resolve . --to RESPONSE_CONVERSATION"
@@ -1385,13 +1385,12 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
     [delivery] = website_server.accept_codex_delivery("hosted-thread")
     (page_dir / "index.html").write_text("<main>unfinished")
 
-    with pytest.raises(ValueError):
-        website_server.WebsiteCodexHost("codex")._finish_turn(
-            page_dir,
-            "hosted-thread",
-            delivery["turn"],
-            {"id": "app-server-turn", "status": "completed", "error": None},
-        )
+    website_server.WebsiteCodexHost("codex")._finish_turn(
+        page_dir,
+        "hosted-thread",
+        delivery["turn"],
+        {"id": "app-server-turn", "status": "completed", "error": None},
+    )
 
     claim = website_server.page_claim(page_dir)
     assert claim["turn"] == delivery["turn"]
@@ -1869,6 +1868,217 @@ def test_a_product_route_uses_the_same_real_page_server(
         httpd.shutdown()
         httpd.server_close()
         thread.join(timeout=2)
+
+
+@pytest.mark.parametrize("settlement", ["authored", "undo"])
+def test_a_page_action_starts_once_and_settles_without_a_reply(
+    page_dir, tmp_path, monkeypatch, settlement
+):
+    site = tmp_path / "site"
+    published = site / "_leaf" / "pages" / "index"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    source = published / "index.html"
+    source.write_text(
+        source.read_text().replace("<lf-options>", '<lf-options id="plans" choose>')
+    )
+    (site / "sitenote.js").write_text("export {};")
+    write_manifest(site, {"/": ("_leaf/pages/index", "product")})
+
+    host = website_server.WebsiteCodexHost("codex")
+    turns = []
+    monkeypatch.setattr(
+        host, "_ensure_server", lambda: SimpleNamespace(pid=os.getpid())
+    )
+
+    # Only Codex's external RPC is replaced: the adapter captures, accepts and
+    # records the real delivery and pickup before a retry reaches it.
+    def request(method, params, before_close):
+        assert method == "thread/start"
+        result = {"thread": {"id": "action-thread"}}
+        before_close(None, result, [])
+        return result
+
+    def send(socket, method, params, pending):
+        assert method == "turn/start"
+        turns.append(json.loads(params["toolOutput"]["output"]))
+        return {"turn": {"id": "action-turn"}}
+
+    monkeypatch.setattr(host, "_request", request)
+    monkeypatch.setattr(host, "_send", send)
+    httpd = server_at("127.0.0.1", 0, website_server.handler_for(site, host))
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    root = f"http://127.0.0.1:{httpd.server_address[1]}"
+    try:
+        state = json.loads(get(f"{root}/api/state")[0])
+        headers = {"Leaf-Layer": state["layer"]["generation"]}
+        answer, _ = post(
+            f"{root}/api/event",
+            {
+                "kind": "action",
+                "revision": state["active"]["revision"],
+                "widget": "plans",
+                "action": "choose",
+                "detail": {"options": ["flag-first"]},
+                "attempt": "website-choice-01",
+            },
+            headers,
+        )
+        action = next(
+            event
+            for event in answer["state"]["events"]
+            if event.get("attempt") == "website-choice-01"
+        )
+        assert answer["state"]["activity"]["obligations"] == []
+        assert [
+            item["event"] for item in answer["state"]["activity"]["interactions"]
+        ] == [action["id"]]
+
+        for _ in range(2):
+            started, _ = post(f"{root}/_leaf/agent/start", {"event": action["id"]})
+            assert started == {"status": "started", "thread": "action-thread"}
+        assert len(turns) == 1
+        [delivered] = turns[0]["batches"][0]["events"]
+        assert delivered["id"] == action["id"]
+        assert "obligation" not in delivered
+        assert [event["kind"] for event in read_events(published)] == [
+            "action",
+            "pickup",
+        ]
+
+        if settlement == "authored":
+            source.write_text(
+                source.read_text().replace(
+                    '<lf-option id="flag-first">', '<lf-option id="flag-first" chosen>'
+                )
+            )
+        else:
+            post(
+                f"{root}/api/event",
+                {
+                    "kind": "undo",
+                    "undoes": action["id"],
+                    "attempt": "withdraw-website-choice",
+                },
+                headers,
+            )
+        settled, _ = post(f"{root}/_leaf/agent/start", {"event": action["id"]})
+        assert settled == {"status": "settled"}
+        assert len(turns) == 1
+        state = json.loads(get(f"{root}/api/state")[0])
+        assert state["activity"]["interactions"] == []
+        assert state["activity"]["obligations"] == []
+        assert not any(event["kind"] == "reply" for event in state["events"])
+        before = read_events(published)
+        assert host.fallback_reply(published, action["id"], "Late failure") is None
+        assert read_events(published) == before
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+        host.close()
+
+
+@pytest.mark.parametrize("failure", ["startup", "turn", "publication"])
+def test_a_failed_page_action_preserves_the_change_and_offers_a_retry(
+    page_dir, browser, failure
+):
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace("<lf-options>", '<lf-options id="plans" choose>')
+    )
+    with website_server.PageTransaction(page_dir) as page:
+        activation = website_server.activate_source(page_dir, page.events)
+        action = page.append_event(
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": activation.revision,
+                "widget": "plans",
+                "action": "choose",
+                "detail": {"options": ["flag-first"]},
+            },
+            load_registry(page_dir),
+        )
+    host = website_server.WebsiteCodexHost("codex")
+    identity = {"id": "action-thread", "host": "codex", "agent": "Leaf guide"}
+    if failure == "startup":
+        for _ in range(2):
+            host.fallback_reply(
+                page_dir, action["id"], "The demo is busy. Wait a minute."
+            )
+    else:
+        website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+        [delivery] = website_server.accept_codex_delivery("action-thread")
+        # A late startup fallback cannot report failure over accepted work.
+        assert host.fallback_reply(page_dir, action["id"], "Late failure") is None
+        if failure == "publication":
+            source.write_text("<main>unfinished")
+        for _ in range(2):
+            host._finish_turn(
+                page_dir,
+                "action-thread",
+                delivery["turn"],
+                {
+                    "id": "failed-turn",
+                    "status": "completed" if failure == "publication" else "failed",
+                    "error": None,
+                },
+            )
+        assert website_server.page_claim(page_dir)["turn_closed"] is not None
+
+    state = website_server.full_state(page_dir, read_events(page_dir))
+    [notice] = [event for event in state["events"] if event["kind"] == "comment"]
+    assert notice["author"] == "claude"
+    assert notice["anchor"] == {"section": "plans"}
+    assert "Your change is still saved. Reply here to retry it." in notice["text"]
+    assert state["activity"]["obligations"] == []
+    assert [item["event"] for item in state["activity"]["interactions"]] == [
+        action["id"]
+    ]
+    assert state["activity"]["kind"] != "working"
+    assert website_server.agent_event_pending(page_dir, action["id"])
+    assert not any(
+        event["kind"] in {"reply", "resolve", "note"} for event in state["events"]
+    )
+
+    with TemporaryPageServer(page_dir) as server:
+        page = browser.new_page()
+        try:
+            failures = verify_site.observe_startup(page)
+            page.goto(server.url)
+            verify_site.await_presentation(page, server.url, failures)
+            if failure != "startup":
+                assert (
+                    "but that turn ended"
+                    in page.locator(".lf-status-text").inner_text()
+                )
+            page.locator(".lf-threads-toggle").click()
+            conversation = page.locator(f'.lf-thread[data-id="{notice["id"]}"]')
+            conversation.get_by_text(
+                "Your change is still saved. Reply here to retry it."
+            ).wait_for(state="visible")
+            box = conversation.locator("textarea")
+            box.fill("Try again")
+            with page.expect_response(
+                lambda response: response.url.endswith("/api/event")
+            ):
+                box.press("ControlOrMeta+Enter")
+            assert not failures
+        finally:
+            page.close()
+    [retry] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert retry["parent"] == notice["id"] and retry["text"] == "Try again"
+    assert website_server.agent_event_pending(page_dir, retry["id"])
+    prepared = website_server.prepare_codex_delivery(
+        page_dir, identity, {"pid": os.getpid()}
+    )
+    assert retry["id"] in {
+        event["id"]
+        for batch in prepared.payload["batches"]
+        for event in batch["events"]
+    }
 
 
 def test_a_retried_agent_start_returns_the_accepted_task(page_dir, tmp_path):

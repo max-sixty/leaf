@@ -130,7 +130,7 @@ const GROUPS = [
       },
       {
         name: "Working",
-        detail: "Thread · green interior",
+        detail: "Thread · green icon and interior",
         icon: "comment",
         behavior: "disclosure",
         rank: "reading",

@@ -74,7 +74,6 @@ interface RegionRecord<
   readonly region: Region;
   readonly renderer: Renderer;
   readonly rendererGeneration: number;
-  readonly parent: Region | null;
   ticketGeneration: number;
   ticket: Ticket<DocumentToken, Region, Renderer, Value, Proof> | null;
   commit: PresentationCommit<DocumentToken, Region, Renderer, Value, Proof> | null;
@@ -217,19 +216,6 @@ export function createPresentationCoordinator<
     return true;
   }
 
-  function joinsCurrentBarrier(
-    record: RegionRecord<DocumentToken, Region, Renderer, Value, Proof>,
-  ) {
-    if (!barrier) return false;
-    if (barrier.completed) return barrier.members.has(record.region);
-    if (!barrier.sealed) return true;
-    const standing = barrier.members.get(record.region);
-    if (standing !== undefined) return true;
-    if (record.parent === null) return false;
-    const parent = barrier.members.get(record.parent);
-    return parent !== undefined && !parent.retired && parent.commit === null;
-  }
-
   function currentTicket(
     ticket: Ticket<DocumentToken, Region, Renderer, Value, Proof>,
   ) {
@@ -272,7 +258,6 @@ export function createPresentationCoordinator<
   function attach(
     region: Region,
     renderer: Renderer,
-    parent: Region | null = null,
   ): PresentationHandle<Value, Proof> {
     if (document === null || barrier === null)
       throw new Error("begin a presentation publication before attaching a renderer");
@@ -280,22 +265,22 @@ export function createPresentationCoordinator<
       region,
       renderer,
       rendererGeneration: (rendererGenerations.get(region) ?? 0) + 1,
-      parent,
       ticketGeneration: 0,
       ticket: null,
       commit: null,
     };
     rendererGenerations.set(region, record.rendererGeneration);
     regions.set(region, record);
-    if (joinsCurrentBarrier(record)) {
-      barrier.completed = false;
-      barrier.members.set(region, {
-        record,
-        ticket: null,
-        commit: null,
-        retired: false,
-      });
-    }
+    // `attach` declares this renderer required. A renderer can appear after its
+    // predecessor's retirement completed the same-epoch barrier, so membership cannot
+    // depend on a surviving prior record or on the barrier still being open.
+    barrier.completed = false;
+    barrier.members.set(region, {
+      record,
+      ticket: null,
+      commit: null,
+      retired: false,
+    });
 
     const present = async (
       value: Value,

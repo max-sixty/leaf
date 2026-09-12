@@ -102,6 +102,49 @@ test("a replacement renderer must complete in place of the retired instance", as
   );
 });
 
+test("a required replacement reopens readiness after its predecessor retires", async () => {
+  const { coordinator } = setup();
+  const document = {};
+  const oldRenderer = {};
+  const publication = coordinator.begin(document, 0);
+  const oldHandle = coordinator.attach("widget", oldRenderer);
+  const oldWork = deferred();
+  const oldPresentation = oldHandle.present("same", oldWork.promise);
+  coordinator.seal(publication);
+
+  oldHandle.disconnect();
+  await new Promise(queueMicrotask);
+  assert.equal(await coordinator.whenPresented(document, 0), "presented");
+  assert.equal(coordinator.read().presentedEpoch, 0);
+
+  const newRenderer = {};
+  const replacement = coordinator.attach("widget", newRenderer);
+  const replacementWork = deferred();
+  const replacementPresentation = replacement.present("same", replacementWork.promise);
+  const readiness = coordinator.whenPresented(document, 0);
+  let ready = false;
+  void readiness.then(() => {
+    ready = true;
+  });
+  await Promise.resolve();
+  assert.equal(ready, false);
+  assert.deepEqual(coordinator.read().pending, ["widget"]);
+
+  oldWork.resolve("obsolete proof");
+  await oldPresentation;
+  assert.equal(ready, false);
+  assert.equal(coordinator.committed("widget", oldRenderer, "same"), null);
+
+  replacementWork.resolve("replacement proof");
+  await replacementPresentation;
+  assert.equal(await readiness, "presented");
+  assert.equal(coordinator.read().presentedEpoch, 0);
+  assert.equal(
+    coordinator.committed("widget", newRenderer, "same")?.proof,
+    "replacement proof",
+  );
+});
+
 test("an equal-value replacement repairs an already presented epoch", async () => {
   const { coordinator } = setup();
   const document = {};
@@ -156,7 +199,7 @@ test("begin reuses the active publication when the semantic epoch is unchanged",
   assert.deepEqual(coordinator.read().pending, []);
 });
 
-test("an asynchronous descendant joins a sealed barrier under its pending parent", async () => {
+test("an asynchronous descendant joins a sealed barrier", async () => {
   const { coordinator } = setup();
   const document = {};
   const publication = coordinator.begin(document, 0);
@@ -165,7 +208,7 @@ test("an asynchronous descendant joins a sealed barrier under its pending parent
   const parentPresentation = parent.present("parent value", parentWork.promise);
   coordinator.seal(publication);
 
-  const child = coordinator.attach("child", {}, "parent");
+  const child = coordinator.attach("child", {});
   const childWork = deferred();
   const childPresentation = child.present("child value", childWork.promise);
   parentWork.resolve("parent proof");

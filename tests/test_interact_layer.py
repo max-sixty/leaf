@@ -1026,7 +1026,7 @@ def test_every_vendored_stylesheet_parses(page_dir):
 
 def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     """A media query cannot read a custom property, so the sheets state the covering
-    widths, the width properties, and the Ask stamp as literals
+    widths, the strip-taking tray, the width properties, and the Ask stamp as literals
     while the runtime lays out and paints by the constants. Held equal here rather than
     trusted to stay so."""
     runtime = schema_model.ASSETS / "runtime"
@@ -1042,6 +1042,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
 
     panel = int(constant(r"^export const THREAD_PANEL_W = (\d+);", layout))
     tray = int(constant(r"^const TRAY_SLOT_W = (\d+);", trays))
+    assert 'covers: () => key !== "asks" || trayCovers(),' in trays
     for spelling in (
         f"(width <= {panel * 2}px)",
         f"(width > {panel * 2}px)",
@@ -1051,6 +1052,11 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
         + ")",
         "var(" + constant(r'^export const TRAY_SLOT_PROP = "([^"]+)";', trays) + ")",
         "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
+    ):
+        assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
+    for spelling in (
+        'html[data-lf-restore-tray="asks"]',
+        'html[data-lf-live]:has(body[data-lf-auxiliary-surface="asks"])',
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 

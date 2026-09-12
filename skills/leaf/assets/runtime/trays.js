@@ -229,8 +229,9 @@ export function createTrays({
       surface: panel,
       scroller: () => panel.querySelector(".lf-tray-list"),
       // Asks needs the document beside it because its rows lead to controls there.
-      // Leaves leads to another page, so it can cover the current one.
-      covers: () => key === "leaves" || trayCovers(),
+      // Every other tray covers the current page unless the viewport makes all trays
+      // cover, so a new tray does not silently claim a strip the stylesheet lacks.
+      covers: () => key !== "asks" || trayCovers(),
       focus: () =>
         panel.querySelector(".lf-tray-list button, .lf-tray-list a[href]") ?? panel,
       dismiss: () => setOpenTray(null),

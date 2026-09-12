@@ -2036,7 +2036,8 @@ def test_a_self_eligibility_check_reads_state_before_its_optimistic_gesture(
             '<lf-options id="pick" choose>'
             '<lf-option id="pick-a">A</lf-option>'
             '<lf-option id="pick-b">B</lf-option></lf-options></lf-ask>',
-        )
+        ),
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
     )
     page, errors = open_page(browser, url)
 
@@ -4236,7 +4237,7 @@ customElements.define("lf-quota", class extends HTMLElement {
         "<strong>Destination</strong></lf-task>"
         "</lf-tasks>",
     )
-    url = serve(quota_v1)
+    url = serve(quota_v1, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     stale_held = held_stale(one_reader)
     stale, stale_errors = open_page(browser, url, context=stale_held)
     current, current_errors = open_page(browser, live_url(url), context=one_reader)

@@ -1722,7 +1722,7 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
             "href", "/#install"
         )
         expect(page.locator("main > .sitenote")).to_contain_text(
-            "Try its controls in a private, temporary copy for this browser."
+            "Your private browser copy is temporary."
         )
         assert page.locator("main > .sitenote a").evaluate_all(
             "links => links.map(link => link.getAttribute('href'))"

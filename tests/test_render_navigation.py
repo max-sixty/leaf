@@ -9031,7 +9031,7 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     try:
         page.goto(serve(NOTED_PAGE), wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        expect(page.locator(".lf-status-text")).to_have_text(
+        expect(page.locator(".lf-status-detail")).to_have_text(
             "Server offline — reconnecting. Keep this page open so pending changes can send."
         )
 

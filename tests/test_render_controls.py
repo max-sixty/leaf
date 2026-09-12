@@ -788,8 +788,8 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     pinned.close()
 
 
-def test_banner_status_is_one_line_with_full_hover_text(browser, serve, other_leaf):
-    """Long activity text ellipsizes without wrapping or compressing its controls."""
+def test_banner_status_is_compact_with_accessible_details(browser, serve, other_leaf):
+    """Compact status preserves full detail through keyboard and pointer disclosure."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -815,17 +815,38 @@ def test_banner_status_is_one_line_with_full_hover_text(browser, serve, other_le
     )
     session_model.cmd_status(serve.page_dir, "working", detail)
     told(page)
-    expect(page.locator(".lf-status-text")).to_contain_text(detail.strip())
+    expect(page.locator(".lf-status-detail")).to_contain_text(detail.strip())
     for width in (1280, 841, 390):
         resized(page, width, 900)
         read = page.evaluate(STATUS_FIT)
-        assert read["across"]["needed"] > read["across"]["shown"] > 0, read
+        assert read["across"]["shown"] > 0, read
         assert read["down"]["shown"] == pytest.approx(read["lineHeight"], abs=1), read
         assert read["down"]["shown"] == read["down"]["needed"], read
         assert read["ellipsis"] == "ellipsis", read
-        assert read["title"] == read["text"], read
+        assert read["text"] == "Claude working", read
         assert detail.strip() in read["title"], read
         assert read["actions"]["shown"] >= read["actions"]["needed"], read
+        door = page.locator(".lf-status-button")
+        explanation = page.locator(".lf-status-detail")
+        expect(door).to_have_attribute("aria-describedby", "lf-status-detail")
+        door.focus()
+        page.keyboard.press("Enter")
+        expect(explanation).to_be_visible()
+        expect(explanation).to_be_focused()
+        expect(explanation).to_contain_text(detail.strip())
+        expect(door).to_have_attribute("aria-expanded", "true")
+        box = explanation.bounding_box()
+        assert box["x"] >= 0 and box["x"] + box["width"] <= width, box
+        page.keyboard.press("Escape")
+        expect(explanation).to_be_hidden()
+        expect(door).to_be_focused()
+        page.keyboard.press("Space")
+        expect(explanation).to_be_visible()
+        page.keyboard.press("Escape")
+        door.click()
+        expect(explanation).to_be_visible()
+        page.mouse.click(100, 600)
+        expect(explanation).to_be_hidden()
     resized(page, 1280, 900)
 
     # Above the floor the sentence is the row's, not a share of it: a control folding
@@ -966,7 +987,7 @@ STATUS_FIT = """() => {
   return {across: {shown: status.clientWidth, needed: status.scrollWidth},
           down: {shown: status.clientHeight, needed: status.scrollHeight},
           lineHeight: parseFloat(style.lineHeight), ellipsis: style.textOverflow,
-          title: status.title, text: status.textContent,
+          title: document.querySelector('.lf-status-button').title, text: status.textContent,
           actions: {shown: actions.clientWidth, needed: actions.scrollWidth}};
 }"""
 
@@ -1346,7 +1367,7 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
         # is the one the route refuses.
         nudge(serve.page_dir)
         expect(page.locator(".lf-banner .lf-dot.offline")).to_be_visible()
-        offline = page.locator(".lf-status-text").text_content()
+        offline = page.locator(".lf-status-detail").text_content()
         assert offline.startswith("Server offline"), (
             f"the banner's offline line has moved: {offline!r}"
         )

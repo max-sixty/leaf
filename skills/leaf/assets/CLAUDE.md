@@ -581,9 +581,11 @@ semantic label or agent-ownership treatment. Reserve space before a generated co
 appears. Transient feedback may repaint a control or
 briefly replace its label, but neither may change its geometry; `reserve` measures all
 enumerable labels in the control's current font and sets a minimum width. Re-measure
-after changing type tokens. The banner status stays on one line with ellipsis and a
-complete hover title; its CSS reservation stays independent of changing copy. Pair
-local visual feedback with `notice` for an assistive announcement.
+after changing type tokens. The banner status keeps a concise one-line summary with
+ellipsis; its native disclosure and hover title expose the complete activity reading.
+The disclosure is keyboard- and touch-accessible, and its CSS reservation stays
+independent of changing copy. Status kind changes announce the complete reading.
+Pair local visual feedback with `notice` for an assistive announcement.
 
 Use one contour to carry one control state. Do not stack a colored border with an inset
 underline or ring on the same selected control; the second edge reads as a stray border.

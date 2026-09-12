@@ -22,8 +22,29 @@ export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 export const dot = el("span", "lf-dot");
 const statusText = el("span", "lf-status-text", "Connecting…");
+const statusButton = el("button", "lf-status-button");
+statusButton.type = "button";
+statusButton.setAttribute("aria-expanded", "false");
+statusButton.append(dot, statusText);
+const statusDetail = el("div", "lf-ui lf-status-detail", "Connecting…");
+statusDetail.id = "lf-status-detail";
+statusDetail.tabIndex = -1;
+statusDetail.setAttribute("popover", "auto");
+statusDetail.setAttribute("role", "group");
+statusDetail.setAttribute("aria-label", "Page status");
+statusButton.setAttribute("aria-describedby", statusDetail.id);
+statusButton.popoverTargetElement = statusDetail;
+statusDetail.lfInvoker = statusButton;
+statusDetail.addEventListener("toggle", (event) => {
+  const open = event.newState === "open";
+  statusButton.setAttribute("aria-expanded", String(open));
+  // Focus the scrollable explanation so keyboard readers can reach long details.
+  if (open && document.activeElement === statusButton)
+    statusDetail.focus({ preventScroll: true });
+  repaint();
+});
 const bannerStatus = el("div", "lf-banner-status");
-bannerStatus.append(dot, statusText);
+bannerStatus.append(statusButton);
 
 export const toggleBtn = el(
   "button",
@@ -136,31 +157,20 @@ function paintTab() {
   // every two seconds.
   if (tabLink.getAttribute("href") !== url) tabLink.setAttribute("href", url);
 }
-// One writer for the dot, the line, the tab and the live region, offline included: null
-// is the poll saying it couldn't reach the server, not a second function's own
-// rendering. The line truncates to the room the controls leave it; the complete
-// sentence is a hover away, the way the version chooser's label is. Written
-// every time rather than only when the box clips, because whether it does is a fact
-// about the rendering and nothing here reads that back.
-//
-// The live region is the fourth seat and the one that must not be written every time.
-// This line is rewritten on every poll — an age moving, a count turning over, a detail
-// rephrased — and a region repeating all of that is a page talking over the reader it
-// is talking to. What is worth interrupting for is the kind changing: work starting, a
-// turn ending, the server going and coming back. What it says then is the banner's own
-// sentence, so what is heard and what is on the row are one line rather than two
-// accounts of it. The first reading is the page arriving rather than a change in it,
-// and arriving is the document's own announcement.
+// Summary and explanation share the canonical activity reading. The complete wording
+// remains available to pointer, keyboard, and touch through the native disclosure;
+// announcements report that explanation only when the kind changes, not on every poll.
 let saidKind;
-const showStatus = (kind, tone, ...parts) => {
+const showStatus = (kind, tone, summary, explanation) => {
   dot.className = "lf-dot" + (tone ? " " + tone : "");
-  statusText.textContent = "";
-  statusText.append(...parts);
-  statusText.title = statusText.textContent;
+  statusText.replaceChildren(summary);
+  // Leave a selected explanation intact across unchanged polls.
+  if (statusDetail.textContent !== explanation) statusDetail.textContent = explanation;
+  statusButton.title = explanation;
   paintTab();
   const changed = saidKind !== undefined && saidKind !== kind;
   saidKind = kind;
-  if (changed) announce(statusText.textContent);
+  if (changed) announce(statusDetail.textContent);
 };
 // The developer preview's identity: which checkout is serving this page, and a press to
 // copy the whole diagnostic. It is the banner's least-used control, so it stays behind
@@ -240,64 +250,69 @@ const publicationWords = (published) => [
   "Install Leaf",
 ];
 
-// The status sentence follows the canonical activity reading.
+// Both levels of wording follow server-owned activity. Short summaries retain the
+// actionable distinction: listening, saved for a later session, or browser-only work.
 function statusWords({
   agent,
   dated,
+  shortDate,
   detail,
   kind,
   obligations,
   pending,
   quiet,
   saved,
+  total,
 }) {
-  if (kind === "closed") return "Leaf closed";
-  // No agent named and no pickup promised, which is the whole difference from
-  // `unheld` below: there is nobody to name and nothing coming. What the reader can
-  // still do is everything — the page works, it just works alone — so the line says
-  // where their gestures go rather than that they are saved for someone.
+  const savedSummary = total ? ` · ${total} saved` : "";
+  const updates = `${obligations} update${obligations === 1 ? "" : "s"}`;
+  if (kind === "closed") return ["Leaf closed", "Leaf closed"];
   if (kind === "unattended")
-    return "Nobody is behind this page. What you do here stays in this browser.";
-  // No agent is named, because which one picks the page up next is not a fact this
-  // page holds — only that the log is there for whichever does.
+    return [
+      "Browser only · no agent",
+      "Nobody is behind this page. What you do here stays in this browser.",
+    ];
   if (kind === "unheld")
-    return `No session holds this page. ${saved} It picks up again when a session does.`;
-  if (kind === "working") return `${agent} is working${detail ? " — " + detail : ""}`;
+    return [
+      `No session${savedSummary}`,
+      `No session holds this page. ${saved} It picks up again when a session does.`,
+    ];
+  if (kind === "working")
+    return [`${agent} working`, `${agent} is working${detail ? " — " + detail : ""}`];
   if (kind === "handling")
-    return `${agent} is handling ${obligations} update${obligations === 1 ? "" : "s"}`;
+    return [`${agent} handling ${updates}`, `${agent} is handling ${updates}`];
   if (kind === "queued")
-    return `${obligations} update${obligations === 1 ? " is" : "s are"} queued for ${agent}`;
+    return [
+      `${updates} queued for ${agent}`,
+      `${updates}${obligations === 1 ? " is" : " are"} queued for ${agent}`,
+    ];
   if (kind === "picked_up")
-    return `${agent} picked up ${obligations} update${obligations === 1 ? "" : "s"}, but that turn ended. ${saved}`;
-  // Attendance is half the news; the other half is what the page wants back. The
-  // Asks count beside it says how many things are unanswered and nothing about what
-  // any of them is, so the claim's detail says that here in the agent's own words,
-  // the way a `working` claim's says what it is doing. With nothing declared it is
-  // the standing instruction, which is what a page asking nothing wanted anyway.
-  //
-  // With no pending update, "awaits" states the stance a live watcher supports and
-  // uses the registry's word for a standing Ask for the reader (x-awaits). Once a
-  // reader move is pending, the same listening evidence remains primary while the
-  // words lead with what was saved.
-  if (kind === "listening")
+    return [
+      `${agent}’s turn ended${savedSummary}`,
+      `${agent} picked up ${updates}, but that turn ended. ${saved}`,
+    ];
+  // A declared request tells the reader what to do. Preserve it on the row when
+  // no pending input supersedes it; a generic attendance label would lose that cue.
+  if (kind === "listening") {
+    const awaits = `${agent} awaits — ${detail || "select text to comment"}`;
     return pending
-      ? `${saved} ${agent} is listening${detail ? " — " + detail : ""}.`
-      : `${agent} awaits — ${detail || "select text to comment"}`;
-  // The claim stands, dated, with no remedy attached: a watcher is live, so the
-  // reader's next word reaches the agent without anyone touching a terminal. What
-  // they are owed is the age, which is the one thing they cannot see for themselves
-  // and the whole of what separates a delegate mid-answer from a dropped thread. It
-  // is spoken in the same words the branch below uses for the same silence, rather
-  // than in the muted parenthesis a live `working` claim wears: there the age is a
-  // footnote to news, and here it is the news.
-  if (kind === "stalled") return `${dated}${detail ? ": " + detail : ""}. ${saved}`;
-  // Somebody is behind the page and isn't attending: say which and what to do. A
-  // long silence means Claude lost the thread; a recent check-in means it is
-  // mid-turn and the next one collects.
-  const [why, how] = quiet
-    ? [`${dated}.`, "Nudge it in the terminal."]
-    : [`${agent} isn't watching right now.`, "It picks them up next turn."];
-  return `${why} ${saved} ${how}`;
+      ? [
+          `${agent} listening${savedSummary}`,
+          `${saved} ${agent} is listening${detail ? " — " + detail : ""}.`,
+        ]
+      : [awaits, awaits];
+  }
+  if (kind === "stalled")
+    return [shortDate, `${dated}${detail ? ": " + detail : ""}. ${saved}`];
+  return quiet
+    ? [
+        `Nudge ${agent} in terminal${savedSummary}`,
+        `${dated}. ${saved} Nudge it in the terminal.`,
+      ]
+    : [
+        `${agent} away${savedSummary}`,
+        `${agent} isn't watching right now. ${saved} It picks them up next turn.`,
+      ];
 }
 
 // The public website support handle is available on demand with the banner's other
@@ -336,12 +351,21 @@ function renderSessionReference() {
 
 function renderStatusNow(state) {
   renderSessionReference();
+  if (!state?.publication) {
+    statusButton.hidden = false;
+    if (statusText.parentElement !== statusButton) statusButton.append(dot, statusText);
+  }
   if (state instanceof Error) {
-    showStatus("broken", "offline", BROKEN_LINE);
+    showStatus("broken", "offline", BROKEN_LINE, BROKEN_LINE);
     return;
   }
   if (state === null) {
-    showStatus("unreachable", "offline", OFFLINE_LINE);
+    showStatus(
+      "unreachable",
+      "offline",
+      "Server offline — reconnecting; keep page open",
+      OFFLINE_LINE,
+    );
     return;
   }
   renderPreview(state);
@@ -354,8 +378,15 @@ function renderStatusNow(state) {
       "unattended",
       TONE.unattended,
       el("span", "lf-publication-copy", said),
-      install,
+      said + installs,
     );
+    // A publication's introduction and install link remain an ordinary reading row.
+    // Links never become children of the status disclosure button.
+    if (statusDetail.matches(":popover-open")) statusDetail.hidePopover();
+    statusButton.hidden = true;
+    if (statusText.parentElement !== bannerStatus)
+      bannerStatus.prepend(dot, statusText);
+    statusText.append(install);
     return;
   }
   const { activity } = state;
@@ -371,24 +402,23 @@ function renderStatusNow(state) {
   const dated = dropped
     ? `${agentName()} left this when its turn ended ${ago(state.turn_closed)}`
     : `${agentName()} last checked in ${ago(activity.ts)}`;
-  const text = statusWords({
+  const [summary, text] = statusWords({
     agent: agentName(),
     dated,
+    shortDate: dropped
+      ? `${agentName()}’s turn ended ${ago(state.turn_closed)}`
+      : `${agentName()} last checked in ${ago(activity.ts)}`,
     detail,
     kind,
     obligations: activity.count,
+    total: activity.counts.total,
     pending: activity.counts.pending,
     quiet,
     saved,
   });
-  const showAge = kind === "working" && Boolean(activity.ts);
-  const line = [text];
-  if (showAge)
-    line.push(
-      " ",
-      Object.assign(el("span", "lf-age"), { textContent: `(${ago(activity.ts)})` }),
-    );
-  showStatus(kind, TONE[kind], ...line);
+  const explanation =
+    kind === "working" && activity.ts ? `${text} (${ago(activity.ts)})` : text;
+  showStatus(kind, TONE[kind], summary, explanation);
 }
 
 export const renderStatus = clocked(document.body, renderStatusNow);
@@ -470,7 +500,7 @@ export function mountBanner({ approveVersion, paintApproval }) {
   bannerActions.append(latestChip, asksBtn, versionBtn);
 
   arrangeBannerControls();
-  banner.append(bannerStatus, bannerActions);
+  banner.append(bannerStatus, bannerActions, statusDetail);
   approveBtn.onclick = async () => {
     if (approving) return;
     approving = true;

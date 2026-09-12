@@ -787,11 +787,30 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     cursor: pointer; }
   .lf-preview:hover { color: var(--ink); }
   .lf-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  /* One stable line at every width; the title exposes the complete sentence. */
-  .lf-status-text { color: var(--ink-2); min-width: 0; overflow: hidden;
+  /* The quiet summary is a native disclosure; complete activity wording remains
+     reachable by keyboard and touch without consuming the reading row. */
+  .lf-status-button { display: flex; align-items: center; gap: var(--lf-banner-gap);
+    min-width: 0; width: 100%; max-width: 100%; min-height: var(--aim-floor); padding: 2px 0;
+    border: 0; border-radius: 4px; background: none; color: var(--ink-2);
+    font: inherit; text-align: left; cursor: pointer; anchor-name: --lf-status; }
+  .lf-status-button[hidden] { display: none; }
+  .lf-status-button::after { content: ""; flex: none; width: 5px; height: 5px;
+    border-right: 1px solid var(--muted); border-bottom: 1px solid var(--muted);
+    transform: rotate(45deg); margin: -3px 3px 0 0; }
+  .lf-status-button:hover { color: var(--ink); }
+  .lf-status-button:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+    outline-offset: 2px; --lf-here-ring: status; }
+  .lf-status-text { color: inherit; min-width: 0; overflow: hidden;
     display: block; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
-  .lf-status-text .lf-age { color: var(--muted); }
-  /* The website invitation truncates its copy while its install action stays reachable. */
+  .lf-status-detail { position: fixed; position-anchor: --lf-status;
+    top: calc(anchor(bottom) + 8px); left: calc(14px + var(--lf-safe-left));
+    right: auto; bottom: auto; margin: 0; width: min(420px, calc(100vw - 28px));
+    max-height: calc(100dvh - var(--lf-banner-h) - 24px); overflow: auto;
+    padding: 14px 16px; border: 1px solid var(--border-2); border-radius: var(--r);
+    background: var(--card); color: var(--ink-2); box-shadow: 0 8px 24px var(--shade);
+    white-space: normal; overflow-wrap: anywhere; }
+  .lf-status-detail:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring);
+    outline-offset: 2px; --lf-here-ring: status-detail; }
   .lf-status-text:has(.lf-publication-install) { display: flex; gap: 0.3em; }
   .lf-publication-copy { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .lf-publication-install { flex: none; }

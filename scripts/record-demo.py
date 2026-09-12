@@ -371,7 +371,7 @@ def record(
         "answering the backfill question",
     )
     page.wait_for_function(
-        "() => document.querySelector('.lf-status-text').textContent.includes('answering')"
+        "() => document.querySelector('.lf-status-detail').textContent.includes('answering')"
     )
     shot(900)
 

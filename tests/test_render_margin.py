@@ -1188,17 +1188,17 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     page.close()
 
 
-def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
+def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     browser, serve
 ):
-    """The gallery keeps the reader-visible ranks and ownership stages together."""
+    """The gallery keeps every reader-visible margin entry treatment together."""
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
 
     atlas = page.locator("#bg-margin-controls-specimens")
     expect(atlas).to_be_visible()
     buttons = atlas.locator(".lf-margin-entry")
-    expect(buttons).to_have_count(11)
+    expect(buttons).to_have_count(13)
     records = buttons.evaluate_all(
         """buttons => buttons.map(button => ({
           behavior: button.dataset.lfBehavior,
@@ -1228,7 +1228,7 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
         )
 
     expect(atlas.locator(".margin-entry-gallery-heading")).to_have_text(
-        ["Rank and behavior", "Agent ownership"]
+        ["Rank and behavior", "Agent ownership", "Reader selection"]
     )
 
     not_held = specimen("not held")
@@ -1266,6 +1266,18 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
     expect(
         atlas.locator('[data-margin-entry-specimen="sent"] > .lf-margin-entry')
     ).to_have_attribute("role", "status")
+    not_selected = specimen("not selected")
+    selected = specimen("selected")
+    expect(not_selected).not_to_have_attribute(
+        "data-lf-target-selected", re.compile(".*")
+    )
+    expect(selected).to_have_attribute("data-lf-target-selected", "")
+    expect(selected).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(selected).to_have_css(
+        "border-top-width",
+        not_selected.evaluate("node => getComputedStyle(node).borderTopWidth"),
+    )
+    expect(selected).to_have_css("box-shadow", "none")
     expect(atlas.locator(".margin-entry-gallery-name")).to_have_text(
         [
             "Save",
@@ -1279,6 +1291,8 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
             "Picked up",
             "Working",
             "Activity fallback",
+            "Not selected",
+            "Selected",
         ]
     )
 
@@ -1464,7 +1478,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
     expect(page.locator("#bg-grammar")).to_have_count(0)
     sections = {
         "bg-margin-controls": (
-            "Margin entries: every rank, tone, and ownership stage",
+            "Margin entries: every rank, tone, ownership, and selection state",
             "#bg-margin-controls-guide",
             "#bg-margin-controls-specimens",
         ),
@@ -1516,7 +1530,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
         for heading in headings
         if "margin entr" in heading.casefold()
     ] == [
-        "Margin entries: every rank, tone, and ownership stage",
+        "Margin entries: every rank, tone, ownership, and selection state",
         "Margin entry lifecycle: act, fail, settle, and hand off",
     ]
     expect(page.locator("#bg-buttons-line #bg-crowded")).to_be_visible()

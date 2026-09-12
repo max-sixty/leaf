@@ -469,6 +469,7 @@ export function createMarginProjection({
   }
 
   let agentCarriers = new Set();
+  let selectedReadingCarriers = new Set();
   const agentReceipt = (items) =>
     items
       .map((item) => item.agentReceipt)
@@ -2846,11 +2847,10 @@ export function createMarginProjection({
       const control = entry && readingMarginEntry(entry, selection.kind);
       if (control?.isConnected) selected.add(control);
     }
-    for (const control of document.querySelectorAll(
-      ".lf-margin-entry[data-lf-target-selected]",
-    ))
+    for (const control of selectedReadingCarriers)
       if (!selected.has(control)) control.removeAttribute("data-lf-target-selected");
     for (const control of selected) control.setAttribute("data-lf-target-selected", "");
+    selectedReadingCarriers = selected;
   }
 
   const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));

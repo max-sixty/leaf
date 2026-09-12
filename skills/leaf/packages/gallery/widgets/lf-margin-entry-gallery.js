@@ -1,6 +1,6 @@
-/* A fixed developer exhibit of margin entry controls and agent ownership. It uses
- * the public marginEntry and ownership helpers rather than reproducing anatomy or
- * paint; the package owns only the comparison grid and the words naming each cell. */
+/* A fixed developer exhibit of margin entry controls, selection, and agent ownership.
+ * It uses the public marginEntry and ownership helpers rather than reproducing anatomy
+ * or paint; the package owns only the comparison grid and the words naming each cell. */
 import {
   marginEntry,
   once,
@@ -109,6 +109,27 @@ const GROUPS = [
       },
     ],
   },
+  {
+    heading: "Reader selection",
+    summary: "Not selected, selected · whether its page reading is current",
+    specimens: [
+      {
+        name: "Not selected",
+        detail: "Thread · neutral border",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+      },
+      {
+        name: "Selected",
+        detail: "Thread · accent border",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+        selected: true,
+      },
+    ],
+  },
 ];
 
 function generated(tag, className, words = null) {
@@ -141,6 +162,7 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
       target: { kind: "widget", id: key },
       phase: specimen.agentPhase,
     });
+  if (specimen.selected) control.setAttribute("data-lf-target-selected", "");
   if (control instanceof HTMLButtonElement) control.disabled = true;
   if (behavior !== "status") control.setAttribute("aria-disabled", "true");
 

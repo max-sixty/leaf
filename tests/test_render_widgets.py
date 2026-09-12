@@ -4028,7 +4028,23 @@ def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
     deck.get_by_role("button", name="← Pass", exact=True).click()
     page.locator("#idea-csv-export").focus()
     page.keyboard.press("ArrowRight")
+    round_trip(page)
+
+    # The final answer moves locally before delivery. Approval reads that same
+    # semantic projection: the durable counter can still be one response behind, but
+    # the control must not tell the reader to answer the card they just classified.
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
     deck.get_by_role("button", name="← Pass", exact=True).click()
+    holding(page, held, 1, "the final classification")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect(approve).to_be_enabled()
+    expect(approve).to_have_attribute(
+        "title", "Approve this work; the page stays open for follow-up"
+    )
+
+    held[0].continue_()
+    page.unroute("**/api/event")
     round_trip(page)
 
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
@@ -4072,6 +4088,33 @@ def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
     assert errors == []
     page.close()
     context.close()
+
+
+def test_an_unchanged_swipe_projection_repaints_nothing(browser, serve):
+    """The broad action heartbeat is not a reason to restate a settled deck."""
+    page, errors = open_page(browser, serve(SWIPE_PAGE))
+    mutations = page.locator("#session-triage").evaluate(
+        """deck => {
+          const observer = new MutationObserver(() => {});
+          observer.observe(deck, {
+            subtree: true,
+            childList: true,
+            characterData: true,
+            attributes: true,
+          });
+          document.dispatchEvent(new Event('lf-actions'));
+          const records = observer.takeRecords().map(record => ({
+            kind: record.type,
+            attribute: record.attributeName,
+            target: record.target.id || record.target.className || record.target.nodeName,
+          }));
+          observer.disconnect();
+          return records;
+        }"""
+    )
+    assert mutations == []
+    assert errors == []
+    page.close()
 
 
 def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve):

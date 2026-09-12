@@ -145,6 +145,27 @@ STATE_PAINT = """el => {
 }"""
 
 
+def test_signoff_enabled_face_is_readable(browser, serve):
+    """The banner's committing action keeps its positive face in the everyday gate."""
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    page, errors = open_page(browser, serve(html))
+    button = page.locator(".lf-signoff")
+    expect(button).to_be_enabled()
+    paint = button.evaluate(
+        "el => ({ink: getComputedStyle(el).color, "
+        "        fill: getComputedStyle(el).backgroundColor})"
+    )
+    assert paint == {
+        "ink": token_colour(page, "--paper"),
+        "fill": token_colour(page, "--accent"),
+    }, f"the banner's primary action lost its readable face: {paint}"
+    assert errors == []
+    page.close()
+
+
 def test_a_folded_banner_control_keeps_its_active_paint(browser, serve):
     """A comparison standing behind the overflow menu is the same comparison, and has
     to go on looking like one.

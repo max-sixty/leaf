@@ -104,7 +104,9 @@ full-image viewer;
 and tray panels, landing a new width through `chrome-layout.js`'s `landEdge`;
 `runtime/trays.js` owns the left tray edge, active tray, registration, restore, and
 shared tray furniture;
-`runtime/live-leaves.js` owns the machine-leaves tray's rows, presence words, and walk;
+`runtime/live-leaves.js` derives the machine's Leaves reading and owns its walk;
+`runtime/live-leaves-list.js` presents that reading through one banner face and keyed
+tray list under one application-presentation ticket;
 `runtime/margin-entries.js` owns the public margin-entry grammar and contribution
 registry; content modules contribute live controls and semantics there but never place
 their own RHS rows;

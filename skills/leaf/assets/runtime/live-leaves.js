@@ -1,14 +1,14 @@
-/* This module owns the machine-leaves tray's rows, presence words, and walk. */
+/* This module derives the machine's immutable Leaves presentation and owns its walk. */
 import { ago, clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
-import { liveLeavesList, trayIsOpen, othersBtn, othersPanel } from "./trays.js";
-import { showNews } from "./banner-shelf.js";
+import { liveLeavesList, trayIsOpen, othersPanel } from "./trays.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { walkRows } from "./keyboard/bindings.js";
 import { toneFor } from "./banner.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 
 let others = [];
+let rows = Object.freeze([]);
 
 // The tray's one offer: something to show, or the tray already standing — the key that
 // opened it must still close it, and its button must still be pressable. The button's
@@ -17,7 +17,16 @@ let others = [];
 // reader is already on — is not worth a control.
 export const leavesOffered = () =>
   pagePresented() && (others.length > 0 || trayIsOpen("leaves"));
-export const paintLeavesOffer = () => showNews(othersBtn, leavesOffered());
+// The control counts the rows its press opens, including this page's own marked row.
+// One neighbour therefore says two, rather than naming a different collection from
+// the tray. The list and its control receive this same frozen value.
+const presentationModel = () =>
+  Object.freeze({
+    offered: leavesOffered(),
+    label: `All leaves (${rows.length})`,
+    rows,
+  });
+export const presentLeaves = () => liveLeavesList.present(presentationModel());
 
 // The tray's own scope. The walk is the tray's rather than the page's, because ArrowUp
 // and ArrowDown anywhere else are the page's own scroll and stay so; Enter is the
@@ -155,15 +164,7 @@ function renderOthersNow(state) {
         ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),
       ]
     : [];
-  // The button names the tray it opens, so the count is these rows — the list the
-  // press will show, headed by this page's own row — and never arithmetic beside
-  // them. "Other leaves" counted the neighbours alone, one off the list it
-  // promised: a machine with one neighbour said (1) over a tray of two.
-  const said = `All leaves (${wanted.length})`;
-  if (othersBtn.textContent !== said) othersBtn.textContent = said;
-  // While the panel stands its button stands too, whatever the count just did.
-  paintLeavesOffer();
-  const rows = Object.freeze(
+  rows = Object.freeze(
     wanted.map(({ key, title, entry }) => {
       const { tone, line } = rowPresence(entry);
       return Object.freeze({
@@ -178,7 +179,7 @@ function renderOthersNow(state) {
     }),
   );
   if (offeredBefore !== leavesOffered()) paintKeys();
-  return liveLeavesList.present(rows);
+  return presentLeaves();
 }
 
 export const renderOthers = clocked(document.body, renderOthersNow);

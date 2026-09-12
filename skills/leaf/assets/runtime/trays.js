@@ -111,7 +111,11 @@ export const othersPanel = el("nav", "lf-ui lf-tray-panel lf-others-panel");
 othersPanel.id = "lf-leaves";
 othersPanel.setAttribute("aria-label", "Leaves on this machine");
 othersPanel.tabIndex = -1;
-const leavesFurniture = trayFurniture(othersPanel, "Leaves", createLiveLeavesList());
+const leavesFurniture = trayFurniture(
+  othersPanel,
+  "Leaves",
+  createLiveLeavesList(othersBtn),
+);
 export const liveLeavesList = leavesFurniture.list;
 // A tray of the page's active asks, on the same edge: open and answered rows in the
 // order the page asks them. The list is declaration-driven, so a widget joins without
@@ -155,7 +159,7 @@ export function createTrays({
   syncLayout,
   closePreview,
   leavesOffered,
-  paintLeavesOffer,
+  presentLeaves,
   renderAsks,
   renderMargin,
   registerAuxiliarySurface,
@@ -250,13 +254,7 @@ export function createTrays({
   }
   // The painters are thunks: each tray's owner imports this module back, so neither
   // painter is a binding this module can read as it evaluates.
-  registerTray(
-    "leaves",
-    othersPanel,
-    othersBtn,
-    leavesFurniture.close,
-    paintLeavesOffer,
-  );
+  registerTray("leaves", othersPanel, othersBtn, leavesFurniture.close, presentLeaves);
   registerTray("asks", asksPanel, asksBtn, asksFurniture.close, renderAsks);
   const trayNames = Object.freeze([...trays.keys()]);
 

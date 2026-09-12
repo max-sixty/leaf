@@ -1320,9 +1320,12 @@ def _author_stateful_verbatim_widget(tmp_path):
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
+        'import { once, widgetController } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-stateful", class extends HTMLElement {\n'
-        "  connectedCallback() { once(this); }\n"
+        "  controller = widgetController(this);\n"
+        "  stop;\n"
+        "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
+        "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
         "  renderState(state) {\n"
         '    if (state.reader.value === "corrupt" || state.agent.value === "corrupt")\n'
         '      this.querySelector("p").textContent = "State replaced unrelated prose.";\n'
@@ -1558,9 +1561,12 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
         "});\n"
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
+        'import { once, widgetController } from "/runtime/widget-api.js";\n'
         'customElements.define("lf-stateful", class extends HTMLElement {\n'
-        "  connectedCallback() { once(this); }\n"
+        "  controller = widgetController(this);\n"
+        "  stop;\n"
+        "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
+        "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
         "  renderState(state) {\n"
         '    if (state.reader.value === "corrupt")\n'
         '      this.closest("lf-shell").querySelector(":scope > p").textContent = '

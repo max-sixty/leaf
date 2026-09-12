@@ -3723,9 +3723,16 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     workbench.locator('[name="landing-targeting-style-value"]').fill("40")
     workbench.get_by_role("button", name="Add style").click()
     assert page.locator("#hero").evaluate("element => element.style.padding") == "40px"
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": actions[0]["id"]},
+    )
+    told(page)
+    assert page.locator("#hero").evaluate("element => element.style.padding") == "40px"
+    assert workbench.evaluate("element => element.currentDraft().dirty") is True
     workbench.get_by_role("button", name="Revert draft").click()
-    assert page.locator("#hero").evaluate("element => element.style.padding") == "24px"
-    expect(workbench.locator(".lf-targeting-change")).to_have_count(2)
+    assert page.locator("#hero").evaluate("element => element.style.padding") == ""
+    expect(workbench.locator(".lf-targeting-change")).to_have_count(0)
     assert errors == []
     page.close()
 

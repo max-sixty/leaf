@@ -1,47 +1,22 @@
-/* DOM adaptation and commit for the semantic action/report projection.
+/* Coordinate, provenance, and chrome commit for the semantic projection.
 
-   The desired record fold and the DOM commit checkpoint are separate readings. The
-   former changes as soon as a local action is staged or an authoritative view arrives;
-   the latter changes only after the current widget nodes accepted a complete render.
-   One presentation instance owns the commit maps, optimistic staging, coordinate
-   proof, authored-page reset, drag deferral observer, and the projection chrome's
-   presentation ticket. It adapts one complete publisher snapshot; only DOM
-   signature/read adapters remain direct exports. */
+   Widget controllers render total state and own their presentation proof. This adapter
+   retains the coordinate commits needed by coverage, provenance, chrome, and pending
+   release. Its one document-wide drag gate withholds that global projection work while
+   the gesture's own controller holds its local reading. */
 import { authoredStates } from "./authored.js";
 import { projectionOrigins } from "./model.js";
 import { projectionDeferred, setProjectionDeferred } from "./state.js";
 import { applicationState, attachApplicationPresentation } from "../semantic-state.js";
 import { stateSpecs } from "../registry.js";
 import { runtime } from "../context.js";
-import {
-  authored,
-  elementById,
-  inChrome,
-  pageQueryAll,
-  renderRetired,
-  settlementSlots,
-} from "../passages.js";
+import { authored, elementById, inChrome, pageQueryAll } from "../passages.js";
 import {
   PAGE_PAINT_ATTRIBUTE,
   PAGE_PAINT_ATTRIBUTES,
   renderQuiet,
 } from "../presentation.js";
-import { reportPageError } from "../layer-client.js";
-import { failSoft } from "../widget-upgrade.js";
-
-const { registry } = runtime;
-
 const committedEvent = (commit) => commit?.entry?.e.id ?? null;
-
-function renderSettlement(widget, state) {
-  const outcomes = settlementSlots()[widget.localName];
-  if (!outcomes) return;
-  const spec = registry[widget.localName]["x-state"][Object.keys(outcomes)[0]];
-  const outcome = state[spec.facet].action;
-  if (outcomes[outcome]) widget.setAttribute("data-lf-state", outcome);
-  else widget.removeAttribute("data-lf-state");
-  renderRetired(widget);
-}
 
 function paintStateOrigins(projection) {
   const marks = new Map(
@@ -74,10 +49,8 @@ function paintStateOrigins(projection) {
   return touched;
 }
 
-export function createProjectionPresentation({ onDeferredReady, onDomIntroduced }) {
+export function createProjectionPresentation({ onDeferredReady }) {
   const committedProjection = new Map();
-
-  const committedWidgets = new Map();
 
   let projectionDragObserver = null;
   let presentationHandle = null;
@@ -137,12 +110,8 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     const e = entry.event;
     const local = entry.projection;
     if (!local) return false;
-    if (e.kind === "undo") {
-      committedWidgets.delete(local.target.e.widget);
-      return true;
-    }
+    if (e.kind === "undo") return true;
     const widget = elementById(e.widget);
-    committedWidgets.delete(e.widget);
     committedProjection.set(local.coordinate, {
       widgetId: e.widget,
       widget,
@@ -180,9 +149,6 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     };
     dropCoordinates(committedProjection);
     applicationState.forgetAuthored(pageOwners);
-    for (const owner of pageOwners) {
-      committedWidgets.delete(owner);
-    }
     document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
   }
 
@@ -204,10 +170,9 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
   function presentCurrent(snapshot) {
     const projection = snapshot.effective.projection;
     // Before the first state or the offline fallback, authored capture has completed
-    // but the application still cannot know whether an action is available. Surface
-    // registration may invalidate the DOM in that interval. Publish the desired record
-    // for readers, but leave the widget uncommitted so ready/offline presentation must
-    // render it instead of treating this provisional authored state as current.
+    // but the application still cannot know whether an action is available. Controllers
+    // independently present any complete authored widget state; this adapter has no
+    // authoritative projection coordinates or chrome to commit yet.
     if (snapshot.phase === "waiting") {
       // This provisional epoch has no authoritative projection to withhold. Settling
       // its chrome ticket lets document installation finish and start the state feed;
@@ -224,37 +189,12 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     projectionDragObserver?.disconnect();
     projectionDragObserver = null;
     setProjectionDeferred(false);
-    let painted = false;
-    const started = new Set(document.getAnimations());
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? [])
         elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
-    for (const [widgetId, { state, entries }] of snapshot.effective.widgets) {
+    for (const [widgetId, { entries }] of snapshot.effective.widgets) {
       const widget = elementById(widgetId);
       if (!widget) continue;
-      const key = JSON.stringify(state);
-      const commit = committedWidgets.get(widgetId);
-      const unitsChanged = entries.some(
-        ({ coordinate, unit }) =>
-          committedProjection.get(coordinate)?.unit !== elementById(unit),
-      );
-      if (commit?.widget !== widget || commit.key !== key || unitsChanged) {
-        try {
-          if (widget.renderState?.(state) === false) {
-            setProjectionDeferred(true);
-            continue;
-          }
-          renderSettlement(widget, state);
-        } catch (error) {
-          reportPageError(
-            `<${widget.localName}> renderState threw: ${error?.message ?? error}`,
-          );
-          failSoft(widget, error);
-          renderSettlement(widget, state);
-        }
-        committedWidgets.set(widgetId, { widget, key });
-        painted = true;
-      }
       const coordinates = new Map();
       for (const entry of projection.classified.values())
         if (!entry.terminal && entry.e.widget === widgetId)
@@ -285,13 +225,6 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
         ),
       ),
     );
-    if (painted)
-      Promise.allSettled(
-        document
-          .getAnimations()
-          .filter((animation) => !started.has(animation))
-          .map((animation) => animation.finished),
-      ).then(onDomIntroduced);
     return projection;
   }
 

@@ -2966,8 +2966,11 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     page.close()
 
 
-def test_report_words_wait_for_the_widget_state_deferred_by_a_drag(browser, serve):
-    """A report's prose and durable fields describe the same committed reading."""
+def test_report_words_follow_widget_state_while_projection_waits_for_a_drag(
+    browser, serve
+):
+    """The controller commits a report's prose and durable field together, while
+    the global drag gate independently withholds projection coverage and chrome."""
     page, errors = open_page(browser, serve(ROSTER_PAGE))
     d = serve.page_dir
     row = page.locator("#ag-wren")
@@ -2987,6 +2990,7 @@ def test_report_words_wait_for_the_widget_state_deferred_by_a_drag(browser, serv
     told(page)
     expect(row).to_have_attribute("state", "working")
     expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
 
     page.evaluate("document.body.classList.add('lf-dragging')")
     second = CliRunner().invoke(
@@ -3002,12 +3006,14 @@ def test_report_words_wait_for_the_widget_state_deferred_by_a_drag(browser, serv
     )
     assert second.exit_code == 0, second.output
     told(page)
-    expect(row).to_have_attribute("state", "working")
-    expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
+    expect(row).to_have_attribute("state", "idle")
+    expect(row.locator(".lf-doing")).to_have_text("checking the second mount")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
 
     page.evaluate("document.body.classList.remove('lf-dragging')")
     expect(row).to_have_attribute("state", "idle")
     expect(row.locator(".lf-doing")).to_have_text("checking the second mount")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
     assert errors == []
     page.close()
 
@@ -3361,9 +3367,12 @@ def test_render_separates_old_and_new_facets_on_one_element(
     }
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-pair.js").write_text(
-        """import { once } from "/runtime/widget-api.js";
+        """import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-pair", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     for (const [facet, reading] of Object.entries(state)) {
       if (reading.value === null) this.removeAttribute(facet);
@@ -3541,9 +3550,12 @@ def test_a_reader_action_outranks_later_news_on_the_same_coordinate(
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
         """\
-import { once } from "/runtime/widget-api.js";
+import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-tally", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     if (state.count.value === null) this.removeAttribute("count");
     else this.setAttribute("count", state.count.value);
@@ -3707,9 +3719,12 @@ def test_a_part_and_its_own_widget_keep_same_named_facets_independent(
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(
         """\
-import { once } from "/runtime/widget-api.js";
+import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-owner", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     for (const [id, order] of Object.entries(state.placement.value)) {
       const zone = document.getElementById(id);
@@ -3721,9 +3736,12 @@ customElements.define("lf-owner", class extends HTMLElement {
     )
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
         """\
-import { once } from "/runtime/widget-api.js";
+import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-piece", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { this.setAttribute("pinned", state.placement.value); }
 });
 """
@@ -3837,9 +3855,12 @@ def test_complete_positions_compose_across_independent_widget_owners(
     path.write_text(json.dumps(declarations))
     (
         path.parent / "widgets" / "lf-token.js"
-    ).write_text("""import { once } from "/runtime/widget-api.js";
+    ).write_text("""import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-token", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     const {to, index} = state.placement.detail;
     const parent = document.getElementById(to);
@@ -4545,9 +4566,12 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
         spec["record"] = record
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { once } from "/runtime/widget-api.js";
+        """import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { this.setAttribute("decision", state.settlement.value); }
 });
 """
@@ -4596,7 +4620,12 @@ def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
     trial_family(tmp_path)
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
         """\
+import {widgetController} from "/runtime/widget-api.js";
 customElements.define("lf-trial", class extends HTMLElement {
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState() { throw new Error("trial replay broke"); }
 });
 """
@@ -5086,13 +5115,18 @@ def test_thread_body_initial_state_waits_for_upgrade(browser, serve, asynchronou
                 f"{tag}.js": """
 import {once, widgetController} from '/runtime/widget-api.js';
 customElements.define('lf-delayed-body', class extends HTMLElement {
+  #controller = widgetController(this);
+  #stop;
   connectedCallback() {
-    if (!once(this)) return;
-    widgetController(this).present(new Promise(resolve => requestAnimationFrame(() => {
-      this.querySelector('pre').textContent = 'First line.\\nSecond line.';
-      resolve();
-    })));
+    if (once(this)) {
+      this.#controller.present(new Promise(resolve => requestAnimationFrame(() => {
+        this.querySelector('pre').textContent = 'First line.\\nSecond line.';
+        resolve();
+      })));
+    }
+    this.#stop ??= this.#controller.subscribe(() => {});
   }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { this.querySelector('pre').textContent = state.body.value; }
 });
 """

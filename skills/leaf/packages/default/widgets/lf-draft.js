@@ -326,6 +326,12 @@ customElements.define(
 
     #watchReading() {
       if (quoted(this) || !this.#row) return;
+      if (
+        this.#ta &&
+        !this.#resumeProjection &&
+        this.#controller.read().actions.edit.available
+      )
+        this.#resumeProjection = this.#controller.defer();
       this.#stopActions ??= this.#controller.subscribe((reading) => {
         this.#renderHistory(reading.actions.edit.history);
         this.#paintAvailability();
@@ -733,7 +739,6 @@ customElements.define(
 
     // A live editor owns its transient text; the complete state waits for it.
     renderState(state) {
-      if (this.#ta) return false;
       if (this.#body.textContent !== state.body.value)
         this.#body.textContent = state.body.value;
     }

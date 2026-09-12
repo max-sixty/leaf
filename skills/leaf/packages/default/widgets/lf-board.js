@@ -53,6 +53,7 @@ customElements.define(
     #sortables = new Set();
     #stopActions = null;
     #stopMotion = null;
+    #resumeProjection = null;
 
     connectedCallback() {
       if (!once(this)) {
@@ -171,7 +172,7 @@ customElements.define(
       this.#stopMotion = null;
       if (this.#grabbed) this.#cancel();
       this.#superseded = null;
-      dragging(this, false);
+      this.#finishGesture();
       for (const sortable of this.#sortables) sortable.destroy();
       this.#sortables.clear();
     }
@@ -353,7 +354,7 @@ customElements.define(
       const cards = this.#cards(from);
       const index = cards.indexOf(card);
       this.#grabbed = { card, grip, from, index };
-      dragging(this, true);
+      this.#beginGesture();
       card.classList.add("lf-lift");
       // Where the card starts, in the idiom every arrow step announces — a reader about to
       // move it needs the position the moves count from.
@@ -395,7 +396,10 @@ customElements.define(
       const { card, from, index } = this.#grabbed;
       this.#release();
       const to = card.parentElement;
-      if (to === from && this.#cards(to).indexOf(card) === index) return;
+      if (to === from && this.#cards(to).indexOf(card) === index) {
+        this.#finishGesture();
+        return;
+      }
       this.#send(card, from, to);
     }
 
@@ -405,7 +409,19 @@ customElements.define(
       // Escape keeps focus and returns the view to the origin. Blur restores the card
       // without taking the viewport from the control the reader deliberately entered.
       this.#place(card, from, index, refocus ? grip : null);
+      this.#finishGesture();
       announce(`${this.#title(card)} — move cancelled`);
+    }
+
+    #beginGesture() {
+      this.#resumeProjection ??= this.#controller.defer();
+      dragging(this, true);
+    }
+
+    #finishGesture() {
+      dragging(this, false);
+      this.#resumeProjection?.();
+      this.#resumeProjection = null;
     }
 
     // The one writer of "no card is held", so the grip's rows change back here and nowhere
@@ -414,7 +430,6 @@ customElements.define(
     #release() {
       this.#grabbed.card.classList.remove("lf-lift");
       this.#grabbed = null;
-      dragging(this, false);
     }
 
     // Arrow steps and a cancelled grab place through one writer. A FLIP already in
@@ -472,9 +487,11 @@ customElements.define(
       // the board, so put the moved native node back from the controller's current
       // semantic state immediately.
       if (!sent) {
-        this.renderState(this.#controller.read().state);
+        if (this.#resumeProjection) this.#finishGesture();
+        else this.renderState(this.#controller.read().state);
         return;
       }
+      this.#finishGesture();
       sent.delivery.then((ok) => {
         if (ok)
           notice(
@@ -518,13 +535,12 @@ customElements.define(
               this.#release();
             } else this.#cancel();
           }
-          dragging(this, true);
+          this.#beginGesture();
         },
         onEnd: (evt) => {
           // Ahead of the branches below, because the one that returns early sends
           // nothing: a card dropped where it was picked up puts the hand down with
           // nothing following it to say so.
-          dragging(this, false);
           const sup = this.#superseded;
           this.#superseded = null;
           // The *draggable* indexes, which count cards; Sortable's plain
@@ -538,7 +554,10 @@ customElements.define(
           const { item: card, to, newDraggableIndex: newIndex } = evt;
           const from = sup ? sup.from : evt.from;
           const oldIndex = sup ? sup.index : evt.oldDraggableIndex;
-          if (from === to && oldIndex === newIndex) return;
+          if (from === to && oldIndex === newIndex) {
+            this.#finishGesture();
+            return;
+          }
           this.#send(card, from, to);
         },
       });

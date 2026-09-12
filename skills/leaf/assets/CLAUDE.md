@@ -55,6 +55,8 @@ animation frames retain their own timing contracts;
 `runtime/dom-children.js` reconciles retained children without moving nodes already in
 place; conversation owners supply reaction teardown when removing their surfaces;
 `runtime/focus.js` places focus on destinations, lending a tab stop only when needed;
+`runtime/root-state.js` records runtime-owned attributes and inline styles on the stable
+document roots so authored revision replacement can leave that live state in place;
 `runtime/anchor-coordinate.js` compares anchor records without resolving DOM;
 `runtime/walk-position.js` owns the transient ordinal for semantic Leaf keyboard walks,
 shown in the useful status at the page foot, and the brief boundary state when another

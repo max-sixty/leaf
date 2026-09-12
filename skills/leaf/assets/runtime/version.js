@@ -75,9 +75,12 @@
  *
  * `captureView` stores a passage-based reading landmark, correction within the block,
  * and the last decision landmark. `restoreView` resolves the landmark after upgrade and
- * corrects the scroll from the rendered box. A URL fragment outranks the saved view on a
- * fresh navigation; the saved view outranks a leftover fragment on reload or back
- * navigation. `landArrival` applies that ranking only after final page geometry is
+ * corrects the scroll from the rendered box. It retains an ordinary passage's exact
+ * viewport coordinate; capture normalizes a heading to its scroller's declared
+ * scroll-padding edge, because a title with opening lines behind fixed chrome is not a
+ * valid semantic view to carry into another document. A URL fragment outranks the saved
+ * view on a fresh navigation; the saved view outranks a leftover fragment on reload or
+ * back navigation. `landArrival` applies that ranking only after final page geometry is
  * available.
  *
  * Focus and selection are not restored across document travel. Restoring focus onto a
@@ -99,10 +102,11 @@
  * contributor the page hasn't got must bring none — `merge` drops it — or the two
  * capabilities cannot differ in liveness under one heading.
  *
- * Served identity and authored-root snapshots are captured before boot mutates the
- * document. The controller receives application, design, and travel capabilities;
- * mount binds chooser/intent listeners and paints the initial version reading.
- * installArrival remains the later geometry-ready continuity boundary.
+ * Served identity and authored-root snapshots separate authored state from the
+ * prepaint bootstrap's earlier runtime state by the reserved runtime namespaces. The
+ * controller receives application, design, and travel capabilities; mount binds
+ * chooser/intent listeners and paints the initial version reading. installArrival
+ * remains the later geometry-ready continuity boundary.
  */
 import { runtime } from "./context.js";
 
@@ -161,6 +165,7 @@ import { importWidgets, installDocument } from "./widget-loader.js";
 import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { domFacet, stateCoordinate } from "./projection/authored.js";
+import { runtimeRootState } from "./root-state.js";
 
 // Which document this is, read off the served page before anything else asks: the
 // revision the server rendered, the stamp a pinned version URL or its marker names, and
@@ -184,14 +189,25 @@ servedStampMarker?.remove();
 
 // The document roots may carry authored classes, data attributes, and inline custom
 // properties that page-local styles read. The live document also paints its own facts
-// onto those same two elements. The authored share is remembered at import, before the
-// boot module has run a line: no runtime module writes the document at its own top
-// level, the runtime's stylesheets are adopted rather than written into the head, and
-// the banner's icon link comes later from the boot module. An activation can then
-// replace exactly that share without erasing the
-// presentation, layout, and mode facts the surviving runtime owns.
-const authoredAttributes = (root) =>
-  new Map([...root.attributes].map(({ name, value }) => [name, value]));
+// onto those same two elements. Most arrive after this module, but the server's prepaint
+// bootstrap deliberately runs before the module graph and has already written the live
+// shell and provisional reader layout. Authored markup cannot use the `data-lf-` or
+// `lf-` namespaces, so that boundary identifies the authored share without mistaking
+// early runtime state for page source. An activation can then replace exactly that share
+// without erasing the presentation, layout, and mode facts the surviving runtime owns.
+function authoredAttributes(root) {
+  const attributes = new Map();
+  for (const { name, value } of root.attributes) {
+    if (name.startsWith("data-lf-")) continue;
+    if (name === "class") {
+      const authored = [...root.classList]
+        .filter((token) => !token.startsWith("lf-"))
+        .join(" ");
+      if (authored) attributes.set(name, authored);
+    } else attributes.set(name, value);
+  }
+  return attributes;
+}
 // The authored share of the head, which a revision brings with it. Delivery marks
 // what it inserts — the identity markers, the page's canonical address, a
 // publication's card — and that share belongs to the document the reader was
@@ -257,6 +273,7 @@ export function createVersionController({
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
   const LANDMARK_CAP = 160;
+  const HEADING = "h1, h2, h3, h4, h5, h6";
 
   // ---------- the version chooser ----------
   // `runtime.versions` is spliced in place, never reassigned: context's readers hold it.
@@ -1279,25 +1296,32 @@ export function createVersionController({
   function replaceAuthoredAttributes(target, source, prior) {
     const scratch = document.createElement(target.localName);
     for (const [name, value] of prior) scratch.setAttribute(name, value);
+    const runtimeState = runtimeRootState(target);
     for (const name of prior.keys()) {
       if (name === "class")
         for (const token of scratch.classList) target.classList.remove(token);
       else if (name === "style")
-        for (const property of scratch.style) target.style.removeProperty(property);
-      else target.removeAttribute(name);
+        for (const property of scratch.style) {
+          // Inline style is the one root attribute whose members can have different
+          // owners. Registered runtime properties survive; every other declaration is
+          // authored and retires with its revision like every other source attribute.
+          if (!runtimeState.styles.has(property)) target.style.removeProperty(property);
+        }
+      else if (!runtimeState.attributes.has(name)) target.removeAttribute(name);
     }
     const next = authoredAttributes(source);
     for (const [name, value] of next) {
-      if (name === "class")
-        for (const token of source.classList) target.classList.add(token);
-      else if (name === "style")
+      if (name === "class") {
+        for (const token of value.split(" ")) target.classList.add(token);
+      } else if (name === "style") {
         for (const property of source.style)
-          target.style.setProperty(
-            property,
-            source.style.getPropertyValue(property),
-            source.style.getPropertyPriority(property),
-          );
-      else target.setAttribute(name, value);
+          if (!runtimeState.styles.has(property))
+            target.style.setProperty(
+              property,
+              source.style.getPropertyValue(property),
+              source.style.getPropertyPriority(property),
+            );
+      } else if (!runtimeState.attributes.has(name)) target.setAttribute(name, value);
     }
     return next;
   }
@@ -1444,20 +1468,32 @@ export function createVersionController({
   // walk over the page's Asks starts when they have pointed at nothing.
   // A block's landmark is the top of its first line (a range), not its border box; restore
   // measures the matched text the same way, so the line box's leading cancels out.
-  function* blocksOnScreen(region = null) {
+  function textBlocks() {
+    const main = document.querySelector("body > main");
+    const seen = new Set();
+    // Walk the page's composed text rather than querying only its light DOM. A declared
+    // shadow root renders authored words at its host's place in reading order; those
+    // words are pointable and resolvable through the shared passage reading, so version
+    // continuity must be able to choose the same blocks as landmarks.
+    return textNodesUnder(main)
+      .map(({ node }) => closestAcross(node.parentElement, TEXT_BLOCK))
+      .filter((block) => block && !seen.has(block) && seen.add(block));
+  }
+
+  function* blocksOnScreen(region = null, blocks = textBlocks()) {
     // Read the painted edge directly. The declared height may contain a safe-area
     // `calc()`, whose serialized value is not a number even though its box is exact.
     const bounds = region
       ? shownRegionBounds(region)
       : { top: banner.getBoundingClientRect().bottom, bottom: innerHeight };
     if (!bounds) return;
-    for (const block of document.querySelectorAll(TEXT_BLOCK)) {
+    for (const block of blocks) {
       // [hidden] needs an explicit skip: hidden="until-found" resolves to
       // content-visibility, under which descendants still report real rects —
       // but what's behind an inactive tab isn't what the reader is reading.
       if (
         inChrome(block) ||
-        block.closest("[hidden]") ||
+        closestAcross(block, "[hidden]") ||
         (region && !containsAcross(region.body, block)) ||
         (!region &&
           readingRegionFor(block) &&
@@ -1488,17 +1524,24 @@ export function createVersionController({
   // The quote and the section it's searched in come from the same block, or the search is
   // filtered to a section the text isn't in and can only ever fail — restore then falls back
   // to the section, which doesn't absorb content added above the reader inside it.
-  function captureRegion(region = null) {
+  function captureRegion(region = null, blocks = textBlocks()) {
     const box = region ? effectiveScroller(region) : pageScroller;
     const boxTop = shownBox(box).top;
+    const inset = Number.parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
+    const landmarkTop = (top, block, blockTop = top) =>
+      block?.matches(HEADING) ? top + Math.max(0, inset - blockTop) : top;
     const view = { y: box.scrollTop };
-    for (const [block, rect] of blocksOnScreen(region)) {
-      const section = block.closest("[id]");
+    for (const [block, rect] of blocksOnScreen(region, blocks)) {
+      const section = closestAcross(block, "[id]");
       if (!view.section && section) {
         // The first on-screen block's section, kept only until a quotable block supplies
         // its own: a page with nothing quotable on screen still has somewhere to land.
         view.section = section.id;
-        view.sectionTop = shownBox(section).top - boxTop;
+        view.sectionTop = landmarkTop(
+          shownBox(section).top - boxTop,
+          block,
+          rect.top - boxTop,
+        );
       }
       // Written down the way a comment's quote is, so the search that re-finds it is
       // looking for a string of the same kind.
@@ -1508,9 +1551,16 @@ export function createVersionController({
         // Unconditionally, so a quotable block under no section clears the earlier one
         // rather than sending the search into a subtree its text isn't in.
         view.section = section?.id;
-        view.sectionTop = section && shownBox(section).top - boxTop;
+        view.sectionTop =
+          section &&
+          landmarkTop(shownBox(section).top - boxTop, block, rect.top - boxTop);
         view.quote = text;
-        view.quoteTop = rect.top - boxTop;
+        // A partially covered paragraph is still a reading place: its visible lines
+        // should stay where the reader left them. A heading identifies the place as a
+        // whole, so a coordinate that hides its opening words is not a valid heading
+        // landmark. Normalize both quote and fallback section state here, once, rather
+        // than teaching every restore path to repair it after document replacement.
+        view.quoteTop = landmarkTop(rect.top - boxTop, block);
         break;
       }
     }
@@ -1518,15 +1568,17 @@ export function createVersionController({
   }
 
   function captureView() {
-    const view = Object.assign(captureRegion(), {
+    const blocks = textBlocks();
+    const active = activeReadingRegion(readingRegions(), blocks);
+    const view = Object.assign(captureRegion(null, blocks), {
       revision: runtime.currentRevision,
       ask: landedAt()?.id,
+      activeRegion: active?.id,
       regions: Object.fromEntries(regionViews),
     });
-    const active = activeReadingRegion();
     for (const region of readingRegions()) {
       if (!shownRegionBounds(region)) continue;
-      const reading = captureRegion(region);
+      const reading = captureRegion(region, blocks);
       if (readingPosture(region) === "bounded" || region.id === active?.id) {
         regionViews.set(region.id, reading);
         view.regions[region.id] = reading;
@@ -1569,7 +1621,9 @@ export function createVersionController({
     setLanded((view.ask && document.getElementById(view.ask)) || null);
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
-      containingReadingRegionFor(focused()) ?? readingRegionFor(readingBlock());
+      regions.get(view.activeRegion) ??
+      containingReadingRegionFor(focused()) ??
+      readingRegionFor(readingBlock());
     const restored = new Set();
     if (active && view.regions?.[active.id]) {
       restoreRegion(view.regions[active.id], regions.get(active.id));
@@ -1601,14 +1655,17 @@ export function createVersionController({
   // not live in that pane's scroller, a posture change preserves the outer region that
   // geometrically contains it. The same distinction keeps an inline response outside a
   // nested region body with the outer scroller that actually carries it.
-  const activeReadingRegion = (candidates = readingRegions()) => {
+  const activeReadingRegion = (
+    candidates = readingRegions(),
+    blocks = textBlocks(),
+  ) => {
     const focusedRegion = containingReadingRegionFor(focused());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
     const recent = candidates.find(({ id }) => id === lastReadingRegionId);
     if (recent) return recent;
     return candidates
-      .map((region) => [region, blocksOnScreen(region).next().value?.[1]])
+      .map((region) => [region, blocksOnScreen(region, blocks).next().value?.[1]])
       .filter(([, rect]) => rect)
       .sort(([, a], [, b]) => a.top - b.top)[0]?.[0];
   };
@@ -1616,12 +1673,13 @@ export function createVersionController({
   const postureTransitions = new Map();
   function readingRegionTransition({ phase, owner, from, to, regions }) {
     if (phase === "before") {
-      const active = activeReadingRegion(regions);
+      const blocks = textBlocks();
+      const active = activeReadingRegion(regions, blocks);
       const captured =
         from === "flow" ? regions.filter(({ id }) => id === active?.id) : regions;
       for (const region of captured)
         if (shownRegionBounds(region))
-          regionViews.set(region.id, captureRegion(region));
+          regionViews.set(region.id, captureRegion(region, blocks));
       postureTransitions.set(owner, {
         intent: navigationIntent,
         to,

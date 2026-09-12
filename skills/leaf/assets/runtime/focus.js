@@ -64,11 +64,6 @@ export function takesLetters(node) {
 // control owns the key, while body hands it back to the browser's root scrollport. A blur
 // names no deliberate destination even when activeElement subsequently reads as body.
 //
-// Body therefore needs to be somewhere a reader can be put even on a short page. The
-// explicit tab stop is programmatic only and gives every Escape handoff the same stable
-// page destination without adding a visible stop to the Tab order.
-document.body.tabIndex = -1;
-
 export function letGo() {
   return document.body.focus({ preventScroll: true });
 }

@@ -6,6 +6,7 @@
 import { readerStore } from "./storage.js";
 import { el } from "./widget-elements.js";
 import { keys } from "./keyboard/scopes.js";
+import { setRuntimeRootStyle } from "./root-state.js";
 
 // The step an arrow takes, in the column's own gutter: the smallest move that shows in a
 // page of prose.
@@ -59,7 +60,7 @@ export function drawnEdge({ side, noun, wide, min, prop, key, covering, when, la
   // room a wide widget spends — ask `width` instead of this property, so what the cascade
   // lays out and what the runtime measures cannot come apart.
   function state() {
-    document.documentElement.style.setProperty(prop, width() + "px");
+    setRuntimeRootStyle(document.documentElement, prop, width() + "px");
     // Where the edge stands and how far it may go, which is what a listener hears change
     // on every step — the platform's own announcement, and the whole reason the edge is a
     // separator. The cap moves with the window, so it is restated wherever the width is.

@@ -126,18 +126,19 @@ class AskTrayList extends LitElement {
     return repeat(
       this.model.rows,
       ({ id }) => id,
-      ({ id, kind, says, answer, answerState, title }) => html`<button
-        type="button"
-        class="lf-asks-row"
-        data-lf-at=${id}
-        data-lf-answer-state=${answerState}
-        title=${title}
-        @click=${this.#activateRow}
-      >
-        <span class="lf-asks-kind">${kind}</span>
-        <span class="lf-asks-says">${says}</span>
-        <span class="lf-asks-answer">${answer}</span>
-      </button>`,
+      ({ id, kind, says, answer, answerState, title }) =>
+        html`<button
+          type="button"
+          class="lf-asks-row"
+          data-lf-at=${id}
+          data-lf-answer-state=${answerState}
+          title=${title}
+          @click=${this.#activateRow}
+        >
+          <span class="lf-asks-kind">${kind}</span>
+          <span class="lf-asks-says">${says}</span>
+          <span class="lf-asks-answer">${answer}</span>
+        </button>`,
     );
   }
 }

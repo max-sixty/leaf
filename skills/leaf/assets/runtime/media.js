@@ -35,7 +35,7 @@ export const isCanonicalMediaUrl = (href) => {
 
 export const scopedMediaUrl = (href) =>
   offlineInteractive
-    ? (runtimeResource(href) ?? href)
+    ? runtimeResource(href)
     : new URL(
         href.slice(CANONICAL_MEDIA_ROOT.length),
         new URL("media/", MODULE_PAGE_ROOT),

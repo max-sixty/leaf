@@ -56,7 +56,6 @@ interface WireProjection {
 
 export interface SemanticDocument {
   revision: number | null;
-  hostAvailable: boolean;
   registry: Record<
     string,
     {
@@ -344,7 +343,6 @@ export function createSemanticApplication({
   const initial = {
     document: {
       revision: null,
-      hostAvailable: true,
       registry: {},
       authored: new Map(),
       descriptors: new Map(),
@@ -352,11 +350,11 @@ export function createSemanticApplication({
     authoritative: null as AuthoritativeState | null,
     unresolved: [] as Event[],
     phase: "waiting",
+    hostAvailable: true,
     data: { revision: -1, sources: {} },
     effective: derive(
       {
         revision: null,
-        hostAvailable: true,
         registry: {},
         authored: new Map(),
         descriptors: new Map(),
@@ -364,6 +362,7 @@ export function createSemanticApplication({
       null,
       [],
       "waiting",
+      true,
     ),
     semanticEpoch: 0,
   };
@@ -380,6 +379,7 @@ export function createSemanticApplication({
     state: AuthoritativeState | null,
     unresolved: Event[],
     phase: string,
+    hostAvailable: boolean,
   ) {
     const receipts = state?.browser.receipts ?? [];
     const pending = unresolved.map((entry) =>
@@ -417,7 +417,7 @@ export function createSemanticApplication({
         : [];
     const active = state?.browser.views[String(document.revision)];
     return {
-      hostAvailable: document.hostAvailable,
+      hostAvailable,
       projection,
       widgets: foldWidgetStates(document.authored, projection),
       conversation: { all: threads, listed: threads.filter(conversational) },
@@ -453,6 +453,7 @@ export function createSemanticApplication({
       next.authoritative,
       next.unresolved,
       next.phase,
+      next.hostAvailable,
     );
     const nextSignature = semanticSignature([next.effective, next.data, next.phase]);
     next.semanticEpoch =
@@ -540,9 +541,7 @@ export function createSemanticApplication({
       return publish({ document: { ...publisher.read().document, revision } });
     },
     setHostAvailable(hostAvailable: boolean) {
-      return publish({
-        document: { ...publisher.read().document, hostAvailable },
-      });
+      return publish({ hostAvailable });
     },
     captureAuthored(values: AuthoredMap, registry: SemanticDocument["registry"]) {
       return publish({

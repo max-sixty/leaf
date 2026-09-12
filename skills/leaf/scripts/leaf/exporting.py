@@ -533,12 +533,9 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
 def cmd_export(page_dir: Path, out: Path, version, *, interactive: bool = False) -> int:
     """One stamped version as a standalone HTML file.
 
-    The copy is the page as the browser finished drawing it, which is the only way to
-    get one: half the document is written by the widget layer at runtime, a diagram
-    becomes an SVG only once its renderer has drawn it, and a code block is colored
-    by the vendored tokenizer in the page rather than by anything that can read the
-    file. So a browser is not an optimisation here and no `x-` key exempts a widget
-    from it; without one there is nothing to copy at all."""
+    The static copy is the page as the browser finished drawing it. The interactive
+    copy packages the captured inputs so that same drawing happens when the file opens;
+    its embedded authoritative reading has no host command or transport capability."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import sync_playwright
 
@@ -575,10 +572,7 @@ def cmd_export(page_dir: Path, out: Path, version, *, interactive: bool = False)
             layer_identity=snapshot.layer,
         ).page_state(revision)
         html = interactive_export_page(artifact, state, revision, version)
-        mode = "offline interactive"
     else:
-        mode = "static"
-
         with (
             preview_server(page_dir, document, revision, version=version) as url,
             sync_playwright() as p,
@@ -598,8 +592,8 @@ def cmd_export(page_dir: Path, out: Path, version, *, interactive: bool = False)
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
+    detail = ", offline interactive" if interactive else ""
     print(
-        f"✓ {name} → {out} ({out.stat().st_size // 1024} KB, "
-        f"{mode}, opens with no server)"
+        f"✓ {name} → {out} ({out.stat().st_size // 1024} KB{detail}, opens with no server)"
     )
     return 0

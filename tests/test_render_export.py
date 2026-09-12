@@ -1086,6 +1086,10 @@ customElements.define("lf-offline-test", class extends LitElement {
   local = 0;
   stop = null;
 
+  createRenderRoot() {
+    return this.shadowRoot ?? this.attachShadow({mode: "open", serializable: true});
+  }
+
   connectedCallback() {
     super.connectedCallback();
     this.stop ??= this.controller.subscribe(reading => {
@@ -1116,6 +1120,7 @@ customElements.define("lf-offline-test", class extends LitElement {
     const request = this.reading.requests.run;
     const unavailable = action.unavailable ?? request.unavailable;
     return html`
+      <style>#local { color: rgb(12, 34, 56); }</style>
       <button id="local" @click=${() => { this.local += 1; this.requestUpdate(); }}>
         Increment locally
       </button>
@@ -1233,6 +1238,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
             str(interactive),
             "--interactive",
         ],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
     )
     assert result.exit_code == 0, result.output
     assert "offline interactive" in result.output
@@ -1242,19 +1248,29 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
 
     page = browser.new_page(viewport={"width": 1000, "height": 800})
     errors = watched(page)
-    network = []
+    external = []
+    document_url = interactive.as_uri()
     page.on(
         "request",
         lambda request: (
-            network.append(request.url)
-            if request.url.startswith(("http://", "https://"))
+            external.append(request.url)
+            if request.url != document_url and not request.url.startswith("data:")
             else None
         ),
     )
-    page.goto(interactive.as_uri(), wait_until="load")
+    page.goto(document_url, wait_until="load")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
     expect(page.locator(".lf-chrome")).to_have_count(0)
+    assert page.locator("#offline-widget").evaluate(
+        "owner => owner.shadowRoot.serializable"
+    )
+    assert (
+        page.locator("#offline-widget #local").evaluate(
+            "control => getComputedStyle(control).color"
+        )
+        == "rgb(12, 34, 56)"
+    )
 
     page.locator("#offline-widget").get_by_role(
         "button", name="Increment locally"
@@ -1277,7 +1293,7 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     )
     assert refused == [None, None, None]
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
-    assert network == []
+    assert external == []
     assert errors == []
     page.close()
 

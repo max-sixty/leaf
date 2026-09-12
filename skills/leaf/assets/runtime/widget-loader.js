@@ -99,9 +99,10 @@ export function rememberPassageParts(scope = document, source = ["page", null]) 
 // startup and activation must not present markup whose required module is absent.
 const modules = new Map();
 const registryUrl = () =>
-  runtimeResource("/registry.json") ??
-  document.querySelector("script[data-lf-runtime][data-lf-probe]")?.dataset.lfProbe ??
-  "/registry.json";
+  offlineInteractive
+    ? runtimeResource("/registry.json")
+    : (document.querySelector("script[data-lf-runtime][data-lf-probe]")?.dataset
+        .lfProbe ?? "/registry.json");
 const widgetUrl = (tag) =>
   offlineInteractive
     ? runtimeModule(`/widgets/${tag}.js`)

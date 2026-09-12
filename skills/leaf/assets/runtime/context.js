@@ -22,8 +22,13 @@ export const offlineState = () =>
   offlineInteractive ? structuredClone(offlinePayload.state) : null;
 export const runtimeModule = (path) =>
   offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;
-export const runtimeResource = (path) =>
-  offlineInteractive ? (offlinePayload.resources[path] ?? null) : path;
+export const runtimeResource = (path) => {
+  if (!offlineInteractive) return path;
+  const resource = offlinePayload.resources[path];
+  if (typeof resource !== "string")
+    throw new Error(`Leaf's interactive export is missing ${path}`);
+  return resource;
+};
 
 export const runtime = {
   get active() {

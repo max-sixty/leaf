@@ -84,14 +84,11 @@ import { anchorLabel } from "../conversation/messages.js";
 
 import { reactionsAt } from "../conversation/model.js";
 import { allThreads } from "../conversation/state.js";
-import { runtimeModule } from "../context.js";
-
 import { readingRegionFor, shownRegionBounds } from "../reading-regions.js";
 
 export const BANNER_CLEAR = 48;
 let floatingUiModule = null;
-const floatingUi = () =>
-  (floatingUiModule ??= import(runtimeModule("/vendor/floating-ui.esm.js")));
+const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 
 export function createResponseSurface({
   panelCovers,

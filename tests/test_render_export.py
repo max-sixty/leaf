@@ -1227,6 +1227,13 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     assert live_errors == []
     live.close()
 
+    # Export resolves the stamped artifact, never the mutable aliases left in the page
+    # directory after activation.
+    (serve.page_dir / "widgets" / "lf-offline-test.js").write_text(
+        'throw new Error("mutable widget source escaped its revision");',
+        encoding="utf-8",
+    )
+
     interactive = tmp_path / "interactive.html"
     result = CliRunner().invoke(
         cli_model.cli,

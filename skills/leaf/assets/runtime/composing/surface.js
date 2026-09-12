@@ -84,6 +84,7 @@ import { anchorLabel } from "../conversation/messages.js";
 
 import { reactionsAt } from "../conversation/model.js";
 import { allThreads } from "../conversation/state.js";
+
 import { readingRegionFor, shownRegionBounds } from "../reading-regions.js";
 
 export const BANNER_CLEAR = 48;

@@ -127,8 +127,7 @@ import {
 // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
 // checks can inspect either distribution without turning it into a package API.
 const validationEntry = document.querySelector("script[data-lf-entry]");
-if (validationEntry)
-  validationEntry.lfCurrentPresentationReady = applicationPresented;
+if (validationEntry) validationEntry.lfCurrentPresentationReady = applicationPresented;
 import { overflowMenu, showNews } from "./runtime/banner-shelf.js";
 import {
   leavesOffered,

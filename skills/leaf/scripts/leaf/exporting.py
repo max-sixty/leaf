@@ -19,6 +19,8 @@ from leaf.files import (
     version_name,
     version_revisions,
 )
+from leaf.http import head_open_end_offset, script_hash
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.render_checks import (
     RENDER_VIEWPORT,
     evaluate_probe,
@@ -41,11 +43,9 @@ from leaf.revision_artifact import (
     rewrite_captured_module,
     rewrite_module,
 )
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.served_state.service import PageStateService
 from leaf.schema import DIR_FILES, MEDIA_DIR
+from leaf.served_state.service import PageStateService
 from leaf.structure import UTF8_BOM, SourceDocument
-from leaf.http import head_open_end_offset, script_hash
 
 ResourceReader = Callable[[str], Resource]
 

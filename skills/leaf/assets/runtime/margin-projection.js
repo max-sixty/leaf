@@ -101,6 +101,7 @@ import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
 import { claimed, focusSurface } from "./conversation/surfaces.js";
 import { anchorLabel } from "./conversation/messages.js";
+
 import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
 
 let floatingUiModule = null;

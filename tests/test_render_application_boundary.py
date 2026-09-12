@@ -5,6 +5,7 @@ import json
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_support import (
+    BOTH_STAMPS,
     LIVE_READING,
     LIVE_V1,
     LIVE_V2,
@@ -15,6 +16,7 @@ from render_support import (
     stamp_page,
     told,
     wait_for_revision,
+    watched,
 )
 
 PAGE_MODULE = """\
@@ -98,6 +100,26 @@ customElements.define("lf-local", class extends LitElement {
 });
 """
 
+STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
+    "    const held = globalThis.__heldLocalPresentations?.get(this.id);",
+    """\
+    if (!this.dataset.startupInvalidated) {
+      this.dataset.startupInvalidated = "1";
+      this.controller.defer()();
+    }
+    const held = globalThis.__heldLocalPresentations?.get(this.id);""",
+).replace(
+    "  render() {",
+    """\
+  renderState() {
+    this.dataset.projectionRenders = String(
+      Number(this.dataset.projectionRenders || 0) + 1
+    );
+  }
+
+  render() {""",
+)
+
 
 def test_current_readiness_releases_a_connected_page_widget(browser, serve):
     """The readiness edge includes a late module's owner and first gesture route."""
@@ -135,6 +157,90 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     assert errors == []
     page.close()
+
+
+def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve):
+    """Provisional chrome cannot deadlock the state read that replaces it."""
+    source = LIVE_V1.replace(
+        '<h1 id="live-title">Live first</h1>',
+        '<h1 id="live-title">Live first</h1>'
+        '<lf-local id="page-local" choice="idle"></lf-local>',
+    )
+    url = live_url(
+        serve(
+            source,
+            page_files={
+                "registry.json": json.dumps(PAGE_DECLARATION),
+                "widgets/lf-local.js": STARTUP_PROJECTION_WIDGET,
+            },
+        )
+    )
+    held = []
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    errors = watched(page)
+    page.route("**/api/state*", lambda route: held.append(route))
+    try:
+        page.goto(url, wait_until="load")
+        page.wait_for_function(
+            "() => document.querySelector('#page-local')?.dataset.startupInvalidated"
+        )
+        expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+        assert held, "the positive control did not hold the first authoritative state"
+        expect(page.locator("#page-local").get_by_role("button")).to_be_disabled()
+        expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
+        assert (
+            page.locator("#page-local").get_attribute("data-projection-renders") is None
+        )
+        waiting = page.evaluate(
+            """async () => {
+              const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+              const runtime = await import(
+                new URL('runtime/semantic-state.js', new URL(entry, location.href)).href
+              );
+              window.readStartupApplication = runtime.readApplication;
+              window.readStartupPresentation = runtime.readApplicationPresentation;
+              const application = runtime.readApplication();
+              const presentation = runtime.readApplicationPresentation();
+              return {
+                phase: application.phase,
+                epoch: application.semanticEpoch,
+                presented: presentation.presentedEpoch,
+                pending: presentation.pending,
+              };
+            }"""
+        )
+        assert waiting["phase"] == "waiting"
+        assert waiting["presented"] == waiting["epoch"]
+        assert waiting["pending"] == []
+        assert page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfCurrentPresentationReady()"
+        )
+
+        held.pop(0).continue_()
+        page.wait_for_function(BOTH_STAMPS)
+        expect(page.locator("#page-local").get_by_role("button")).to_be_enabled()
+        expect(page.locator("#page-local")).to_have_attribute(
+            "data-projection-renders", "1"
+        )
+        ready = page.evaluate(
+            """() => {
+              const application = readStartupApplication();
+              const presentation = readStartupPresentation();
+              return {
+                phase: application.phase,
+                epoch: application.semanticEpoch,
+                presented: presentation.presentedEpoch,
+                pending: presentation.pending,
+              };
+            }"""
+        )
+        assert ready["phase"] == "ready"
+        assert ready["epoch"] > waiting["epoch"]
+        assert ready["presented"] == ready["epoch"]
+        assert ready["pending"] == []
+        assert errors == []
+    finally:
+        page.close()
 
 
 PAGE_DECLARATION = {

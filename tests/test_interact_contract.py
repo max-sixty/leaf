@@ -2409,6 +2409,43 @@ def test_an_x_request_declaration_closes_its_widget_boundary(
     assert message in result.output
 
 
+@pytest.mark.parametrize("channel", ["x-state", "x-report"])
+def test_a_request_offer_attribute_is_authored_static_state(page_dir, channel):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    operation = registry["lf-operation"]
+    operation["properties"].update(
+        {
+            "id": deepcopy(registry["lf-operations"]["properties"]["id"]),
+            "restated": {"type": "boolean"},
+            "overruled": {"type": "boolean"},
+        }
+    )
+    operation["required"].append("id")
+    operation["x-upgrade"] = True
+    operation[channel] = {
+        "change-offer": {
+            "detail": {
+                "type": "object",
+                "properties": {"verb": deepcopy(operation["properties"]["verb"])},
+                "required": ["verb"],
+                "additionalProperties": False,
+            },
+            "facet": "offered-verb",
+            "unit": "widget",
+            "record": {"kind": "value", "attr": "verb", "value": "verb"},
+        }
+    }
+
+    with pytest.raises(
+        registry_contract.RegistryError,
+        match=(
+            r"<lf-operations> x-request offer <lf-operation> attribute `verb` "
+            r"is written by x-state or x-report"
+        ),
+    ):
+        registry_validation.validate_registry(registry, "test registry")
+
+
 @pytest.mark.parametrize("subschema", [True, False])
 def test_state_reader_fields_reject_boolean_subschemas(page_dir, subschema):
     registry = json.loads((page_dir / "registry.json").read_text())

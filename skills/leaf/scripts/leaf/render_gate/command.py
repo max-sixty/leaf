@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 
+from leaf.structure import SourceDocument
+
 from .browser import browser_hint, launch_browser
 from .preview import preview_server
 from .version import RENDER_VIEWPORTS, render_version
@@ -10,7 +12,7 @@ from .version import RENDER_VIEWPORTS, render_version
 
 def render_check(
     page_dir: Path,
-    source: bytes,
+    document: SourceDocument,
     revision: int,
     *,
     transition_held: bool = False,
@@ -23,7 +25,7 @@ def render_check(
 
     with (
         preview_server(
-            page_dir, source, revision, transition_held=transition_held
+            page_dir, document, revision, transition_held=transition_held
         ) as url,
         sync_playwright() as p,
     ):

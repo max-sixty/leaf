@@ -14,6 +14,7 @@ from leaf.mcp_page import PAGE_RESOURCE_URI, ProcessPageServer
 from leaf.mcp_server import make_mcp_server
 from leaf.passages import TEXT_BLOCK_TAGS
 from leaf.revisioning import activate_source
+from leaf.structure import UTF8_BOM
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
@@ -163,6 +164,8 @@ def test_mcp_snapshot_is_authored_source_with_current_cursors_and_private_bytes(
     }
     assert "<main>" in private["document"]
     assert "<style>" in private["document"]
+    assert private["document"].startswith(UTF8_BOM)
+    assert private["document"].index('<meta charset="utf-8"') < 1024
     assert private["authoredCss"] == ""
     assert "--paper: #191815" in private["darkTheme"]
     assert "prefers-color-scheme: dark" not in private["theme"]

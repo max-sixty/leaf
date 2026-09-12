@@ -3,16 +3,18 @@
 import contextlib
 from pathlib import Path
 
-from leaf.event_log import flocked, now_iso, read_events
-from leaf.files import revision_label, version_name
+from leaf.event_log import flocked
+from leaf.files import version_name
 from leaf.hosting import TemporaryPageServer
 from leaf.leases import transition_lock
+from leaf.page_snapshot import capture_page_snapshot
+from leaf.structure import SourceDocument
 
 
 @contextlib.contextmanager
 def preview_server(
     page_dir: Path,
-    source: bytes,
+    document: SourceDocument,
     revision: int,
     *,
     version: int | None = None,
@@ -32,23 +34,16 @@ def preview_server(
         else flocked(transition_lock(page_dir))
     )
     with transition:
-        events = read_events(page_dir)
         active = {
             "revision": revision,
             "version": version,
             "url": (
                 f"/versions/{version_name(version)}" if version is not None else "/"
             ),
-            "label": (
-                f"v{version}"
-                if version is not None
-                else revision_label(events, revision)
-            ),
-            "activated_at": now_iso(),
         }
+        snapshot = capture_page_snapshot(page_dir, document, active)
         server = TemporaryPageServer(
-            page_dir,
-            handler_options={"preview_source": {"data": source, "active": active}},
+            page_dir, handler_options={"page_snapshot": snapshot}
         )
         with server:
             yield server.url

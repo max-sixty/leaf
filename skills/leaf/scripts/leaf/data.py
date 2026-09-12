@@ -489,14 +489,13 @@ def data_manifest(value, contract: str, registry: dict):
     }
 
 
-def browser_data(page_dir: Path, registry: dict | None) -> dict:
-    """Project the source store to the lightweight snapshot sent in page state.
+def browser_data_from(stored: dict, registry: dict | None) -> dict:
+    """Project a complete source store to the lightweight browser snapshot.
 
     ``data.json`` remains the complete authority.  A contract may mark one field on
     each item as a separately delivered fragment; page state carries the surrounding
     manifest and the fragment door reads the omitted value from that same store.
     """
-    stored = read_data(page_dir)
     # State remains readable when an older page's frozen vocabulary no longer
     # validates against this layer. Without a trustworthy fragment declaration,
     # send the complete value: the broken registry already prevents interaction,
@@ -513,8 +512,13 @@ def browser_data(page_dir: Path, registry: dict | None) -> dict:
     return stored
 
 
-def read_data_fragment(
-    page_dir: Path,
+def browser_data(page_dir: Path, registry: dict | None) -> dict:
+    """Read and project the page's current source store for a live response."""
+    return browser_data_from(read_data(page_dir), registry)
+
+
+def data_fragment(
+    stored: dict,
     registry: dict,
     *,
     data_revision: int,
@@ -522,8 +526,7 @@ def read_data_fragment(
     key: str,
     snapshot_id: str | None = None,
 ) -> dict:
-    """Read one declared fragment from the exact source revision a tab accepted."""
-    stored = read_data(page_dir)
+    """Project one fragment from the exact source store a tab accepted."""
     if stored["revision"] != data_revision:
         raise DataError(
             f"data revision {data_revision} is stale; current revision is "
@@ -561,6 +564,26 @@ def read_data_fragment(
         "key": key,
         "value": item[spec["value"]],
     }
+
+
+def read_data_fragment(
+    page_dir: Path,
+    registry: dict,
+    *,
+    data_revision: int,
+    source: str,
+    key: str,
+    snapshot_id: str | None = None,
+) -> dict:
+    """Read and project one fragment from the page's current source store."""
+    return data_fragment(
+        read_data(page_dir),
+        registry,
+        data_revision=data_revision,
+        source=source,
+        key=key,
+        snapshot_id=snapshot_id,
+    )
 
 
 def _write_source(

@@ -13,7 +13,7 @@ from leaf.projection import (
     state_projection,
 )
 from leaf.registry.contract import created_children, visual_parts
-from leaf.structure import parse_structure
+from leaf.structure import SourceDocument
 from leaf.validation.transitions import report_errors, restatement_errors
 
 
@@ -58,12 +58,12 @@ def revision_reading(
         if committed_active
         else (revisions[-2] if same_as_active and len(revisions) > 1 else active)
     )
-    previous = parse_structure("")
+    previous = SourceDocument("")
     previous_words = {}
     if predecessor:
         previous_html = revision_path(page_dir, predecessor).read_text(encoding="utf-8")
-        previous = parse_structure(previous_html)
-        previous_words = spoken(previous_html, registry or {})
+        previous = SourceDocument(previous_html)
+        previous_words = spoken(previous, registry or {})
     return RevisionReading(
         active,
         committed_active,
@@ -165,18 +165,17 @@ def continuity_errors(
 
 
 def transition_reading(
-    html: str,
+    document: SourceDocument,
     events: list,
-    parser,
     registry: dict | None,
     revision: RevisionReading,
 ) -> TransitionReading:
     """Project standing log changes onto this source from its predecessor."""
-    words = spoken(html, registry or {})
+    words = spoken(document, registry or {})
     floors = retractions(events, revision.predecessor)
     projection = state_projection(
         events,
-        parser.by_id,
+        document.by_id,
         words,
         registry or {},
         revision.predecessor,

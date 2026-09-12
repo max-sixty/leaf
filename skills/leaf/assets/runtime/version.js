@@ -60,6 +60,9 @@
  * the document standing afterwards. The gestures `midComposition` names — item hints, a
  * reaction list, page search, a drag or grab — defer the activation instead. The chrome,
  * browser document, module globals, panel, and address remain standing.
+ * A revision that changes an authored module is the exception: arbitrary page code has
+ * no teardown contract, so Leaf reloads the live document instead of combining new
+ * markup with old behavior.
  *
  * That activation is one presentation boundary. Its async work runs in a
  * `startViewTransition` update callback where the platform supplies one, including for
@@ -123,13 +126,7 @@ import {
   textNodesUnder,
   wrote,
 } from "./passages.js";
-import {
-  MARKED_IN_PAGE,
-  dress,
-  markDeclared,
-  settlePageInterface,
-} from "./presentation.js";
-import { reachScrollers } from "./reach.js";
+import { settlePageInterface } from "./presentation.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
@@ -152,23 +149,17 @@ import {
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { focusDestination } from "./focus.js";
-import { settle, settling } from "./widget-upgrade.js";
 import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButCommandReference } from "./keyboard/register.js";
 
 import { reportPageError, sameDelivery } from "./layer-client.js";
 import { projectionFromView } from "./projection/presentation.js";
 
-import { importWidgets, rememberPassageParts } from "./widget-loader.js";
+import { importWidgets, installDocument } from "./widget-loader.js";
 
 import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
-import {
-  captureAuthoredFacets,
-  domFacet,
-  rememberAuthoredParents,
-  stateCoordinate,
-} from "./projection/authored.js";
+import { domFacet, stateCoordinate } from "./projection/authored.js";
 
 // Which document this is, read off the served page before anything else asks: the
 // revision the server rendered, the stamp a pinned version URL or its marker names, and
@@ -216,6 +207,13 @@ const versionedHeadNode = (node) =>
         node.rel === "stylesheet" &&
         new URL(node.href, document.baseURI).pathname === "/theme.css"
       )));
+const authoredModuleSource = (root) =>
+  JSON.stringify(
+    [...root.querySelectorAll('script[type="module"]:not([src])')].map(
+      (script) => script.textContent,
+    ),
+  );
+const servedAuthoredModuleSource = authoredModuleSource(document);
 const initialDocument = {
   authoredBodyAttributes: authoredAttributes(document.body),
   authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
@@ -1335,37 +1333,32 @@ export function createVersionController({
     const source = doc.querySelector("body > main");
     const fresh = document.importNode(source, true);
     revisionDocuments.delete(revision.revision);
-    const settlingFrom = settling.length;
     // A pending selection is standing too: cancel its old-document request before the
     // authored main moves, then restore that base against the arriving revision.
     const comparedFrom = selectedBase();
     if (comparedFrom !== null) setDiff(false);
 
     resetAuthoredPage();
-    rememberAuthoredParents(source);
-    rememberAuthoredParents(fresh);
-    rememberPassageParts(fresh);
-    markDeclared(fresh, MARKED_IN_PAGE);
-    authoredHtmlAttributes = replaceAuthoredAttributes(
-      document.documentElement,
-      doc.documentElement,
-      authoredHtmlAttributes,
-    );
-    authoredBodyAttributes = replaceAuthoredAttributes(
-      document.body,
-      doc.body,
-      authoredBodyAttributes,
-    );
-    runtime.currentRevision = revision.revision;
-    runtime.currentStamp = revision.version;
-    runtime.currentLabel = revision.label;
-    activateHead(doc, revision);
-    document.querySelector("body > main").replaceWith(fresh);
-    pruneScopedElements();
-    settle(dress(fresh));
-    await Promise.allSettled(settling.slice(settlingFrom));
-    reachScrollers(fresh);
-    captureAuthoredFacets(fresh);
+    await installDocument(fresh, {
+      mount: () => {
+        authoredHtmlAttributes = replaceAuthoredAttributes(
+          document.documentElement,
+          doc.documentElement,
+          authoredHtmlAttributes,
+        );
+        authoredBodyAttributes = replaceAuthoredAttributes(
+          document.body,
+          doc.body,
+          authoredBodyAttributes,
+        );
+        runtime.currentRevision = revision.revision;
+        runtime.currentStamp = revision.version;
+        runtime.currentLabel = revision.label;
+        activateHead(doc, revision);
+        document.querySelector("body > main").replaceWith(fresh);
+        pruneScopedElements();
+      },
+    });
     await settlePageInterface();
     syncLayout();
     if (designModeActive()) paintLegend();
@@ -1403,6 +1396,7 @@ export function createVersionController({
       return null;
     }
     if (doc === null) return { stale: true };
+    const reloadsDocument = authoredModuleSource(doc) !== servedAuthoredModuleSource;
     // Step 4 of the startup order, at the boundary that runs the same passes: this
     // version may introduce a tag the standing document never carried, and insertion is
     // where its connectedCallback runs. Fetched here, on the same background stretch as
@@ -1418,6 +1412,12 @@ export function createVersionController({
         !versionMenuIsOpen(),
       install: () => {
         forceActivation = false;
+        if (reloadsDocument) {
+          location.reload();
+          // The new document owns the continuation. Keeping this activation pending
+          // prevents the old realm from applying state while navigation commits.
+          return new Promise(() => {});
+        }
         return activateRevision(doc, target, syncLayout);
       },
     };

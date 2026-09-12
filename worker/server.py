@@ -38,12 +38,7 @@ from leaf.codex import (
 )
 from leaf.conversation import cmd_reply
 from leaf.hosting import server_at
-from leaf.http import (
-    Handler,
-    canonical_script_offset,
-    head_policy_offset,
-    scope_page_urls,
-)
+from leaf.http import Handler, scope_page_urls
 from leaf.leases import take_waiter_lease, waiter_lease_path
 from leaf.registry.storage import layer_metadata
 from leaf.revisioning import activate_source
@@ -176,28 +171,19 @@ def site_metadata(page_root: str, page: dict) -> str:
     )
 
 
-def with_site_head(
-    document: bytes, page_root: str, page: dict, *, asset_root: str | None = None
-) -> bytes:
-    """Insert the website's link card and reader chrome into one document.
+def site_head(page_root: str, page: dict, *, asset_root: str | None = None) -> str:
+    """Return the website metadata and reader chrome for delivery composition.
 
     The build materializes the edge shell and the container serves the same page, so
-    both call this: what a crawler reads and what a reader is handed stay one
-    document. Splicing runs last offset first, so an earlier one stays valid.
+    both hand this fragment to Leaf's one document composer.
     """
-    source = document.decode()
     assets = asset_root if asset_root is not None else page_root
-    insertions = [(head_policy_offset(source), site_metadata(page_root, page))]
+    additions = [site_metadata(page_root, page)]
     if page["kind"] == "example":
-        insertions.append(
-            (
-                canonical_script_offset(source, assets),
-                f'<script type="module" src="{assets}/sitenote.js" data-lf-site></script>',
-            )
+        additions.append(
+            f'<script type="module" src="{assets}/sitenote.js" data-lf-site></script>'
         )
-    for offset, addition in sorted(insertions, reverse=True):
-        source = source[:offset] + addition + source[offset:]
-    return source.encode()
+    return "".join(additions)
 
 
 def agent_attempt(event_id: str) -> str:
@@ -944,12 +930,8 @@ class WebsitePageHandler(Handler):
             self.send_header("Leaf-Session", "active")
         super().end_headers()
 
-    def _send(self, status: int, ctype: str, body: bytes) -> None:
-        if status == 200 and ctype.startswith("text/html") and self.publication:
-            body = with_site_head(
-                body, self.page_root, self.pages[self.page_root or "/"]
-            )
-        super()._send(status, ctype, body)
+    def _document_head(self) -> str:
+        return site_head(self.page_root, self.pages[self.page_root or "/"])
 
     def _get(self) -> None:
         if urlsplit(self.path).path == "/sitenote.js":

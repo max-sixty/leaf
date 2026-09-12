@@ -31,6 +31,7 @@ from .schema import DATA_FILE
 from .served_state.page import full_state
 from .server import running_server
 from .service import PageTransaction, unacknowledged
+from .structure import SourceDocument, parse_revision
 
 
 def standing_entry(coordinate, e: dict, conversation: str | None = None) -> dict:
@@ -133,8 +134,7 @@ def _read_active_document(
 ) -> DocumentReading | None:
     if revision is None:
         return None
-    html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-    page = page_reading(html, events, registry, revision)
+    page = page_reading(parse_revision(page_dir, revision), events, registry, revision)
     threads = build_threads(events, page.within)
     return read_document(page, threads)
 
@@ -229,7 +229,7 @@ def _apply_document_state(
     stored_data: dict,
     registry: dict,
 ) -> None:
-    parser = document.parser
+    parser = document.document
     projection = document.projection
     state["title"] = parser.title.strip()
     state["elements"] = [
@@ -507,7 +507,7 @@ def _write_page_state(
             if fragment is None:
                 continue
             passages = page_passages(
-                event["markup"],
+                SourceDocument(event["markup"]),
                 registry,
                 retirement_outcomes(thread_reading.projection.actions, registry),
             )

@@ -141,7 +141,9 @@ def test_an_answer_the_reader_took_back_leaves_its_thread_open(page_dir):
         },
     )
     spk = passages_model.spoken(
-        (page_dir / ".fixture-versions" / "v1.html").read_text(encoding="utf-8"),
+        structure_model.SourceDocument(
+            (page_dir / ".fixture-versions" / "v1.html").read_text(encoding="utf-8")
+        ),
         registry_storage.require_registry(page_dir),
     )
     threads = event_folds_model.build_threads(
@@ -911,7 +913,7 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
 
     with render_gate_model.preview_server(
         page_dir,
-        (page_dir / "index.html").read_bytes(),
+        structure_model.SourceDocument((page_dir / "index.html").read_text()),
         1,
     ):
         initing = threading.Thread(target=revendoring, name="re-vendor")
@@ -1552,10 +1554,11 @@ def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
     The words are the control: they must differ, or `spoken({})` would be the
     whole reading and the distinction this rests on would not exist."""
     html = (page_dir / ".fixture-versions" / "v1.html").read_text(encoding="utf-8")
+    document = structure_model.SourceDocument(html)
     registry = registry_storage.require_registry(page_dir)
-    full = passages_model.spoken(html, registry)
-    assert passages_model.enclosing_ids(html) == passages_model.enclosing_of(full)
-    bare = passages_model.spoken(html, {})
+    full = passages_model.spoken(document, registry)
+    assert passages_model.enclosing_ids(document) == passages_model.enclosing_of(full)
+    bare = passages_model.spoken(document, {})
     assert any(full[wid].words != bare[wid].words for wid in full)
 
 
@@ -1581,6 +1584,7 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
     Flooring the widget itself is the control: it retracts in every reading, so a
     green result cannot come from a floor that never reached this fold."""
     html = SUGGESTION_HOLDING_A_NAMESAKE
+    document = structure_model.SourceDocument(html)
     events_model.append_event(page_dir, dict(COMMENT))
     events_model.append_event(page_dir, dict(ACCEPT))
     events_model.append_event(
@@ -1594,9 +1598,9 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "restated": ["c1"],
         },
     )
-    spk = passages_model.spoken(html, registry_storage.require_registry(page_dir))
+    spk = passages_model.spoken(document, registry_storage.require_registry(page_dir))
     assert "sug-a" in spk["c1"].within  # the namesake really is inside the widget
-    folds = [passages_model.enclosing_of(spk), passages_model.enclosing_ids(html)]
+    folds = [passages_model.enclosing_of(spk), passages_model.enclosing_ids(document)]
     events = events_model.read_events(page_dir)
     for within in folds:
         assert (
@@ -2368,20 +2372,23 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
         labeled, {"proposed": revision + 1}, {"proposed": ("proposal", "proposed")}
     )
     result = event_folds_model.build_threads(
-        events_model.read_events(page_dir), passages_model.enclosing_ids(source)
+        events_model.read_events(page_dir),
+        passages_model.enclosing_ids(structure_model.SourceDocument(source)),
     )
     assert result["c1"]["resolved"]["id"] == accepted["id"]
     retired = source.replace(snippet, '<p id="proposed">Ship after validation.</p>')
     (page_dir / ".fixture-versions" / "v2.html").write_text(retired)
     publish(page_dir, 2)
     result = event_folds_model.build_threads(
-        events_model.read_events(page_dir), passages_model.enclosing_ids(retired)
+        events_model.read_events(page_dir),
+        passages_model.enclosing_ids(structure_model.SourceDocument(retired)),
     )
     assert result["c1"]["resolved"]["id"] == accepted["id"]
     # The immutable old command document still admits an explicit different answer.
     send("reject", {}, "rejected-proposal")
     result = event_folds_model.build_threads(
-        events_model.read_events(page_dir), passages_model.enclosing_ids(retired)
+        events_model.read_events(page_dir),
+        passages_model.enclosing_ids(structure_model.SourceDocument(retired)),
     )
     assert result["c1"]["resolved"] is None
 
@@ -3434,13 +3441,7 @@ def test_source_reading_preserves_foreign_graphics_as_exact_markup():
         "</svg >"
     )
     html = "<main>Préface\r\n" + graphic + '<p id="after">After</p></main>'
-    parser = structure_model.StructParser()
-    # The HTML parser also accepts chunked input; source positions refer to the
-    # whole document even when an SVG closing tag crosses a feed boundary.
-    split = html.index("</svg >") + 4
-    parser.feed(html[:split])
-    parser.feed(html[split:])
-    parser.close()
+    parser = structure_model.SourceDocument(html)
     [main] = parser.content
     _, image, after = main["content"]
     assert image["markup"] == graphic
@@ -3459,9 +3460,7 @@ def test_source_reading_indexes_widgets_in_an_interaction_page_template():
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
         "</lf-options></lf-ask></template></main>"
     )
-    parser = structure_model.StructParser()
-    parser.feed(html)
-    parser.close()
+    parser = structure_model.SourceDocument(html)
 
     assert parser.errors == []
     assert [record["tag"] for record in parser.lf_elements] == [
@@ -3470,7 +3469,7 @@ def test_source_reading_indexes_widgets_in_an_interaction_page_template():
         "lf-option",
     ]
     assert parser.by_id["nested-options"]["holder"] is parser.by_id["nested-ask"]
-    assert passages_model.page_passages(html).text == "Visible words."
+    assert passages_model.page_passages(parser).text == "Visible words."
 
 
 def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
@@ -3487,9 +3486,7 @@ def test_check_reads_only_the_page_stylesheet_and_stays_near_free(page_dir):
         f'<h2>Plan</h2><p><img alt="shot" src="data:image/png;base64,{blob}"></p>',
     )
     (page_dir / ".fixture-versions" / "v1.html").write_text(html)
-    parser = structure_model.StructParser()
-    parser.feed(html)
-    parser.close()
+    parser = structure_model.SourceDocument(html)
     assert parser.css == ""
 
     started = time.monotonic()
@@ -4053,7 +4050,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
         "flag-first",
         "backfill-first",
     }
-    within = passages_model.enclosing_ids(source)
+    within = passages_model.enclosing_ids(structure_model.SourceDocument(source))
     assert event_folds_model.action_retracted(
         accepted, {"backfill-first": revision + 1}, within
     )
@@ -4127,12 +4124,14 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
     registry_validation.validate_registry(incoming, "changed completion")
 
     def answered(layer):
-        page = page_reading(source, events, layer, revision)
+        page = page_reading(
+            structure_model.SourceDocument(source), events, layer, revision
+        )
         return answered_ask(
-            page.parser.by_id["session-triage"],
+            page.document.by_id["session-triage"],
             layer["lf-swipe-deck"],
             page.projection,
-            page.parser.by_id,
+            page.document.by_id,
             page.spoken,
             layer,
         )
@@ -4176,7 +4175,7 @@ def test_conversation_and_state_use_the_same_winning_coordinate(page_dir, facet)
     }
     events = [{**COMMENT, "seq": 1}, {**ACCEPT, "id": "accept1", "seq": 2}, event]
     html = '<lf-suggestion id="sug-a"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
-    page = page_reading(html, events, registry, 1)
+    page = page_reading(structure_model.SourceDocument(html), events, registry, 1)
     winner, _ = page.projection.actions[("sug-a", "sug-a", "settlement")]
     threads = event_folds_model.build_threads(events, page.within)
     assert bool(threads["c1"]["resolved"]) == (winner["id"] == "accept1")

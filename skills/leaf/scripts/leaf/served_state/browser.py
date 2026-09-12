@@ -9,12 +9,13 @@ from ..files import list_revisions, revision_path
 from ..projection import canonical_updates, page_reading
 from ..registry.contract import RegistryError
 from ..registry.storage import load_registry
+from ..structure import SourceDocument
 from .conversation import browser_conversation
 from .document import browser_document, browser_undo_candidates
 
 
 def browser_state(
-    documents: dict[int, str],
+    documents: dict[int, SourceDocument],
     events: list,
     registry: dict,
     active_revision: int,
@@ -31,8 +32,8 @@ def browser_state(
     from which it was read.
     """
     through_seq = events[-1]["seq"] if events else 0
-    active_html = documents[active_revision]
-    active_page = page_reading(active_html, events, registry, active_revision)
+    active_document = documents[active_revision]
+    active_page = page_reading(active_document, events, registry, active_revision)
     active_within = active_page.within
     withdrawn = taken_back(events)
     threads = build_threads(events, active_within, withdrawn=withdrawn)
@@ -42,11 +43,11 @@ def browser_state(
 
     views = {}
     for revision in sorted(view_revisions):
-        html = documents[revision]
+        document = documents[revision]
         page = (
             active_page
             if revision == active_revision
-            else page_reading(html, events, registry, revision)
+            else page_reading(document, events, registry, revision)
         )
         document, projection = browser_document(page, threads)
         classified = {
@@ -124,8 +125,9 @@ def project_browser_state(
     active: dict | None,
     present: dict,
     now: str,
-    source_overrides: dict[int, str] | None = None,
     *,
+    documents_override: dict[int, SourceDocument] | None = None,
+    registry_override: dict | None = None,
     include_active_view: bool = True,
     live_stream: dict | None = None,
 ) -> dict | None:
@@ -140,22 +142,29 @@ def project_browser_state(
         return None
     active_revision = active["revision"]
     requested_revision = view_revision or active_revision
-    revisions = set(list_revisions(page_dir)) | set(source_overrides or {})
+    revisions = (
+        set(documents_override)
+        if documents_override is not None
+        else set(list_revisions(page_dir))
+    )
     if requested_revision not in revisions:
         raise ValueError(f"unknown view revision r{requested_revision}")
     wanted = {requested_revision, active_revision}
     documents = {}
     for revision in sorted(wanted):
-        if source_overrides and revision in source_overrides:
-            documents[revision] = source_overrides[revision]
+        if documents_override is not None:
+            documents[revision] = documents_override[revision]
         else:
-            documents[revision] = revision_path(page_dir, revision).read_text(
-                encoding="utf-8"
+            documents[revision] = SourceDocument(
+                revision_path(page_dir, revision).read_text(encoding="utf-8")
             )
-    try:
-        registry = load_registry(page_dir)
-    except RegistryError:
-        return None
+    if registry_override is not None:
+        registry = registry_override
+    else:
+        try:
+            registry = load_registry(page_dir)
+        except RegistryError:
+            return None
     if registry is None:
         return None
     return browser_state(

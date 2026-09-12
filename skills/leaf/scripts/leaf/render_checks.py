@@ -136,6 +136,31 @@ def wait_for_probe(page, name: str, *args) -> None:
         ) from error
 
 
+def wait_for_presentation(
+    page, data_revision: int, replayed_events: int, *, settled: bool = False
+) -> str | None:
+    """Wait through the canonical post-upgrade presentation stages.
+
+    Return the first stage that times out so callers can explain that boundary in
+    their own terms. Probe loading errors still surface: a missing observer is not an
+    unready page.
+    """
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    stages = [("dataApplied", (data_revision,))]
+    if replayed_events:
+        stages.append(("logApplied", (replayed_events,)))
+    stages.append(("presented", ()))
+    if settled:
+        stages.append(("pageSettled", ()))
+    for name, args in stages:
+        try:
+            wait_for_probe(page, name, *args)
+        except PlaywrightTimeout:
+            return name
+    return None
+
+
 def install_window_errors(page) -> None:
     """Install the pre-navigation error channel shared by the gate and suite."""
     page.add_init_script(path=WINDOW_ERRORS_SOURCE)

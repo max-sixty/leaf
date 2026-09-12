@@ -4,17 +4,13 @@
 
 `version check` is a deterministic check of the exact mutable `index.html` (no
 browser, near-free; activation and `version stamp` run the same boundary): the HTML parses with balanced
-tags; one direct `<body><main>` contains all authored content; the page carries
-exactly one external script (`<script type="module" src="/leaf.js">`) and one
-stylesheet link (`/theme.css`), both directly in `<head>` so the presentation
-boundary exists before body paint; page-authored behavior appears only in inline
-module blocks, never classic scripts, event-handler attributes, or `javascript:`
-URLs; its exact source CSP keeps fetches local and refuses document-base changes and
-form submissions, while the HTTP projection adds exact hashes for the runtime
-bootstrap and each authored module; the head declares no `<link rel="canonical">`,
-because the served document names the page root itself and a second address in the
-head leaves a crawler choosing between them; every lf-* element validates against the
-vendored registry
+tags; one direct `<body><main>` contains all authored content; page-authored behavior
+appears only in inline module blocks, never external or classic scripts,
+event-handler attributes, or `javascript:` URLs; page-specific presentation appears
+in `<style>`, never an external stylesheet. CSP, runtime, theme, page identity, and
+canonical address belong to delivery and are rejected in source. Delivery inserts
+them at the start of `<head>`, before authored executable content, and hashes each
+authored module into the served policy. Every lf-* element validates against the vendored registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real
@@ -115,8 +111,8 @@ and unresolved ambiguous passages are refused before append.
 ## Parsed source
 
 A page source is written in more than one language. TurboHTML's WHATWG tree drives
-both StructParser, for what the markup declares, and page_passages, for what it says;
-StructParser also retains exact source spans. tinycss2 reads the CSS a <style> block
+the one SourceDocument reading of what the markup declares and says;
+SourceDocument also retains exact source spans. tinycss2 reads the CSS a <style> block
 holds. A new question about a page becomes a field on one of those readings rather
 than a pattern over the file's text, because a pattern answers something adjacent to
 the question asked — `leaf.styles._overwide_elements` carries the evidence of that

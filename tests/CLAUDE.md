@@ -289,8 +289,9 @@ runtime stamps and assert the publication state; a rendered custom element alone
 not prove that the interaction layer is present.
 
 For complete, valid browser fixtures, use `leaf_page(title, body, head="")`. It
-supplies the same language, charset, CSP, theme, module, and main-content shell
-to every specimen. Keep raw documents only when source structure is the subject:
+supplies the same language and authored head/body/main shell to every specimen;
+delivery adds the encoding, CSP, theme, and runtime module. Keep raw documents only
+when source structure is the subject:
 lint fixtures, malformed markup, tokenizer input, line-number assertions, or a
 document whose missing boundary is the condition under test.
 

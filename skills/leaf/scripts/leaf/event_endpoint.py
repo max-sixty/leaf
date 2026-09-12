@@ -15,7 +15,7 @@ from .event_contracts import (
 )
 from .event_log import AttemptConflict
 from .events import build_threads, undo_error
-from .files import list_revisions, revision_path, version_revisions
+from .files import list_revisions, version_revisions
 from .passages import active_enclosing
 from .projection import (
     generated_children,
@@ -119,17 +119,17 @@ class _TransactionValidation:
                 '<meta name="lf-review" content="sign-off">, so it has no '
                 "approval to record",
             )
-        html = revision_path(self.page_dir, self.event["revision"]).read_text(
-            encoding="utf-8"
+        document = parse_revision(self.page_dir, self.event["revision"])
+        page = page_reading(
+            document, self.events, self.registry, self.event["revision"]
         )
-        page = page_reading(html, self.events, self.registry, self.event["revision"])
         threads = build_threads(self.events, page.within)
-        document = read_document(page, threads)
+        document_state = read_document(page, threads)
         conversation, _reading = browser_conversation(
             self.events, self.registry, threads
         )
         unanswered = [
-            *document.asks["unanswered"],
+            *document_state.asks["unanswered"],
             *conversation["asks"]["unanswered"],
         ]
         if unanswered:
@@ -210,13 +210,13 @@ class _TransactionValidation:
                 return event_rejection(self.event, error)
         if not recapture:
             return None
-        html = revision_path(self.page_dir, self.event["revision"]).read_text(
-            encoding="utf-8"
+        document = parse_revision(self.page_dir, self.event["revision"])
+        page = page_reading(
+            document, self.events, self.registry, self.event["revision"]
         )
-        page = page_reading(html, self.events, self.registry, self.event["revision"])
         try:
             canonical = capture_anchor(
-                html,
+                document,
                 self.registry,
                 anchor.get("quote", ""),
                 anchor.get("section"),
@@ -224,7 +224,9 @@ class _TransactionValidation:
                 rewritten_bodies(page.projection.actions),
                 prefix=anchor.get("prefix") if "prefix" in anchor else None,
                 suffix=anchor.get("suffix") if "suffix" in anchor else None,
-                additions=generated_children(page.projection.desired, page.parser.ids),
+                additions=generated_children(
+                    page.projection.desired, page.document.ids
+                ),
             )
         except ValueError as error:
             return event_rejection(

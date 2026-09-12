@@ -12,7 +12,6 @@ from .files import (
     version_revisions,
 )
 from .http import (
-    scope_document_routes,
     scope_script_routes,
     scope_stylesheet_routes,
     supervised_document,
@@ -29,6 +28,7 @@ def write_live_shell(
     server_id: str = "published",
     release_id: str | None = None,
     asset_root: str | None = None,
+    before_runtime: str = "",
 ) -> None:
     """Write live documents and browser assets without copying session state.
 
@@ -53,20 +53,17 @@ def write_live_shell(
 
     def document(revision: int, version: int | None) -> bytes:
         source = revision_path(page_dir, revision).read_text(encoding="utf-8")
-        return scope_document_routes(
-            supervised_document(
-                source,
-                revision,
-                version,
-                server_id=server_id,
-                layer_id=identity["generation"],
-                bootstrap=bootstrap,
-                release_id=release_id,
-                page_root=page_root,
-                asset_root=asset_root,
-            ),
-            page_root,
+        return supervised_document(
+            source,
+            revision,
+            version,
+            server_id=server_id,
+            layer_id=identity["generation"],
+            bootstrap=bootstrap,
+            release_id=release_id,
+            page_root=page_root,
             asset_root=asset_root,
+            before_runtime=before_runtime,
         )
 
     write(Path("index.html"), document(active, stamped_version(events, active)))

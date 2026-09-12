@@ -2,7 +2,7 @@
 
 from .passages import collapse, page_passages, section_span
 from .registry.contract import visual_parts
-from .structure import parse_structure
+from .structure import SourceDocument
 
 # How much of the surrounding text an anchor stores to tell two identical passages
 # apart. The browser's capture states the same number and a test holds the two equal,
@@ -36,7 +36,7 @@ def occurrences(text: str, quote: str, lo: int, hi: int, fences=frozenset()) -> 
 
 
 def capture_anchor(
-    html: str,
+    document: SourceDocument,
     registry,
     quote: str,
     section: str,
@@ -66,7 +66,7 @@ def capture_anchor(
         raise ValueError("--part needs --section to name its visual")
     if part and quote:
         raise ValueError("--part names a visual box; use it without --quote")
-    passages = page_passages(html, registry, decided, rewrites, additions)
+    passages = page_passages(document, registry, decided, rewrites, additions)
     text = passages.text
     owner = passages.owner
     fences = passages.fences
@@ -94,7 +94,7 @@ def capture_anchor(
                 "on it would reach nobody. Anchor on the surrounding text instead."
             )
     if part:
-        record = parse_structure(html).by_id.get(section)
+        record = document.by_id.get(section)
         available = visual_parts(record or {}, registry)
         if not available:
             raise ValueError(
@@ -128,7 +128,7 @@ def capture_anchor(
                 "diagram in place of its source. Quote within one part, or name the "
                 "widget as the section to point at the whole of it."
             )
-        was = _removed_by(html, registry, wanted, section, decided or {}, rewritten)
+        was = _removed_by(document, registry, wanted, section, decided or {}, rewritten)
         if was:
             raise ValueError(f"{where} said {wanted!r} until {was}")
         holder = next((el for el, words in shown.items() if wanted in words), None)
@@ -208,14 +208,14 @@ def capture_anchor(
     }
 
 
-def _removed_by(html, registry, wanted: str, section: str, decided, rewritten):
+def _removed_by(document, registry, wanted: str, section: str, decided, rewritten):
     """What took `wanted` off the user's page, when the version as authored still
     holds it: the decision that retired the slot it sat in, or the edit that rewrote
     the element saying it. Naming that act beats telling the writer the page never
     said it."""
     if not (decided or rewritten):
         return None
-    p = page_passages(html, registry)
+    p = page_passages(document, registry)
     lo, hi = 0, len(p.text)
     if section:
         span = section_span(p.owner, section)

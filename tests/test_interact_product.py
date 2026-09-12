@@ -39,7 +39,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.registry import storage as registry_storage
-from leaf.structure import parse_structure
+from leaf.structure import SourceDocument
 from leaf.validation import compatibility as validation_model
 from leaf.validation.instances import reference_errors
 
@@ -289,7 +289,7 @@ def test_a_request_holder_offers_at_least_one_command(page_dir):
 def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
     """Existing ids are insufficient when a typed host command swaps its subjects."""
     registry = registry_storage.load_registry(page_dir)
-    parser = parse_structure(
+    parser = SourceDocument(
         '<lf-command id="hub">'
         '<lf-task id="goal" status="active"><strong>Goal</strong>'
         '<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>'
@@ -629,7 +629,8 @@ def test_no_example_writes_another_example_s_sentences():
     assert len(examples) > 1, examples
 
     def words(html: str) -> list[str]:
-        # <main> only: the <head>'s CSP meta is identical in every one by requirement.
+        # <main> only: shared delivery markup is absent from authored examples, while
+        # page-specific titles, styles, and modules legitimately differ in the head.
         body = html[html.index("<main>") + len("<main>") : html.rindex("</main>")]
         return re.findall(r"[a-z0-9']+", re.sub(r"<[^>]+>", " ", body).lower())
 

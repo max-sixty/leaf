@@ -7,7 +7,7 @@ from leaf.data import read_data
 from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
 from leaf.registry.storage import require_registry
-from leaf.structure import StructParser, parse_revision, parse_structure
+from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_structure
 
 from .instances import reference_errors, thread_markup_contract_errors
@@ -47,7 +47,9 @@ def version_ids(page_dir: Path) -> set:
     return ids
 
 
-def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> StructParser:
+def check_markup(
+    page_dir: Path, kind: str, markup: str, events: list
+) -> SourceDocument:
     """A message's widget markup, validated against the vendored registry at post
     time — the discussion-side `version check`, and the field's one gate: the browser
     door refuses `markup` outright, so nothing reaches the log under that name
@@ -56,7 +58,7 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> Struct
     which `read_text_arg` asks about wherever a body arrives. Exits with what's
     wrong."""
     registry = require_registry(page_dir)
-    frag = parse_structure(markup)
+    frag = SourceDocument(markup)
     # Two gates beside the vocabulary contract rather than inside it. That contract is
     # what re-vendoring asks of every fragment already in the log — can this layer still
     # speak it — and neither a presentation rule nor the presence of a file is any part
@@ -98,7 +100,7 @@ def check_markup(page_dir: Path, kind: str, markup: str, events: list) -> Struct
             f"{kind} widget ids already taken by the page or an earlier message: {clash}"
         )
     revisions = list_revisions(page_dir)
-    page = parse_revision(page_dir, revisions[-1]) if revisions else parse_structure("")
+    page = parse_revision(page_dir, revisions[-1]) if revisions else SourceDocument("")
     if reference_errs := reference_errors(
         frag.lf_elements,
         registry,

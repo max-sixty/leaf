@@ -11,6 +11,7 @@ from leaf.files import revision_path
 from leaf.mcp_app import app_html, app_snapshot, apply_event
 from leaf.mcp_page import ProcessPageServer, page_state
 from leaf.revisioning import activate_source
+from leaf.structure import SourceDocument
 from playwright.sync_api import expect
 from render_support import leaf_page, live_url, open_page
 
@@ -1042,9 +1043,9 @@ def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
                 for event in read_events(page_dir)
                 if event["kind"] == "comment"
             ][-1]
-            assert stored == capture_anchor(source, registry, quote, section), (
-                f"{selector} stored {stored}"
-            )
+            assert stored == capture_anchor(
+                SourceDocument(source), registry, quote, section
+            ), f"{selector} stored {stored}"
     finally:
         host.close()
 

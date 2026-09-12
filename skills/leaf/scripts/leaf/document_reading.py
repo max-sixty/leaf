@@ -12,12 +12,11 @@ from .events import retractions, seats_with_agent
 from .passages import Passages, enclosing_of, page_passages
 from .projection import PageReading, StateProjection, retirement_outcomes
 from .requests import request_lifecycles_for, request_phases
-from .structure import StructParser
+from .structure import SourceDocument
 
 
 class DocumentReading(NamedTuple):
-    html: str
-    parser: StructParser
+    document: SourceDocument
     projection: StateProjection
     spoken: dict
     passages: Passages
@@ -37,15 +36,15 @@ def read_document(
     based on construction. `passages` removes retired slots; exact replacement
     bodies and position details remain in `projection.desired`'s winning events.
     """
-    html = page.html
+    document = page.document
     revision = page.revision
     events = page.events
     registry = page.registry
     projection = page.projection
-    parser = page.parser
+    parser = document
     spk = page.spoken
     passages = page_passages(
-        html, registry, retirement_outcomes(projection.actions, registry)
+        document, registry, retirement_outcomes(projection.actions, registry)
     )
     dropped = set(passages.retired) | set(passages.gone)
     requests = request_lifecycles_for(
@@ -66,8 +65,7 @@ def read_document(
         settled_away=set(passages.gone),
     )
     return DocumentReading(
-        html=html,
-        parser=parser,
+        document=document,
         projection=projection,
         spoken=spk,
         passages=passages,

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Prepare an example or developer fixture as a live page or review file.
 
-An example is a page body, not a page directory: it links /theme.css and
-/leaf.js at the server root, which is where `page init` vendors them. Opening one
+An example is authored content, not a page directory: Leaf adds its theme and
+runtime when serving from the layer `page init` vendors. Opening one
 from disk gets a dead page, because Chrome refuses ES modules from a file://
 origin — nothing upgrades, and a tabbed page renders as every tab at once. This
 script builds the directory the runtime expects, then watches the fixture and
@@ -52,13 +52,23 @@ import sys
 import tempfile
 import time
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 
-from example_data import TEST_PAGES, data_operations, example_versions
+from example_data import TEST_PAGES, example_versions
+from page_fixtures import (
+    DEFAULT_PACKAGES,
+    media_source,
+    package_selection_args,
+    prepare_page,
+    read_fixture,
+    source_manifest,
+    source_manifest_candidates,
+    source_packages,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".tmp"
-DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
 NAMED_SOURCE_DIRS = (ROOT / "examples", ROOT / "examples" / "developer", TEST_PAGES)
 SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
@@ -86,83 +96,6 @@ def leaf(
         if not show_output and result.stdout:
             print(result.stdout, end="", flush=True)
         raise SystemExit(result.returncode)
-
-
-def seed_data(
-    operations: list[dict],
-    page: Path,
-    launcher: Path,
-    runtime: Path,
-    *,
-    env: dict[str, str] | None = None,
-) -> None:
-    """Apply each page-bound data operation shipped beside an example."""
-    for operation in operations:
-        if operation["kind"] == "set":
-            args = ["data", "set", str(page), operation["source"]]
-            if operation["capture_label"] is not None:
-                args.extend(("--capture-label", operation["capture_label"]))
-            leaf(
-                launcher,
-                runtime,
-                *args,
-                env=env,
-                input_text=json.dumps(operation["value"]),
-            )
-            continue
-        args = [
-            "data",
-            "capture",
-            str(page),
-            operation["source"],
-            "--file",
-            str(operation["input_file"]),
-            "--format",
-            operation["format"],
-        ]
-        if operation["label"] is not None:
-            args.extend(("--label", operation["label"]))
-        if operation["lines"] is not None:
-            args.extend(("--lines", operation["lines"]))
-        leaf(launcher, runtime, *args, env=env)
-
-
-def seed_log(source: Path, page: Path) -> None:
-    """Lay an example's companion log in, where it ships one.
-
-    A thread is log state — no markup describes one — so an example that wants to
-    show a conversation ships the events beside it, the way one that wants a
-    screenshot ships the bytes beside it. Appended after the first `version stamp`
-    and before any later one, so the note announcing v1 stays the log's first line
-    and a revised example reads in the order it happened: the version, what the
-    reader said about it, then the version that answered them.
-    """
-    seed = source.with_suffix(".jsonl")
-    if not seed.exists():
-        return
-    with (page / "events.jsonl").open("a", encoding="utf-8") as f:
-        f.write(seed.read_text(encoding="utf-8"))
-
-
-def acknowledge_log(source: Path, page: Path) -> None:
-    """Put the cursor at the end of a seeded log, because a seed is history not news.
-
-    Without this, every preview of a seeded example hands the next agent session a
-    question to answer that the same log already answers two lines further down,
-    and the loop guard is right to nag about it each time — the demo would spend
-    its first move undoing itself. Run after the last stamp, so a revised example's
-    closing note is inside the acknowledgement rather than left as unread news.
-    """
-    if not source.with_suffix(".jsonl").exists():
-        return
-    # An event's seq is its line number, so the last line's number is the cursor.
-    # Split on the writer's own separator, never splitlines(), whose wider class
-    # reads a U+2028 inside a comment's text as a break.
-    log = (page / "events.jsonl").read_text(encoding="utf-8")
-    lines = [n for n in log.split("\n") if n.strip()]
-    (page / "cursor.json").write_text(
-        json.dumps({"seq": len(lines)}) + "\n", encoding="utf-8"
-    )
 
 
 def slot_name(value: str) -> str:
@@ -281,59 +214,6 @@ def authored_source(
     )
 
 
-def prepare(
-    source: Path,
-    page: Path,
-    launcher: Path,
-    runtime: Path,
-    *,
-    env: dict[str, str] | None = None,
-    final_status: str = "waiting",
-    current_note: str = "Draft as authored",
-) -> tuple[int, int]:
-    """Build one page from the selected runtime and the source's fixtures."""
-    packages = source_packages(source)
-    selection_args = [arg for package in packages for arg in ("--package", package)]
-    leaf(launcher, runtime, "page", "init", *selection_args, str(page), env=env)
-    # The data door validates a source against the page's markup, and the current
-    # version is the one that has to bind it, so the newest version goes in first and
-    # the loop below walks back to the oldest and stamps forward from there.
-    (page / "index.html").write_text(
-        source.read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    media = media_source(source)
-    if media.is_dir():
-        shutil.copytree(media, page / "media", dirs_exist_ok=True)
-    operations = data_operations(source)
-    seed_data(operations, page, launcher, runtime, env=env)
-    # Each authored version in order, through the real stamp boundary, so a revised
-    # example arrives with the chooser, the marks and the notes a reader travels by.
-    versions = example_versions(source)
-    for order, version in enumerate(versions):
-        (page / "index.html").write_text(
-            version.read_text(encoding="utf-8"), encoding="utf-8"
-        )
-        leaf(
-            launcher,
-            runtime,
-            "version",
-            "stamp",
-            str(page),
-            # A reader's words, not the checkout's: the note is the menu's subtitle, and
-            # a filename "as it stands in the tree" read as developer jargon to a reviewer.
-            "--text",
-            current_note if order == len(versions) - 1 else "Earlier draft",
-            env=env,
-        )
-        if order == 0:
-            seed_log(source, page)
-    acknowledge_log(source, page)
-    # The handoff a prepared page gets. A local preview waits for its reader; a
-    # published example is already finished and has no agent on the other end.
-    leaf(launcher, runtime, "status", str(page), final_status, env=env)
-    return len({operation["source"] for operation in operations}), len(versions)
-
-
 def preparation_note(source: Path, data_sources: int, versions: int) -> str:
     """Summarize successful setup without replaying each child command."""
     details = []
@@ -378,42 +258,6 @@ def preview_files(page: Path) -> tuple[Path, Path, Path]:
     )
 
 
-def source_manifest(source: Path) -> Path | None:
-    """Find the layer manifest explicitly associated with an authored source."""
-    return next(
-        (path for path in source_manifest_candidates(source) if path.is_file()), None
-    )
-
-
-def source_manifest_candidates(source: Path) -> list[Path]:
-    """Manifest paths whose appearance can change a source's selected layer."""
-    candidates = [source.parent / "layer.json"]
-    examples = source.parent.parent
-    checkout = examples.parent
-    if (
-        source.parent.name == "developer"
-        and examples.name == "examples"
-        and (checkout / "bin" / "leaf").is_file()
-    ):
-        candidates.append(examples / "layer.json")
-    return candidates
-
-
-def source_packages(source: Path) -> list[str]:
-    manifest = source_manifest(source) or DEFAULT_PACKAGES
-    return json.loads(manifest.read_text(encoding="utf-8"))
-
-
-def media_source(source: Path) -> Path:
-    media = source.parent / "media"
-    manifest = source_manifest(source)
-    if not media.is_dir() and manifest is not None:
-        layer_media = manifest.parent / "media"
-        if layer_media.is_dir():
-            return layer_media
-    return media
-
-
 def refresh_media(source: Path, page: Path) -> None:
     """Add immutable assets; historical revisions may still reference every copy."""
     media = media_source(source)
@@ -437,10 +281,16 @@ def digest(path: Path) -> str | None:
 
 def fixture_seed(source: Path) -> dict:
     """Seed history is installed once, never replayed over reader feedback."""
+    capture_inputs = [
+        operation["input_file"]
+        for operation in read_fixture(source).data
+        if operation["kind"] == "capture"
+    ]
     paths = [
         source.with_suffix(".jsonl"),
         source.with_suffix(".data.json"),
         *example_versions(source)[:-1],
+        *capture_inputs,
     ]
     return {str(path): digest(path) for path in paths}
 
@@ -486,9 +336,7 @@ def refresh_preview(
             "both the fixture and preview index.html changed; reconcile them before retrying"
         )
     packages = source_packages(source)
-    selection_args = [
-        arg for package in packages for arg in ("--package", package)
-    ] or ["--no-packages"]
+    selection_args = package_selection_args(packages)
     leaf(launcher, runtime, "page", "init", *selection_args, str(page))
     refresh_media(source, page)
     if source_changed:
@@ -803,9 +651,15 @@ def watch_preview(
                     )
                 prepared = f"resumed {source.stem} (feedback preserved)"
             else:
-                data_sources, versions = prepare(source, page, launcher, runtime)
+                prepared_page = prepare_page(
+                    page,
+                    read_fixture(source),
+                    partial(leaf, launcher, runtime),
+                )
                 mark_preview(source, page, runtime, automation=automation)
-                prepared = preparation_note(source, data_sources, versions)
+                prepared = preparation_note(
+                    source, prepared_page.data_sources, prepared_page.versions
+                )
             if not read_json(metadata)["enabled"]:
                 return
             if automation:
@@ -984,12 +838,19 @@ def main() -> None:
         TMP.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
             page = Path(staging) / "page"
-            data_sources, versions = prepare(source, page, launcher, runtime)
+            prepared = prepare_page(
+                page,
+                read_fixture(source),
+                partial(leaf, launcher, runtime),
+            )
             suffix = f"-{args.slot}" if args.slot else ""
             out = TMP / f"example-{source.stem}{suffix}.html"
             out.unlink(missing_ok=True)
             leaf(launcher, runtime, "version", "export", str(page), "-o", str(out))
-        print(preparation_note(source, data_sources, versions), end="\n\n")
+        print(
+            preparation_note(source, prepared.data_sources, prepared.versions),
+            end="\n\n",
+        )
         print(out.resolve())
         return
 

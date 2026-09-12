@@ -6,7 +6,7 @@ from pathlib import Path
 from .acknowledgments import page_action_unsettled
 from .asks import asking, quoted_in, replayed_attrs
 from .events import awaits_agent, build_threads, note_settlements, spoken_turns
-from .files import latest_revision, revision_path
+from .files import latest_revision
 from .passages import enclosing_of, page_passages
 from .projection import (
     StateProjection,
@@ -15,6 +15,7 @@ from .projection import (
     rewritten_bodies,
 )
 from .registry.storage import require_registry
+from .structure import parse_revision
 
 
 def standing_work_claims(status: dict, events: list) -> list:
@@ -81,8 +82,7 @@ def widget_work_seat(
 
 
 def widget_work_without_targets(
-    html: str,
-    parser,
+    document,
     projection: "StateProjection",
     events: list,
     status: dict,
@@ -93,7 +93,7 @@ def widget_work_without_targets(
     ignored = set(ignored)
     decided = retirement_outcomes(projection.actions, registry)
     passages = page_passages(
-        html, registry, decided, rewritten_bodies(projection.actions)
+        document, registry, decided, rewritten_bodies(projection.actions)
     )
     missing = []
     for claim in standing_work_claims(status, events):
@@ -101,7 +101,7 @@ def widget_work_without_targets(
         if subject["kind"] != "widget" or subject["id"] in ignored:
             continue
         widget = subject["id"]
-        rec = parser.by_id.get(widget)
+        rec = document.by_id.get(widget)
         if not (
             rec
             and rec["tag"] in registry
@@ -123,12 +123,13 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
     spk: dict = {}
     widget_revision = latest_revision(page_dir)
     if widget_revision is not None:
-        html = revision_path(page_dir, widget_revision).read_text(encoding="utf-8")
+        document = parse_revision(page_dir, widget_revision)
+        html = document.html
         registry = require_registry(page_dir)
-        page = page_reading(html, events, registry, widget_revision)
+        page = page_reading(document, events, registry, widget_revision)
         widget_projection = page.projection
         spk = page.spoken
-        rec = page.parser.by_id.get(target)
+        rec = page.document.by_id.get(target)
         if rec and rec["tag"] in registry:
             widget = rec
 
@@ -165,7 +166,7 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
         )
         decided = retirement_outcomes(widget_projection.actions, registry)
         passages = page_passages(
-            html,
+            document,
             registry,
             decided,
             rewritten_bodies(widget_projection.actions),
@@ -180,7 +181,7 @@ def work_subject(page_dir: Path, events: list, target: str) -> dict:
                 coordinate,
                 event,
                 spec,
-                page.parser,
+                page.document,
                 spk,
                 registry,
                 events,

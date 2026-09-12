@@ -3246,7 +3246,6 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     artifact = serve.page_dir / "deployment-notification.html"
     first_artifact = """<!doctype html>
 <html lang="en">
-<meta charset="utf-8">
 <title>Checkout needs attention</title>
 <style>
 body { font-family: system-ui, sans-serif; }
@@ -5105,7 +5104,7 @@ def test_the_rail_survives_every_script_being_removed(browser, serve, tmp_path):
     page, _ = open_page(browser, serve(SUGGESTION_PAGE))
     page.evaluate("() => document.querySelectorAll('script').forEach(s => s.remove())")
     baked = page.evaluate("() => document.documentElement.outerHTML").replace(
-        '<link rel="stylesheet" href="/theme.css">',
+        '<link rel="stylesheet" href="/theme.css" data-lf-runtime="">',
         "<style>" + (serve.page_dir / "theme.css").read_text() + "</style>",
     )
     page.close()

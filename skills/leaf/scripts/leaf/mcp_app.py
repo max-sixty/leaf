@@ -9,6 +9,7 @@ from tinycss2 import parse_stylesheet, serialize
 from .event_endpoint import accept_event
 from .exporting import inline_assets, inline_css_assets
 from .files import revision_path
+from .http import runtime_document
 from .mcp_page import (
     PAGE_APP_RESOURCE,
     require_active_revision,
@@ -18,7 +19,7 @@ from .mcp_page import (
 from .passages import TEXT_BLOCK_TAGS
 from .registry.contract import RegistryError
 from .served_state.service import PageStateService
-from .structure import parse_structure
+from .structure import SourceDocument
 
 APP_MIME = "text/html;profile=mcp-app"
 SNAPSHOT_FORMAT = "leaf.snapshot/v1"
@@ -57,8 +58,8 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
         raise unpresentable_layer_error(page_dir, detail)
     revision = active["revision"]
     source = revision_path(page_dir, revision).read_text(encoding="utf-8")
-    parsed = parse_structure(source)
-    document = inline_assets(source, page_dir)
+    parsed = SourceDocument(source)
+    document = inline_assets(runtime_document(source, revision).decode(), page_dir)
     title = parsed.title.strip() or page_dir.name
     theme, dark_theme = split_theme(
         (page_dir / "theme.css").read_text(encoding="utf-8")

@@ -19,7 +19,7 @@ from .registry.storage import layer_metadata
 from .schema import EVENTS_FILE, MCP_APP
 from .served_state.service import PageStateService
 from .server import preview_metadata, running_server
-from .structure import parse_structure
+from .structure import SourceDocument
 
 PAGE_RESOURCE_URI = "ui://leaf/page/v1.html"
 PAGE_APP_RESOURCE = MCP_APP / "page-app.html"
@@ -214,7 +214,7 @@ def page_state(page: str | Path, pages: ProcessPageServer) -> tuple[dict, dict]:
         raise unpresentable_layer_error(page_dir, detail)
     server = running_server(page_dir) or {}
     source = revision_path(page_dir, active["revision"]).read_text(encoding="utf-8")
-    title = parse_structure(source).title.strip() or page_dir.name
+    title = SourceDocument(source).title.strip() or page_dir.name
     summary = {
         "format": PAGE_FORMAT,
         "mode": "page",

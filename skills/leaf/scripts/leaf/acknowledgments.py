@@ -188,7 +188,7 @@ def canonical_acknowledgments(
                 coordinate,
                 source,
                 spec,
-                page.parser,
+                page.document,
                 page.spoken,
                 page.registry,
                 page.events,

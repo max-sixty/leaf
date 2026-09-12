@@ -6,7 +6,6 @@ import { marksSheet } from "./runtime/shadow.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { promoteDeferredModals } from "./runtime/deferred-modals.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
-import { captureAuthoredFacets } from "./runtime/projection/authored.js";
 import {
   settlePageInterface,
   PAGE_INTERFACE,
@@ -888,7 +887,6 @@ async function startPage() {
   ]);
   if (!upgraded) return;
   layout.syncLayout();
-  captureAuthoredFacets();
   asks.buildBulkAnswers();
   asks.syncAsks();
   await settlePageInterface();

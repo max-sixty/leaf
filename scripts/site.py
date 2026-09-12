@@ -31,7 +31,9 @@ import sys
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
+from functools import partial
 from html.parser import HTMLParser
+from importlib import import_module
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
@@ -42,12 +44,16 @@ from leaf.http import scope_document_routes
 from leaf.live_shell import write_live_shell
 from leaf.media import media_name
 from leaf.schema import MEDIA_DIR
-from leaf.structure import parse_structure
-from preview import prepare
+from leaf.structure import SourceDocument
+from page_fixtures import prepare_page, read_fixture
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from worker.server import SITE_MANIFEST, SITE_ORIGIN, initial_state, with_site_head
+worker_server = import_module("worker.server")
+SITE_MANIFEST = worker_server.SITE_MANIFEST
+SITE_ORIGIN = worker_server.SITE_ORIGIN
+initial_state = worker_server.initial_state
+site_head = worker_server.site_head
 
 LEAF = ROOT / "bin" / "leaf"
 DOCS = ROOT / "docs"
@@ -271,7 +277,7 @@ def document_metadata(page_dir: Path) -> tuple[str, str]:
     The build refuses a page missing either, because a crawler and an unfurled link
     show exactly these two and have nothing else to fall back to.
     """
-    parsed = parse_structure((page_dir / "index.html").read_text(encoding="utf-8"))
+    parsed = SourceDocument((page_dir / "index.html").read_text(encoding="utf-8"))
     title = parsed.title.strip()
     description = next(
         (
@@ -365,12 +371,10 @@ def publish_examples(out: Path, env: dict) -> None:
     shutil.copy2(DOCS / "sitenote.js", out / "sitenote.js")
     for source in published_page_sources():
         published = out / "examples" / source.stem
-        prepare(
-            source,
+        prepare_page(
             published,
-            LEAF,
-            ROOT,
-            env=env,
+            read_fixture(source),
+            partial(leaf, env),
             final_status="idle",
             current_note="As published",
         )
@@ -434,13 +438,6 @@ def publish_live_shells(
         destination = assets / page_root.lstrip("/")
         key = "root" if page_root == "" else page_root.strip("/").replace("/", "--")
         asset_root = f"/_leaf-release/{release}/{key}"
-        write_live_shell(
-            page_dir,
-            destination,
-            page_root=page_root,
-            release_id=release,
-            asset_root=asset_root,
-        )
         kind = "example" if page_root.startswith("/examples/") else "product"
         states = {}
         current = latest_revision(page_dir)
@@ -470,16 +467,14 @@ def publish_live_shells(
             "image": images.get(page_root, images[""]),
         }
         manifest["pages"][page_root or "/"] = entry
-        for document in (
-            destination / "index.html",
-            *sorted((destination / "versions").glob("*.html")),
-            *sorted((destination / "revisions").glob("*.html")),
-        ):
-            document.write_bytes(
-                with_site_head(
-                    document.read_bytes(), page_root, entry, asset_root=asset_root
-                )
-            )
+        write_live_shell(
+            page_dir,
+            destination,
+            page_root=page_root,
+            release_id=release,
+            asset_root=asset_root,
+            before_runtime=site_head(page_root, entry, asset_root=asset_root),
+        )
         if kind == "example":
             shutil.copy2(out / "sitenote.js", destination / "sitenote.js")
     shutil.copy2(out / "sitenote.js", assets / "sitenote.js")

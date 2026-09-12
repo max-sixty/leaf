@@ -6,8 +6,8 @@ from typing import NamedTuple
 
 import turbohtml
 
-from .files import latest_revision, revision_path
-from .structure import VOID_TAGS
+from .files import latest_revision
+from .structure import VOID_TAGS, SourceDocument, parse_revision
 
 # ---------- passages: the text an anchor points at ----------
 # The runtime resolves an anchor against the DOM; `leaf comment` writes one down
@@ -454,7 +454,7 @@ class Passages(NamedTuple):
 
 
 def page_passages(
-    html: str,
+    document: SourceDocument,
     registry=None,
     decided=None,
     rewrites=None,
@@ -480,8 +480,7 @@ def page_passages(
             walk(child)
         parser.handle_endtag(node.tag)
 
-    document = turbohtml.parse(html, scripting=True)
-    for child in document.children:
+    for child in document.tree.children:
         walk(child)
     parser.close()
     return Passages(
@@ -519,7 +518,7 @@ class Spoken(NamedTuple):
 EMPTY = Spoken("", ())
 
 
-def spoken(html: str, registry: dict) -> dict:
+def spoken(document: SourceDocument, registry: dict) -> dict:
     """id → Spoken, for every element the version carries.
 
     This is the version's own reading of itself, so it is `page_passages` sliced by
@@ -542,7 +541,7 @@ def spoken(html: str, registry: dict) -> dict:
     side only), and `markup_facet` read a version that honoured a pick on such an
     option as showing no pick, which is the state gate refusing the very version
     that agreed with the user."""
-    p = page_passages(html, registry)
+    p = page_passages(document, registry)
     first, last = {}, {}
     for i, ids in enumerate(p.owner):
         for wid in ids:
@@ -563,7 +562,7 @@ def enclosing_of(spk: dict) -> dict:
     return {wid: said.within for wid, said in spk.items()}
 
 
-def enclosing_ids(html: str) -> dict:
+def enclosing_ids(document: SourceDocument) -> dict:
     """id → the ids enclosing it, outermost first, itself last, with no
     vocabulary loaded.
 
@@ -572,7 +571,7 @@ def enclosing_ids(html: str) -> dict:
     shows. Words are the other half and the vocabulary's word entirely, so this
     is the reading for a caller that may not raise on the registry gate — it can
     have where an element sits, and must not ask what it says."""
-    return page_passages(html, {}).enclosing
+    return page_passages(document, {}).enclosing
 
 
 def active_enclosing(page_dir: Path) -> dict:
@@ -583,5 +582,4 @@ def active_enclosing(page_dir: Path) -> dict:
     revision = latest_revision(page_dir)
     if revision is None:
         return {}
-    html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-    return enclosing_ids(html)
+    return enclosing_ids(parse_revision(page_dir, revision))

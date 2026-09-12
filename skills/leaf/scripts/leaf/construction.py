@@ -17,7 +17,7 @@ from .projection import (
     recorded_owner,
     retirement_outcomes,
 )
-from .structure import StructParser
+from .structure import SourceDocument
 
 
 def event_origin(event: dict) -> dict:
@@ -96,7 +96,7 @@ def input_readings(
 
 
 def constructed_content(
-    parser: StructParser,
+    parser: SourceDocument,
     projection: StateProjection,
     spoken: dict,
     registry: dict,

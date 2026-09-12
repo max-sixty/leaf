@@ -14,6 +14,7 @@ from leaf.projection import (
 )
 from leaf.registry.state import retirement_slots
 from leaf.render_checks import evaluate_probe, wait_for_probe
+from leaf.structure import SourceDocument
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,10 +33,10 @@ class _SchemeContext:
     unsettled: list
 
 
-def _projected_verbatim(markup, registry, projection, authored_ids, source):
+def _projected_verbatim(document, registry, projection, authored_ids, source):
     """Read preserving owners after applying exactly the projection's text changes."""
     return page_passages(
-        markup,
+        document,
         registry,
         decided=retirement_outcomes(projection.actions, registry),
         rewrites=rewritten_bodies(projection.actions),
@@ -51,12 +52,13 @@ def _expected_verbatim(markup, events, registry, here):
     markup has no later authored revision and therefore uses the conversation's whole
     action window. Both use the same passage projection as comment capture.
     """
-    page = page_reading(markup, events, registry, here)
+    document = SourceDocument(markup)
+    page = page_reading(document, events, registry, here)
     expected = _projected_verbatim(
-        markup,
+        document,
         registry,
         page.projection,
-        page.parser.ids,
+        page.document.ids,
         ("page", None),
     )
     thread = frozen_thread_reading(events, registry)
@@ -64,7 +66,7 @@ def _expected_verbatim(markup, events, registry, here):
         if fragment := event.get("markup"):
             expected.update(
                 _projected_verbatim(
-                    fragment,
+                    SourceDocument(fragment),
                     registry,
                     thread.projection,
                     thread.structure.ids,
@@ -189,10 +191,12 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
             # against anything wider would fail a page both sides are right
             # about.
             if slots := retirement_slots(registry):
-                reading = page_reading(markup, state["events"], registry, here)
+                reading = page_reading(
+                    SourceDocument(markup), state["events"], registry, here
+                )
                 outcomes = retirement_outcomes(reading.projection.actions, registry)
                 holders = []
-                for h in retirement_holders(reading.parser, registry):
+                for h in retirement_holders(reading.document, registry):
                     declared = slots[h["tag"]]
                     outcome = outcomes.get(h["id"])
                     if outcome not in declared:
@@ -264,7 +268,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     if scheme == "light" and replayed:
         if earlier is not None:
             projection = page_reading(
-                markup, state["events"], registry, here
+                SourceDocument(markup), state["events"], registry, here
             ).projection
             carried = [
                 event["id"]

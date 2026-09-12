@@ -5,7 +5,7 @@ from pathlib import Path
 
 from leaf.event_log import jsonl_line, read_events
 from leaf.events import build_threads, is_reaction, taken_back
-from leaf.files import latest_revision, revision_label, revision_path
+from leaf.files import latest_revision, revision_label
 from leaf.passages import active_enclosing, enclosing_of, spoken
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.storage import load_registry
@@ -122,9 +122,7 @@ def _published_reading(
     # transcript is an account of. A page with no valid revision has no reading.
     if revision is None:
         return {}
-    return spoken(
-        revision_path(page_dir, revision).read_text(encoding="utf-8"), registry
-    )
+    return spoken(parse_revision(page_dir, revision), registry)
 
 
 def _thread_heading(thread: dict) -> str:

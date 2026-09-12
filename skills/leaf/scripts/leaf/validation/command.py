@@ -34,7 +34,7 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
             print(f"  · {line}", file=sys.stderr)
         return 1
     print(
-        "✓ index.html: parses, widgets and authored modules validate, theme linked, "
+        "✓ index.html: parses, widgets, authored modules, and theme validate, "
         "protected ids and decisions carried over, nothing overflows the "
         f"{result.column}px column"
     )
@@ -46,11 +46,14 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
         revisions = list_revisions(page_dir)
         active = revisions[-1] if revisions else 0
         revision = active
-        if not active or revision_path(page_dir, active).read_bytes() != result.data:
+        if (
+            not active
+            or revision_path(page_dir, active).read_bytes() != result.document.data
+        ):
             revision = active + 1
         return render_check(
             page_dir,
-            source=result.data,
+            document=result.document,
             revision=revision,
             transition_held=True,
         )

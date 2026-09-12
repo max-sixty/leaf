@@ -14,7 +14,7 @@ from click.testing import CliRunner
 from jsonschema import Draft202012Validator
 from leaf import cli as cli_model
 from leaf.registry import validation as registry_validation
-from leaf.structure import parse_structure
+from leaf.structure import SourceDocument
 from leaf.validation import compatibility as validation_model
 from PIL import Image
 
@@ -48,7 +48,7 @@ def test_kernel_event_contracts_declare_closed_records():
         assert envelope <= set(record["required"])
 
 
-def test_docs_pages_use_the_leaf_document_scaffold():
+def test_docs_pages_leave_delivery_markup_to_leaf():
     pages = sorted(DOCS.glob("*.html"))
     assert {page.name for page in pages} == {
         "index.html",
@@ -59,9 +59,9 @@ def test_docs_pages_use_the_leaf_document_scaffold():
     }
     for page in pages:
         text = page.read_text()
-        assert text.count('<link rel="stylesheet" href="/theme.css"') == 1, page.name
-        assert text.count('<script type="module" src="/leaf.js"') == 1, page.name
-        assert text.count("Content-Security-Policy") == 1, page.name
+        assert 'href="/theme.css"' not in text, page.name
+        assert 'src="/leaf.js"' not in text, page.name
+        assert "Content-Security-Policy" not in text, page.name
         assert '<body class="site-page' in text, page.name
 
 
@@ -78,7 +78,7 @@ def test_every_published_source_says_what_its_page_is():
     ]
     descriptions = {}
     for page in sorted(sources):
-        parsed = parse_structure(page.read_text())
+        parsed = SourceDocument(page.read_text())
         described = [
             meta["content"]
             for meta in parsed.named_metas

@@ -3,6 +3,7 @@
 from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
+from leaf.structure import SourceDocument
 from render_harness import (
     RENDERED,
     leaf_page,
@@ -22,7 +23,7 @@ def written_anchors(page_dir, html, limit=40):
     skipping those here is that refusal, and what survives is exactly what the command
     promises to place."""
     registry = registry_storage.load_registry(page_dir)
-    text = passages_model.page_passages(html, registry).text
+    text = passages_model.page_passages(SourceDocument(html), registry).text
     words = text.split(" ")
     anchors = []
     for start in range(0, len(words), 3):
@@ -33,7 +34,9 @@ def written_anchors(page_dir, html, limit=40):
             anchors.append(
                 (
                     quote,
-                    anchor_capture_model.capture_anchor(html, registry, quote, None),
+                    anchor_capture_model.capture_anchor(
+                        SourceDocument(html), registry, quote, None
+                    ),
                 )
             )
         except ValueError:

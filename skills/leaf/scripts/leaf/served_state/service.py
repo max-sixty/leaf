@@ -24,13 +24,13 @@ class PageStateService:
         self,
         page_dir: Path,
         *,
-        preview_source: dict | None = None,
+        page_snapshot=None,
         layer_identity: dict | None = None,
         preview: dict | None = None,
         publication: dict | None = None,
     ):
         self.page_dir = page_dir
-        self.preview_source = preview_source
+        self.page_snapshot = page_snapshot
         self.layer_identity = layer_identity
         self.preview = preview
         self.publication = publication
@@ -42,12 +42,9 @@ class PageStateService:
         view_revision: int | None = None,
     ) -> dict:
         active_override = None
-        source_overrides = None
-        if self.preview_source is not None:
-            active_override = self.preview_source["active"]
-            source_overrides = {
-                active_override["revision"]: self.preview_source["data"].decode("utf-8")
-            }
+        snapshot = self.page_snapshot
+        if snapshot is not None:
+            active_override = snapshot.active
         return served_page.full_state(
             self.page_dir,
             events,
@@ -57,26 +54,41 @@ class PageStateService:
             source_error=source_error,
             view_revision=view_revision,
             active_override=active_override,
-            source_overrides=source_overrides,
+            documents_override=snapshot.documents if snapshot is not None else None,
+            registry_override=snapshot.registry if snapshot is not None else None,
+            data_override=snapshot.browser_data if snapshot is not None else None,
+            versions_override=snapshot.versions if snapshot is not None else None,
+            presence_override=snapshot.presence if snapshot is not None else None,
+            live_stream_override=snapshot.live_stream if snapshot is not None else None,
+            now_override=snapshot.now if snapshot is not None else None,
+            taken_override=snapshot.taken if snapshot is not None else None,
         )
 
     def page_state(
         self,
         view_revision: int | None = None,
     ) -> dict:
-        with PageTransaction(self.page_dir) as page:
-            if self.preview_source is None:
+        if self.page_snapshot is None:
+            with PageTransaction(self.page_dir) as page:
                 activation = activate_source(self.page_dir, page.events)
                 reading = served_reading.page_reading(self.page_dir)
                 state = self._full_state(
                     page.events, activation.error, view_revision=view_revision
                 )
-            else:
-                reading = served_reading.page_reading(self.page_dir)
-                state = self._full_state(page.events, view_revision=view_revision)
-        state["others"] = presence_model.other_leaves(self.page_dir)
+        else:
+            reading = self.page_snapshot.reading
+            state = self._full_state(
+                list(self.page_snapshot.events), view_revision=view_revision
+            )
+        state["others"] = (
+            list(self.page_snapshot.others)
+            if self.page_snapshot is not None
+            else presence_model.other_leaves(self.page_dir)
+        )
         state["reading"] = (
-            reading
+            self.page_snapshot.reading
+            if self.page_snapshot is not None
+            else reading
             + "."
             + presence_model.presence_fingerprint(
                 state["listening"], state["session_alive"], state["others"]
@@ -85,35 +97,42 @@ class PageStateService:
         return state
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
-        with PageTransaction(self.page_dir) as page:
-            if self.preview_source is None:
+        if self.page_snapshot is None:
+            with PageTransaction(self.page_dir) as page:
                 activate_source(self.page_dir, page.events)
                 active = active_descriptor(self.page_dir, page.events)
                 if active is None:
                     raise ValueError(missing_revision(self.page_dir))
-                source_overrides = None
-            else:
-                active = self.preview_source["active"]
-                source_overrides = {
-                    active["revision"]: self.preview_source["data"].decode("utf-8")
-                }
-            latest_seq = page.events[-1]["seq"] if page.events else 0
-            if through_seq > latest_seq:
-                raise ValueError(
-                    f"view sequence {through_seq} is newer than log sequence {latest_seq}"
-                )
-            events = [event for event in page.events if event["seq"] <= through_seq]
-            present = presence_model.presence(self.page_dir, events)
-            projected = served_browser.project_browser_state(
-                self.page_dir,
-                events,
-                view_revision,
-                active,
-                present,
-                now_iso(),
-                source_overrides=source_overrides,
-                include_active_view=False,
+                events = page.events
+                documents_override = None
+                registry_override = None
+        else:
+            active = self.page_snapshot.active
+            events = list(self.page_snapshot.events)
+            documents_override = self.page_snapshot.documents
+            registry_override = self.page_snapshot.registry
+        latest_seq = events[-1]["seq"] if events else 0
+        if through_seq > latest_seq:
+            raise ValueError(
+                f"view sequence {through_seq} is newer than log sequence {latest_seq}"
             )
+        events = [event for event in events if event["seq"] <= through_seq]
+        present = (
+            self.page_snapshot.presence
+            if self.page_snapshot is not None
+            else presence_model.presence(self.page_dir, events)
+        )
+        projected = served_browser.project_browser_state(
+            self.page_dir,
+            events,
+            view_revision,
+            active,
+            present,
+            now_iso(),
+            documents_override=documents_override,
+            registry_override=registry_override,
+            include_active_view=False,
+        )
         if projected is None:
             raise ValueError("page registry cannot be projected")
         # Activity belongs to the complete state reading, not a historical

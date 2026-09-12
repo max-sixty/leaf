@@ -251,7 +251,7 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
     check(response is not None and response.ok, f"{url} did not load")
     await_presentation(page, url, failures)
 
-    identity = page.locator("script[data-lf-runtime]").evaluate(
+    identity = page.locator("script[data-lf-server]").evaluate(
         "script => ({layer: script.dataset.lfLayer, release: script.dataset.lfRelease})"
     )
     check(identity["release"] == release, f"{url} served release {identity['release']}")
@@ -295,7 +295,7 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
     )
     media = page.evaluate(
         """async () => {
-          const script = document.querySelector("script[data-lf-runtime]");
+          const script = document.querySelector("script[data-lf-server]");
           const moduleUrl = new URL("runtime/media.js", new URL(script.dataset.lfEntry, location.origin));
           return {
             path: (await import(moduleUrl.href)).scopedMediaUrl("/media/0123456789abcdef.png"),
@@ -428,7 +428,7 @@ def verify_cross_tab_activation(browser) -> None:
     )
     leader.evaluate(
         """async () => {
-          const script = document.querySelector("script[data-lf-runtime]");
+          const script = document.querySelector("script[data-lf-server]");
           const moduleUrl = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
           const client = await import(moduleUrl.href);
           client.observeSession(new Response(null, {headers: {"Leaf-Session": "active"}}));

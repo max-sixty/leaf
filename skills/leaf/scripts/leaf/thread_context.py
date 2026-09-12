@@ -4,7 +4,7 @@ from typing import NamedTuple
 
 from leaf.events import action_rests_on, build_threads, taken_back
 from leaf.schema import MESSAGE_KINDS
-from leaf.structure import parse_structure
+from leaf.structure import SourceDocument
 
 
 def thread_roots(events: list) -> dict:
@@ -39,7 +39,7 @@ def thread_structure(events: list) -> ThreadStructure:
     ids, by_id, fragments = set(), {}, {}
     for e in events:
         if markup := e.get("markup"):
-            fragment = parse_structure(markup)
+            fragment = SourceDocument(markup)
             fragments[e["id"]] = fragment
             ids.update(fragment.ids)
             by_id.update(fragment.by_id)

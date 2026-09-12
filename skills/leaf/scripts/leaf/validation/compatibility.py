@@ -14,7 +14,7 @@ from leaf.requests import (
     request_document,
     request_lifecycle_error,
 )
-from leaf.structure import parse_revision, parse_structure
+from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_structure
 
 from .instances import fragment_errors, thread_markup_contract_errors
@@ -26,7 +26,7 @@ def validate_registry_examples(registry: dict, source) -> dict:
     for tag, entry in registry.items():
         if not tag.startswith("lf-") or (example := entry.get("x-example")) is None:
             continue
-        parser = parse_structure(example)
+        parser = SourceDocument(example)
         errors = fragment_errors(parser, registry) + id_errors(parser)
         if errors:
             raise RegistryError(f"{source}: <{tag}> x-example is invalid: {errors[0]}")

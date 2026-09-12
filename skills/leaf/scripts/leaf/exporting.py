@@ -5,7 +5,6 @@ import re
 import sys
 from pathlib import Path
 
-from leaf.data import read_data
 from leaf.event_log import read_events
 from leaf.files import (
     published_versions,
@@ -13,7 +12,12 @@ from leaf.files import (
     version_name,
     version_revisions,
 )
-from leaf.render_checks import RENDER_VIEWPORT, evaluate_probe, wait_for_probe
+from leaf.render_checks import (
+    RENDER_VIEWPORT,
+    evaluate_probe,
+    wait_for_presentation,
+    wait_for_probe,
+)
 from leaf.render_gate.browser import (
     EXPORT_FLOOR,
     below_export_floor,
@@ -22,7 +26,7 @@ from leaf.render_gate.browser import (
 )
 from leaf.render_gate.preview import preview_server
 from leaf.schema import DIR_FILES, MEDIA_DIR, MEDIA_TYPES
-from leaf.structure import parse_structure
+from leaf.structure import UTF8_BOM, SourceDocument
 
 _MEDIA_URL = re.compile(rf"url\((/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]})\)")
 
@@ -78,7 +82,7 @@ def inline_assets(html: str, page_dir: Path) -> str:
     # The substitution then rewrites only the two serialized forms a reference
     # takes (`="…"`, `url(…)`); prose quoting the exact string of a path the page
     # also really uses is the residual, and it is the author quoting live markup.
-    parsed = parse_structure(html)
+    parsed = SourceDocument(html)
     css_refs = set(_MEDIA_URL.findall(parsed.css))
     return _inline_media(html, page_dir, set(parsed.media_refs) | css_refs)
 
@@ -116,16 +120,32 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
         page.goto(url, wait_until="load")
         try:
             wait_for_probe(page, "upgraded")
-            wait_for_probe(page, "dataApplied", read_data(page_dir)["revision"])
-            # Both replayed kinds, as the render gate counts them: the caught-up
-            # stamp counts reports beside actions, and a page whose only recorded
-            # state is a worker's report would otherwise copy before it painted.
-            n_replayed = len(
-                [e for e in read_events(page_dir) if e["kind"] in ("action", "report")]
+            # Read expectations through the same server the browser is applying. A
+            # preview freezes that server at one PageSnapshot; rereading page files
+            # here could otherwise wait for state the browser cannot receive.
+            readiness = page.evaluate(
+                """async () => {
+                  const root = document.querySelector(
+                    'link[rel="canonical"][data-lf-runtime]'
+                  );
+                  if (!root) throw new Error('document has no canonical page root');
+                  const response = await fetch(new URL('api/state', root.href));
+                  if (!response.ok)
+                    throw new Error(`state returned ${response.status}`);
+                  const state = await response.json();
+                  return {
+                    dataRevision: state.data.revision,
+                    replayedEvents: state.events.filter(
+                      event => event.kind === 'action' || event.kind === 'report'
+                    ).length,
+                  };
+                }"""
             )
-            if n_replayed:
-                wait_for_probe(page, "logApplied", n_replayed)
-            wait_for_probe(page, "presented")
+            failed_stage = wait_for_presentation(
+                page, readiness["dataRevision"], readiness["replayedEvents"]
+            )
+            if failed_stage:
+                raise PlaywrightTimeout(f"presentation stopped at {failed_stage}")
             # A live fragmented widget deliberately keeps unopened payloads out of the
             # DOM. A standalone copy has no fragment door after scripts are removed, so
             # let any renderer that owns such payloads materialize them before baking.
@@ -137,7 +157,7 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
                   await Promise.all(pending);
                 }"""
             )
-            return inline_assets(evaluate_probe(page, "bake"), page_dir)
+            return UTF8_BOM + inline_assets(evaluate_probe(page, "bake"), page_dir)
         except PlaywrightTimeout:
             sys.exit(
                 f"{name} never finished applying its live state in "
@@ -146,7 +166,7 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
             )
         except PlaywrightError as error:
             sys.exit(
-                f"{name} could not load its browser probe module "
+                f"{name} could not read its browser state or probe module "
                 f"({str(error).strip().splitlines()[0]}), so Leaf could not make a "
                 "trustworthy copy."
             )
@@ -181,10 +201,12 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
         )
     name = version_name(version)
     revision = version_revisions(events)[version]
-    source = revision_path(page_dir, revision).read_bytes()
+    document = SourceDocument(
+        revision_path(page_dir, revision).read_text(encoding="utf-8")
+    )
 
     with (
-        preview_server(page_dir, source, revision, version=version) as url,
+        preview_server(page_dir, document, revision, version=version) as url,
         sync_playwright() as p,
     ):
         try:

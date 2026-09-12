@@ -146,6 +146,26 @@ def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
     }
 
 
+def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
+    source = leaf_page(
+        "pre-upgrade structure",
+        "<h1>Held before Leaf starts</h1>",
+    )
+    page = browser.new_page()
+    page.route(
+        "**/theme.css",
+        lambda route: (time.sleep(0.1), route.fulfill(body="main { display: none; }")),
+    )
+    try:
+        findings = render_gate_scheme.start_with_pre_upgrade_proof(
+            page, serve(source, packages=())
+        )
+    finally:
+        page.close()
+
+    assert findings == ["authored main has no measurable pre-upgrade layout"]
+
+
 def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):
     """Pane bounds are real scroll bounds, so content past a pane's first fold remains
     reachable without being exempted from the ordinary geometry checks."""
@@ -1047,15 +1067,7 @@ flowchart LR
     ), failures
 
 
-def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
-    browser, serve, tmp_path, monkeypatch
-):
-    """Bug-back for two module contracts the gate enforces: a declaration that says
-    x-verbatim while the module renders other words in the body's stead (quotes
-    would strand on words the screen no longer shows), and a module attaching a
-    shadow root its declaration doesn't declare (the passage walk crosses only the
-    declared ones, so an undeclared root's words anchor astray)."""
-    monkeypatch.chdir(tmp_path)
+def _author_lying_callout(tmp_path):
     author_test_widget(tmp_path, "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
@@ -1073,6 +1085,54 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
         "  },\n"
         ");\n"
     )
+
+
+@pytest.mark.parametrize(
+    ("failed_stage", "expects_projection"),
+    [
+        ("pageSettled", True),
+        ("presented", False),
+        ("logApplied", False),
+        ("dataApplied", False),
+    ],
+)
+def test_only_a_final_settling_failure_keeps_projection_findings(
+    browser, serve, tmp_path, monkeypatch, failed_stage, expects_projection
+):
+    monkeypatch.chdir(tmp_path)
+    _author_lying_callout(tmp_path)
+    monkeypatch.setattr(
+        render_gate_scheme,
+        "wait_for_presentation",
+        lambda *_args, **_kwargs: failed_stage,
+    )
+
+    failures, _notices, completed = render_gate_scheme._render_scheme(
+        browser,
+        serve(CUSTOM_WIDGET_PAGE),
+        "light",
+        {"width": 1200, "height": 900},
+        3_000,
+        [],
+    )
+
+    assert completed is True
+    assert any("x-verbatim" in failure for failure in failures) is expects_projection
+    assert any("never stopped moving" in failure for failure in failures) is (
+        failed_stage == "pageSettled"
+    )
+
+
+def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
+    browser, serve, tmp_path, monkeypatch
+):
+    """Bug-back for two module contracts the gate enforces: a declaration that says
+    x-verbatim while the module renders other words in the body's stead (quotes
+    would strand on words the screen no longer shows), and a module attaching a
+    shadow root its declaration doesn't declare (the passage walk crosses only the
+    declared ones, so an undeclared root's words anchor astray)."""
+    monkeypatch.chdir(tmp_path)
+    _author_lying_callout(tmp_path)
 
     failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
 

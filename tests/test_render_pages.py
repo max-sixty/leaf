@@ -189,7 +189,8 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         # Read standing roots through the same fold as the page. A resolved root keeps
         # its thread and attachment but owes no paint; a withdrawn reaction owes neither.
         threads = conversation_model.build_threads(
-            logged, enclosing_ids(example.read_text())
+            logged,
+            enclosing_ids(structure_model.SourceDocument(example.read_text())),
         )
         reacted = [
             thread["root"]
@@ -348,7 +349,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         registry = registry_storage.load_registry(serve.page_dir)
         carried_ids = set()
         for carried in [e for e in events if e.get("markup")]:
-            for wid, rec in structure_model.parse_structure(
+            for wid, rec in structure_model.SourceDocument(
                 carried["markup"]
             ).by_id.items():
                 drawn.append(wid)

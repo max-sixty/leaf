@@ -1,14 +1,9 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
     />
     <title>how leaf works</title>
     <meta
@@ -16,8 +11,6 @@
       content="The mechanism behind leaf: one local process, an append-only event log, host-specific wait loops, and a vendored theme-and-widget layer."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/theme.css" />
-    <script type="module" src="/leaf.js"></script>
   </head>
   <body class="site-page">
     <main>
@@ -73,7 +66,7 @@ initialized /home/you/review
 # the agent writes ./review/index.html — an ordinary file write
 
 $ leaf version check ./review
-✓ index.html: parses, widgets and authored modules validate, theme linked, protected ids and decisions carried over, nothing overflows the 720px column
+✓ index.html: parses, widgets, authored modules, and theme validate, protected ids and decisions carried over, nothing overflows the 720px column
 
 $ leaf version stamp ./review --text "Two ways to shed load — which?"
 stamped v1 — Two ways to shed load — which?
@@ -177,11 +170,12 @@ $ leaf ack ./review 3</code></pre>
       <section id="pages">
         <h2>What a page is made of</h2>
         <p id="scaffold">
-          A revision is one complete HTML document, and the required scaffold is two
-          lines: the theme stylesheet and the runtime module. Everything between them is
-          the agent's, drawn from the four building blocks below in ascending order of
-          specialization; each earns its place only where the one before it has no way
-          to carry what the page needs.
+          A revision is one complete authored HTML document. Its head names and
+          describes the page; Leaf adds the security policy, identity, theme, runtime,
+          and canonical address when it delivers it. The body is the agent's, drawn from
+          the four building blocks below in ascending order of specialization; each
+          earns its place only where the one before it has no way to carry what the page
+          needs.
         </p>
         <ol class="steps" id="sources">
           <li id="src-html">
@@ -403,16 +397,16 @@ $ leaf ack ./review 3</code></pre>
         <p>
           Before a source save becomes a revision, Leaf runs the same deterministic lint
           as <code>version check</code>, with no browser: the HTML parses with balanced
-          tags, the scaffold is exactly the theme link and the runtime module, every
-          <code>lf-*</code> element validates against the page's registry along with the
-          head's <code>lf-*</code> metas, ids stay unique and every comment anchor from
-          the previous revision survives, and nothing is wider than the readable column.
-          A stamp checks the exact current source again and refuses a failing source, so
-          neither the live root nor a version can expose broken markup. Before a page's
-          URL first goes out, <code>version check --render</code> also loads it in the
-          machine's own Chrome and refuses what only a layout engine can see — a console
-          error, a widget rendered into a box of no size, a sideways scroll — in both
-          color schemes.
+          tags, delivery-owned scripts, stylesheets, and policy stay out of the source,
+          every <code>lf-*</code> element validates against the page's registry along
+          with the head's <code>lf-*</code> metas, ids stay unique and every comment
+          anchor from the previous revision survives, and nothing is wider than the
+          readable column. A stamp checks the exact current source again and refuses a
+          failing source, so neither the live root nor a version can expose broken
+          markup. Before a page's URL first goes out,
+          <code>version check --render</code> also loads it in the machine's own Chrome
+          and refuses what only a layout engine can see — a console error, a widget
+          rendered into a box of no size, a sideways scroll — in both color schemes.
         </p>
       </section>
 

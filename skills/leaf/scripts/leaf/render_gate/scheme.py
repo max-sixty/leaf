@@ -8,6 +8,7 @@ from leaf.render_checks import (
     SERVED_TIMEOUT_MS,
     evaluate_probe,
     install_window_errors,
+    wait_for_presentation,
     wait_for_probe,
 )
 
@@ -47,6 +48,11 @@ def rendered_revision(url: str, state: dict) -> int:
     )
 
 
+def _projection_was_applied(failed_stage: str | None) -> bool:
+    """Whether the readiness failure happened after authoritative presentation."""
+    return failed_stage in (None, "pageSettled")
+
+
 RESIZE_OBSERVER_ERROR = "window error: ResizeObserver loop"
 
 
@@ -65,6 +71,57 @@ def console_problem(message) -> str | None:
     if message.type == "warning":
         return f"warning: {message.text}"
     return None
+
+
+def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
+    """Inspect the authored document while its first Leaf entry request is held."""
+    held = []
+    released = False
+
+    def hold_entry(route):
+        held.append(route)
+
+    page.route("**/leaf.js", hold_entry, times=1)
+    try:
+        page.goto(url, wait_until="commit")
+        page.wait_for_selector("body > main", state="attached")
+        if page.locator('script[src$="/leaf.js"]').count() != 1:
+            raise RuntimeError("the document has no single canonical Leaf entry")
+        page.wait_for_function(
+            "() => [...document.styleSheets].some((sheet) => "
+            "sheet.href?.endsWith('/theme.css'))"
+        )
+        findings = page.evaluate(
+            """() => {
+              const main = document.querySelectorAll('body > main');
+              const custom = [...document.querySelectorAll('*')]
+                .map((element) => element.localName)
+                .filter((tag) => tag.includes('-'));
+              const upgraded = [...new Set(custom)]
+                .filter((tag) => customElements.get(tag));
+              const painted = ['lf-upgraded', 'lf-applied', 'lf-presented']
+                .filter((name) => document.body.hasAttribute('data-' + name));
+              const box = main[0]?.getBoundingClientRect();
+              return [
+                ...(main.length === 1 ? [] : ['authored document has ' + main.length + ' direct main elements']),
+                ...(upgraded.length ? ['widgets upgraded before Leaf entry ran: ' + upgraded.join(', ')] : []),
+                ...(painted.length ? ['runtime readiness appeared before Leaf entry ran: ' + painted.join(', ')] : []),
+                ...(!box || box.width <= 0 || box.height <= 0
+                  ? ['authored main has no measurable pre-upgrade layout']
+                  : []),
+              ];
+            }"""
+        )
+        if len(held) != 1:
+            raise RuntimeError("the browser did not request one canonical Leaf entry")
+        held[0].continue_()
+        released = True
+        page.wait_for_load_state("load")
+        return findings
+    finally:
+        if held and not released:
+            held[0].continue_()
+        page.unroute("**/leaf.js", hold_entry)
 
 
 def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pages):
@@ -111,10 +168,9 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
     )
     install_window_errors(page)
     try:
-        # `load`, not `networkidle`: the page holds a request open to hear
-        # about news, so the network is never idle and never will be. The
-        # wait that matters is the next line, which asks the runtime itself.
-        page.goto(url, wait_until="load")
+        # Hold the entry in this navigation: this is the only point at which
+        # pre-upgrade authored structure exists without racing module execution.
+        pre_upgrade = start_with_pre_upgrade_proof(page, url)
         wait_for_probe(page, "runtimeStarted")
     except PlaywrightTimeout:
         page.close()
@@ -129,6 +185,9 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
         )
     except PlaywrightError as error:
         return probe_failure(error)
+    except RuntimeError as error:
+        page.close()
+        return ([f"[{scheme}] pre-upgrade proof failed: {error}"], [], False)
     # Every reading below is of a settled page. The widget layer writes half the
     # document, so a box measured while it is still drawing belongs to no version of
     # the page — which is the stamp `version export` waits on for the same reason.
@@ -195,47 +254,36 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
     # windows open under load alone, which is how one page passed at a desk and
     # reported words drawn over words under a full suite ("The page finishes
     # twice", in the layer's own CLAUDE.md).
-    unsettled = []
-    replayed = True
-    try:
-        wait_for_probe(page, "dataApplied", state["data"]["revision"])
-    except PlaywrightTimeout:
-        replayed = False
+    failed_stage = wait_for_presentation(
+        page, state["data"]["revision"], applied, settled=True
+    )
+    replayed = _projection_was_applied(failed_stage)
+    if failed_stage == "dataApplied":
         unsettled = [
             (
                 "the runtime never presented external data revision "
                 f"{state['data']['revision']}"
             )
         ]
-    if replayed and applied:
-        try:
-            wait_for_probe(page, "logApplied", applied)
-        except PlaywrightTimeout:
-            replayed = False
-            stalled = (
-                f"the runtime never finished replaying the log ({applied} action(s))"
-            )
-            unsettled = [stalled]
-    if replayed:
-        try:
-            wait_for_probe(page, "presented")
-        except PlaywrightTimeout:
-            replayed = False
-            unsettled = [
-                "the runtime never presented the page after applying its current state"
-            ]
-    if replayed:
-        try:
-            wait_for_probe(page, "pageSettled")
-        except PlaywrightTimeout:
-            unsettled = [
-                "the page never stopped moving: "
-                + ", ".join(evaluate_probe(page, "moving"))
-            ]
+    elif failed_stage == "logApplied":
+        unsettled = [
+            f"the runtime never finished replaying the log ({applied} action(s))"
+        ]
+    elif failed_stage == "presented":
+        unsettled = [
+            "the runtime never presented the page after applying its current state"
+        ]
+    elif failed_stage == "pageSettled":
+        unsettled = [
+            "the page never stopped moving: "
+            + ", ".join(evaluate_probe(page, "moving"))
+        ]
+    else:
+        unsettled = []
     context = _SchemeContext(
         page=page,
         scheme=scheme,
-        errors=errors,
+        errors=[*errors, *[f"pre-upgrade: {item}" for item in pre_upgrade]],
         resize_notices=resize_notices,
         registry=registry,
         declarations=declarations,

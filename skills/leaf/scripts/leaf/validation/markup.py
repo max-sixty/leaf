@@ -7,7 +7,7 @@ from leaf.schema import MEDIA_DIR
 from leaf.structure import (
     HEADING_TAGS,
     SECTIONING_TAGS,
-    StructParser,
+    SourceDocument,
     links_with_rel,
 )
 from leaf.styles import inline_presentation_override_errors
@@ -76,7 +76,7 @@ def at(rec: dict, named: str = "") -> str:
     return f"<{rec['tag']}{' ' + named if named else ''}> (line {rec['line']})"
 
 
-def unpointable_blocks(parser: StructParser) -> list:
+def unpointable_blocks(parser: SourceDocument) -> list:
     """Blocks a user will aim at whole that no anchor can name. Advice, never a
     gate:
     references/page-authoring.md's "Stable anchors" states the id rule, and this
@@ -113,7 +113,7 @@ def unpointable_blocks(parser: StructParser) -> list:
     return lines
 
 
-def missing_outline(parser: StructParser, registry: dict) -> list:
+def missing_outline(parser: SourceDocument, registry: dict) -> list:
     """A document with several headings and nothing that lists them. Advice, never a
     gate: the outline widget's own entry states the default — a page with two or
     more headings carries one — and this is that default's feedback loop, the way
@@ -163,7 +163,7 @@ def missing_outline(parser: StructParser, registry: dict) -> list:
     ]
 
 
-def structure_errors(parser: StructParser) -> list:
+def structure_errors(parser: SourceDocument) -> list:
     """Structural complaints and source elements missing a required end tag."""
     errors = list(parser.errors)
     if parser.unclosed:
@@ -174,9 +174,20 @@ def structure_errors(parser: StructParser) -> list:
     return errors
 
 
-def page_boundary_errors(parser: StructParser) -> list:
+def page_boundary_errors(parser: SourceDocument) -> list:
     """Authored content lies under the page's one main content boundary."""
     errors = []
+    direct_heads = [line for line, is_direct in parser.head_elements if is_direct]
+    if (
+        len(parser.head_lines) != 1
+        or len(parser.head_elements) != 1
+        or len(direct_heads) != 1
+    ):
+        errors.append(
+            "the page must have one explicit <head> directly under <html>; "
+            f"found {len(parser.head_lines)} head tags, {len(parser.head_elements)} "
+            f"parsed heads, and {len(direct_heads)} direct html heads"
+        )
     direct = [line for line, is_direct in parser.main_elements if is_direct]
     if (
         len(parser.body_lines) != 1
@@ -196,7 +207,7 @@ def page_boundary_errors(parser: StructParser) -> list:
     return errors
 
 
-def fragment_style_errors(parser: StructParser) -> list:
+def fragment_style_errors(parser: SourceDocument) -> list:
     """A message may not dress the document it is put into.
 
     A version's <style> is the page's own, and the gates a version answers to read
@@ -228,7 +239,7 @@ def fragment_style_errors(parser: StructParser) -> list:
     return errors + inline_presentation_override_errors(parser)
 
 
-def media_errors(parser: StructParser, page_dir: Path) -> list:
+def media_errors(parser: SourceDocument, page_dir: Path) -> list:
     """A /media/ reference the page directory can't answer, which renders as a broken
     image. The render gate would catch it as a 404, but that runs once a page; this
     runs at every door markup comes through, and a missing file is as deterministic as

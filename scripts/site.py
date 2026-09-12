@@ -31,6 +31,7 @@ import sys
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import replace
 from functools import partial
 from html.parser import HTMLParser
 from importlib import import_module
@@ -371,9 +372,10 @@ def publish_examples(out: Path, env: dict) -> None:
     shutil.copy2(DOCS / "sitenote.js", out / "sitenote.js")
     for source in published_page_sources():
         published = out / "examples" / source.stem
+        fixture = read_fixture(source)
         prepare_page(
             published,
-            read_fixture(source),
+            replace(fixture, packages=(*fixture.packages, SITE_PACKAGE)),
             partial(leaf, env),
             final_status="idle",
             current_note="As published",

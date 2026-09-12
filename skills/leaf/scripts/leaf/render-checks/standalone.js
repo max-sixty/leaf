@@ -30,11 +30,17 @@ export function coveredWords({
   // shows only the part inside it, so a name ellipsised in a narrow column reads as
   // covering whatever stands beside it while the reader sees the ellipsis and nothing
   // else — the CallDiff root's own row, where the copy revealed a tab the live page keeps
-  // closed. Every clipping ancestor is intersected in, so the reading is the one the
-  // reader is given. The walk below stays in the light DOM, so the climb does too.
+  // closed. Every content ancestor is intersected in, so the reading is the one the
+  // reader is given. The document scrollport is the page's route to the rest of those
+  // words, not a content clip; stop before body just as the control reachability probe
+  // does. The walk below stays in the light DOM, so the climb does too.
   const painted = (el, drawn) => {
     let box = drawn;
-    for (let ancestor = el; ancestor && box; ancestor = ancestor.parentElement) {
+    for (
+      let ancestor = el;
+      ancestor && ancestor !== document.body && box;
+      ancestor = ancestor.parentElement
+    ) {
       const style = getComputedStyle(ancestor);
       if (style.overflowX !== "visible" || style.overflowY !== "visible") {
         const bounds = ancestor.getBoundingClientRect();

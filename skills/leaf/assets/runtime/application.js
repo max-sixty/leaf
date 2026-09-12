@@ -94,7 +94,7 @@ export function mountApplication(dependencies) {
     await Promise.all([
       whenWidgetsPresented([...new Set(candidates.map((entry) => entry.event.widget))]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "conversation"],
+        ["projection:chrome", "conversation", "asks"],
         stillCurrent,
       ),
     ]);
@@ -103,8 +103,8 @@ export function mountApplication(dependencies) {
     const released = releasableActions().filter((entry) =>
       attempts.has(entry.event.attempt),
     );
-    // Widget updates and the conversation/projection owners have now committed this
-    // surviving semantic reading. Paint its command surface while the same pending
+    // Widget updates and the conversation, projection, and Ask owners have now committed
+    // this surviving semantic reading. Paint its command surface while the same pending
     // records still stand; removing an accounted record is then a semantic no-op.
     if (released.length) paintKeys();
     for (const entry of released) ledger.remove(entry);

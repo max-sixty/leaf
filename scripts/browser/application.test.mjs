@@ -247,6 +247,28 @@ test("accepted reading order includes non-event activity and independent source 
   assert.equal(app.read().data.sources.input.value, 5);
 });
 
+test("semantic epochs include active lifecycle changes but not browser metadata", () => {
+  const app = setup();
+  const lifecycle = state(2);
+  lifecycle.browser.views[1].document.requests = [
+    {
+      seat: { document: { kind: "page", revision: 1 }, widget: "choice" },
+      phase: "failed",
+    },
+  ];
+  const before = app.read().semanticEpoch;
+  app.adopt(lifecycle);
+  assert.ok(app.read().semanticEpoch > before);
+
+  const stable = app.read().semanticEpoch;
+  const metadata = structuredClone(lifecycle);
+  metadata.taken = 3;
+  metadata.browser.basis.through_seq = 7;
+  metadata.browser.views[1].basis.through_seq = 7;
+  app.adopt(metadata);
+  assert.equal(app.read().semanticEpoch, stable);
+});
+
 test("historical view projection uses the publisher's captured document contract", () => {
   const app = setup();
   const accepted = { ...action("first"), id: "e1", seq: 1 };

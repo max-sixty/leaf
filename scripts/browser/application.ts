@@ -161,26 +161,12 @@ const appliesTo = (descriptor: WidgetDescriptor, event: Event) =>
   (descriptor.document.kind === "thread" ||
     event.revision === descriptor.document.revision);
 
-function activeView(root: ReturnType<ReturnType<typeof createSemanticApplication>["read"]>, descriptor: WidgetDescriptor) {
-  if (descriptor.document.kind !== "page") return undefined;
-  return root.authoritative?.browser.views[String(descriptor.document.revision)];
-}
-
 function awaitingValue(
   root: ReturnType<ReturnType<typeof createSemanticApplication>["read"]>,
   descriptor: WidgetDescriptor,
 ) {
-  const page = activeView(root, descriptor)?.document as
-    | {
-        asks?: {
-          awaiting?: Record<string, boolean>;
-          unanswered_awaiting?: Record<string, boolean>;
-        };
-      }
-    | undefined;
-  const conversation = root.authoritative?.browser.conversation as
-    | { asks?: { awaiting?: Record<string, boolean> } }
-    | undefined;
+  const page = root.effective.lifecycle.page;
+  const conversation = root.effective.lifecycle.conversation;
   return Boolean(
     page?.asks?.unanswered_awaiting?.[descriptor.id] ??
       conversation?.asks?.awaiting?.[descriptor.id],
@@ -241,10 +227,7 @@ function widgetReading(
     appliesTo(descriptor, e),
   );
   const pending = root.unresolved.filter((entry) => appliesTo(descriptor, entry.event));
-  const view = activeView(root, descriptor);
-  const undoView =
-    view ?? root.authoritative?.browser.views[String(root.document.revision)];
-  const durableUndo = (undoView?.undo ?? [])
+  const durableUndo = root.effective.lifecycle.undo
     .map((candidate: { event: Event }) => candidate.event)
     .filter(
       (event: Event) =>
@@ -280,8 +263,8 @@ function widgetReading(
     ?.event;
   const lifecycles =
     descriptor.document.kind === "thread"
-      ? root.authoritative?.browser.conversation?.requests
-      : activeView(root, descriptor)?.document.requests;
+      ? root.effective.lifecycle.conversation.requests
+      : root.effective.lifecycle.page.requests;
   const lifecycle = projectedRequest
     ? {
         seat: { document: descriptor.document, widget: descriptor.id },
@@ -355,12 +338,7 @@ export function createSemanticApplication() {
   };
   const publisher = createApplicationPublisher(initial);
   let order = 0;
-  let signature = semanticSignature([
-    initial.effective,
-    initial.data,
-    initial.phase,
-    initial.authoritative?.browser,
-  ]);
+  let signature = semanticSignature([initial.effective, initial.data, initial.phase]);
 
   function derive(
     document: SemanticDocument,
@@ -402,6 +380,7 @@ export function createSemanticApplication() {
             pendingSettlements(unresolved, receipts),
           )
         : [];
+    const active = state?.browser.views[String(document.revision)];
     return {
       projection,
       widgets: foldWidgetStates(document.authored, projection),
@@ -410,6 +389,17 @@ export function createSemanticApplication() {
       pendingRequests: pendingRequests(unresolved, receipts),
       delivery: unresolvedAttempts(unresolved),
       activity: state?.activity ?? null,
+      lifecycle: {
+        page: {
+          asks: active?.document.asks ?? {},
+          requests: active?.document.requests ?? [],
+        },
+        conversation: {
+          asks: state?.browser.conversation.asks ?? {},
+          requests: state?.browser.conversation.requests ?? [],
+        },
+        undo: active?.undo ?? [],
+      },
     };
   }
 
@@ -428,12 +418,7 @@ export function createSemanticApplication() {
       next.unresolved,
       next.phase,
     );
-    const nextSignature = semanticSignature([
-      next.effective,
-      next.data,
-      next.phase,
-      next.authoritative?.browser,
-    ]);
+    const nextSignature = semanticSignature([next.effective, next.data, next.phase]);
     next.semanticEpoch =
       prior.semanticEpoch +
       Number(

@@ -35,6 +35,7 @@ def test_ship_review_asks_are_directly_answerable(browser, serve):
     expect(
         page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
     ).not_to_have_count(0)
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
 
     assert errors == []
     page.close()

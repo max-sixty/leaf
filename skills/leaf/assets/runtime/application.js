@@ -149,10 +149,6 @@ export function mountApplication(dependencies) {
       if (!retryProjection()) return;
       releasePendingSafely("deferred pending release");
     },
-    onDomIntroduced: () => {
-      invalidateDom();
-      dependencies.pageGeometry.pageShifted();
-    },
   });
   const dataProjection = createDataProjection({ invalidateDom });
 

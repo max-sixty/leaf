@@ -858,12 +858,19 @@ def author_test_widget(root: Path, tag: str, *, upgrade: bool = False) -> Path:
         )
     if upgrade:
         (package / "widgets" / f"{tag}.js").write_text(
-            'import { once } from "/runtime/widget-api.js";\n\n'
+            'import { once, widgetController } from "/runtime/widget-api.js";\n\n'
             "customElements.define(\n"
             f'  "{tag}",\n'
             "  class extends HTMLElement {\n"
+            "    #controller = widgetController(this);\n"
+            "    #stop = null;\n"
             "    connectedCallback() {\n"
-            "      if (!once(this)) return;\n"
+            "      once(this);\n"
+            "      this.#stop ??= this.#controller.subscribe(() => {});\n"
+            "    }\n"
+            "    disconnectedCallback() {\n"
+            "      this.#stop?.();\n"
+            "      this.#stop = null;\n"
             "    }\n"
             "  },\n"
             ");\n"

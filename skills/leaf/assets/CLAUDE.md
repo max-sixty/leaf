@@ -74,7 +74,8 @@ ended, and the pending ledger's unresolved attempts — painted on the root elem
 `data-lf-traffic` for whatever waits on the page from outside it;
 `runtime/widget-controller.js` owns the public, publisher-backed action and request
 reading, document-bound target-reference capture, declared-role dispatch validation,
-subscription lifetime, and presentation seam;
+subscription lifetime, total state rendering before auxiliary subscribers, generic
+settlement paint, and the widget presentation ticket through `updateComplete`;
 `runtime/target-references.js` owns stable id and structural target records, exact
 resolution, immutable page and frozen-fragment boundaries, and the shared pointer and
 keyboard candidate walk;
@@ -260,14 +261,14 @@ passive panel elements and geometry readings;
 parentage; `runtime/projection/data.js` owns keyed runtime-data DOM reconciliation;
 `runtime/projection/model.js` folds authored, canonical, and pending records without DOM;
 `runtime/projection/state.js` selects the publisher's desired semantic reading and holds
-only deferred-presentation state; `runtime/projection/presentation.js` adapts one
-published snapshot to the DOM and owns deferred widget work and node-specific commit
-proof within its constructed instance;
+only deferred projection-chrome state; `runtime/projection/presentation.js` records
+coordinate commit proof, paints provenance and coverage, and defers that global work
+while a drag owns the document;
 `runtime/projection/commands.js` owns action eligibility and undo commands.
 
 The widget layer loads the vendored
 registry, imports modules declared by `x-upgrade`, renders registry-declared
-words, and reconciles recorded state. The comment layer listens on `GET /api/news`
+words, and has each module's controller reconcile recorded state. The comment layer listens on `GET /api/news`
 for the page's reading, reads `GET /api/state` when that reading moves,
 posts to `POST /api/event`, renders the status and conversation chrome, captures
 anchors, and handles keyboard navigation. Both layers share the same registry,
@@ -286,7 +287,7 @@ Each mutable fact has one writer:
 | unresolved browser work | the publisher's one ordered ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
 | desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
 | rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
-| proof of what the DOM currently represents | the projection presentation instance's commit records | `stageOptimistic` and `present`; release requires the same instance's proof |
+| proof of what the DOM currently represents | controller presentation tickets plus projection coordinate commits | each controller completes total rendering and auxiliary updates through `updateComplete`; projection commits gate coverage, provenance, chrome, and pending release |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
 | widget-local Thread placement | exact projected-datum placements plus the widget's current layout | the conversation surface coordinator asks each declared adapter for an outlet, then records the threads it claimed before the margin projection reconciles |
@@ -379,8 +380,8 @@ event schema refuses it.
 ## Authoritative projection
 
 `runtime/projection/model.js` owns the record fold; `projection/presentation.js`
-combines it with authored DOM readings and keeps desired state separate from proof of
-what each current widget node has rendered. Python derives the durable side (below). What both must honor: an `x-state` verb may
+combines it with authored DOM readings for coverage and provenance. Each widget controller
+keeps desired state separate from proof that its current owner has rendered it. Python derives the durable side (below). What both must honor: an `x-state` verb may
 declare `requires`, a prerequisite over the standing Ask projection that
 `x-awaits` defines. Its target is the sender or its
 declared parent, and `awaiting` states whether that Ask must be open or closed.

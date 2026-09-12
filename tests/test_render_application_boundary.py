@@ -60,6 +60,8 @@ customElements.define("lf-local", class extends LitElement {
     this.dataset.pageWidget = "ready";
     this.stop ??= this.controller.subscribe(reading => {
       this.reading = reading;
+      this.dataset.renderOrder = `${this.dataset.renderOrder || ""}subscribe,`;
+      this.dataset.subscriberChoice = this.dataset.renderedChoice;
       this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
       this.requestUpdate();
     });
@@ -74,6 +76,7 @@ customElements.define("lf-local", class extends LitElement {
   }
 
   choose() {
+    this.dataset.renderOrder = "";
     this.dataset.gestures = String(Number(this.dataset.gestures || 0) + 1);
     const sent = this.controller.dispatch({
       kind: "action",
@@ -90,6 +93,24 @@ customElements.define("lf-local", class extends LitElement {
     sent.delivery.then(accepted => {
       this.dataset.delivery = accepted ? "accepted" : "refused";
     });
+  }
+
+  renderState(state) {
+    if (globalThis.__failLocalRender) {
+      globalThis.__failedLocalRenders =
+        Number(globalThis.__failedLocalRenders || 0) + 1;
+      throw new Error("deliberate render failure");
+    }
+    this.dataset.renderedChoice = state.choice.value;
+    this.dataset.renderOrder = `${this.dataset.renderOrder || ""}render,`;
+    this.requestUpdate();
+  }
+
+  async scheduleUpdate() {
+    const held = globalThis.__heldLocalUpdate;
+    globalThis.__heldLocalUpdate = null;
+    if (held) await held;
+    return super.scheduleUpdate();
   }
 
   render() {
@@ -110,15 +131,12 @@ STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
     }
     const held = globalThis.__heldLocalPresentations?.get(this.id);""",
 ).replace(
-    "  render() {",
+    "    this.dataset.renderedChoice = state.choice.value;",
     """\
-  renderState() {
-    this.dataset.projectionRenders = String(
-      Number(this.dataset.projectionRenders || 0) + 1
-    );
-  }
-
-  render() {""",
+    this.dataset.renderedChoice = state.choice.value;
+    this.dataset.controllerRenders = String(
+      Number(this.dataset.controllerRenders || 0) + 1
+    );""",
 )
 
 
@@ -156,6 +174,12 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
     )
     assert installed == {"defined": True, "connected": "ready", "gestures": "1"}
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
+    expect(page.locator("#page-local")).to_have_attribute(
+        "data-render-order", "render,subscribe,"
+    )
+    expect(page.locator("#page-local")).to_have_attribute(
+        "data-subscriber-choice", "chosen"
+    )
     assert errors == []
     page.close()
 
@@ -189,8 +213,8 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
         assert held, "the positive control did not hold the first authoritative state"
         expect(page.locator("#page-local").get_by_role("button")).to_be_disabled()
         expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
-        assert (
-            page.locator("#page-local").get_attribute("data-projection-renders") is None
+        expect(page.locator("#page-local")).to_have_attribute(
+            "data-controller-renders", "1"
         )
         waiting = page.evaluate(
             """async () => {
@@ -221,7 +245,7 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
         page.wait_for_function(BOTH_STAMPS)
         expect(page.locator("#page-local").get_by_role("button")).to_be_enabled()
         expect(page.locator("#page-local")).to_have_attribute(
-            "data-projection-renders", "1"
+            "data-controller-renders", "2"
         )
         ready = page.evaluate(
             """() => {
@@ -627,6 +651,18 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
         }"""
     )
 
+    held_render = page.evaluate(
+        """() => {
+          window.heldWidgetUpdate = heldPreparation();
+          window.__heldLocalUpdate = heldWidgetUpdate.promise;
+          window.stopHeldWidgetReading = pageLocal.controller.subscribe(() => {});
+          return readLeafPresentation().pending;
+        }"""
+    )
+    assert held_render == ["widget:page-local:render"]
+    page.evaluate("heldWidgetUpdate.release(); stopHeldWidgetReading()")
+    page.wait_for_function("readLeafPresentation().pending.length === 0", timeout=3000)
+
     # Several children prepared by one owner are one requirement. A later call for the
     # same reading includes the earlier promise rather than superseding it.
     returned = page.evaluate(
@@ -751,16 +787,25 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
 
     # A synchronous render failure cannot escape the publisher or leave a partial
     # widget as presentation proof. The coordinator reports it, installs the existing
-    # visible fail-soft body, and settles the region.
+    # visible fail-soft body, and settles the region once even with several auxiliary
+    # subscribers on that reading.
+    held_failure = []
+    page.route("**/api/event", lambda route: held_failure.append(route))
     page.evaluate(
-        "pageLocal.controller.subscribe(() => { "
-        "throw new Error('deliberate render failure'); }); true"
+        "pageLocal.controller.subscribe(() => {}); "
+        "pageLocal.controller.subscribe(() => {}); "
+        "window.__failLocalRender = true; true"
     )
+    page.locator("#page-local").get_by_role("button", name="Choose").click()
+    holding(page, held_failure, 1, "the failing render's action")
     expect(page.locator("#page-local .lf-error")).to_have_text(
-        "<lf-local> failed: deliberate render failure"
+        "<lf-local> failed: <lf-local> renderState threw: deliberate render failure"
     )
     page.wait_for_function("readLeafPresentation().pending.length === 0", timeout=3000)
-    assert errors == ["leaf: Presentation failed: deliberate render failure"]
+    assert page.evaluate("window.__failedLocalRenders") == 1
+    assert errors == [
+        "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
+    ]
     page.close()
 
 

@@ -85,8 +85,11 @@ customElements.define(
       if (!once(this)) {
         if (this.#interactive) this.#applyPreview();
         this.#watchTargets();
-        if (this.#interactive)
+        if (this.#interactive) {
+          if (this.#dirty && !this.#resumeProjection)
+            this.#resumeProjection = this.#controller.defer();
           this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
+        }
         return;
       }
       try {
@@ -790,18 +793,16 @@ customElements.define(
     }
 
     renderState(state) {
-      if (!this.#ready) return true;
+      if (!this.#ready) return;
       const configuration =
         state.configuration?.action === "submit"
           ? state.configuration.detail
           : emptyConfiguration();
       const signature = JSON.stringify(configuration);
-      if (signature === this.#projectionSignature) return true;
-      if (this.#dirty) return false;
+      if (signature === this.#projectionSignature) return;
       this.#projectionSignature = signature;
       this.#projected = copy(configuration);
       this.#load(configuration);
-      return true;
     }
   },
 );

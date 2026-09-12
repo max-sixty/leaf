@@ -47,6 +47,7 @@ customElements.define(
     #keysAvailable = null;
     #stop = null;
     #controller = null;
+    #resumeProjection = null;
 
     connectedCallback() {
       if (once(this)) {
@@ -55,7 +56,6 @@ customElements.define(
         this.#structure();
         if (!exhibit) this.#wire();
       }
-      if (!this.#interactive) return;
       this.#controller ??= widgetController(this);
       this.#stop ??= this.#controller.subscribe(this.#render);
     }
@@ -300,7 +300,7 @@ customElements.define(
       const focusWasInside = this.contains(document.activeElement);
       const focusWasCard = card === document.activeElement;
       this.#exit(card, direction);
-      this.#restorePointer();
+      this.#restorePointer(false);
       const detail = {
         card: card.id,
         to: destination.id,
@@ -313,8 +313,9 @@ customElements.define(
       const next = this.#active();
       if (focusWasCard && next) next.focus({ preventScroll: true });
       else if (focusWasInside && !next) this.#progress.focus({ preventScroll: true });
-      void this.#controller.dispatch({ kind: "action", verb: action, detail })
-        ?.delivery;
+      const sent = this.#controller.dispatch({ kind: "action", verb: action, detail });
+      this.#resumePresentation();
+      void sent?.delivery;
     }
 
     #exit(card, direction) {
@@ -361,7 +362,12 @@ customElements.define(
       return played;
     }
 
-    #restorePointer() {
+    #resumePresentation() {
+      this.#resumeProjection?.();
+      this.#resumeProjection = null;
+    }
+
+    #restorePointer(resume = true) {
       const gesture = this.#pointer;
       this.#pointer = null;
       if (!gesture) return;
@@ -370,6 +376,7 @@ customElements.define(
       gesture.card.classList.remove("lf-swipe-dragging");
       gesture.card.style.removeProperty("--lf-swipe-drag-x");
       dragging(this, false);
+      if (resume) this.#resumePresentation();
     }
 
     #pointerDown = (event) => {
@@ -388,6 +395,7 @@ customElements.define(
         y: event.clientY,
         dragging: false,
       };
+      this.#resumeProjection = this.#controller.defer();
       card.setPointerCapture(event.pointerId);
       dragging(this, true);
     };
@@ -425,7 +433,6 @@ customElements.define(
     };
 
     renderState(state) {
-      if (this.#pointer) return false;
       const focused = document.activeElement;
       const focusedCard =
         this.#interactive &&

@@ -929,9 +929,12 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     declarations["lf-column"]["x-owners"].append("lf-outer-board")
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
-        """import { once } from "/runtime/widget-api.js";
+        """import { once, widgetController } from "/runtime/widget-api.js";
 customElements.define("lf-outer-board", class extends HTMLElement {
-  connectedCallback() { once(this); }
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) {
     for (const [id, order] of Object.entries(state.placement.value)) {
       const column = document.getElementById(id);

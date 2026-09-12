@@ -149,8 +149,11 @@ customElements.define(
       // Quoted material is exhibited, not offered: a suggestion inside an
       // exhibit shows what a pending change looks like, so it keeps the marks
       // the theme draws and never grows controls to decide it with.
-      if (quoted(this)) return;
       this.#controller = widgetController(this);
+      if (quoted(this)) {
+        this.#watchReading();
+        return;
+      }
       // The runtime says it just opened this element's containers (reveal): the row
       // may be waiting on geometry the target only now has, and the caller is about
       // to focus it, so the layout question is answered now rather than at the
@@ -168,9 +171,9 @@ customElements.define(
     }
 
     #watchReading() {
-      if (quoted(this) || !this.#row) return;
       this.#controller ??= widgetController(this);
       this.#stopReading ??= this.#controller.subscribe((reading) => {
+        if (quoted(this) || !this.#row) return;
         const active = document.activeElement;
         const focused = active?.lfForwardedControl ?? active;
         if (

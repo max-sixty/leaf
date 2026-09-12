@@ -936,7 +936,19 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
 
     Presentation and view state are not input, so they still run: a quoted
     settled group collapses like any other."""
-    page, errors = open_page(browser, serve(SPECIMEN_PAGE))
+    url = serve(SPECIMEN_PAGE)
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "quoted-suggestion",
+            "action": "accept",
+            "detail": {},
+        },
+    )
+    page, errors = open_page(browser, url)
     assert errors == []
     assert page.locator(".lf-error").count() == 0
 
@@ -973,10 +985,14 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # wears its mark, with nothing to press.
     assert page.locator('#quoted-settled .lf-pick[role="img"]').count() == 1
 
-    # A quoted suggestion shows what a pending change looks like — both slots
-    # marked — and grows nothing to settle it with, so it is also not the
-    # banner's to count or Accept all's to decide.
-    assert page.locator("#quoted-suggestion lf-old").is_visible()
+    # A quoted suggestion reconciles its semantic state while growing nothing to
+    # settle it with, so it is also not the banner's to count or Accept all's to
+    # decide.
+    expect(page.locator("#quoted-suggestion")).to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    expect(page.locator("#quoted-suggestion lf-old")).to_be_hidden()
+    expect(page.locator("#quoted-suggestion lf-new")).to_be_visible()
     assert page.locator("[data-lf-for='quoted-suggestion']").count() == 0
     expect(page.get_by_role("button", name="Accept all (1)")).to_be_visible()
 

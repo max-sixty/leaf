@@ -297,7 +297,12 @@ the descriptor. `read()` returns an immutable `{state, provenance, actions, requ
 request, delivery}` snapshot. Each command entry carries its availability and exact
 history or Undo candidates. `subscribe(callback)` invokes immediately from the same
 publisher, returns cleanup, and should be stopped on disconnect; reconnecting subscribes
-again. `dispatch({kind: "action" | "request", verb, detail, references?, attempt?})` and
+again. For each complete reading the controller invokes the module's total
+`renderState(state)`, applies Leaf's generic settlement, and only then invokes these
+auxiliary subscribers. Its render presentation ticket settles after the owner's current
+`updateComplete`. Report-only and quoted semantic widgets subscribe too, even when they
+have no interactive controls. `dispatch({kind: "action" | "request", verb, detail,
+references?, attempt?})` and
 `dispatch({kind: "undo", target})` synchronously return `null` when the newest reading
 refuses the command, otherwise `{reading, delivery}`. The returned reading already holds
 the optimistic semantic result; delivery later yields the admitted event or null and a
@@ -356,11 +361,12 @@ Non-widget facets contain `units`, keyed by unit id, and position facets also co
 `value`, a map from container id to the complete ordered ids it holds. Missing
 recordless units are undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
-`false` is the only return value state projection interprets. A live editor instead calls
-`controller.defer()` before it begins and invokes the returned one-shot resume after it
-closes; resume reconciles the newest publisher reading after the gesture has finished
-staging its local action.
-Projection ignores every other return value. A renderer may return the `Animation` for
+The controller ignores the renderer's return value. A live editor or pointer/keyboard
+rearrangement calls `controller.defer()` before its first local DOM mutation and invokes
+the returned one-shot resume only after dispatch has synchronously staged the semantic
+result, or after cancellation has restored the prior local DOM. Resume reconciles the
+newest publisher reading.
+A renderer may return the `Animation` for
 its production transition so an interaction-gallery scenario can join that motion to
 the gallery's playback controls; the same call must still reach its complete state when
 the caller ignores the return. Optional recorded scalar attributes have a null initial

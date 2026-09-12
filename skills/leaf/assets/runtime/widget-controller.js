@@ -7,6 +7,8 @@
    proof. Local editing defers the render region at its newest unpublished reading. */
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
+import { runtime } from "./context.js";
+import { renderRetired, settlementSlots } from "./passages.js";
 import {
   captureWidgetReference,
   descriptorStillMatches,
@@ -18,6 +20,18 @@ import { failSoft } from "./widget-upgrade.js";
 const controllers = new WeakMap();
 const lifecycles = new WeakMap();
 let lifecycleObserver = null;
+
+const { registry } = runtime;
+
+function renderSettlement(owner, state) {
+  const outcomes = settlementSlots()[owner.localName];
+  if (!outcomes) return;
+  const spec = registry[owner.localName]["x-state"][Object.keys(outcomes)[0]];
+  const outcome = state[spec.facet].action;
+  if (outcomes[outcome]) owner.setAttribute("data-lf-state", outcome);
+  else owner.removeAttribute("data-lf-state");
+  renderRetired(owner);
+}
 
 const visitElements = (node, visit) => {
   if (!(node instanceof Element)) return;
@@ -143,12 +157,19 @@ function createWidgetController(owner) {
       `leaf: <${owner.localName}>#${owner.id || "(missing id)"} has no captured widget descriptor`,
     );
   const selected = applicationState.selectWidget(descriptor);
+  const stateFacets = new Set(
+    ["x-state", "x-report"].flatMap((channel) =>
+      Object.values(descriptor.declaration[channel] ?? {}).map(({ facet }) => facet),
+    ),
+  );
   const subscriptions = new Set();
   let deferred = false;
   let deferredReading = null;
   let deferredHold = null;
   let stopSelection = null;
   let renderHandle = null;
+  let renderedReading = null;
+  let renderedStatus = null;
   let preparationHandle = null;
   let preparation = null;
   let preparationBatch = null;
@@ -171,15 +192,46 @@ function createWidgetController(owner) {
   };
 
   const presentRender = (reading, callbacks) => {
+    const firstRender = renderedReading !== reading;
+    if (firstRender) {
+      renderedReading = reading;
+      renderedStatus = null;
+    } else if (renderedStatus !== "complete") {
+      return;
+    }
     const handle = render();
     const failures = [];
-    for (const subscription of callbacks) {
+    const complete = [...stateFacets].every((facet) => facet in reading.state);
+    if (complete && firstRender) {
       try {
-        subscription(reading);
+        owner.renderState?.(reading.state);
+      } catch (error) {
+        failures.push(
+          new Error(
+            `<${owner.localName}> renderState threw: ${error?.message ?? error}`,
+            { cause: error },
+          ),
+        );
+      }
+      try {
+        renderSettlement(owner, reading.state);
       } catch (error) {
         failures.push(error);
       }
+      // Auxiliary subscribers may read DOM established by the total render. If that
+      // prerequisite failed, the one fail-soft owns this reading instead of running
+      // callbacks against a partial view.
     }
+    if (complete && !failures.length) {
+      for (const subscription of callbacks) {
+        try {
+          subscription(reading);
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+    }
+    renderedStatus = !complete ? "incomplete" : failures.length ? "failed" : "complete";
     const failure =
       failures.length > 1
         ? new AggregateError(failures, "widget presentation failed")
@@ -187,9 +239,12 @@ function createWidgetController(owner) {
     if (handle) {
       const completion = failure
         ? Promise.reject(failure)
-        : owner.updateComplete?.then
+        : complete && owner.updateComplete?.then
           ? owner.updateComplete
           : undefined;
+      // An incomplete startup reading has no DOM to present, but its ticket still
+      // commits so the provisional publication can settle. Its subscribers first run
+      // when the publisher supplies every declared facet.
       void handle.present(reading, completion, (reason) => failSoft(owner, reason));
     }
   };
@@ -224,6 +279,10 @@ function createWidgetController(owner) {
     if (subscriptions.size && !stopSelection) {
       render();
       stopSelection = selected.subscribe(publish);
+      // A controller can first appear when conversation presentation mounts frozen
+      // markup after the global projection pass. Re-run coordinate/provenance work now
+      // that this owner and its units exist; state application coalesces the request.
+      invalidateDom();
     }
     if (preparation && !preparationHandle) {
       const handle = prepared();
@@ -241,6 +300,8 @@ function createWidgetController(owner) {
     deferredHold?.release();
     deferredHold = null;
     deferredReading = null;
+    renderedReading = null;
+    renderedStatus = null;
   };
 
   watchLifetime(owner, { connect, disconnect });
@@ -263,6 +324,8 @@ function createWidgetController(owner) {
           deferredHold?.release();
           deferredHold = null;
           deferredReading = null;
+          renderedReading = null;
+          renderedStatus = null;
         }
       };
     },
@@ -314,6 +377,11 @@ function createWidgetController(owner) {
     defer() {
       if (deferred) throw new Error("Widget presentation is already deferred");
       deferred = true;
+      // The gesture may mutate the live DOM without changing semantic identity. Resume
+      // must therefore run the total renderer even when the publisher reading is the
+      // same object that preceded the gesture.
+      renderedReading = null;
+      renderedStatus = null;
       let resumed = false;
       return () => {
         if (resumed) return read();

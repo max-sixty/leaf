@@ -86,7 +86,6 @@ class FakeCodexHost:
     def __init__(self):
         self.attached = []
         self.responded = []
-        self.defer_to_final = False
 
     def attach(self, page_dir: Path, event_id: str) -> str | None:
         if not website_server.agent_event_pending(page_dir, event_id):
@@ -99,9 +98,6 @@ class FakeCodexHost:
 
     def response_authorized(self, authorization: str | None) -> bool:
         return authorization == "Bearer adapter-secret"
-
-    def final_message_owns_reply(self, page_dir: Path, event_id: str) -> bool:
-        return self.defer_to_final
 
     def fallback_reply(self, page_dir: Path, event_id: str, text: str) -> dict | None:
         return website_server.cmd_reply(
@@ -478,6 +474,91 @@ def test_a_queued_website_reply_binds_only_to_its_delivery_turn(page_dir):
     claim = website_server.page_claim(page_dir)
     assert claim["turn"] == "queued-turn"
     assert claim["turn_closed"] is not None
+    assert socket.closed
+
+
+def test_an_unbound_queued_website_turn_closes_the_session_turn(page_dir):
+    first = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "first"},
+    )
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    [opened] = website_server.accept_codex_delivery("hosted-thread")
+    second = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "second while active"},
+    )
+    prepared = website_server.prepare_codex_delivery(
+        page_dir, identity, {"pid": os.getpid()}
+    )
+    [queued] = website_server.accept_codex_delivery("hosted-thread", phase="queued")
+    website_server._set_stream_activity(
+        "hosted-thread", opened["turn"], "Still working"
+    )
+
+    class Socket:
+        closed = False
+
+        def __init__(self):
+            self.messages = iter(
+                [
+                    {
+                        "method": "turn/started",
+                        "params": {
+                            "threadId": "hosted-thread",
+                            "turn": {
+                                "id": "unidentified-turn",
+                                "status": "inProgress",
+                                "items": [],
+                            },
+                        },
+                    },
+                    {
+                        "method": "turn/completed",
+                        "params": {
+                            "threadId": "hosted-thread",
+                            "turn": {
+                                "id": "unidentified-turn",
+                                "status": "completed",
+                                "items": [],
+                            },
+                        },
+                    },
+                ]
+            )
+
+        def recv(self, timeout):
+            try:
+                return json.dumps(next(self.messages))
+            except StopIteration as error:
+                raise OSError("connection closed") from error
+
+        def close(self):
+            self.closed = True
+
+    socket = Socket()
+    website_server.WebsiteCodexHost("codex")._follow_turn(
+        socket,
+        page_dir,
+        "hosted-thread",
+        None,
+        None,
+        queued["events"],
+        website_server.stream_reply_target(prepared.payload),
+        prepared.payload["id"],
+    )
+
+    claim = website_server.page_claim(page_dir)
+    assert claim["turn"] == opened["turn"]
+    assert claim["turn_closed"] is not None
+    assert "stream" not in website_server.PageTransaction(page_dir).status
+    activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
+    assert activity["kind"] == "queued"
+    assert [obligation["event"] for obligation in activity["obligations"]] == [
+        first["id"],
+        second["id"],
+    ]
     assert socket.closed
 
 
@@ -1683,7 +1764,7 @@ def test_a_host_fallback_does_not_answer_input_an_agent_turn_already_claimed(
     assert reply is None
 
 
-def test_a_claimed_website_turn_replies_through_the_running_adapter(page_dir):
+def test_an_explicit_website_reply_wins_over_the_streamed_final(page_dir):
     comment = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
@@ -1696,10 +1777,10 @@ def test_a_claimed_website_turn_replies_through_the_running_adapter(page_dir):
         "reply_to": comment["id"],
         "responds": comment["id"],
     }
-    website_server.AppServerReplyStream("hosted-thread", delivery["turn"], target)
+    stream = website_server.AppServerReplyStream(
+        "hosted-thread", delivery["turn"], target
+    )
     host = website_server.WebsiteCodexHost("codex")
-
-    assert host.final_message_owns_reply(page_dir, comment["id"])
 
     reply = host.respond(
         page_dir,
@@ -1717,7 +1798,12 @@ def test_a_claimed_website_turn_replies_through_the_running_adapter(page_dir):
     assert reply["revision"] == 1
     assert reply["anchor"]["section"] == "plan"
     assert reply["anchor"]["quote"] == "The cutoff lives in"
-    assert not host.final_message_owns_reply(page_dir, comment["id"])
+    assert stream.finish("completed", "Answered on the page.") is None
+    replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert [(event["text"], event["responds"]) for event in replies] == [
+        ("Done.", comment["id"])
+    ]
+    assert "stream" not in website_server.PageTransaction(page_dir).status
 
 
 def test_a_host_fallback_survives_an_invalid_candidate_source(page_dir):
@@ -1924,25 +2010,6 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
                 {"event": comment["id"], "text": "Forged."},
             )
         assert unauthorized.value.code == 403
-
-        agent_host.defer_to_final = True
-        deferred, _ = post(
-            f"{root}/examples/decision/_leaf/agent/respond",
-            {
-                "event": comment["id"],
-                "text": "This should be the final.",
-                "quote": "A replacement passage",
-                "section": "plan",
-            },
-            {
-                "Authorization": "Bearer adapter-secret",
-                "Leaf-Agent-Helper-Entered-At-Ms": "1789180475000",
-                "Leaf-Agent-Helper-Request-At-Ms": "1789180475125",
-            },
-        )
-        assert deferred == {"status": "deferred-to-final"}
-        assert agent_host.responded == []
-        agent_host.defer_to_final = False
 
         responded, _ = post(
             f"{root}/examples/decision/_leaf/agent/respond",

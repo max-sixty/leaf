@@ -623,8 +623,18 @@ class WebsiteCodexHost:
                     terminal = message["params"]["turn"]
                     break
         except (OSError, RuntimeError, ValueError, WebSocketException) as error:
-            _clear_stream_activity(thread_id, turn_id)
             detail = str(error) or type(error).__name__
+            if awaiting_queued_start:
+                _clear_stream_activity(thread_id)
+                close_session_turn(thread_id)
+                log_agent(
+                    "turn_delivery_unbound",
+                    **event_fields,
+                    deliveryId=queued_delivery_id,
+                    error=type(error).__name__,
+                )
+            else:
+                _clear_stream_activity(thread_id, turn_id)
             terminal = {
                 "id": turn_id,
                 "status": "failed",
@@ -920,25 +930,6 @@ class WebsiteCodexHost:
                 abandon_codex_delivery(claim["id"], event_id)
             return accepted
 
-    def final_message_owns_reply(self, page_dir: Path, event_id: str) -> bool:
-        """Whether this turn's final message owns the plain response operation."""
-        with PageTransaction(page_dir) as page:
-            claim = page.active_claim
-            reply = (page.status.get("stream") or {}).get("reply") or {}
-            return bool(
-                claim
-                and reply.get("state") == "active"
-                and reply.get("session") == claim["id"]
-                and reply.get("turn") == claim.get("turn")
-                and reply.get("responds") == event_id
-                and any(
-                    obligation["event"] == event_id
-                    for obligation in full_state(page_dir, page.events)["activity"][
-                        "obligations"
-                    ]
-                )
-            )
-
     def respond(
         self,
         page_dir: Path,
@@ -1149,10 +1140,6 @@ class WebsitePageHandler(Handler):
                 eventId=event_id,
                 **helper_timing,
             )
-            if self.agent_host.final_message_owns_reply(self.page_dir, event_id):
-                log_agent("agent_response_deferred_to_final", eventId=event_id)
-                self._json({"status": "deferred-to-final"})
-                return
             try:
                 accepted = self.agent_host.respond(
                     self.page_dir, event_id, text, **target

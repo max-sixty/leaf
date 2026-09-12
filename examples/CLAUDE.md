@@ -2,7 +2,7 @@
 
 Each top-level authored HTML file is both a complete user page and an integration
 fixture. The website publishes those pages with the same vendored layer.
-`docs/examples.html` curates six core examples and a specialized section; its active
+`docs/examples.html` curates seven core examples and a specialized section; its active
 cards are the source of truth for catalog membership and generated previews. An
 unlisted page can remain published, as Command Hub and Security Boundary do.
 

@@ -18,12 +18,34 @@ abstract.
 Name the narrowest established kind. Qualify a noun when another web or Leaf concept
 uses the same word.
 
-## Packages, declarations, and elements
+## Pages, packages, and layers
 
 | Term | Identity criterion |
 |---|---|
+| **Page instance** | One durable page directory, including its source, revisions, selected layer, data, media, and event history |
 | **Package** | One composable source directory containing declarations and their payload |
 | **Leaf layer** | One checked, vendored composition of packages |
+| **Reader session** | One browser tab's temporary interaction with a page instance |
+
+Core Leaf owns revision activation, scoped serving, executable and inert-input
+boundaries, target identity, event admission, requests, comments, and export modes. A
+package owns reusable declarations, widgets, browser modules, styles, data contracts,
+and guidance. A page instance owns its content, page-local modules, styles, assets, and
+declarations, semantic target choices, drafts, and package selection. A reader session
+owns focus, scroll, selection, and disposable exploration state; durable reader choices
+enter the page instance through Leaf's event path.
+
+Use a package when the source is reusable, the Leaf layer for the checked composition
+vendored into one or more page instances, and the page instance for the durable authored
+artifact. Packaging code changes its reuse and maintenance owner; it does not isolate
+that code from other executable code in the page document.
+
+Do not use *instance* alone for an authored occurrence; use *Leaf element*.
+
+## Declarations and elements
+
+| Term | Identity criterion |
+|---|---|
 | **Leaf element type** | One registered `lf-*` tag identity |
 | **Element declaration** | The registry record for one Leaf element type |
 | **Leaf element** | One authored occurrence of a Leaf element type |

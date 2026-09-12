@@ -458,7 +458,7 @@ customElements.define(
       const target = {
         key: this.#nextTarget(),
         name: this.#defaultName(element),
-        scope: "instance",
+        scope: "element",
         className: null,
         selector,
       };
@@ -544,7 +544,7 @@ customElements.define(
         scope.name = `${this.id}-${target.key}-scope`;
         scope.setAttribute("aria-label", `Scope for ${target.name}`);
         scope.append(
-          option("instance", "This instance"),
+          option("element", "This element"),
           option("class", "Shared class"),
         );
         scope.value = target.scope;

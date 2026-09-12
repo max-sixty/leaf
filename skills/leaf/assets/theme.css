@@ -471,12 +471,14 @@ body { position: static !important; box-sizing: border-box !important;
 /* The live shell's fixed chrome arrives after the authored document, but its room is
  * part of the document's final layout. The render-blocking theme reserves that room so
  * the useful initial HTML paints where it will remain. The root stays the document
- * scrollport, and a standing scrollbar prevents a later height change from recentering
- * the page. The server's prepaint bootstrap marks a live page before its graph has
- * loaded; the bake removes that marker and paper has no fixed chrome. */
+ * scrollport. Its definite height lets the body's percentage minimum fill a short
+ * viewport while a longer body still overflows it. A standing scrollbar prevents a
+ * later height change from recentering the page. The server's prepaint bootstrap marks
+ * a live page before its graph has loaded; the bake removes that marker and paper has
+ * no fixed chrome. */
 @media screen {
   html[data-lf-live]:not(.lf-copy) {
-    min-height: 100%;
+    height: 100%;
     overflow-x: hidden;
     overflow-y: scroll;
     scroll-padding-top: calc(var(--lf-banner-h) + 12px);
@@ -1338,11 +1340,17 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-thread > .lf-say { flex-direction: column; align-items: stretch; }
 .lf-conversation-thread > .lf-say.lf-reply-collapsed > :not(.lf-reply-disclosure) {
           display: none; }
-.lf-reply-disclosure { width: 100%; padding: 7px 10px; border-color: var(--border);
-          background: transparent; color: var(--muted-2); text-align: start; }
-.lf-reply-disclosure[hidden] { display: none; }
-.lf-reply-disclosure:hover { border-color: var(--border-2); color: var(--ink);
-          background: var(--chip); }
+/* The collapsed Reply is the empty editor at rest. Its complete path outranks the
+   chrome's shared aim floor, keeping the same box and surface through hover and entry. */
+.lf-conversation-thread > .lf-say > .lf-reply-disclosure {
+          box-sizing: border-box; width: 100%;
+          min-height: calc(max(28px, var(--aim-floor)) + 12px); padding: 8px 10px;
+          border-color: var(--border-2); background: var(--card);
+          color: var(--muted-2); text-align: start; }
+.lf-conversation-thread > .lf-say > .lf-reply-disclosure[hidden] { display: none; }
+.lf-conversation-thread > .lf-say > .lf-reply-disclosure:hover {
+          border-color: var(--border-2); color: var(--ink);
+          background: var(--card); }
 .lf-conversation-resolved { display: flex;
           align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .lf-conversation > .lf-say { margin-top: 0; }

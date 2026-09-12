@@ -2402,9 +2402,9 @@ customElements.define('lf-preparation', class extends HTMLElement {
 
 def test_a_failed_candidate_restores_the_prior_version_approval(browser, serve):
     """Approval chrome follows the complete state boundary when application rolls back."""
-    signoff_page = SUGGESTION_PAGE.replace(
-        "<title>suggestions</title>",
-        '<title>suggestions</title><meta name="lf-review" content="sign-off">',
+    signoff_page = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
     )
     page, errors = open_page(browser, _serve_preparing_thread(serve, signoff_page))
     approval = page.locator(".lf-signoff")
@@ -2474,10 +2474,7 @@ def test_a_failed_candidate_restores_the_prior_version_approval(browser, serve):
 
     expect(page.locator("body")).to_have_attribute("data-lf-reading", before)
     expect(approval).to_have_text("Approve version")
-    expect(approval).to_be_disabled()
-    expect(approval).to_have_attribute(
-        "title", "Answer every Ask before approving this work"
-    )
+    expect(approval).to_be_enabled()
 
     page.unroute("**/api/state*")
     for route in held_states:

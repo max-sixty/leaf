@@ -170,7 +170,7 @@ import { FOCUSABLE } from "./runtime/reach.js";
 
 let app;
 const paintVersionApproval = () =>
-  paintApproval(app.pendingApprovals(), app.unansweredAsks());
+  paintApproval(app.pendingApprovals(), app.approvalBlockingAsks());
 let threadPanelController;
 let trays;
 let layout;

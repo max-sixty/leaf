@@ -12,6 +12,11 @@ remain in git history.
   [runtime vision](notes/reactive-browser-runtime.md). Authored pages remain ordinary
   HTML and installations gain no frontend build.
 
+- **Make the page instance a complete authored artifact.** Follow the
+  [page-instance boundary specification](notes/page-instance-boundary.md) to capture
+  page-owned dependencies and declarations, separate design intent from source
+  ownership, generalize target identity, and add an explicit interactive export mode.
+
 - **Establish the first agent-usability baseline.** Build the cold-authoring,
   reading-parity, and resume fixtures described in
   [the evaluation plan](notes/agent-usability-evals.md#first-executable-slice), then use

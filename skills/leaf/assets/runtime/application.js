@@ -8,6 +8,7 @@ import { newAttempt } from "./drafts.js";
 import { saidNow } from "./presence.js";
 import { announce, notice } from "./notifications.js";
 import {
+  approvalBlockingAsks as readApprovalBlockingAsks,
   openAsks as readOpenAsks,
   unansweredAsks as readUnansweredAsks,
   watchAsks as observeAsks,
@@ -85,6 +86,7 @@ export function mountApplication(dependencies) {
     pendingRequestEvents(pendingEntries(), currentReceipts());
   const openAsks = () => readOpenAsks(pendingRequests());
   const unansweredAsks = () => readUnansweredAsks(pendingRequests());
+  const approvalBlockingAsks = () => readApprovalBlockingAsks(pendingRequests());
   const watchAsks = (owner, callback) => observeAsks(owner, pendingRequests, callback);
 
   const releasePending = () => {
@@ -429,6 +431,7 @@ export function mountApplication(dependencies) {
     ...projectionUpdates,
     ...requests,
     ...engagement,
+    approvalBlockingAsks,
     beginRead: beginStateRead,
     conversationBox,
     createComment,
@@ -469,6 +472,7 @@ export function mountApplication(dependencies) {
 export const actionAvailable = (...args) => app().actionAvailable(...args);
 export const actionSequence = (...args) => app().actionSequence(...args);
 export const actionStands = (...args) => app().actionStands(...args);
+export const approvalBlockingAsks = (...args) => app().approvalBlockingAsks(...args);
 export const beginRead = (...args) => app().beginRead(...args);
 export const conversationBox = (...args) => app().conversationBox(...args);
 export const createComment = (...args) => app().createComment(...args);

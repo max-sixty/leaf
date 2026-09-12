@@ -4,7 +4,8 @@
    and the walks read.
 
    The banner's Asks count is effective progress: `Asks 3/7` means three of the seven active
-   Asks are answered, including a pending withdrawal the reader can already see.
+   Asks are answered, including a pending answer or withdrawal the reader can already
+   see.
    `allAsks` supplies the denominator and
    `unansweredAsks` supplies what remains outside the numerator, so moving focus or
    walking the page changes neither number. At 7/7 the same button stays available and
@@ -37,6 +38,11 @@
    The banner and tray instead use `allAsks`, the current page-and-thread inventory
    that retains an answered action Ask and a request throughout its lifecycle.
 
+   The counter, tray, walk, action availability, and approval gate all read the same
+   effective projection. Request Asks retain their durable lifecycle. An action Ask
+   reflects the pending result the page has already drawn; refusal removes that winner
+   and restores the authoritative reading.
+
    Three readings ask the other question — whether the request is *answered* — and all say
    so by emptying the seats (`answeredContext`, stated beside the shape rather than by a
    caller reaching into it, so a member derived from those conversations later cannot
@@ -57,8 +63,8 @@
    predicate locally; refusal removes that overlay and restores the authoritative Ask. */
 
 import { watchProjection } from "../projection-watch.js";
-import { matchesWhen, registry, tagsDeclaring } from "../registry.js";
-import { closestAcross, elementById } from "../passages.js";
+import { registry, tagsDeclaring } from "../registry.js";
+import { closestAcross, elementById, inChrome } from "../passages.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
 import {
@@ -66,7 +72,7 @@ import {
   authoredParents,
   stateCoordinate,
 } from "../projection/authored.js";
-import { currentProjection } from "../projection/state.js";
+import { currentProjection, projectionDeferred } from "../projection/state.js";
 
 /* Effective ask state, resolved onto the browser's live DOM. */
 const authoredParentOf = (node) => authoredParents.get(node);
@@ -124,77 +130,92 @@ const awaitingValues = (answered) => ({
   ...(runtime.browser?.conversation?.asks?.awaiting ?? {}),
 });
 
-function completionMet(owner, spec, projection) {
+const attributeConditionHolds = (element, when = {}) =>
+  Object.entries(when).every(([attribute, values]) =>
+    values.some((value) =>
+      typeof value === "boolean"
+        ? element.hasAttribute(attribute) === value
+        : element.getAttribute(attribute) === value,
+    ),
+  );
+
+function projectedHolder(element, reading) {
+  let holder = projectedParent(element, reading);
+  while (holder && !registry[holder.localName])
+    holder = projectedParent(holder, reading);
+  return holder;
+}
+
+function completionMet(source, spec, reading) {
   const completion = spec.completion;
   if (!completion) return true;
-  const context = { positionedParents: positionedParents(projection) };
   const empty = completion.empty;
-  const containers = [...owner.querySelectorAll(empty.within)].filter((candidate) =>
-    matchesWhen(candidate, empty.when),
+  const containers = [...source.querySelectorAll(empty.within)].filter((element) =>
+    attributeConditionHolds(element, empty.when),
   );
   if (containers.length !== 1) return false;
   const container = containers[0];
-  return ![...document.querySelectorAll("[id]")].some(
-    (candidate) =>
-      candidate !== container &&
-      registry[candidate.localName] &&
-      projectedParent(candidate, context) === container,
-  );
-}
-
-function projectionAnswered(owner, projection) {
-  const entry = askEntry(owner);
-  const until = entry?.until;
-  const threadCompletion =
-    until &&
-    closestAcross(owner, ".lf-msg, .lf-conversation-msg") &&
-    matchesWhen(owner, until.when);
-  const verbs = threadCompletion ? [until.verb] : (entry?.answers ?? []);
-  for (const verb of verbs) {
-    const spec = registry[owner.localName]?.["x-state"]?.[verb];
-    if (!spec) continue;
-    const held = [...projection.actions.values()].find(
-      ({ e }) => e.widget === owner.id && e.action === verb,
+  return ![source, ...source.querySelectorAll("*")]
+    .filter((element) => registry[element.localName])
+    .some(
+      (element) =>
+        element !== container && projectedHolder(element, reading) === container,
     );
-    const record = spec.record;
-    if (spec.unit === "widget" && ["attribute", "value"].includes(record?.kind)) {
-      const coordinate = stateCoordinate(owner.id, owner.id, spec);
-      const value = held ? held.value : authoredFacet(coordinate);
-      if (
-        value !== null &&
-        value !== undefined &&
-        value !== "" &&
-        (!Array.isArray(value) || value.length > 0)
-      )
-        return true;
-      continue;
-    }
-    if (held && completionMet(owner, spec, projection)) return true;
-  }
-  return false;
 }
 
-function optimisticallyReopened(projection) {
-  const reopened = [];
+function answerStands(source, verb, reading) {
+  const spec = registry[source.localName]?.["x-state"]?.[verb];
+  if (!spec) return false;
+  const held = [...reading.projection.actions.values()].find(
+    ({ e }) => e.widget === source.id && e.action === verb,
+  );
+  const record = spec.record;
+  if (spec.unit === "widget" && ["attribute", "value"].includes(record?.kind)) {
+    const value =
+      held?.value ?? authoredFacet(stateCoordinate(source.id, source.id, spec));
+    return (
+      value !== undefined &&
+      value !== null &&
+      value !== "" &&
+      (!Array.isArray(value) || value.length > 0)
+    );
+  }
+  return Boolean(held && completionMet(source, spec, reading));
+}
+
+function projectionAnswered(source, reading) {
+  const awaits = askEntry(source);
+  if (!awaits) return false;
+  const until = inChrome(source) && awaits.until;
+  const answers =
+    until && attributeConditionHolds(source, until.when)
+      ? [until.verb]
+      : (awaits.answers ?? []);
+  return answers.some((verb) => answerStands(source, verb, reading));
+}
+
+function optimisticallyReopened(reading) {
   const owners = new Set(
-    [...(projection.pendingWithdrawals?.values() ?? [])]
+    [...(reading.projection.pendingWithdrawals?.values() ?? [])]
       .map(({ e }) => elementById(e.widget))
       .filter(Boolean),
   );
-  for (const owner of owners)
-    if (askEntry(owner) && !projectionAnswered(owner, projection)) reopened.push(owner);
-  return reopened;
+  return [...owners].filter(
+    (owner) => askEntry(owner) && !projectionAnswered(owner, reading),
+  );
 }
 
 function context(answered = false) {
   const projection = currentProjection();
-  const awaiting = awaitingValues(answered);
-  for (const owner of optimisticallyReopened(projection)) awaiting[owner.id] = true;
-  return {
-    awaiting,
+  const reading = {
+    awaiting: awaitingValues(answered),
     positionedParents: positionedParents(projection),
     projection,
   };
+  if (!projectionDeferred())
+    for (const owner of optimisticallyReopened(reading))
+      reading.awaiting[owner.id] = true;
+  return reading;
 }
 
 export const answeredContext = () => context(true);
@@ -204,28 +225,18 @@ export const projectedParent = (el, reading) =>
   authoredParentOf(el) ??
   el.parentElement;
 
-function asks(kind, pendingRequestEvents) {
+function serverAsks(kind, pendingRequestEvents = []) {
   if (!pagePresented()) return [];
-  const projection = currentProjection();
   const requested = new Set(
     kind === "all" ? [] : pendingRequestEvents.map((event) => event.widget),
   );
   const documentAsks = runtime.view?.document?.asks?.[kind] ?? [];
   const conversationAsks = runtime.browser?.conversation?.asks?.[kind] ?? [];
-  const optimistic =
-    kind === "all"
-      ? []
-      : optimisticallyReopened(projection).map((el) => ({
-          id: askSurface(el).id,
-        }));
-  const elements = [...documentAsks, ...conversationAsks, ...optimistic]
+  const elements = [...documentAsks, ...conversationAsks]
     .map((ask) => elementById(ask.id))
-    .filter((element) => {
-      if (!element) return false;
-      if (kind === "all") return true;
-      const source = askSource(element);
-      return !requested.has(source.id) && !projectionAnswered(source, projection);
-    });
+    .filter(
+      (element) => element && (kind === "all" || !requested.has(askSource(element).id)),
+    );
   return [...new Set(elements)].sort((left, right) => {
     if (left === right) return 0;
     return left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING
@@ -234,10 +245,35 @@ function asks(kind, pendingRequestEvents) {
   });
 }
 
-export const allAsks = () => asks("all");
-export const openAsks = (pendingRequestEvents) => asks("reader", pendingRequestEvents);
+function effectiveAsks(kind, pendingRequestEvents) {
+  const durable = serverAsks(kind, pendingRequestEvents);
+  const durableSet = new Set(durable);
+  const reading = answeredContext();
+  const reopened = optimisticallyReopened(reading).map(askSurface);
+  const candidates =
+    kind === "unanswered" ? allAsks() : [...new Set([...durable, ...reopened])];
+  return candidates.filter((ask) => {
+    const source = askSource(ask);
+    return askEntry(source)
+      ? !projectionAnswered(source, reading)
+      : durableSet.has(ask);
+  });
+}
+
+export const allAsks = () => serverAsks("all");
+export const openAsks = (pendingRequestEvents) =>
+  effectiveAsks("reader", pendingRequestEvents);
 export const unansweredAsks = (pendingRequestEvents) =>
-  asks("unanswered", pendingRequestEvents);
+  effectiveAsks("unanswered", pendingRequestEvents);
+
+// A failed or deferred document transaction can leave the public action projection
+// ahead of the DOM it was meant to describe. Approval is irreversible enough to wait
+// for that transaction boundary; ordinary Ask surfaces continue to narrate a local
+// gesture immediately.
+export function approvalBlockingAsks(pendingRequestEvents) {
+  if (projectionDeferred()) return serverAsks("unanswered", pendingRequestEvents);
+  return effectiveAsks("unanswered", pendingRequestEvents);
+}
 
 // A package subscribes to the semantic projection, never to the transport's broad
 // invalidation event. The first reading is synchronous, which lets a connected

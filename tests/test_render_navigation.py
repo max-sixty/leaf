@@ -885,18 +885,16 @@ def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, s
 
 
 def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
-    """Sign-off, layer comments, and transport refusal are real core journeys."""
+    """Sign-off gating, layer comments, and transport refusal are real core journeys."""
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1280, 900)
 
     approve = page.locator(".lf-signoff")
     expect(approve).to_have_text("Approve version")
-    approve.click()
-    round_trip(page)
-    expect(approve).to_have_text("✓ Version approved")
-    page.keyboard.press("z")
-    round_trip(page)
-    expect(approve).to_have_text("Approve version")
+    expect(approve).to_be_disabled()
+    expect(approve).to_have_attribute(
+        "title", "Answer every Ask before approving this work"
+    )
 
     option = page.locator("#bg-choice-street")
     page.keyboard.press("l")

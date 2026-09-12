@@ -120,70 +120,8 @@ lf-visual-review > .lf-reading-after {
   min-width: 0;
 }
 
-.lf-vr-expand {
-  min-height: 30px;
-  margin-inline-start: auto;
-}
-
-/* A root review already is the page's inspection surface, including when a constrained
- * window reflows that workspace. Offering a modal copy adds navigation without giving
- * the evidence another context. */
-lf-visual-review[data-lf-workspace-context="root"] .lf-vr-expand {
-  display: none;
-}
-
-.lf-vr-expanded {
-  box-sizing: border-box;
-  width: 96vw;
-  height: 94dvh;
-  max-width: none;
-  max-height: none;
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid var(--border-2);
-  border-radius: calc(var(--r) * 1.25);
-  background: var(--paper);
-  color: var(--ink);
-  overscroll-behavior: contain;
-}
-
-.lf-vr-expanded[open] {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-}
-
-.lf-vr-expanded::backdrop {
-  background: color-mix(in srgb, var(--ink) 38%, transparent);
-}
-
-.lf-vr-expanded-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--rule);
-}
-
-.lf-vr-expanded-title {
-  font: 700 var(--t-4) / 1.2 var(--sans);
-}
-
-.lf-vr-expanded-body {
-  height: 100%;
-  min-height: 0;
-  overflow: auto;
-  padding: var(--sp-3);
-}
-
-lf-visual-review[data-inspection-expanded="true"] .lf-vr-expand {
-  display: none;
-}
-
-.lf-vr-expanded-body > .lf-vr-partition,
-.lf-vr-expanded-body > .lf-vr-partition > .lf-partition-content {
-  min-height: 0;
-  height: 100%;
+.lf-vr-toolbar-slot {
+  padding-block: var(--here-ring-w);
 }
 
 .lf-vr-inspector[hidden] {
@@ -381,7 +319,9 @@ lf-visual-review[data-inspection-expanded="true"] .lf-vr-expand {
 }
 
 .lf-vr-details[open] {
+  display: grid;
   grid-column: 1 / -1;
+  gap: var(--sp-2);
   width: auto;
 }
 
@@ -397,7 +337,7 @@ lf-visual-review[data-inspection-expanded="true"] .lf-vr-expand {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   gap: var(--sp-2) var(--sp-4);
-  margin: var(--sp-2) 0 0;
+  margin: 0;
   padding: var(--sp-2);
   border: 1px solid var(--rule);
   border-radius: var(--r);
@@ -656,17 +596,7 @@ lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-shot-host {
   aspect-ratio: auto;
 }
 
-lf-visual-review[data-inspection-expanded="true"] .lf-vr-shot-host {
-  max-height: none;
-  aspect-ratio: auto;
-}
-
 @container (max-width: 28rem) {
-  .lf-vr-expanded-body > .lf-vr-partition,
-  .lf-vr-expanded-body > .lf-vr-partition > .lf-partition-content {
-    height: auto;
-  }
-
   .lf-vr-partition > .lf-partition-content {
     display: block;
   }
@@ -727,8 +657,7 @@ lf-visual-review[data-inspection-expanded="true"] .lf-vr-shot-host {
 
 html.lf-copy .lf-vr-dispositions,
 html.lf-copy .lf-vr-queue-region,
-html.lf-copy .lf-vr-inspector,
-html.lf-copy .lf-vr-expanded {
+html.lf-copy .lf-vr-inspector {
   display: none !important;
 }
 
@@ -769,8 +698,7 @@ html.lf-copy .lf-vr-details > .lf-vr-provenance {
   .lf-vr-dispositions,
   .lf-vr-frame-label,
   .lf-vr-queue-region,
-  .lf-vr-inspector,
-  .lf-vr-expanded {
+  .lf-vr-inspector {
     display: none !important;
   }
 

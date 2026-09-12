@@ -85,7 +85,7 @@ import { anchorLabel } from "../conversation/messages.js";
 import { reactionsAt } from "../conversation/model.js";
 import { allThreads } from "../conversation/state.js";
 
-import { readingRegionFor, shownRegionBounds } from "../reading-regions.js";
+import { containingReadingRegionFor, shownRegionBounds } from "../reading-regions.js";
 
 export const BANNER_CLEAR = 48;
 let floatingUiModule = null;
@@ -95,6 +95,7 @@ export function createResponseSurface({
   panelCovers,
   markAt,
   scrollToElement,
+  scrollRevealedElement,
   visualActionAnchor,
   hideComposer,
   openComposer,
@@ -246,26 +247,39 @@ export function createResponseSurface({
       ? Promise.resolve(true)
       : new Promise((resolve) => fabPositionWaiters.push(resolve));
 
+  const captureFabFocus = () => {
+    const element = focused();
+    if (!(element instanceof HTMLElement) || !fabBar.contains(element)) return null;
+    const selection =
+      element === fabInput
+        ? {
+            start: element.selectionStart,
+            end: element.selectionEnd,
+            direction: element.selectionDirection,
+          }
+        : null;
+    return { element, selection };
+  };
+
+  const restoreFabFocus = (held) => {
+    if (!held || focused() === held.element || !held.element.isConnected) return;
+    held.element.focus({ preventScroll: true });
+    if (held.selection)
+      held.element.setSelectionRange(
+        held.selection.start,
+        held.selection.end,
+        held.selection.direction,
+      );
+  };
+
   // Reparenting the canonical response bar is presentation, not a composer transition.
   // Preserve the exact typing position across light/shadow DOM moves; Chromium may put
   // focus on the shadow host while a focused textarea is adopted into its tree.
   function moveFab(parent) {
     if (fabBar.parentElement === parent) return;
-    const held = focused();
-    const holdsFocus = held instanceof HTMLElement && fabBar.contains(held);
-    const selection =
-      holdsFocus && held === fabInput
-        ? {
-            start: held.selectionStart,
-            end: held.selectionEnd,
-            direction: held.selectionDirection,
-          }
-        : null;
+    const held = captureFabFocus();
     parent.append(fabBar);
-    if (!holdsFocus || focused() === held) return;
-    held.focus({ preventScroll: true });
-    if (selection)
-      held.setSelectionRange(selection.start, selection.end, selection.direction);
+    restoreFabFocus(held);
   }
 
   function seatFab(outlet) {
@@ -285,12 +299,23 @@ export function createResponseSurface({
 
   function restoreFab({ place = true } = {}) {
     if (!fabInlineOutlet && fabBar.parentElement === responseHome) return false;
+    // Resetting the inline presentation hides the response before moving it back to the
+    // viewport plane. Capture the exact focused control first; hiding a focused subtree
+    // makes Chromium move focus to body before moveFab can observe what was held.
+    const held = captureFabFocus();
     stopFabPositioning({ reset: true });
     fabInlineOutlet = null;
     fabFloating = true;
     delete fabBar.dataset.lfPresentation;
     moveFab(responseHome);
-    if (place && fabAnchor && !placeFab()) showFab(null);
+    if (place && fabAnchor) {
+      const displacedFocus = focused();
+      if (!placeFab()) showFab(null);
+      else if (held)
+        void fabPositioned().then((positioned) => {
+          if (positioned && focused() === displacedFocus) restoreFabFocus(held);
+        });
+    }
     return true;
   }
 
@@ -382,7 +407,7 @@ export function createResponseSurface({
     if (!fabAnchor || !target) return false;
     const owner = fabTargetAt();
     const block = fabAnchor.quote && owner;
-    const readingRegion = owner && readingRegionFor(owner);
+    const readingRegion = owner && containingReadingRegionFor(owner);
     let regionBounds = readingRegion && shownRegionBounds(readingRegion);
     let boundary = floatBoundary(regionBounds);
     // Keep the response within its pane while that pane can hold the compact control.
@@ -713,9 +738,9 @@ export function createResponseSurface({
   // reader" the same way or they are not twins. An unclipped box alone is the box the item
   // would have: an item scrolled out of a board's sideways scroller still reports one
   // inside the window, so a gate reading that called it showing and opened the box on
-  // something off screen, which the unconditional travel it replaced never did. Any part
-  // showing is enough, which is also what keeps a box taller than the window from jumping
-  // to its top under a reader halfway down it.
+  // something off screen, which the unconditional travel it replaced never did. A clipped
+  // part is enough to offer a target, but not enough to place a response box against; the
+  // nearest reveal brings the rest in without moving an item already wholly in view.
   //
   // A collapsed ancestor zeroes its descendants' boxes, so a thing inside a shut
   // disclosure is never showing and takes the travel, `reveal` with it. Standing on the
@@ -731,11 +756,17 @@ export function createResponseSurface({
   function bringForward(addressable) {
     if (!addressable) return;
     const seen = shownRect(addressable, new Map());
-    if (!seen || seen.bottom <= BANNER_CLEAR) scrollToElement(addressable, "instant");
+    if (!seen || seen.bottom <= BANNER_CLEAR) {
+      scrollToElement(addressable, "instant");
+      return;
+    }
+    // A clipped sliver can be enough to offer a viewport-local hint, but not enough to
+    // place a response box against. `nearest` reveals it while leaving a target already
+    // in front of the reader exactly where it is.
+    scrollRevealedElement(addressable, "instant", "nearest");
   }
 
   function commentOnAddressable(addressable) {
-    bringForward(addressable);
     commentOnTarget({ anchor: { section: addressable.id }, element: addressable });
   }
 
@@ -743,9 +774,10 @@ export function createResponseSurface({
   // authored anchor; this command owns the one transition from that target into Comment.
   // Focusing the field drops any older browser selection, and an unsent draft follows the
   // deliberate move. A visual proxy supplies its origin so Escape can return to it.
-  function commentOnTarget({ anchor }, { origin = null } = {}) {
+  function commentOnTarget({ anchor, element = null }, { origin = null } = {}) {
     clearTimeout(selectionUpdate);
     selectionUpdate = null;
+    bringForward(element);
     targetActivation = true;
     const selection = getSelection();
     if (selection?.rangeCount) selection.removeAllRanges();

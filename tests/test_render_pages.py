@@ -30,6 +30,7 @@ from render_support import (
     DIAGRAM_ROOM,
     DRAWING_PLACEMENT,
     DRAWN_PAST_A_RAIL_PAGE,
+    EXAMPLE_PACKAGES,
     EXAMPLES,
     FRAMED_SCROLLER_PAGE,
     FRAMED_WIDE_PAGE,
@@ -2170,7 +2171,7 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
         route.fulfill(status=204)
 
     page.route("**/margin-width", answer_after_the_handover)
-    page.goto(serve(LATE_MARGIN_PAGE))
+    page.goto(serve(LATE_MARGIN_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")))
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
 
     at_stamp = page.evaluate("() => window.__handover")

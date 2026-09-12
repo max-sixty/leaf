@@ -118,6 +118,7 @@ that bar by itself; when uncertain, leave the thread open. Reply before resolvin
 leaf resolve <page> --to <thread-id>
 ```
 
-An acknowledged reader message still requires an explicit reply: acknowledgement
-only removes it from future deliveries, and a native assistant final message does
-not write to Leaf.
+An acknowledged reader message still requires a reply: acknowledgement only
+removes it from future deliveries. For an App Server turn bound to a delivery with
+exactly one plain reply, the normal assistant final message is that reply; every
+other response shape writes the explicit Leaf operation.

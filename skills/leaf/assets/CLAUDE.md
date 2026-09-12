@@ -55,6 +55,8 @@ animation frames retain their own timing contracts;
 `runtime/dom-children.js` reconciles retained children without moving nodes already in
 place; conversation owners supply reaction teardown when removing their surfaces;
 `runtime/focus.js` places focus on destinations, lending a tab stop only when needed;
+`runtime/root-state.js` records runtime-owned attributes and inline styles on the stable
+document roots so authored revision replacement can leave that live state in place;
 `runtime/anchor-coordinate.js` compares anchor records without resolving DOM;
 `runtime/walk-position.js` owns the transient ordinal for semantic Leaf keyboard walks,
 shown in the useful status at the page foot, and the brief boundary state when another
@@ -127,9 +129,9 @@ element the bottom status seats;
 allocation and bounded/flow posture transitions;
 `runtime/reading-layout.js` owns shared arrangement construction and furniture slots
 used by structural and compound widgets, plus the page-room observation lifecycle that
-root workspaces apply to their own minimum-size policy, holding the root at the box a
-bounded allocation would give it while that policy reads, so the posture a window
-settles on is the window's and not the posture it was read from;
+root workspaces apply to their own minimum-size policy; it reads the available room and
+minimum inside the bounded candidate while holding current document geometry, so the
+same window cannot settle differently based on the posture it arrived from;
 `runtime/pending/model.js` owns pending-record readings; `pending/state.js` owns the
 ordered gesture ledger, with no network or rendering dependencies;
 `runtime/delivery.js` owns serialized event delivery and retry, independently of whether

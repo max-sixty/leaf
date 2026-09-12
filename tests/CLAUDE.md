@@ -229,8 +229,8 @@ a green render against a stale page is a statement about that stale copy.
 
 ## Fixtures own the world they create
 
-Every test runs under `isolated_session`. It moves only the XDG config and state
-directories leaf reads, supplies a synthetic Claude Code session id, and claims
+Every test runs under `isolated_session`. It moves only the XDG state
+directory Leaf reads, supplies a synthetic Claude Code session id, and claims
 pages under the current pytest worker's pid. Do not replace it by moving `HOME`;
 uv's cache and unrelated developer state are not part of leaf's isolation
 boundary.

@@ -9,7 +9,6 @@ import {
   arrangeReadingElement,
   commands,
   compoundReadingRegionId,
-  effectiveScroller,
   failSoft,
   fitRootReadingElement,
   layoutChanged,
@@ -20,6 +19,7 @@ import {
   PRESS,
   projectData,
   registerReadingElement,
+  registerReadingRegion,
   registerThreadSurface,
   relabel,
   scopedMediaUrl,
@@ -102,21 +102,12 @@ customElements.define(
     #caseEntries = new Map();
     #casesBody = null;
     #commands = null;
-    #copyObserver = null;
-    #dialog = null;
-    #dialogBody = null;
     #evidenceHost = null;
-    #expand = null;
-    #expandedOrigin = null;
-    #expandedPlace = null;
     #fitting = null;
     #inspector = null;
     #layoutFrame = null;
     #mode = "compare";
     #onResize = () => this.#scheduleEvidenceLayout();
-    #onBeforePrint = () => {
-      this.#returnExpandedInspection();
-    };
     #opacity = 50;
     #progress = null;
     #queue = null;
@@ -139,23 +130,12 @@ customElements.define(
         readingArrangement: this.#arrangements.at(-1),
         minimumSize: () => ({ width: 720, height: 600 }),
       });
+      for (const [id, entry] of this.#caseEntries) this.#registerCaseRegion(id, entry);
       this.#sizes = new ResizeObserver(() => this.#scheduleEvidenceLayout());
       this.#sizes.observe(this);
       for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
         this.#sizes.observe(stage);
       window.addEventListener("resize", this.#onResize);
-      window.addEventListener("beforeprint", this.#onBeforePrint);
-      this.#copyObserver = new MutationObserver(() => {
-        if (
-          document.documentElement.classList.contains("lf-copy") &&
-          this.#dialog?.open
-        )
-          this.#returnExpandedInspection();
-      });
-      this.#copyObserver.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ["class"],
-      });
       settle(this.#fitting.update());
       this.#threadSurface ??= registerThreadSurface(this, {
         begin: () => {},
@@ -173,15 +153,15 @@ customElements.define(
       this.stopWatching = null;
       this.#threadSurface?.unregister();
       this.#threadSurface = null;
+      for (const entry of this.#caseEntries.values()) {
+        entry.stopReading?.();
+        entry.stopReading = null;
+      }
       this.#fitting?.cleanup();
       this.#fitting = null;
       this.#sizes?.disconnect();
       this.#sizes = null;
       window.removeEventListener("resize", this.#onResize);
-      window.removeEventListener("beforeprint", this.#onBeforePrint);
-      this.#copyObserver?.disconnect();
-      this.#copyObserver = null;
-      this.#returnExpandedInspection();
       if (this.#layoutFrame !== null) cancelAnimationFrame(this.#layoutFrame);
       this.#layoutFrame = null;
       this.#cleanupLayout();
@@ -252,7 +232,6 @@ customElements.define(
         partition.readingArrangement,
         workspace.readingArrangement,
       ];
-      this.#buildExpandedInspection();
       this.#registerCommands();
       this.#paintInspector();
     }
@@ -269,9 +248,6 @@ customElements.define(
       );
       this.#queue = this.#queueHost?.querySelector(".lf-vr-case-select");
       this.#inspector = this.#evidenceHost?.querySelector(".lf-vr-inspector");
-      this.#dialog = this.querySelector(":scope > .lf-vr-expanded");
-      this.#dialogBody = this.#dialog?.querySelector(":scope > .lf-vr-expanded-body");
-      this.#expand = this.#inspector?.querySelector(".lf-vr-expand");
       this.#casesBody = this.#evidenceHost?.querySelector(".lf-vr-cases");
       this.#title = this.querySelector(".lf-vr-title");
       this.#progress = this.querySelector(".lf-vr-progress");
@@ -283,9 +259,6 @@ customElements.define(
         !this.#evidenceHost ||
         !this.#queue ||
         !this.#inspector ||
-        !this.#dialog ||
-        !this.#dialogBody ||
-        !this.#expand ||
         !this.#casesBody ||
         !this.#title ||
         !this.#progress
@@ -326,98 +299,6 @@ customElements.define(
       ];
       this.#registerCommands();
       this.#paintInspector();
-    }
-
-    #buildExpandedInspection() {
-      this.#expand = offer("button", "lf-btn lf-vr-expand", "Expand inspection");
-      this.#expand.type = "button";
-      this.#expand.setAttribute("aria-haspopup", "dialog");
-      this.#expand.setAttribute("aria-expanded", "false");
-      this.#expand.addEventListener("click", () => this.#openExpandedInspection());
-      commands(this.#expand, "On visual evidence", [
-        {
-          id: "visual.expand",
-          keys: PRESS,
-          does: "Expand visual inspection",
-          line: "expand inspection",
-          returnFrame: () => ({
-            active: () => Boolean(this.#dialog?.open),
-            close: () => this.#returnExpandedInspection(),
-            does: "Return to the visual review",
-            line: "return to review",
-          }),
-          run: () => this.#expand.click(),
-        },
-      ]);
-      this.#inspector.append(this.#expand);
-
-      this.#dialog = make("dialog", "lf-vr-expanded lf-ui", null, false);
-      this.#dialog.setAttribute("aria-labelledby", `lf-${this.id}-expanded-title`);
-      const head = make("header", "lf-vr-expanded-head", null, false);
-      const title = make("strong", "lf-vr-expanded-title", "Expanded visual evidence");
-      title.id = `lf-${this.id}-expanded-title`;
-      const close = offer("button", "lf-btn lf-vr-expanded-close", "Close");
-      close.type = "button";
-      close.addEventListener("click", () => this.#returnExpandedInspection());
-      head.append(title, close);
-      this.#dialogBody = make("div", "lf-vr-expanded-body", null, false);
-      this.#dialog.append(head, this.#dialogBody);
-      this.#dialog.addEventListener("cancel", (event) => {
-        event.preventDefault();
-        this.#returnExpandedInspection();
-      });
-      this.#dialog.addEventListener("close", () => {
-        if (this.#dialog.open) return;
-        this.#returnExpandedInspection();
-      });
-      this.append(this.#dialog);
-    }
-
-    #openExpandedInspection() {
-      if (this.#dialog.open) return;
-      if (!this.#caseEntries.has(this.#selected)) return;
-      this.#expandedOrigin = document.activeElement;
-      const workspaceContent = this.querySelector(":scope > .lf-workspace-content");
-      const scroller = effectiveScroller(this);
-      this.#expandedPlace = {
-        scroller,
-        scrollTop: scroller.scrollTop,
-        overflowAnchor: scroller.style.overflowAnchor,
-        workspaceContent,
-        minimumHeight: workspaceContent.style.minHeight,
-      };
-      scroller.style.overflowAnchor = "none";
-      workspaceContent.style.minHeight = `${this.#partition.getBoundingClientRect().height}px`;
-      this.#dialogBody.append(this.#partition);
-      this.dataset.inspectionExpanded = "true";
-      this.#expand.setAttribute("aria-expanded", "true");
-      this.#dialog.showModal();
-      this.#dialog
-        .querySelector(".lf-vr-expanded-close")
-        .focus({ preventScroll: true });
-      this.#scheduleEvidenceLayout();
-    }
-
-    #returnExpandedInspection() {
-      const place = this.#expandedPlace;
-      if (!place) return;
-      place.workspaceContent.append(this.#partition);
-      place.workspaceContent.style.minHeight = place.minimumHeight;
-      this.#expandedPlace = null;
-      delete this.dataset.inspectionExpanded;
-      this.#expand.setAttribute("aria-expanded", "false");
-      const origin = this.#expandedOrigin;
-      this.#expandedOrigin = null;
-      if (this.#dialog.open) this.#dialog.close();
-      this.#paintEvidenceLayout();
-      // Resolve the returned partition's CSS-owned flow height before restoring the
-      // document position; no later evidence paint changes that outer geometry.
-      this.#partition.getBoundingClientRect();
-      place.scroller.scrollTop = place.scrollTop;
-      if (origin?.isConnected) origin.focus({ preventScroll: true });
-      place.scroller.scrollTop = place.scrollTop;
-      place.scroller.style.overflowAnchor = place.overflowAnchor;
-      layoutChanged(this);
     }
 
     #buildInspector() {
@@ -625,10 +506,12 @@ customElements.define(
         ? [activeFocus.height, activeFocus.height]
         : heights;
       const stageWidth = entry.shotHost.clientWidth;
-      const bounded = this.#dialog?.open || this.dataset.lfReadingPosture === "bounded";
-      if (bounded) entry.shotHost.style.setProperty("--lf-vr-stage-height", "100%");
-      else entry.shotHost.style.removeProperty("--lf-vr-stage-height");
-      const stageHeight = entry.shotHost.clientHeight;
+      const bounded = this.dataset.lfReadingPosture === "bounded";
+      // Flow layout follows the widget's own width, so scrolling cannot make a later
+      // paint-only inspection control resize the evidence and move the document.
+      const stageHeight = bounded
+        ? entry.shotHost.clientHeight
+        : Math.max(220, Math.min(560, stageWidth / 2));
       if (stageHeight <= 0) return;
 
       const gap = 8;
@@ -693,6 +576,10 @@ customElements.define(
         "--lf-vr-frame-width",
         `${Math.max(1, width * scale)}px`,
       );
+      entry.shotHost.style.setProperty(
+        "--lf-vr-stage-height",
+        bounded ? "100%" : `${stageHeight}px`,
+      );
     }
 
     #cleanupLayout() {
@@ -702,7 +589,7 @@ customElements.define(
 
     #registerCommands() {
       if (this.#commands) return;
-      this.#commands = commands(this.#partition, "In a visual review", [
+      this.#commands = commands(this, "In a visual review", [
         {
           id: "visual.next-case",
           keys: ["ArrowDown"],
@@ -757,8 +644,10 @@ customElements.define(
       this.#inspector.hidden = true;
       this.#evidenceHost.append(this.#inspector);
       this.#queue.replaceChildren();
-      for (const { shotHost } of this.#caseEntries.values())
+      for (const { shotHost, stopReading } of this.#caseEntries.values()) {
         this.#sizes?.unobserve(shotHost);
+        stopReading?.();
+      }
       this.#caseEntries.clear();
       this.#selected = null;
       this.#paintNavigation();
@@ -785,6 +674,7 @@ customElements.define(
       for (const [id, entry] of this.#caseEntries) {
         if (wanted.has(id)) continue;
         this.#sizes?.unobserve(entry.shotHost);
+        entry.stopReading?.();
         entry.option.remove();
         entry.article.remove();
         this.#caseEntries.delete(id);
@@ -906,11 +796,37 @@ customElements.define(
       threadOutlet.dataset.lfGen = "1";
       threadOutlet.setAttribute("aria-label", "Threads on this visual case");
       article.append(heading, claim, toolbar, shotHost, support, threadOutlet);
-      return { article, option, shotHost, record: null, index: 0, total: 0 };
+      const entry = {
+        article,
+        option,
+        shotHost,
+        stopReading: null,
+        record: null,
+        index: 0,
+        total: 0,
+      };
+      this.#registerCaseRegion(id, entry);
+      return entry;
+    }
+
+    #registerCaseRegion(id, entry) {
+      if (entry.stopReading) return;
+      // The case's prose and controls are its furniture; the aligned captures are what
+      // the reader pages through. Making that relationship a nested reading region lets
+      // the shared d/u and j/k routes follow the selected case without a package key.
+      entry.stopReading = registerReadingRegion({
+        id: compoundReadingRegionId(this, `case-${id}`),
+        host: entry.article,
+        body: entry.shotHost,
+      });
     }
 
     #updateCase(entry, record, index, total) {
       entry.article.dataset.classification = record.classification;
+      entry.article.setAttribute(
+        "aria-label",
+        `Visual review case ${index + 1} of ${total}`,
+      );
       entry.record = record;
       entry.index = index;
       entry.total = total;
@@ -1005,6 +921,12 @@ customElements.define(
 
     #select(id) {
       if (!this.#caseEntries.has(id)) return;
+      const currentEntry = this.#caseEntries.get(this.#selected);
+      const active = document.activeElement;
+      const leavingCase = Boolean(active && currentEntry?.article.contains(active));
+      const disposition = leavingCase
+        ? active.closest(".lf-vr-disposition")?.dataset.disposition
+        : null;
       if (id !== this.#selected) this.#scope = "focus";
       this.#selected = id;
       for (const [caseId, entry] of this.#caseEntries) {
@@ -1013,12 +935,31 @@ customElements.define(
         entry.option.selected = selected;
       }
       const selected = this.#caseEntries.get(id);
-      selected.article.querySelector(".lf-vr-toolbar-slot").append(this.#inspector);
+      const toolbar = selected.article.querySelector(".lf-vr-toolbar-slot");
+      if (this.#inspector.parentElement !== toolbar) toolbar.append(this.#inspector);
       this.#paintInspector();
       this.#threadSurface?.update();
       layoutChanged(this);
       this.#scheduleEvidenceLayout();
       paintKeys();
+      // Moving the shared inspector between articles makes the browser drop its focus.
+      // Restore that exact destination; a hidden case-local control instead lands on
+      // the corresponding disposition — or the primary disposition when it has no
+      // counterpart — rather than leaving a keyboard reader on the document body.
+      if (
+        leavingCase &&
+        (document.activeElement !== active ||
+          !active.isConnected ||
+          !active.checkVisibility())
+      ) {
+        const counterpart =
+          active.isConnected && active.checkVisibility()
+            ? active
+            : disposition
+              ? selected.article.querySelector(`[data-disposition="${disposition}"]`)
+              : selected.article.querySelector(".lf-vr-disposition");
+        counterpart?.focus({ preventScroll: true });
+      }
     }
 
     #step(delta) {

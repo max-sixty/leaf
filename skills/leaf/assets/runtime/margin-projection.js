@@ -75,7 +75,11 @@ import { clampedRow, PRESS } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { ago, clocked } from "./presence.js";
 import { runtime } from "./context.js";
-import { readingRegionFor, shownRegionBounds } from "./reading-regions.js";
+import {
+  containingReadingRegionFor,
+  readingRegionFor,
+  shownRegionBounds,
+} from "./reading-regions.js";
 import { panelWouldCover } from "./conversation/panel-elements.js";
 import { COVERING } from "./chrome-layout.js";
 
@@ -821,7 +825,7 @@ export function createMarginProjection({
     const controls =
       previewMarginEntry.closest("[data-lf-margin-for]") ?? previewMarginEntry;
     const target = controls.getBoundingClientRect();
-    const readingRegion = readingRegionFor(previewEntry?.target);
+    const readingRegion = containingReadingRegionFor(previewEntry?.target);
     const regionBounds = readingRegion && shownRegionBounds(readingRegion);
     const main = readingRegion
       ? null

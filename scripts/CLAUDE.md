@@ -48,12 +48,13 @@ rules a new or changed example has to meet.
   `main`; it runs the local check before the first public operation, then verifies the
   exact release again after deployment. That production pass also sends one private
   comment and requires the hosted Codex task to publish a revision and reply. With
-  `LEAF_VERIFY_AGENT=1`, `verify-site.py` prints the request acknowledgement, activity
-  transitions, publication, reply, and changed-page presentation timings. A turn the
-  container settles with its own generation failure is asked once more, because that
-  settlement reports the model rather than the release; every other ending is a red
-  deployment on the first ask.
-  `verify-site-agent-local.sh` runs the same delivery, App Server, edit, publication,
+  `verify_site.py --agent`, the verifier prints the request acknowledgement, activity
+  transitions, publication, reply, and changed-page presentation timings. The Worker's
+  structured `startup_failed` reply triggers one retry; rate limits and all other
+  unsuccessful endings fail the deployment on the first ask. `worker/README.md` owns
+  the failure contract.
+  `uv run scripts/verify_site.py local` runs the same delivery, App Server, edit,
+  publication,
   reply, and browser-reload path against the host's Codex login. It bypasses the
   Cloudflare Worker, container resources, and outbound credential proxy, so
   it checks agent behavior without measuring production infrastructure.

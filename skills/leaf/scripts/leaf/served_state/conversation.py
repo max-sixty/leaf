@@ -60,6 +60,7 @@ def browser_conversation(
     events: list,
     registry: dict,
     threads: dict,
+    live_reply: dict | None = None,
 ) -> tuple[dict, FrozenThreadReading]:
     settled = {identity for identity, thread in threads.items() if thread["resolved"]}
     reading = frozen_thread_reading(events, registry)
@@ -101,6 +102,37 @@ def browser_conversation(
         }
         for thread_id, thread in threads.items()
     ]
+    if live_reply is not None and not any(
+        event.get("responds") == live_reply.get("responds") for event in events
+    ):
+        target = next(
+            (
+                thread
+                for thread in rendered_threads
+                if any(
+                    message["id"] == live_reply.get("reply_to")
+                    for message in thread["msgs"]
+                )
+            ),
+            None,
+        )
+        if target is not None:
+            target["msgs"] = [
+                *target["msgs"],
+                {
+                    "id": f"codex-stream:{live_reply['turn']}",
+                    "attempt": live_reply["attempt"],
+                    "kind": "reply",
+                    "addressable": False,
+                    "author": "claude",
+                    "agent": live_reply.get("agent") or "Codex",
+                    "parent": live_reply["reply_to"],
+                    "text": live_reply.get("text", ""),
+                    "ts": live_reply["ts"],
+                    "pending": live_reply.get("state") == "active",
+                    "stream_state": live_reply.get("state"),
+                },
+            ]
     withdrawn = taken_back(events)
     return (
         {

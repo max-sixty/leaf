@@ -77,11 +77,11 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
-- **Decide whether expanded inspection remains a visual-review view.** Compare an
-  embedded review using Expand inspection with the same run as a bounded root review.
-  Keep expansion package-owned until a second interactive object proves the same entry,
-  state-preservation, return, narrow-screen, copy, and print lifecycle; remove it if
-  focused workspaces cover the real tasks without another mode.
+- **Decide whether visual review needs expanded inspection.** Compare an embedded review
+  with the same run as a bounded root review. Add expansion only if focused workspaces do
+  not cover the real tasks, and keep it package-owned until a second interactive object
+  proves the same entry, state-preservation, return, narrow-screen, copy, and print
+  lifecycle.
 
 - **Test whether one Leaf artifact needs several page-level views.** Start from a real
   task that cannot remain coherent as one document or one queue/detail workspace. Compare

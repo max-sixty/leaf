@@ -6,8 +6,7 @@
 
    Two numbers here are spelled again in the runtime, and a layer test holds each pair
    equal: the covering queries `(width <= 840px)` and `(width > 840px)` are twice
-   THREAD_PANEL_W (chrome-layout.js), `(width <= 600px)` is twice TRAY_SLOT_W (trays.js), and the
-   tray that takes a strip, `[data-lf-auxiliary-surface="asks"]`, is trays.js's BESIDE_TRAYS. A
+   THREAD_PANEL_W (chrome-layout.js), and `(width <= 600px)` is twice TRAY_SLOT_W (trays.js). A
    container or media query cannot read a custom property, which is why each query is a
    literal rather than the --lf-thread-panel-width the runtime writes. */
 /* `.lf-chrome` is one fixed runtime root containing the banner, tray panel, thread panel,
@@ -1702,7 +1701,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
   .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
-  .lf-margin-thread .lf-say { align-items: stretch; }
+  /* The reply surround shares the conversation's opaque surface, including its focus
+     tint, so pinning the reply cannot introduce a separate background band. */
+  :where(.lf-margin-thread) .lf-conversation-thread { background: var(--paper); }
+  .lf-margin-thread .lf-say { align-items: stretch; background: inherit; }
   .lf-margin-thread .lf-say textarea { min-width: 0; }
   .lf-margin-preview[data-lf-thread] .lf-margin-thread-body > .lf-conversation-thread {
     position: static; }

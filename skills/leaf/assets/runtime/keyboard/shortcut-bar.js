@@ -30,17 +30,16 @@
 
    `syncLayout` reserves the line's footprint only in a scroll region whose horizontal
    span meets it. Each reservation is the band from the line's top to that region's own
-   foot: the window for the document and trays, and the thread list's rendered bottom at
-   the top of the complete panel foot. The line's height, inset, any lift and the device's
-   safe area are therefore one measurement off the rendered box rather than four numbers
-   to keep in step. Over a covering thread panel, the line starts at its ordinary bottom
-   inset and rises above the panel foot only when their rendered rectangles collide. A
-   coarse pointer is drawn no hint line at all — there is no keyboard to advertise, and
-   every hint would name a key the reader cannot press. A covering-width layout stacks
-   the status above the line. The line, status, and chips take no pointer events; the More
-   control does, because it is the pointer route to the reference. Brief reader feedback
-   replaces an ordinal and then restores its live reading; background arrivals queue
-   behind reader feedback and persistent command context.
+   foot. The line's height, inset and the device's safe area are therefore one measurement
+   off the rendered box rather than separate numbers to keep in step. A covering thread
+   panel makes the line inert background, so that foreground neither moves it nor reserves
+   its own list around it. A coarse pointer is drawn no hint line at all — there
+   is no keyboard to advertise, and every hint would name a key the reader cannot press.
+   A covering-width layout stacks the status above the line. The line, status, and chips
+   take no pointer events; the More control does, because it is the pointer route to the
+   reference. Brief reader feedback replaces an ordinal and then restores its live
+   reading; background arrivals queue behind reader feedback and persistent command
+   context.
 
    The accessible More control and its `?` binding share one progressive route. The first
    activation unfolds additional current-scene rows into a shelf capped at two lines; the

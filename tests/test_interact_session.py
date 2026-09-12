@@ -256,9 +256,7 @@ def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
     )
     delivery = freeze_events(page_dir, [chosen])
 
-    result = CliRunner().invoke(
-        cli_model.cli, ["delivery", "claim", delivery["id"]]
-    )
+    result = CliRunner().invoke(cli_model.cli, ["delivery", "claim", delivery["id"]])
 
     assert result.exit_code == 0, result.output
     assert f"working on widget choice for event {chosen['id']}" in result.output
@@ -271,9 +269,7 @@ def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
 
     # A later open-ended subject claim is useful for work that outlives this
     # delivery, but it is not a second interaction beside the exact Active receipt.
-    continued = _status(
-        page_dir, "working", "Applying the choice", "--on", "choice"
-    )
+    continued = _status(page_dir, "working", "Applying the choice", "--on", "choice")
     assert continued.exit_code == 0, continued.output
     [receipt] = page_state(page_dir)["activity"]["interactions"]
     assert (receipt["event"], receipt["phase"]) == (chosen["id"], "active")

@@ -67,9 +67,7 @@ def canonical_acknowledgments(
         if update["disposition"] == "effective"
     }
     interaction_claims = {
-        claim["event"]: claim
-        for claim in claims
-        if claim.get("scope") == "interaction"
+        claim["event"]: claim for claim in claims if claim.get("scope") == "interaction"
     }
     used_claims = set()
     used_targets = set()
@@ -91,10 +89,14 @@ def canonical_acknowledgments(
             (entry["seq"] for entry in (opened, queued) if entry),
             default=source["seq"],
         )
-        claim_matches = claim and claim["target"] == target and (
-            claim.get("scope") == "interaction"
-            or target["kind"] == "widget"
-            or claim.get("event") == source["id"]
+        claim_matches = (
+            claim
+            and claim["target"] == target
+            and (
+                claim.get("scope") == "interaction"
+                or target["kind"] == "widget"
+                or claim.get("event") == source["id"]
+            )
         )
         if claim_matches and claim["log_floor"] >= delivery_seq:
             phase, evidence = "active", claim
@@ -268,9 +270,7 @@ def canonical_acknowledgments(
     # without inventing pickup evidence.
     for claim in effective_claims.values():
         target = claim["target"]
-        if claim["id"] in used_claims or (
-            target["kind"], target["id"]
-        ) in used_targets:
+        if claim["id"] in used_claims or (target["kind"], target["id"]) in used_targets:
             continue
         acknowledgments.append(
             {

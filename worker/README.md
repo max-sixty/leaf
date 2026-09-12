@@ -93,6 +93,8 @@ model activity, first native model message, and turn completion. Item records ca
 the App Server timestamp, item type, duration, and command outcome where available;
 they never carry item content. Leaf's record omits message text, prompts, source IP
 keys, cookies, and private session ids. Cloudflare wraps it in invocation metadata.
+The `agent_response_started` and `agent_response_completed` records isolate Leaf's
+validation, publication, and event append from the surrounding model command.
 The trusted outbound handler adds a content-free record when Codex falls back from its
 WebSocket probe to the supported HTTP transport, then model request, response-header,
 first-byte, first-output, and completion records. Those records carry Codex's thread
@@ -182,7 +184,11 @@ startup failure appends a short failure reply through the same event log. The ac
 event and active turn are not yet mirrored into Durable Object storage, and no alarm
 recovers work that exceeds the Worker's 30-second `waitUntil` window.
 Container startup warms App Server and the Leaf CLI entrypoint concurrently, reducing
-cold runtime-filesystem work before the model's first response command.
+cold runtime-filesystem work before a model command. A reply uses the private
+capability-authenticated `$LEAF_REPLY` adapter already running in the container instead
+of starting another Python process with Leaf's dependency graph. That adapter still
+calls the canonical `leaf reply` implementation, including source validation and
+publication; `$LEAF` remains the interface for delivery reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
 Only explicit `leaf reply`, a page revision closed with `leaf resolve`, and `leaf
 receipt` settle accepted input; the turn's final assistant message remains in the

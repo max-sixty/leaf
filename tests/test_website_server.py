@@ -24,6 +24,11 @@ _spec = importlib.util.spec_from_file_location(
 )
 website_server = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(website_server)
+_reply_spec = importlib.util.spec_from_file_location(
+    "website_reply", ROOT / "worker" / "reply.py"
+)
+website_reply = importlib.util.module_from_spec(_reply_spec)
+_reply_spec.loader.exec_module(website_reply)
 _previews_spec = importlib.util.spec_from_file_location(
     "example_previews", ROOT / "scripts" / "example-previews.py"
 )
@@ -79,6 +84,7 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
 class FakeCodexHost:
     def __init__(self):
         self.attached = []
+        self.responded = []
 
     def attach(self, page_dir: Path, event_id: str) -> str | None:
         if not website_server.agent_event_pending(page_dir, event_id):
@@ -88,6 +94,9 @@ class FakeCodexHost:
             return thread_id
         self.attached.append(page_dir)
         return "codex-thread"
+
+    def response_authorized(self, authorization: str | None) -> bool:
+        return authorization == "Bearer adapter-secret"
 
     def fallback_reply(self, page_dir: Path, event_id: str, text: str) -> dict | None:
         return website_server.cmd_reply(
@@ -101,6 +110,10 @@ class FakeCodexHost:
             only_if_unclaimed=True,
             identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
         )
+
+    def respond(self, page_dir: Path, event_id: str, text: str, **target) -> dict:
+        self.responded.append((page_dir, event_id, text, target))
+        return {"id": "fast-reply"}
 
 
 PAGE_SOURCE = """<!doctype html>
@@ -534,6 +547,39 @@ def test_a_deployed_benchmark_writes_the_origin_sample(tmp_path, monkeypatch):
     assert json.loads(output.read_text()) == {"release": None}
 
 
+def test_the_private_reply_client_resolves_manifest_routes(tmp_path):
+    site = tmp_path / "site"
+    pages = {
+        "/": ("_leaf/pages/index", "product"),
+        "/examples": ("_leaf/pages/examples", "product"),
+        "/examples/triage-board": ("examples/triage-board", "example"),
+    }
+    write_manifest(site, pages)
+    for route, (directory, _kind) in pages.items():
+        page_dir = site / directory
+        page_dir.mkdir(parents=True, exist_ok=True)
+        expected = "" if route == "/" else route
+        assert website_reply.published_route(page_dir) == expected
+
+
+def test_the_private_reply_client_carries_a_new_thread_target():
+    assert website_reply.response_payload(
+        [
+            "reader-event",
+            "Moved the thread.",
+            "--section",
+            "result",
+            "--part",
+            "chart",
+        ]
+    ) == {
+        "event": "reader-event",
+        "text": "Moved the thread.",
+        "section": "result",
+        "part": "chart",
+    }
+
+
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
     """A hosted task must not discover or initialize another plugin environment."""
     site_root = tmp_path / "site"
@@ -559,6 +605,12 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
 
     assert host._ensure_server() is not None
     assert launched["options"]["env"]["LEAF"] == website_server.LEAF_COMMAND
+    assert (
+        launched["options"]["env"]["LEAF_REPLY"] == website_server.AGENT_REPLY_COMMAND
+    )
+    assert launched["options"]["env"]["LEAF_REPLY_TOKEN"] == str(host.reply_token_path)
+    assert host.reply_token_path.read_text(encoding="utf-8") == host.reply_token
+    assert host.reply_token_path.stat().st_mode & 0o777 == 0o600
     assert launched["options"]["cwd"] == str(site_root)
     assert "LEAF_SKILL_DIR" not in launched["options"]["env"]
     assert launched["command"] == [
@@ -570,8 +622,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "$LEAF" in website_server.CODEX_INSTRUCTIONS
     assert "structured `leaf_delivery` tool output" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF delivery read ID" in website_server.CODEX_INSTRUCTIONS
-    assert '$LEAF reply . --text "..."' in website_server.CODEX_INSTRUCTIONS
-    assert "--for EVENT_ID" in website_server.CODEX_INSTRUCTIONS
+    assert '$LEAF_REPLY EVENT_ID "..."' in website_server.CODEX_INSTRUCTIONS
     assert "no separate `leaf publish` command" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF version check" not in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF status" not in website_server.CODEX_INSTRUCTIONS
@@ -794,23 +845,28 @@ def test_closing_the_website_host_stops_its_app_server(tmp_path):
     process = Process()
     host.process = process
     host.socket_path.touch()
+    host.reply_token_path.write_text(host.reply_token, encoding="utf-8")
+    host.reply_token_owned = True
 
     host.close()
 
     assert process.stopped
     assert host.process is None
     assert not host.socket_path.exists()
+    assert not host.reply_token_path.exists()
 
 
 def test_closing_a_host_that_started_no_server_preserves_the_shared_socket(tmp_path):
-    """A passive host does not own another host's process-global socket."""
+    """A passive host does not own another host's process-global files."""
     socket_path = tmp_path / "app-server.sock"
     socket_path.touch()
     host = website_server.WebsiteCodexHost("codex", socket_path)
+    host.reply_token_path.write_text("another host's token", encoding="utf-8")
 
     host.close()
 
     assert socket_path.exists()
+    assert host.reply_token_path.read_text(encoding="utf-8") == "another host's token"
 
 
 def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
@@ -1346,6 +1402,33 @@ def test_a_host_fallback_does_not_answer_input_an_agent_turn_already_claimed(
     assert reply is None
 
 
+def test_a_claimed_website_turn_replies_through_the_running_adapter(page_dir):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    website_server.accept_codex_delivery("hosted-thread")
+
+    reply = website_server.WebsiteCodexHost("codex").respond(
+        page_dir,
+        comment["id"],
+        "Done.",
+        quote="The cutoff lives in",
+        section="plan",
+    )
+
+    assert reply["parent"] == comment["id"]
+    assert reply["responds"] == comment["id"]
+    assert reply["text"] == "Done."
+    assert reply["session"] == "hosted-thread"
+    assert reply["attempt"] == website_server.agent_attempt(comment["id"])
+    assert reply["revision"] == 1
+    assert reply["anchor"]["section"] == "plan"
+    assert reply["anchor"]["quote"] == "The cutoff lives in"
+
+
 def test_a_host_fallback_survives_an_invalid_candidate_source(page_dir):
     comment = append_event(
         page_dir,
@@ -1543,6 +1626,33 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         )
         assert started == {"status": "started", "thread": "codex-thread"}
         assert agent_host.attached == [published]
+
+        with pytest.raises(urllib.error.HTTPError) as unauthorized:
+            post(
+                f"{root}/examples/decision/_leaf/agent/respond",
+                {"event": comment["id"], "text": "Forged."},
+            )
+        assert unauthorized.value.code == 403
+
+        responded, _ = post(
+            f"{root}/examples/decision/_leaf/agent/respond",
+            {
+                "event": comment["id"],
+                "text": "This uses the private adapter.",
+                "quote": "The cutoff lives in",
+                "section": "plan",
+            },
+            {"Authorization": "Bearer adapter-secret"},
+        )
+        assert responded == {"status": "appended", "event": "fast-reply"}
+        assert agent_host.responded == [
+            (
+                published,
+                comment["id"],
+                "This uses the private adapter.",
+                {"quote": "The cutoff lives in", "section": "plan", "part": ""},
+            )
+        ]
 
         monkeypatch.setenv("LEAF_AGENT", "Leaf guide")
         monkeypatch.setenv("LEAF_SESSION_ID", "leaf-website-agent")

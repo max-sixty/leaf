@@ -13,10 +13,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from interact_support import neighbour_page
 from leaf.codex import _queues as codex_queues
 from leaf.event_log import append_event, read_events
+from leaf.host import state_home
 from leaf.hosting import server_at
 from leaf.http import supervised_document
+from leaf.presence import other_leaves
 
 ROOT = Path(__file__).parent.parent
 _spec = importlib.util.spec_from_file_location(
@@ -1979,6 +1982,25 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
         "agent": "Leaf guide",
         "install_url": "/#install",
     }
+
+
+def test_catalog_captures_exclude_the_hosts_open_pages(page_dir, tmp_path):
+    site = tmp_path / "site"
+    published = site / "examples" / "decision"
+    published.parent.mkdir(parents=True)
+    shutil.copytree(page_dir, published)
+    (site / "sitenote.js").write_text("export {};\n")
+    write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
+    host_home = state_home()
+    neighbour_page(host_home / "pages" / "work", title="Private host work")
+    assert [page["title"] for page in other_leaves(published)] == ["Private host work"]
+
+    with example_previews.serve_examples(site) as root:
+        state = json.loads(get(f"{root}/examples/decision/api/state")[0])
+        assert state["others"] == []
+
+    assert state_home() == host_home
+    assert [page["title"] for page in other_leaves(published)] == ["Private host work"]
 
 
 def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypatch):

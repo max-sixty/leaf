@@ -1702,7 +1702,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
   .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
-  .lf-margin-thread .lf-say { align-items: stretch; }
+  /* The reply surround shares the conversation's opaque surface, including its focus
+     tint, so pinning the reply cannot introduce a separate background band. */
+  :where(.lf-margin-thread) .lf-conversation-thread { background: var(--paper); }
+  .lf-margin-thread .lf-say { align-items: stretch; background: inherit; }
   .lf-margin-thread .lf-say textarea { min-width: 0; }
   .lf-margin-preview[data-lf-thread] .lf-margin-thread-body > .lf-conversation-thread {
     position: static; }

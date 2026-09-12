@@ -7539,6 +7539,155 @@ def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
     page.close()
 
 
+def test_ask_rows_keep_identity_and_activate_the_current_document_order(browser, serve):
+    """A keyed row survives reorder, hands off focus, and resolves its id at press time."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    page.locator(".lf-asks").click()
+    rows = page.locator("button.lf-asks-row")
+    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+
+    page.evaluate(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          window.__lfReadAskPresentation = readApplicationPresentation;
+          const rows = [...document.querySelectorAll('button.lf-asks-row')];
+          window.__lfAskRows = new Map(rows.map(row => [row.dataset.lfAt, row]));
+          const honored = document.querySelector('#honored-decision');
+          document.querySelector('#live-question-decision').before(honored);
+          window.__lfAskRows.get('sug-refill').focus();
+          document.dispatchEvent(new Event('lf-presentation'));
+        }"""
+    )
+    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
+    assert rows.evaluate_all("items => items.map(item => item.dataset.lfAt)") == [
+        "honored-decision",
+        "live-question-decision",
+        "sug-refill",
+        "t-baffles-decision",
+        "t-bath-decision",
+    ]
+    assert rows.evaluate_all(
+        "items => items.every(item => window.__lfAskRows.get(item.dataset.lfAt) === item)"
+    )
+    expect(page.locator('.lf-asks-row[data-lf-at="sug-refill"]')).to_be_focused()
+
+    # Removing the focused Ask hands its place to the next surviving keyed row.
+    page.evaluate(
+        """() => {
+          document.querySelector('#sug-refill').remove();
+          document.dispatchEvent(new Event('lf-presentation'));
+        }"""
+    )
+    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
+    expect(
+        page.locator('.lf-asks-row[data-lf-at="t-baffles-decision"]')
+    ).to_be_focused()
+    assert rows.evaluate_all(
+        "items => items.every(item => window.__lfAskRows.get(item.dataset.lfAt) === item)"
+    )
+
+    # Reorder the page again without repainting the list. The existing row resolves its
+    # id through current allAsks(), so its arrival reports its new ordinal rather than
+    # the order or element from the prior row model.
+    page.evaluate(
+        """() => {
+          document.querySelector('main').append(document.querySelector('#honored-decision'));
+          document.querySelector('.lf-live').textContent = '';
+        }"""
+    )
+    page.locator('.lf-asks-row[data-lf-at="honored-decision"]').click()
+    expect(page.locator("#honored-decision")).to_be_focused()
+    expect(page.locator(".lf-live")).to_have_text("Ask 4 of 4 answered")
+    assert errors == []
+    page.close()
+
+
+def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
+    held_events, serve
+):
+    """Receipt settlement cannot retire optimism before the Ask row has painted it."""
+    browser, held = held_events
+    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page.locator(".lf-asks").click()
+    row = page.locator("button.lf-asks-row")
+    expect(row).to_have_count(1)
+    expect(row.locator(".lf-asks-answer")).to_have_text("")
+    page.evaluate(
+        """async () => {
+          const {readApplication, readApplicationPresentation} =
+            await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          window.__lfReadAskApplication = readApplication;
+          window.__lfReadAskPresentation = readApplicationPresentation;
+          const list = document.querySelector('lf-asks-tray-list');
+          const schedule = list.scheduleUpdate.bind(list);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          window.__lfReleaseAskPaint = release;
+          let next = true;
+          list.scheduleUpdate = async () => {
+            if (next) {
+              next = false;
+              await held;
+            }
+            return schedule();
+          };
+        }"""
+    )
+
+    page.locator("#storage-stop").click()
+    holding(page, held, 1, "the held answer")
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    page.wait_for_function(
+        "() => __lfReadAskApplication().unresolved.some(entry => entry.answered)"
+    )
+    assert "asks" in page.evaluate("__lfReadAskPresentation().pending")
+    assert page.evaluate("__lfReadAskApplication().unresolved.length") == 1
+    expect(row.locator(".lf-asks-answer")).to_have_text("")
+
+    page.evaluate("__lfReleaseAskPaint()")
+    round_trip(page)
+    page.wait_for_function("() => __lfReadAskApplication().unresolved.length === 0")
+    expect(row.locator(".lf-asks-answer")).to_have_text("Pause offline editing")
+    assert errors == []
+    page.close()
+
+
+def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
+    browser, serve
+):
+    """The application settles a failed Lit ticket with the usable prior keyed rows."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    page.locator(".lf-asks").click()
+    rows = page.locator("button.lf-asks-row")
+    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+    page.evaluate(
+        """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          window.__lfReadAskPresentation = readApplicationPresentation;
+          const list = document.querySelector('lf-asks-tray-list');
+          window.__lfAskRows = [...list.querySelectorAll('button.lf-asks-row')];
+          const render = list.render.bind(list);
+          list.render = () => {
+            list.render = render;
+            throw new Error('deliberate Ask list failure');
+          };
+          document.dispatchEvent(new Event('lf-presentation'));
+        }"""
+    )
+    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
+    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+    assert rows.evaluate_all(
+        "items => items.every((item, at) => item === window.__lfAskRows[at])"
+    )
+    rows.first.click()
+    expect(page.locator("#live-question-decision")).to_be_focused()
+    assert errors == ["leaf: Presentation failed: deliberate Ask list failure"]
+    page.close()
+
+
 def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
     browser, serve
 ):
@@ -7619,20 +7768,26 @@ def test_an_empty_option_uses_its_id_as_the_answer(browser, serve):
 
 def test_an_ask_rejects_two_answer_readers_even_when_their_words_match(browser, serve):
     page, errors = open_page(browser, serve(ASKS_PAGE))
+    page.locator(".lf-asks").click()
+    expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
     page.evaluate(
         """async () => {
+          const {readApplicationPresentation} = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          window.__lfReadAskPresentation = readApplicationPresentation;
           const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const options = document.getElementById('honored');
           const extra = document.createElement('span');
           options.append(extra);
           commands(extra, 'Duplicate answer', [], {answer: () => 'Two-tier gates'});
+          document.dispatchEvent(new Event('lf-presentation'));
         }"""
     )
-
-    with page.expect_event("pageerror") as raised:
-        page.locator(".lf-asks").click()
-    assert "honored-decision has more than one answer reader" in str(raised.value)
-    assert any("more than one answer reader" in error for error in errors)
+    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
+    expect(page.locator("button.lf-asks-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
+    assert errors == [
+        "leaf: Presentation failed: Ask honored-decision has more than one answer reader"
+    ]
     page.close()
 
 

@@ -12,6 +12,7 @@ import { walkRows } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { iconElement } from "./icons.js";
 import { dismissBannerControls, focusBannerControl } from "./banner-shelf.js";
+import { createAskTrayList } from "./asks/tray-list.js";
 // The left side holds one tray at a time. `setOpenTray` owns `openTrayKey` and renders the
 // complete outcome for leaves and asks. The leaves tray overlays the document because its
 // rows leave the page. The asks tray takes a strip because its rows travel within the
@@ -69,14 +70,14 @@ export const trayCovers = () => trayCovering.matches;
 // walked to the end of. Callers state the clearance; this owner decides which lists it
 // reaches and how each one spends it.
 const trayLists = [];
-function trayFurniture(panel, name) {
+function trayFurniture(panel, name, list = el("div", "lf-tray-list")) {
   const head = el("div", "lf-tray-head");
   const title = el("span", "lf-auxiliary-title", name);
   const close = el("button", "lf-btn lf-icon-action lf-close-action");
   close.append(iconElement("cross", "lf-action-icon"));
   close.title = `Close ${name.toLowerCase()} (Esc)`;
   close.setAttribute("aria-label", `Close ${name.toLowerCase()}`);
-  const list = el("div", "lf-tray-list");
+  list.classList.add("lf-tray-list");
   head.append(title, close);
   panel.append(head, list);
   trayLists.push(list);
@@ -118,7 +119,7 @@ export const asksPanel = el("nav", "lf-ui lf-tray-panel lf-asks-panel");
 asksPanel.id = "lf-asks";
 asksPanel.setAttribute("aria-label", "Asks from this page");
 asksPanel.tabIndex = -1;
-const asksFurniture = trayFurniture(asksPanel, "Asks");
+const asksFurniture = trayFurniture(asksPanel, "Asks", createAskTrayList());
 export const asksList = asksFurniture.list;
 
 // The left edge holds one tray at a time. Leaves and asks are the same furniture asking

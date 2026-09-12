@@ -22,6 +22,7 @@ test("locked source reproduces the complete committed output", async () => {
     "createPresentationCoordinator",
     "createSemanticApplication",
     "html",
+    "repeat",
   ]);
   assert.deepEqual(manifest.externalizedModules, []);
   const map = JSON.parse(outputs.get(`${outputRoot}/browser-runtime.js.map`));

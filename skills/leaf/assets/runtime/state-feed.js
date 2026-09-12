@@ -15,7 +15,7 @@
 
 import { countTraffic } from "./traffic.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
-import { containedPage, runtime } from "./context.js";
+import { containedPage, offlineInteractive, offlineState, runtime } from "./context.js";
 import { applicationState } from "./semantic-state.js";
 import {
   layerHeaders,
@@ -37,6 +37,7 @@ import { paintKeys } from "./keyboard/scopes.js";
 async function readState(bound) {
   countTraffic("asked");
   try {
+    if (offlineInteractive) return offlineState();
     const signal = globalThis.AbortSignal.timeout(bound);
     let res;
     try {
@@ -394,7 +395,9 @@ export function createStateFeed({
     // compared with, so that word asks — which is what the slot the read still holds is
     // for. A page that did get its answer holds a reading, and an unchanged page is not
     // asked for twice.
-    readAndPresent().finally(() => {
+    const initialPresentation = readAndPresent();
+    if (offlineInteractive) return;
+    initialPresentation.finally(() => {
       // A contained page is a fixed specimen controlled by its parent gallery. It needs
       // the first reading to render production chrome, but another news stream and
       // heartbeat would duplicate the outer page's connection for a picture that cannot

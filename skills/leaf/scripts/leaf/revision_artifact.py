@@ -143,7 +143,13 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str:
     return resolved
 
 
-def _javascript_imports(data: bytes, path: str):
+def _javascript_imports(
+    data: bytes,
+    path: str,
+    *,
+    allow_import_attributes: bool = False,
+    allow_computed_imports: bool = False,
+):
     """Yield exact string-literal spans of static exports/imports and import()."""
     try:
         data.decode("utf-8")
@@ -170,7 +176,9 @@ def _javascript_imports(data: bytes, path: str):
         literal = None
         if node.type in {"import_statement", "export_statement"}:
             literal = node.child_by_field_name("source")
-            if any(child.type == "import_attribute" for child in node.named_children):
+            if not allow_import_attributes and any(
+                child.type == "import_attribute" for child in node.named_children
+            ):
                 raise ArtifactError(
                     f"{path}:{node.start_point.row + 1}: import attributes are not supported for JavaScript modules"
                 )
@@ -179,10 +187,12 @@ def _javascript_imports(data: bytes, path: str):
             if function.type == "import":
                 arguments = node.child_by_field_name("arguments").named_children
                 if len(arguments) != 1 or arguments[0].type != "string":
-                    raise ArtifactError(
-                        f"{path}:{node.start_point.row + 1}: import() requires a literal local module URL"
-                    )
-                literal = arguments[0]
+                    if not allow_computed_imports:
+                        raise ArtifactError(
+                            f"{path}:{node.start_point.row + 1}: import() requires a literal local module URL"
+                        )
+                else:
+                    literal = arguments[0]
         if literal is not None:
             if any(child.type != "string_fragment" for child in literal.named_children):
                 raise ArtifactError(
@@ -453,5 +463,57 @@ def rewrite_module(data: bytes, logical_path: str, prefix: str) -> bytes:
         list(_javascript_imports(data, logical_path))
     ):
         target = resolve_dependency(specifier, logical_path, module=True)
+        data = data[:start] + _json(prefix.rstrip("/") + target) + data[end:]
+    return data
+
+
+def rewrite_captured_module(
+    data: bytes,
+    logical_path: str,
+    prefix: str,
+    resources: Mapping[str, Resource],
+) -> bytes:
+    """Bind one trusted captured layer module to an offline resource namespace.
+
+    Page modules continue through :func:`rewrite_module`, whose public-import boundary
+    is intentionally narrower. The vendored layer is already the captured trusted
+    graph; this pass only gives its literal imports addresses that remain usable from
+    ``data:`` modules. Its one computed door is widget loading, which the runtime binds
+    from the captured registry at execution time.
+    """
+    if logical_path.startswith("/page/"):
+        return rewrite_module(data, logical_path, prefix)
+    for start, end, specifier in reversed(
+        list(
+            _javascript_imports(
+                data,
+                logical_path,
+                allow_import_attributes=True,
+                allow_computed_imports=True,
+            )
+        )
+    ):
+        parsed = urlsplit(specifier)
+        if (
+            not specifier
+            or parsed.scheme
+            or parsed.netloc
+            or parsed.query
+            or parsed.fragment
+            or "\\" in specifier
+            or any(ord(char) < 33 for char in specifier)
+        ):
+            raise ArtifactError(
+                f"{logical_path}: {specifier!r}: captured layer import is not local"
+            )
+        target = posixpath.normpath(
+            parsed.path
+            if parsed.path.startswith("/")
+            else posixpath.join(posixpath.dirname(logical_path), parsed.path)
+        )
+        if not target.startswith("/") or target not in resources:
+            raise ArtifactError(
+                f"{logical_path}: {specifier!r}: captured layer import is missing"
+            )
         data = data[:start] + _json(prefix.rstrip("/") + target) + data[end:]
     return data

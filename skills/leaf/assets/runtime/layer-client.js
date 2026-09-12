@@ -16,7 +16,7 @@
    or continue accounting for pending attempts. */
 
 import { countTraffic } from "./traffic.js";
-import { runtime } from "./context.js";
+import { offlineInteractive, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 
 const layerGeneration = "__LEAF_LAYER_GENERATION__";
@@ -112,6 +112,8 @@ const layerReady = new Promise((resolve) => (revealLayer = resolve));
 // the sending: same path, same method, same encoding, so a door that moved would move
 // for both. Whether a send waits on the one before it belongs to the caller.
 export const postEvent = async (event) => {
+  if (offlineInteractive)
+    throw new Error("no agent or server is available in an interactive export");
   await layerReady;
   countTraffic("sends");
   let response;
@@ -136,6 +138,8 @@ export const postEvent = async (event) => {
 // derives the served extension and returns the canonical page-relative path. Like an
 // event POST, this request waits for a known layer and accounts for its whole trip.
 export const uploadMedia = async (file) => {
+  if (offlineInteractive)
+    throw new Error("no agent or server is available in an interactive export");
   await layerReady;
   countTraffic("sends");
   let response;
@@ -180,6 +184,7 @@ export const uploadMedia = async (file) => {
 const reportedErrors = new Set();
 export function reportPageError(text) {
   console.error(`leaf: ${text}`);
+  if (offlineInteractive) return;
   if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
   reportedErrors.add(text);
   postEvent({

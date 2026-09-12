@@ -209,7 +209,11 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     // for readers, but leave the widget uncommitted so ready/offline presentation must
     // render it instead of treating this provisional authored state as current.
     if (snapshot.phase === "waiting") {
-      setProjectionDeferred(true);
+      // This provisional epoch has no authoritative projection to withhold. Settling
+      // its chrome ticket lets document installation finish and start the state feed;
+      // adoption publishes a ready/offline epoch and claims a fresh ticket before any
+      // semantic or widget commit can become current.
+      setProjectionDeferred(false);
       return projection;
     }
     if (document.querySelector(".lf-dragging")) {

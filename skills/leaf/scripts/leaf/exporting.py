@@ -1,6 +1,7 @@
 """Standalone export of a fully rendered page."""
 
 import base64
+import json
 import re
 import sys
 from collections.abc import Callable
@@ -18,6 +19,8 @@ from leaf.files import (
     version_name,
     version_revisions,
 )
+from leaf.http import head_open_end_offset, script_hash
+from leaf.page_snapshot import capture_page_snapshot
 from leaf.render_checks import (
     RENDER_VIEWPORT,
     evaluate_probe,
@@ -31,8 +34,17 @@ from leaf.render_gate.browser import (
     launch_browser,
 )
 from leaf.render_gate.preview import preview_server
-from leaf.revision_artifact import RESOURCE_TYPES, Resource
+from leaf.revision_artifact import (
+    RESOURCE_TYPES,
+    Resource,
+    RevisionArtifact,
+    read_artifact,
+    resolve_dependency,
+    rewrite_captured_module,
+    rewrite_module,
+)
 from leaf.schema import DIR_FILES, MEDIA_DIR
+from leaf.served_state.service import PageStateService
 from leaf.structure import UTF8_BOM, SourceDocument
 
 ResourceReader = Callable[[str], Resource]
@@ -256,6 +268,128 @@ def inline_assets(
     return html
 
 
+def _json_script(value) -> str:
+    """Serialize inert JSON without admitting an HTML script end tag."""
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).replace(
+        "</", "<\\/"
+    )
+
+
+def _interactive_module_urls(artifact: RevisionArtifact) -> dict[str, str]:
+    assets = _AssetInliner(artifact.resources.__getitem__)
+    urls = {}
+    for path, resource in artifact.resources.items():
+        if resource.mime == "application/javascript":
+            source = rewrite_captured_module(
+                resource.data, path, "leaf:", artifact.resources
+            )
+            urls[path] = _data_url(Resource(source, resource.mime))
+        elif resource.mime == "text/css":
+            css = assets.css(resource.data.decode("utf-8"), path, (path,))
+            urls[path] = _data_url(Resource(css.encode(), resource.mime))
+    for tag, implementation in artifact.implementations.items():
+        urls[f"/widgets/{tag}.js"] = urls[implementation["path"]]
+    return urls
+
+
+def _bind_authored_modules(
+    html: str, module_urls: dict[str, str]
+) -> tuple[str, list[str]]:
+    """Address captured authored modules from a self-contained file."""
+    root = turbohtml.parse(html, source_locations=True)
+    edits = []
+    inline_modules = []
+    for element in root.find_all("script"):
+        location = element.source_location
+        if location is None or element.attrs.get("type") != "module":
+            continue
+        if source := element.attrs.get("src"):
+            logical = resolve_dependency(source, "/index.html", module=True)
+            span = location.attrs["src"]
+            edits.append(
+                (
+                    span.start_offset,
+                    span.end_offset,
+                    f'src="{escape(module_urls[logical], quote=True)}"',
+                )
+            )
+        elif location.end_tag is not None:
+            start = location.start_tag.end_offset
+            end = location.end_tag.start_offset
+            body = rewrite_module(
+                html[start:end].encode(), "/index.html", "leaf:"
+            ).decode()
+            inline_modules.append(body)
+            edits.append((start, end, body))
+    for start, end, replacement in sorted(edits, reverse=True):
+        html = html[:start] + replacement + html[end:]
+    return html, inline_modules
+
+
+def interactive_export_page(
+    artifact: RevisionArtifact,
+    state: dict,
+    revision: int,
+    version: int,
+) -> str:
+    """Package one captured revision for Leaf's normal runtime without a host.
+
+    The import map is an address table, not another runtime: every module is the exact
+    captured module with only its parsed local imports rebound to an in-file ``data:``
+    URL. The normal application publisher, widgets, and presentation coordinator boot
+    against the embedded authoritative reading. CSP admits only embedded bytes and
+    makes network absence a document guarantee rather than a convention each module
+    must remember.
+    """
+    modules = _interactive_module_urls(artifact)
+    html = inline_assets(
+        artifact.html.decode("utf-8"),
+        read_resource=artifact.resources.__getitem__,
+        document_url="/index.html",
+    )
+    html, authored_inline = _bind_authored_modules(html, modules)
+    embedded_resources = {
+        path: _data_url(resource)
+        for path, resource in artifact.resources.items()
+        if resource.mime not in {"application/javascript", "text/css"}
+    }
+    theme = _AssetInliner(artifact.resources.__getitem__).css(
+        artifact.resources["/theme.css"].data.decode("utf-8"),
+        "/theme.css",
+        ("/theme.css",),
+    )
+    embedded_resources["/theme.css"] = _data_url(Resource(theme.encode(), "text/css"))
+    embedded_resources["/registry.json"] = _data_url(
+        artifact.resources["/registry.json"]
+    )
+    import_map = _json_script(
+        {"imports": {f"leaf:{path}": url for path, url in sorted(modules.items())}}
+    )
+    payload = _json_script({"state": state, "resources": embedded_resources})
+    hashes = [script_hash(import_map), *(script_hash(body) for body in authored_inline)]
+    policy = (
+        "default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; "
+        "connect-src data:; img-src data:; media-src data:; font-src data:; "
+        "style-src 'unsafe-inline' data:; script-src data: "
+        + " ".join(dict.fromkeys(hashes))
+    )
+    escaped_theme = re.sub(r"</style", r"<\/style", theme, flags=re.IGNORECASE)
+    runtime_head = (
+        f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
+        f'<meta name="lf-version" data-lf-runtime content="{version}">'
+        f'<meta http-equiv="Content-Security-Policy" content="{escape(policy, quote=True)}">'
+        f'<script type="importmap">{import_map}</script>'
+        '<script type="application/json" data-lf-runtime data-lf-offline '
+        'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="">'
+        f"{payload}</script>"
+        f"<style data-lf-runtime>{escaped_theme}</style>"
+        f'<script type="module" src="{escape(modules["/leaf.js"], quote=True)}" '
+        "data-lf-runtime></script>"
+    )
+    offset = head_open_end_offset(SourceDocument(html))
+    return UTF8_BOM + html[:offset] + runtime_head + html[offset:]
+
+
 def export_page(browser, url: str, page_dir: Path, name: str) -> str:
     """The served document named by `name`, copied as one self-contained file.
 
@@ -396,15 +530,12 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
         page.close()
 
 
-def cmd_export(page_dir: Path, out: Path, version) -> int:
+def cmd_export(page_dir: Path, out: Path, version, *, interactive: bool = False) -> int:
     """One stamped version as a standalone HTML file.
 
-    The copy is the page as the browser finished drawing it, which is the only way to
-    get one: half the document is written by the widget layer at runtime, a diagram
-    becomes an SVG only once its renderer has drawn it, and a code block is colored
-    by the vendored tokenizer in the page rather than by anything that can read the
-    file. So a browser is not an optimisation here and no `x-` key exempts a widget
-    from it; without one there is nothing to copy at all."""
+    The static copy is the page as the browser finished drawing it. The interactive
+    copy packages the captured inputs so that same drawing happens when the file opens;
+    its embedded authoritative reading has no host command or transport capability."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import sync_playwright
 
@@ -427,24 +558,42 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
         revision_path(page_dir, revision).read_text(encoding="utf-8")
     )
 
-    with (
-        preview_server(page_dir, document, revision, version=version) as url,
-        sync_playwright() as p,
-    ):
-        try:
-            browser, _ = launch_browser(p)
-        except PlaywrightError as e:
-            sys.exit(
-                "export needs a browser, and none launched "
-                f"({str(e).strip().splitlines()[0]}). A copy is the drawn page, so "
-                f"there is nothing to write without one. {browser_hint()}"
-            )
-        try:
-            html = export_page(browser, url, page_dir, name)
-        finally:
-            browser.close()
+    if interactive:
+        artifact = read_artifact(page_dir, revision)
+        active = {
+            "revision": revision,
+            "version": version,
+            "url": f"/versions/{name}",
+        }
+        snapshot = capture_page_snapshot(page_dir, document, active, artifact=artifact)
+        state = PageStateService(
+            page_dir,
+            page_snapshot=snapshot,
+            layer_identity=snapshot.layer,
+        ).page_state(revision)
+        html = interactive_export_page(artifact, state, revision, version)
+    else:
+        with (
+            preview_server(page_dir, document, revision, version=version) as url,
+            sync_playwright() as p,
+        ):
+            try:
+                browser, _ = launch_browser(p)
+            except PlaywrightError as e:
+                sys.exit(
+                    "export needs a browser, and none launched "
+                    f"({str(e).strip().splitlines()[0]}). A copy is the drawn page, so "
+                    f"there is nothing to write without one. {browser_hint()}"
+                )
+            try:
+                html = export_page(browser, url, page_dir, name)
+            finally:
+                browser.close()
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
-    print(f"✓ {name} → {out} ({out.stat().st_size // 1024} KB, opens with no server)")
+    detail = ", offline interactive" if interactive else ""
+    print(
+        f"✓ {name} → {out} ({out.stat().st_size // 1024} KB{detail}, opens with no server)"
+    )
     return 0

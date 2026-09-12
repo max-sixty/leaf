@@ -19,6 +19,18 @@ live chrome and handlers; native disclosures still work. Write it where the
 project keeps user-facing artifacts. A live page can also be exported without
 ending its loop.
 
+When the deliverable needs local controls, page-owned computation, or navigation, use
+the explicit offline-interactive mode instead:
+
+```bash
+leaf version export <page> -o <file> --interactive
+```
+
+It runs the captured revision's modules and normal Leaf renderers without host chrome
+or network access. Accepted page state is included, while actions and requests that
+need an agent or server are unavailable before dispatch. The default command remains
+the script-free record.
+
 ## Address and authentication
 
 By default Leaf serves on the address the session arrived through: the SSH

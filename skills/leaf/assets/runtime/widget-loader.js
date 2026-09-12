@@ -25,6 +25,7 @@ import {
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
 } from "./passages.js";
+import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
 
@@ -98,11 +99,17 @@ export function rememberPassageParts(scope = document, source = ["page", null]) 
 // startup and activation must not present markup whose required module is absent.
 const modules = new Map();
 const registryUrl = () =>
-  document.querySelector("script[data-lf-runtime][data-lf-probe]")?.dataset.lfProbe ??
-  "/registry.json";
+  offlineInteractive
+    ? runtimeResource("/registry.json")
+    : (document.querySelector("script[data-lf-runtime][data-lf-probe]")?.dataset
+        .lfProbe ?? "/registry.json");
 const widgetUrl = (tag) =>
-  new URL(`widgets/${tag}.js`, new URL("./", new URL(registryUrl(), document.baseURI)))
-    .href;
+  offlineInteractive
+    ? runtimeModule(`/widgets/${tag}.js`)
+    : new URL(
+        `widgets/${tag}.js`,
+        new URL("./", new URL(registryUrl(), document.baseURI)),
+      ).href;
 const presentTags = (scope, holds) =>
   tagsDeclaring(holds).filter((tag) => scope.querySelector(tag));
 

@@ -1054,9 +1054,22 @@ describe("website page agent", () => {
           return Response.json({
             ok: true,
             state: {
-              events: [{ id: eventId, attempt, kind, revision: 1 }],
+              events: [{ id: eventId, seq: 1, attempt, kind, revision: 1 }],
+              ...(kind === "action"
+                ? {
+                    cursor: 0,
+                    active: { revision: 1 },
+                    browser: {
+                      views: {
+                        "1": {
+                          document: { projection: { actions: [eventId] } },
+                        },
+                      },
+                    },
+                  }
+                : {}),
               activity: {
-                interactions: [{ event: eventId }],
+                interactions: kind === "comment" ? [{ event: eventId }] : [],
                 obligations: kind === "comment" ? [{ event: eventId }] : [],
               },
             },

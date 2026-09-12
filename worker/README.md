@@ -167,13 +167,14 @@ records `responseVisibleMs` from the first non-empty agent reply the open Thread
 actually displays; `repliedMs` is the independent durable-state observation and is not a
 substitute for that reader-visible milestone.
 
-When Leaf accepts a reader event that remains in its canonical activity interactions,
-the Worker returns the accepted state and starts the agent dispatch through
-`waitUntil`. The browser does not wait for Container or App Server startup, and there is
-no second scheduler between the request and its already-selected reader container. The
-dispatch reserves source capacity, then asks that container to create or resume one
-Codex App Server task rooted at the actual page directory and deliver the event through
-Leaf's immutable delivery envelope, passed
+When Leaf accepts reader input that needs agent handling, the event remains in its
+canonical activity interactions or is an unread standing page action. The Worker
+returns the accepted state and starts the agent dispatch through `waitUntil`. The
+browser does not wait for Container or App Server startup, and there is no second
+scheduler between the request and its already-selected reader container. The dispatch
+reserves source capacity, then asks that container to create or resume one Codex App
+Server task rooted at the actual page directory and deliver the event through Leaf's
+immutable delivery envelope, passed
 inline as structured `leaf_delivery` when the task is idle or queued by its immutable
 `leaf-delivery` id while a turn is active. The website-specific App Server starts
 without the authoring plugin: its compact developer
@@ -201,11 +202,12 @@ assistant message remains in the Codex transcript.
 
 Startup failure or rate limiting produces a failure reply when the event permits one.
 A failed page action instead gets an anchored retry conversation. The same conversation
-appears when an accepted action's turn fails or its final source cannot publish. The
-notice leaves the action unsettled and tells the reader to reply to retry; it does not
-invent a reply obligation or claim the change succeeded. Turn closure remains visible
-through canonical activity. Invalid working source leaves the last valid revision
-active, and reader input can still reach the agent to repair it.
+appears when an accepted action's turn fails, completes without incorporating the
+action, or cannot publish its final source. The notice leaves the action unsettled and
+tells the reader to reply to retry; it does not invent a reply obligation or claim the
+change succeeded. Turn closure remains visible through canonical activity. Invalid
+working source leaves the last valid revision active, and reader input can still reach
+the agent to repair it.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the

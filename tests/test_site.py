@@ -244,6 +244,33 @@ def test_product_pages_are_published_as_complete_page_records(site):
         assert json.loads((page / "status.json").read_text())["state"] == "idle"
 
 
+def test_the_homepage_shows_the_example_selected_by_the_reader(hosted, browser):
+    """The page, not the guide's prose judgment, owns which saved example is open."""
+    page, errors = open_page(browser, hosted)
+    try:
+        expect(page.locator("#try-empty")).to_be_visible()
+        addition = page.locator("#first-task-choice > .lf-another")
+        addition.get_by_role("textbox", name="Another option").fill(
+            "Compare two approaches"
+        )
+        addition.get_by_role("button", name="Add option").click()
+        expect(page.locator("#try-empty")).to_be_visible()
+        expect(page.locator("#try-result > article:visible")).to_have_count(0)
+
+        cases = (
+            ("Make a decision", "try-decision-example"),
+            ("Review a plan", "try-plan-example"),
+            ("Make a decision", "try-decision-example"),
+        )
+        for label, example_id in cases:
+            page.get_by_role("checkbox", name=f"choose one: {label}").click()
+            expect(page.locator(f"#{example_id}")).to_be_visible()
+            expect(page.locator("#try-result > article:visible")).to_have_count(1)
+        assert errors == []
+    finally:
+        page.close()
+
+
 def test_page_layers_stay_inside_their_page_directories(site):
     """The container image keeps complete pages rather than a public layer beside them."""
     assert (site / "sitenote.js").read_bytes() == (DOCS / "sitenote.js").read_bytes()

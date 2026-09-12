@@ -1870,18 +1870,26 @@ def test_a_product_route_uses_the_same_real_page_server(
         thread.join(timeout=2)
 
 
-@pytest.mark.parametrize("settlement", ["authored", "undo"])
+@pytest.mark.parametrize(
+    ("initially_chosen", "settlement"),
+    [(False, "authored"), (False, "undo"), (True, "authored")],
+)
 def test_a_page_action_starts_once_and_settles_without_a_reply(
-    page_dir, tmp_path, monkeypatch, settlement
+    page_dir, tmp_path, monkeypatch, initially_chosen, settlement
 ):
     site = tmp_path / "site"
     published = site / "_leaf" / "pages" / "index"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
     source = published / "index.html"
-    source.write_text(
-        source.read_text().replace("<lf-options>", '<lf-options id="plans" choose>')
+    markup = source.read_text().replace(
+        "<lf-options>", '<lf-options id="plans" choose>'
     )
+    if initially_chosen:
+        markup = markup.replace(
+            '<lf-option id="flag-first">', '<lf-option id="flag-first" chosen>'
+        )
+    source.write_text(markup)
     (site / "sitenote.js").write_text("export {};")
     write_manifest(site, {"/": ("_leaf/pages/index", "product")})
 
@@ -1933,11 +1941,22 @@ def test_a_page_action_starts_once_and_settles_without_a_reply(
         assert answer["state"]["activity"]["obligations"] == []
         assert [
             item["event"] for item in answer["state"]["activity"]["interactions"]
-        ] == [action["id"]]
+        ] == ([] if initially_chosen else [action["id"]])
+        assert (
+            action["id"]
+            in answer["state"]["browser"]["views"][str(state["active"]["revision"])][
+                "document"
+            ]["projection"]["actions"]
+        )
 
-        for _ in range(2):
-            started, _ = post(f"{root}/_leaf/agent/start", {"event": action["id"]})
-            assert started == {"status": "started", "thread": "action-thread"}
+        started, _ = post(f"{root}/_leaf/agent/start", {"event": action["id"]})
+        assert started == {"status": "started", "thread": "action-thread"}
+        retried, _ = post(f"{root}/_leaf/agent/start", {"event": action["id"]})
+        assert retried == (
+            {"status": "settled"}
+            if initially_chosen
+            else {"status": "started", "thread": "action-thread"}
+        )
         assert len(turns) == 1
         [delivered] = turns[0]["batches"][0]["events"]
         assert delivered["id"] == action["id"]
@@ -1947,7 +1966,7 @@ def test_a_page_action_starts_once_and_settles_without_a_reply(
             "pickup",
         ]
 
-        if settlement == "authored":
+        if settlement == "authored" and not initially_chosen:
             source.write_text(
                 source.read_text().replace(
                     '<lf-option id="flag-first">', '<lf-option id="flag-first" chosen>'
@@ -1963,6 +1982,13 @@ def test_a_page_action_starts_once_and_settles_without_a_reply(
                 },
                 headers,
             )
+        claim = website_server.page_claim(published)
+        host._finish_turn(
+            published,
+            "action-thread",
+            claim["turn"],
+            {"id": "action-turn", "status": "completed", "error": None},
+        )
         settled, _ = post(f"{root}/_leaf/agent/start", {"event": action["id"]})
         assert settled == {"status": "settled"}
         assert len(turns) == 1
@@ -1970,6 +1996,7 @@ def test_a_page_action_starts_once_and_settles_without_a_reply(
         assert state["activity"]["interactions"] == []
         assert state["activity"]["obligations"] == []
         assert not any(event["kind"] == "reply" for event in state["events"])
+        assert not any(event["kind"] == "comment" for event in state["events"])
         before = read_events(published)
         assert host.fallback_reply(published, action["id"], "Late failure") is None
         assert read_events(published) == before
@@ -1980,7 +2007,7 @@ def test_a_page_action_starts_once_and_settles_without_a_reply(
         host.close()
 
 
-@pytest.mark.parametrize("failure", ["startup", "turn", "publication"])
+@pytest.mark.parametrize("failure", ["startup", "turn", "publication", "omission"])
 def test_a_failed_page_action_preserves_the_change_and_offers_a_retry(
     page_dir, browser, failure
 ):
@@ -2022,7 +2049,11 @@ def test_a_failed_page_action_preserves_the_change_and_offers_a_retry(
                 delivery["turn"],
                 {
                     "id": "failed-turn",
-                    "status": "completed" if failure == "publication" else "failed",
+                    "status": (
+                        "completed"
+                        if failure in {"publication", "omission"}
+                        else "failed"
+                    ),
                     "error": None,
                 },
             )
@@ -2049,7 +2080,7 @@ def test_a_failed_page_action_preserves_the_change_and_offers_a_retry(
             failures = verify_site.observe_startup(page)
             page.goto(server.url)
             verify_site.await_presentation(page, server.url, failures)
-            if failure != "startup":
+            if failure in {"turn", "publication"}:
                 assert (
                     "but that turn ended"
                     in page.locator(".lf-status-text").inner_text()

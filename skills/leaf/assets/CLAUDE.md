@@ -577,8 +577,9 @@ has a keyboard route, discernible bounds, and visible focus.
 
 Inspection preserves useful detail. Allocate room before shrinking evidence; support
 aligned detail and whole-object context rather than treating a fitted overview as proof
-of legibility. An explicit expanded inspection preserves the selected object, inspection
-state, and surrounding document position on return. Narrow screens reflow surrounding
+of legibility. An explicit expanded inspection keeps the controls needed to complete
+the inspection available and preserves the selected object, inspection state, and
+surrounding document position on return. Narrow screens reflow surrounding
 prose and controls while retaining deliberate access to two-dimensional evidence.
 
 ### Stability

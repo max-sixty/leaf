@@ -1400,6 +1400,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     assert browser["receipts"][-1]["id"] == accepted["id"]
     assert entry["event"]["id"] == accepted["id"]
     assert entry["coordinate"] == ["delivery", "delivery", "selection"]
+    assert entry["spec"]["facet"] == "selection"
     assert entry["value"] == ["delivery-now"]
     assert view["document"]["projection"]["actions"] == [accepted["id"]]
     assert view["undo"][0]["event"]["id"] == accepted["id"]
@@ -1470,6 +1471,11 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         1: structure_model.SourceDocument(old_page),
         2: structure_model.SourceDocument(new_page),
     }
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-state"]["choose"]["detail"]["properties"]["resolves"] = {
+        "type": "string"
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
     versions = page_dir / ".fixture-versions"
     versions.joinpath("v1.html").write_text(old_page)
     publish(page_dir, 1)
@@ -2197,10 +2203,11 @@ def test_a_thread_request_does_not_reset_when_the_page_revision_changes(
             "parent": root["id"],
             "text": "Choose the host operation.",
             "markup": (
+                '<lf-ask id="thread-command-decision"><h3>What next?</h3>'
                 '<lf-operations id="thread-commands" target="goal" worker="worker" '
-                'worktree="tree" label="Next">'
+                'worktree="tree">'
                 '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations>"
+                "</lf-operations></lf-ask>"
             ),
         },
     )

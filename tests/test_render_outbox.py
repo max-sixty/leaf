@@ -150,15 +150,21 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    threads = page.locator(".lf-threads > .lf-thread")
-    threads.nth(0).locator(".lf-resolve").click()
+    comment_ids = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    first = page.locator(f'.lf-threads > .lf-thread[data-id="{comment_ids[0]}"]')
+    second = page.locator(f'.lf-threads > .lf-thread[data-id="{comment_ids[1]}"]')
+    first.locator(".lf-resolve").click()
     round_trip(page)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     sent = _traffic(page).sends
-    threads.nth(0).locator(".lf-resolve").click()
+    second.locator(".lf-resolve").click()
     holding(page, held, 1, "the second resolution")
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
     page.keyboard.press("z")
@@ -384,9 +390,9 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
 def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     browser, serve, request
 ):
-    """Acceptance and rendering are separate outcomes. A malformed response state
-    cannot be repaired by re-posting its accepted attempt, so delivery advances, while
-    replay and undo remain held until a later complete response accounts for it."""
+    """Acceptance and presentation are separate outcomes. A malformed response view
+    cannot be repaired by re-posting its accepted attempt, so semantic truth advances,
+    while replay and undo remain held until a later response proves presentation."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
 
     def close_page():
@@ -447,11 +453,11 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
         answer = response.json()
         if not first_attempt:
             first_attempt.append(event["attempt"])
-        if event["attempt"] == first_attempt[0]:
-            # A valid event list proves delivery, but the invalid neighbour makes
-            # receiveState fail after assigning that list globally. It is deliberately
-            # not a complete read, and a later stale response must not account from it.
-            answer["state"]["others"] = [None]
+            if event["attempt"] == first_attempt[0]:
+                # A valid event list proves delivery and becomes accepted semantic truth.
+                # The invalid neighbour makes presentation fail afterward, so this answer
+                # cannot retire the accepted attempt from the outbox.
+                answer["state"]["others"] = [None]
         route.fulfill(status=response.status, json=answer)
 
     page.route("**/api/event", break_first_state)
@@ -467,9 +473,9 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     old_route.fulfill(json=old_state)
     page.title()  # let the stale response run before reading the undo surface
 
-    # The caller knows the send succeeded, but no whole state containing it has been
-    # adopted. The stale response must not release the hold merely because the failed
-    # application assigned an event list containing the attempt before it threw.
+    # The caller knows the send succeeded and the semantic root contains it. The stale
+    # response must not release the hold because the accepted view never completed
+    # presentation.
     assert first_attempt[0] not in _traffic(page).pending
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
     sent = _traffic(page).sends
@@ -485,9 +491,8 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     assert _traffic(page).sends == sent
     first_item.get_by_role("button", name="Cancel", exact=True).click()
 
-    # A later refusal is another asynchronous reconciliation wake-up. It may not use
-    # the accepted-but-incomplete event tail or release either hold merely because its
-    # delivery completed.
+    # A later refusal is another asynchronous reconciliation wake-up. It may not release
+    # either hold merely because its delivery completed.
     page.locator("[data-lf-for='sug-in-card'] .lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#sug-in-card")).not_to_have_attribute(
@@ -495,7 +500,7 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     )
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
 
-    # A complete poll accounts for the older acceptance and the refused correction.
+    # A complete poll proves presentation of the older acceptance and refused correction.
     # The re-offered action can then send under a fresh attempt, whose valid answer
     # includes both accepted gestures and makes the newest one safe to undo.
     lifted = True
@@ -531,16 +536,23 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # callback's `Response has been disposed` from the next test's browser call. Remove
     # the routes and wait for any handler already running before their owning page goes.
     page.unroute_all(behavior="wait")
-    assert all(error == reported.value.text or "400" in error for error in errors)
+    presentation_errors = [
+        error
+        for error in errors
+        if error.startswith("leaf: State presentation failed:")
+    ]
+    assert len(presentation_errors) == 1, errors
+    assert all(
+        error == reported.value.text or error in presentation_errors or "400" in error
+        for error in errors
+    ), errors
     page.close()
 
 
-def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
-    browser, serve
-):
-    """A timer response installs candidate events only while rendering that state.
-    If a required neighbour makes the read fail, a focus repaint and z still read the
-    last fully adopted history—not the newer gesture whose DOM was never projected."""
+def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, serve):
+    """A timer response publishes accepted events before presenting their views.
+    If a required neighbour makes presentation fail, z still reads the accepted
+    history instead of rolling semantic authority back to the older gesture."""
     page, errors = open_page(browser, serve(BOARD_PAGE))
     heater = page.locator("#card-heater .lf-grip")
     heater.focus()
@@ -593,10 +605,10 @@ def test_a_failed_background_read_cannot_aim_undo_at_its_partial_history(
         for event in reversed(events_model.read_events(serve.page_dir))
         if event["kind"] == "undo"
     )
-    assert logged_undo["undoes"] == first["id"]
-    assert logged_undo["undoes"] != second["id"]
-    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
-    expect(page.locator("#col-done #card-baffle")).to_have_count(1)
+    assert logged_undo["undoes"] == second["id"]
+    assert logged_undo["undoes"] != first["id"]
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     assert any("read failed" in error for error in errors)
     page.close()
 
@@ -2447,8 +2459,8 @@ customElements.define('lf-preparation', class extends HTMLElement {
     )
 
 
-def test_a_failed_candidate_restores_the_prior_version_approval(browser, serve):
-    """Approval chrome follows the complete state boundary when application rolls back."""
+def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
+    """Approval follows accepted truth even when the reading stamp cannot present."""
     signoff_page = LONG_PAGE.replace(
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -2520,20 +2532,25 @@ def test_a_failed_candidate_restores_the_prior_version_approval(browser, serve):
         preparations.pop(0).fulfill(status=204)
 
     expect(page.locator("body")).to_have_attribute("data-lf-reading", before)
-    expect(approval).to_have_text("Approve version")
-    expect(approval).to_be_enabled()
+    expect(approval).to_have_text("✓ Version approved")
+    expect(approval).to_be_disabled()
 
     page.unroute("**/api/state*")
     for route in held_states:
         route.continue_()
     nudge(serve.page_dir)
     expect(approval).to_have_text("✓ Version approved")
-    assert errors == ["leaf: read failed: injected approval commit fault"]
+    assert errors == [
+        "leaf: State presentation failed: injected approval commit fault",
+        "leaf: read failed: injected approval commit fault",
+    ]
     page.close()
 
 
-def test_undo_waits_for_the_candidate_view_to_commit_or_roll_back(browser, serve):
-    """A candidate can paint while preparing without becoming undo's authority."""
+def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
+    browser, serve
+):
+    """Undo waits during application, then reads accepted truth after a paint fault."""
     url = _serve_preparing_thread(serve)
     page, errors = open_page(browser, url)
     page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
@@ -2599,8 +2616,8 @@ def test_undo_waits_for_the_candidate_view_to_commit_or_roll_back(browser, serve
     assert not [event for event in posts if event.get("kind") == "undo"]
 
     # Fail the completed candidate's readiness stamp once. This is a required DOM
-    # write after the preparation await, so it exercises actual rollback rather than
-    # the intentionally contained error state of one widget's renderState method.
+    # write after the preparation await, so accepted truth is already published even
+    # though the presentation proof cannot advance.
     page.evaluate(
         """reading => {
       const body = document.body;
@@ -2620,26 +2637,24 @@ def test_undo_waits_for_the_candidate_view_to_commit_or_roll_back(browser, serve
     ):
         preparations[0].fulfill(status=204)
     expect(page.locator("body")).to_have_attribute("data-lf-reading", before)
-    expect(
-        page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
-    ).to_be_visible()
-    expect(page.locator("#sug-thistle")).not_to_have_attribute(
-        "data-lf-state", "accept"
-    )
+    expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
     assert not [event for event in posts if event.get("kind") == "undo"]
 
-    page.unroute("**/api/state*")
-    for route in held_states:
-        route.continue_()
-    nudge(serve.page_dir)
-    expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
     undo(page)
     expect(page.locator("#sug-thistle")).not_to_have_attribute(
         "data-lf-state", "accept"
     )
-    assert len([event for event in posts if event.get("kind") == "undo"]) == 1
-    assert errors == ["leaf: read failed: injected candidate commit fault"]
+    undo_posts = [event for event in posts if event.get("kind") == "undo"]
+    assert [event["undoes"] for event in undo_posts] == [
+        candidate["browser"]["views"]["1"]["undo"][0]["event"]["id"]
+    ]
+    page.unroute("**/api/state*")
+    for route in held_states:
+        route.continue_()
+    assert errors == [
+        "leaf: State presentation failed: injected candidate commit fault",
+        "leaf: read failed: injected candidate commit fault",
+    ]
     page.close()
 
 
@@ -2693,9 +2708,8 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     """A deferred accepted action remains in the ledger while a later candidate waits.
 
     Ending the deferral and emitting the package wake during that wait may project only
-    after the candidate commits or rolls back. Otherwise its candidate coordinate looks
-    committed, releases the action, and leaves rollback without the entry that held the
-    last complete projection coherent.
+    after the candidate application finishes. Otherwise its coordinate can look committed
+    before the accepted semantic root is available and release the action too early.
     """
     page, errors = open_page(browser, _serve_preparing_thread(serve))
     prior_reading = page.locator("body").get_attribute("data-lf-reading")
@@ -2780,5 +2794,8 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
         timeout=1_000,
     )
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
-    assert errors == ["leaf: read failed: injected wake candidate fault"]
+    assert errors == [
+        "leaf: State presentation failed: injected wake candidate fault",
+        "leaf: read failed: injected wake candidate fault",
+    ]
     page.close()

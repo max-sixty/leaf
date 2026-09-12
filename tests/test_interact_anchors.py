@@ -542,11 +542,8 @@ def test_a_restated_draft_takes_the_pen_back_from_the_reading(page_dir):
     assert again.exit_code == 0, again.output
 
 
-def test_a_verb_the_registry_no_longer_speaks_moves_nothing(page_dir):
-    """The registry is the gate, not the payload's shape: a logged action whose
-    verb this page's vendored x-state doesn't declare — a verb a later layer
-    retired — folds to nothing, so the reading stays the version as authored
-    rather than trusting whatever text the event carried."""
+def test_a_verb_no_captured_registry_speaks_refuses_the_page(page_dir):
+    """Recorded meaning cannot make up a declaration the captured revision never had."""
     drafted(page_dir)
     events_model.append_event(
         page_dir,
@@ -564,10 +561,9 @@ def test_a_verb_the_registry_no_longer_speaks_moves_nothing(page_dir):
             "detail": {"text": "Words no layer speaks."},
         },
     )
-    kept = comment(page_dir, "--quote", "every mutating command", "--text", "x")
-    assert kept.exit_code == 0, kept.output
-    gone = comment(page_dir, "--quote", "Words no layer speaks", "--text", "x")
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    result = comment(page_dir, "--quote", "every mutating command", "--text", "x")
+    assert result.exit_code != 0
+    assert "<lf-draft> does not declare action verb 'scribble'" in result.output
 
 
 def test_an_unhonored_edit_outlives_a_republish(page_dir):

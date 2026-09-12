@@ -9,10 +9,11 @@
    sequence meets the old DOM. Do not let one delivery interpret another's state.
 
    `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
-   its own element so the rest of the page and Threads remain usable, but it does not
-   convert a partial state read into a committed one. The window error listener, module
-   load failures, and render gate all report through the same page-level evidence. Do not
-   catch an error merely to stamp readiness or continue accounting for pending attempts. */
+   its own element so the rest of the page and Threads remain usable, but a presentation
+   failure neither rolls back accepted semantic state nor proves pending receipts were
+   shown. The window error listener, module load failures, and render gate all report
+   through the same page-level evidence. Do not catch an error merely to stamp readiness
+   or continue accounting for pending attempts. */
 
 import { countTraffic } from "./traffic.js";
 import { runtime } from "./context.js";

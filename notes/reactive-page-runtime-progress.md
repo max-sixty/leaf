@@ -20,48 +20,50 @@ The implementation remains local on `reactive-page-runtime`; it is not ready to 
 - A locked contributor build supplies Lit, Signals, and TypeScript output as committed
   self-contained assets. Authors and plugin users need no Node build.
 
+## Integrated semantic boundary
+
+The immutable semantic publisher is integrated at `e0578973`. One root owns accepted
+state, authored baselines, unresolved attempts, effective projection/widget/conversation
+readings, data, and the semantic epoch. Presentation failure no longer rolls accepted
+truth back, while pending delivery still retires only after presentation proof. Active
+presentation, conversation, context, and historical comparison read publisher-owned
+selectors; the old writable accepted, projection, conversation, and pending stores are
+gone.
+
+Projection entries carry the action/report spec captured by the revision that admitted
+them, so a historical view is never reinterpreted through the current DOM or registry.
+The render gate's authored/carried/current comparison remains an explicit publisher-owned
+counterfactual selector rather than an active-state fold.
+
+Candidate compatibility is also integrated. Activation and re-vendoring share one causal
+check for standing page contracts and frozen thread markup, while historical-only events
+use their captured registries. Request-offer attributes are authored static state: registry
+validation rejects an `x-state` or `x-report` record that could rewrite one.
+
 ## Remaining implementation
 
-Finish and verify the real immutable semantic publisher before converting widget
-templates. Its root must hold accepted truth, authored inputs, unresolved gestures,
-and complete effective projections. Presentation failure must not roll accepted truth
-back. Pending delivery and DOM commit proofs remain mechanical state, not another fold.
+Implement the public `widgetController(owner)` and migrate package/page modules away from
+the separate action/request helpers, `watchActions`, public DOM standing-state reads, and
+the broad `lf-actions` semantic bus. The controller must expose an immutable complete
+reading, synchronous optimistic dispatch plus separate delivery, an owner-lifetime
+subscription, bounded local-edit deferral, and the single presentation seam. Static
+identity, quote, declaration, and request-offer facts come from the authored revision;
+projected ownership, Ask state, lifecycle, availability, provenance, and exact Undo come
+from the publisher.
 
-The publisher implementation is isolated at commit `1079ef0c` in its worktree, not
-integrated. Eight Node
-build/domain tests and two focused browser cases passed, but broader outbox/startup
-tests have failures, including an unanswered-resolution regression and assertions for
-the superseded accepted-state rollback contract. Resume from that agent's checkpoint;
-do not cherry-pick it as a verified slice.
-
-Its observed outbox failures are `test_z_waits_for_an_unanswered_thread_resolution`,
-`test_an_accepted_event_is_not_retried_when_its_state_cannot_render`,
-`test_a_failed_background_read_cannot_aim_undo_at_its_partial_history`,
-`test_a_failed_candidate_restores_the_prior_version_approval`, and
-`test_undo_waits_for_the_candidate_view_to_commit_or_roll_back`. Review each against
-the intended contract; do not blanket-update rollback assertions. Startup coverage is
-incomplete. The worktree is clean and all work is committed.
-
-The broader Lit conversion, public read/command/presentation API, semantic/presentation
-tickets, and offline interactive export remain unfinished. Do not describe the program
-as complete because the dependency build or revision capture is green.
-
-Candidate vocabulary compatibility needs a targeted implementation: preserve frozen
-thread markup and commands, and every page-event contract still participating in the
-candidate projection, including predecessors an undo can expose. Historical-only page
-records can use their captured registry. The existing whole-log `vocabulary_gaps`
-re-vendor validator is not a safe activation gate: it reads mutable prior registry and
-revalidates unrelated historical records. An experimental unconditional invocation was
-removed, not retained as a compatibility solution.
+Then replace independent readiness queues with the semantic/presented epoch and ticket
+coordinator before converting generated regions to Lit. Complete the design-intent and
+Targeting cutover, preserve the fresh-document wait-until-settled model with combined
+proof, add offline interactive export without weakening script-free static export, and
+dissolve this checkpoint plus both plan notes into their owning contracts.
 
 ## Verification checkpoint
 
-The last everyday suite before the latest integration fixes was **1052 passed, 14
-failed**. The failures covered captured-contract fixture expectations, revision-scoped
-website paths, and MCP/media behavior. Focused fixes are being verified; this is not a
-green full-suite result. Subsequently, all 470 contract/document/product interaction
-tests passed, as did eight focused session, website-server, and real-browser smoke
-cases. Run the final everyday suite after all slices are integrated.
+The full everyday suite passed **1069/1069** at foundation commit `522ad464`. After the
+semantic and compatibility integration, 142 outbox/startup browser cases, all 113
+projection cases, all 99 server cases, 274 interaction-contract cases, and 10 browser
+build/domain tests pass. Generated browser output and pre-commit are clean. Run the final
+everyday suite again after the remaining slices are integrated.
 
 The website bundler slice passed 61 worker tests, typecheck, five immutable-shell tests,
 three site tests, and a complete site build/bundle. Local pre-commit passes.

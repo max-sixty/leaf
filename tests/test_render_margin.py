@@ -4196,6 +4196,50 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     page.close()
 
 
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_the_margin_reply_keeps_its_shape_when_the_reader_enters_it(
+    browser, serve, color_scheme
+):
+    """The compact reply is the editor at rest, not a differently shaped precursor."""
+    page, errors = open_page(
+        browser,
+        serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
+        color_scheme=color_scheme,
+    )
+    resized(page, 1440, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+
+    preview = page.locator(".lf-margin-preview")
+    reply = preview.get_by_role("button", name="Reply", exact=True)
+    editor = preview.locator("textarea")
+    expect(reply).to_be_visible()
+    resting_box = reply.bounding_box()
+    resting_face = reply.evaluate(
+        """node => {
+          const style = getComputedStyle(node);
+          return [style.backgroundColor, style.borderRadius];
+        }"""
+    )
+
+    reply.hover()
+    expect(reply).to_have_css("background-color", resting_face[0])
+    reply.click()
+    expect(editor).to_be_focused()
+    assert editor.bounding_box() == pytest.approx(resting_box, abs=0.5)
+    assert (
+        editor.evaluate(
+            """node => {
+          const style = getComputedStyle(node);
+          return [style.backgroundColor, style.borderRadius];
+        }"""
+        )
+        == resting_face
+    )
+
+    assert errors == []
+    page.close()
+
+
 def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     browser, serve
 ):

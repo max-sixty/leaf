@@ -1087,6 +1087,10 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
         var(--lf-sidebar-free-left, 0px));
       --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
     }
+    & [data-lf-space][data-lf-yield~="r"] {
+      --lf-space-bound: calc(100% + var(--lf-sidebar-free-left, 0px));
+      --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;
+    }
   }
   html:not(.lf-copy) main:not(:has(aside.sidenote))
     > aside.sidebar:nth-child(1 of aside.sidebar) {
@@ -1111,6 +1115,10 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
       --lf-grow-l: min(calc(var(--lf-surplus) / 2),
         var(--lf-sidebar-free-left, 0px));
       --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
+    }
+    & [data-lf-space][data-lf-yield~="r"] {
+      --lf-space-bound: calc(100% + var(--lf-sidebar-free-left, 0px));
+      --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;
     }
   }
   html:not(.lf-copy) main:has(aside.sidenote)
@@ -1969,10 +1977,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     --lf-space-bound:
       calc(50cqi + var(--lf-shift) + min(var(--col), var(--lf-room)) / 2);
     --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;
-  }
-  main:has(> aside.sidebar) [data-lf-space][data-lf-yield~="r"] {
-    --lf-space-bound: 100%;
-    --lf-grow-l: 0px; --lf-grow-r: 0px;
   }
 }
 

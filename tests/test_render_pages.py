@@ -2283,6 +2283,36 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
     page.close()
 
 
+def test_a_compact_spine_and_right_rail_leave_the_middle_room(browser, serve):
+    """A right-side action withholds only the right growth from a surface level with
+    it. The compact contents spine occupies the shell edge, so the empty band between
+    it and prose remains available on the left."""
+    source = RAIL_BAND_PAGE.replace(
+        '<h1 id="t">Release</h1>',
+        '<aside class="sidebar"><lf-toc id="rail-toc"></lf-toc></aside>'
+        '<h1 id="t">Release</h1><h2 id="change">Change</h2>',
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1726, 900)
+    margins_laid_out(page)
+    at = page.evaluate(RAIL_BANDS)
+    plan = at["plan"]
+    hanging = [row for row in at["rows"] if not row["docked"]]
+    assert page.locator("#plan").get_attribute("data-lf-yield") == "r"
+    assert hanging and any(
+        plan["top"] < row["bottom"] and plan["bottom"] > row["top"] for row in hanging
+    ), at
+    assert plan["right"] <= at["column"]["right"] + 1, at
+    assert plan["left"] < at["column"]["left"] - 300, at
+    for row in hanging:
+        across = plan["left"] < row["right"] and plan["right"] > row["left"]
+        down = plan["top"] < row["bottom"] and plan["bottom"] > row["top"]
+        assert not (across and down), at
+    assert at["sideways"] == 0
+    assert errors == []
+    page.close()
+
+
 def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
     """Scrolling is the theme's honest degrade when even the room runs short, so every
     other reading calls a page well whose drawing scrolls beside an empty margin —

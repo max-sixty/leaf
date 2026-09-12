@@ -1445,24 +1445,16 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
 /* Where a subject has no page edge of its own, one receipt follows the reader move it
    acknowledges: Sent, Picked up, then Active when an explicit work claim names that
-   subject. A message carries it in the metadata row it already owns. Frozen widgets and
-   claims with no source message keep this full-width fallback; page targets present the
-   same projection through their existing margin entry. The state stays on one line,
-   with ellipsis and the full text on hover; a past-active state carries its own age.
+   subject. A conversation receipt always uses a message's metadata row; an eventless
+   thread claim uses its root message, and a frozen widget uses its owning message. Page
+   targets present the same projection through their existing margin entry. The state
+   stays on one line, with ellipsis and the full text on hover; a past-active state
+   carries its own age.
    A phase change is a change of words and semantic
    color, with no motion: the line answers a question the reader already asked, and a
    tint that replays is a flash.
    The shadow markers carry the same rule into any declared tree an authored subject
    is staged into; they remain ordinary comments in the document stylesheet. */
-.lf-receipt { display: flex; gap: 6px; align-items: flex-end; clear: both;
-  width: 100%; box-sizing: border-box; grid-column: 1 / -1;
-  margin: var(--sp-2) 0 0; padding: 3px 8px; font-size: var(--t-6); color: var(--muted);
-  border: 1px solid var(--border-2); border-radius: 6px;
-  background: color-mix(in srgb, var(--field) 72%, transparent); }
-.lf-receipt-state { flex: 1; min-width: 0; overflow: hidden;
-  white-space: nowrap; text-overflow: ellipsis; }
-.lf-receipt.is-active .lf-receipt-state { color: var(--ok-ink); }
-.lf-receipt time { color: var(--muted-2); white-space: nowrap; }
 .lf-receipt.lf-message-receipt { display: inline-flex; flex: 1 1 auto; align-items: baseline;
   width: auto; min-width: 0; margin: 0; padding: 0; clear: none; grid-column: auto;
   border: 0; border-radius: 0; background: none; color: var(--muted);
@@ -1475,7 +1467,8 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-message-receipt[data-lf-phase="waiting"],
 .lf-message-receipt[data-lf-dropped],
 .lf-message-receipt[data-lf-dropped] .lf-receipt-state { color: var(--warn-ink); }
-.lf-message-receipt .lf-receipt-state { flex: 0 1 auto; }
+.lf-receipt-state { flex: 0 1 auto; min-width: 0; overflow: hidden;
+  color: inherit; white-space: nowrap; text-overflow: ellipsis; }
 /* The name and age hold their size; the state uses the remaining width. */
 :is(.lf-msg-head, .lf-conversation-head):has(> .lf-message-receipt)
   > :is(b, time) { flex: none; }

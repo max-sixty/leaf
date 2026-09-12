@@ -1660,7 +1660,6 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
                   face: {background: statusStyle.backgroundColor,
                          lineBackground: lineStyle.backgroundColor,
                          border: statusStyle.borderTopWidth,
-                         lineBorder: lineStyle.borderTopWidth,
                          positionBackground: positionStyle.backgroundColor,
                          positionBorder: positionStyle.borderTopWidth,
                          shadow: statusStyle.boxShadow},
@@ -1672,16 +1671,14 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
     assert "lf-walk-position" not in geometry["first"], geometry
     assert "lf-bottom-status" in geometry["parent"], geometry
     assert geometry["status"]["right"] == 1182, geometry
-    assert geometry["status"]["top"] <= geometry["line"]["top"], geometry
+    assert geometry["status"]["top"] == geometry["line"]["top"], geometry
     assert geometry["status"]["bottom"] == geometry["line"]["bottom"], geometry
     assert geometry["status"]["left"] > geometry["line"]["right"], geometry
     assert geometry["font"]["position"] == geometry["font"]["line"], geometry
-    assert geometry["face"]["background"] != geometry["face"]["lineBackground"], (
+    assert geometry["face"]["background"] == geometry["face"]["lineBackground"], (
         geometry
     )
-    assert geometry["face"]["lineBackground"] == "rgba(0, 0, 0, 0)", geometry
     assert geometry["face"]["border"] == "1px", geometry
-    assert geometry["face"]["lineBorder"] == "0px", geometry
     assert geometry["face"]["positionBackground"] == "rgba(0, 0, 0, 0)", geometry
     assert geometry["face"]["positionBorder"] == "0px", geometry
     assert geometry["face"]["shadow"] == "none", geometry

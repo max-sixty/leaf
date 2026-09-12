@@ -3455,13 +3455,16 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    # And a claim the agent renews after answering stands again: its line is on the thread
-    # a second time, which is a fact about now rather than about what was said. With no
-    # unanswered message to own it, the claim uses the full-width fallback.
+    # And a claim the agent renews after answering stands again. With no unanswered
+    # message to own it, the claim uses the root message that identifies the thread;
+    # conversation status never grows a separate footer row.
     status("working", "re-running it against the rolling deploy", "--on", held)
-    claim_receipt = held_thread.locator(":scope > .lf-receipt")
+    claim_receipt = held_thread.locator(
+        f'.lf-msg.user[data-mid="{held}"] > .lf-msg-head > .lf-receipt'
+    )
     expect(held_receipt).to_have_count(0)
     expect(claim_receipt).to_contain_text("re-running it against the rolling deploy")
+    expect(held_thread.locator(":scope > .lf-receipt")).to_have_count(0)
     expect(receipts).to_have_count(2)
 
     # A conversation the reader has closed asks nothing and shows nothing, for the same

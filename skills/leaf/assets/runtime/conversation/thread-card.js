@@ -53,13 +53,10 @@ export function threadNode(t, grow, commands) {
       existing.dataset.id = t.root.id;
     }
     const compose = existing.querySelector(":scope > .lf-compose");
-    const tail =
-      existing.querySelector(":scope > .lf-receipt") ??
-      compose ??
-      existing.querySelector(":scope > .lf-thread-actions");
+    const tail = compose ?? existing.querySelector(":scope > .lf-thread-actions");
     const messages = turns(t);
     const current = new Set(messages.map((message) => message.id));
-    // New messages append before the source-less fallback or thread controls.
+    // New messages append before the thread controls.
     for (const m of messages) {
       let msg = msgNodeIn(existing, m);
       if (!msg) {

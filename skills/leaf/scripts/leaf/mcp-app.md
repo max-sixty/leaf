@@ -38,9 +38,10 @@ domains, and the exact process page origin as its sole frame domain. Snapshot
 mode does not use that frame capability.
 
 Both presentation tools return readable tool refusals for an uninitialized
-page, a page with no active revision, and a missing, malformed, or stale vendored
-registry. Layer failures name `leaf page init`; they do not surface as server
-faults.
+page or a page with no usable revision. Once a revision exists, its captured
+registry, runtime, and assets remain presentable even when mutable candidate
+inputs are missing, malformed, or incompatible. Both modes report `source_error`
+while continuing to show that last valid revision.
 
 All four presentation and refresh tools use `readOnlyHint` so opening a page does
 not prompt as a write. Their shared page-state read may materialize a changed,
@@ -131,7 +132,13 @@ reading document order as identity. The app shows that refusal with the reader's
 draft still in the box.
 
 Snapshot mode runs no authored code and does not implement package actions. It
-removes authored navigation, editing, and form targets, cancels composed link and
+receives captured theme bytes and an ordered `authoredStyles` list, each with
+its CSS and media condition. Separate stylesheet elements preserve import ordering;
+nested stylesheet and image dependencies are embedded before the payload leaves
+the server. The app maps document-root selectors to its shadow host, including
+inside embedded imported sheets.
+
+Snapshot mode removes authored navigation, editing, and form targets, cancels composed link and
 form defaults, and applies containment rules after authored CSS so snapshot
 content cannot replace the app document or cover its controls. The old
 single-choice `lf-options` projector is deliberately absent: a fixed shape was a

@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 
 from interact_support import PAGE, run_async
 from leaf.event_log import append_event, read_events
+from leaf.files import revision_path
 from leaf.mcp_page import (
     PAGE_APP_RESOURCE,
     PAGE_FORMAT,
@@ -64,8 +65,9 @@ def test_process_server_multiplexes_pages_on_one_exact_origin(page_dir, tmp_path
             assert response.headers.get("Set-Cookie") is None
             assert response.headers.get("Content-Security-Policy") is None
         root = urlsplit(first_url).path.rstrip("/")
-        assert f'src="{root}/leaf.js"' in html
-        assert f'href="{root}/theme.css"' in html
+        assets = f"{root}/revisions/{revision_path(page_dir, 1).stem}"
+        assert f'src="{assets}/leaf.js"' in html
+        assert f'href="{assets}/theme.css"' in html
         assert f'src="{root}/mcp-ready.js"' in html
 
         with urllib.request.urlopen(f"{pages.origin}{root}/mcp-ready.js") as response:
@@ -73,16 +75,16 @@ def test_process_server_multiplexes_pages_on_one_exact_origin(page_dir, tmp_path
         assert 'type:"leaf:mcp-page-ready"' in ready
 
         with urllib.request.urlopen(
-            f"{pages.origin}{root}/runtime/layer-client.js"
+            f"{pages.origin}{assets}/runtime/layer-client.js"
         ) as response:
             runtime = response.read().decode()
         assert f'fetch("{root}/api/event"' in runtime
 
         with urllib.request.urlopen(
-            f"{pages.origin}{root}/widgets/lf-options.js"
+            f"{pages.origin}{assets}/widgets/lf-options.js"
         ) as response:
             widget = response.read().decode()
-        assert f'from "{root}/runtime/widget-api.js"' in widget
+        assert f'from "{assets}/runtime/widget-api.js"' in widget
 
         with urllib.request.urlopen(f"{pages.origin}{root}/api/state") as response:
             state = json.load(response)
@@ -94,7 +96,7 @@ def test_process_server_multiplexes_pages_on_one_exact_origin(page_dir, tmp_path
             f"{pages.origin}{state['versions'][0]['url']}"
         ) as response:
             assert response.headers.get("Content-Security-Policy") is None
-            assert f'src="{root}/leaf.js"' in response.read().decode()
+            assert f'src="{assets}/leaf.js"' in response.read().decode()
 
         try:
             urllib.request.urlopen(f"{pages.origin}/api/state")
@@ -107,13 +109,11 @@ def test_process_server_multiplexes_pages_on_one_exact_origin(page_dir, tmp_path
         assert not (second / "service.json").exists()
 
         (page_dir / "registry.json").unlink()
-        try:
-            urllib.request.urlopen(f"{pages.origin}{root}/api/state")
-        except urllib.error.HTTPError as error:
-            assert error.code == 500
-            assert "vendored registry lacks" in error.read().decode()
-        else:  # pragma: no cover - the assertion explains the fault boundary
-            raise AssertionError("a route-selection fault dropped the connection")
+        with urllib.request.urlopen(f"{pages.origin}{root}/api/state") as response:
+            state = json.load(response)
+        assert state["active"]["revision"] == 1
+        assert state["source_error"]
+        assert state["browser"] is not None
     finally:
         pages.close()
 

@@ -41,6 +41,7 @@ from leaf import packages as packages_model
 from leaf import schema as schema_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import reactions as registry_reactions
+from page_fixtures import package_selection_args
 
 EXPECTED_PAGE_STATE_FILES = (
     "events.jsonl",
@@ -1025,7 +1026,7 @@ def test_every_vendored_stylesheet_parses(page_dir):
 
 def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     """A media query cannot read a custom property, so the sheets state the covering
-    widths, the strip-taking tray, the width properties, and the Ask stamp as literals
+    widths, the width properties, and the Ask stamp as literals
     while the runtime lays out and paints by the constants. Held equal here rather than
     trusted to stay so."""
     runtime = schema_model.ASSETS / "runtime"
@@ -1041,8 +1042,6 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
 
     panel = int(constant(r"^export const THREAD_PANEL_W = (\d+);", layout))
     tray = int(constant(r"^const TRAY_SLOT_W = (\d+);", trays))
-    strip = constant(r"^export const BESIDE_TRAYS = \[(.*?)\];", trays)
-    strip_names = re.findall(r'"([a-z-]+)"', strip)
     for spelling in (
         f"(width <= {panel * 2}px)",
         f"(width > {panel * 2}px)",
@@ -1054,9 +1053,6 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
         "[" + constant(r'^  ask: "([^"]+)",', presentation) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
-    for tray_name in strip_names:
-        assert f'[data-lf-auxiliary-surface="{tray_name}"]' in sheet
-        assert f'[data-lf-restore-tray="{tray_name}"]' in sheet
 
 
 def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
@@ -1365,57 +1361,72 @@ def test_the_layer_composer_is_the_browser_module_population():
     assert {"lf-options-addition.js", "lf-options-settled.js"} <= widgets.keys()
 
 
-def test_every_test_runs_against_a_throwaway_config_and_state(tmp_path_factory):
-    """What `isolated_session` promises, asserted where a test would see a break.
-    The two homes are the only thing leaf reads from the developer's own, and a
-    suite that reached theirs fails silently in both directions: it would vendor
-    their overlay into fixtures that never say what a theme should contain, and
-    register a dozen throwaway pages a run in the state home the loop guard reads,
-    for pages nobody has. Every other test here sets whichever home it is about,
-    so none of them would notice. What a fixture sees before the isolation is up
-    is a different question; `test_a_run_ends_only_the_servers_it_started` asks
-    it."""
-    root = tmp_path_factory.getbasetemp()
-    assert host_model.config_home().is_relative_to(root)
-    assert host_model.state_home().is_relative_to(root)
+def test_every_test_runs_against_a_throwaway_state_home(tmp_path_factory):
+    """Fixture claims and installed packages stay outside the developer's state."""
+    assert host_model.state_home().is_relative_to(tmp_path_factory.getbasetemp())
 
 
-def test_init_user_layer_applies(tmp_path, monkeypatch):
-    home = tmp_path / "home"
-    (home / ".config" / "leaf" / "widgets").mkdir(parents=True)
-    custom_theme = ":root { --accent: teal }\n"
-    (home / ".config" / "leaf" / "theme.css").write_text(custom_theme)
-    (home / ".config" / "leaf" / "widgets" / "lf-foo.js").write_text("// user widget")
-    # The ~/.config fallback, which is the path a machine with no XDG_CONFIG_HOME
-    # set takes — so the variable the fixtures isolate with has to come back off.
-    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-    monkeypatch.setenv("HOME", str(home))
+def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    d = tmp_path / "page"
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
-    assert result.exit_code == 0, result.output
-    vendored_theme = (d / "theme.css").read_text()
-    assert vendored_theme.startswith((schema_model.ASSETS / "theme.css").read_text())
-    assert vendored_theme.endswith(custom_theme)
-    assert (d / "widgets" / "lf-foo.js").read_text() == "// user widget"
-    assert (d / "widgets" / "lf-tabs.js").is_file()  # shipped modules still vendored
-    assert (d / "runtime" / "chrome.css").is_file()
-
-
-def test_init_project_layer_wins(tmp_path, monkeypatch):
-    project = tmp_path / "proj"
-    (project / ".leaf").mkdir(parents=True)
-    custom_theme = ":root { --accent: red }\n"
-    (project / ".leaf" / "theme.css").write_text(custom_theme)
-    monkeypatch.chdir(project)
-    d = tmp_path / "page"
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
-    assert result.exit_code == 0, result.output
-    theme = (d / "theme.css").read_text()
-    assert theme.startswith((schema_model.ASSETS / "theme.css").read_text())
-    assert theme.endswith(custom_theme)
-    # Files the project layer doesn't override still come from the shipped defaults.
-    assert (d / "registry.json").is_file()
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    config = tmp_path / "config"
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
+    runner = CliRunner()
+    baseline = tmp_path / "baseline"
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(baseline)])
+    assert initialized.exit_code == 0, initialized.output
+    user = home / ".config" / "leaf"
+    project = tmp_path / ".leaf"
+    for package, marker in (
+        (user, "user"),
+        (project, "project"),
+        (config / "leaf", "xdg"),
+    ):
+        (package / "widgets").mkdir(parents=True)
+        (package / "theme.css").write_text(f"/* {marker} package */\n")
+        (package / "widgets" / f"{marker}.js").write_text(f"// {marker}\n")
+    page = tmp_path / "page"
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    baseline_registry = json.loads((baseline / "registry.json").read_text())
+    registry = json.loads((page / "registry.json").read_text())
+    assert (
+        registry["$layer"]["fingerprint"] == baseline_registry["$layer"]["fingerprint"]
+    )
+    assert registry["$layer"]["packages"] == []
+    assert not (page / "widgets" / "user.js").exists()
+    selected = runner.invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            "--package",
+            "~/.config/leaf",
+            "--package",
+            "./.leaf",
+            str(page),
+        ],
+    )
+    assert selected.exit_code == 0, selected.output
+    theme = (page / "theme.css").read_text()
+    assert theme.endswith("/* user package */\n/* project package */\n")
+    assert (page / "widgets" / "user.js").is_file()
+    assert (page / "widgets" / "project.js").is_file()
+    assert not (page / "widgets" / "xdg.js").exists()
+    repeated = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert repeated.exit_code == 0, repeated.output
+    registry = json.loads((page / "registry.json").read_text())
+    assert registry["$layer"]["packages"] == ["~/.config/leaf", "./.leaf"]
+    assert (page / "theme.css").read_text() == theme
+    cleared = runner.invoke(cli_model.cli, ["page", "init", "--no-packages", str(page)])
+    assert cleared.exit_code == 0, cleared.output
+    assert (
+        json.loads((page / "registry.json").read_text())["$layer"]["fingerprint"]
+        == baseline_registry["$layer"]["fingerprint"]
+    )
+    assert not (page / "widgets" / "user.js").exists()
+    assert not (page / "widgets" / "project.js").exists()
 
 
 def test_init_refuses_a_layer_theme_that_leaves_a_block_open(tmp_path, monkeypatch):
@@ -1432,7 +1443,9 @@ def test_init_refuses_a_layer_theme_that_leaves_a_block_open(tmp_path, monkeypat
         "@media screen and (min-width: 900px) {\n  :root { --accent: red }\n"
     )
     monkeypatch.chdir(project)
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(tmp_path / "page")])
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(tmp_path / "page")]
+    )
     assert result.exit_code == 1
     assert "block(s) left open at end of file" in result.output
     assert "theme.css" in result.output
@@ -1478,11 +1491,21 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     (project_layer / "registry.json").write_text(
         json.dumps({"lf-local": project_entry, "lf-project-only": project_only})
     )
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.chdir(project)
 
     page = tmp_path / "page"
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            "--package",
+            "../config/leaf",
+            "--package",
+            "./.leaf",
+            str(page),
+        ],
+    )
 
     assert result.exit_code == 0, result.output
     registry = json.loads((page / "registry.json").read_text())
@@ -1520,7 +1543,9 @@ def test_init_merges_dollar_entries_by_member(tmp_path, monkeypatch):
     monkeypatch.chdir(project)
 
     page = tmp_path / "page"
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
 
     assert result.exit_code == 0, result.output
     idioms = json.loads((page / "registry.json").read_text())["$idioms"]
@@ -1554,7 +1579,9 @@ def test_staged_writes_honor_umask_without_copying_a_replaced_symlink_mode(
     assert custom_theme.stat().st_mode & 0o777 == 0o600
 
     page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
     assert initialized.exit_code == 0, initialized.output
     external = tmp_path / "external-theme.css"
     external.write_text("external")
@@ -1563,7 +1590,9 @@ def test_staged_writes_honor_umask_without_copying_a_replaced_symlink_mode(
     (page / "theme.css").symlink_to(external)
     old_umask = os.umask(0o022)
     try:
-        revendored = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+        revendored = runner.invoke(
+            cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+        )
     finally:
         os.umask(old_umask)
 
@@ -1649,7 +1678,6 @@ def test_init_refuses_case_aliased_layer_scopes(tmp_path, monkeypatch):
     project = tmp_path / "Project"
     project.mkdir()
     alias = case_alias(project)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(alias / ".LEAF"))
     monkeypatch.chdir(project)
     user_layer = alias / ".LEAF" / "leaf"
     user_layer.mkdir(parents=True)
@@ -1658,7 +1686,18 @@ def test_init_refuses_case_aliased_layer_scopes(tmp_path, monkeypatch):
     before = theme.read_bytes()
     page = tmp_path / "page"
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            "--package",
+            "./.leaf",
+            "--package",
+            "./.LEAF/leaf",
+            str(page),
+        ],
+    )
 
     assert result.exit_code != 0
     assert "package scopes must be separate" in result.output
@@ -1685,7 +1724,9 @@ def test_init_reads_the_complete_layer_before_revendoring(tmp_path, monkeypatch)
     )
     (layer / "theme.css").write_bytes(b"\xff")
 
-    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    result = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
 
     assert result.exit_code != 0
     assert "theme.css must be UTF-8" in result.output
@@ -1706,7 +1747,9 @@ def test_a_rejected_init_leaves_a_precreated_directory_empty(tmp_path, monkeypat
     layer.mkdir()
     (layer / "theme.css").write_text(".bad { color red; }\n")
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
 
     assert result.exit_code != 0
     assert "theme.css syntax error" in result.output
@@ -1827,7 +1870,9 @@ def test_init_refuses_malformed_layer_css_before_revendoring(tmp_path, monkeypat
     theme.parent.mkdir(parents=True)
     theme.write_text(".bad { color red; }\n")
 
-    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    result = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
 
     assert result.exit_code != 0
     assert f"{theme} syntax error" in result.output
@@ -1860,7 +1905,9 @@ def test_init_does_not_partially_revendor_on_a_destination_conflict(
         json.dumps({"lf-new-shape": element_declaration("lf-new-shape")})
     )
 
-    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    result = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
 
     assert result.exit_code != 0
     # Named, not merely refused. `page init` has a dozen ways to stop, and the layer
@@ -1924,7 +1971,9 @@ def test_init_refuses_a_layer_source_aliased_to_a_page_destination(
         if path.is_file()
     }
 
-    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    result = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
 
     assert result.exit_code != 0
     assert "overlaps page destination" in result.output
@@ -1940,7 +1989,6 @@ def test_init_refuses_a_layer_source_aliased_to_a_page_destination(
 def test_init_refuses_a_package_nested_in_a_page_owned_directory(
     tmp_path, monkeypatch, destination
 ):
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     page = tmp_path / "page"
     package_parent = page / destination
     package = package_parent / ".leaf"
@@ -1949,7 +1997,9 @@ def test_init_refuses_a_package_nested_in_a_page_owned_directory(
     theme.write_text(":root { --accent: teal; }\n")
     monkeypatch.chdir(package_parent)
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
 
     assert result.exit_code != 0
     assert "overlaps page destination" in result.output
@@ -1962,7 +2012,6 @@ def test_init_refuses_a_case_aliased_source_at_a_page_destination(
 ):
     project = tmp_path / "Project"
     project.mkdir()
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.chdir(project)
     runner = CliRunner()
     page = tmp_path / "MixedCasePage"
@@ -1980,7 +2029,9 @@ def test_init_refuses_a_case_aliased_source_at_a_page_destination(
     layer_theme.parent.mkdir(parents=True)
     layer_theme.symlink_to(target)
 
-    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    result = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
 
     assert result.exit_code != 0
     assert "overlaps page destination" in result.output
@@ -2004,7 +2055,9 @@ def test_init_preserves_tmp_files_even_when_a_layer_reads_one(tmp_path, monkeypa
     layer.mkdir(parents=True)
     (layer / "theme.css").symlink_to(source)
 
-    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    result = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
 
     assert result.exit_code == 0, result.output
     assert source.read_text() == ":root { --accent: rebeccapurple; }\n"
@@ -2038,7 +2091,9 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     registry["lf-toned-note"]["x-example"] = example
     registry_path.write_text(json.dumps(registry))
 
-    result = runner.invoke(cli_model.cli, ["page", "init", str(tmp_path / "page")])
+    result = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(tmp_path / "page")]
+    )
 
     assert result.exit_code != 0
     assert "<lf-toned-note> x-example is invalid" in result.output
@@ -2087,7 +2142,15 @@ def test_revendoring_removes_stale_broken_links_before_a_file_returns(
     source = page_dir.parent / ".leaf" / sub / name
     source.parent.mkdir(parents=True, exist_ok=True)
     source.write_text("// returned\n")
-    returned = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    returned = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
 
     assert returned.exit_code == 0, returned.output
     assert stale.is_file() and not stale.is_symlink()
@@ -2135,7 +2198,6 @@ def test_init_refuses_a_case_aliased_page_inside_a_package(tmp_path, monkeypatch
     project = tmp_path / "Project"
     project.mkdir()
     alias = case_alias(project)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.chdir(project)
     runner = CliRunner()
     created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
@@ -2149,7 +2211,9 @@ def test_init_refuses_a_case_aliased_page_inside_a_package(tmp_path, monkeypatch
         if path.is_file()
     }
 
-    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    result = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
 
     assert result.exit_code != 0
     assert "inside package" in result.output
@@ -2171,13 +2235,17 @@ def test_init_refuses_non_utf8_package_guidance_before_revendoring(
     source = package / "author.md"
     source.write_text("# Project author\n")
     page = tmp_path / "page"
-    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
     assert initialized.exit_code == 0, initialized.output
     before = (page / "guidance" / "author.md").read_bytes()
 
     source.write_bytes(b"\xff")
 
-    result = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    result = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
 
     assert result.exit_code != 0
     assert "guidance/author.md must be UTF-8" in result.output
@@ -2192,7 +2260,9 @@ def test_init_refuses_a_noncanonical_guidance_audience(tmp_path, monkeypatch):
     malformed.write_text("Use the project package.\n")
     page = tmp_path / "page"
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
 
     assert result.exit_code != 0
     assert f"{malformed} must be named <audience>.md" in result.output
@@ -2208,7 +2278,6 @@ def test_init_refuses_overlapping_package_scopes(tmp_path, monkeypatch):
     (user / "theme.css").write_text(":root { --accent: teal; }\n")
     project_layer = project / ".leaf"
     project_layer.symlink_to(user, target_is_directory=True)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
     before = {
         path.relative_to(user): path.read_bytes()
@@ -2217,7 +2286,18 @@ def test_init_refuses_overlapping_package_scopes(tmp_path, monkeypatch):
     }
     page = tmp_path / "page"
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            "--package",
+            "../config/leaf",
+            "--package",
+            "./.leaf",
+            str(page),
+        ],
+    )
 
     assert result.exit_code != 0
     assert "package scopes must be separate" in result.output
@@ -2235,7 +2315,6 @@ def test_init_refuses_to_overwrite_a_package(tmp_path, monkeypatch, user):
     project = tmp_path / "project"
     project.mkdir()
     config = tmp_path / "config"
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
     runner = CliRunner()
     package = config / "leaf" if user else project / ".leaf"
@@ -2250,7 +2329,16 @@ def test_init_refuses_to_overwrite_a_package(tmp_path, monkeypatch, user):
     }
     assert before
 
-    result = runner.invoke(cli_model.cli, ["page", "init", str(layer)])
+    result = runner.invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            "--package",
+            "../config/leaf" if user else "./.leaf",
+            str(layer),
+        ],
+    )
 
     assert result.exit_code != 0
     assert "inside package" in result.output
@@ -2274,7 +2362,9 @@ def test_init_refuses_to_write_inside_a_package(tmp_path, monkeypatch):
         if path.is_file()
     }
 
-    result = runner.invoke(cli_model.cli, ["page", "init", str(layer / "widgets")])
+    result = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(layer / "widgets")]
+    )
 
     assert result.exit_code != 0
     assert "inside package" in result.output
@@ -2307,7 +2397,9 @@ def test_init_refuses_wrong_kind_package_paths(
     else:
         path.write_text("not a directory")
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(tmp_path / "page")])
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(tmp_path / "page")]
+    )
 
     assert result.exit_code != 0
     assert str(path) in result.output
@@ -2358,7 +2450,7 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
 
     for args in (
         ["package", "check", ".leaf"],
-        ["page", "init", str(tmp_path / "page")],
+        ["page", "init", "--package", "./.leaf", str(tmp_path / "page")],
     ):
         result = runner.invoke(cli_model.cli, args)
         assert result.exit_code != 0
@@ -2451,7 +2543,6 @@ def test_package_command_accepts_the_root_of_a_standalone_package_repo(
 
 def test_package_command_can_target_the_user_package(tmp_path, monkeypatch):
     config = tmp_path / "config"
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(tmp_path)
 
     result = CliRunner().invoke(
@@ -2470,7 +2561,9 @@ def test_package_continues_when_the_project_root_is_the_page(tmp_path, monkeypat
     runner = CliRunner()
     created = runner.invoke(cli_model.cli, ["package", "init", ".leaf"])
     assert created.exit_code == 0, created.output
-    initialized = runner.invoke(cli_model.cli, ["page", "init", "."])
+    initialized = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", "."]
+    )
     assert initialized.exit_code == 0, initialized.output
     page_theme = tmp_path / "theme.css"
     page_registry = tmp_path / "registry.json"
@@ -2496,7 +2589,9 @@ def test_package_continues_when_the_project_root_is_the_page(tmp_path, monkeypat
     } == before_widgets
     assert (package / "widgets" / "lf-after-init.js").is_file()
 
-    revendored = runner.invoke(cli_model.cli, ["page", "init", "."])
+    revendored = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", "."]
+    )
 
     assert revendored.exit_code == 0, revendored.output
     assert "lf-after-init" in json.loads(page_registry.read_text())
@@ -2649,22 +2744,19 @@ def test_package_install_refuses_a_source_it_cannot_check_or_name(
     assert not host_model.package_store().exists()
 
 
-def test_package_init_names_a_wrong_kind_lower_package(tmp_path, monkeypatch):
-    project = tmp_path / "project"
-    project.mkdir()
+def test_package_init_ignores_unselected_packages(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     config = tmp_path / "config"
     config.mkdir()
-    user_layer = config / "leaf"
-    user_layer.write_text("not a directory")
+    (config / "leaf").write_text("not a directory")
+    (tmp_path / ".leaf").write_text("not a directory")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
-    monkeypatch.chdir(project)
-
-    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
-
-    assert result.exit_code != 0
-    assert f"{user_layer} must be a directory" in result.output
-    assert user_layer.read_text() == "not a directory"
-    assert not (project / ".leaf").exists()
+    package = tmp_path / "callout"
+    result = CliRunner().invoke(cli_model.cli, ["package", "init", str(package)])
+    assert result.exit_code == 0, result.output
+    assert (package / "registry.json").is_file()
+    assert (config / "leaf").read_text() == "not a directory"
+    assert (tmp_path / ".leaf").read_text() == "not a directory"
 
 
 def test_package_init_never_overwrites_existing_contents(tmp_path, monkeypatch):
@@ -2918,24 +3010,6 @@ def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monke
     assert not package.exists()
 
 
-@pytest.mark.parametrize("role", ["project", "user"])
-def test_package_init_protects_another_package_future_root(tmp_path, monkeypatch, role):
-    project = tmp_path / "project"
-    project.mkdir()
-    config = tmp_path / "config"
-    config.mkdir()
-    (project / ".leaf").symlink_to(config / "leaf", target_is_directory=True)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
-    monkeypatch.chdir(project)
-
-    package = project / ".leaf" if role == "project" else config / "leaf"
-    result = CliRunner().invoke(cli_model.cli, ["package", "init", str(package)])
-
-    assert result.exit_code != 0
-    assert "overlaps another package" in result.output
-    assert not (config / "leaf").exists()
-
-
 def test_package_init_validates_every_target_before_writing(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     layer = tmp_path / ".leaf"
@@ -3010,7 +3084,8 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     # PAGE holds an lf-diagram, so the page selects the package that widget lives in
     # beside the project package this test is about.
     initialized = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "diagram", str(page)]
+        cli_model.cli,
+        ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
     )
     assert initialized.exit_code == 0, initialized.output
     assert "lf-callout {" in (page / "theme.css").read_text()
@@ -3057,7 +3132,6 @@ def test_package_preserves_a_symlinked_registry(tmp_path, monkeypatch):
 def test_package_recognizes_a_page_without_runtime_status(tmp_path, monkeypatch):
     project = tmp_path / "project"
     project.mkdir()
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.chdir(project)
     runner = CliRunner()
     page = tmp_path / "page"
@@ -3078,102 +3152,11 @@ def test_package_recognizes_a_page_without_runtime_status(tmp_path, monkeypatch)
     assert not (layer / "registry.json").exists()
 
 
-def test_package_refuses_a_broken_case_alias_to_its_future_target(
-    tmp_path, monkeypatch
-):
-    project = tmp_path / "Project"
-    project.mkdir()
-    alias = case_alias(project)
-    config = tmp_path / "Config"
-    user_theme = config / "leaf" / "theme.css"
-    user_theme.parent.mkdir(parents=True)
-    user_theme.symlink_to(alias / ".LEAF" / "THEME.CSS")
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
-    monkeypatch.chdir(project)
-
-    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
-
-    assert result.exit_code != 0
-    assert "overlaps another package" in result.output
-    assert user_theme.is_symlink() and not user_theme.exists()
-    assert not (project / ".leaf" / "theme.css").exists()
-
-
-def test_package_refuses_a_broken_lower_alias_to_its_planned_target(
-    tmp_path, monkeypatch
-):
-    project = tmp_path / "project"
-    project.mkdir()
-    config = tmp_path / "config"
-    user_layer = config / "leaf"
-    user_layer.mkdir(parents=True)
-    project_theme = project / ".leaf" / "theme.css"
-    user_theme = user_layer / "theme.css"
-    user_theme.symlink_to(project_theme)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
-    monkeypatch.chdir(project)
-
-    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
-
-    assert result.exit_code != 0
-    assert "overlaps another package" in result.output
-    assert user_theme.is_symlink() and not user_theme.exists()
-    assert not project_theme.exists()
-
-
-def test_package_refuses_an_existing_member_aliased_to_another_scope(
-    tmp_path, monkeypatch
-):
-    project = tmp_path / "project"
-    project.mkdir()
-    config = tmp_path / "config"
-    user_module = config / "leaf" / "widgets" / "lf-shared.js"
-    user_module.parent.mkdir(parents=True)
-    user_module.write_text("// shared source\n")
-    project_module = project / ".leaf" / "widgets" / "lf-shared.js"
-    project_module.parent.mkdir(parents=True)
-    project_module.symlink_to(user_module)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
-    monkeypatch.chdir(project)
-
-    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
-
-    assert result.exit_code != 0
-    assert "overlaps another package" in result.output
-    assert project_module.is_symlink()
-    assert user_module.read_text() == "// shared source\n"
-    assert not (project / ".leaf" / "theme.css").exists()
-
-
-def test_package_refuses_an_existing_member_case_alias(tmp_path, monkeypatch):
-    project = tmp_path / "Project"
-    project.mkdir()
-    config = tmp_path / "Config"
-    user_theme = config / "leaf" / "theme.css"
-    user_theme.parent.mkdir(parents=True)
-    user_theme.write_text(":root { --accent: teal; }\n")
-    config_alias = case_alias(config)
-    project_theme = project / ".leaf" / "theme.css"
-    project_theme.parent.mkdir(parents=True)
-    project_theme.symlink_to(config_alias / "LEAF" / "THEME.CSS")
-    before = user_theme.read_bytes()
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
-    monkeypatch.chdir(project)
-
-    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
-
-    assert result.exit_code != 0
-    assert "overlaps another package" in result.output
-    assert user_theme.read_bytes() == before
-    assert not (project_theme.parent / "registry.json").exists()
-
-
 @pytest.mark.parametrize("user", [False, True], ids=["project", "user"])
 def test_package_refuses_an_initialized_page_as_a_layer(tmp_path, monkeypatch, user):
     project = tmp_path / "project"
     project.mkdir()
     config = tmp_path / "config"
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
     monkeypatch.chdir(project)
     runner = CliRunner()
     page = tmp_path / "page"
@@ -3200,20 +3183,6 @@ def test_package_refuses_an_initialized_page_as_a_layer(tmp_path, monkeypatch, u
     assert after == before
 
 
-def test_package_refuses_case_aliased_future_roots(tmp_path, monkeypatch):
-    project = tmp_path / "Project"
-    project.mkdir()
-    alias = case_alias(project)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(alias / ".LEAF"))
-    monkeypatch.chdir(project)
-
-    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
-
-    assert result.exit_code != 0
-    assert "overlaps another package" in result.output
-    assert not (project / ".leaf").exists()
-
-
 @pytest.mark.parametrize(
     "relative",
     ["theme.css", "registry.json", "widgets", "widgets/lf-tabs.js"],
@@ -3223,7 +3192,6 @@ def test_package_refuses_members_aliased_into_an_initialized_page(
 ):
     project = tmp_path / "project"
     project.mkdir()
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.chdir(project)
     runner = CliRunner()
     page = tmp_path / "page"
@@ -3268,7 +3236,6 @@ def test_package_refuses_sources_aliased_to_page_owned_state(
 ):
     project = tmp_path / "project"
     project.mkdir()
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.chdir(project)
     runner = CliRunner()
     page = tmp_path / "page"
@@ -3298,42 +3265,6 @@ def test_package_refuses_sources_aliased_to_page_owned_state(
     }
     assert after == before
     assert not (layer / "registry.json").exists()
-
-
-@pytest.mark.parametrize("alias", ["root", "theme.css", "registry.json", "widgets"])
-def test_package_refuses_targets_aliased_to_another_layer(tmp_path, monkeypatch, alias):
-    project = tmp_path / "project"
-    project.mkdir()
-    config = tmp_path / "config"
-    user = config / "leaf"
-    user.mkdir(parents=True)
-    (user / "theme.css").write_text(":root { --accent: teal; }\n")
-    (user / "registry.json").write_text("{}\n")
-    (user / "widgets").mkdir()
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
-    monkeypatch.chdir(project)
-    layer = project / ".leaf"
-    if alias == "root":
-        layer.symlink_to(user, target_is_directory=True)
-    else:
-        layer.mkdir()
-        (layer / alias).symlink_to(user / alias, target_is_directory=alias == "widgets")
-    before = {
-        path.relative_to(user): path.read_bytes()
-        for path in user.rglob("*")
-        if path.is_file()
-    }
-
-    result = CliRunner().invoke(cli_model.cli, ["package", "init", ".leaf"])
-
-    assert result.exit_code != 0
-    assert "overlaps another package" in result.output
-    after = {
-        path.relative_to(user): path.read_bytes()
-        for path in user.rglob("*")
-        if path.is_file()
-    }
-    assert after == before
 
 
 def test_page_init_refuses_a_duplicate_package_selection(tmp_path, monkeypatch):
@@ -3717,7 +3648,9 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
     monkeypatch.chdir(project)
 
     page = tmp_path / "page"
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page)])
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
+    )
 
     assert result.exit_code == 0, result.output
     tokens = json.loads((page / "registry.json").read_text())["$reactions"]["tokens"]

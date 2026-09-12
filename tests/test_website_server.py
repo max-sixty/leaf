@@ -9,10 +9,13 @@ import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import verify_site
+from click.testing import CliRunner
 from leaf.codex import _prompt as delivery_prompt
 from leaf.codex import _queues as codex_queues
 from leaf.event_log import append_event, read_events
@@ -35,11 +38,6 @@ _previews_spec = importlib.util.spec_from_file_location(
 )
 example_previews = importlib.util.module_from_spec(_previews_spec)
 _previews_spec.loader.exec_module(example_previews)
-_verify_spec = importlib.util.spec_from_file_location(
-    "verify_site", ROOT / "scripts" / "verify-site.py"
-)
-verify_site = importlib.util.module_from_spec(_verify_spec)
-_verify_spec.loader.exec_module(verify_site)
 _benchmark_spec = importlib.util.spec_from_file_location(
     "benchmark_site", ROOT / "scripts" / "benchmark-site.py"
 )
@@ -622,7 +620,6 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
                 "sandbox": "danger-full-access",
                 "developerInstructions": website_server.CODEX_INSTRUCTIONS,
                 "config": {"model_reasoning_effort": "low"},
-                "ephemeral": False,
             },
         )
     ]
@@ -648,69 +645,113 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
     assert accepted == [(("hosted-thread",), {"turn": "initial-turn"})]
 
 
-def test_an_ephemeral_website_task_is_not_persisted(page_dir, monkeypatch):
-    host = website_server.WebsiteCodexHost("codex", ephemeral=True)
-    requests = []
-
-    def request(method, params, before_close=None):
-        requests.append((method, params))
-        return {"thread": {"id": "ephemeral-thread"}}
-
-    monkeypatch.setattr(host, "_request", request)
-
-    assert (
-        host._start_thread(page_dir, type("Process", (), {"pid": 41})(), "reader-event")
-        == "ephemeral-thread"
-    )
-    assert requests[0][1]["ephemeral"] is True
-
-
-def test_the_local_verifier_uses_a_resumable_task_in_its_disposable_codex_home(
-    monkeypatch,
+def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
+    tmp_path, monkeypatch
 ):
-    script = (ROOT / "scripts" / "verify-site-agent-local.sh").read_text()
-
-    assert "LEAF_AGENT_EPHEMERAL" not in script
-    assert 'CODEX_HOME="$clean_codex_home"' in script
-    assert 'cp "$host_codex_home/auth.json"' in script
-    assert (
-        "runner=${LEAF_SITE_AGENT_RUNNER:-$repo_root/scripts/verify-site.py}" in script
+    """Exercise real build/process/file ownership with a stand-in for the hosted agent."""
+    root = tmp_path / "checkout"
+    (root / "scripts").mkdir(parents=True)
+    (root / "worker").mkdir()
+    host_home = tmp_path / "host-codex"
+    host_home.mkdir()
+    (host_home / "auth.json").write_text('{"test": "login"}')
+    (root / "worker" / "codex-config.toml").write_text('model = "test"')
+    (root / "scripts" / "site.py").write_text(
+        "from pathlib import Path\n"
+        "site = Path('.tmp/site/_leaf')\n"
+        "site.mkdir(parents=True)\n"
+        "(site / 'site.json').write_text('{\"release\": \"' + 'a' * 40 + '\"}')\n"
+        "print('built the site')\n"
     )
-    assert 'uv run --project "$repo_root" "$runner" "$release"' in script
-    monkeypatch.delenv("LEAF_AGENT_EPHEMERAL", raising=False)
-    monkeypatch.setattr(website_server, "_agent_host", None)
-    assert website_server.website_codex_host().ephemeral is False
-
-
-def test_the_local_benchmark_accepts_a_git_release(tmp_path, monkeypatch):
-    release = "a" * 40
-    output = tmp_path / "benchmark.json"
-    monkeypatch.setenv("LEAF_BENCHMARK_OUTPUT", str(output))
-    monkeypatch.setenv(
-        "LEAF_SITE_AGENT_RUNNER", str(ROOT / "scripts/benchmark-site.py")
+    (root / "worker" / "server.py").write_text(
+        "import json, os\n"
+        "from pathlib import Path\n"
+        "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
+        "class Handler(BaseHTTPRequestHandler):\n"
+        "    def do_GET(self):\n"
+        "        self.send_response(200)\n"
+        "        self.end_headers()\n"
+        "        self.wfile.write(json.dumps(dict(pid=os.getpid(), home=os.environ['CODEX_HOME'], site=os.environ['LEAF_SITE_ROOT'])).encode())\n"
+        "server = HTTPServer(('127.0.0.1', 0), Handler)\n"
+        "Path('port').write_text(str(server.server_port))\n"
+        "print('startup diagnostic', flush=True)\n"
+        "print(json.dumps(dict(component='leaf-agent', event='container_http_ready')), flush=True)\n"
+        "server.serve_forever()\n"
     )
-    monkeypatch.setattr(benchmark_site.sys, "argv", ["benchmark-site.py", release])
-    monkeypatch.setattr(benchmark_site, "measure", lambda target: {"release": target})
+    monkeypatch.setattr(verify_site, "ROOT", root)
+    monkeypatch.setenv("CODEX_HOME", str(host_home))
+    urlopen = urllib.request.urlopen
 
-    benchmark_site.main()
+    def local_health(url, **kwargs):
+        assert url == "http://127.0.0.1:8080/health"
+        port = (root / "port").read_text()
+        return urlopen(f"http://127.0.0.1:{port}/health", **kwargs)
 
-    assert json.loads(output.read_text()) == {"release": release}
+    monkeypatch.setattr(verify_site.urllib.request, "urlopen", local_health)
+    with (
+        pytest.raises(RuntimeError, match="journey failed"),
+        verify_site.local_adapter() as (origin, release),
+    ):
+        assert release == "a" * 40
+        body, _ = get(f"{origin}/health")
+        running = json.loads(body)
+        private_home = Path(running["home"])
+        private_site = Path(running["site"])
+        assert private_home != host_home
+        assert (private_home / "auth.json").read_bytes() == (
+            host_home / "auth.json"
+        ).read_bytes()
+        assert (private_home / "auth.json").stat().st_mode & 0o777 == 0o600
+        assert (private_home / "config.toml").read_text() == 'model = "test"'
+        assert private_site != root / ".tmp" / "site"
+        assert (private_site / "_leaf" / "site.json").exists()
+        raise RuntimeError("journey failed")
+    assert not private_home.exists()
+    assert not private_site.exists()
+    assert (host_home / "auth.json").read_text() == '{"test": "login"}'
+    with pytest.raises(ProcessLookupError):
+        os.kill(running["pid"], 0)
 
 
-def test_a_deployed_benchmark_writes_the_origin_sample(tmp_path, monkeypatch):
-    origin = "https://leaf-website-dev.example"
-    output = tmp_path / "benchmark.json"
-    configured = []
-    monkeypatch.setenv("LEAF_BENCHMARK_OUTPUT", str(output))
-    monkeypatch.delenv("LEAF_SITE_AGENT_RUNNER", raising=False)
-    monkeypatch.setattr(benchmark_site.sys, "argv", ["benchmark-site.py", origin])
-    monkeypatch.setattr(benchmark_site, "configure_origin", configured.append)
-    monkeypatch.setattr(benchmark_site, "measure", lambda release: {"release": release})
+def test_the_benchmark_passes_local_and_remote_targets_explicitly(monkeypatch):
+    calls = []
+    lifecycle = []
 
-    benchmark_site.main()
+    @contextmanager
+    def local():
+        lifecycle.append("start")
+        try:
+            yield "http://127.0.0.1:8080", "a" * 40
+        finally:
+            lifecycle.append("stop")
 
-    assert configured == [origin]
-    assert json.loads(output.read_text()) == {"release": None}
+    def measure(origin, release=None, *, direct_agent=False):
+        calls.append((origin, release, direct_agent))
+        return {"origin": origin, "release": release}
+
+    monkeypatch.setattr(benchmark_site, "local_adapter", local)
+    monkeypatch.setattr(benchmark_site, "measure", measure)
+    runner = CliRunner()
+    local_result = runner.invoke(benchmark_site.main, ["local"])
+    assert local_result.exit_code == 0, local_result.output
+    assert json.loads(local_result.output) == {
+        "origin": "http://127.0.0.1:8080",
+        "release": "a" * 40,
+    }
+    remote_result = runner.invoke(benchmark_site.main, ["https://leaf-dev.example/"])
+    assert remote_result.exit_code == 0, remote_result.output
+    assert json.loads(remote_result.output) == {
+        "origin": "https://leaf-dev.example",
+        "release": None,
+    }
+    assert lifecycle == ["start", "stop"]
+    assert calls == [
+        ("http://127.0.0.1:8080", "a" * 40, True),
+        ("https://leaf-dev.example", None, False),
+    ]
+    invalid = runner.invoke(benchmark_site.main, ["https://leaf-dev.example/a-page"])
+    assert invalid.exit_code == 2
+    assert len(calls) == 2
 
 
 def test_the_private_reply_client_resolves_manifest_routes(tmp_path):
@@ -3037,7 +3078,9 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "time",
             SimpleNamespace(monotonic=following_clock.__next__),
         )
-        benchmark = verify_site.verify_agent_turn(_DeployedSite(container), None)
+        benchmark = verify_site.verify_agent_turn(
+            _DeployedSite(container), None, origin="https://leaf.page"
+        )
 
     # The ordinary first load uses the edge-page presentation bound. The post-turn
     # reload gets its own bound for both presentation and the later revision follow.
@@ -3062,7 +3105,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     assert "response visible at 12.5 s" in reported
     assert "changed page — HTML first byte 100 ms" in reported
     assert benchmark == {
-        "origin": verify_site.ORIGIN,
+        "origin": "https://leaf.page",
         "release": release,
         "page": {
             "htmlFirstByteMs": 100.0,
@@ -3129,7 +3172,9 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     refused = _DeployedPage(heading, revision=2, presented_at=28444.0, reload_ok=False)
     with pytest.raises(RuntimeError, match="did not reload after its agent turn"):
         verify_site.verify_agent_turn(
-            _DeployedSite(_DeployedContainer(release, refused)), release
+            _DeployedSite(_DeployedContainer(release, refused)),
+            release,
+            origin="https://leaf.page",
         )
     assert refused.presentation_waits == [30_000]
     assert refused.revision_waits == []
@@ -3175,7 +3220,9 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     )
     with pytest.raises(RuntimeError) as reported:
         verify_site.verify_agent_turn(
-            _DeployedSite(_DeployedContainer(release, offline)), release
+            _DeployedSite(_DeployedContainer(release, offline)),
+            release,
+            origin="https://leaf.page",
         )
     assert "stands on revision 1" in str(reported.value)
     assert "Server offline — reconnecting" in str(reported.value)
@@ -3195,7 +3242,9 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     )
     with pytest.raises(RuntimeError) as named:
         verify_site.verify_agent_turn(
-            _DeployedSite(_DeployedContainer(release, told)), release
+            _DeployedSite(_DeployedContainer(release, told)),
+            release,
+            origin="https://leaf.page",
         )
     assert "stands on revision 1" in str(named.value)
     assert "Claude is handling 1 update" in str(named.value)

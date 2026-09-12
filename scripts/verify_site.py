@@ -5,20 +5,25 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
+import urllib.error
+import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
 from typing import NamedTuple
 from urllib.parse import urlencode, urljoin, urlsplit
 
+import click
 from leaf.render_gate.browser import launch_browser
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
-ORIGIN = os.environ.get("LEAF_SITE_ORIGIN", "https://leaf.page").rstrip("/")
-DIRECT_AGENT = os.environ.get("LEAF_VERIFY_DIRECT_AGENT") == "1"
 PAGES = (
     ("/", "product", True),
     ("/examples/triage-board/", "example", True),
@@ -242,11 +247,13 @@ def activation_url(page_url: str, state: dict) -> str:
     return urljoin(page_url, f"api/view?{query}")
 
 
-def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> dict:
+def verify_page(
+    browser, path: str, kind: str, release: str, activate: bool, *, origin: str
+) -> dict:
     context = browser.new_context()
     page = context.new_page()
     failures = observe_startup(page)
-    url = urljoin(f"{ORIGIN}/", path.lstrip("/"))
+    url = urljoin(f"{origin}/", path.lstrip("/"))
     response = page.goto(url, wait_until="load", timeout=120_000)
     check(response is not None and response.ok, f"{url} did not load")
     await_presentation(page, url, failures)
@@ -263,7 +270,7 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
         resource
         for resource in resources
         if urlsplit(resource).path.endswith((".js", ".css", "registry.json"))
-        and urlsplit(resource).netloc == urlsplit(ORIGIN).netloc
+        and urlsplit(resource).netloc == urlsplit(origin).netloc
     ]
     check(code, f"{url} loaded no runtime resources")
     check(
@@ -276,7 +283,7 @@ def verify_page(browser, path: str, kind: str, release: str, activate: bool) -> 
         ),
         f"{url} opened a news stream before interaction",
     )
-    secure = urlsplit(ORIGIN).scheme == "https"
+    secure = urlsplit(origin).scheme == "https"
     identity_cookie = "__Host-leaf-page" if secure else "leaf-page-local"
     cookie_names = {cookie["name"] for cookie in context.cookies()}
     check(
@@ -409,10 +416,10 @@ def startup_line(path: str, startup: dict) -> str:
     )
 
 
-def verify_cross_tab_activation(browser) -> None:
+def verify_cross_tab_activation(browser, *, origin: str) -> None:
     """One interacting tab must wake another tab sharing its browser session."""
     context = browser.new_context()
-    url = f"{ORIGIN}/examples/triage-board/"
+    url = f"{origin}/examples/triage-board/"
     leader = context.new_page()
     follower = context.new_page()
     for page in (leader, follower):
@@ -439,7 +446,12 @@ def verify_cross_tab_activation(browser) -> None:
 
 
 def reader_session(
-    browser, url: str, state_url: str, release: str | None
+    browser,
+    url: str,
+    state_url: str,
+    release: str | None,
+    *,
+    direct_agent: bool = False,
 ) -> AgentSession | str:
     """One activated reader session, or the release its container served instead."""
     context = browser.new_context()
@@ -450,7 +462,7 @@ def reader_session(
     await_presentation(page, url, failures)
     passive = context.request.get(state_url, timeout=120_000)
     check(passive.ok, f"{state_url} returned {passive.status}")
-    if DIRECT_AGENT:
+    if direct_agent:
         reached = passive.headers.get("leaf-release")
         if release is not None and reached != release:
             context.close()
@@ -480,7 +492,9 @@ def reader_session(
     return AgentSession(context, page, failures, url, state_url, state_response.json())
 
 
-def agent_session(browser, release: str | None) -> AgentSession:
+def agent_session(
+    browser, release: str | None, *, origin: str, direct_agent: bool = False
+) -> AgentSession:
     """Open one reader session whose private container is serving `release`.
 
     The Worker keys a container on the reader session alone, so a session that lands
@@ -493,14 +507,16 @@ def agent_session(browser, release: str | None) -> AgentSession:
     and it takes a fresh session while a rollout drains. Nothing here writes: the
     turn is posted once, afterwards.
     """
-    url = f"{ORIGIN}/examples/triage-board/"
+    url = f"{origin}/examples/triage-board/"
     state_url = urljoin(url, "api/state")
     # The release verification ahead of this pass already waited out most of the
     # rollout, so this is the tail of a drain rather than the drain, and this wait
     # plus the turn's `TURN_LIMIT` still has to sit inside the job's own budget.
     deadline = time.monotonic() + 180
     while True:
-        session = reader_session(browser, url, state_url, release)
+        session = reader_session(
+            browser, url, state_url, release, direct_agent=direct_agent
+        )
         if isinstance(session, AgentSession):
             return session
         check(release is not None, f"{url} returned no active release")
@@ -685,6 +701,8 @@ def ask_for_the_heading(
     heading: str,
     profile: AgentProfile,
     ask: int,
+    *,
+    direct_agent: bool = False,
 ) -> dict:
     """Send one deployment-check comment through the reader's real composer."""
     text = (
@@ -727,7 +745,7 @@ def ask_for_the_heading(
     )
     check(comment is not None, f"{url} did not return its deployment-check comment")
     profile.event_ids.append(comment["id"])
-    if DIRECT_AGENT:
+    if direct_agent:
         start_direct_agent(context, url, comment)
     return comment
 
@@ -797,6 +815,7 @@ def ask_until_answered(
     state: dict,
     *,
     report: bool = True,
+    direct_agent: bool = False,
 ) -> AgentAsks:
     """Ask the deployed agent for `heading` until it answers or stops answering.
 
@@ -830,6 +849,7 @@ def ask_until_answered(
             heading,
             profile,
             asks,
+            direct_agent=direct_agent,
         )
         state, published, replies, answer = await_turn(
             context,
@@ -865,7 +885,14 @@ def ask_until_answered(
             )
 
 
-def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> dict:
+def verify_agent_turn(
+    browser,
+    release: str | None,
+    *,
+    origin: str,
+    direct_agent: bool = False,
+    report: bool = True,
+) -> dict:
     """Require one deployed Codex turn to revise and answer a private page.
 
     A turn is a process, not a step: it may publish a checkpoint revision before the
@@ -881,7 +908,9 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
     page that says nothing is answering, while a page that says a turn is still on
     this comment holds it open to `TURN_LIMIT`.
     """
-    context, page, failures, url, state_url, state = agent_session(browser, release)
+    context, page, failures, url, state_url, state = agent_session(
+        browser, release, origin=origin, direct_agent=direct_agent
+    )
     initial_startup = page.evaluate(STARTUP_READING)
     if release is None:
         release = state.get("release")
@@ -904,6 +933,7 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
         heading,
         state,
         report=report,
+        direct_agent=direct_agent,
     )
     turn, asks, revision, profile = asked
     try:
@@ -1036,7 +1066,7 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
         )
         print(startup_line("changed page", startup))
     result = {
-        "origin": ORIGIN,
+        "origin": origin,
         "release": release,
         "page": startup_profile(initial_startup),
         "comment": agent_profile(profile),
@@ -1054,39 +1084,177 @@ def verify_agent_turn(browser, release: str | None, *, report: bool = True) -> d
     return result
 
 
-def main() -> None:
-    """Verify one deployed release, or run the deployed agent turn against it.
+def target_origin(target: str) -> str:
+    """Require an HTTP origin; page paths belong to the verification journey."""
+    parsed = urlsplit(target)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise click.BadParameter("target must be local or an http(s) origin")
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise click.BadParameter(
+            "target must be an origin without a path, query, or fragment"
+        )
+    return target.rstrip("/")
 
-    Container rollout is asynchronous and per allocation: a fresh reader session can
-    still reach the previous image seconds after another reached the new one. The
-    deploy step waits that out by re-running the release pass until it holds, so a
-    single coherent sample is what ends the wait. The agent pass therefore runs the
-    turn alone — re-sampling the release readings after the wait had already settled
-    them turned a rollout that was still draining into a red default branch.
+
+@contextmanager
+def local_adapter():
+    """Own a disposable website adapter and Codex home for one real agent journey.
+
+    The host's login is copied into a private temporary home. The adapter uses
+    resumable tasks there and owns their App Server; terminating it closes that
+    server before the temporary pages and task history are removed. Build and server
+    output stay in the diagnostic log, so a benchmark's stdout contains only JSON.
     """
-    if len(sys.argv) > 2:
-        raise SystemExit("usage: uv run scripts/verify-site.py [release]")
+    log = ROOT / ".tmp" / "website-agent-local.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="leaf-site-agent.") as temporary:
+        root = Path(temporary)
+        site = root / "site"
+        codex_home = root / "codex-home"
+        codex_home.mkdir(mode=0o700)
+        host_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+        shutil.copyfile(
+            ROOT / "worker" / "codex-config.toml", codex_home / "config.toml"
+        )
+        auth = codex_home / "auth.json"
+        shutil.copyfile(host_home / "auth.json", auth)
+        auth.chmod(0o600)
+        with log.open("w") as output:
+            try:
+                subprocess.run(
+                    [sys.executable, str(ROOT / "scripts" / "site.py")],
+                    cwd=ROOT,
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                    check=True,
+                )
+                shutil.copytree(ROOT / ".tmp" / "site", site)
+                release = json.loads((site / "_leaf" / "site.json").read_text())[
+                    "release"
+                ]
+                output.flush()
+                server_log_start = output.tell()
+                with subprocess.Popen(
+                    [sys.executable, str(ROOT / "worker" / "server.py")],
+                    cwd=ROOT,
+                    env={
+                        **os.environ,
+                        "CODEX_HOME": str(codex_home),
+                        "LEAF_SITE_ROOT": str(site),
+                    },
+                    stdout=output,
+                    stderr=subprocess.STDOUT,
+                ) as server:
+                    try:
+                        origin = "http://127.0.0.1:8080"
+                        deadline = time.monotonic() + 30
+                        while True:
+                            if server.poll() is not None:
+                                raise RuntimeError(
+                                    "the local website adapter exited before becoming ready"
+                                )
+                            # The adapter emits this event only after binding its
+                            # listener. An unrelated process answering the port must
+                            # not satisfy readiness before our child has started.
+                            with log.open() as server_log:
+                                server_log.seek(server_log_start)
+                                ready = False
+                                for line in server_log:
+                                    if not line.endswith("\n"):
+                                        break
+                                    try:
+                                        record = json.loads(line)
+                                    except json.JSONDecodeError:
+                                        # stderr shares this log with the structured
+                                        # events, including startup tracebacks.
+                                        continue
+                                    if (
+                                        isinstance(record, dict)
+                                        and record.get("event")
+                                        == "container_http_ready"
+                                    ):
+                                        ready = True
+                                        break
+                            if ready:
+                                try:
+                                    with urllib.request.urlopen(
+                                        f"{origin}/health", timeout=1
+                                    ):
+                                        break
+                                except (urllib.error.URLError, TimeoutError):
+                                    pass
+                            if time.monotonic() >= deadline:
+                                raise RuntimeError(
+                                    "the local website adapter did not become ready"
+                                )
+                            time.sleep(0.1)
+                        yield origin, release
+                    finally:
+                        if server.poll() is None:
+                            server.terminate()
+                        server.wait()
+            except BaseException:
+                output.flush()
+                sys.stderr.write(log.read_text())
+                raise
+
+
+@click.command()
+@click.argument("target", default="https://leaf.page")
+@click.option("--release", help="Require this exact built release.")
+@click.option(
+    "--agent",
+    is_flag=True,
+    help="Verify one agent edit and reply instead of the release boundary.",
+)
+def main(target: str, release: str | None, agent: bool) -> None:
+    """Verify a deployed release, or run the agent journey against LOCAL or an origin.
+
+    The release and agent passes are separate: rollout verification settles the
+    release before the agent pass allocates its own private reader session.
+    """
+    if target == "local":
+        with local_adapter() as (origin, built):
+            check(
+                release is None or release == built,
+                "the requested release differs from the built site",
+            )
+            run_verification(origin, built, agent=True, direct_agent=True)
+        return
+    origin = target_origin(target)
     built = json.loads(MANIFEST.read_text(encoding="utf-8"))["release"]
-    release = sys.argv[1] if len(sys.argv) == 2 else built
-    check(release == built, "the requested release differs from the built site")
+    check(
+        release is None or release == built,
+        "the requested release differs from the built site",
+    )
+    run_verification(origin, release or built, agent=agent)
+
+
+def run_verification(
+    origin: str, release: str, *, agent: bool, direct_agent: bool = False
+) -> None:
+    """Run one browser check against explicit transport and release inputs."""
     with sync_playwright() as playwright:
         browser, browser_name = launch_browser(playwright)
         try:
-            if os.environ.get("LEAF_VERIFY_AGENT") == "1":
-                verify_agent_turn(browser, release)
-                target = "the local adapter" if DIRECT_AGENT else "leaf.page"
-                print(f"✓ {target} ran one agent turn on release {release}")
+            if agent:
+                verify_agent_turn(
+                    browser, release, origin=origin, direct_agent=direct_agent
+                )
+                print(f"✓ {origin} ran one agent turn on release {release}")
                 return
             print(
                 "Leaf startup profile (observed, not a pass/fail budget):", flush=True
             )
             for path, kind, activate in PAGES:
-                profile = verify_page(browser, path, kind, release, activate)
+                profile = verify_page(
+                    browser, path, kind, release, activate, origin=origin
+                )
                 print(startup_line(path, profile), flush=True)
-            verify_cross_tab_activation(browser)
+            verify_cross_tab_activation(browser, origin=origin)
         finally:
             browser.close()
-    print(f"✓ leaf.page serves release {release} in {browser_name}")
+    print(f"✓ {origin} serves release {release} in {browser_name}")
 
 
 if __name__ == "__main__":

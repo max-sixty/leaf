@@ -114,7 +114,7 @@ selected slot and rebuild it from the current fixture.
 
 ## Test the hosted website agent
 
-Run `<root>/scripts/verify-site-agent-local.sh` for the development loop. It builds
+Run `uv run <root>/scripts/verify_site.py local` for the development loop. It builds
 the current site, starts the canonical website adapter, uses the host's logged-in Codex
 App Server, asks for one heading edit, and verifies the publication, reply, and changed
 page in Chrome. Its profile reports request acknowledgement, agent activity,
@@ -130,11 +130,11 @@ through Wrangler's local Docker container:
 ```bash
 npm ci --prefix <root>/worker
 npm run build --prefix <root>/worker
-LEAF_VERIFY_AGENT=1 <root>/scripts/verify-site-local.sh
+<root>/scripts/verify-site-local.sh --agent
 ```
 
 Local infrastructure is emulated, so neither loop proves edge rollout or production
-latency. The `publish-site` workflow runs `scripts/verify-site.py` against the exact
+latency. The `publish-site` workflow runs `scripts/verify_site.py` against the exact
 deployed release and is the authoritative production reading.
 
 ## Compare checkout versions

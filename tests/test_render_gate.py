@@ -28,6 +28,7 @@ from render_support import (
     CUSTOM_WIDGET_PAGE,
     EDGE_IDS,
     EDGES,
+    EXAMPLE_PACKAGES,
     EXAMPLES,
     FAINT_CODE_PAGE,
     FEATURE_GALLERY,
@@ -943,7 +944,9 @@ def test_the_render_gate_rejects_an_upgrade_that_defines_no_element(
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text("// Valid JavaScript, but no custom-element definition.\n")
 
-    failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
 
     assert any(
         "upgraded widgets did not define their elements: <lf-callout>" in failure
@@ -977,7 +980,7 @@ def test_the_render_gate_requires_a_declared_conversations_host(
     )
     module.write_text(source)
 
-    url = serve(CUSTOM_WIDGET_PAGE)
+    url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     assert render_gate_model.render_version(browser, url) == []
 
     module = serve.page_dir / "widgets" / "lf-callout.js"
@@ -1012,7 +1015,9 @@ def test_the_render_gate_requires_a_visual_parts_provider(
     declarations["lf-callout"]["x-visual"] = {"parts": "parts"}
     registry_path.write_text(json.dumps(declarations, indent=2))
 
-    failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
 
     assert any(
         "declares addressable visual parts but its module did not call "
@@ -1207,7 +1212,7 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
 
     failures, _notices, completed = render_gate_scheme._render_scheme(
         browser,
-        serve(CUSTOM_WIDGET_PAGE),
+        serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")),
         "light",
         {"width": 1200, "height": 900},
         3_000,
@@ -1232,7 +1237,9 @@ def test_the_render_gate_catches_a_lying_verbatim_and_an_undeclared_shadow_root(
     monkeypatch.chdir(tmp_path)
     _author_lying_callout(tmp_path)
 
-    failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
 
     assert any("x-verbatim" in f for f in failures), failures
     assert any("shadow roots the registry doesn't declare" in f for f in failures), (
@@ -1257,7 +1264,9 @@ def test_the_render_gate_checks_verbatim_words_in_each_color_scheme(
         "});\n"
     )
 
-    failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
 
     dishonest = [failure for failure in failures if "x-verbatim" in failure]
     assert len(dishonest) == 1, failures
@@ -1295,7 +1304,7 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
 <lf-shell mode="replace">Second page owner.</lf-shell>
 """,
     )
-    url = serve(page)
+    url = serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     events_model.append_event(
         serve.page_dir,
         {
@@ -1397,7 +1406,8 @@ def test_action_and_report_state_do_not_excuse_unrelated_verbatim_corruption(
             f"verbatim after {kind}",
             '<h1>Stateful prose</h1><lf-stateful id="owner">'
             "<p>Authored prose must remain.</p></lf-stateful>",
-        )
+        ),
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
     )
     command = {
         "kind": kind,
@@ -1630,7 +1640,8 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
             "<p>Wrapper prose must remain.</p>"
             '<lf-stateful id="child"><p>Child prose.</p></lf-stateful>'
             "</lf-shell>",
-        )
+        ),
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
     )
     append_command(
         serve.page_dir,
@@ -1717,7 +1728,7 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
         "  }\n"
         "});\n"
     )
-    url = serve(page)
+    url = serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     events_model.append_event(
         serve.page_dir,
         {
@@ -1794,7 +1805,9 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
         ");\n"
     )
 
-    failures = render_gate_model.render_version(browser, serve(CUSTOM_WIDGET_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
 
     assert any('never says "09:00"' in f for f in failures), failures
     assert any('paints kind="failure" and says nothing' in f for f in failures), (
@@ -1839,7 +1852,9 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
         ");\n"
     )
 
-    failures = render_gate_model.render_version(browser, serve(SHADOW_HOST_PAGE))
+    failures = render_gate_model.render_version(
+        browser, serve(SHADOW_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
 
     assert any('never says "Escalated"' in f for f in failures), failures
     assert any('paints urgent="" and says nothing' in f for f in failures), failures
@@ -2038,7 +2053,9 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
         ),
         IDENTIFIERS_IN_CODE_PAGE,
     )
-    page, errors = open_page(browser, serve(source))
+    page, errors = open_page(
+        browser, serve(source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
     resized(page, 540, 720)
     host = page.locator("lf-callout").first
     host.evaluate(
@@ -3081,7 +3098,7 @@ def test_an_authored_project_widget_loads_through_the_real_layer(
         )
     )
 
-    url = serve(CUSTOM_WIDGET_PAGE)
+    url = serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     page, errors = open_page(browser, url)
     widget = page.locator("#custom-note")
     expect(widget).to_have_attribute("data-lf-done", "1")
@@ -3325,7 +3342,11 @@ def test_the_gate_reports_a_trapped_margin_in_the_page_and_not_in_the_layer(
     )
     # A comment, so the thread list has a thread to draw and the layer's half of the
     # trap has a box to be trapped in.
-    url = serve(TRAP_PAIR_PAGE, anchored=[("tp-first", "signed-cookie fallback")])
+    url = serve(
+        TRAP_PAIR_PAGE,
+        anchored=[("tp-first", "signed-cookie fallback")],
+        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
+    )
     failures = render_gate_model.render_version(browser, url)
     trapped = [f for f in failures if "of inset and shows" in f]
     assert any("tp-inset" in f for f in trapped), (

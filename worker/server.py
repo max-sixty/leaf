@@ -245,8 +245,6 @@ class WebsiteCodexHost:
         codex_path: str | None = None,
         socket_path: Path = CODEX_SOCKET,
         log_path: Path = CODEX_LOG,
-        *,
-        ephemeral: bool = False,
     ):
         self.codex_path = codex_path or shutil.which("codex")
         self.socket_path = socket_path
@@ -257,7 +255,6 @@ class WebsiteCodexHost:
         self.lock = threading.Lock()
         self.next_request_id = 0
         self.waiter_leases = {}
-        self.ephemeral = ephemeral
         self.reply_token = secrets.token_urlsafe(32)
         self.reply_token_owned = False
 
@@ -776,7 +773,6 @@ class WebsiteCodexHost:
                 "sandbox": "danger-full-access",
                 "developerInstructions": CODEX_INSTRUCTIONS,
                 "config": {"model_reasoning_effort": "low"},
-                "ephemeral": self.ephemeral,
             },
             attach,
         )
@@ -983,9 +979,7 @@ _agent_host: WebsiteCodexHost | None = None
 def website_codex_host() -> WebsiteCodexHost:
     global _agent_host
     if _agent_host is None:
-        _agent_host = WebsiteCodexHost(
-            ephemeral=os.environ.get("LEAF_AGENT_EPHEMERAL") == "1"
-        )
+        _agent_host = WebsiteCodexHost()
     return _agent_host
 
 

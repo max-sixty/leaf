@@ -23,6 +23,7 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
+    PAGE_PACKAGES,
     ROOT,
     TOKEN,
     append_command,
@@ -60,6 +61,7 @@ from leaf.served_state import browser as served_browser
 from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
 from leaf.served_state import service as served_service
+from page_fixtures import package_selection_args
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
@@ -2777,7 +2779,17 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
         "customElements.define('lf-local-draft', class extends HTMLElement {});"
     )
     assert (
-        CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
+        CliRunner()
+        .invoke(
+            cli_model.cli,
+            [
+                "page",
+                "init",
+                *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+                str(page_dir),
+            ],
+        )
+        .exit_code
         == 0
     )
     source = page_dir / "index.html"
@@ -2805,7 +2817,17 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
     (overlay / "registry.json").unlink()
     (overlay / "widgets" / "lf-local-draft.js").unlink()
     assert (
-        CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)]).exit_code
+        CliRunner()
+        .invoke(
+            cli_model.cli,
+            [
+                "page",
+                "init",
+                *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+                str(page_dir),
+            ],
+        )
+        .exit_code
         == 0
     )
 

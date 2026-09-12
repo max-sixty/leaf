@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 from .files import fsync_parents, json_bytes, read_json, replace_files
-from .host import config_home, package_store
+from .host import package_store
 from .layer import (
     LayerComposition,
     checked_inputs,
@@ -24,7 +24,6 @@ from .locations import (
     located,
     location_is_within,
     locations_overlap,
-    path_is_within,
     path_location,
     paths_same,
 )
@@ -150,24 +149,10 @@ def starter_widget_module(tag: str) -> bytes:
 
 
 def protected_package_paths(package: Path) -> list:
-    """Resolved paths owned by the kernel and every other package."""
+    """Resolved paths owned by the kernel and bundled default package."""
     paths = []
-    implicit = {config_home(), Path.cwd() / ".leaf"}
-    independent = package not in implicit
     for other in layer_inputs():
-        if other == package:
-            continue
-        # A standalone package repository naturally contains the project's future
-        # `.leaf/` package. There is no second package until that directory exists; if
-        # it later does, page init's ordinary overlap gate refuses composing both.
-        # Keep protecting existing implicit packages and
-        # every future peer scope, but do not make an absent child reserve its parent.
-        if (
-            independent
-            and other in implicit
-            and not (other.exists() or other.is_symlink())
-            and path_is_within(other, package)
-        ):
+        if paths_same(other, package):
             continue
         paths.append(other.resolve())
         if other.is_dir():

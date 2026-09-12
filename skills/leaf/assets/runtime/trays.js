@@ -47,17 +47,6 @@ const TRAY_COVERING = `(width <= ${TRAY_SLOT_W * 2}px)`;
 // spells the same name and the same covering width, and the layer test holds the two
 // spellings equal, since a stylesheet cannot read a constant.
 export const TRAY_SLOT_PROP = "--lf-tray-slot-width";
-// Which trays take their room out of the page rather than lying over it. The rule that
-// takes the strip spells this list in chrome.css, and the layer test holds the two equal.
-//
-// The leaves tray is not on the list, and that is not an inconsistency between two twins:
-// a leaf's row is a way out of this page and an Ask's row is a way around it, so pressing
-// an Ask's row scrolls the document to the Ask and stands you on the control that answers
-// it — and a tray lying over the document would be hiding the very thing it just sent you
-// to. A 300px tray and a 720px column overlap on any window under about 1320px, which is
-// most of them, so this is the common case rather than the narrow one.
-export const BESIDE_TRAYS = ["asks"];
-
 export const TRAY_SLOT_KEY = "lf-tray-slot-open";
 const trayCovering = matchMedia(TRAY_COVERING);
 export const trayCovers = () => trayCovering.matches;
@@ -239,6 +228,8 @@ export function createTrays({
     const modality = registerAuxiliarySurface({
       surface: panel,
       scroller: () => panel.querySelector(".lf-tray-list"),
+      // Asks needs the document beside it because its rows lead to controls there.
+      // Leaves leads to another page, so it can cover the current one.
       covers: () => key === "leaves" || trayCovers(),
       focus: () =>
         panel.querySelector(".lf-tray-list button, .lf-tray-list a[href]") ?? panel,

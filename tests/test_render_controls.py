@@ -14,6 +14,7 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf.registry import storage as registry_storage
+from page_fixtures import package_selection_args
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_support import (
@@ -27,6 +28,7 @@ from render_support import (
     DEEP_FOCUS,
     DEFINE_BOXES,
     DIFF_PAGE,
+    EXAMPLE_PACKAGES,
     EXAMPLES,
     FEATURE_GALLERY,
     HERE_SHADOW,
@@ -1970,7 +1972,13 @@ def test_an_open_tab_reloads_before_posting_through_a_revendored_layer(browser, 
     project.mkdir()
     (project / "theme.css").write_text(":root { --accent: rebeccapurple; }\n")
     initialized = CliRunner().invoke(
-        cli_model.cli, ["page", "init", str(serve.page_dir)]
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*EXAMPLE_PACKAGES, "./.leaf")),
+            str(serve.page_dir),
+        ],
     )
     assert initialized.exit_code == 0, initialized.output
     new_layer = registry_storage.layer_generation(serve.page_dir)

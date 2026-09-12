@@ -256,7 +256,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
                 "result": "The candidate detail page keeps Back to releases beside the expanded audit line.",
                 "after": media["candidate-detail-corrected"],
             },
-        ]
+        ],
     }
     data_model.cmd_data_set(review_dir, "journey-run", corrected)
     told(reader)
@@ -265,9 +265,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(second.locator("lf-shot")).to_have_attribute(
         "after", media["candidate-detail-corrected"]
     )
-    corrected_image = second.locator(
-        '.lf-shotframe[data-lf-state="after"] img'
-    )
+    corrected_image = second.locator('.lf-shotframe[data-lf-state="after"] img')
     expect(corrected_image).to_have_js_property("complete", True)
     assert corrected_image.evaluate("image => image.naturalWidth") > 0
     with sending(reader, "the corrected navigation disposition"):

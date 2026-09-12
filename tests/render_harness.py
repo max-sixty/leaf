@@ -973,7 +973,7 @@ def held_stale(context):
 # reading, so a document-only wait can return a page whose banner the reader would not
 # recognize. The coordinator check also prevents the monotonic arrival attributes from
 # authorizing interaction during a later repaint.
-BOTH_STAMPS = """async () => {
+BOTH_STAMPS = """() => {
   if (
     document.body.dataset.lfUpgraded !== '1' ||
     document.body.dataset.lfApplied === undefined ||
@@ -981,10 +981,20 @@ BOTH_STAMPS = """async () => {
   ) return false;
   const entry = document.querySelector('script[data-lf-entry]')?.dataset.lfEntry;
   if (!entry) return false;
-  const runtime = await import(
-    new URL('runtime/validation.js', new URL(entry, location.href)).href
-  );
-  return runtime.validationPresentationReady();
+  // A wait predicate's Promise is itself truthy. Start the import as side work and
+  // keep returning a synchronous false until the current module supplies its reader.
+  let probe = globalThis.__lfCurrentPresentation;
+  if (!probe || probe.entry !== entry) {
+    probe = {entry, read: null, failure: null};
+    globalThis.__lfCurrentPresentation = probe;
+    import(new URL('runtime/validation.js', new URL(entry, location.href)).href).then(
+      runtime => { probe.read = runtime.validationPresentationReady; },
+      error => { probe.failure = error; },
+    );
+    return false;
+  }
+  if (probe.failure) throw probe.failure;
+  return probe.read?.() ?? false;
 }"""
 STORED_DRAFT_TEXT = """ctx => {
   try {

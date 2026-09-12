@@ -71,6 +71,7 @@ customElements.define("lf-local", class extends LitElement {
   }
 
   choose() {
+    this.dataset.gestures = String(Number(this.dataset.gestures || 0) + 1);
     const sent = this.controller.dispatch({
       kind: "action",
       verb: "choose",
@@ -96,6 +97,45 @@ customElements.define("lf-local", class extends LitElement {
   }
 });
 """
+
+
+def test_current_readiness_releases_a_connected_page_widget(browser, serve):
+    """The readiness edge includes a late module's owner and first gesture route."""
+    source = LIVE_V1.replace(
+        '<h1 id="live-title">Live first</h1>',
+        '<h1 id="live-title">Live first</h1>'
+        '<lf-local id="page-local" choice="idle"></lf-local>',
+    )
+    page, errors = open_page(
+        browser,
+        live_url(
+            serve(
+                source,
+                page_files={
+                    "registry.json": json.dumps(PAGE_DECLARATION),
+                    "widgets/lf-local.js": PAGE_WIDGET,
+                },
+            )
+        ),
+    )
+
+    installed = page.evaluate(
+        """() => {
+          const owner = document.querySelector('#page-local');
+          const control = owner.renderRoot.querySelector('button');
+          control.click();
+          return {
+            defined: customElements.get('lf-local') === owner.constructor,
+            connected: owner.dataset.pageWidget,
+            gestures: owner.dataset.gestures,
+          };
+        }"""
+    )
+    assert installed == {"defined": True, "connected": "ready", "gestures": "1"}
+    expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
+    assert errors == []
+    page.close()
+
 
 PAGE_DECLARATION = {
     "lf-local": {

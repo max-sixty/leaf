@@ -50,6 +50,11 @@ const SCALE = {
   actual: "100%",
 };
 
+const SCOPE = {
+  focus: "Focus change",
+  full: "Full frame",
+};
+
 function make(tag, className, text = null, says = true) {
   const element = document.createElement(tag);
   element.className = className;
@@ -101,6 +106,7 @@ customElements.define(
     #queueHost = null;
     #run = null;
     #scale = "fit";
+    #scope = "focus";
     #selected = null;
     #snapshot = null;
     #partition = null;
@@ -287,17 +293,22 @@ customElements.define(
       inspector.setAttribute("aria-label", "Inspection controls");
 
       for (const [kind, values] of [
+        ["scope", SCOPE],
         ["mode", INSPECTION],
         ["scale", SCALE],
       ]) {
         const group = offer("div", `lf-vr-inspector-group lf-vr-${kind}-group`);
         group.setAttribute("role", "group");
-        group.setAttribute("aria-label", kind === "mode" ? "View" : "Size");
+        group.setAttribute(
+          "aria-label",
+          { scope: "Scope", mode: "View", scale: "Size" }[kind],
+        );
         for (const [value, text] of Object.entries(values)) {
           const button = offer("button", "lf-vr-inspector-button", text);
           button.dataset[kind] = value;
           button.addEventListener("click", () => {
-            if (kind === "mode") this.#setMode(value);
+            if (kind === "scope") this.#setScope(value);
+            else if (kind === "mode") this.#setMode(value);
             else this.#setScale(value);
           });
           commands(button, "On visual evidence", [
@@ -330,6 +341,15 @@ customElements.define(
       return inspector;
     }
 
+    #setScope(scope) {
+      if (!(scope in SCOPE) || scope === this.#scope) return;
+      if (scope === "focus" && !this.#caseEntries.get(this.#selected)?.record.focus)
+        return;
+      this.#scope = scope;
+      this.#paintInspector();
+      notice(`${SCOPE[scope]} evidence`);
+    }
+
     #setMode(mode) {
       if (!(mode in INSPECTION) || mode === this.#mode) return;
       this.#mode = mode;
@@ -354,7 +374,14 @@ customElements.define(
       if (!this.#inspector) return;
       this.dataset.inspectionMode = this.#mode;
       this.dataset.inspectionScale = this.#scale;
+      const focus = this.#caseEntries.get(this.#selected)?.record?.focus;
+      const scope = focus ? this.#scope : "full";
+      this.dataset.inspectionScope = scope;
       this.style.setProperty("--lf-vr-opacity", String(this.#opacity / 100));
+      const scopeGroup = this.#inspector.querySelector(".lf-vr-scope-group");
+      scopeGroup.hidden = !focus;
+      for (const button of scopeGroup.querySelectorAll("[data-scope]"))
+        button.setAttribute("aria-pressed", String(button.dataset.scope === scope));
       for (const button of this.#inspector.querySelectorAll("[data-mode]"))
         button.setAttribute("aria-pressed", String(button.dataset.mode === this.#mode));
       for (const button of this.#inspector.querySelectorAll("[data-scale]"))
@@ -376,6 +403,15 @@ customElements.define(
         if (flip) shot.removeAttribute("data-lf-shot-controls");
         else shot.dataset.lfShotControls = "off";
         for (const frame of shot.querySelectorAll(".lf-shotframe")) {
+          let viewport = frame.querySelector(":scope > .lf-vr-image-viewport");
+          if (!viewport) {
+            const image = frame.querySelector(":scope > img");
+            if (image) {
+              viewport = make("div", "lf-vr-image-viewport", null, false);
+              image.before(viewport);
+              viewport.append(image);
+            }
+          }
           const oldLabel = frame.querySelector(":scope > .lf-vr-frame-label");
           if (this.#mode !== "compare") {
             oldLabel?.remove();
@@ -411,15 +447,49 @@ customElements.define(
       const { capture } = entry.record;
       const ratio = capture.deviceScaleFactor;
       const fallbackHeight = capture.viewport.height;
-      const heights = frames.map((frame) => {
-        const image = frame.querySelector("img");
+      const images = frames.map((frame) => frame.querySelector("img"));
+      const heights = images.map((image) => {
         if (!image.complete)
           image.addEventListener("load", () => this.#scheduleEvidenceLayout(), {
             once: true,
           });
         return image.naturalHeight ? image.naturalHeight / ratio : fallbackHeight;
       });
-      const width = capture.viewport.width;
+      const focus = entry.record.focus;
+      if (
+        focus &&
+        images.some((image) => !image.naturalWidth || !image.naturalHeight)
+      ) {
+        if (images.every((image) => image.complete))
+          failSoft(
+            entry.shotHost,
+            new Error(`case '${entry.record.id}' focus needs two decoded images`),
+          );
+        return;
+      }
+      if (
+        focus &&
+        images.some(
+          (image) =>
+            focus.x + focus.width > image.naturalWidth / ratio ||
+            focus.y + focus.height > image.naturalHeight / ratio,
+        )
+      ) {
+        failSoft(
+          entry.shotHost,
+          new Error(
+            `case '${entry.record.id}' focus ${focus.x},${focus.y} ${focus.width}×${focus.height} ` +
+              "CSS px falls outside its captured images",
+          ),
+        );
+        return;
+      }
+      const activeFocus = focus && this.#scope === "focus" ? focus : null;
+      const sourceWidth = capture.viewport.width;
+      const width = activeFocus?.width ?? sourceWidth;
+      const visibleHeights = activeFocus
+        ? [activeFocus.height, activeFocus.height]
+        : heights;
       const stageWidth = entry.shotHost.clientWidth;
       const bounded = this.dataset.lfReadingPosture === "bounded";
       // Flow layout follows the widget's own width, so scrolling cannot make a later
@@ -435,16 +505,16 @@ customElements.define(
       const sideWidthScale = (stageWidth - gap - 2 * frameBorder) / (2 * width);
       const sideContainScale = Math.min(
         sideWidthScale,
-        (stageHeight - labelHeight) / Math.max(...heights),
+        (stageHeight - labelHeight) / Math.max(...visibleHeights),
       );
       const stackContainScale = Math.min(
         (stageWidth - frameBorder) / width,
-        (stageHeight - 2 * labelHeight - gap) / (heights[0] + heights[1]),
+        (stageHeight - 2 * labelHeight - gap) / (visibleHeights[0] + visibleHeights[1]),
       );
       // Geometry chooses the comparison, not another preference for the reader to
       // manage. Wide captures stack so their scan lines remain readable in the scrolling
       // stage; other pairs take the arrangement with the larger common scale.
-      const wideCapture = width / Math.max(...heights) >= 1.5;
+      const wideCapture = width / Math.max(...visibleHeights) >= 1.5;
       const compareLayout =
         wideCapture || stackContainScale >= sideContainScale ? "stack" : "side";
       const fitScale =
@@ -454,13 +524,31 @@ customElements.define(
             : sideWidthScale
           : Math.min(
               (stageWidth - frameBorder) / width,
-              stageHeight / Math.max(...heights),
+              stageHeight / Math.max(...visibleHeights),
             );
       // A comparison is a reading surface: fit the pair to its available width and let
       // the bounded stage scroll through its height. Containing both frames vertically
       // made tall mobile captures unreadably small even when both fit side by side.
       const scale = this.#scale === "actual" ? 1 : Math.min(1, fitScale);
       this.dataset.compareLayout = compareLayout;
+      entry.shotHost.dataset.focusAvailable = String(Boolean(focus));
+      entry.shotHost.dataset.focusActive = String(Boolean(activeFocus));
+      entry.shotHost.style.setProperty(
+        "--lf-vr-source-width",
+        `${Math.max(1, sourceWidth * scale)}px`,
+      );
+      if (focus) {
+        entry.shotHost.style.setProperty("--lf-vr-focus-x", `${focus.x * scale}px`);
+        entry.shotHost.style.setProperty("--lf-vr-focus-y", `${focus.y * scale}px`);
+        entry.shotHost.style.setProperty(
+          "--lf-vr-focus-width",
+          `${focus.width * scale}px`,
+        );
+        entry.shotHost.style.setProperty(
+          "--lf-vr-focus-height",
+          `${focus.height * scale}px`,
+        );
+      }
       const beforeLabel = frames[0].querySelector(".lf-vr-frame-label");
       if (beforeLabel)
         beforeLabel.dataset.label =
@@ -652,6 +740,7 @@ customElements.define(
             ["Path", "lf-vr-path", "code"],
             ["Browser", "lf-vr-browser", "span"],
             ["Viewport", "lf-vr-viewport", "span"],
+            ["Focus area", "lf-vr-focus", "span"],
             ["Appearance", "lf-vr-appearance", "span"],
             ["Observed", "lf-vr-observed", "time"],
           ],
@@ -713,6 +802,13 @@ customElements.define(
         entry.article.querySelector(".lf-vr-viewport"),
         `${record.capture.viewport.width} × ${record.capture.viewport.height} · ${record.capture.deviceScaleFactor}×`,
       );
+      const focus = entry.article.querySelector(".lf-vr-focus");
+      focus.closest(".lf-vr-detail").hidden = !record.focus;
+      if (record.focus)
+        setText(
+          focus,
+          `${record.focus.x}, ${record.focus.y} · ${record.focus.width} × ${record.focus.height} CSS px`,
+        );
       setText(
         entry.article.querySelector(".lf-vr-appearance"),
         `${record.capture.colorScheme} · ${record.capture.locale} · ${record.capture.timezone}`,
@@ -757,6 +853,7 @@ customElements.define(
 
     #select(id) {
       if (!this.#caseEntries.has(id)) return;
+      if (id !== this.#selected) this.#scope = "focus";
       this.#selected = id;
       for (const [caseId, entry] of this.#caseEntries) {
         const selected = caseId === id;
@@ -765,6 +862,7 @@ customElements.define(
       }
       const selected = this.#caseEntries.get(id);
       selected.article.querySelector(".lf-vr-toolbar-slot").append(this.#inspector);
+      this.#paintInspector();
       this.#threadSurface?.update();
       layoutChanged(this);
       this.#scheduleEvidenceLayout();

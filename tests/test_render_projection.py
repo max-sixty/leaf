@@ -707,6 +707,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
                 "result": "Each row exposes its current status.",
                 "classification": "changed",
                 "capture": capture,
+                "focus": {"x": 120, "y": 80, "width": 640, "height": 220},
                 "before": "/media/051bee487bfb5d13.png",
                 "after": "/media/a99a1b63048502d0.png",
                 "traceUrl": "https://trace.example/runs/17",
@@ -789,9 +790,16 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(first.locator(".lf-vr-appearance")).to_have_text(
         "light · en-US · America/Los_Angeles"
     )
+    expect(first.locator(".lf-vr-focus")).to_have_text("120, 80 · 640 × 220 CSS px")
 
     expect(widget).to_have_attribute("data-inspection-mode", "compare")
     expect(widget).to_have_attribute("data-inspection-scale", "fit")
+    expect(widget).to_have_attribute("data-inspection-scope", "focus")
+    scope = widget.get_by_role("group", name="Scope")
+    expect(scope).to_be_visible()
+    expect(scope.get_by_role("button", name="Focus change")).to_have_attribute(
+        "aria-pressed", "true"
+    )
     expect(widget.get_by_role("button", name="Compare")).to_have_attribute(
         "aria-pressed", "true"
     )
@@ -818,6 +826,34 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert after_box["top"] >= before_box["bottom"]
 
     shot_host = first.locator(".lf-vr-shot-host")
+    expect(shot_host).to_have_attribute("data-focus-active", "true")
+    crop = frames.first.evaluate(
+        """frame => {
+          const box = frame.getBoundingClientRect();
+          const label = frame.querySelector('.lf-vr-frame-label').getBoundingClientRect();
+          const viewport = frame.querySelector('.lf-vr-image-viewport');
+          const viewportBox = viewport.getBoundingClientRect();
+          const image = frame.querySelector('img').getBoundingClientRect();
+          const labelHit = document.elementFromPoint(
+            label.left + label.width / 2,
+            label.top + label.height / 2,
+          );
+          return {
+            box,
+            label,
+            viewport: viewportBox,
+            overflow: getComputedStyle(viewport).overflow,
+            image,
+            labelVisible: labelHit?.closest('.lf-vr-frame-label') === frame.querySelector('.lf-vr-frame-label'),
+          };
+        }"""
+    )
+    assert crop["overflow"] == "hidden"
+    assert crop["labelVisible"]
+    assert crop["viewport"]["top"] == pytest.approx(crop["label"]["bottom"], abs=1)
+    assert crop["image"]["width"] > crop["box"]["width"]
+    assert crop["image"]["left"] < crop["viewport"]["left"]
+    assert crop["image"]["top"] < crop["viewport"]["top"]
     resized(page, 1200, 480)
     expect(widget).to_have_attribute("data-compare-layout", "stack")
     before_box, after_box = frames.evaluate_all(
@@ -842,6 +878,14 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "node => node.getBoundingClientRect().height"
     ) == pytest.approx(flow_height, abs=1)
 
+    widget.get_by_role("button", name="Full frame").click()
+    expect(widget).to_have_attribute("data-inspection-scope", "full")
+    expect(shot_host).to_have_attribute("data-focus-active", "false")
+    marker = frames.first.evaluate(
+        "frame => getComputedStyle(frame, '::after').getPropertyValue('content')"
+    )
+    assert marker == '""'
+
     widget.get_by_role("button", name="100%").click()
     expect(widget).to_have_attribute("data-inspection-scale", "actual")
     assert shot_host.evaluate(
@@ -854,6 +898,17 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "100% is the captured CSS viewport width, not the retina bitmap width: "
         f"{captured_width}px"
     )
+
+    focus_button = widget.get_by_role("button", name="Focus change")
+    focus_button.focus()
+    focus_button.press("Enter")
+    expect(focus_button).to_be_focused()
+    expect(widget).to_have_attribute("data-inspection-scope", "focus")
+    expect(shot_host).to_have_attribute("data-focus-active", "true")
+    focused_width = frames.first.evaluate(
+        "frame => frame.getBoundingClientRect().width"
+    )
+    assert focused_width == pytest.approx(642, abs=1)
 
     widget.get_by_role("button", name="Fit").click()
     widget.get_by_role("button", name="Flip").click()
@@ -903,6 +958,8 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(first).to_be_hidden()
     expect(second).to_be_visible()
     expect(second.locator(".lf-vr-trace-link")).to_be_hidden()
+    expect(scope).to_be_hidden()
+    expect(widget).to_have_attribute("data-inspection-scope", "full")
     expect(case_select).to_have_value("run-detail")
     expect(case_select).not_to_be_focused()
     page.keyboard.press("g")
@@ -966,6 +1023,28 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert after_box["top"] >= before_box["bottom"]
     page.emulate_media(media="screen")
     assert errors == []
+
+    invalid_focus = changed | {
+        "cases": [
+            changed["cases"][0]
+            | {"focus": {"x": 120, "y": 300, "width": 640, "height": 220}},
+            *changed["cases"][1:],
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "docs-run", invalid_focus)
+    told(page)
+    case_select.select_option("run-list")
+    expect(widget.locator(".lf-error")).to_contain_text(
+        "focus 120,300 640×220 CSS px falls outside its captured images"
+    )
+    expect(case_select).to_be_visible()
+    data_model.cmd_data_set(serve.page_dir, "docs-run", changed)
+    told(page)
+    expect(widget.locator(".lf-error")).to_have_count(0)
+    expect(first.locator("lf-shot img")).to_have_count(2)
+    with sending(page, "a corrected visual disposition"):
+        first.get_by_role("button", name="Needs work").click()
+    expect(first).to_have_attribute("data-disposition", "needs-work")
     page.close()
 
 
@@ -1001,6 +1080,9 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     widget = page.locator("#visual-review-run")
     expect(widget).to_have_attribute("data-lf-workspace-context", "root")
     expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
+    gallery_scope = widget.get_by_role("group", name="Scope")
+    expect(gallery_scope).to_be_visible()
+    expect(widget).to_have_attribute("data-inspection-scope", "focus")
     geometry = widget.evaluate(
         """node => {
           const box = selector => node.querySelector(selector).getBoundingClientRect();
@@ -1108,6 +1190,9 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     )
     assert len(copy_widths) == 6
     assert copy_widths == pytest.approx([388, 388, 388, 388, 1278, 1278], abs=1)
+    assert widget.locator(".lf-vr-case lf-shot img").evaluate_all(
+        "images => images.every(image => getComputedStyle(image).transform === 'none')"
+    )
     page.locator("html").evaluate("node => node.classList.remove('lf-copy')")
     widget.locator(".lf-vr-shot-host").evaluate_all(
         "nodes => nodes.forEach(node => node.style.setProperty('--lf-vr-capture-width', '300px'))"
@@ -1118,6 +1203,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     )
     assert len(print_widths) == 6
     assert max(print_widths) <= 301
+    expect(widget.locator(".lf-vr-focus").first).to_be_visible()
     page.emulate_media(media="screen")
 
     selected = widget.get_by_role("combobox", name="Selected visual case")
@@ -1125,7 +1211,9 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         case.get_by_role("button", name="Looks right").click()
     page.keyboard.press("ArrowDown")
     expect(selected).to_have_value("keep-mobile-destinations")
-    expect(widget).to_have_attribute("data-compare-layout", "side")
+    expect(widget).to_have_attribute("data-compare-layout", "stack")
+    expect(gallery_scope).to_be_visible()
+    expect(widget).to_have_attribute("data-inspection-scope", "focus")
     with sending(page, "the seeded responsive regression disposition"):
         widget.locator(".lf-vr-case:not([hidden])").get_by_role(
             "button", name="Needs work"
@@ -1134,6 +1222,8 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     page.keyboard.press("ArrowDown")
     expect(selected).to_have_value("check-desktop-navigation")
     expect(widget).to_have_attribute("data-compare-layout", "stack")
+    expect(gallery_scope).to_be_hidden()
+    expect(widget).to_have_attribute("data-inspection-scope", "full")
     assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
         "node => node.scrollHeight > node.clientHeight"
     )

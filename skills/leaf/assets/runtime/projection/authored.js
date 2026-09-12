@@ -162,7 +162,5 @@ export function authoredFacet(coordinate) {
   return value;
 }
 
-export const unitOf = (e, spec) =>
-  spec.unit === "widget" ? e.widget : e.detail[spec.unit];
 export const stateCoordinate = (owner, unit, spec) =>
   JSON.stringify([owner, unit, spec.facet]);

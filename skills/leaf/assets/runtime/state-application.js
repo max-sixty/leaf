@@ -20,7 +20,6 @@ export function createStateApplication({
   prepareActivation,
   acceptData,
   notifyDataSubscribers,
-  replaceClaimState,
   isSignoffDeclared,
   paintApproval,
   renderStatus,
@@ -123,7 +122,6 @@ export function createStateApplication({
       const preparedProjection = prepareProjection();
       try {
         settleAcceptedDrafts();
-        replaceClaimState({ sources: state.claims || [], held: state.activity.held });
         renderStatus(state);
         renderVersions(state);
         stateSignoff(isSignoffDeclared());

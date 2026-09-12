@@ -28,7 +28,7 @@ import {
   createProjectionPresentation,
   shallowSigs as projectionShallowSigs,
 } from "./projection/presentation.js";
-import { currentProjection, projectionDeferred } from "./projection/state.js";
+import { projectionDeferred } from "./projection/state.js";
 import { createProjectionCommands } from "./projection/commands.js";
 import { createDataProjection } from "./projection/data.js";
 import { createConversationPresentation } from "./conversation/presentation.js";
@@ -279,7 +279,6 @@ export function mountApplication(dependencies) {
     unaccountedGesture: engagement.unaccountedGesture,
   });
   const projectionUpdates = createProjectionUpdates({
-    projectionCommitted: projection.projectionCommitted,
     coordinateProjectionCommitted: projection.coordinateProjectionCommitted,
   });
 
@@ -403,7 +402,6 @@ export function mountApplication(dependencies) {
     prepareActivation: dependencies.state.prepareActivation,
     acceptData: dependencies.state.acceptData,
     notifyDataSubscribers: dependencies.state.notifyDataSubscribers,
-    replaceClaimState: dependencies.state.replaceClaimState,
     isSignoffDeclared: dependencies.state.isSignoffDeclared,
     paintApproval: dependencies.state.paintApproval,
     renderStatus: dependencies.state.renderStatus,
@@ -500,7 +498,6 @@ export function mountApplication(dependencies) {
     createComment,
     createPageComment: createComment,
     createReply,
-    currentProjection,
     dispatchWidget,
     hasPending,
     invalidateDom,
@@ -535,7 +532,6 @@ export const beginRead = (...args) => app().beginRead(...args);
 export const conversationBox = (...args) => app().conversationBox(...args);
 export const createComment = (...args) => app().createComment(...args);
 export const createReply = (...args) => app().createReply(...args);
-export const currentProjectionReading = (...args) => app().currentProjection(...args);
 export const dispatchWidget = (...args) => app().dispatchWidget(...args);
 export const hasPending = (...args) => app().hasPending(...args);
 export const invalidateDom = (...args) => app().invalidateDom(...args);

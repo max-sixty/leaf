@@ -329,7 +329,6 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     present,
     stageOptimistic,
     resetAuthoredPage,
-    projectionCommitted,
     coordinateProjectionCommitted,
   };
 }

@@ -218,9 +218,8 @@ function context(answered = false) {
   return reading;
 }
 
-export const answeredContext = () => context(true);
-export const isAwaiting = (el, reading) => Boolean(reading.awaiting[el.id]);
-export const projectedParent = (el, reading) =>
+const answeredContext = () => context(true);
+const projectedParent = (el, reading) =>
   (el.id && reading.positionedParents.get(el.id)) ??
   authoredParentOf(el) ??
   el.parentElement;

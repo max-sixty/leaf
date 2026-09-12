@@ -3,7 +3,7 @@
 // escaped source immediately and await this only when their own rendering needs it.
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
 
-export const escapeHtml = (text) =>
+const escapeHtml = (text) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const escapeAttribute = (text) => escapeHtml(text).replace(/"/g, "&quot;");
 

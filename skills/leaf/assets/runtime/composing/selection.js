@@ -63,7 +63,7 @@ export const fab = responseAction(el("button", "lf-ui lf-fab"), {
 fab.id = "lf-comment-button";
 fab.setAttribute("aria-label", "Comment");
 fab.title = "Comment";
-export const fabMore = responseAction(el("button", "lf-ui lf-response-more"), {
+const fabMore = responseAction(el("button", "lf-ui lf-response-more"), {
   icon: "more",
   label: "Other responses",
   behavior: "disclosure",
@@ -77,7 +77,7 @@ fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
 fabMore.setAttribute("aria-controls", fabOptions.id);
 fabMore.setAttribute("aria-expanded", "false");
-export const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
+const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   icon: "edit",
   label: "Suggest",
   collapse: true,

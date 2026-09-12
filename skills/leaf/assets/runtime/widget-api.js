@@ -16,7 +16,7 @@ export { addressableWord } from "./anchor-resolution.js";
 export { navigateToDatum } from "./application.js";
 export { shownBand, shownBox, shownParts } from "./geometry.js";
 export { inUi, uiInside } from "./shadow.js";
-export { answeredContext, askSource } from "./asks/model.js";
+export { askSource } from "./asks/model.js";
 export { openAsks, watchAsks } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export { conversationBox, registerThreadSurface } from "./application.js";
@@ -101,7 +101,7 @@ export {
 } from "./syntax.js";
 export { dataBody, failSoft, once } from "./widget-upgrade.js";
 export { watchUpdates } from "./application.js";
-export { publishedAt, saidAt, updateSequence, watchHistory } from "./updates.js";
+export { saidAt, updateSequence, watchHistory } from "./updates.js";
 export {
   HIDDEN,
   LAYOUT,

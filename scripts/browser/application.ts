@@ -56,6 +56,7 @@ interface WireProjection {
 
 export interface SemanticDocument {
   revision: number | null;
+  hostAvailable: boolean;
   registry: Record<
     string,
     {
@@ -246,14 +247,20 @@ function widgetReading(
       {
         available:
           JSON.stringify(registered) === JSON.stringify(descriptor) &&
+          root.effective.hostAvailable &&
           root.phase !== "waiting" &&
           !descriptor.quoted &&
           (!spec.requires || requirementMatches(root, descriptor, spec.requires)),
+        unavailable: root.effective.hostAvailable
+          ? null
+          : "no agent or server is available",
         history: classified.filter(({ e }) => e.action === verb).map(({ e }) => e),
         standing: desired
           .filter(({ e }) => e.action === verb)
           .map(({ e, unit, value }) => ({ event: e, unit, value })),
-        undo: [...localUndo, ...durableUndo].filter((event) => event.action === verb),
+        undo: root.effective.hostAvailable
+          ? [...localUndo, ...durableUndo].filter((event) => event.action === verb)
+          : [],
       },
     ]),
   );
@@ -283,10 +290,14 @@ function widgetReading(
       {
         available:
           JSON.stringify(registered) === JSON.stringify(descriptor) &&
+          root.effective.hostAvailable &&
           root.phase !== "waiting" &&
           !descriptor.quoted &&
           offered.has(verb) &&
           lifecycle.phase === "ready",
+        unavailable: root.effective.hostAvailable
+          ? null
+          : "no agent or server is available",
       },
     ]),
   );
@@ -333,6 +344,7 @@ export function createSemanticApplication({
   const initial = {
     document: {
       revision: null,
+      hostAvailable: true,
       registry: {},
       authored: new Map(),
       descriptors: new Map(),
@@ -342,7 +354,13 @@ export function createSemanticApplication({
     phase: "waiting",
     data: { revision: -1, sources: {} },
     effective: derive(
-      { revision: null, registry: {}, authored: new Map(), descriptors: new Map() },
+      {
+        revision: null,
+        hostAvailable: true,
+        registry: {},
+        authored: new Map(),
+        descriptors: new Map(),
+      },
       null,
       [],
       "waiting",
@@ -399,6 +417,7 @@ export function createSemanticApplication({
         : [];
     const active = state?.browser.views[String(document.revision)];
     return {
+      hostAvailable: document.hostAvailable,
       projection,
       widgets: foldWidgetStates(document.authored, projection),
       conversation: { all: threads, listed: threads.filter(conversational) },
@@ -519,6 +538,11 @@ export function createSemanticApplication({
     entry,
     identify(revision: number | null) {
       return publish({ document: { ...publisher.read().document, revision } });
+    },
+    setHostAvailable(hostAvailable: boolean) {
+      return publish({
+        document: { ...publisher.read().document, hostAvailable },
+      });
     },
     captureAuthored(values: AuthoredMap, registry: SemanticDocument["registry"]) {
       return publish({

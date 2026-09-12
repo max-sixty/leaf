@@ -2,6 +2,29 @@
    Accepted facts are never installed here independently of application publication. */
 import { readApplication } from "./semantic-state.js";
 
+const offlineMarker = document.querySelector(
+  'script[type="application/json"][data-lf-runtime][data-lf-offline]',
+);
+const offlinePayload = offlineMarker
+  ? JSON.parse(offlineMarker.textContent || "null")
+  : null;
+if (
+  offlineMarker &&
+  (!offlinePayload ||
+    typeof offlinePayload !== "object" ||
+    !offlinePayload.state ||
+    !offlinePayload.resources)
+)
+  throw new TypeError("Leaf's interactive export payload is incomplete");
+
+export const offlineInteractive = offlinePayload !== null;
+export const offlineState = () =>
+  offlineInteractive ? structuredClone(offlinePayload.state) : null;
+export const runtimeModule = (path) =>
+  offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;
+export const runtimeResource = (path) =>
+  offlineInteractive ? (offlinePayload.resources[path] ?? null) : path;
+
 export const runtime = {
   get active() {
     return readApplication().authoritative?.active ?? null;

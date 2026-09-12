@@ -115,7 +115,8 @@ export function loadShadowRules() {
   return loading;
 }
 async function readShadowRules() {
-  const response = await fetch("/theme.css");
+  const { runtimeResource } = await import("./context.js");
+  const response = await fetch(runtimeResource("/theme.css") ?? "/theme.css");
   if (!response.ok) throw new Error(`leaf: theme failed to load (${response.status})`);
   // Refused rather than defaulted to nothing. A project theme that drops the markers
   // still styles the document, so the page looks right everywhere except inside the

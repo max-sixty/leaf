@@ -101,11 +101,13 @@ import { notice } from "./notifications.js";
 import { iconElement } from "./icons.js";
 import { claimed, focusSurface } from "./conversation/surfaces.js";
 import { anchorLabel } from "./conversation/messages.js";
+import { runtimeModule } from "./context.js";
 
 import { outlineSubjectFor, pageOutline } from "./conversation/placement.js";
 
 let floatingUiModule = null;
-const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
+const floatingUi = () =>
+  (floatingUiModule ??= import(runtimeModule("/vendor/floating-ui.esm.js")));
 
 export function createMarginProjection({
   panelIsOpen,

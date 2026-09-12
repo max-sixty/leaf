@@ -227,6 +227,11 @@ export async function loadDataFragment(manifest, key) {
     key,
   });
   if (snapshot) params.set("snapshot", snapshot);
+  const { offlineInteractive } = await import("./context.js");
+  if (offlineInteractive)
+    throw new Error(
+      "data fragments need a Leaf server and are unavailable in this copy",
+    );
   const response = await fetch(`/api/data?${params}`);
   if (response.ok && !sameDelivery(response)) {
     throw new Error("Leaf's data vocabulary changed while loading a fragment");

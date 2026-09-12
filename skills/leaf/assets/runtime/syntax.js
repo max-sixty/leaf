@@ -1,5 +1,5 @@
 /* This module owns code tokenization and highlighting. */
-import { runtime } from "./context.js";
+import { runtime, runtimeModule } from "./context.js";
 
 const registry = runtime.registry;
 
@@ -37,7 +37,9 @@ let hljsReady;
 // Lazily, once, and only on a page that has code to color: the bundle is 75 KB and most
 // pages have none.
 const loadHljs = () =>
-  (hljsReady ??= import("/vendor/highlight.esm.js").then((m) => m.default));
+  (hljsReady ??= import(runtimeModule("/vendor/highlight.esm.js")).then(
+    (m) => m.default,
+  ));
 
 // Code as [{text, role}] — a flat run in source order, roles from the table above and
 // null where the block's own ink is the answer. A list rather than markup because the two

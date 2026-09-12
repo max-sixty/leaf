@@ -1,6 +1,6 @@
 /* Leaf runtime boot and application composition root. */
 import chromeSheet from "./runtime/chrome.css" with { type: "css" };
-import { containedPage, runtime } from "./runtime/context.js";
+import { containedPage, offlineInteractive, runtime } from "./runtime/context.js";
 import { chromeRoot } from "./runtime/chrome.js";
 import { marksSheet } from "./runtime/shadow.js";
 import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
@@ -13,7 +13,10 @@ import {
   PRESENTATION,
 } from "./runtime/presentation.js";
 import { mountApplication } from "./runtime/application.js";
-import { whenApplicationPresented } from "./runtime/semantic-state.js";
+import {
+  applicationState,
+  whenApplicationPresented,
+} from "./runtime/semantic-state.js";
 import { createEngagement } from "./runtime/composing/engagement.js";
 import { createCompositionInputs } from "./runtime/composing/input.js";
 import {
@@ -395,6 +398,7 @@ app = mountApplication({
     renderStatus,
   },
 });
+if (offlineInteractive) applicationState.setHostAvailable(false);
 
 pageMapDialog = createPageMapDialog({
   activeInMargin: app.margin.pageMapActive,
@@ -705,110 +709,117 @@ skipToChrome.onclick = () => {
   focusDestination(banner);
 };
 
-document.adoptedStyleSheets = [chromeSheet, marksSheet];
-chromeRoot.append(
-  banner,
-  overflowMenu,
-  versionMenu,
-  othersPanel,
-  asksPanel,
-  panel,
-  legendRoot,
-  goToHintLayer,
-  askActionLayer,
-  targetChooserHintLayer,
-  pageSearchSurface,
-  targetPaint.visualMarkLayer,
-  drawingPaint.layer,
-  targetPaint.targetTraceBox,
-  targetPaint.aimBox,
-  fabBar,
-  liveEl,
-  mediaViewer,
-  commandReferenceDialog,
-  auxiliaryModality.scrim,
-  bottomStatusEl,
-  shortcutBarEl,
-  inspectEl,
-);
-document.body.prepend(skipToChrome);
-document.body.append(chromeRoot);
-mountPanelReadingRegion();
-version.mount();
-mountBanner({
-  approveVersion: () =>
-    app.post({
-      kind: "done",
-      revision: runtime.currentRevision,
-      version: runtime.currentStamp,
-      text: "Looks good",
-    }),
-  paintApproval: paintVersionApproval,
-});
-reserveBannerControls();
-registerPageScopes(pageKeys.scopes, SHORTCUT_HELP, pageKeys.typing, auxiliaryModality);
-auxiliaryModality.mount();
-panelComposer.mount();
-selectionComposer.mount();
-responseSurface.mount();
-reactions.mount();
-targets.mount();
-drawing.mount();
-aim.mount();
-targetPaint.mountTargetPaint();
-anchorPaint.mount();
-anchorControls.mount();
-anchorTravel.mount();
-pageGeometry.mount();
-pageMapDialog.mount(chromeRoot);
-asks.mount();
-app.margin.mount();
-app.mountConversation();
-mountThreadList(panelIsOpen);
-wireThreadLanding();
-wireThreadCards();
-wireNarrowing(app.refreshNarrowing);
-trays.mountTrays();
-threadPanelController.mountThreadPanel();
-layout.mountLayoutObservers();
-goToSequence.mountGoToSequence();
-mountShortcutBar({
-  setGoToSequence: goToSequence.setGoToSequence,
-  setReact: reactions.setReact,
-  captureReturnPlace: version.captureReturnPlace,
-});
-mountKeyboard({
-  goToSequenceActive: goToSequence.goToSequenceActive,
-  setGoToSequence: goToSequence.setGoToSequence,
-  REACT: reactions.REACT,
-  setReact: reactions.setReact,
-  captureReturnPlace: version.captureReturnPlace,
-});
-declareLeavesKeys();
-pageKeys.declareFindBoxKeys();
-pageKeys.declareResponseOptionKeys();
-watchDisclosures(document);
-mountRepaint({
-  reflectFirstScopes,
-  paintStandingContent: standing.paintStandingContent,
-  syncLayout: layout.syncLayout,
-  pageShifted: pageGeometry.pageShifted,
-  paintStandingGeometry: standing.paintStandingGeometry,
-});
+if (!offlineInteractive) {
+  document.adoptedStyleSheets = [chromeSheet, marksSheet];
+  chromeRoot.append(
+    banner,
+    overflowMenu,
+    versionMenu,
+    othersPanel,
+    asksPanel,
+    panel,
+    legendRoot,
+    goToHintLayer,
+    askActionLayer,
+    targetChooserHintLayer,
+    pageSearchSurface,
+    targetPaint.visualMarkLayer,
+    drawingPaint.layer,
+    targetPaint.targetTraceBox,
+    targetPaint.aimBox,
+    fabBar,
+    liveEl,
+    mediaViewer,
+    commandReferenceDialog,
+    auxiliaryModality.scrim,
+    bottomStatusEl,
+    shortcutBarEl,
+    inspectEl,
+  );
+  document.body.prepend(skipToChrome);
+  document.body.append(chromeRoot);
+  mountPanelReadingRegion();
+  version.mount();
+  mountBanner({
+    approveVersion: () =>
+      app.post({
+        kind: "done",
+        revision: runtime.currentRevision,
+        version: runtime.currentStamp,
+        text: "Looks good",
+      }),
+    paintApproval: paintVersionApproval,
+  });
+  reserveBannerControls();
+  registerPageScopes(
+    pageKeys.scopes,
+    SHORTCUT_HELP,
+    pageKeys.typing,
+    auxiliaryModality,
+  );
+  auxiliaryModality.mount();
+  panelComposer.mount();
+  selectionComposer.mount();
+  responseSurface.mount();
+  reactions.mount();
+  targets.mount();
+  drawing.mount();
+  aim.mount();
+  targetPaint.mountTargetPaint();
+  anchorPaint.mount();
+  anchorControls.mount();
+  anchorTravel.mount();
+  pageGeometry.mount();
+  pageMapDialog.mount(chromeRoot);
+  asks.mount();
+  app.margin.mount();
+  app.mountConversation();
+  mountThreadList(panelIsOpen);
+  wireThreadLanding();
+  wireThreadCards();
+  wireNarrowing(app.refreshNarrowing);
+  trays.mountTrays();
+  threadPanelController.mountThreadPanel();
+  layout.mountLayoutObservers();
+  goToSequence.mountGoToSequence();
+  mountShortcutBar({
+    setGoToSequence: goToSequence.setGoToSequence,
+    setReact: reactions.setReact,
+    captureReturnPlace: version.captureReturnPlace,
+  });
+  mountKeyboard({
+    goToSequenceActive: goToSequence.goToSequenceActive,
+    setGoToSequence: goToSequence.setGoToSequence,
+    REACT: reactions.REACT,
+    setReact: reactions.setReact,
+    captureReturnPlace: version.captureReturnPlace,
+  });
+  declareLeavesKeys();
+  pageKeys.declareFindBoxKeys();
+  pageKeys.declareResponseOptionKeys();
+  watchDisclosures(document);
+  mountRepaint({
+    reflectFirstScopes,
+    paintStandingContent: standing.paintStandingContent,
+    syncLayout: layout.syncLayout,
+    pageShifted: pageGeometry.pageShifted,
+    paintStandingGeometry: standing.paintStandingGeometry,
+  });
 
-window.leafInteractionGalleryFrame?.mount({
-  toggleBtn,
-  panelIsOpen,
-  setPanel: threadPanelController.setPanel,
-  detachComposer: selectionComposer.detachComposer,
-  fabInput,
-  openComposer: selectionComposer.openComposer,
-  closePreview: app.margin.closePreview,
-  openInlineThread: app.margin.openInlineThread,
-  threadTransitionOrigin: app.margin.threadTransitionOrigin,
-  currentTray,
-  setOpenTray: trays.setOpenTray,
-});
+  window.leafInteractionGalleryFrame?.mount({
+    toggleBtn,
+    panelIsOpen,
+    setPanel: threadPanelController.setPanel,
+    detachComposer: selectionComposer.detachComposer,
+    fabInput,
+    openComposer: selectionComposer.openComposer,
+    closePreview: app.margin.closePreview,
+    openInlineThread: app.margin.openInlineThread,
+    threadTransitionOrigin: app.margin.threadTransitionOrigin,
+    currentTray,
+    setOpenTray: trays.setOpenTray,
+  });
+}
 
 const initialStateRead = app.beginRead();
 let interactionGalleryModule;
@@ -830,12 +841,14 @@ async function syncInteractionGallery() {
     reportPageError(`interaction gallery failed to start: ${error?.message ?? error}`);
   }
 }
-watchProjection(document.body, () => void syncInteractionGallery());
-document.addEventListener(PAGE_INTERFACE, (event) =>
-  event.detail.present(syncInteractionGallery()),
-);
+if (!offlineInteractive) {
+  watchProjection(document.body, () => void syncInteractionGallery());
+  document.addEventListener(PAGE_INTERFACE, (event) =>
+    event.detail.present(syncInteractionGallery()),
+  );
+}
 
-if (!containedPage) {
+if (!containedPage && !offlineInteractive) {
   restoreReaderView({
     commentsEdge: layout.commentsEdge,
     traysEdge: trays.traysEdge,
@@ -845,8 +858,10 @@ if (!containedPage) {
   });
   letGo();
 }
-const { landArrival, savedView } = version.installArrival();
-const savedComposer = selectionComposer.pendingComposer();
+const { landArrival, savedView } = offlineInteractive
+  ? { landArrival: () => {}, savedView: null }
+  : version.installArrival();
+const savedComposer = offlineInteractive ? null : selectionComposer.pendingComposer();
 
 async function presentPage() {
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
@@ -860,6 +875,10 @@ async function presentPage() {
     throw error;
   }
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.presented, "1");
+  if (offlineInteractive) {
+    document.dispatchEvent(new Event(PRESENTATION));
+    return;
+  }
   responseSurface.updateFab();
   trays.restoreTray();
   showNews(othersBtn, leavesOffered());
@@ -880,17 +899,23 @@ async function startPage() {
   const [upgraded] = await Promise.all([
     upgradeWidgets({
       buildReactionBar: () =>
-        reactions.buildReactBar({
-          withdrawReaction: app.withdraw,
-          postReaction: app.post,
-        }),
+        offlineInteractive
+          ? undefined
+          : reactions.buildReactBar({
+              withdrawReaction: app.withdraw,
+              postReaction: app.post,
+            }),
     }),
-    loadIcon().catch((error) => console.error(error)),
+    offlineInteractive
+      ? Promise.resolve()
+      : loadIcon().catch((error) => console.error(error)),
   ]);
   if (!upgraded) return;
-  layout.syncLayout();
-  asks.buildBulkAnswers();
-  asks.syncAsks();
+  if (!offlineInteractive) {
+    layout.syncLayout();
+    asks.buildBulkAnswers();
+    asks.syncAsks();
+  }
   await settlePageInterface();
   document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.upgraded, "1");
   app.startFeed(presentPage, initialStateRead);

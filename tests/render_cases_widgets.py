@@ -1067,6 +1067,7 @@ RAIL_BANDS = """() => {
              column: { left: mb.left + parseFloat(ms.paddingLeft),
                        right: mb.right - parseFloat(ms.paddingRight) },
              pageLeft: bb.left + parseFloat(bs.paddingLeft),
+             pageGutter: parseFloat(ms.paddingLeft),
              pageRight: bb.right - parseFloat(bs.paddingRight),
              sideways: body.scrollWidth - body.clientWidth };
 }"""

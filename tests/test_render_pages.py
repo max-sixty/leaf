@@ -2259,8 +2259,8 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
             assert b["right"] <= at["pageRight"] + 1, (
                 f"at {width}px the {name} board is past the page's box as well"
             )
-            assert b["left"] >= at["pageLeft"] - 1, (
-                f"at {width}px the {name} board is past the page's left edge"
+            assert b["left"] >= at["pageLeft"] + at["pageGutter"] - 1, (
+                f"at {width}px the {name} board is past the page's own gutter"
             )
         assert at["sideways"] == 0, f"at {width}px the page scrolls sideways"
         assert (

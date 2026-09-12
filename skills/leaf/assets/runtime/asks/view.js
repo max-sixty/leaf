@@ -98,6 +98,7 @@
    ask keeps its centred arrival in the panel's own list. */
 
 import { shownBox, shownParts } from "../geometry.js";
+import { askProgressModel, createAskBannerControls } from "./banner-controls.js";
 import { keyBadgePlacement } from "../keyboard/key-badge-placement.js";
 import {
   ariaShortcuts,
@@ -126,7 +127,6 @@ import {
   openAsks as readOpenAsks,
   unansweredAsks as readUnansweredAsks,
 } from "./model.js";
-import { showNews } from "../banner-shelf.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "../walk-position.js";
 import {
   commandScopesWithin,
@@ -171,6 +171,24 @@ export function createAskView({
   const openAsks = () => readOpenAsks(pendingRequests());
   const unansweredAsks = () => readUnansweredAsks(pendingRequests());
   const presentedActionControl = (control) => presentedControl(control) ?? control;
+  const answeringAll = new Set();
+  const bulkAnswers = new Map();
+  const bannerControls = createAskBannerControls(asksBtn, async (verb) => {
+    if (answeringAll.has(verb)) return;
+    answeringAll.add(verb);
+    void syncAsks();
+    try {
+      // Resolve the current open inventory at activation. A control can survive several
+      // publications and shelf moves; it never captures an earlier Ask or DOM node.
+      for (const ask of openAsks()) {
+        const source = askSource(ask);
+        if (askEntry(source)?.all === verb) await source[verb]?.();
+      }
+    } finally {
+      answeringAll.delete(verb);
+      void syncAsks();
+    }
+  });
   asksList.configure({
     activate: (id) => {
       const route = allAsks();
@@ -179,9 +197,10 @@ export function createAskView({
     },
     fallback: asksBtn,
   });
+  const asksRenderer = Object.freeze({ banner: bannerControls, list: asksList });
   let asksPresentation = null;
   const presentation = () => {
-    asksPresentation ??= attachApplicationPresentation("asks", asksList);
+    asksPresentation ??= attachApplicationPresentation("asks", asksRenderer);
     return asksPresentation;
   };
 
@@ -195,35 +214,13 @@ export function createAskView({
   // than a box of its own: a control with no siblings is a control the press sweep walks
   // past, and one that only ever appears at upgrade spends the spacer's slack, not the
   // room of anything to its right.
-  const bulkButtons = new Map();
   function buildBulkAnswers() {
     for (const tag of tagsDeclaring((entry) => entry["x-awaits"]?.all)) {
       const verb = registry[tag]["x-awaits"].all;
-      if (bulkButtons.has(verb)) continue;
+      if (bulkAnswers.has(verb)) continue;
       const label = verb[0].toUpperCase() + verb.slice(1);
-      const btn = el("button", "lf-btn lf-answer-all", "");
-      btn.title = `${label} every one still waiting on you`;
-      let answering = false;
-      btn.onclick = async () => {
-        if (answering) return;
-        answering = true;
-        // Native disabling immediately drops keyboard focus on body, before the events
-        // this press sends can settle and hide the control. Keep the busy button in the
-        // focus model so showNews can hand its place to the next standing destination;
-        // the guard above still makes a repeated activation inert.
-        btn.setAttribute("aria-disabled", "true");
-        try {
-          for (const ask of openAsks()) {
-            const source = askSource(ask);
-            if (askEntry(source)?.all === verb) await source[verb]?.();
-          }
-        } finally {
-          answering = false;
-          btn.removeAttribute("aria-disabled");
-        }
-      };
-      showNews(btn, false);
-      bulkButtons.set(verb, { btn, label });
+      const btn = bannerControls.registerBulk(verb, label);
+      bulkAnswers.set(verb, label);
       placeBulkAnswer(btn);
       // In the row now, so it holds the widest it reaches below a thousand — the same
       // words syncAsks writes, measured in the face it will render in (see reserve).
@@ -235,31 +232,16 @@ export function createAskView({
   // writes its controls and counts from this one reading, without naming a verb in core;
   // which verbs exist is the registry's answer.
   function blanketAnswers(asks) {
-    return [...bulkButtons].map(([verb, { btn, label }]) => ({
-      btn,
-      label,
-      n: asks.filter((ask) => askEntry(askSource(ask))?.all === verb).length,
-    }));
-  }
-  // What the banner's button says about the page's Ask progress. The numerator is
-  // durable completion rather than the reader's position in the open-Ask walk: moving
-  // around the page changes neither number, while answering and revising do. The total
-  // keeps answered Asks in reach instead of making completion erase its own route back.
-  //
-  // Written only on change: a poll repaints this, and an unchanged write feeds the
-  // mutation stream a screen reader rebuilds its buffer on.
-  function sayAsks(completed, total) {
-    const said = `Asks ${completed}/${total}`;
-    if (asksBtn.textContent !== said) asksBtn.textContent = said;
-    // The fraction alone does not say which way it counts — a blind drive read 1/2 as
-    // "one open" until Done turned it into 2/2 — so the tooltip spells the numerator.
-    const title = total
-      ? `${completed} of ${total} asks answered — show or hide the list`
-      : "Show or hide this page's asks";
-    if (asksBtn.dataset.lfKeyTitle !== title) {
-      asksBtn.dataset.lfKeyTitle = title;
-      asksBtn.title = title;
-    }
+    return [...bulkAnswers].map(([verb, label]) => {
+      const n = asks.filter((ask) => askEntry(askSource(ask))?.all === verb).length;
+      return Object.freeze({
+        busy: answeringAll.has(verb),
+        offered: Boolean(n),
+        text: `${label} all (${n})`,
+        title: `${label} every one still waiting on you`,
+        verb,
+      });
+    });
   }
   // The banner's reading of that one list. Refreshed from every signal that can change
   // it: a widget saying it has just taken an answer (lf-answered, which is also when the
@@ -304,45 +286,63 @@ export function createAskView({
     });
   };
 
-  function paintAsks() {
+  let askPaintGeneration = 0;
+  async function paintAsks(generation) {
+    const current = () => generation === askPaintGeneration;
     const asks = openAsks();
     const all = allAsks();
     const unanswered = new Set(unansweredAsks());
     const completed = all.filter((ask) => !unanswered.has(ask)).length;
-    asksBtn.toggleAttribute(
-      "data-lf-complete",
-      all.length > 0 && completed === all.length,
-    );
-    // While the tray stands its button stands too, whatever the count just did — the
-    // press that opened it has to be able to close it.
-    sayAsks(completed, all.length);
-    showNews(asksBtn, asksOffered());
+    const offered = asksOffered();
     // Only while the tray is up: the count above is what a closed tray says, and these
     // rows are what an open one says. The list owner receives an explicit closed model
     // so no hidden generated controls remain in the document.
     const open = trayIsOpen("asks");
-    const listPaint = asksList.present(
-      Object.freeze({
-        open,
-        rows: Object.freeze(open ? all.map((ask) => rowModel(ask, unanswered)) : []),
-      }),
-    );
-    for (const { btn, label, n } of blanketAnswers(asks)) {
-      const said = `${label} all (${n})`;
-      if (btn.textContent !== said) btn.textContent = said;
-      showNews(btn, Boolean(n));
-    }
+    const listModel = Object.freeze({
+      open,
+      rows: Object.freeze(open ? all.map((ask) => rowModel(ask, unanswered)) : []),
+    });
+    const bannerModel = Object.freeze({
+      progress: askProgressModel(completed, all.length, offered),
+      bulk: Object.freeze(blanketAnswers(asks)),
+    });
     // The a/A row stands on this list, so the surfaces reading it are repainted
     // where it changes — the rule showFab and setOpenTray already keep for the words
     // they write. A capability change also moves the tray edge's machine-readable keys.
-    const offered = asksOffered();
     const walkOffered = asks.length > 0;
     if (offered !== shortcutsOffered || walkOffered !== rowWalkOffered) {
       shortcutsOffered = offered;
       rowWalkOffered = walkOffered;
       paintKeys();
     } else repaint();
-    return listPaint;
+    try {
+      // The controls are stable nodes and can be restored without losing identity. Paint
+      // them first, then the keyed list: a failed face never lets a row be removed, and a
+      // failed list can roll the controls back before either owner commits this reading.
+      const bannerPaint = await bannerControls.present(bannerModel);
+      if (!current()) return [];
+      const listPaint = await asksList.present(listModel);
+      if (!current()) return [];
+      asksList.commit();
+      bannerControls.commit();
+      return [listPaint, bannerPaint];
+    } catch (error) {
+      // A current paint owns the same faces now. It will either commit or restore them;
+      // an obsolete attempt must not roll its predecessor over the newer reading.
+      if (!current()) return [];
+      try {
+        await Promise.all([
+          asksList.retainCommitted(),
+          bannerControls.retainCommitted(),
+        ]);
+      } catch (retaining) {
+        throw new AggregateError(
+          [error, retaining],
+          "Ask presentation and retention failed",
+        );
+      }
+      throw error;
+    }
   }
   // Every semantic notification opens the region's ticket synchronously, before its
   // deferred read. Package subscribers therefore finish their own synchronous updates
@@ -356,20 +356,20 @@ export function createAskView({
       resolve = done;
       reject = fail;
     });
-    const pending = { resolve, reject };
+    const pending = { generation: ++askPaintGeneration, resolve, reject };
     const prior = scheduled;
     scheduled = pending;
     const ready = presentation().present(
       readApplication().semanticEpoch,
       completion,
-      () => asksList.retainCommitted(),
+      () => asksRenderer,
     );
     prior?.resolve();
     queueMicrotask(() => {
       if (scheduled !== pending) return;
       scheduled = null;
       try {
-        Promise.resolve(paintAsks()).then(resolve, reject);
+        Promise.resolve(paintAsks(pending.generation)).then(resolve, reject);
       } catch (error) {
         reject(error);
       }

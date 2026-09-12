@@ -5640,7 +5640,23 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
     the margin. Each is decided individually, so the log records what was
     consented to one change at a time rather than one blanket yes."""
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
-    page.get_by_role("button", name="Accept all (3)").click()
+    answer_all = page.locator(".lf-answer-all")
+    expect(answer_all).to_have_text("Accept all (3)")
+    page.evaluate(
+        "button => { window.__lfAnswerAll = button; }", answer_all.element_handle()
+    )
+
+    # The same public control survives a semantic change, and its later press resolves
+    # the current open inventory rather than replaying the list from its earlier face.
+    page.locator("[data-lf-for='sug-refill'] .lf-sug-accept").click()
+    expect(
+        page.locator("[data-lf-for='sug-refill']").get_by_role(
+            "button", name=re.compile(r"^Undo accepting")
+        )
+    ).to_be_enabled()
+    expect(answer_all).to_have_text("Accept all (2)")
+    assert answer_all.evaluate("button => button === window.__lfAnswerAll")
+    answer_all.click()
 
     for widget in ("sug-refill", "sug-thistle", "sug-in-card"):
         expect(page.locator(f"#{widget} lf-new")).to_be_visible()
@@ -7657,30 +7673,101 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     page.close()
 
 
+def test_pending_action_waits_for_the_ask_banner_paint_before_retiring(
+    held_events, serve
+):
+    """Receipt settlement waits for the Lit progress face as well as the Ask list."""
+    browser, held = held_events
+    page, errors = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    progress = page.locator(".lf-asks")
+    expect(progress).to_have_text("Asks 0/1")
+    page.evaluate(
+        """async () => {
+          const {readApplication, readApplicationPresentation} =
+            await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          window.__lfReadAskApplication = readApplication;
+          window.__lfReadAskPresentation = readApplicationPresentation;
+          const face = document.querySelector('.lf-asks > lf-ask-banner-face');
+          const schedule = face.scheduleUpdate.bind(face);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          window.__lfReleaseAskBannerPaint = release;
+          let next = true;
+          face.scheduleUpdate = async () => {
+            if (next) {
+              next = false;
+              await held;
+            }
+            return schedule();
+          };
+        }"""
+    )
+
+    page.locator("#storage-stop").click()
+    holding(page, held, 1, "the held answer")
+    held.pop(0).continue_()
+    page.unroute("**/api/event")
+    page.wait_for_function(
+        "() => __lfReadAskApplication().unresolved.some(entry => entry.answered)"
+    )
+    assert "asks" in page.evaluate("__lfReadAskPresentation().pending")
+    assert page.evaluate("__lfReadAskApplication().unresolved.length") == 1
+    expect(progress).to_have_text("Asks 0/1")
+
+    page.evaluate("__lfReleaseAskBannerPaint()")
+    round_trip(page)
+    page.wait_for_function("() => __lfReadAskApplication().unresolved.length === 0")
+    expect(progress).to_have_text("Asks 1/1")
+    assert errors == []
+    page.close()
+
+
 def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
     browser, serve
 ):
-    """The application settles a failed Lit ticket with the usable prior keyed rows."""
+    """A list failure restores its earlier rows and the prepared banner controls."""
     page, errors = open_page(browser, serve(ASKS_PAGE))
+    progress = page.locator(".lf-asks")
+    answer_all = page.locator(".lf-answer-all")
+    expect(progress).to_have_text("Asks 1/5")
+    expect(answer_all).to_have_text("Accept all (1)")
     page.locator(".lf-asks").click()
     rows = page.locator("button.lf-asks-row")
     expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
     page.evaluate(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation, whenApplicationPresented} =
+            await window.__lfRuntimeImport('/runtime/semantic-state.js');
           window.__lfReadAskPresentation = readApplicationPresentation;
           const list = document.querySelector('lf-asks-tray-list');
           window.__lfAskRows = [...list.querySelectorAll('button.lf-asks-row')];
+          const progress = document.querySelector('.lf-asks');
+          const progressFace = progress.querySelector('lf-ask-banner-face');
+          const progressUpdated = progressFace.updated.bind(progressFace);
+          window.__lfSawPreparedAskBanner = false;
+          progressFace.updated = (...args) => {
+            progressUpdated(...args);
+            if (progress.textContent.trim() === 'Asks 0/4')
+              window.__lfSawPreparedAskBanner = true;
+          };
           const render = list.render.bind(list);
           list.render = () => {
             list.render = render;
             throw new Error('deliberate Ask list failure');
           };
+          document.querySelector('#honored-decision').remove();
           document.dispatchEvent(new Event('lf-presentation'));
+          window.__lfAskListCurrentReady = false;
+          void whenApplicationPresented().then(() => {
+            window.__lfAskListCurrentReady = true;
+          });
         }"""
     )
-    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
+    page.wait_for_function("__lfAskListCurrentReady")
+    assert page.evaluate("__lfSawPreparedAskBanner") is True
+    assert page.evaluate("__lfReadAskPresentation().pending.length") == 0
+    expect(progress).to_have_text("Asks 1/5")
+    expect(answer_all).to_have_text("Accept all (1)")
     expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
     assert rows.evaluate_all(
         "items => items.every((item, at) => item === window.__lfAskRows[at])"
@@ -7688,6 +7775,68 @@ def test_a_failed_ask_list_paint_reports_once_and_retains_the_prior_list(
     rows.first.click()
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert errors == ["leaf: Presentation failed: deliberate Ask list failure"]
+    page.close()
+
+
+def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
+    browser, serve
+):
+    """One failed Lit face leaves the prior stable progress and bulk controls usable."""
+    page, errors = open_page(browser, serve(ASKS_PAGE))
+    progress = page.locator(".lf-asks")
+    answer_all = page.locator(".lf-answer-all")
+    expect(progress).to_have_text("Asks 1/5")
+    expect(answer_all).to_have_text("Accept all (1)")
+    progress.click()
+    rows = page.locator("button.lf-asks-row")
+    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+    page.evaluate(
+        """async () => {
+          const {readApplicationPresentation, whenApplicationPresented} =
+            await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js');
+          window.__lfReadAskPresentation = readApplicationPresentation;
+          window.__lfAskProgress = document.querySelector('.lf-asks');
+          window.__lfAskBulk = document.querySelector('.lf-answer-all');
+          window.__lfAskRows = [
+            ...document.querySelectorAll('button.lf-asks-row')];
+          const progressFace = window.__lfAskProgress.querySelector(
+            'lf-ask-banner-face');
+          const progressUpdated = progressFace.updated.bind(progressFace);
+          window.__lfSawPartialAskBanner = false;
+          progressFace.updated = (...args) => {
+            progressUpdated(...args);
+            if (window.__lfAskProgress.textContent.trim() === 'Asks 0/4')
+              window.__lfSawPartialAskBanner = true;
+          };
+          const bulkFace = window.__lfAskBulk.querySelector('lf-ask-banner-face');
+          const render = bulkFace.render.bind(bulkFace);
+          bulkFace.render = () => {
+            bulkFace.render = render;
+            throw new Error('deliberate Ask banner failure');
+          };
+          document.querySelector('#honored-decision').remove();
+          document.dispatchEvent(new Event('lf-presentation'));
+          window.__lfAskCurrentReady = false;
+          void whenApplicationPresented().then(() => {
+            window.__lfAskCurrentReady = true;
+          });
+        }"""
+    )
+    page.wait_for_function("__lfAskCurrentReady")
+    assert page.evaluate("__lfSawPartialAskBanner") is True
+    assert page.evaluate("__lfReadAskPresentation().pending.length") == 0
+    expect(progress).to_have_text("Asks 1/5")
+    expect(answer_all).to_have_text("Accept all (1)")
+    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+    assert rows.evaluate_all(
+        "items => items.every((item, at) => item === window.__lfAskRows[at])"
+    )
+    assert progress.evaluate("control => control === window.__lfAskProgress")
+    assert answer_all.evaluate("control => control === window.__lfAskBulk")
+    rows.first.click()
+    expect(page.locator("#live-question-decision")).to_be_focused()
+    assert errors == ["leaf: Presentation failed: deliberate Ask banner failure"]
     page.close()
 
 

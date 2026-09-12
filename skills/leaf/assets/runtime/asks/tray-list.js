@@ -42,9 +42,15 @@ class AskTrayList extends LitElement {
     return model;
   }
 
-  retainCommitted() {
+  commit() {
+    this.#committed = this.model;
+  }
+
+  async retainCommitted() {
     this.#failure = null;
     this.model = this.#committed;
+    await this.updateComplete;
+    if (this.#failure) throw this.#failure;
     return this.#committed;
   }
 
@@ -87,7 +93,6 @@ class AskTrayList extends LitElement {
   }
 
   updated() {
-    this.#committed = this.model;
     for (const row of this.querySelectorAll(`button[${ASK_AT}]`)) {
       if (this.#wired.has(row)) continue;
       this.#wired.add(row);

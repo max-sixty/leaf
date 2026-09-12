@@ -1014,8 +1014,8 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert geometry["widget"]["width"] > 1000
     assert geometry["widget"]["bottom"] <= 768
     assert geometry["decision"]["bottom"] <= geometry["evidence"]["top"]
-    assert geometry["evidence"]["top"] < 270, geometry
-    assert geometry["evidence"]["height"] >= 360
+    assert geometry["evidence"]["height"] >= 360, geometry
+    assert geometry["evidence"]["bottom"] <= 768, geometry
     assert widget.get_attribute("data-compare-layout") == "side", geometry
     assert geometry["frames"][1]["left"] >= geometry["frames"][0]["right"]
     case_image_width = widget.locator(

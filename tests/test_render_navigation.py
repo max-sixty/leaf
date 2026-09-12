@@ -323,10 +323,11 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     preview_geometry = preview.evaluate(
         """el => {
           const card = el.getBoundingClientRect();
+          const history = el.querySelector('.lf-margin-preview-list');
           const body = document.querySelector('#left-reading .lf-pane-body')
             .getBoundingClientRect();
           return {card: card.toJSON(), body: body.toJSON(),
-                  scrollHeight: el.scrollHeight, clientHeight: el.clientHeight};
+                  scrollHeight: history.scrollHeight, clientHeight: history.clientHeight};
         }"""
     )
     assert preview_geometry["card"]["top"] >= preview_geometry["body"]["top"], (
@@ -338,8 +339,9 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     assert preview_geometry["scrollHeight"] > preview_geometry["clientHeight"], (
         preview_geometry
     )
-    preview.evaluate("el => el.scrollTop = el.scrollHeight")
-    assert preview.evaluate("el => el.scrollTop") > 0
+    history = preview.locator(".lf-margin-preview-list")
+    history.evaluate("el => el.scrollTop = el.scrollHeight")
+    assert history.evaluate("el => el.scrollTop") > 0
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
     page.keyboard.press("t")

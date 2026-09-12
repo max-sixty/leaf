@@ -2,7 +2,7 @@
  * that has changed. */
 import { ago, clocked } from "./presence.js";
 import { el, reserve } from "./widget-elements.js";
-import { agentName, runtime } from "./context.js";
+import { agentName, runtime, runtimeResource } from "./context.js";
 import {
   bannerActions,
   foldShelf,
@@ -72,7 +72,7 @@ export const toneFor = (kind) => TONE[kind];
 const tabLink = Object.assign(document.createElement("link"), {
   rel: "icon",
   type: "image/svg+xml",
-  href: "/icon.svg",
+  href: runtimeResource("/icon.svg"),
 });
 document.head.append(tabLink);
 let iconMark = null;
@@ -102,7 +102,7 @@ function iconUrl(color) {
   return url;
 }
 export async function loadIcon() {
-  const response = await fetch("/icon.svg");
+  const response = await fetch(runtimeResource("/icon.svg"));
   if (!response.ok)
     throw new Error(`leaf: the tab icon failed to load (${response.status})`);
   const doc = new DOMParser().parseFromString(await response.text(), "image/svg+xml");

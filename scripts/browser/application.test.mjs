@@ -207,6 +207,35 @@ test("one widget selection publishes optimistic state and delivery without writa
   stop();
 });
 
+test("an offline document publishes every host command as unavailable", () => {
+  const app = setup();
+  const commands = {
+    ...descriptor,
+    declaration: {
+      ...descriptor.declaration,
+      "x-request": { verbs: { run: {} } },
+    },
+    offers: [{ tag: "lf-command", attribute: "verb", verb: "run" }],
+  };
+  app.captureDescriptors(new Map([[commands.id, commands]]));
+  const pending = app.enqueue(action("first"), "now");
+  assert.equal(app.selectWidget(commands).read().actions.accept.available, true);
+  assert.equal(app.selectWidget(commands).read().requests.run.available, true);
+  assert.equal(
+    app.selectWidget(commands).read().actions.accept.undo[0].id,
+    pending.localId,
+  );
+
+  app.setHostAvailable(false);
+  const reading = app.selectWidget(commands).read();
+  assert.equal(reading.actions.accept.available, false);
+  assert.equal(reading.actions.accept.unavailable, "no agent or server is available");
+  assert.equal(reading.requests.run.available, false);
+  assert.equal(reading.requests.run.unavailable, "no agent or server is available");
+  assert.deepEqual(reading.actions.accept.undo, []);
+  assert.equal(reading.state.decision.action, "accept");
+});
+
 test("an owner requirement follows publisher-projected position with authored fallback", () => {
   const app = setup();
   const oldOwner = {

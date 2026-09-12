@@ -456,14 +456,20 @@ def stamp(dir: str, text: str, completes: tuple[str, ...], as_json: bool) -> Non
     metavar="N",
     help="stamped version to export (default: latest)",
 )
-def export(dir: str, out: Path, version: int) -> None:
+@click.option(
+    "--interactive",
+    is_flag=True,
+    help="keep captured local behavior; disable Leaf host commands",
+)
+def export(dir: str, out: Path, version: int, interactive: bool) -> None:
     """Export a stamped version to one HTML file.
 
-    Renders the version in the host's browser, then writes a standalone copy.
+    The default is a rendered, script-free record. --interactive keeps the captured
+    local behavior and opens offline without a Leaf server.
     """
     from leaf.exporting import cmd_export
 
-    sys.exit(cmd_export(resolve_dir(dir), out, version))
+    sys.exit(cmd_export(resolve_dir(dir), out, version, interactive=interactive))
 
 
 @cli.group(short_help="Start, run, or stop the local server.")

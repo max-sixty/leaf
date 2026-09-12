@@ -42,6 +42,7 @@ from render_support import (
     refuse,
     resized,
     restarting,
+    round_trip,
     sending,
     serious_axe_violations,
     watched,
@@ -1075,6 +1076,233 @@ def test_stopping_a_preview_waits_for_its_active_recompose(watched_preview, spaw
 
 
 # ---------- export: the page as one file ----------
+
+OFFLINE_WIDGET = """\
+import { LitElement, html, widgetController } from "/runtime/widget-api.js";
+
+customElements.define("lf-offline-test", class extends LitElement {
+  controller = widgetController(this);
+  reading = this.controller.read();
+  local = 0;
+  stop = null;
+
+  createRenderRoot() {
+    return this.shadowRoot ?? this.attachShadow({mode: "open", serializable: true});
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.stop ??= this.controller.subscribe(reading => {
+      this.reading = reading;
+      this.requestUpdate();
+    });
+  }
+
+  disconnectedCallback() {
+    this.stop?.();
+    this.stop = null;
+    super.disconnectedCallback();
+  }
+
+  choose() {
+    return this.controller.dispatch({
+      kind: "action", verb: "choose", detail: {choice: "chosen"},
+    });
+  }
+
+  requestRun() {
+    return this.controller.dispatch({kind: "request", verb: "run", detail: {}});
+  }
+
+  render() {
+    const choice = this.reading.state.choice?.value ?? this.getAttribute("choice");
+    const action = this.reading.actions.choose;
+    const request = this.reading.requests.run;
+    const unavailable = action.unavailable ?? request.unavailable;
+    return html`
+      <style>#local { color: rgb(12, 34, 56); }</style>
+      <button id="local" @click=${() => { this.local += 1; this.requestUpdate(); }}>
+        Increment locally
+      </button>
+      <output id="local-value">${this.local}</output>
+      <button id="choose" ?disabled=${!action.available} @click=${this.choose}>
+        Choose on host
+      </button>
+      <button id="request" ?disabled=${!request.available} @click=${this.requestRun}>
+        Request host work
+      </button>
+      <output id="choice">${choice}</output>
+      ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
+    `;
+  }
+});
+"""
+
+OFFLINE_REGISTRY = {
+    "lf-offline-test": {
+        "description": "A page-owned offline export test widget.",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+            "choice": {"type": "string"},
+            "restated": {"type": "boolean"},
+        },
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "members",
+        "x-upgrade": True,
+        "x-state": {
+            "choose": {
+                "detail": {
+                    "type": "object",
+                    "properties": {"choice": {"type": "string"}},
+                    "required": ["choice"],
+                    "additionalProperties": False,
+                },
+                "facet": "choice",
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "choice", "value": "choice"},
+            }
+        },
+        "x-request": {
+            "offers": {"lf-offline-command": "verb"},
+            "verbs": {
+                "run": {
+                    "detail": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": False,
+                    }
+                }
+            },
+        },
+        "x-example": (
+            '<lf-offline-test id="offline-example" choice="idle">'
+            '<lf-offline-command verb="run">Run</lf-offline-command>'
+            "</lf-offline-test>"
+        ),
+    },
+    "lf-offline-command": {
+        "description": "One host request offered by the test widget.",
+        "type": "object",
+        "properties": {"verb": {"enum": ["run"]}},
+        "required": ["verb"],
+        "additionalProperties": False,
+        "x-owners": ["lf-offline-test"],
+        "x-content": "markup",
+        "x-upgrade": False,
+    },
+}
+
+
+def test_interactive_export_runs_captured_local_behavior_without_a_host(
+    browser, serve, tmp_path
+):
+    """One file boots the captured runtime, but never resurrects its host boundary."""
+    source = leaf_page(
+        "offline interactive",
+        """
+<h1>Offline interactive</h1>
+<lf-offline-test id="offline-widget" choice="idle">
+  <lf-offline-command verb="run">Run</lf-offline-command>
+</lf-offline-test>
+<a id="jump" href="#destination">Jump locally</a>
+<h2 id="destination">Destination</h2>
+""",
+    )
+    url = serve(
+        source,
+        page_files={
+            "registry.json": json.dumps(OFFLINE_REGISTRY),
+            "widgets/lf-offline-test.js": OFFLINE_WIDGET,
+        },
+    )
+    live, live_errors = open_page(browser, url)
+    with sending(live, "the accepted page-owned choice"):
+        live.locator("#offline-widget").get_by_role(
+            "button", name="Choose on host"
+        ).click()
+    round_trip(live)
+    expect(live.locator("#offline-widget #choice")).to_have_text("chosen")
+    assert live_errors == []
+    live.close()
+
+    # Export resolves the stamped artifact, never the mutable aliases left in the page
+    # directory after activation.
+    (serve.page_dir / "widgets" / "lf-offline-test.js").write_text(
+        'throw new Error("mutable widget source escaped its revision");',
+        encoding="utf-8",
+    )
+
+    interactive = tmp_path / "interactive.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "version",
+            "export",
+            str(serve.page_dir),
+            "--out",
+            str(interactive),
+            "--interactive",
+        ],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+    assert "offline interactive" in result.output
+
+    static = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
+    assert "<script" not in static.lower()
+
+    page = browser.new_page(viewport={"width": 1000, "height": 800})
+    errors = watched(page)
+    external = []
+    document_url = interactive.as_uri()
+    page.on(
+        "request",
+        lambda request: (
+            external.append(request.url)
+            if request.url != document_url and not request.url.startswith("data:")
+            else None
+        ),
+    )
+    page.goto(document_url, wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
+    expect(page.locator(".lf-chrome")).to_have_count(0)
+    assert page.locator("#offline-widget").evaluate(
+        "owner => owner.shadowRoot.serializable"
+    )
+    assert (
+        page.locator("#offline-widget #local").evaluate(
+            "control => getComputedStyle(control).color"
+        )
+        == "rgb(12, 34, 56)"
+    )
+
+    page.locator("#offline-widget").get_by_role(
+        "button", name="Increment locally"
+    ).click()
+    expect(page.locator("#offline-widget #local-value")).to_have_text("1")
+    page.locator("#jump").click()
+    assert page.url.endswith("#destination")
+
+    expect(page.locator("#offline-widget #choose")).to_be_disabled()
+    expect(page.locator("#offline-widget #request")).to_be_disabled()
+    expect(page.locator("#offline-widget #unavailable")).to_have_text(
+        "no agent or server is available"
+    )
+    refused = page.locator("#offline-widget").evaluate(
+        """owner => [
+          owner.choose(),
+          owner.requestRun(),
+          owner.controller.dispatch({kind: 'undo', target: 'missing'}),
+        ]"""
+    )
+    assert refused == [None, None, None]
+    expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
+    assert external == []
+    assert errors == []
+    page.close()
 
 
 def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(

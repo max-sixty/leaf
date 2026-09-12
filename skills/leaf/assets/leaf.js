@@ -13,7 +13,10 @@ import {
   PRESENTATION,
 } from "./runtime/presentation.js";
 import { mountApplication } from "./runtime/application.js";
-import { whenApplicationPresented } from "./runtime/semantic-state.js";
+import {
+  applicationPresented,
+  whenApplicationPresented,
+} from "./runtime/semantic-state.js";
 import { createEngagement } from "./runtime/composing/engagement.js";
 import { createCompositionInputs } from "./runtime/composing/input.js";
 import {
@@ -118,6 +121,13 @@ import {
   stateSignoff,
   toggleBtn,
 } from "./runtime/banner.js";
+
+// A published shell may bundle the entry without publishing its source modules beside
+// it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
+// checks can inspect either distribution without turning it into a package API.
+const validationEntry = document.querySelector("script[data-lf-entry]");
+if (validationEntry)
+  validationEntry.lfCurrentPresentationReady = applicationPresented;
 import { overflowMenu, showNews } from "./runtime/banner-shelf.js";
 import {
   leavesOffered,

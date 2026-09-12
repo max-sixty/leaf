@@ -5,7 +5,7 @@
       "visual-run": {
         "description": "An ordered set of aligned before-and-after website states captured against one base and one candidate.",
         "guidance": {
-          "producer": "Capture the same authored journey against immutable base and candidate URLs. Authenticate in the capture browser; keep credentials out of target URLs and the visual run. Import every image with `leaf page media`, then replace the complete source with `leaf data set`. Each case keeps a stable `id`, a short action and observed result, both image paths, and the browser conditions under which the pair was captured. Use a new source id when the run changes meaning."
+          "producer": "Capture the same authored journey against immutable base and candidate URLs. Authenticate in the capture browser; keep credentials out of target URLs and the visual run. Import every image with `leaf page media`, then replace the complete source with `leaf data set`. Each case keeps a stable `id`, a short action and observed result, both image paths, and the browser conditions under which the pair was captured. An optional `focus` is one rectangle in captured CSS pixels shared by both images; use another case, not nested regions, for another review claim. Use a new source id when the run changes meaning."
         },
         "schema": {
           "type": "object",
@@ -119,6 +119,34 @@
               ],
               "additionalProperties": false
             },
+            "focus": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "width",
+                "height"
+              ],
+              "additionalProperties": false
+            },
             "case": {
               "type": "object",
               "properties": {
@@ -150,6 +178,9 @@
                 },
                 "capture": {
                   "$ref": "#/$defs/capture"
+                },
+                "focus": {
+                  "$ref": "#/$defs/focus"
                 },
                 "before": {
                   "type": "string",
@@ -184,7 +215,7 @@
     }
   },
   "lf-visual-review": {
-    "description": "A guided review of one typed visual run. Author an empty element with an id, bind its required `run` input through `source`, and optionally pin an immutable data revision through `snapshot`. The widget keeps compact case navigation above one wide before-and-after comparison with local compare, flip, overlay, fit, and captured-size inspection, opens the exact base and candidate paths, discloses capture provenance after the evidence, records a disposition for each case, and seats case threads beside the selected evidence.",
+    "description": "A guided review of one typed visual run. Author an empty element with an id, bind its required `run` input through `source`, and optionally pin an immutable data revision through `snapshot`. The widget keeps compact case navigation above one wide before-and-after comparison with local focus, full-frame, compare, flip, overlay, fit, and captured-size inspection, opens the exact base and candidate paths, discloses capture provenance after the evidence, records a disposition for each case, and seats case threads beside the selected evidence.",
     "type": "object",
     "properties": {
       "id": {

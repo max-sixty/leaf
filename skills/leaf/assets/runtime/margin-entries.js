@@ -13,7 +13,9 @@
    otherwise orders controls and keeps an active contribution open rather than becoming a
    product-facing visual taxonomy.
    A disclosure's visible label ends in an ellipsis because it opens context; action and
-   status labels do not.
+   status labels do not. Every axis has a default, so an option outside this grammar is
+   refused rather than ignored: a caller stating a rank under a name this module does not
+   know would otherwise get the default and no word about it.
 
    Ordering follows interaction state, then rank, contribution key, and control key. Failed,
    busy, and engaged contributions precede idle ones; completion and escape controls
@@ -297,8 +299,17 @@ export function marginEntry(
     state = "idle",
     writesRelation = true,
     writesSeat = true,
+    // Every axis has a default, so an option this grammar does not know is silently
+    // nothing: the control keeps the default for the axis the caller meant to state.
+    // That is how a rename of this vocabulary reaches a call site — the old name goes
+    // on being accepted and the stated rank stops arriving. What this destructuring
+    // does not name is what the refusal below reports, so the two cannot disagree.
+    ...unknown
   },
 ) {
+  const unnamed = Object.keys(unknown);
+  if (unnamed.length)
+    throw new TypeError(`Unknown margin entry option: ${unnamed.sort().join(", ")}`);
   if (!(control instanceof Element))
     throw new TypeError("A margin entry needs an Element control");
   if (!String(key ?? "").trim()) throw new TypeError("A margin entry needs a key");

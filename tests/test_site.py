@@ -215,6 +215,14 @@ def test_product_pages_vendor_the_composed_theme(site):
             )
 
 
+def test_published_examples_vendor_the_site_context_theme(site):
+    """The note's page-scoped style ships with every page the site adds it to."""
+    context_theme = (DOCS / "package" / "theme.css").read_text().rstrip()
+    for source in site_build.published_page_sources():
+        theme = site / "examples" / source.stem / "theme.css"
+        assert context_theme in theme.read_text(), source
+
+
 def test_product_pages_are_published_as_complete_page_records(site):
     sources = pages_under(DOCS)
     assert {source.name for source in sources} == set(site_build.PRODUCT_ROUTES)
@@ -560,8 +568,9 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
     page, errors = open_page(browser, url)
     try:
         review = page.locator("#visual-review-run")
-        for index in (0, 1):
-            review.locator(".lf-vr-case-tab").nth(index).click()
+        case_select = review.get_by_role("combobox", name="Selected visual case")
+        for case_id in ("open-mobile-package-catalog", "keep-mobile-destinations"):
+            case_select.select_option(case_id)
             comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
             expect(comparison).to_be_visible()
             images = comparison.locator("img")

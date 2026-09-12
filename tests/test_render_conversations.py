@@ -311,6 +311,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         expect(thread.get_by_role("button", name="Resolve thread")).to_have_count(0)
     else:
         expect(page.locator(".lf-threads")).to_contain_text("No open threads.")
+        expect(page.locator(".lf-threads")).to_be_focused()
     assert not any(
         event["kind"] == "resolve" for event in events_model.read_events(serve.page_dir)
     )
@@ -325,6 +326,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     else:
         thread = page.locator(f'.lf-thread[data-id="{root}"]')
         resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+        expect(thread).to_be_focused()
     expect(resolve).to_be_enabled()
     expect(resolve).not_to_have_attribute("aria-busy", "true")
     expect(resolve).not_to_have_attribute("aria-keyshortcuts", re.compile(r".*x.*"))
@@ -349,6 +351,81 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         )
     else:
         expect(page.locator(".lf-general textarea")).to_be_focused()
+    assert errors == []
+    page.close()
+
+
+def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refusal(
+    held_events, serve
+):
+    """Panel focus follows the same optimistic Resolve/Reopen state as its cards.
+
+    A refusal restores both the prior lifecycle view and the thread the reader was
+    operating. A later accepted attempt keeps the optimistic destination rather than
+    moving focus again when the server answers.
+    """
+    browser, held = held_events
+    url = serve(LONG_PAGE)
+    first = panel_comment(serve.page_dir, "Keep this first thread in view.")
+    second = panel_comment(serve.page_dir, "The next thread receives focus.")
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    first_card = page.locator(f'.lf-thread[data-id="{first}"]')
+    second_card = page.locator(f'.lf-thread[data-id="{second}"]')
+
+    first_card.focus()
+    page.keyboard.press("r")
+    holding(page, held, 1, "the refused resolve")
+    expect(second_card).to_be_focused()
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    round_trip(page)
+    expect(first_card).to_be_focused()
+    page.keyboard.press("c")
+    expect(first_card.locator(":scope > .lf-compose textarea")).to_be_focused()
+    page.keyboard.press("Escape")
+
+    page.keyboard.press("r")
+    holding(page, held, 1, "the accepted resolve")
+    expect(second_card).to_be_focused()
+    page.keyboard.press("c")
+    second_reply = second_card.locator(":scope > .lf-compose textarea")
+    expect(second_reply).to_be_focused()
+    held.pop().continue_()
+    round_trip(page)
+    expect(second_reply).to_be_focused()
+
+    page.locator('[data-filter-value="resolved"]').click()
+    page.locator(".lf-find-box").fill("first thread")
+    first_card.focus()
+    expect(first_card).to_be_focused()
+    page.keyboard.press("r")
+    holding(page, held, 1, "the refused reopen")
+    pending_reply = first_card.locator(":scope > .lf-compose textarea")
+    expect(pending_reply).to_be_focused()
+    pending_reply.fill("Keep this draft through the refusal.")
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(page.locator(".lf-find-box")).to_have_value("")
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    round_trip(page)
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(page.locator(".lf-find-box")).to_have_value("first thread")
+    expect(page.locator(".lf-threads")).to_be_focused()
+
+    expect(first_card).to_be_visible()
+    first_card.focus()
+    page.keyboard.press("r")
+    holding(page, held, 1, "the accepted reopen")
+    reply = first_card.locator(":scope > .lf-compose textarea")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_value("Keep this draft through the refusal.")
+    held.pop().continue_()
+    round_trip(page)
+    expect(reply).to_be_focused()
     assert errors == []
     page.close()
 

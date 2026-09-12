@@ -286,13 +286,13 @@ customElements.define(
       }
     };
 
-    #utilityButton({ key, icon, label, tone = "neutral", role, press }) {
+    #utilityButton({ key, icon, label, tone = "neutral", rank = "primary", press }) {
       const button = marginEntry(offer("button", ""), {
         key,
         icon,
         label,
         tone,
-        role,
+        rank,
         state: this.#failed ? "failed" : "idle",
       });
       button.onclick = press;

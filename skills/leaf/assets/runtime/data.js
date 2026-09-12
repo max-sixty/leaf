@@ -44,8 +44,9 @@ let subscriptionSequence = 0;
 
 export async function notifyDataSubscribers() {
   const revision = runtime.data.revision;
-  document.dispatchEvent(new Event("lf-data"));
-  const regions = [...subscriptions].map((subscription) => subscription.region);
+  const current = [...subscriptions];
+  for (const subscription of current) subscription.notify();
+  const regions = current.map((subscription) => subscription.region);
   await whenApplicationRegionsPresented(
     regions,
     () => runtime.data.revision === revision,
@@ -90,18 +91,27 @@ export function watchData(element, input, callback) {
     ? element.getAttribute(declaration.snapshot)
     : null;
   const paint = clocked(element, callback);
+  const selectedSource = applicationState.select((root) =>
+    source && Object.hasOwn(root.data.sources, source)
+      ? root.data.sources[source]
+      : null,
+  );
   let delivered = false;
   let deliveredRevision;
   let completion = Promise.resolve();
   const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
   const presentation = attachApplicationPresentation(region, element);
-  const subscription = { region };
+  const subscription = { region, notify: () => notifySelected() };
+  let stopSelection;
+  let pendingDelivery = null;
   let stopped = false;
   function stop() {
     if (stopped) return;
     stopped = true;
     subscriptions.delete(subscription);
-    document.removeEventListener("lf-data", updateSafely);
+    stopSelection?.();
+    pendingDelivery?.settle();
+    pendingDelivery = null;
     paint.stop();
     presentation.disconnect();
   }
@@ -127,23 +137,20 @@ export function watchData(element, input, callback) {
         if (mounting) stop();
       });
     }
-    void presentation.present(revision, completion);
     return completion;
   };
-  const update = (mounting = false) => {
+  const update = (sourceStore, mounting = false) => {
     if (!source) {
       return deliver(null, mounting);
     }
-    const present = Object.hasOwn(runtime.data.sources, source);
-    if (present && runtime.data.sources[source].contract !== declaration.contract)
+    if (sourceStore && sourceStore.contract !== declaration.contract)
       throw new Error(
         `watchData(${element.localName}, ${input}) expected contract ${declaration.contract}, ` +
-          `but source ${source} carries ${runtime.data.sources[source].contract}`,
+          `but source ${source} carries ${sourceStore.contract}`,
       );
-    if (!present) {
+    if (!sourceStore) {
       return deliver(null, mounting);
     }
-    const sourceStore = runtime.data.sources[source];
     if (selected) {
       const snapshot = sourceStore.snapshots?.[selected];
       if (!snapshot)
@@ -175,24 +182,59 @@ export function watchData(element, input, callback) {
     if (Object.hasOwn(sourceStore, "lines")) snapshot.lines = sourceStore.lines;
     return deliver(snapshot, mounting);
   };
-  const updateSafely = () => {
+  const updateSafely = (sourceStore) => {
     try {
-      return update();
+      return update(sourceStore);
     } catch (error) {
       reportPageError(`data subscriber failed: ${error?.message ?? error}`);
-      void presentation.present(runtime.data.revision, undefined);
     }
   };
-  // Establish the subscription only after its first delivery succeeds. A package that
-  // throws while mounting must not leave a listener behind to fail every later poll.
+  const selectedRevision = (sourceStore) =>
+    sourceStore ? (selected ? Number(selected) : sourceStore.revision) : null;
+  const stage = (sourceStore) => {
+    const revision = selectedRevision(sourceStore);
+    if (delivered && deliveredRevision === revision) return;
+    pendingDelivery?.settle();
+    let settle;
+    const pending = {
+      sourceStore,
+      completion: new Promise((resolve) => {
+        settle = resolve;
+      }),
+      settle: (rendering) => settle(rendering),
+    };
+    pendingDelivery = pending;
+    void presentation.present(revision, pending.completion);
+  };
+  function notifySelected() {
+    const pending = pendingDelivery;
+    if (!pending) return completion;
+    pendingDelivery = null;
+    pending.settle(updateSafely(pending.sourceStore));
+    return pending.completion;
+  }
+  // A publisher selection captures this mount's source. Its initial subscription call
+  // is the mount delivery; later accepted publications stage the selected value and its
+  // presentation ticket synchronously, before that semantic epoch seals. Notification
+  // starts the staged paint only after activation has retained this document. A package
+  // that throws while mounting must not leave a subscription behind to fail every later
+  // publication.
   try {
-    update(true);
+    let mounting = true;
+    stopSelection = selectedSource.subscribe((sourceStore) => {
+      if (mounting) {
+        const rendering = update(sourceStore, true);
+        void presentation.present(deliveredRevision, rendering);
+        return rendering;
+      }
+      stage(sourceStore);
+    });
+    mounting = false;
   } catch (error) {
     stop();
     throw error;
   }
   subscriptions.add(subscription);
-  document.addEventListener("lf-data", updateSafely);
   return stop;
 }
 

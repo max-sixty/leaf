@@ -209,6 +209,41 @@ function clearNarrowing(nextState = "open") {
   return changed;
 }
 
+// A direct destination may replace every panel refinement. A fallible optimistic
+// transition captures this reading before it reveals that destination, so refusal can
+// put back the exact list the reader was operating rather than merely selecting the
+// thread's lifecycle again.
+export function retainNarrowing(refreshNarrowing) {
+  const reading = () => ({
+    finding,
+    words: findInput.value,
+    state,
+    scope,
+    subject,
+    onlyGone,
+  });
+  const same = (left, right) =>
+    right && Object.keys(left).every((key) => left[key] === right[key]);
+  const retained = reading();
+  let replacement = null;
+  return {
+    replaced: () => {
+      replacement = reading();
+    },
+    // Restore only while the direct arrival's view still stands. Typing in the
+    // optimistic reply box does not change this reading and must not strand a refused
+    // Reopen under the Open filter; changing the search or facets deliberately does.
+    restore: (before = null) => {
+      if (!same(reading(), replacement)) return false;
+      before?.();
+      ({ finding, state, scope, subject, onlyGone } = retained);
+      findInput.value = retained.words;
+      renarrow(refreshNarrowing);
+      return true;
+    },
+  };
+}
+
 export function widen(refreshNarrowing) {
   if (!clearNarrowing()) return false;
   renarrow(refreshNarrowing);

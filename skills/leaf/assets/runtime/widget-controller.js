@@ -29,7 +29,7 @@ const unavailable = (reading) =>
     actions: Object.fromEntries(
       Object.entries(reading.actions).map(([verb, entry]) => [
         verb,
-        { ...entry, available: false },
+        { ...entry, available: false, undo: [] },
       ]),
     ),
     requests: Object.fromEntries(

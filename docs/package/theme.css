@@ -105,8 +105,8 @@ body:has(> main > .sitenote) > main {
     align-items: baseline;
     justify-content: space-between;
     gap: 24px;
-    margin-bottom: 4px;
-    padding-bottom: 4px;
+    margin-bottom: 2px;
+    padding-bottom: 2px;
     font-size: var(--t-6);
     line-height: 1.3;
   }

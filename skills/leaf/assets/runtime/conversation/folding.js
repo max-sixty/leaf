@@ -65,12 +65,13 @@ export function settlementControl(
   document.addEventListener(news, update);
   button.onclick = async () => {
     if (pendingSettlement(pendingEntries(), id())) return;
-    const land = prepareLanding?.();
+    const landing = prepareLanding?.();
     const sent = setResolved(id(), !reopen);
+    landing?.optimistic?.();
     tell(id());
     paintKeys();
     try {
-      if (await sent) land?.();
+      if (!(await sent)) landing?.refused?.();
     } finally {
       tell(id());
       paintKeys();

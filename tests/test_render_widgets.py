@@ -115,65 +115,6 @@ WORKSPACE_PAGE = leaf_page(
 )
 
 
-# Four fixed badges wrap by geometry rather than text: one row in the full bounded
-# workspace and two in the narrower reading measure. The nested case also changes the
-# pane width when a columns partition changes posture.
-FIT_BADGES = """<style>
-  .fit-badges { display: flex; flex-wrap: wrap; }
-  .fit-badges > span { width: 280px; height: 200px; background: silver; }
-</style>"""
-
-ROOT_FIT_PAGE = leaf_page(
-    "a root whose furniture wraps with its width",
-    """
-<lf-workspace id="fit-workspace">
-  <header><div class="fit-badges"><span></span><span></span><span></span><span></span></div></header>
-  <lf-pane id="fit-body" label="Body"><p>One pane under the badges.</p></lf-pane>
-</lf-workspace>
-""",
-    head=FIT_BADGES,
-)
-
-NESTED_FIT_PAGE = leaf_page(
-    "a root whose nested furniture wraps with its allocation",
-    """
-<lf-workspace id="fit-workspace">
-  <lf-partition id="fit-partition" direction="columns">
-    <lf-pane id="fit-pane" label="Badges">
-      <header><div class="fit-badges"><span></span><span></span><span></span><span></span></div></header>
-      <p>One pane under the badges.</p>
-    </lf-pane>
-    <lf-pane id="fit-peer" label="Peer"><p>The other pane.</p></lf-pane>
-  </lf-partition>
-</lf-workspace>
-""",
-    head=FIT_BADGES,
-)
-
-SCROLLED_FIT_PAGE = leaf_page(
-    "a root in flow a reader has scrolled down",
-    """
-<lf-workspace id="fit-workspace">
-  <header><div class="fit-badges"><span></span><span></span><span></span><span></span></div></header>
-  <lf-pane id="fit-body" label="Body">
-    <p>The top of the pane.</p>
-    <div style="height: 2400px"></div>
-    <p>The end of the pane.</p>
-  </lf-pane>
-</lf-workspace>
-""",
-    head=FIT_BADGES,
-)
-
-# The fitting reads room in an animation frame and writes posture there. A posture
-# change's own layout signal settles in the following frame.
-SETTLED_POSTURE = """() => new Promise((resolve) => requestAnimationFrame(() =>
-  requestAnimationFrame(() =>
-    resolve(document.querySelector('#fit-workspace').dataset.lfReadingPosture ?? null))))"""
-
-FIT_HEIGHTS = (400, 500, 600, 700, 800, 900, 1000, 1100)
-
-
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):
@@ -241,39 +182,144 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     page.close()
 
 
-@pytest.mark.parametrize(
-    ("source", "header_selector"),
-    [
-        pytest.param(ROOT_FIT_PAGE, "#fit-workspace > .lf-reading-before", id="root"),
-        pytest.param(NESTED_FIT_PAGE, "#fit-pane > .lf-reading-before", id="nested"),
-    ],
+# A root whose furniture answers the width it is given: four fixed badges stand on one
+# row in the width a bounded allocation has, and on two rows in the narrower reading
+# measure flow leaves. The wrapping is geometry rather than text, so the two readings
+# differ by exactly one badge row whatever a platform's fonts measure.
+FIT_BADGES = """<style>
+  .fit-badges { display: flex; flex-wrap: wrap; }
+  .fit-badges > span { width: 280px; height: 200px; background: silver; }
+</style>"""
+
+ROOT_FIT_PAGE = leaf_page(
+    "a root whose furniture wraps with its width",
+    """
+<lf-workspace id="fit-workspace">
+  <header><div class="fit-badges"><span></span><span></span><span></span><span></span></div></header>
+  <lf-pane id="fit-body" label="Body"><p>One pane under the badges.</p></lf-pane>
+</lf-workspace>
+""",
+    head=FIT_BADGES,
 )
+
+NESTED_FIT_PAGE = leaf_page(
+    "a root whose nested furniture wraps with its allocation",
+    """
+<lf-workspace id="fit-workspace">
+  <lf-partition id="fit-partition" direction="columns">
+    <lf-pane id="fit-pane" label="Badges">
+      <header><div class="fit-badges"><span></span><span></span><span></span><span></span></div></header>
+      <p>One pane under the badges.</p>
+    </lf-pane>
+    <lf-pane id="fit-peer" label="Peer"><p>The other pane.</p></lf-pane>
+  </lf-partition>
+</lf-workspace>
+""",
+    head=FIT_BADGES,
+)
+
+SCROLLED_FIT_PAGE = leaf_page(
+    "a root in flow a reader has scrolled down",
+    """
+<lf-workspace id="fit-workspace">
+  <header><div class="fit-badges"><span></span><span></span><span></span><span></span></div></header>
+  <lf-pane id="fit-body" label="Body">
+    <p>The top of the pane.</p>
+    <div style="height: 2400px"></div>
+    <p>The end of the pane.</p>
+  </lf-pane>
+</lf-workspace>
+""",
+    head=FIT_BADGES,
+)
+
+# The fitting reads the room in an animation frame and writes the posture there, and
+# `resized` has already waited for the resize event to reach the listener that asks for
+# that frame. So the new window's posture stands on the element by the frame after it,
+# and the second frame here is the one a posture change's own layout signal would use.
+SETTLED_POSTURE = """() => new Promise((resolve) => requestAnimationFrame(() =>
+  requestAnimationFrame(() =>
+    resolve(document.querySelector('#fit-workspace').dataset.lfReadingPosture ?? null))))"""
+
+FIT_HEIGHTS = (400, 500, 600, 700, 900)
+
+
 def test_a_root_posture_is_the_window_it_stands_in_and_not_the_one_it_came_from(
-    browser, serve, source, header_selector
+    browser, serve
 ):
-    """One window allocates one way, whichever window the reader arrived from."""
-    url = serve(source)
+    """One window allocates one way, whichever window the reader arrived from.
+
+    A root decides its posture from the minimum its own live layout reports, and flow
+    lays that layout out in the reading measure rather than the wide box bounded would
+    allocate. Read there, furniture that wraps reports a minimum taller than the posture
+    under decision would ever have, and the window has two stable answers: the reader
+    who shrinks a tall window keeps the bounded desk, while the reader who opens the
+    same window fresh is given flow and cannot resize out of it, because every reading
+    taken from flow is the flow reading again.
+    """
+    url = serve(ROOT_FIT_PAGE)
     page, errors = open_page(browser, url)
     resized(page, 1200, max(FIT_HEIGHTS))
     shrinking = {}
     for height in sorted(FIT_HEIGHTS, reverse=True):
         resized(page, 1200, height)
         shrinking[height] = page.evaluate(SETTLED_POSTURE)
-
-    # A fixture whose badges stood on one row in both allocations would agree while
-    # proving nothing, so keep a positive control on the width-dependent furniture.
-    header = page.locator(header_selector)
+    # The positive control: a fixture whose badges stood on one row in both layouts
+    # would agree about every window while proving nothing.
+    header = page.locator("#fit-workspace > .lf-reading-before")
     resized(page, 1200, max(FIT_HEIGHTS))
     page.evaluate(SETTLED_POSTURE)
-    wide = header.bounding_box()["height"]
+    allocated = header.bounding_box()["height"]
     resized(page, 1200, min(FIT_HEIGHTS) // 2)
     page.evaluate(SETTLED_POSTURE)
-    assert header.bounding_box()["height"] != wide
+    assert header.bounding_box()["height"] > allocated, (
+        "the badges kept one row in both postures, so this page exercises no "
+        "width-dependent furniture"
+    )
     assert errors == []
     page.close()
 
     arriving = {}
     for height in FIT_HEIGHTS:
+        context = browser.new_context(viewport={"width": 1200, "height": height})
+        fresh, fresh_errors = open_page(browser, url, context=context)
+        arriving[height] = fresh.evaluate(SETTLED_POSTURE)
+        assert fresh_errors == []
+        fresh.close()
+        context.close()
+
+    assert set(arriving.values()) == {"bounded", "flow"}, (
+        f"every window in the sweep allocated the same way: {arriving}"
+    )
+    assert arriving == shrinking
+
+
+def test_nested_furniture_reads_the_candidate_partition_posture(browser, serve):
+    """A nested grid answers for the candidate posture, not the current one."""
+    heights = (*FIT_HEIGHTS, 800, 1000, 1100)
+    url = serve(NESTED_FIT_PAGE)
+    page, errors = open_page(browser, url)
+    resized(page, 1200, max(heights))
+    shrinking = {}
+    for height in sorted(heights, reverse=True):
+        resized(page, 1200, height)
+        shrinking[height] = page.evaluate(SETTLED_POSTURE)
+
+    header = page.locator("#fit-pane > .lf-reading-before")
+    resized(page, 1200, max(heights))
+    page.evaluate(SETTLED_POSTURE)
+    allocated = header.bounding_box()["height"]
+    resized(page, 1200, min(heights) // 2)
+    page.evaluate(SETTLED_POSTURE)
+    assert header.bounding_box()["height"] != allocated, (
+        "the badges kept the same height in both postures, so this page exercises no "
+        "posture-dependent partition"
+    )
+    assert errors == []
+    page.close()
+
+    arriving = {}
+    for height in heights:
         context = browser.new_context(viewport={"width": 1200, "height": height})
         fresh, fresh_errors = open_page(browser, url, context=context)
         arriving[height] = fresh.evaluate(SETTLED_POSTURE)
@@ -299,7 +345,7 @@ def test_reading_a_root_minimum_leaves_the_reader_where_they_had_scrolled_to(
         "() => document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight"
     )
     landed = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert landed > 0
+    assert landed > 0, "the flow page never scrolled, so no clamp could be exercised"
     page.locator("#fit-workspace").evaluate(
         "owner => owner.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true}))"
     )

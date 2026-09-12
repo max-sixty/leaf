@@ -2262,9 +2262,21 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
     active = """
 <div style="height: 250px"></div>
 <lf-owned-scroll id="active-region" posture="flow">
-  <div data-scroll-body><button id="standing-control">Change setting</button></div>
+  <div data-scroll-body>
+    <section id="removed-landmark">
+      <p>The nested region landmark disappears in the arriving revision.</p>
+    </section>
+    <button id="standing-control">Change setting</button>
+  </div>
 </lf-owned-scroll>
 """
+    active_without_landmark = active.replace(
+        """    <section id="removed-landmark">
+      <p>The nested region landmark disappears in the arriving revision.</p>
+    </section>
+""",
+        "",
+    )
 
     def parent(name, content=""):
         return f"""
@@ -2300,7 +2312,7 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
 
     revised = leaf_page(
         "Nested offset ownership",
-        parent("left") + parent("right", active),
+        parent("left") + parent("right", active_without_landmark),
     )
     stamp_page(serve.page_dir, revised, "move the active region")
     wait_for_revision(page, 2)

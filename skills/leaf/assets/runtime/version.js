@@ -1622,7 +1622,8 @@ export function createVersionController({
       // there. Read raw, both sides come back 0 and the correction is 0 — so the restore
       // that had somewhere to land did nothing, silently, and left the reader at the top.
       moveScrollerBy(box, shownBox(section).top - boxTop - view.sectionTop);
-    } else box.scrollTo({ top: view.y, behavior: "instant" });
+    } else if (rawOffsetFits(view, box))
+      box.scrollTo({ top: view.y, behavior: "instant" });
   }
 
   function restoreView(view) {

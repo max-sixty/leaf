@@ -5334,7 +5334,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # asked a set question in.
     seam = page.locator("#tq-set").evaluate(
         """el => { const done = el.querySelector('.lf-done');
-                   const last = done.previousElementSibling;
+                   const last = done.parentElement.previousElementSibling;
                    const a = last.getBoundingClientRect();
                    const b = done.getBoundingClientRect();
                    return {gap: Math.round((b.top - a.bottom) * 10) / 10,

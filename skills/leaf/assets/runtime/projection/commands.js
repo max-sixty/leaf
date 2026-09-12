@@ -1,7 +1,8 @@
 /* Reader action admission and undo, assembled over supplied application commands. */
 import { runtime } from "../context.js";
 import { notice } from "../notifications.js";
-import { elementById, inChrome, settlementSlots } from "../passages.js";
+import { elementById, inChrome } from "../passages.js";
+import { widgetDescriptor } from "../widget-descriptors.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { authoredStates } from "./authored.js";
 
@@ -12,7 +13,7 @@ function canUndoAction(candidate) {
   return Boolean(
     widget &&
     authoredStates().has(widget.id) &&
-    (widget.renderState || settlementSlots()[widget.localName]),
+    widgetDescriptor(widget)?.declaration["x-state"]?.[candidate.event.action],
   );
 }
 

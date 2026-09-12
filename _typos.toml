@@ -6,3 +6,8 @@ recor = "recor"
 # id the fixture holds, because a near-miss is the typo the gate exists to refuse —
 # "corrected", the id exists and the refusal under test never fires.
 backfil = "backfil"
+
+[default.extend-identifiers]
+# Fixed revision ids are evidence, so preserve the exact commit even when one of its
+# hexadecimal runs happens to spell a typo.
+"19f3ba5f" = "19f3ba5f"

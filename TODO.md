@@ -84,10 +84,10 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
   persistence and accessibility contract. Commands, non-character routes, and visible
   controls remain available.
 
-- **Review the guided-still workflow across repeated website changes.** The initial
-  visual-review package passed one end-to-end five-case run. Use it on changes with
-  different navigation, responsive states, and authentication boundaries before
-  treating its authoring choices as settled.
+- **Review the guided-still workflow across repeated website changes.** The
+  visual-review package has passed a landscape run and a responsive-still run. Use it
+  on a real navigation journey and across an authentication boundary before treating
+  its authoring choices as settled.
 
 - **Finish fast visual inspection with authored change regions.** Automatic compare,
   flip, overlay, fit, and captured-size views now work without changing the visual-run contract

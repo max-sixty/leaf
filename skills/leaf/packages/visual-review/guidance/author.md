@@ -1,10 +1,10 @@
 Use `lf-visual-review` for a short website journey whose important states can be compared as aligned stills. Put the claim and recommendation in authored prose. The bound `visual-run` supplies the ordered cases, immutable targets, image paths, observed results, and capture conditions.
 
-The guided-still workflow has passed one end-to-end five-case review. Treat its authoring choices as provisional until repeated website changes establish which cases and capture steps recur.
+The guided-still workflow has passed one landscape review and one responsive-still review. Treat its authoring choices as provisional until repeated website changes, including a real navigation journey and an authentication boundary, establish which cases and capture steps recur.
 
-Readers start with both captures compared at the orientation chosen from the available evidence stage. A stacked comparison fits each capture to the stage width and scrolls through the pair, so fitting never makes a wide interface illegible merely to hold both frames on screen at once. They can flip in one stable frame or overlay at a chosen candidate opacity. Fit and 100% captured-interface size are local inspection choices: they do not alter the run, its case ids, or the recorded disposition.
+Readers start with both captures compared at the orientation chosen from the available evidence stage. A comparison fits the pair to the stage width and scrolls through its height, so fitting never makes an interface illegible merely to hold both frames on screen at once. Flip and overlay contain one frame; overlay uses a chosen candidate opacity. Fit and 100% captured-interface size are local inspection choices: they do not alter the run, its case ids, or the recorded disposition.
 
-Base, candidate, and trace links stay below the evidence. `Capture details` discloses the path, browser, viewport, appearance, observation time, and revisions when the reader needs to audit the capture.
+Base and candidate links, plus an optional trace link, stay below the evidence. `Capture details` discloses the path, browser, viewport, appearance, observation time, and revisions when the reader needs to audit the capture.
 
 For a focused review page, make `lf-visual-review` the only child of `main`; it then uses Leaf's bounded root workspace and gives the laptop viewport to the evidence. When prose around the review is part of the document, the same compact layout remains in ordinary flow.
 

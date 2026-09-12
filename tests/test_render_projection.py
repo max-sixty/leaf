@@ -993,8 +993,8 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     """A focused review is a root workspace, not prose followed by a narrow widget.
 
     The case chooser never taxes the evidence width, the disposition is available before
-    the pixels, and this wide, shallow pair stacks at a readable width inside a scrolling
-    evidence stage. Capture facts follow the comparison rather than delaying it.
+    the pixels, and a tall mobile pair keeps its captured width side by side inside the
+    scrolling evidence stage. Capture facts follow the comparison rather than delaying it.
     """
     page, errors = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
@@ -1015,11 +1015,14 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert geometry["widget"]["width"] > 1000
     assert geometry["widget"]["bottom"] <= 768
     assert geometry["decision"]["bottom"] <= geometry["evidence"]["top"]
-    assert geometry["evidence"]["top"] < 270, geometry
-    assert geometry["evidence"]["height"] >= 360
-    assert widget.get_attribute("data-compare-layout") == "stack", geometry
-    assert geometry["frames"][1]["top"] >= geometry["frames"][0]["bottom"]
-    assert geometry["frames"][0]["width"] >= 895, geometry
+    assert geometry["evidence"]["height"] >= 360, geometry
+    assert geometry["evidence"]["bottom"] <= 768, geometry
+    assert widget.get_attribute("data-compare-layout") == "side", geometry
+    assert geometry["frames"][1]["left"] >= geometry["frames"][0]["right"]
+    case_image_width = widget.locator(
+        ".lf-vr-case:not([hidden]) .lf-shotframe img"
+    ).first.evaluate("node => node.getBoundingClientRect().width")
+    assert case_image_width == pytest.approx(390, abs=1), geometry
     assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
         "node => node.scrollHeight > node.clientHeight"
     )
@@ -1093,15 +1096,18 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
     shot_host.evaluate("node => node.style.height = '120px'")
-    expect(widget).to_have_attribute("data-compare-layout", "stack")
+    expect(widget).to_have_attribute("data-compare-layout", "side")
+    assert widget.locator(".lf-vr-case:not([hidden]) .lf-shotframe img").first.evaluate(
+        "node => node.getBoundingClientRect().width"
+    ) == pytest.approx(390, abs=1)
     shot_host.evaluate("node => node.style.removeProperty('height')")
-    expect(widget).to_have_attribute("data-compare-layout", "stack")
+    expect(widget).to_have_attribute("data-compare-layout", "side")
     page.locator("html").evaluate("node => node.classList.add('lf-copy')")
     copy_widths = widget.locator(".lf-vr-case lf-shot img").evaluate_all(
         "images => images.map(image => image.getBoundingClientRect().width)"
     )
     assert len(copy_widths) == 6
-    assert max(copy_widths) <= 901
+    assert copy_widths == pytest.approx([388, 388, 388, 388, 1278, 1278], abs=1)
     page.locator("html").evaluate("node => node.classList.remove('lf-copy')")
     widget.locator(".lf-vr-shot-host").evaluate_all(
         "nodes => nodes.forEach(node => node.style.setProperty('--lf-vr-capture-width', '300px'))"
@@ -1113,6 +1119,24 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert len(print_widths) == 6
     assert max(print_widths) <= 301
     page.emulate_media(media="screen")
+
+    selected = widget.get_by_role("combobox", name="Selected visual case")
+    with sending(page, "the intended responsive change disposition"):
+        case.get_by_role("button", name="Looks right").click()
+    page.keyboard.press("ArrowDown")
+    expect(selected).to_have_value("keep-mobile-destinations")
+    expect(widget).to_have_attribute("data-compare-layout", "side")
+    with sending(page, "the seeded responsive regression disposition"):
+        widget.locator(".lf-vr-case:not([hidden])").get_by_role(
+            "button", name="Needs work"
+        ).click()
+    expect(widget.locator(".lf-vr-progress")).to_have_text("2 of 3 cases reviewed")
+    page.keyboard.press("ArrowDown")
+    expect(selected).to_have_value("check-desktop-navigation")
+    expect(widget).to_have_attribute("data-compare-layout", "stack")
+    assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
+        "node => node.scrollHeight > node.clientHeight"
+    )
     assert errors == []
     page.close()
 

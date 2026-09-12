@@ -1596,6 +1596,11 @@ export function createVersionController({
   let navigationIntent = 0;
   let lastReadingRegionId = null;
 
+  // Continuity restores scroll geometry, not the reading-key subject. Frame furniture
+  // still names its own pane to d/u through readingRegionFor; because the furniture does
+  // not live in that pane's scroller, a posture change preserves the outer region that
+  // geometrically contains it. The same distinction keeps an inline response outside a
+  // nested region body with the outer scroller that actually carries it.
   const activeReadingRegion = (candidates = readingRegions()) => {
     const focusedRegion = containingReadingRegionFor(focused());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))

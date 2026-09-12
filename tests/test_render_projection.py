@@ -1467,6 +1467,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert page.locator('meta[name="description"]').get_attribute("content") == "second"
     assert page.locator("html").get_attribute("lang") == "fr"
     assert page.locator("html").get_attribute("data-live-root") == "second"
+    expect(page.locator("html")).to_have_attribute("data-lf-live", "")
     expect(page.locator("body")).to_have_class(re.compile(r"\blive-second\b"))
     assert page.locator("body").get_attribute("data-live-body") == "second"
     assert (
@@ -1503,6 +1504,109 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     with sending(page, "the comment on the live draft"):
         page.locator(".lf-general button").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
+    assert errors == []
+    page.close()
+
+
+def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser, serve):
+    """A partly covered title is the page opening, not a reading place to preserve.
+
+    A revision change used the heading as its semantic landmark and restored its exact
+    viewport coordinate. When the reader had moved just far enough for the first title
+    line to sit behind the fixed banner, both an arriving current revision and a chosen
+    historical version faithfully restored that broken view: the later line looked like
+    the whole heading. The scroller already declares its landable top through
+    scroll-padding, so a heading landmark must honor that edge while ordinary passage
+    landmarks retain their exact coordinate.
+    """
+    title = "The page instance should own the complete one-off playground"
+    first = leaf_page(
+        "Heading continuity",
+        f"""
+<header id="summary">
+  <p class="eyebrow">Playground replacement audit</p>
+  <h1 id="title">{title}</h1>
+  <p>The opening account is long enough to become the next reading landmark.</p>
+</header>
+<div style="height: 1200px"></div>
+""",
+    )
+    version_url = serve(first)
+    page, errors = open_page(browser, live_url(version_url))
+    resized(page, 668, 704)
+
+    clip_heading = """() => {
+          const heading = document.getElementById('title');
+          const banner = document.querySelector('.lf-banner');
+          const inset = parseFloat(
+            getComputedStyle(document.scrollingElement).scrollPaddingTop
+          );
+          document.scrollingElement.scrollBy({
+            top: heading.getBoundingClientRect().top - banner.getBoundingClientRect().bottom + 12,
+            behavior: 'instant',
+          });
+          const title = heading.getBoundingClientRect();
+          const chrome = banner.getBoundingClientRect();
+          return {title: title.toJSON(), chrome: chrome.toJSON(), inset};
+        }"""
+    heading_position = """() => {
+          const title = document.getElementById('title').getBoundingClientRect();
+          const chrome = document.querySelector('.lf-banner').getBoundingClientRect();
+          const inset = parseFloat(
+            getComputedStyle(document.scrollingElement).scrollPaddingTop
+          );
+          return {
+            title: title.toJSON(),
+            chrome: chrome.toJSON(),
+            inset,
+            live: document.documentElement.hasAttribute('data-lf-live'),
+          };
+        }"""
+
+    clipped = page.evaluate(clip_heading)
+    assert clipped["title"]["top"] < clipped["chrome"]["bottom"]
+    assert clipped["title"]["bottom"] > clipped["chrome"]["bottom"]
+
+    # The producer owns the invariant: a saved semantic heading coordinate is never
+    # inside the chrome, so in-place activation and document travel consume the same
+    # valid view rather than each repairing it independently.
+    page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
+    view = page.evaluate(
+        """() => {
+          for (const key of Object.keys(sessionStorage))
+            if (key.endsWith('lf-view')) return JSON.parse(sessionStorage[key]);
+          return null;
+        }"""
+    )
+    assert view["quote"].startswith(title), view
+    assert view["quoteTop"] >= clipped["inset"], view
+
+    stamp_page(
+        serve.page_dir,
+        first.replace("1200px", "1201px"),
+        "Changed evidence below the page heading",
+    )
+    wait_for_revision(page, 2)
+    live_landed = page.evaluate(heading_position)
+    assert live_landed["live"], "revision activation removed the live shell"
+    assert live_landed["inset"] == clipped["inset"], live_landed
+    assert live_landed["title"]["top"] >= live_landed["inset"], (
+        f"the arriving revision left the heading under reader chrome: {live_landed}"
+    )
+    assert live_landed["title"]["top"] > live_landed["chrome"]["bottom"], live_landed
+
+    clipped = page.evaluate(clip_heading)
+    assert clipped["title"]["top"] < clipped["chrome"]["bottom"]
+    page.locator(".lf-version").click()
+    page.locator('.lf-version-row[data-lf-version="1"]').click()
+    page.wait_for_url(re.compile(r"/versions/v1\.html"))
+    page.wait_for_function(BOTH_STAMPS)
+
+    landed = page.evaluate(heading_position)
+    assert landed["title"]["top"] >= landed["inset"], (
+        f"version travel left the heading under reader chrome: {landed}"
+    )
+    assert landed["title"]["top"] > landed["chrome"]["bottom"], landed
     assert errors == []
     page.close()
 

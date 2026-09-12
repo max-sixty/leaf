@@ -75,9 +75,12 @@
  *
  * `captureView` stores a passage-based reading landmark, correction within the block,
  * and the last decision landmark. `restoreView` resolves the landmark after upgrade and
- * corrects the scroll from the rendered box. A URL fragment outranks the saved view on a
- * fresh navigation; the saved view outranks a leftover fragment on reload or back
- * navigation. `landArrival` applies that ranking only after final page geometry is
+ * corrects the scroll from the rendered box. It retains an ordinary passage's exact
+ * viewport coordinate; capture normalizes a heading to its scroller's declared
+ * scroll-padding edge, because a title with opening lines behind fixed chrome is not a
+ * valid semantic view to carry into another document. A URL fragment outranks the saved
+ * view on a fresh navigation; the saved view outranks a leftover fragment on reload or
+ * back navigation. `landArrival` applies that ranking only after final page geometry is
  * available.
  *
  * Focus and selection are not restored across document travel. Restoring focus onto a
@@ -183,14 +186,25 @@ servedStampMarker?.remove();
 
 // The document roots may carry authored classes, data attributes, and inline custom
 // properties that page-local styles read. The live document also paints its own facts
-// onto those same two elements. The authored share is remembered at import, before the
-// boot module has run a line: no runtime module writes the document at its own top
-// level, the runtime's stylesheets are adopted rather than written into the head, and
-// the banner's icon link comes later from the boot module. An activation can then
-// replace exactly that share without erasing the
-// presentation, layout, and mode facts the surviving runtime owns.
-const authoredAttributes = (root) =>
-  new Map([...root.attributes].map(({ name, value }) => [name, value]));
+// onto those same two elements. Most arrive after this module, but the server's prepaint
+// bootstrap deliberately runs before the module graph and has already written the live
+// shell and provisional reader layout. Authored markup cannot use the `data-lf-` or
+// `lf-` namespaces, so that boundary identifies the authored share without mistaking
+// early runtime state for page source. An activation can then replace exactly that share
+// without erasing the presentation, layout, and mode facts the surviving runtime owns.
+function authoredAttributes(root) {
+  const attributes = new Map();
+  for (const { name, value } of root.attributes) {
+    if (name.startsWith("data-lf-")) continue;
+    if (name === "class") {
+      const authored = [...root.classList]
+        .filter((token) => !token.startsWith("lf-"))
+        .join(" ");
+      if (authored) attributes.set(name, authored);
+    } else attributes.set(name, value);
+  }
+  return attributes;
+}
 // The authored share of the head, which a revision brings with it. Delivery marks
 // what it inserts — the identity markers, the page's canonical address, a
 // publication's card — and that share belongs to the document the reader was
@@ -1288,7 +1302,7 @@ export function createVersionController({
     const next = authoredAttributes(source);
     for (const [name, value] of next) {
       if (name === "class")
-        for (const token of source.classList) target.classList.add(token);
+        for (const token of value.split(" ")) target.classList.add(token);
       else if (name === "style")
         for (const property of source.style)
           target.style.setProperty(
@@ -1509,7 +1523,18 @@ export function createVersionController({
         view.section = section?.id;
         view.sectionTop = section && shownBox(section).top - boxTop;
         view.quote = text;
-        view.quoteTop = rect.top - boxTop;
+        const exactTop = rect.top - boxTop;
+        // A partially covered paragraph is still a reading place: its visible lines
+        // should stay where the reader left them. A heading identifies the place as a
+        // whole, so a coordinate that hides its opening words is not a valid heading
+        // landmark. Normalize that state here, once, rather than teaching every restore
+        // path to repair it after document replacement.
+        view.quoteTop = block.matches("h1, h2, h3, h4, h5, h6")
+          ? Math.max(
+              exactTop,
+              Number.parseFloat(getComputedStyle(box).scrollPaddingTop) || 0,
+            )
+          : exactTop;
         break;
       }
     }

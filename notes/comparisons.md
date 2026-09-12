@@ -240,7 +240,7 @@ filesystem draw identically; `lavish-axi design` and seven playbooks (`diagram`,
 `comparison`, `plan`, `code`, `input`, `slides`) are guidance the agent reads, and
 interactivity comes from native controls plus `data-lavish-action`,
 `data-lavish-question` and `window.lavish.queuePrompt()`. leaf goes the other way: 28
-shipped tags in a registry a project or a user overlays, whose declarations drive the
+shipped tags in a registry explicitly selected packages extend, whose declarations drive the
 lint, the render check, export and replay together. Freehand buys any page the agent can
 imagine; a vocabulary buys a page the machine can check and replay.
 

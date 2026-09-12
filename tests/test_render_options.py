@@ -21,6 +21,7 @@ from render_support import (
     ASK_WITH_CONTEXT_PAGE,
     CARRIED_PAGE,
     CHIP_PAGE,
+    EXAMPLE_PACKAGES,
     EXAMPLES,
     EXHIBIT_EXTENT,
     INLINE_CASE_PAGE,
@@ -1998,7 +1999,9 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
     layer.mkdir()
     (layer / "registry.json").write_text(json.dumps({"lf-option": option}))
 
-    page, errors = open_page(browser, serve(ASK_PAGE))
+    page, errors = open_page(
+        browser, serve(ASK_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    )
     result = CliRunner().invoke(
         cli_model.cli,
         [

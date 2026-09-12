@@ -23,6 +23,7 @@ from render_support import (
     COVERED_TOP,
     EDGES,
     EXAMPLE_MEDIA,
+    EXAMPLE_PACKAGES,
     EXAMPLES,
     FEATURE_GALLERY,
     FRAME_BY_FRAME,
@@ -3234,7 +3235,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(
         "/* a project styling a wrapper away, which is any layer's to do */\n"
         "lf-options { display: contents }\n"
     )
-    url = serve(REPLY_TRAVEL_PAGE)
+    url = serve(REPLY_TRAVEL_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     # A group reporting rather than asking: the joined control the layer draws for
     # `choose` states its own display at a weight a project's bare tag rule does not
     # reach, and the subject here is a boxless wrapper rather than a cascade fight.

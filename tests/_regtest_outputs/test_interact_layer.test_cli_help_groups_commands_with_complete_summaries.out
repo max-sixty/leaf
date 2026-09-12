@@ -117,4 +117,3 @@ Commands:
   run    Serve a page in the foreground until stopped.
   start  Start a page's server and print its URL.
   stop   Stop a page's server.
-

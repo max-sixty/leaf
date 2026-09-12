@@ -75,6 +75,7 @@ def test_cli_help_groups_commands_with_complete_summaries(regtest):
         "version": ["version", "--help"],
         "server": ["server", "--help"],
     }
+    outputs = []
 
     for name, args in cases.items():
         result = CliRunner().invoke(
@@ -87,7 +88,9 @@ def test_cli_help_groups_commands_with_complete_summaries(regtest):
         assert result.exit_code == 0
         # pytest-regtest treats code points above Latin-1 as binary.
         output = result.output.encode("ascii", "backslashreplace").decode()
-        regtest.write(f"## {name}\n{output}\n")
+        outputs.append(f"## {name}\n{output}")
+
+    regtest.write("\n".join(outputs))
 
 
 @pytest.mark.parametrize("command", ["wait", "ack"])

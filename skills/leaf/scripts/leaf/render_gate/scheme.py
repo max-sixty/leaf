@@ -88,7 +88,9 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
     def hold_entry(route):
         held.append(route)
 
-    page.route("**/leaf.js", hold_entry, times=1)
+    # A one-shot route disables interception as the entry starts its imports.
+    # Keep it through load: Chromium can strand module requests during that switch.
+    page.route("**/leaf.js", hold_entry)
     try:
         page.goto(url, wait_until="commit")
         stage = "authored main"

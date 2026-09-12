@@ -1,9 +1,9 @@
 # Agent-driven UI quality options
 
-This note records options for combining the quality acceptance policy and discovery
-allocation work from the September 2026 UI quality assessment. It is an options
-document, not a product contract. Delete it once the operating model has been tried and
-its surviving rules have moved into the skills and tests that own them.
+This note records options and remaining work for combining the quality acceptance
+policy and discovery allocation work from the September 2026 UI quality assessment. It
+is a planning document, not a product contract. Delete it once the operating model has
+been tried and its surviving rules have moved into the skills and tests that own them.
 
 The goal is to let agents repeatedly find and repair consequential reader-facing
 problems without building a Leaf-specific QA application or maintaining an exhaustive
@@ -340,21 +340,99 @@ was an acceptance-policy change, mission selection in `/ui-sweep`, and a pilot o
 previously dismissed finding. It did not recommend a Leaf runtime, scheduler, database,
 or dashboard change.
 
-## Current recommendation
+## First trial
 
-Start with Option A and no new persistent service:
+The first diagnosis-and-repair trial used independent agents against current Leaf and
+produced four candidate findings. Engineering reproduction confirmed two defects: an
+explicit retarget could destroy a destination's existing draft, and choosing a clipped
+board target could open its composer outside the viewport. Both became gesture-level
+regressions and landed in [PR #636](https://github.com/max-sixty/leaf/pull/636).
 
-1. Add an affected-reader-journey acceptance rule to `running-tend`; keep its general
-   claimed-path review threshold unchanged. The new rule covers every anomaly genuinely
-   encountered during `/ui-sweep`.
-2. Let the standing sweep choose short missions from the diff, recent defect mechanisms,
-   shipped examples, and recent run summaries.
-3. Run a cold reader independently before or after the source-informed repair.
-4. Use the existing PR, regression test, or unresolved issue as the durable result;
-   retain rich browser evidence only for failures and visual decisions.
-5. Pilot the instructions against one historical miss and one clean control before
-   adding a mission log.
+The other two candidates were not product defects. Coarse-pointer board behavior matched
+the intended interaction contract, while a reported `g D` failure came from synthetic
+modifier state rather than the ordinary keyboard gesture. They are useful calibration
+cases: an evaluator must distinguish an intentional behavior and an invalid experiment
+from a defect instead of turning either into product complexity.
 
-This recommendation preserves the option to adopt an external browser driver or
-evaluator later. It rejects only the premature commitment to a checklist, scalar quality
-score, complete coverage matrix, or Leaf-specific QA application.
+The trial establishes that the composition can find and repair real defects. It does not
+yet establish a routine operating model. Too many overlapping agents received broad
+context and revisited the same evidence, while the run left no compact attribution of
+which agent or expense changed the result. Precision, cost, and continuity therefore
+remain the questions to test.
+
+## Remaining work for agents diagnosing Leaf
+
+### Put the acceptance rule in its owner
+
+`/ui-sweep` already owns mission derivation, browser evidence, disposition, repair, and
+independent review. `running-tend` invokes it weekly, but its ordinary review threshold
+still stops at the change's claimed path. Add one narrow rule there: an anomaly actually
+encountered while exercising an affected reader journey must receive a disposition even
+when it was not in the author's claim. Keep unrelated bounded edge cases outside the
+review threshold.
+
+This is the remaining policy change. Do not copy the rest of `/ui-sweep` into Tend.
+
+### Calibrate diagnosis before increasing its frequency
+
+Run a small blinded evaluation with one known historical miss and one intentional or
+invalid control. Give each agent only the charter, candidate, and role-specific context;
+do not reveal the prior verdict. Judge the resulting reader outcome and disposition,
+not the tool-call sequence.
+
+The first useful calibration asks whether the agents can both reproduce the real defect
+and reject the clean signal for the deciding reason. Add another case only after an
+observed evaluator failure, and reduce overlapping cases when one contrast proves the
+same claim. This remains an evaluator suite, not a product-coverage inventory.
+
+### Bound roles, context, and model cost
+
+Start each mission with one source-informed engineering explorer and one cold reader.
+Give them fresh page state and non-overlapping responsibilities. The explorer owns
+reproduction, architectural diagnosis, repair, and focused verification; the cold
+reader owns discoverability and rendered acceptance without seeing the proposed verdict.
+
+Use a faster agent for concrete route execution and evidence collection. Reserve an
+Astra or other high-reasoning pass for conflicting evidence, an architectural ownership
+question, or unresolved product intent. Add a specialist only when the evidence names a
+specific accessibility, performance, motion, or visual question. One agent consolidates
+the candidates, and only the repair owner runs broad verification.
+
+For each pilot, retain the model, reasoning effort, inherited-context scope, elapsed
+time, available token usage, and the finding dispositions. These are diagnostic inputs,
+not quotas. Widen the fan-out only when the bounded pair cannot decide the case.
+
+### Make candidate findings cheap to adjudicate
+
+The handoff between agents should contain the page revision, initial state, exact
+ordinary gesture, viewport and input conditions, expected relationship, observed result,
+transition actually reached, and deciding evidence. It is a candidate finding until the
+engineering explorer reproduces it against the current candidate and a distinguishing
+control.
+
+Use four dispositions: confirmed defect, intentional behavior under a named contract,
+invalid experiment, or unresolved intent or evidence. A confirmed defect links to its
+regression and repair. A rejected candidate keeps only the evidence that rejects it.
+Repeated false positives can justify changing the diagnostic skill or calibration set;
+one incident does not justify a new checklist clause.
+
+### Test continuity with the systems that already exist
+
+For the next repeated missions, make the Tend summary the run receipt. Record the
+mission, reader relationship, page and conditions, reached and unreached transitions,
+candidate dispositions, evidence pointers, repair or issue, agent allocation, and
+aggregate cost. A repair remains durable in its PR and regression test. Use a
+`visual-run` only when aligned rendered evidence is itself part of the decision.
+
+The next sweep should read the last few receipts and choose a materially different,
+high-risk relationship or state that was not reached, rather than replay every stored
+case or maximize a coverage percentage. If Tend summaries prove hard to retrieve or
+compare, add the append-only mission receipt described above. Do not add it preemptively.
+
+### Decide whether any orchestration is earned
+
+Run the bounded composition repeatedly before adding a scheduler, database, dashboard,
+or general QA report. After those runs, review confirmed-defect yield, false-positive
+causes, unadjudicated findings, cost, and whether the receipts changed mission selection.
+Automate only a repeated mechanical failure in that loop. Until then, Option A remains
+the operating model and the other skills remain conditional tools.

@@ -81,10 +81,9 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
   persistence and accessibility contract. Commands, non-character routes, and visible
   controls remain available.
 
-- **Finish fast visual inspection with authored change regions.** Automatic compare,
-  flip, overlay, fit, and captured-size views now work without changing the visual-run contract
-  or case ids. Add disclosed masks and changed-region navigation once repeated reviews
-  establish the smallest useful authored region contract.
+- **Add disclosed masks to visual-review evidence.** Authored case-level focus areas now
+  make small changes findable without adding nested review units. Add masks only once
+  repeated reviews establish the smallest disclosure and export contract.
 
 - **Open visual-review targets beside Leaf through the host.** Coordinate the exact
   case URL in a real browser pane and report mutable-preview staleness without treating

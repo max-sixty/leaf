@@ -242,14 +242,12 @@ write a behavior module when the element owns another interaction.
 of available page width and height, window resize, and descendant layout changes. The
 caller supplies the complete minimum as `{width, height}` and keeps the composition's
 policy: the default workspace derives one recursively from equal partitions, while an
-asymmetric package root may read its own grid tracks. That reading is taken with the
-root held at the width a bounded allocation would give it and at the height it already
-occupies, so a root in flow does not report the taller furniture of the narrower reading
-measure as its own minimum. The posture itself is not held, so everything it governs —
-the bounded grid, a columns partition's split, the frame margin trim — is still the
-arrangement currently drawn, and a minimum that measures a descendant's live box
-measures it there. The returned `update()` promise
-joins initial settlement; `cleanup()` retires its observers and listeners.
+asymmetric package root may read its own grid tracks. The returned `update()` promise
+joins initial settlement; `cleanup()` retires its observers and listeners. Leaf reads
+the available room and minimum synchronously inside the bounded posture under decision,
+while its current document height remains fixed. Live boxes therefore describe the
+candidate arrangement rather than whichever posture is currently drawn, and taking the
+reading neither paints an intermediate layout nor moves a reader in document flow.
 
 `registerReadingRegion({id, host, body})` binds identity separately from the current
 scroller, while `registerReadingArrangement({owner, content, regions})` returns

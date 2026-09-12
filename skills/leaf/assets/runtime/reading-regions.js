@@ -194,6 +194,39 @@ const notify = (detail) => {
   for (const listener of transitionWatchers) listener(detail);
 };
 
+const arrangementHandles = new WeakMap();
+
+export function readReadingArrangementAt(handle, posture, reader) {
+  const readingArrangement = arrangementHandles.get(handle);
+  if (!readingArrangement)
+    throw new Error("leaf: a posture reading needs a live reading arrangement");
+  if (!["bounded", "flow"].includes(posture))
+    throw new Error(`leaf: unknown reading posture ${String(posture)}`);
+  if (typeof reader !== "function")
+    throw new Error("leaf: a posture reading needs a reader");
+  const { owner, content } = readingArrangement;
+  const previous = {
+    posture: readingArrangement.posture,
+    owner: owner.getAttribute("data-lf-reading-posture"),
+    content: content.getAttribute("data-lf-reading-posture"),
+  };
+  readingArrangement.posture = posture;
+  owner.dataset.lfReadingPosture = posture;
+  content.dataset.lfReadingPosture = posture;
+  try {
+    return reader();
+  } finally {
+    readingArrangement.posture = previous.posture;
+    for (const [element, value] of [
+      [owner, previous.owner],
+      [content, previous.content],
+    ]) {
+      if (value === null) element.removeAttribute("data-lf-reading-posture");
+      else element.setAttribute("data-lf-reading-posture", value);
+    }
+  }
+}
+
 export function registerReadingArrangement({ owner, content, regions: declared = [] }) {
   if (!owner || !content)
     throw new Error("leaf: a reading arrangement needs owner and content elements");
@@ -218,7 +251,7 @@ export function registerReadingArrangement({ owner, content, regions: declared =
       .filter((region) => live(region) && containsAcross(owner, region.host))
       .map(regionRecord);
 
-  return {
+  const handle = {
     async setReadingPosture(posture) {
       if (!["bounded", "flow"].includes(posture))
         throw new Error(`leaf: unknown reading posture ${String(posture)}`);
@@ -237,10 +270,13 @@ export function registerReadingArrangement({ owner, content, regions: declared =
     },
     cleanup() {
       readingArrangement.generation += 1;
+      arrangementHandles.delete(handle);
       readingArrangements.delete(readingArrangement);
       for (const cleanup of cleanups) cleanup();
       owner.removeAttribute("data-lf-reading-posture");
       content.removeAttribute("data-lf-reading-posture");
     },
   };
+  arrangementHandles.set(handle, readingArrangement);
+  return handle;
 }

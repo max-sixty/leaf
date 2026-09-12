@@ -129,9 +129,9 @@ element the bottom status seats;
 allocation and bounded/flow posture transitions;
 `runtime/reading-layout.js` owns shared arrangement construction and furniture slots
 used by structural and compound widgets, plus the page-room observation lifecycle that
-root workspaces apply to their own minimum-size policy, holding the root at the box a
-bounded allocation would give it while that policy reads, so the posture a window
-settles on is the window's and not the posture it was read from;
+root workspaces apply to their own minimum-size policy; it reads the available room and
+minimum inside the bounded candidate while holding current document geometry, so the
+same window cannot settle differently based on the posture it arrived from;
 `runtime/pending/model.js` owns pending-record readings; `pending/state.js` owns the
 ordered gesture ledger, with no network or rendering dependencies;
 `runtime/delivery.js` owns serialized event delivery and retry, independently of whether

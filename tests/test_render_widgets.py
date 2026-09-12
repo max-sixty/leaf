@@ -202,6 +202,22 @@ ROOT_FIT_PAGE = leaf_page(
     head=FIT_BADGES,
 )
 
+NESTED_FIT_PAGE = leaf_page(
+    "a root whose nested furniture wraps with its allocation",
+    """
+<lf-workspace id="fit-workspace">
+  <lf-partition id="fit-partition" direction="columns">
+    <lf-pane id="fit-pane" label="Badges">
+      <header><div class="fit-badges"><span></span><span></span><span></span><span></span></div></header>
+      <p>One pane under the badges.</p>
+    </lf-pane>
+    <lf-pane id="fit-peer" label="Peer"><p>The other pane.</p></lf-pane>
+  </lf-partition>
+</lf-workspace>
+""",
+    head=FIT_BADGES,
+)
+
 SCROLLED_FIT_PAGE = leaf_page(
     "a root in flow a reader has scrolled down",
     """
@@ -215,6 +231,44 @@ SCROLLED_FIT_PAGE = leaf_page(
 </lf-workspace>
 """,
     head=FIT_BADGES,
+)
+
+POSTURE_WIDTH_PAGE = leaf_page(
+    "a root whose flow posture reserves a strip of page width",
+    """
+<lf-workspace id="fit-workspace">
+  <lf-pane id="fit-body" label="Body"><p>One pane in the workspace.</p></lf-pane>
+</lf-workspace>
+""",
+    head="""<style>
+      body:has(> main > #fit-workspace[data-lf-reading-posture="flow"]) {
+        width: calc(100% - 20px);
+      }
+    </style>""",
+)
+
+PADDED_ROOM_PAGE = leaf_page(
+    "a root inside authored body padding",
+    """
+<lf-workspace id="fit-workspace">
+  <lf-pane id="fit-body" label="Body"><p>One pane in the workspace.</p></lf-pane>
+</lf-workspace>
+""",
+    head="""<style>body { padding-inline: 20px; }</style>""",
+)
+
+PADDED_HEIGHT_PAGE = leaf_page(
+    "a root inside candidate main block padding",
+    """
+<lf-workspace id="fit-workspace">
+  <lf-pane id="fit-body" label="Body"><p>One pane in the workspace.</p></lf-pane>
+</lf-workspace>
+""",
+    head="""<style>
+      body > main:has(> #fit-workspace[data-lf-reading-posture="bounded"]) {
+        padding-block: 160px;
+      }
+    </style>""",
 )
 
 # The fitting reads the room in an animation frame and writes the posture there, and
@@ -278,19 +332,92 @@ def test_a_root_posture_is_the_window_it_stands_in_and_not_the_one_it_came_from(
     assert arriving == shrinking
 
 
+def test_nested_furniture_reads_the_candidate_partition_posture(browser, serve):
+    """A nested grid answers for the candidate posture, not the current one."""
+    heights = (*FIT_HEIGHTS, 800, 1000, 1100)
+    url = serve(NESTED_FIT_PAGE)
+    page, errors = open_page(browser, url)
+    resized(page, 1200, max(heights))
+    shrinking = {}
+    for height in sorted(heights, reverse=True):
+        resized(page, 1200, height)
+        shrinking[height] = page.evaluate(SETTLED_POSTURE)
+
+    header = page.locator("#fit-pane > .lf-reading-before")
+    resized(page, 1200, max(heights))
+    page.evaluate(SETTLED_POSTURE)
+    allocated = header.bounding_box()["height"]
+    resized(page, 1200, min(heights) // 2)
+    page.evaluate(SETTLED_POSTURE)
+    assert header.bounding_box()["height"] != allocated, (
+        "the badges kept the same height in both postures, so this page exercises no "
+        "posture-dependent partition"
+    )
+    assert errors == []
+    page.close()
+
+    arriving = {}
+    for height in heights:
+        context = browser.new_context(viewport={"width": 1200, "height": height})
+        fresh, fresh_errors = open_page(browser, url, context=context)
+        arriving[height] = fresh.evaluate(SETTLED_POSTURE)
+        assert fresh_errors == []
+        fresh.close()
+        context.close()
+
+    assert set(arriving.values()) == {"bounded", "flow"}, arriving
+    assert arriving == shrinking
+
+
+def test_root_room_is_read_in_the_candidate_posture(browser, serve):
+    """Posture-owned page width cannot make the root retain its prior answer."""
+    page, errors = open_page(browser, serve(POSTURE_WIDTH_PAGE))
+    resized(page, 620, 900)
+    assert page.evaluate(SETTLED_POSTURE) == "bounded"
+
+    # Model the width a non-overlay standing scrollbar reserves in flow. At this
+    # narrower window the root enters flow, whose page box is 20px narrower. Returning
+    # to 620px crosses the workspace minimum only in the bounded candidate's room.
+    resized(page, 580, 900)
+    assert page.evaluate(SETTLED_POSTURE) == "flow"
+    resized(page, 620, 900)
+    assert page.evaluate(SETTLED_POSTURE) == "bounded"
+    assert errors == []
+    page.close()
+
+
+def test_root_room_is_the_candidate_main_content_box(browser, serve):
+    """Authored body padding is not room offered to a bounded root."""
+    page, errors = open_page(browser, serve(PADDED_ROOM_PAGE))
+    resized(page, 620, 900)
+    assert page.evaluate(SETTLED_POSTURE) == "flow"
+    resized(page, 660, 900)
+    assert page.evaluate(SETTLED_POSTURE) == "bounded"
+    assert errors == []
+    page.close()
+
+
+def test_root_height_is_the_candidate_main_content_box(browser, serve):
+    """Candidate main padding is not room offered to a bounded root."""
+    page, errors = open_page(browser, serve(PADDED_HEIGHT_PAGE))
+    resized(page, 1200, 500)
+    assert page.evaluate(SETTLED_POSTURE) == "flow"
+    resized(page, 1200, 700)
+    assert page.evaluate(SETTLED_POSTURE) == "bounded"
+    assert errors == []
+    page.close()
+
+
 def test_reading_a_root_minimum_leaves_the_reader_where_they_had_scrolled_to(
     browser, serve
 ):
-    """The reading is a measurement, and a measurement moves nobody.
-
-    Taking it at the width bounded would allocate shortens furniture that wraps, and a
-    shorter page under a reader who has scrolled to its end is one the browser clamps
-    them up out of — a jump back toward the top on the next layout signal, restored
-    width or not.
-    """
+    """Measuring a candidate posture does not move a reader in document flow."""
     page, errors = open_page(browser, serve(SCROLLED_FIT_PAGE))
     resized(page, 1200, 380)
     assert page.evaluate(SETTLED_POSTURE) == "flow"
+    styles = page.locator("html, body > main, #fit-workspace").evaluate_all(
+        "nodes => nodes.map(node => node.getAttribute('style'))"
+    )
     page.evaluate(
         "() => document.scrollingElement.scrollTop = document.scrollingElement.scrollHeight"
     )
@@ -301,6 +428,12 @@ def test_reading_a_root_minimum_leaves_the_reader_where_they_had_scrolled_to(
     )
     assert page.evaluate(SETTLED_POSTURE) == "flow"
     assert page.evaluate("() => document.scrollingElement.scrollTop") == landed
+    assert (
+        page.locator("html, body > main, #fit-workspace").evaluate_all(
+            "nodes => nodes.map(node => node.getAttribute('style'))"
+        )
+        == styles
+    )
     assert errors == []
     page.close()
 

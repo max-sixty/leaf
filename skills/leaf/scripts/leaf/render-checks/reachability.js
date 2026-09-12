@@ -110,6 +110,7 @@ export function clippedControls() {
 }
 
 export function tinyBoxes(declarations) {
+  const declared = new Set(Object.keys(declarations));
   const inline = new Set(
     Object.entries(declarations)
       .filter(([tag, entry]) => entry["x-inline"])
@@ -118,7 +119,7 @@ export function tinyBoxes(declarations) {
   return [...document.querySelectorAll("*")]
     .filter(
       (el) =>
-        el.tagName.toLowerCase().startsWith("lf-") &&
+        declared.has(el.tagName.toLowerCase()) &&
         el.textContent.trim() &&
         el.checkVisibility() &&
         !el.closest("[hidden]"),

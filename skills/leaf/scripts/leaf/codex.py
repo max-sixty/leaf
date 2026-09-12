@@ -180,6 +180,8 @@ def queue_delivery(
     app_server: str | None = None,
 ) -> None:
     """Hand one pointer prompt to Codex's durable same-task queue."""
+    # TODO(2026-09-12): Route active-turn delivery through `turn/steer` once
+    # Codex exposes the desktop task's App Server endpoint or an equivalent CLI command.
     arguments = ["queue"]
     if app_server is not None:
         arguments.extend(["--remote", app_server])

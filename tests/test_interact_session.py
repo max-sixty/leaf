@@ -29,6 +29,7 @@ from interact_support import (
     COMMAND_SUBJECTS,
     HELD_LEASES,
     PAGE,
+    PAGE_PACKAGES,
     PLUGIN_ROOT,
     SKILL_ROOT,
     _status,
@@ -69,6 +70,7 @@ from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.served_state import page as served_page
+from page_fixtures import package_selection_args
 from websockets.sync.server import serve as serve_websocket
 from websockets.sync.server import unix_serve as serve_unix_websocket
 
@@ -2307,7 +2309,15 @@ def test_revendoring_can_change_x_work_while_the_target_button_holds_a_claim(pag
     layer.mkdir()
     (layer / "registry.json").write_text(json.dumps({"lf-card": card}))
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
 
     assert result.exit_code == 0, result.output
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -7358,7 +7368,15 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
         if path.is_file()
     }
     runner = CliRunner()
-    refused = runner.invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    refused = runner.invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert refused.exit_code == 1
     assert "cannot re-vendor" in refused.output
     assert "server stop" in refused.output
@@ -7373,7 +7391,15 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
     assert stopped.exit_code == 0, stopped.output
     old_server.wait(timeout=5)
 
-    revendored = runner.invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    revendored = runner.invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert revendored.exit_code == 0, revendored.output
     assert b":root { --accent: red; }" in (page_dir / "theme.css").read_bytes()
     owner_id = prior_owner["id"] if prior_owner else "starter"

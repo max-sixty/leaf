@@ -72,10 +72,11 @@ POSTs, and page-error channel;
 `runtime/traffic.js` owns the delivery ledger — posts and state reads issued and
 ended, and the pending ledger's unresolved attempts — painted on the root element as
 `data-lf-traffic` for whatever waits on the page from outside it;
-`runtime/requests.js` owns typed one-shot request availability, sending, and the
-server-projected request lifecycle watcher;
-`runtime/request-elements.js` owns shared request-control wiring, locking, selection,
-and receipt-state mechanics while each package supplies its words and bound detail;
+`runtime/widget-controller.js` owns the public, publisher-backed action and request
+reading, dispatch, subscription lifetime, and presentation seam;
+`runtime/application.js` owns typed action, undo, and one-shot request transport;
+`runtime/request-elements.js` owns the controller-backed request-control adapter while
+each package supplies its words and bound detail;
 `runtime/asks/model.js` owns request discovery, folding, and the semantic Ask
 subscription;
 `runtime/asks/view.js` owns Ask chrome, marking, the Ask walk, and

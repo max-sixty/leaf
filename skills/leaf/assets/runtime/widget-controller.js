@@ -41,7 +41,7 @@ const unavailable = (reading) =>
   });
 
 const commandTarget = (target) =>
-  typeof target === "string" ? target : target?.attempt ?? target?.id ?? null;
+  typeof target === "string" && target ? target : null;
 
 const undoCandidate = (reading, target) => {
   const wanted = commandTarget(target);

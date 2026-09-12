@@ -298,6 +298,10 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         """() => {
           const controller = pageLocal.controller;
           const candidate = controller.read().actions.choose.undo[0];
+          const objectTarget = controller.dispatch({
+            kind: 'undo',
+            target: candidate,
+          }) === null;
           const sent = controller.dispatch({
             kind: 'undo',
             target: candidate.attempt ?? candidate.id,
@@ -305,6 +309,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
           window.undoDelivery = sent.delivery;
           return {
             reading: sent.reading.state.choice.value,
+            objectTarget,
             stale: controller.dispatch({
               kind: 'undo',
               target: candidate.attempt ?? candidate.id,
@@ -312,7 +317,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
           };
         }"""
     )
-    assert stale_refused == {"reading": "idle", "stale": True}
+    assert stale_refused == {"reading": "idle", "objectTarget": True, "stale": True}
     assert len(undo) == 1
     undo_attempt = undo[0].request.post_data_json["attempt"]
     undo[0].fulfill(

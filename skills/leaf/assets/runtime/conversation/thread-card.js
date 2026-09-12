@@ -91,7 +91,7 @@ export function threadNode(t, grow, commands) {
     const quote = el("blockquote", "lf-quote");
     quote.append(el("span", "lf-quote-label", label));
     // An anchored label is words and a press at once: it says which passage the
-    // comment is about, and pressing it travels there. A page-wide layer label has no
+    // comment is about, and pressing it travels there. A page-wide design label has no
     // destination, so paintThreadQuotes leaves it as static words. A drag across an
     // anchored label is the reader taking the words, so the travel stands down — the
     // reading `offer` makes of its own controls, which this is not one of.

@@ -61,7 +61,7 @@ export const scopeButtons = {
 };
 export const subjectButtons = {
   content: filterButton("subject", "content", "Content"),
-  layer: filterButton("subject", "layer", "Layer"),
+  design: filterButton("subject", "design", "Design"),
 };
 export const goneBtn = filterButton("gone", "gone", "No longer here");
 goneBtn.hidden = true;

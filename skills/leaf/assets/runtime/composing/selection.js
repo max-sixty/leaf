@@ -149,10 +149,10 @@ export function createSelectionComposer({
     );
   };
 
-  // What the open composer's comment is about: "layer" for one opened in design mode, so
+  // What the open composer's comment is about: "design" for one opened in design mode, so
   // the anchor chosen there — a widget, a control, a runtime part — posts with the word
   // that says so. Decided at the open, where the anchor is, and carried with the draft: a
-  // draft on the banner is about the layer however the mode stands by the time it is sent.
+  // draft on the banner remains about design however the mode stands when it is sent.
   // The composer's draft is keyed by the passage it is on. Under one key — which is what it
   // was while a draft lived and died in one tab — two tabs composing on different passages
   // would each overwrite the other's words, so the key says which passage and the record
@@ -386,13 +386,13 @@ export function createSelectionComposer({
   // user text stays with its passage unless an explicit Comment gesture carries it.
   let seededQuote = "";
   // `about` defaults to the mode standing at the open — a composer opened in design mode
-  // is about the layer — and a restored draft passes the word it was saved with.
+  // is about design — and a restored draft passes the word it was saved with.
   function openComposer(
     anchor,
     text,
     {
       suggest = false,
-      about = designModeActive() ? "layer" : null,
+      about = designModeActive() ? "design" : null,
       drawing = undefined,
       carry = false,
       focus = true,

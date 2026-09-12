@@ -26,7 +26,7 @@ export function createPanelComposer({
   let generalDrawing = drawingIn(loadDraftPayload("general"));
   const generalHint = () =>
     designModeActive() && !generalDrawing
-      ? "Comment on the layer"
+      ? "Comment on the design"
       : "Comment on the page";
   const syncGeneral = () => sync();
   const pageComposerDrawing = () => generalDrawing;
@@ -63,7 +63,7 @@ export function createPanelComposer({
           const event = { attempt };
           if (raw) event.text = raw;
           const drawing = drawingIn(payload);
-          if (designModeActive() && !drawing) event.about = "layer";
+          if (designModeActive() && !drawing) event.about = "design";
           if (drawing) event.drawing = drawing;
           return createPageComment(event);
         });

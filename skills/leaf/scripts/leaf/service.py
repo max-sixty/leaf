@@ -270,8 +270,9 @@ class PageTransaction:
         detail: str,
         *,
         work: dict | None = None,
+        handling: dict | None = None,
     ) -> None:
-        """Write the page claim and any typed local claim it renews.
+        """Write the page declaration and any typed local evidence it renews.
 
         A local line is the same sentence read at a second seat: the page's one
         line says what the agent is doing, and a typed subject says so where the
@@ -281,7 +282,9 @@ class PageTransaction:
         cannot write across.
 
         Standing work carries across every other status write, so a page-wide
-        status update does not silently drop what a helper is holding.
+        status update does not silently drop what a helper is holding. Exact
+        delivery handling carries until another delivered move replaces it; the
+        interaction fold stops using it as soon as that move is settled.
         A new claim replaces the old claim on its semantic subject; `idle`
         clears them all with the leaf.
         """
@@ -295,6 +298,8 @@ class PageTransaction:
         }
         if state != "idle" and (stream := self.status.get("stream")):
             status["stream"] = stream
+        if state != "idle" and (current_handling := self.status.get("handling")):
+            status["handling"] = current_handling
         claims = [] if state == "idle" else list(self.status.get("work", []))
         if work:
             identity = message_identity()
@@ -312,6 +317,17 @@ class PageTransaction:
             )
         if claims:
             status["work"] = claims
+        if handling:
+            identity = message_identity()
+            status["handling"] = {
+                "id": secrets.token_hex(4),
+                **handling,
+                "detail": detail,
+                "ts": status["ts"],
+                "agent": identity.get("agent")
+                or (self.claim or {}).get("agent", "Claude"),
+                "session": identity.get("session") or (self.claim or {}).get("id"),
+            }
         write_json(self.page_dir / STATUS_FILE, status)
 
     def set_stream_activity(self, session_id: str, turn_id: str, detail: str) -> None:
@@ -599,5 +615,24 @@ def claim_update_sources(status: dict) -> list[dict]:
             source["event"] = event
         if target["kind"] == "widget":
             source["revision"] = claim["revision"]
+        sources.append(source)
+    if handling := status.get("handling"):
+        target = handling["target"]
+        source = {
+            "id": handling["id"],
+            "target": target,
+            "source": "claim",
+            "scope": "interaction",
+            "action": "working",
+            "detail": {"text": handling["detail"]},
+            "text": handling["detail"],
+            "ts": handling["ts"],
+            "log_floor": handling["after"],
+            "event": handling["event"],
+            "agent": handling.get("agent"),
+            "session": handling.get("session"),
+        }
+        if target["kind"] == "widget":
+            source["revision"] = handling["revision"]
         sources.append(source)
     return sources

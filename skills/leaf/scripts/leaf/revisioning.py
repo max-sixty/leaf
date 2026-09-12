@@ -19,8 +19,13 @@ def activate_source(
     events: list,
     allow_transition: bool = False,
 ) -> Activation:
-    """Activate exact valid ``index.html`` bytes, or keep the last good revision."""
+    """Validate and activate exact ``index.html`` bytes, or keep the last revision."""
     checked = check_source(page_dir, events, allow_transition=allow_transition)
+    return activate_checked_source(page_dir, checked)
+
+
+def activate_checked_source(page_dir: Path, checked: SourceCheck) -> Activation:
+    """Activate a validation reading a caller has already inspected."""
     revisions = list_revisions(page_dir)
     active = revisions[-1] if revisions else None
     if checked.errors:

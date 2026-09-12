@@ -62,22 +62,31 @@ when the delivery is no longer the freshest reading. When the source changed, th
 validates and activates it before posting, so an edit and its answer cross one command
 boundary.
 
-When the change that answers a comment also removes or replaces its passage, move
-the open thread onto the current result in the same reply. Use the same target forms
-as `leaf comment`; for a diagram, prefer its declared stable visual part:
+When the change leaves the same subject at a new passage, move the open thread onto
+that result in the same reply. If the edit also removes the old target, name the
+replacement's section; a quote can narrow that section, and a diagram should use its
+declared stable visual part. A bare quote cannot license removing its old target in the
+same edit, so move the thread with it first:
 
 ```bash
-leaf reply <page> --quote "<new passage>" --text "Updated this and moved the thread to the result."
+leaf reply <page> --section <element-id> --quote "<new passage>" --text "Updated this and moved the thread to the result."
 leaf reply <page> --section <element-id> --text "Updated this and moved the thread here."
 leaf reply <page> --section <diagram-id> --part node:<source-id> --text "Updated this node and moved the thread here."
 ```
 
-The reply records the active revision and validated replacement anchor atomically.
-The opening comment keeps its original anchor in `leaf events --conversation`, while the
-panel, transcript, and `page state` expose the replacement as the thread's current
-location. Do this only when the new target is the same subject after the change; open
-a new thread for a different subject. Held command-goal threads cannot move, and a
-version-response thread cannot take a reply.
+When the subject itself leaves the page, detach the thread instead of moving it onto
+nearby surviving content:
+
+```bash
+leaf reply <page> --detach --text "Removed this; the conversation no longer has a page target."
+```
+
+The reply records the active revision and its anchor transition atomically. The opening
+comment keeps its original anchor in `leaf events --conversation`. The panel keeps a
+detached thread open under **No longer in this version**, and `page state` reports its
+null current anchor and the prior anchor as `detached_from`. A later reply may move it
+to a genuine replacement. Open a new thread for a different subject. Held command-goal
+threads cannot move or detach, and a version-response thread cannot take a reply.
 
 Fragment links such as `[the decision](#decision)` take the reader to page
 content. `--markup` adds a validated widget after reply text; its ids must be new.

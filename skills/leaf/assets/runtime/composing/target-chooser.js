@@ -77,6 +77,7 @@ pageSearchSurface.append(pageSearchInput, pageSearchStatus);
 
 export function createTargetChooser({
   scrollToRange,
+  scrollToElement,
   banner,
   bottomChromeBoxes,
   shortcutBarEl,
@@ -473,6 +474,10 @@ export function createTargetChooser({
   function chooseTarget(target) {
     setTargetChooser(false);
     document.body.focus({ preventScroll: true });
+    // A clipped sliver is enough to offer a viewport-local hint, but not enough to
+    // place a response box against. Reveal the chosen target before Comment measures
+    // it; `nearest` leaves a target already in front of the reader exactly where it is.
+    scrollToElement(target.element, "instant", "nearest");
     commentOnTarget(target);
     announce(`Chosen ${target.label}.`);
   }

@@ -507,6 +507,7 @@ reactions = createReactionController({
 });
 targets = createTargetChooser({
   scrollToRange: anchorTravel.scrollToRange,
+  scrollToElement: anchorTravel.scrollToElement,
   banner,
   bottomChromeBoxes,
   shortcutBarEl,

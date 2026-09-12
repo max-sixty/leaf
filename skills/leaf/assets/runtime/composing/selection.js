@@ -414,21 +414,20 @@ export function createSelectionComposer({
       const previousDrawing = pendingDrawing;
       syncComposer.load("");
       // Automatic selection merely opens another passage's view. An explicit Comment
-      // gesture may instead carry unsent words there, which preserves the old Alt-click
-      // promise without making a reader's next selection silently re-anchor their draft.
-      if (carry && (previousText || previousDrawing)) {
+      // gesture may instead carry unsent words into an empty passage, which preserves
+      // the old Alt-click promise without replacing independent work already held at
+      // the destination or making a reader's next selection silently re-anchor a draft.
+      const held = text ? null : loadDraft(ctx);
+      if (held) {
+        const record = JSON.parse(held);
+        ({ text, suggest, about } = record);
+        if (!drawingSupplied) drawing = record.drawing ?? null;
+      } else if (carry && (previousText || previousDrawing)) {
         clearDraft(previousCtx);
         text ||= previousText;
         if (!drawingSupplied) drawing = previousDrawing;
         carriedDraft = true;
-      } else {
-        const held = text ? null : loadDraft(ctx);
-        if (held) {
-          const record = JSON.parse(held);
-          ({ text, suggest, about } = record);
-          if (!drawingSupplied) drawing = record.drawing ?? null;
-        } else if (!drawingSupplied) drawing = null;
-      }
+      } else if (!drawingSupplied) drawing = null;
     }
     pendingAnchor = anchor || null;
     pendingAbout = about;

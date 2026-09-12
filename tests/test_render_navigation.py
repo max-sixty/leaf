@@ -8913,6 +8913,84 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     page.close()
 
 
+def test_target_chooser_reveals_a_clipped_board_card_before_commenting(browser, serve):
+    """A visible sliver is enough to offer a hint, but not to place a response box.
+
+    On a phone the next board column peeks into view as the cue that the board scrolls.
+    Choosing its card must reveal the whole card before Comment is measured, while a
+    card already in view must not move the board underneath the reader.
+    """
+    source = next(example for example in EXAMPLES if example.stem == "triage-board")
+    url = serve(source)
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+
+    def choose(page, selector):
+        page.keyboard.press("s")
+        expect(page.locator(".lf-target-chooser-hint")).not_to_have_count(0)
+        code = page.evaluate(
+            """selector => {
+              const target = document.querySelector(selector).getBoundingClientRect();
+              return [...document.querySelectorAll('.lf-target-chooser-hint')]
+                .sort((a, b) => {
+                  const ar = a.getBoundingClientRect();
+                  const br = b.getBoundingClientRect();
+                  return Math.hypot(ar.left - target.left, ar.top - target.top)
+                    - Math.hypot(br.left - target.left, br.top - target.top);
+                })[0].dataset.lfHintCode;
+            }""",
+            selector,
+        )
+        page.keyboard.type(code)
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+
+    def board_reading(page, selector):
+        return page.evaluate(
+            """selector => {
+              const board = document.querySelector('#release-board');
+              const view = board.getBoundingClientRect();
+              const card = document.querySelector(selector).getBoundingClientRect();
+              return {
+                scrollLeft: board.scrollLeft,
+                visible: Math.max(
+                  0,
+                  Math.min(card.right, view.right, innerWidth)
+                    - Math.max(card.left, view.left, 0),
+                ),
+                width: card.width,
+              };
+            }""",
+            selector,
+        )
+
+    try:
+        page, errors = open_page(browser, url, context=context)
+        before = board_reading(page, "#card-migration")
+        assert before["visible"] == pytest.approx(before["width"], abs=1), before
+        choose(page, "#card-migration")
+        assert (
+            board_reading(page, "#card-migration")["scrollLeft"] == before["scrollLeft"]
+        )
+        assert errors == []
+        page.close()
+
+        page, errors = open_page(browser, url, context=context)
+        before = board_reading(page, "#card-tz")
+        assert 0 < before["visible"] < before["width"] / 4, before
+        choose(page, "#card-tz")
+        after = board_reading(page, "#card-tz")
+        assert after["visible"] == pytest.approx(after["width"], abs=1), after
+        assert after["scrollLeft"] > before["scrollLeft"], (before, after)
+        expect(page.locator(".lf-fab-input")).to_have_attribute(
+            "aria-label", re.compile("Digest email uses server timezone")
+        )
+        assert errors == []
+        page.close()
+    finally:
+        context.close()
+
+
 def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     """What the press asks is whether the item is in front of the reader, and only the
     page shows that. An item's own box is the box it would have — unclipped — so a card

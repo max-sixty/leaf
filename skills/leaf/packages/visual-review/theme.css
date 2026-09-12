@@ -127,8 +127,8 @@ lf-visual-review > .lf-reading-after {
 
 .lf-vr-expanded {
   box-sizing: border-box;
-  width: min(96vw, 100rem);
-  height: min(94vh, 70rem);
+  width: 96vw;
+  height: 94dvh;
   max-width: none;
   max-height: none;
   padding: 0;

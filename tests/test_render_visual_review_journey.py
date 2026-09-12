@@ -178,6 +178,15 @@ def test_visual_inspection_chains_document_scroll_and_expands_without_losing_pla
     page.keyboard.press("Escape")
     expect(expand).to_be_focused()
 
+    page.set_viewport_size({"width": 2560, "height": 1440})
+    expand.press("Enter")
+    wide_dialog = dialog.bounding_box()
+    assert wide_dialog is not None
+    assert wide_dialog["width"] > 2560 * 0.9
+    assert wide_dialog["height"] > 1440 * 0.9
+    page.keyboard.press("Escape")
+    expect(expand).to_be_focused()
+
     page.set_viewport_size({"width": 390, "height": 844})
     widget.locator(".lf-vr-case-select").select_option("open-mobile-package-catalog")
     expand.press("Enter")

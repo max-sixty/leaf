@@ -231,6 +231,7 @@
             "session": {"type": "string", "minLength": 1},
             "markup": {"type": "string", "minLength": 1},
             "awaits": {"const": true},
+            "failure": {"type": "string", "minLength": 1},
             "responds": {"type": "string", "minLength": 1},
             "initiates": {"const": true},
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"}
@@ -240,6 +241,7 @@
           "oneOf": [{"required": ["text"]}, {"required": ["token"]}],
           "dependentSchemas": {
             "token": {"not": {"required": ["markup"]}},
+            "failure": {"required": ["text", "responds"], "properties": {"author": {"const": "claude"}}},
             "responds": {"not": {"required": ["initiates"]}},
             "initiates": {"not": {"required": ["responds"]}},
             "anchor": {
@@ -250,7 +252,7 @@
         },
         "browser": {
           "required": ["kind", "parent", "revision"],
-          "not": {"anyOf": [{"required": ["markup"]}, {"required": ["awaits"]}, {"required": ["anchor"]}, {"required": ["responds"]}, {"required": ["initiates"]}]}
+          "not": {"anyOf": [{"required": ["markup"]}, {"required": ["awaits"]}, {"required": ["anchor"]}, {"required": ["responds"]}, {"required": ["initiates"]}, {"required": ["failure"]}]}
         }
       },
       "edit": {

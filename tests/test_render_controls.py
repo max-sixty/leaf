@@ -5037,6 +5037,7 @@ RING_WALKS = (
     ("a reaction palette", (), ("ship-review",)),
     ("the Asks tray", (), ("ship-review",)),
     ("the leaves tray", ("g", "Shift+l"), ("corpus",)),
+    ("page status", (), ("corpus",)),
     # The menu's own walk after the key that opens it: an open lands on the version being
     # read, which is the first row, and the comparison press beside a row is a Tab forward
     # from the row below it. The walk is clamped, so a second press at the bottom moves
@@ -5103,6 +5104,7 @@ RING_SCOPE_SURFACE = {
     "the leaves tray": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the command reference": (".lf-command-reference.open", None),
+    "page status": (".lf-status-detail:popover-open", None),
     "design mode": ("body[data-lf-design-mode]", None),
     "a reaction palette": (".lf-react-strip.lf-react-open", None),
 }
@@ -5161,6 +5163,7 @@ RING_SCOPE_WIDTH = {
 # after reading it adds no evidence and can keep the page's moving margin perpetually
 # outside the settled probe.
 RING_SINGLE_STOPS = {
+    "page status",
     "a settled decision",
     "a settled option",
     "a swipe card",
@@ -5529,6 +5532,12 @@ def test_every_ring_the_layer_draws_is_shown_whole_somewhere_in_the_corpus(
             if posture:
                 resized(page, posture, RING_WALK_VIEWPORT[1])
                 page_at_rest(page)
+            if scope == "page status":
+                # Native Enter opens the explanation and places focus on its scroller;
+                # it is deliberately outside sequential Tab order while closed.
+                page.locator(".lf-status-button").focus()
+                page.locator(".lf-status-button").press("Enter")
+                expect(page.locator(".lf-status-detail")).to_be_focused()
             if control := RING_SCOPE_CONTROL.get(scope):
                 opener, arrival = control
                 # The first, because a Page Map has one thread margin entry per commented

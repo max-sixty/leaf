@@ -206,6 +206,66 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
     )
 
 
+def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
+    browser, serve
+):
+    """The proof holds the Leaf entry itself until after the theme stylesheet, so the
+    entry is open at every wait before that by the gate's own choice. Naming it
+    beside what the page is waiting for would point a reader at the hold rather than
+    at the file that never came."""
+    source = leaf_page("held theme", "<h1>Waiting on a theme</h1>")
+    page = browser.new_page()
+    page.set_default_timeout(5_000)
+    holding = []
+
+    def hold_theme(route):
+        holding.append(route)
+
+    page.route("**/theme.css", hold_theme)
+    try:
+        with pytest.raises(RuntimeError) as stopped:
+            render_gate_scheme.start_with_pre_upgrade_proof(
+                page, serve(source, packages=())
+            )
+    finally:
+        for route in holding:
+            route.abort()
+        page.close()
+
+    assert holding, "the page asked for no theme stylesheet, so nothing was held"
+    assert str(stopped.value) == (
+        "the document never reached its theme stylesheet; still requesting /theme.css"
+    )
+
+
+def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
+    browser, serve, monkeypatch
+):
+    """A server that refuses the document leaves the proof with nothing to wait for
+    and the page with no console message of its own. The status the gate collected is
+    the only thing that says why the wait stopped, so the named wait carries it."""
+    real_proof = render_gate_scheme.start_with_pre_upgrade_proof
+
+    def promptly(page, url):
+        page.set_default_timeout(2_000)
+        return real_proof(page, url)
+
+    monkeypatch.setattr(render_gate_scheme, "start_with_pre_upgrade_proof", promptly)
+    served = serve(leaf_page("refused", "<h1>Refused</h1>"), packages=())
+    refused = served.split("?")[0] + "?t=not-the-page-key"
+
+    failures, _notices, completed = render_gate_scheme._render_scheme(
+        browser, refused, "light", {"width": 1200, "height": 900}, 3_000, []
+    )
+
+    assert completed is False
+    assert len(failures) == 1
+    assert failures[0].startswith(
+        "[light] pre-upgrade proof failed: the document never reached an authored main"
+    )
+    assert f"403 {refused}" in failures[0]
+
+
 def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(
     browser, serve, monkeypatch
 ):

@@ -141,7 +141,11 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
         try:
             return wait()
         except PlaywrightTimeout:
-            asking = sorted({urlsplit(request.url).path for request in open_requests})
+            # Minus the entry this function is holding itself: it is open because the
+            # gate chose to hold it, and naming it as something the page is still
+            # asking for points a reader at the hold rather than at the page.
+            waiting = open_requests - {route.request for route in held}
+            asking = sorted({urlsplit(request.url).path for request in waiting})
             raise RuntimeError(
                 f"the document never reached {arrival}"
                 + (f"; still requesting {', '.join(asking)}" if asking else "")
@@ -266,7 +270,18 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
         return probe_failure(error)
     except RuntimeError as error:
         page.close()
-        return ([f"[{scheme}] pre-upgrade proof failed: {error}"], [], False)
+        # The named wait says what never arrived; the console and the response
+        # statuses collected above are what says why, and a refused document has
+        # nothing else to offer a reader.
+        explanations = [*errors, *resize_notices]
+        return (
+            [
+                f"[{scheme}] pre-upgrade proof failed: {error}"
+                + (" — " + "; ".join(explanations) if explanations else "")
+            ],
+            [],
+            False,
+        )
     # Every reading below is of a settled page. The widget layer writes half the
     # document, so a box measured while it is still drawing belongs to no version of
     # the page — which is the stamp `version export` waits on for the same reason.

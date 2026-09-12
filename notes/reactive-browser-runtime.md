@@ -29,6 +29,14 @@ This note owns the implementation plan while the work is open. Once the cutover 
 move its lasting contracts into `CLAUDE.md`, `skills/leaf/assets/CLAUDE.md`, module
 headers, and the package reference, then delete this note.
 
+This plan and the [page-instance boundary](page-instance-boundary.md) are one program.
+That boundary owns what an immutable revision contains, how page-owned dependencies and
+declarations compose, and which export modes exist. This plan owns semantic publication,
+rendering, and presentation inside the active document. A revision activates as a fresh
+document execution environment; it does not ask the old runtime to install and execute
+the new revision. The [Playground capability plan](playground-capability-plan.md) is the
+first demanding consumer of the combined boundary, not a separate runtime architecture.
+
 ## Why change the runtime
 
 Leaf's durable state model is sound: authored markup starts state, the append-only log
@@ -70,10 +78,17 @@ an inverse action.
 ### Stable authored documents
 
 The framework owns generated regions, not the authored document. Authored children
-remain real nodes through ordinary updates. Nested widgets retain their element
-instances. Anchors continue to resolve against the visible words the document owns.
-Rendering must preserve focused inputs, selections, drafts, media, native disclosure,
-and a drag already in progress.
+remain real nodes through ordinary updates within one active document. Nested widgets
+retain their element instances, and anchors continue to resolve against the visible
+words the document owns. Rendering must preserve focused inputs, selections, drafts,
+media, native disclosure, and a drag already in progress.
+
+A revision change is different: it starts a fresh document and therefore cannot retain
+custom-element instances or arbitrary module state. Automatic activation waits while
+composition or dragging is active. The new document restores only continuity that Leaf
+records explicitly and can revalidate against stable identity: recoverable drafts,
+reading position, standing destinations, and the bounded unresolved ledger. This is a
+continuity handoff, not DOM or JavaScript-heap preservation.
 
 ### An open widget layer
 
@@ -91,10 +106,13 @@ renderers it never uses.
 
 ### Faithful standalone copies
 
-Export waits for the same presentation contract as a live page, materializes lazy
-content, serializes declared shadow content, inlines CSS and media, removes scripts, and
-opens without a server. Static copies retain visible decisions and data while controls
-whose behavior required JavaScript are stripped or disarmed.
+Export waits for the same presentation contract as a live page and follows the two modes
+defined by [the page-instance boundary](page-instance-boundary.md#5--export-states-its-execution-mode).
+Static export materializes lazy content, serializes declared shadow content, inlines CSS
+and media, removes scripts, and strips or disarms controls whose behavior required
+JavaScript. Interactive export packages the active revision's captured local behavior,
+preserves local controls and navigation, removes host chrome and networking, and disables
+host-dependent commands before dispatch. Both open without a server or external request.
 
 ## Non-goals
 
@@ -176,11 +194,13 @@ open and serializable, receives the shared accessible theme slice, and participa
 composed focus, anchors, print, copy, and export checks. Runtime styles that must survive
 export exist as serializable `<style>` content rather than only as adopted style sheets.
 
-### Package behavior contract
+### Public behavior contract
 
 The cutover preserves registry declarations, authored markup, package selection, themes,
 and the rule that one module upgrades one widget family. It replaces the behavior
-module's imperative semantic-state contract.
+module's imperative semantic-state contract. Package widgets, page-owned widgets, and
+page interaction modules use the same public interface; their ownership changes where
+their source and declarations live, not how they reach Leaf state.
 
 The public widget API supplies five capabilities:
 
@@ -196,15 +216,17 @@ The public widget API supplies five capabilities:
 5. A presentation ticket for asynchronous work whose visible result is required before
    the current epoch is presented.
 
-`runtime/widget-api.js` is the only browser import path package modules use. It exports
-the minimum Lit primitives needed by a shipped widget and the Leaf reading/controller
-capabilities above; it does not expose writable Signals values or internal vendor paths.
-The validation slice fixes that initial export list and records it in the build manifest.
-Further Lit helpers join only when a concrete package needs them.
+`runtime/widget-api.js` is the only Leaf browser import path content modules use. It
+exports the minimum Lit primitives needed by a shipped widget and the Leaf
+reading/controller capabilities above; it does not expose writable Signals values or
+internal vendor paths. The validation slice fixes that initial export list and records
+it in the build manifest. Further Lit helpers join only when a concrete page or package
+needs them.
 
-Lit is the default renderer, not a mandatory package language. A plain-JavaScript custom
-element can consume the same read-only projection, dispatch, subscription, local-edit,
-and presentation interfaces without extending `LitElement`.
+Lit is the default renderer, not a mandatory content-module language. A plain-JavaScript
+custom element or page interaction module can consume the same read-only projection,
+dispatch, subscription, local-edit, and presentation interfaces without extending
+`LitElement`.
 
 ### Contributor build
 
@@ -226,7 +248,12 @@ The output keeps the current distribution properties:
 Package authors may ship plain JavaScript modules and use the vendored Lit interface
 without a build. A package written in TypeScript or another compiled component language
 owns its contributor build and ships the resulting JavaScript through the same package
-contract. Authored page HTML never imports source files from either build.
+contract. Page authors have the same choice: ordinary page JavaScript runs directly,
+while optional compiled source must produce JavaScript before Leaf captures the revision.
+Editing, activation, and export never invoke that compiler. Authored page HTML imports
+only captured browser-ready modules, never source files from either contributor build.
+Relocating captured dependencies for export is Leaf's delivery work and does not require
+Node or a page-author frontend build.
 
 ## Application snapshot
 
@@ -235,7 +262,7 @@ TypeScript shape belongs beside the implementation, but it contains these concep
 
 | Reading | Meaning |
 | --- | --- |
-| document | Active revision identity and typed authored baselines |
+| document | Active revision, effective registry, captured dependency-graph and layer identities, and typed authored baselines |
 | authoritative | One complete accepted `/api/state` view and calibrated server time |
 | unresolved | Ordered local attempts, dependencies, receipts, and delivery status |
 | effective | Pure fold of the first three readings |
@@ -245,6 +272,11 @@ Derived projections carry values, provenance, and availability. A component neve
 decides availability by checking a DOM class or by separately inspecting network
 traffic. The pending ledger remains one ordered ledger; a projection does not copy it
 into a widget-specific queue.
+
+The document context is one revision-bound value. Markup, page and package modules, the
+effective registry, layer generation, and captured dependencies cannot advance
+independently. Candidate state and commands retain the context against which they were
+prepared or admitted; another document cannot interpret them under a newer schema.
 
 The snapshot is immutable by convention and by development assertions. Publisher
 operations create the next snapshot, batch the root write with any derived invalidation,
@@ -277,10 +309,10 @@ that just completed.
    value, event coverage, document revision, layer generation, and application base it
    was prepared against.
 2. At commit, state application rejects a candidate older than the currently committed
-   server reading or incompatible with the active document revision or layer generation.
-   Event sequence alone is insufficient because newer non-event state may have the same
-   sequence. A candidate prepared before a newer committed response can never replace
-   it.
+   server reading or incompatible with the active document revision, effective registry,
+   captured dependencies, or layer generation. Event sequence alone is insufficient
+   because newer non-event state may have the same sequence. A candidate prepared before
+   a newer committed response can never replace it.
 3. After freshness succeeds, it re-reads the latest unresolved ledger. A gesture made
    while the candidate was preparing is therefore not lost.
 4. The publisher atomically replaces the authoritative base, accounts terminal
@@ -299,12 +331,25 @@ that just completed.
 
 ### Revision activation
 
-Revision loading and module preparation happen against a detached candidate. Activation
-captures local mechanical state, installs the authored root, rebuilds typed baselines,
-and publishes the new document identity with the applicable authoritative window in one
-application operation. Standing reader state is re-derived rather than copied from the
-old DOM. Focus, selection, drafts, disclosure, and reading position use their existing
-explicit continuity contracts.
+Revision validation and dependency capture finish before activation. Automatic
+activation waits while the current document owns an active composition or drag, then
+records the explicit continuity handoff and navigates to a fresh execution environment
+for the complete candidate revision. Candidate page modules are never evaluated in the
+old document.
+
+The continuity handoff carries the one unresolved ledger's bounded records: each original
+command payload and document context, ordering and dependencies, stable attempt identity,
+delivery state, and known receipt. The new environment boots one publisher from the
+revision-bound document context and first reconciles those records with authoritative
+events and receipts under their original context. Only then does it test a still-
+unaccepted command against the new revision and retry or surface refusal. A removed
+target never causes Leaf to forget an attempt that may already have been accepted.
+
+The new environment restores recoverable drafts, reading position, and standing
+destinations only when their stable identities still resolve. It does not preserve prior
+element instances, arbitrary page-module state, or exact focus inside an interaction
+that could not cross the activation boundary. Historical navigation uses the same
+document lifecycle without inventing additional continuity.
 
 ## Presentation contract
 
@@ -406,10 +451,14 @@ The framework comparison was reviewed against the following primary documentatio
 
 ## Implementation plan
 
-### 1. Prove the boundary
+### 1. Prove the joint boundary
 
-Build one unshipped validation page with Lit, Signals Core, and the real server
-transport. It contains:
+First complete revision capture and fresh-document activation from #1 of the
+[page-instance boundary](page-instance-boundary.md). Then build one unshipped structured
+Playground page with Lit, Signals Core, the real server transport, one page-owned module,
+and one page-owned declaration that reuses a package implementation. This slice
+establishes the final public behavior API and the minimum end-to-end page-declaration
+path rather than adapting either later. It contains:
 
 - an authored board whose cards move between parents;
 - a nested editable draft with retained focus and selection;
@@ -421,24 +470,28 @@ transport. It contains:
 Hold one response, make a later gesture, publish a newer server view, undo the first
 gesture, refuse an attempt, and move a card while its editor is active. The slice passes
 only if every semantic surface agrees before each visible frame, element instances and
-text anchors survive moves, and reloading reaches the same final state.
+text anchors survive moves within the active document, a complete revision restart
+restores only the declared continuity, and reloading reaches the same final state.
 
-Export the settled page and open it with scripting disabled. Block all external
-requests and run under the real CSP. Change authored prose and widget attributes and
-reload without running the build. If the slice requires state synchronization effects,
-DOM reconstruction, or a growing framework adapter, implement the same slice in Svelte
-5 and compare the code and behavior before proceeding.
+Export the settled page statically and open it with scripting disabled. Block all
+external requests and run under the real CSP. Change authored prose, widget attributes,
+and ordinary page JavaScript and activate them without running a frontend build. Step 6
+reuses this fixture to prove offline-interactive export. If the slice requires state
+synchronization effects, DOM reconstruction within one revision, or a growing framework
+adapter, implement the same slice in Svelte 5 and compare the code and behavior before
+proceeding.
 
 ### 2. Establish the build and public framework seam
 
 The validation slice must finish with a build manifest naming the authoritative source
 roots, committed output roots, lockfile owner, exact build and stale-output-check
 commands, public `runtime/widget-api.js` import path, and every externalized shared
-module. That manifest is the authority for the full cutover rather than a checklist each
-later package interprets again.
+module. It also distinguishes layer-owned output from browser-ready page modules captured
+with a revision. That manifest is the authority for the full cutover rather than a
+checklist each later package or page interprets again.
 
 Add the pinned dependencies, deterministic build, generated destinations, and CI check
-described by that manifest. Expose only the Lit and state-reading capabilities package
+described by that manifest. Expose only the Lit and state-reading capabilities content
 modules need through `runtime/widget-api.js`; internal package names do not become a
 second public API.
 
@@ -455,10 +508,10 @@ pending, Ask, request, and conversation folds behind computed readings without c
 their server inputs. Make the application's state adoption path build a private
 candidate and publish once.
 
-At the end of this step, only the publisher writes accepted history, unresolved
-attempts, document identity, and the effective semantic root. Module-boundary tests
-reject direct writes and forbidden imports. Delete replaced mutable runtime fields and
-projection-specific pending stores in the same change.
+At the end of this step, only the active document's publisher writes accepted history,
+unresolved attempts, document context, and the effective semantic root. Module-boundary
+tests reject direct writes and forbidden imports. Delete replaced mutable runtime fields
+and projection-specific pending stores in the same change.
 
 ### 4. Cut semantic consumers over
 
@@ -480,12 +533,13 @@ remaining chrome. Each conversion retains the existing semantic command and rece
 read-only computed value. Move authored children into an explicit retained region before
 letting a template own adjacent generated children.
 
-Preserve transient interaction through node retention and explicit local controllers.
-Do not add generalized DOM transaction or rollback infrastructure. When the last caller
-of an imperative reconciliation helper moves, delete the helper and implementation-
-coupled tests. Move every surviving behavioral case to the new public entry point,
-including refusal, pending exact Undo, frozen-thread scope, draft generations, repeated
-anchors, and cross-parent widget continuity.
+Preserve transient interaction within an active document through node retention and
+explicit local controllers. Cross-revision continuity uses the bounded handoff from step
+1, not a generalized DOM transaction, module-state serializer, or rollback mechanism.
+When the last caller of an imperative reconciliation helper moves, delete the helper and
+implementation-coupled tests. Move every surviving behavioral case to the new public
+entry point, including refusal, pending exact Undo, frozen-thread scope, draft
+generations, repeated anchors, and cross-parent widget continuity.
 
 ### 6. Unify presentation readiness and export
 
@@ -493,7 +547,9 @@ Replace owner-specific commit proof with the ticketed semantic/presented epoch c
 Adapt widget upgrade, external data, revision activation, conversations, render gates,
 and export to the same barrier. Verify that stale renderer instances and superseded
 epochs cannot complete the active barrier. Verify serializable shadow roots and
-stylesheet materialization in screen, print, and a script-disabled standalone copy.
+stylesheet materialization in screen and print. Reuse the structured Playground fixture
+to prove both outputs: a script-disabled static copy and an offline-interactive copy that
+uses the same captured renderers while exposing no host transport or command path.
 
 ### 7. Remove transition code and publish the contract
 
@@ -512,7 +568,8 @@ Move the stable contracts from this note into their owners:
   `scripts/CLAUDE.md` and the build script's help;
 - reader-visible effects into the appropriate public authoring references.
 
-Delete this note in the implementation PR once those homes are complete.
+Delete this note and its link from the joint `TODO.md` item once those homes are complete.
+Keep that item until the page-instance outcome is complete too.
 
 ## Acceptance
 
@@ -529,28 +586,37 @@ The cutover is complete when all of the following hold:
    state without advancing the event sequence.
 4. A rejected gesture reveals the newest surviving local action, accepted action,
    standing report, or authored value in that order.
-5. Focus, caret, text selection, draft generations, media, disclosure, drag state,
-   reading position, and nested custom-element instances survive every applicable
-   render and revision transition.
+5. Within one active document, focus, caret, text selection, draft generations, media,
+   disclosure, drag state, reading position, and nested custom-element instances survive
+   every applicable render. Automatic revision activation waits for active composition
+   and drag to end, then a fresh document restores only recoverable drafts, reading
+   position, and standing destinations whose stable identities remain valid. It carries
+   the bounded unresolved ledger, reconciles known acceptance first, and only then tests
+   remaining commands against the new document context.
 6. Authored and projected passages resolve to the same visible words before and after
    rendering. Anonymous repeated widgets and nested preserving boundaries retain their
    identities.
-7. One presentation barrier governs first load, state adoption, revision activation,
+7. One presentation barrier in each active document governs first load, state adoption,
    lazy widgets, screenshots, browser checks, and export. It reaches and retains
    readiness without creating another semantic epoch. Completion from a lazy renderer
-   removed during revision activation cannot stamp the new page; a required descendant
-   introduced while its parent renders joins the active barrier. An unrelated semantic
-   change while required lazy content is preparing carries that work into the new
-   barrier and remains unpresented until it settles. Fail-soft completion cannot leave
-   the barrier pending.
-8. Exported HTML opens from `file://` with scripts disabled and no server, preserves
-   visible state and styles, and exposes no control that requires removed JavaScript.
-9. A page author changes prose, markup, or ordinary widget attributes and sees the
-   result after reload without Node or a frontend build.
+   removed before a fresh document activates cannot stamp that document; a required
+   descendant introduced while its parent renders joins the active barrier. An unrelated
+   semantic change while required lazy content is preparing carries that work into the
+   new barrier and remains unpresented until it settles. Fail-soft completion cannot
+   leave the barrier pending.
+8. Static exported HTML opens from `file://` with scripts disabled and no server,
+   preserves visible state and styles, and exposes no control that requires removed
+   JavaScript. Offline-interactive exported HTML opens with no server or external
+   request, preserves local controls and navigation through the captured runtime, and
+   refuses every host-dependent command before it can appear accepted.
+9. A page author changes prose, markup, ordinary widget attributes, or plain JavaScript
+   and sees the complete revision activate without Node or a frontend build.
 10. A fresh installed plugin serves pages with `uv`, `jq`, and a browser and performs no
     install-time build or external browser request.
-11. A new plain-JavaScript package widget joins through its registry entry, module, and
-    theme without editing Leaf core or running a page-author build.
+11. A new plain-JavaScript package or page-owned widget joins through its registry entry,
+    module, and theme without editing Leaf core or running a page-author build. A page
+    may replace a package declaration's complete schema while retaining the package's
+    implementation module.
 12. The ordinary suite, browser render gate, standalone-export coverage, strict-CSP
     checks, module-boundary checks, and worker tests pass on the final generated output.
 
@@ -569,10 +635,14 @@ bundle outside their declared layer.
 
 ## Implementation handoff
 
-The next session starts with the validation slice, not a repository-wide mechanical
-conversion. It should treat the current optimistic projection fold as source material,
-not preserve every surrounding browser interface. The spike decides whether the Lit
-boundary is as small as expected; its acceptance evidence authorizes the full cutover.
+The next session starts with complete revision capture from the page-instance boundary,
+then the joint validation slice, not a repository-wide mechanical conversion. It should
+treat the current optimistic projection fold as source material, not preserve every
+surrounding browser interface. The spike decides whether the Lit boundary is as small as
+expected; its acceptance evidence authorizes the full cutover. Page-owned declarations
+then land through that final public API, the remaining semantic and rendering consumers
+cut over, and interactive export follows the shared presentation contract. Playground
+package expansion comes after those primitives exist.
 
 The implementation stays one architecture: one publisher, one immutable snapshot, one
 pending ledger, computed semantic readings, and renderers that receive values. A

@@ -1338,11 +1338,17 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-conversation-thread > .lf-say { flex-direction: column; align-items: stretch; }
 .lf-conversation-thread > .lf-say.lf-reply-collapsed > :not(.lf-reply-disclosure) {
           display: none; }
-.lf-reply-disclosure { width: 100%; padding: 7px 10px; border-color: var(--border);
-          background: transparent; color: var(--muted-2); text-align: start; }
-.lf-reply-disclosure[hidden] { display: none; }
-.lf-reply-disclosure:hover { border-color: var(--border-2); color: var(--ink);
-          background: var(--chip); }
+/* The collapsed Reply is the empty editor at rest. Its complete path outranks the
+   chrome's shared aim floor, keeping the same box and surface through hover and entry. */
+.lf-conversation-thread > .lf-say > .lf-reply-disclosure {
+          box-sizing: border-box; width: 100%;
+          min-height: calc(max(28px, var(--aim-floor)) + 12px); padding: 8px 10px;
+          border-color: var(--border-2); background: var(--card);
+          color: var(--muted-2); text-align: start; }
+.lf-conversation-thread > .lf-say > .lf-reply-disclosure[hidden] { display: none; }
+.lf-conversation-thread > .lf-say > .lf-reply-disclosure:hover {
+          border-color: var(--border-2); color: var(--ink);
+          background: var(--card); }
 .lf-conversation-resolved { display: flex;
           align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .lf-conversation > .lf-say { margin-top: 0; }

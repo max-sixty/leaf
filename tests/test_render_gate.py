@@ -206,6 +206,100 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
     )
 
 
+def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(
+    browser, serve, monkeypatch
+):
+    """The hold on the entry is also what keeps request interception installed, and
+    taking it down belongs after the document has loaded rather than at the release.
+
+    Playwright turns a page's interception off as soon as its last route handler is
+    spent, so a `times=1` hold is spent exactly when the module layer starts its
+    burst, and the burst loses requests to that transition: measured on the corpus
+    page over interleaved attempts, the document never reached load in 5 of 60 with
+    the single-shot hold and 0 of 60 with one registered across the load wait. The
+    ending is silent — `interactive` with a module still in flight, or with nothing in
+    flight at all — so nothing downstream can tell it from a page that is merely slow,
+    and the ordering is the only place it can be stated."""
+    page = browser.new_page()
+    registrations = []
+    order = []
+    route, unroute = page.route, page.unroute
+    wait_for_load_state = page.wait_for_load_state
+
+    def recorded_route(url, handler, **kwargs):
+        registrations.append((url, kwargs))
+        order.append(f"route {url}")
+        return route(url, handler, **kwargs)
+
+    def recorded_unroute(url, handler=None):
+        order.append(f"unroute {url}")
+        return unroute(url, handler)
+
+    def recorded_wait_for_load_state(state="load", **kwargs):
+        order.append(f"reached {state}")
+        return wait_for_load_state(state, **kwargs)
+
+    monkeypatch.setattr(page, "route", recorded_route)
+    monkeypatch.setattr(page, "unroute", recorded_unroute)
+    monkeypatch.setattr(page, "wait_for_load_state", recorded_wait_for_load_state)
+    source = leaf_page("entry hold", "<h1>Held before Leaf starts</h1>")
+    try:
+        assert (
+            render_gate_scheme.start_with_pre_upgrade_proof(
+                page, serve(source, packages=())
+            )
+            == []
+        )
+    finally:
+        page.close()
+
+    assert registrations == [("**/leaf.js", {})], registrations
+    assert order == ["route **/leaf.js", "reached load", "unroute **/leaf.js"], order
+
+
+def test_the_render_gate_arms_every_page_it_opens_against_an_empty_route_list(
+    browser, serve
+):
+    """The gate empties a page's route list, and that is what takes interception down.
+
+    It holds the Leaf entry through a route and takes that route away again, so the
+    `unroute` is a real teardown on a page nothing else has routed. A loaded document
+    is not an idle one: measured on the corpus page, `/api/state`, `/registry.json`
+    and `/icon.svg` are still open at that call, and losing the first is a page that
+    never finishes upgrading with nothing on the console to say so. The arm goes on
+    before any route the gate adds and is never taken away, so the list the browser
+    consults is never empty and no such transition is sent at all."""
+    per_page = []
+
+    def record_page(page):
+        calls = []
+        per_page.append(calls)
+        route, unroute = page.route, page.unroute
+
+        def recorded_route(url, handler, **kwargs):
+            calls.append(("route", url))
+            return route(url, handler, **kwargs)
+
+        def recorded_unroute(url, handler=None):
+            calls.append(("unroute", url))
+            return unroute(url, handler)
+
+        page.route = recorded_route
+        page.unroute = recorded_unroute
+
+    assert (
+        render_gate_model.render_version(
+            primed(browser, record_page), serve(BOUNDED_WORKSPACE_PAGE, packages=())
+        )
+        == []
+    )
+    arm = render_gate_scheme.INTERCEPTION_ARM
+    assert per_page, "the gate opened no page"
+    for calls in per_page:
+        assert calls[0] == ("route", arm), calls
+        assert ("unroute", arm) not in calls, calls
+
+
 def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):
     """Pane bounds are real scroll bounds, so content past a pane's first fold remains
     reachable without being exempted from the ordinary geometry checks."""

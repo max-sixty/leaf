@@ -7405,9 +7405,10 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
 
     The room was measured as the line's height alone. Its own 14px inset came out of the
     20px of air that was supposed to be left over, so the document's last line cleared the
-    line by five pixels rather than twenty; over a covering sheet, which lifts the line by
-    the whole height of the panel's foot, the reservation was short by that lift. The band
-    from the line's top to a region's own foot is one measurement and covers every inset.
+    line by five pixels rather than twenty. The band from the line's top to a region's own
+    foot is one measurement and covers every inset. A covering sheet leaves that viewport
+    band unchanged: its growing foreground footer is not geometry owned by the background
+    line.
 
     The press is the other half. The line and its chips take no pointer events, so a
     control the line stands over on some scroll position is still a control. Its More
@@ -7431,20 +7432,18 @@ def test_the_key_line_stands_in_a_band_of_its_own(browser, serve):
         f"the document's last control ends in the shortcut bar's band: {ended}"
     )
 
-    # A covering sheet lifts the line over the whole of its own foot, and the band grows
-    # by that lift. This is where a reservation counting only the line's height parts
-    # company with the line: 148px of footprint standing on 51px of reserved room.
+    # A covering sheet makes the line inert background. Neither the sheet nor its footer
+    # can move the line; the document's existing band remains a reading reservation for
+    # the viewport-fixed line when the sheet closes again.
     resized(page, 420, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     page.evaluate(RENDERED)
     covered = page.evaluate(FOOT_ROOM)
-    # The lift is what this phase is about, so it has to have happened: without it the
-    # footprint is the resting one and the reservation below is the resting question again.
-    assert covered["footprint"] > ended["footprint"] + 20, (
-        f"the sheet never lifted the line, so the reservation is untested here: {covered}"
+    assert covered["footprint"] == pytest.approx(ended["footprint"], abs=1), (
+        f"the covering sheet moved the viewport-fixed line: {ended}, {covered}"
     )
     assert covered["reserved"] >= covered["footprint"] + 20, (
-        f"the sheet lifted the line off a reservation that never heard about it: {covered}"
+        f"the document lost the line's standing reservation: {covered}"
     )
     page.keyboard.press("Escape")
 

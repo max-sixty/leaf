@@ -81,7 +81,15 @@ export const THREAD_PANEL_PROP = "--lf-thread-panel-width";
 
 export function createChromeLayout({
   panelIsOpen,
-  elements: { panel, closeBtn, panelFoot, shortcutBarEl, bottomStatusEl, chromeRoot },
+  elements: {
+    panel,
+    closeBtn,
+    panelFoot,
+    threadsBox,
+    shortcutBarEl,
+    bottomStatusEl,
+    chromeRoot,
+  },
   foldBannerRow,
   scheduleThreadPreviewPosition,
   bottomChromeBoxes,
@@ -202,6 +210,15 @@ export function createChromeLayout({
     // takes the tray's width off the line's: a busy scope already fills a laptop's, so
     // the room it gives up is chips clipped off the right-hand end.
     reserveListClearance(clear);
+    // The panel list is its own scroll region. The inert guide no longer reaches it, but
+    // a live walk status remains above the covering panel and can stand over its list.
+    // Reserve only the rendered bottom surface that crosses the list, for both wheel and
+    // scroll-into-view landings, and restore the stylesheet's inset when none does.
+    const listClear = panelIsOpen()
+      ? (roomBelow(threadsBox.getBoundingClientRect()) ?? "")
+      : "";
+    threadsBox.style.paddingBottom = listClear;
+    threadsBox.style.scrollPaddingBottom = listClear;
     syncFloats();
     dockSeats();
   }

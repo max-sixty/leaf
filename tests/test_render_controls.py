@@ -3868,15 +3868,20 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
 
 
 def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve):
-    """Foreground composer growth does not move or reserve around inert chrome.
+    """Composer growth leaves inert chrome fixed while live status keeps its room.
 
     The covering panel and shortcut bar can occupy the same viewport pixels, but they are
     not peers: modality puts the panel above the scrim and makes the bar inert background.
     Treating their rectangles as a collision made every newline in the panel's composer
-    lift the unrelated bar by one line and add the same false reservation to the thread
-    list. Beside the page, the live bar still yields the panel's actual strip."""
-    page, errors = open_page(browser, serve(ADDRESSED_PAGE, comments=1))
-    resized(page, 600, 900)
+    lift the unrelated bar by one line. The live walk status stays above that panel and
+    still reserves the list it can cover. Beside the page, the live bar yields the
+    panel's actual strip."""
+    context = browser.new_context(
+        viewport={"width": 600, "height": 900}, reduced_motion="reduce"
+    )
+    page, errors = open_page(
+        browser, serve(ADDRESSED_PAGE, comments=6), context=context
+    )
     page.locator(".lf-threads-toggle").click()
     field = page.locator(".lf-general textarea")
     field.click()
@@ -3885,14 +3890,18 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
 
     def boxes():
         return page.evaluate("""() => {
-            const rect = selector => {
-                const r = document.querySelector(selector).getBoundingClientRect();
+            const rect = node => {
+                const r = node.getBoundingClientRect();
                 return {left: r.left, right: r.right, top: r.top, bottom: r.bottom,
                         height: r.height};
             };
             const list = document.querySelector(".lf-threads");
             const style = getComputedStyle(list);
-            return {shortcut_bar: rect(".lf-shortcut-bar"), foot: rect(".lf-thread-panel-foot"),
+            const standing = document.activeElement?.closest(".lf-thread");
+            return {shortcut_bar: rect(document.querySelector(".lf-shortcut-bar")),
+                    foot: rect(document.querySelector(".lf-thread-panel-foot")),
+                    status: rect(document.querySelector(".lf-bottom-status")),
+                    standingThread: standing ? rect(standing) : null,
                     lineInert: document.querySelector(".lf-shortcut-bar").inert,
                     viewportHeight: innerHeight,
                     listInlinePad: list.style.paddingBottom,
@@ -3922,10 +3931,23 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
         f"growing the foreground composer moved the background shortcut bar: "
         f"{one_line}, {multiline}"
     )
-    assert multiline["listPad"] < 20 and multiline["listScrollPad"] < 20, (
-        f"the foreground list reserved room for inert background chrome: {multiline}"
+    assert multiline["listPad"] < 20 and multiline["listScrollPad"] < 20, multiline
+
+    # A thread walk introduces foreground status above the panel. Reach the last thread
+    # through the real keyboard route and prove its card lands clear of that status band.
+    field.evaluate("field => field.blur()")
+    page.locator(".lf-threads").focus()
+    for _ in range(6):
+        page.keyboard.press("t")
+        page.evaluate(RENDERED)
+    expect(page.locator(".lf-bottom-status")).to_contain_text("Thread 6 of 6")
+    walked = boxes()
+    assert walked["listPad"] >= 20 and walked["listScrollPad"] >= 20, walked
+    assert walked["listInlinePad"], walked
+    assert walked["standingThread"], walked
+    assert walked["standingThread"]["bottom"] <= walked["status"]["top"], (
+        f"the last walked thread landed under its live status: {walked}"
     )
-    assert multiline["listInlinePad"] == "", multiline
 
     # Beside the page, the bar is live page chrome and yields the panel's whole strip.
     resized(page, 1200, 900)
@@ -3935,7 +3957,7 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
         f"the line crossed into the panel it stands beside: {beside}"
     )
     assert errors == []
-    page.close()
+    context.close()
 
 
 def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, serve):

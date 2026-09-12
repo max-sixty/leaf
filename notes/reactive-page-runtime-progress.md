@@ -71,22 +71,41 @@ the accepted standing choice, semantic reading position, valid authored-control 
 and closed general draft restored. A page-module global deliberately does not survive.
 No runtime mechanism or cross-document retry state was added.
 
+## Integrated public widget controller
+
+The package-facing controller cutover is integrated at `027b8655`. One captured owner
+now exposes an immutable complete reading, owner-lifetime subscription, synchronously
+optimistic action/request/exact-Undo dispatch with separate delivery, bounded local-edit
+deferral, and one asynchronous presentation seam. Every bundled widget and page fixture
+uses that controller; the former request helper, public standing-state reads, package
+private-runtime imports, and broad `lf-actions` semantic bus are gone.
+
+The controller derives availability, Ask and request lifecycle, projected ownership,
+provenance, carried history, and exact Undo from the semantic publisher. Authored identity,
+declarations, bindings, quote state, and request offers remain captured revision facts.
+Descriptor drift fails closed, and generated visual-review shots receive an explicit
+presentation-only callback instead of weakening authored descriptor capture.
+
+## Integrated Targeting foundation
+
+The target-reference kernel and Targeting controller cutover are integrated at
+`22c164f6`. Pointer and keyboard selection use one unbounded composed candidate walk.
+Exact ids and prose-free structural references resolve to an explicit `resolved`,
+`detached`, or `ambiguous` result; anonymous sibling insertion therefore blocks rather
+than silently retargeting. The Targeting package keeps the visible label and context
+separate from durable identity, exposes arm/disarm/reset/current-draft lifecycle, keeps
+unresolved target cards visible, and refuses submission until every target resolves.
+Its package schema was cut over with the widget so the new draft format is never emitted
+into an admission contract that would reject it. Generic multi-role declaration and
+admission validation remain a later Targeting slice.
+
 ## Remaining implementation
 
-Implement the public `widgetController(owner)` and migrate package/page modules away from
-the separate action/request helpers, `watchActions`, public DOM standing-state reads, and
-the broad `lf-actions` semantic bus. The controller must expose an immutable complete
-reading, synchronous optimistic dispatch plus separate delivery, an owner-lifetime
-subscription, bounded local-edit deferral, and the single presentation seam. Static
-identity, quote, declaration, and request-offer facts come from the authored revision;
-projected ownership, Ask state, lifecycle, availability, provenance, and exact Undo come
-from the publisher.
-
-Then wire the integrated semantic/presented epoch and ticket coordinator across every
-independent readiness queue before converting generated regions to Lit. Complete the
-Targeting identity/controller cutover, add offline interactive export without weakening
-script-free static export, then dissolve this checkpoint plus both plan notes into their
-owning contracts.
+Wire the integrated semantic/presented epoch and ticket coordinator through the public
+widget controller, then across every independent readiness queue before converting
+generated regions to Lit. Complete generic multi-role Targeting declarations and
+admission, add offline interactive export without weakening script-free static export,
+then dissolve this checkpoint plus both plan notes into their owning contracts.
 
 ## Verification checkpoint
 
@@ -105,6 +124,17 @@ round trip and composed panel facets. The locked browser build remains unchanged
 
 The consolidated application-boundary and outbox files pass all 49 cases; the combined
 fresh-document journey also passes independently on the integration branch.
+
+The controller cutover passes all 27 browser build/domain tests, the restored false
+settlement proof, focused public-boundary and direct widget journeys, and 279 of its
+282-case broad browser selection. The three remaining failures reproduce on the
+pre-cutover integration baseline: one cross-revision option-button identity expectation
+and two chart covered-word SVG cases. Full pre-commit passes.
+
+The Targeting foundation passes four core-reference journeys, two package-controller
+journeys, standing replay, package validation, syntax checks, and touched-file
+pre-commit. The complete widget module passes 152 cases; its two chart failures are the
+same baseline failures above.
 
 The website bundler slice passed 61 worker tests, typecheck, five immutable-shell tests,
 three site tests, and a complete site build/bundle. Local pre-commit passes.

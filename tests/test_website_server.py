@@ -477,7 +477,7 @@ def test_a_queued_website_reply_binds_only_to_its_delivery_turn(page_dir):
     assert socket.closed
 
 
-def test_an_unbound_queued_website_turn_closes_the_session_turn(page_dir):
+def test_an_unbound_queued_website_turn_leaves_the_direct_turn_running(page_dir):
     first = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "first"},
@@ -551,10 +551,11 @@ def test_an_unbound_queued_website_turn_closes_the_session_turn(page_dir):
 
     claim = website_server.page_claim(page_dir)
     assert claim["turn"] == opened["turn"]
-    assert claim["turn_closed"] is not None
-    assert "stream" not in website_server.PageTransaction(page_dir).status
+    assert claim["turn_closed"] is None
+    stream = website_server.PageTransaction(page_dir).status["stream"]["activity"]
+    assert (stream["turn"], stream["detail"]) == (opened["turn"], "Still working")
     activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
-    assert activity["kind"] == "queued"
+    assert activity["kind"] == "handling"
     assert [obligation["event"] for obligation in activity["obligations"]] == [
         first["id"],
         second["id"],

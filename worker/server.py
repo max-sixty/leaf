@@ -625,8 +625,6 @@ class WebsiteCodexHost:
         except (OSError, RuntimeError, ValueError, WebSocketException) as error:
             detail = str(error) or type(error).__name__
             if awaiting_queued_start:
-                _clear_stream_activity(thread_id)
-                close_session_turn(thread_id)
                 log_agent(
                     "turn_delivery_unbound",
                     **event_fields,

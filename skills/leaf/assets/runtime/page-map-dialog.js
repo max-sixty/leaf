@@ -177,7 +177,9 @@ export function createPageMapDialog({
     syncForwardedMarginEntryState(button, control);
     syncDialogFace(button, {
       ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
-      label: record.label,
+      // A widget may give its control a fuller accessible name than the shared record;
+      // Page Map keeps that name while appending the row's visible context.
+      label: control.getAttribute("aria-label") ?? record.label,
       visibleLabel: visibleMarginEntryLabel(record),
       context: record.context,
     });

@@ -6,7 +6,7 @@ Every event carries `id`, `ts`, `author`, `kind`, `seq` (its line number in
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |
 | `comment` | user or agent | `POST /api/event`, `leaf comment` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "layer"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
-| `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` or `initiates`; `awaits`, `markup`, and a replacement `anchor` (CLI only) | answers the exact named obligation without closing its conversation; an anchored agent reply also moves the conversation's current location |
+| `reply` | user or agent | `POST /api/event`, `leaf reply` | `parent`; `text` or `token`; agent `responds` or `initiates`; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its conversation; an agent reply may also replace or remove the conversation's current location |
 | `edit` | agent | `leaf edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
 | `resolve` | user or agent | `POST /api/event`, `leaf resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the reader reopens a resolved thread |
@@ -118,12 +118,16 @@ The original id, timestamp, author, thread position, anchor, and markup remain
 its own. Markup is not editable because a reader action may already rest on a
 widget frozen into it.
 
-An agent reply may carry an `anchor` captured against its `revision`. The fold uses
-the latest such anchor as the thread's current location while retaining the opening
-comment's anchor on the immutable root event. The anchor and explanatory reply are
-one append, so the page never observes a move without the message that accounts for
-it. A thread whose root `holds` a command goal cannot move, and a version-response
-root takes no reply at all, because those anchors are part of the request's meaning.
+An agent reply may carry an `anchor` captured against its `revision`, or a null anchor
+when its subject has left that revision. The fold uses the latest such value as the
+thread's current location and exposes its prior anchor as `detached_from` only while
+detached, while the opening comment's anchor remains on the immutable root event. The
+anchor transition and explanatory reply are one append, so the page never observes a
+move or detachment without the message that accounts for it. A detached thread remains
+open under **No longer in this version** and can later move to a genuine replacement.
+A thread whose root `holds` a command goal cannot move or detach, and a
+version-response root takes no reply at all, because those anchors are part of the
+request's meaning.
 
 A message body is Markdown, stored as typed and rendered by the page's own
 vendored runtime, so the renderer and the panel's styles version together. A

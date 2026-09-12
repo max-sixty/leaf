@@ -2,30 +2,33 @@
 
 [![maintained with tend](https://img.shields.io/badge/maintained_with-tend-bba580?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMCwxNikgc2NhbGUoMC4wMTI1LC0wLjAxMjUpIiBmaWxsPSIjZmZmIiBzdHJva2U9Im5vbmUiPjxwYXRoIGQ9Ik02ODAgMTEyOCBjNjIgLTk2IDY5IC0xNzggMjAgLTI0MSAtMTcgLTIyIC0yMCAtNDAgLTIwIC0xMzQgbDEgLTEwOCAyMSAyOCBjMTEgMTYgMzAgNDcgNDIgNzAgMTIgMjIgMzIgNDkgNDYgNTkgMzcgMjcgMTE0IDM4IDE4NCAyNyA5MyAtMTUgOTQgLTE4IDQ0IC03OSAtNzIgLTg4IC0xMDkgLTExMyAtMTc2IC0xMTcgLTMxIC0yIC02NCAxIC03MiA2IC0yMyAxNSAyMSA1NiAxMDcgOTggNDAgMjAgNzEgMzggNjkgNDAgLTYgNyAtODggLTE3IC0xMjYgLTM3IC00OSAtMjUgLTEwMCAtNzggLTEyMSAtMTI1IC0xNSAtMzMgLTE5IC02NiAtMTkgLTE4OCAwIC0xNTcgOCAtMTk1IDUwIC0yMzIgMTcgLTE2IDM2IC0yMCA4NSAtMTkgNjIgMSA2MyAxIDczIC0zMiA5IC0zMiA5IC0zMyAtMjIgLTQwIC01MCAtMTIgLTEzMiAtNyAtMTY0IDEwIC00MCAyMSAtNzkgNjkgLTkyIDExNCAtNSAyMCAtMTAgMTAyIC0xMCAxODIgMCA4MCAtNSAxNjIgLTExIDE4NCAtMjIgNzkgLTEzNSAxNjYgLTIzNCAxODEgLTM3IDYgLTM1IDMgMzAgLTI4IDc4IC0zOSAxNDQgLTkxIDEzMiAtMTA0IC01IC00IC0zNyAtOCAtNzEgLTggLTc3IDAgLTExNyAyNCAtMTgyIDEwOSAtNTIgNjggLTUxIDcwIDQyIDg1IDcxIDExIDE0MyAwIDE4MyAtMjkgMTYgLTExIDQwIC00MyA1NCAtNzMgMTMgLTI5IDMyIC01OSA0MSAtNjYgMTQgLTEyIDE2IC03IDE2IDU4IDAgNTkgNCA3NyAyMyAxMDIgMTkgMjYgMjMgNDYgMjUgMTMwIDMgNjcgMCA5OSAtNyA5OSAtNyAwIC0xMSAtMjMgLTEyIC01NyAwIC0zMiAtNiAtNzYgLTEyIC05NyBsLTEyIC00MCAtMjcgMzIgYy0zNCA0MSAtNDMgOTYgLTI0IDE1MSAxNCA0MSA3NSAxNDEgODYgMTQxIDMgMCAyMSAtMjQgNDAgLTUyeiIvPjwvZz48L3N2Zz4K)](https://github.com/max-sixty/tend)
 
-> **Not ready for general use.** Watch this space, and hopefully there'll be more to
-> say soon.
+> **Experimental software; not ready for general use.**
 
-Generative UI for agents: the agent builds you the page rather than a scroll of
-terminal text — a plan whose options you press to decide, a triage board you drag, a
-dashboard that keeps up while a long job runs. When the project needs a widget that
-doesn't exist, the agent writes one, and the same theme and checks cover it.
+Leaf is generative UI for Claude Code and Codex. Review a plan, make a decision,
+or follow live work in a page you can comment on and change. The agent responds by
+revising the page.
 
-Underneath is a messaging and collaboration bus. Select any line and comment on it
-like a shared doc, or drag a card, or rewrite a draft in your own words: it all
-reaches the session as structured events, and the agent answers in the margin and
-updates the page. You can also answer with one press: `ok` `no` `lost` `cut` `more`.
-Every valid save becomes a live revision; meaningful checkpoints become immutable
-stamped versions. The browser follows along on its own. Leaf is a plugin —
-Claude Code and Codex so far.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="docs/session-light.png">
+</picture>
 
-![leaf demo](docs/demo.gif)
+<details>
+<summary>Watch the comment-and-revision loop</summary>
 
-<https://leaf.page/> is the tour, the mechanism, the example pages, and the guide to
-themes and project widgets. Every product page and example is a live Leaf page in a
-private browser session. From a checkout, `uv run scripts/site.py --serve` assembles
-and serves the complete site from the sources in [`docs/`](docs/).
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](docs/demo.gif)
+
+</details>
+
+[Try Leaf on the home page](https://leaf.page/), where Leaf guide responds in your
+private copy, or [explore the examples](https://leaf.page/examples/).
 
 ## Install
+
+You need [`uv`](https://docs.astral.sh/uv/),
+[`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH`, and a
+browser on the same machine as your agent. No Leaf account or configuration is
+required.
 
 Claude Code:
 
@@ -41,107 +44,32 @@ codex plugin marketplace add max-sixty/leaf
 codex plugin add leaf@leaf
 ```
 
-Codex opens the full Leaf page in its browser pane, or in a local browser when
-the pane is unavailable. It uses the same theme, package widgets, anchored
-comments, and version travel as Claude Code. A detached adapter delivers page
-input into later turns of the same Codex task; the page directory and
-`events.jsonl` remain the durable record.
+Then ask: “Use Leaf to write up the options for this change.” The explicit skill is
+`/leaf [topic]` in Claude Code and `$leaf [topic]` in Codex; without a topic, it
+presents the work already under discussion.
+The result opens in a browser page; its comments return to the same agent task.
 
-No config or account is required. It needs
-[`uv`](https://docs.astral.sh/uv/) and
-[`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH` (the plugin is a
-uv project, and the first run syncs its environment through whatever index you have
-already configured), plus a browser on the same machine as the session. Render checks
-and export launch whichever executable `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or
-`CHROME_BIN` names, else Google Chrome where it is installed, else the first
-`google-chrome`, `google-chrome-stable`, `chrome`, `chromium`, or `chromium-browser` on
-`PATH`. Export needs Chromium 125 or later, and says so by name on an older one.
+<details>
+<summary>Browser and environment requirements</summary>
 
-Then ask the agent for a page. The explicit skill is `/leaf [topic]` in Claude Code
-and `$leaf [topic]` in Codex; with no argument it presents whatever the session is
-currently about.
+The first run syncs the plugin's uv environment through your configured package
+index. Render checks and export use the executable named by
+`LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN`, then installed Google
+Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
+`chromium`, or `chromium-browser` on `PATH`. Export requires Chromium 125 or
+later.
 
-### Experimental inline MCP App
+</details>
 
-The Codex plugin also registers a bundled local
-[MCP Apps](https://github.com/modelcontextprotocol/ext-apps) server. The inline app
-attempts to frame the canonical page from an ephemeral localhost origin. Hosts
-that block the frame get a comments-only authored snapshot, without package
-actions or version travel. The tested Codex sandbox blocks that nested HTTP
-origin, so the browser pane is the default full-feature route.
+## Explore and extend
 
-The inline app is local-host-only and lasts for the MCP session. Its reduced
-fallback is explicit in the app; it is not a second full Leaf implementation.
-Both presentations use the same durable log and detached Codex delivery adapter.
-
-To expose the app from a checkout to another local MCP Apps host, run:
-
-```sh
-bin/leaf mcp
-```
-
-The model-visible `leaf_present` tool takes an initialized page's absolute
-directory. `leaf_present_snapshot` selects the smaller fallback explicitly. The
-presentation and refresh tools use the read-only hint so opening a page does not
-request write approval. A presentation may materialize a changed, valid `index.html`
-as Leaf's next immutable revision inside that page directory; it does not edit the
-source, append an event, or write outside Leaf's revision store. Only a snapshot
-comment append requests write approval.
-
-## Development
-
-Install [Worktrunk](https://worktrunk.dev), `uv`, `jq` 1.6 or newer, and Node 22 or
-newer. Then install the browser binaries and website dependencies:
-
-```sh
-wt setup
-```
-
-The everyday gate is `uv run pytest tests`. Docker is additionally required for the
-complete website preview and the Linux CI mirror. The catalog stills are fetched at the
-external revision pinned by this checkout. Regenerate and publish them from the live
-example routes on macOS with:
-
-```sh
-wt refresh-previews
-```
-
-That command captures every worked example with the Playwright version pinned in
-`uv.lock`, pushes the images to `max-sixty/leaf-assets`, updates the pin and catalog
-links in this checkout, and rebuilds `.tmp/site`.
-
-## Packages
-
-A package carries a reusable theme, widget, browser module, data contract, or role
-guide. Leaf's own content widgets use this contract. The
-[package tutorial](docs/packages.html) builds a small one; the
-[package reference](skills/leaf/references/packages.md) owns the complete
-contract.
-
-## Examples
-
-The [examples catalog](https://leaf.page/examples/) starts with six everyday pages,
-including a small board, an editable draft, and a revised proposal. A separate section
-covers specialized code review, operations, and architecture work. Each opens as its
-own private, temporary Leaf page.
-
-After `wt setup`, run the same Worker/container boundary used in production:
-
-```sh
-uv run scripts/site.py --serve
-```
-
-Docker must be running. For a lighter single-example development loop,
-`scripts/preview.py triage-board` watches one page and its runtime with the real agent
-loop behind it, preserving reader feedback across edits. Add `--background` to keep
-watching between commands, or `--stop` to stop that preview.
-Core feature specimens live in
-[`examples/developer/feature-gallery.html`](examples/developer/feature-gallery.html).
-Optional packages point to focused worked examples or developer pages from the
-[package catalog](docs/packages.html). The website links these references outside the
-visual catalog, and `scripts/preview.py feature-gallery` serves the core gallery from a
-checkout.
-
-Full-page regression journeys live under [`tests/fixtures/pages/`](tests/fixtures/pages/).
-They join the corpus and browser checks without appearing in the catalog. The catalog's
-active cards select the preview images; an unlisted example can keep its published route.
+- [How it works](https://leaf.page/how-it-works/): comments, decisions, live
+  revisions, and the widgets a page can use.
+- [Examples](https://leaf.page/examples/): proposals, editable drafts, release
+  workspaces, and code reviews.
+- [Packages](https://leaf.page/packages/): extend Leaf with reusable widgets,
+  themes, and browser modules. Your agent can build a widget a task needs and use
+  it in later pages.
+- [Public contracts](skills/leaf/SKILL.md): authoring, serving, and continuing a
+  Leaf page. The [experimental MCP App](skills/leaf/scripts/leaf/mcp-app.md)
+  provides an additional host integration.

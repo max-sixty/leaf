@@ -4719,7 +4719,12 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     assert state.exit_code == 0, state.output
     closed_reading = json.loads(state.output)
     [thread] = closed_reading["conversations"]
-    assert thread == {"id": "c-lost", "anchor": None, "resolved": "user"}
+    assert thread == {
+        "id": "c-lost",
+        "anchor": None,
+        "detached_from": None,
+        "resolved": "user",
+    }
     assert closed_reading["asks"] == []
     assert [
         element["id"]

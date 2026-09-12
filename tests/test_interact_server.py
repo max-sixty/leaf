@@ -1020,7 +1020,7 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
         '<meta name="lf-version" data-lf-runtime content="1">'
     )
     assert body.count(marker) == 1
-    assert "<head>" + marker in body
+    assert '<head><meta charset="utf-8" data-lf-runtime>' + marker in body
     assert "Backfill plan\u2028Q3" in body
     assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.

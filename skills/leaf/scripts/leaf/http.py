@@ -48,7 +48,13 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .structure import FRAME_ANCESTORS_CSP, PAGE_CSP, SourceDocument
+from .structure import (
+    DELIVERY_ENCODING_META,
+    FRAME_ANCESTORS_CSP,
+    PAGE_CSP,
+    UTF8_BOM,
+    SourceDocument,
+)
 
 # How often an open news stream re-reads the page, and how long it may go without a
 # word before saying it is still there. The look is a re-stat rather than an in-process
@@ -249,11 +255,17 @@ def head_open_end_offset(document: SourceDocument) -> int:
     return document.head_open_end
 
 
-def _identity_head(revision: int, version: int | None) -> str:
-    return f'<meta name="lf-revision" data-lf-runtime content="{revision}">' + (
-        f'<meta name="lf-version" data-lf-runtime content="{version}">'
-        if version is not None
-        else ""
+def _delivery_prelude(revision: int, version: int | None) -> str:
+    """Declare the delivery's encoding and immutable Leaf identity first."""
+    identity = f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
+    return (
+        DELIVERY_ENCODING_META
+        + identity
+        + (
+            f'<meta name="lf-version" data-lf-runtime content="{version}">'
+            if version is not None
+            else ""
+        )
     )
 
 
@@ -276,8 +288,8 @@ def runtime_document(source: str, revision: int, version: int | None = None) -> 
     document = SourceDocument(source)
     offset = head_open_end_offset(document)
     theme_head, entry_head = _runtime_assets()
-    runtime = _identity_head(revision, version) + theme_head + entry_head
-    return (source[:offset] + runtime + source[offset:]).encode()
+    runtime = _delivery_prelude(revision, version) + theme_head + entry_head
+    return (UTF8_BOM + source[:offset] + runtime + source[offset:]).encode()
 
 
 def supervised_document(
@@ -339,7 +351,7 @@ def supervised_document(
         f'data-lf-probe="{asset_path}/registry.json">{bootstrap}</script>'
     )
     supervised = (
-        _identity_head(revision, version)
+        _delivery_prelude(revision, version)
         + f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
         + bootstrap_head
         + theme_head

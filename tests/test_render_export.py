@@ -26,7 +26,7 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
-from leaf.structure import SourceDocument
+from leaf.structure import UTF8_BOM, SourceDocument
 from playwright.sync_api import expect
 from render_support import (
     CUT_BOXES_PAGE,
@@ -1187,6 +1187,28 @@ def test_export_waits_for_the_snapshot_the_browser_can_receive(
         exported = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
 
     assert "The feeders" in exported
+    assert exported.startswith(UTF8_BOM)
+
+
+def test_an_export_keeps_utf8_when_root_serialization_expands(browser, serve, tmp_path):
+    source = leaf_page("Café handoff", "<h1>Café handoff</h1>").replace(
+        '<html lang="en">', '<html data-padding="' + "&" * 300 + '">'
+    )
+    exported = exporting_model.export_page(
+        browser, serve(source), serve.page_dir, "v1.html"
+    )
+    charset = exported.index('<meta charset="utf-8"')
+
+    assert len(exported[:charset].encode()) > 1024
+    assert exported.startswith(UTF8_BOM)
+
+    out = tmp_path / "expanded-root.html"
+    out.write_text(exported, encoding="utf-8")
+    page = browser.new_page()
+    page.goto(out.as_uri(), wait_until="load")
+    assert page.evaluate("document.characterSet") == "UTF-8"
+    expect(page.get_by_role("heading", name="Café handoff")).to_be_visible()
+    page.close()
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])

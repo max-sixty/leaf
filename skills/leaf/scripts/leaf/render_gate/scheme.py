@@ -48,6 +48,11 @@ def rendered_revision(url: str, state: dict) -> int:
     )
 
 
+def _projection_was_applied(failed_stage: str | None) -> bool:
+    """Whether the readiness failure happened after authoritative presentation."""
+    return failed_stage in (None, "pageSettled")
+
+
 RESIZE_OBSERVER_ERROR = "window error: ResizeObserver loop"
 
 
@@ -252,7 +257,7 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
     failed_stage = wait_for_presentation(
         page, state["data"]["revision"], applied, settled=True
     )
-    replayed = failed_stage is None
+    replayed = _projection_was_applied(failed_stage)
     if failed_stage == "dataApplied":
         unsettled = [
             (

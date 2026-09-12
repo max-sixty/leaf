@@ -9,6 +9,9 @@ import turbohtml
 from .files import file_stamp, revision_path
 from .schema import MEDIA_DIR
 
+DELIVERY_ENCODING_META = '<meta charset="utf-8" data-lf-runtime>'
+UTF8_BOM = "\ufeff"
+
 # ---------- check: deterministic pre-handover lint ----------
 
 VOID_TAGS = {

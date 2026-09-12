@@ -26,7 +26,7 @@ from leaf.render_gate.browser import (
 )
 from leaf.render_gate.preview import preview_server
 from leaf.schema import DIR_FILES, MEDIA_DIR, MEDIA_TYPES
-from leaf.structure import SourceDocument
+from leaf.structure import UTF8_BOM, SourceDocument
 
 _MEDIA_URL = re.compile(rf"url\((/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]})\)")
 
@@ -157,7 +157,7 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
                   await Promise.all(pending);
                 }"""
             )
-            return inline_assets(evaluate_probe(page, "bake"), page_dir)
+            return UTF8_BOM + inline_assets(evaluate_probe(page, "bake"), page_dir)
         except PlaywrightTimeout:
             sys.exit(
                 f"{name} never finished applying its live state in "

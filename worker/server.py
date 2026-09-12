@@ -26,8 +26,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from leaf.codex import (
-    AppServerReplyStream,
     AppServerEvents,
+    AppServerReplyStream,
     _app_server_connect,
     _clear_stream_activity,
     _set_stream_activity,

@@ -1926,7 +1926,6 @@ def test_reconnect_closes_a_completed_stream_binding(monkeypatch):
     class Stream:
         def finish(self, state, text):
             finished.append((state, text))
-            return None
 
     observer.bindings = {"turn-complete": Stream()}
     closed = []
@@ -3744,9 +3743,9 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(page_dir, sp
         time.sleep(0.05)
 
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
-    assert leases_model.lock_is_held(
-        lease_path
-    ), "acknowledgement returned without holding the next wait"
+    assert leases_model.lock_is_held(lease_path), (
+        "acknowledgement returned without holding the next wait"
+    )
     status_before_delivery = (page_dir / "status.json").read_bytes()
     events_model.append_event(
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
@@ -5655,9 +5654,9 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(vendoring_model.cmd_init, page)
     try:
-        assert reached_layer.wait(
-            timeout=10
-        ), "the first init never reached its held read"
+        assert reached_layer.wait(timeout=10), (
+            "the first init never reached its held read"
+        )
 
         launcher = PLUGIN_ROOT / "bin" / "leaf"
         second = spawn(

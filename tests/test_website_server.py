@@ -13,8 +13,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from leaf.codex import _queues as codex_queues
 from leaf.codex import _prompt as delivery_prompt
+from leaf.codex import _queues as codex_queues
 from leaf.event_log import append_event, read_events
 from leaf.hosting import server_at
 from leaf.http import supervised_document

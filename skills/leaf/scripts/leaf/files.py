@@ -112,12 +112,14 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
     Page transactions serialize order assignment. Refusing an existing target
     keeps a revision immutable even if a caller is accidentally repeated.
     """
-    path = page_dir / "revisions" / revision_name(revision, data)
-    path.parent.mkdir(exist_ok=True)
-    if path.exists() or revision in list_revisions(page_dir):
-        sys.exit(f"revision r{revision} already exists")
-    replace_files([(path, data, False)])
-    return path
+    from leaf.registry.storage import load_registry
+    from leaf.revision_artifact import capture_artifact, write_artifact
+    from leaf.structure import SourceDocument
+
+    artifact = capture_artifact(
+        page_dir, SourceDocument(data.decode("utf-8")), load_registry(page_dir) or {}
+    )
+    return write_artifact(page_dir, revision, artifact)
 
 
 def version_revisions(events: list) -> dict[int, int]:

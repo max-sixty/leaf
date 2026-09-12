@@ -486,9 +486,8 @@ export function mountBanner({ approveVersion, paintApproval }) {
   };
 }
 
-// Sign-off belongs to the authored version, while the control belongs to the live
-// chrome that survives one. A soft activation can therefore add or remove the same
-// control; rebuilding the banner would throw away focus and every reserved neighbour.
+// Sign-off belongs to the authored revision. A revision navigation rebuilds the chrome;
+// stamping the document already open can still add or remove this control in place.
 export function stateSignoff(next, syncLayout, paintApproval) {
   signoffDeclared = next;
   const shown = signoffDeclared && runtime.currentStamp !== null;

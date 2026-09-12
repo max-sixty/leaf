@@ -6,6 +6,7 @@ import re
 import shutil
 import threading
 import time
+from copy import deepcopy
 
 import pytest
 from click.testing import CliRunner
@@ -67,6 +68,7 @@ from leaf import styles as styles_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
+from leaf.registry import page as registry_page
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
@@ -1045,6 +1047,108 @@ def test_check_refuses_a_malformed_registry(page_dir):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "invalid JSON" in result.output
+
+
+def test_page_registry_composes_declarations_and_implementations_independently(
+    page_dir,
+):
+    layer = registry_storage.load_registry(page_dir)
+    package_widget = element_declaration("lf-local", upgrade=True)
+    package_widget["properties"]["package-only"] = {"type": "string"}
+    layer = {**layer, "lf-local": package_widget}
+    page_widget = element_declaration("lf-local", upgrade=True)
+    page_widget["properties"]["page-only"] = {"type": "string"}
+    declarations = {
+        "lf-local": page_widget,
+        "lf-page-only": element_declaration("lf-page-only", upgrade=True),
+        "$languages": {"paths": {"leaf": "javascript", "py": None}},
+    }
+    layer_before = deepcopy(layer)
+    page_before = deepcopy(declarations)
+    widget_paths = {
+        *(f"widgets/{path.name}" for path in (page_dir / "widgets").glob("*.js")),
+        "widgets/lf-local.js",
+        "page/widgets/lf-page-only.js",
+        "page/widgets/lf-tabs.js",
+    }
+
+    composed = registry_page.compose_page_registry(layer, declarations, widget_paths)
+
+    assert composed.registry["lf-local"] == page_widget
+    assert "package-only" not in composed.registry["lf-local"]["properties"]
+    assert composed.declaration_sources["lf-local"] == "page"
+    assert composed.widget_sources["lf-local"] == "widgets/lf-local.js"
+    assert composed.declaration_sources["lf-tabs"] == "layer"
+    assert composed.widget_sources["lf-tabs"] == "page/widgets/lf-tabs.js"
+    assert composed.declaration_sources["lf-page-only"] == "page"
+    assert composed.widget_sources["lf-page-only"] == "page/widgets/lf-page-only.js"
+    assert composed.registry["$languages"]["paths"] == {
+        **{
+            key: value
+            for key, value in layer["$languages"]["paths"].items()
+            if key != "py"
+        },
+        "leaf": "javascript",
+    }
+    assert layer == layer_before and declarations == page_before
+
+
+@pytest.mark.parametrize(
+    ("declarations", "message"),
+    [
+        ("{broken", "invalid JSON"),
+        ("[]", "registry must be a JSON object"),
+        ('{"lf-local": null}', "registry declarations must be objects"),
+        ('{"$layer": {"generation": "authored"}}', r"\$layer belongs"),
+        (
+            json.dumps(
+                {"lf-local": {**element_declaration("lf-local"), "type": "wrong"}}
+            ),
+            "not a valid JSON Schema",
+        ),
+        (
+            json.dumps(
+                {
+                    "lf-local": {
+                        **element_declaration("lf-local"),
+                        "x-example": '<lf-local id="bad" unknown="bad">Example</lf-local>',
+                    }
+                }
+            ),
+            "x-example is invalid",
+        ),
+        (
+            json.dumps({"lf-local": element_declaration("lf-local", upgrade=True)}),
+            "is upgraded but its module is missing",
+        ),
+    ],
+)
+def test_page_registry_rejects_invalid_authored_contracts(
+    page_dir, declarations, message
+):
+    authored = page_dir / "page"
+    authored.mkdir()
+    (authored / "registry.json").write_text(declarations)
+
+    with pytest.raises(registry_contract.RegistryError, match=message):
+        registry_storage.read_page_registry(page_dir)
+
+
+def test_page_registry_reads_candidate_changes_without_mutating_the_layer(page_dir):
+    authored = page_dir / "page"
+    authored.mkdir()
+    source = authored / "registry.json"
+    declaration = element_declaration("lf-local")
+    source.write_text(json.dumps({"lf-local": declaration}))
+    first = registry_storage.read_page_registry(page_dir)
+    declaration["description"] = "The next authored declaration."
+    source.write_text(json.dumps({"lf-local": declaration}))
+
+    second = registry_storage.read_page_registry(page_dir)
+
+    assert second.registry["lf-local"] == declaration
+    assert first.registry["lf-local"]["description"] != declaration["description"]
+    assert "lf-local" not in registry_storage.load_registry(page_dir)
 
 
 @pytest.mark.parametrize(

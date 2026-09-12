@@ -280,8 +280,8 @@ silently follows the page shell instead. Keep the host's own layout intrinsic, o
 the properties that change on a descendant layout box.
 
 A package is for behavior, styling, or vocabulary reused across pages. Page-specific
-behavior belongs in an authored inline module and needs no package entry. A CSS-only
-widget is an entry and a theme rule. One with reusable behavior takes a module.
+behavior belongs in an authored inline module or the page's captured `page/` graph and
+needs no package entry. A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a module.
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. Resolve canonical

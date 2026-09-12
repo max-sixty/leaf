@@ -271,7 +271,7 @@ Each mutable fact has one writer:
 | authored widget state | markup after widget upgrade, before projection | `captureAuthoredFacets` reads typed initial values; `rememberAuthoredParents` preserves pre-upgrade anchor parentage |
 | external data | the latest accepted page data revision | `receiveState` replaces current values and retained captures; `watchData` delivers the authored current-or-snapshot selection to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
-| version shown by the live document | the latest mapped revision accepted at the activation boundary | `activateRevision` advances `runtime.currentRevision`; a public version address derives the version number from its URL |
+| version shown by the live document | the immutable revision named by its delivery prelude | a newer active revision navigates the stable live address into a fresh document; a public version address derives the version number from its URL |
 | accepted history | the server event log | `receiveState` replaces `events` after a complete read |
 | the reading the page has applied | the server's `/api/state` answer | `receiveState` writes `runtime.reading` and paints `data-lf-reading` |
 | unresolved browser work | the application-owned pending ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
@@ -718,6 +718,15 @@ state read, reload, second tab, storage fault, shadow root, print medium, or
 animation can expose the behavior.
 
 ## Working on the runtime
+
+`scripts/browser/build.mjs` owns the compiled TypeScript foundation in
+`vendor/browser-runtime.js` and its adjacent manifest, licenses, and embedded-source
+map. The manifest names its inputs, exports, and output hashes; `scripts/CLAUDE.md`
+owns the contributor build and check commands. The internal bundle contains Lit and
+Signals once, with no external imports or runtime compiler. Content modules import
+only `runtime/widget-api.js`. The publisher accepts caller-derived snapshots and
+exposes read-only selectors; it does not own Leaf's semantic folds or application
+lifecycle. Regenerate this output through its owning script, never by editing it.
 
 Run `node --check` on the module, formatting, and a focused real-browser test while
 iterating. A module that reads another owner as it evaluates parses and lints clean and

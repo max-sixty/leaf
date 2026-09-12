@@ -50,6 +50,7 @@ from leaf import leases as leases_model
 from leaf import passages as passages_model
 from leaf import publishing as publishing_model
 from leaf import render_checks as render_checks_model
+from leaf import revision_artifact as artifact_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
@@ -75,6 +76,178 @@ def test_check_accepts_authored_module_scripts(page_dir):
     result = check(page_dir)
 
     assert result.exit_code == 0, result.output
+
+
+def test_a_revision_captures_the_complete_dependency_graph(page_dir):
+    authored = page_dir / "page"
+    (authored / "nested").mkdir(parents=True)
+    (authored / "app.js").write_text(
+        'import { value } from "./nested/value.js"; '
+        'import "/runtime/widget-api.js"; window.result = value;'
+    )
+    (authored / "nested" / "value.js").write_text(
+        'export { value } from "../value.js";'
+    )
+    (authored / "value.js").write_text("export const value = 1;")
+    (authored / "style.css").write_text('@import "./nested/theme.css";')
+    (authored / "nested" / "theme.css").write_text(
+        'main { background-image: url("../image.svg"); }'
+    )
+    (authored / "image.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
+    html = PAGE.replace(
+        "</head>",
+        '<script type="module" src="/page/app.js"></script>'
+        '<link rel="stylesheet" href="/page/style.css"></head>',
+    )
+    (page_dir / "index.html").write_text(html)
+
+    first = revisioning_model.activate_source(page_dir, [])
+    assert first.error is None, first.error
+    assert first.created
+    artifact = artifact_model.read_artifact(page_dir, first.revision)
+    assert artifact.html == html.encode()
+    assert artifact.resources["/page/app.js"].dependencies == (
+        "/page/nested/value.js",
+        "/runtime/widget-api.js",
+    )
+    assert artifact.resources["/page/style.css"].dependencies == (
+        "/page/nested/theme.css",
+    )
+    assert artifact.resources["/page/nested/theme.css"].dependencies == (
+        "/page/image.svg",
+    )
+    assert artifact.resources["/page/image.svg"].mime == "image/svg+xml"
+    assert artifact.resources["/page/app.js"].mime == "application/javascript"
+    assert artifact.registry == first.check.registry
+    assert artifact.implementations["lf-options"]["path"] == "/widgets/lf-options.js"
+    assert not revisioning_model.activate_source(page_dir, []).created
+
+    (authored / "value.js").write_text("export const value = 2;")
+    second = revisioning_model.activate_source(page_dir, [])
+    assert second.error is None, second.error
+    assert second.created and second.revision == first.revision + 1
+    changed = artifact_model.read_artifact(page_dir, second.revision)
+    assert changed.digest != artifact.digest
+    assert changed.resources["/page/value.js"].data == b"export const value = 2;"
+    files_model.replace_files(
+        [(page_dir / "leaf.js", b"// replacement runtime", False)]
+    )
+    third = revisioning_model.activate_source(page_dir, [])
+    assert third.error is None, third.error
+    assert third.created and third.revision == second.revision + 1
+    assert third.check.artifact.resources["/leaf.js"].data == b"// replacement runtime"
+    assert third.check.artifact.digest != changed.digest
+    historical = artifact_model.read_artifact(page_dir, first.revision)
+    assert historical.resources["/page/value.js"].data == b"export const value = 1;"
+    assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
+
+
+def test_module_capture_reads_javascript_syntax_and_rewrites_only_imports(page_dir):
+    authored = page_dir / "page"
+    authored.mkdir()
+    (authored / "value.js").write_text("export const value = 1;")
+    module = """// import "https://outside.example/comment.js";
+const text = 'import "./missing.js"';
+const pattern = /import\\("missing"\\)/;
+const template = `import "./missing.js" ${await import('./value.js')}`;
+export { value } from "./value.js";
+"""
+    (authored / "app.js").write_text(module)
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</head>", '<script type="module" src="/page/app.js"></script></head>'
+        )
+    )
+
+    activated = revisioning_model.activate_source(page_dir, [])
+    assert activated.error is None, activated.error
+    resource = activated.check.artifact.resources["/page/app.js"]
+    assert resource.dependencies == ("/page/value.js",)
+    rewritten = artifact_model.rewrite_module(
+        resource.data, "/page/app.js", "/revisions/captured"
+    )
+    assert rewritten.decode() == module.replace(
+        "import('./value.js')", 'import("/revisions/captured/page/value.js")'
+    ).replace('from "./value.js"', 'from "/revisions/captured/page/value.js"')
+
+
+def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_path):
+    authored = page_dir / "page"
+    authored.mkdir()
+    (authored / "data.json").write_text('{"value": 1}')
+    outside = tmp_path / "outside.js"
+    outside.write_text("export const value = 1;")
+    (authored / "escape.js").symlink_to(outside)
+    previous = files_model.latest_revision(page_dir)
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</head>", '<script type="module" src="/page/app.js"></script></head>'
+        )
+    )
+    for source, diagnostic in [
+        ('import "./missing.js";', "cannot capture dependency"),
+        ('import "https://outside.example/module.js";', "local URL"),
+        ('import "../../outside.js";', "public layer entry point"),
+        ('import "/runtime/events.js";', "public layer entry point"),
+        ('import "./data.json";', "JavaScript MIME"),
+        ('import "./escape.js";', "symlink"),
+        ("import(window.modulePath);", "literal local module URL"),
+        ('import "./data\\u002ejson";', "unescaped string literals"),
+        ("export const = ;", "invalid JavaScript"),
+    ]:
+        (authored / "app.js").write_text(source)
+        refused = revisioning_model.activate_source(page_dir, [])
+        assert refused.error and diagnostic in refused.error, (source, refused.error)
+        assert refused.revision == previous and not refused.created
+        assert files_model.latest_revision(page_dir) == previous
+
+
+def test_an_interrupted_capture_never_publishes_a_partial_revision(
+    page_dir, monkeypatch
+):
+    previous = files_model.latest_revision(page_dir)
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<h2>Plan</h2>", "<h2>Revised plan</h2>")
+    )
+    link = artifact_model.os.link
+
+    def interrupt_commit(source, destination):
+        raise OSError("interrupted before the activation marker")
+
+    monkeypatch.setattr(artifact_model.os, "link", interrupt_commit)
+    with pytest.raises(OSError, match="activation marker"):
+        revisioning_model.activate_source(page_dir, [])
+    assert files_model.latest_revision(page_dir) == previous
+    assert artifact_model.read_artifact(page_dir, previous).html == PAGE.encode()
+
+    monkeypatch.setattr(artifact_model.os, "link", link)
+    recovered = revisioning_model.activate_source(page_dir, [])
+    assert recovered.error is None and recovered.revision == previous + 1
+    assert (
+        artifact_model.read_artifact(page_dir, recovered.revision).html
+        == (page_dir / "index.html").read_bytes()
+    )
+
+
+def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
+    authored = page_dir / "page"
+    authored.mkdir()
+    (authored / "data.json").write_text('{"value": 1}')
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</head>", '<link rel="stylesheet" href="/page/style.css"></head>')
+    )
+    previous = files_model.latest_revision(page_dir)
+    for css, diagnostic in [
+        ('@import "https://outside.example/style.css";', "local URL"),
+        ('@import "./data.json";', "CSS MIME"),
+        ('@import url("./data.json");', "CSS MIME"),
+        ('main { background: url("../../private.svg"); }', "escapes"),
+        ('main { background: url("./missing.svg"); }', "cannot capture"),
+    ]:
+        (authored / "style.css").write_text(css)
+        refused = revisioning_model.activate_source(page_dir, [])
+        assert refused.error and diagnostic in refused.error, (css, refused.error)
+        assert refused.revision == previous and not refused.created
 
 
 @pytest.mark.parametrize(
@@ -1772,11 +1945,11 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     [
         (
             '<script type="module" src="/leaf.js"></script>',
-            "<script src>",
+            "public layer entry point",
         ),
         (
             '<link rel="stylesheet" href="/theme.css" media="print">',
-            "external stylesheets",
+            "must have exactly rel and href",
         ),
     ],
     ids=["runtime-module", "theme"],
@@ -1790,7 +1963,6 @@ def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
 
     assert result.exit_code == 1
     assert expected in result.output
-    assert "delivery" in result.output
 
 
 def test_check_rejects_inline_importance_over_the_presentation_boundary(page_dir):

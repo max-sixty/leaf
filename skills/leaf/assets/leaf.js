@@ -291,16 +291,12 @@ const anchorControls = createAnchorControls({
 });
 
 const version = createVersionController({
-  designModeActive: designMode.active,
-  paintLegend: designMode.paintLegend,
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
   banner,
-  stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
   landedAt: (...args) => asks.landedAt(...args),
   setLanded: (...args) => asks.setLanded(...args),
-  resetAuthoredPage: (...args) => app.resetAuthoredPage(...args),
   readableDestination: anchorTravel.readableDestination,
   scrollToElement: anchorTravel.scrollToElement,
 });
@@ -379,7 +375,7 @@ app = mountApplication({
     goToAsk: (...args) => asks.goToAsk(...args),
   },
   state: {
-    prepareActivation: (state) => version.prepareActivation(state, layout.syncLayout),
+    prepareActivation: (state) => version.prepareActivation(state),
     acceptData,
     notifyDataSubscribers,
     replaceClaimState,
@@ -391,7 +387,7 @@ app = mountApplication({
     renderOthers,
   },
   feed: {
-    prepareActivation: (state) => version.prepareActivation(state, layout.syncLayout),
+    prepareActivation: (state) => version.prepareActivation(state),
     notifyDataSubscribers,
     renderStatus,
   },

@@ -9,7 +9,14 @@ from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
 from leaf import media as media_model
 from playwright.sync_api import expect
-from render_support import PAGE_FIXTURES, leaf_page, open_page, sending, stamp_page, told
+from render_support import (
+    PAGE_FIXTURES,
+    leaf_page,
+    open_page,
+    sending,
+    stamp_page,
+    told,
+)
 
 pytestmark = pytest.mark.nightly
 
@@ -78,11 +85,16 @@ def test_visual_inspection_chains_document_scroll_and_expands_without_losing_pla
     document_start = page.evaluate("document.scrollingElement.scrollTop")
     host.evaluate("node => { node.scrollTop = node.scrollHeight; }")
     assert host.evaluate("node => getComputedStyle(node).overscrollBehaviorY") == "auto"
-    assert host.evaluate(
-        "node => getComputedStyle(node.closest('.lf-pane-body')).overscrollBehaviorY"
-    ) == "auto"
+    assert (
+        host.evaluate(
+            "node => getComputedStyle(node.closest('.lf-pane-body')).overscrollBehaviorY"
+        )
+        == "auto"
+    )
 
-    page.evaluate("top => { document.scrollingElement.scrollTop = top; }", document_start)
+    page.evaluate(
+        "top => { document.scrollingElement.scrollTop = top; }", document_start
+    )
     host.evaluate("node => { node.scrollTop = 0; }")
     page.mouse.move(0, 0)
     page.mouse.move(point["x"], point["y"])
@@ -156,9 +168,9 @@ def test_visual_inspection_chains_document_scroll_and_expands_without_losing_pla
     expect(dialog).to_be_visible()
     page.evaluate("document.documentElement.classList.add('lf-copy')")
     expect(dialog).to_be_hidden()
-    expect(widget.locator(":scope > .lf-workspace-content > .lf-vr-partition")).to_have_count(
-        1
-    )
+    expect(
+        widget.locator(":scope > .lf-workspace-content > .lf-vr-partition")
+    ).to_have_count(1)
     page.evaluate("document.documentElement.classList.remove('lf-copy')")
     expand.focus()
     expand.press("Enter")

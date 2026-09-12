@@ -6,6 +6,12 @@ remain in git history.
 
 ## Now
 
+- **Make Leaf a complete playground builder.** Follow the
+  [playground capability plan](notes/playground-capability-plan.md) to unify custom
+  state with controls and output, restore discovery and task-shaped recipes, improve
+  Targeting, add representative website examples, and preserve interaction in an
+  explicit offline export.
+
 - **Cut the browser runtime over to one reactive application snapshot.** Start with the
   demanding Lit and Signals validation slice, then complete the state, rendering,
   presentation, export, and build cutover in the

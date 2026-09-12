@@ -567,9 +567,11 @@ Ordinary document content grows in flow. A bounded inspection object may scroll 
 that document, with native scroll chaining into the document at its boundary, including
 when the object has no overflow. Use the effective reading posture, not a widget's tag,
 to choose scroll ownership: a bounded task region owns its scrolling, while an embedded
-or responsive flow arrangement cooperates with its containing document. Avoid adding
-another vertical scroller inside a region without an inspection need. Modal surfaces
-isolate background scrolling. Wheel and ordinary touch gestures retain their navigation
+or responsive flow arrangement cooperates with its containing document. A nested
+inspection object chains into its containing reading region; isolation belongs at the
+bounded task or modal boundary, not every descendant that overflows. Avoid adding another
+vertical scroller inside a region without an inspection need. Modal surfaces isolate
+background scrolling. Wheel and ordinary touch gestures retain their navigation
 meaning; deliberate controls or gestures enter pan and zoom. Every necessary scroller
 has a keyboard route, discernible bounds, and visible focus.
 

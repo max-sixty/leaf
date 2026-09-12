@@ -1650,10 +1650,10 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         ) == comments_edge.get_attribute("aria-valuemax")
         threads = page.locator(".lf-threads")
         threads.evaluate("box => { box.scrollTop = 0; }")
-        filters = page.locator(".lf-thread-filters").bounding_box()
-        assert filters["height"] <= 120, (
-            f"the filters took more than three compact rows at the 320px floor: {filters}"
+        expect(page.locator(".lf-thread-filter-toggle")).to_have_attribute(
+            "aria-expanded", "false"
         )
+        expect(page.locator(".lf-thread-filter-toggle")).to_be_visible()
         width_before = page.evaluate(
             "() => getComputedStyle(document.documentElement)"
             ".getPropertyValue('--lf-thread-panel-width')"
@@ -5885,6 +5885,7 @@ def _each_aim_surface(page, page_dir):
     page.locator(f'.lf-thread[data-id="{comment}"] .lf-resolve').click()
     round_trip(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     expect(page.locator(".lf-reopen")).to_have_count(1)
     yield

@@ -1133,6 +1133,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      Groups wrap as units when the conditional placement filter appears, so the panel
      never introduces a horizontal scroller. A facet with no pressed button means all
      of that facet. */
+  .lf-thread-filters[hidden], .lf-thread-view[hidden] { display: none; }
   .lf-thread-filters { display: flex; flex: none; flex-direction: column;
     align-items: flex-start; gap: 8px; padding: 0 16px 12px;
     border-bottom: 1px solid var(--rule); }

@@ -2046,6 +2046,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(strip.locator(".lf-react:visible")).to_have_count(0)
     # The reader's own message wears no strip: a reaction is on what the agent said.
     expect(page.locator(f'.lf-msg[data-mid="{root}"] .lf-react-strip')).to_have_count(0)
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()  # the waiting-on-you narrowing
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -2096,6 +2097,7 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     if removal == "filter":
+        page.locator(".lf-thread-filter-toggle").click()
         page.locator(".lf-needs").click()
         expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')

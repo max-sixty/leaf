@@ -1142,9 +1142,8 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
     page.keyboard.type("megabytes")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{cap}"]')).to_have_count(1)
-    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
-        "Showing 1 of 3"
-    )
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("1 of 3 open threads")
     # The page's own count is the log's and says so throughout.
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (3)")
 
@@ -1263,8 +1262,9 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_reader(browser, serve):
     expect(
         page.locator(f'.lf-threads > .lf-thread[hidden][data-id="{mine}"]')
     ).to_have_count(1)
-    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
-        "Showing 1 of 2"
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text(
+        "1 of 2 open threads · On you"
     )
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
 
@@ -1362,6 +1362,15 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     )
     expect(visible).to_have_count(4)
 
+    expect(page.locator(".lf-thread-filter-toggle")).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("4 open threads")
+    page.locator(".lf-thread-filter-toggle").focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-thread-filter-toggle")).to_have_attribute(
+        "aria-expanded", "true"
+    )
     on_you = page.locator('[data-filter-value="reader"]')
     content_sized = """el => {
       const probe = el.cloneNode(true);
@@ -1396,7 +1405,19 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     page.locator('[data-filter-value="gone"]').click()
     expect(visible).to_have_count(1)
 
-    # Escape returns to the default state and clears every optional facet together.
+    # Closing the controls retains the query and results. Reset preserves focus.
+    page.locator(".lf-thread-filter-toggle").click()
+    expect(page.locator(".lf-thread-view-summary")).to_have_text(
+        "1 of 4 open threads · On agent · Anchored · Content · No longer here"
+    )
+    expect(page.locator('[data-filter-value="agent"]')).not_to_be_visible()
+    page.get_by_role("button", name="Reset thread filters").click()
+    expect(visible).to_have_count(4)
+    expect(page.locator(".lf-thread-filter-toggle")).to_be_focused()
+    expect(page.get_by_role("button", name="Reset thread filters")).to_be_hidden()
+    page.keyboard.press("Space")
+    page.locator('[data-filter-value="agent"]').click()
+    # Escape still clears the query from the list.
     page.locator(".lf-threads").focus()
     page.keyboard.press("Escape")
     expect(visible).to_have_count(4)
@@ -1480,6 +1501,7 @@ def test_an_agent_reply_says_when_the_reader_owes_an_answer(browser, serve):
     expect(page.locator(".lf-needs")).to_have_text("On you (1)")
     expect(page.locator(".lf-thread")).to_have_count(2)
 
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_have_count(1)
@@ -1558,6 +1580,7 @@ def test_a_thread_the_agent_closed_names_who_closed_it(browser, serve):
     )
     told(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     expect(page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolved-by')).to_have_text(
         "✓ Resolved by Indexer"
@@ -1591,6 +1614,7 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
     round_trip(page)
     # The round trip starts the fold; the retained resolved card finishes it.
     expect(page.locator(f'.lf-thread[data-id="{comment}"][hidden]')).to_have_count(1)
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     with sending(page, "the reopen"):
         page.locator(f'.lf-thread[data-id="{comment}"] .lf-reopen').click()
@@ -1628,6 +1652,7 @@ def test_a_thread_completion_keeps_the_readers_later_destination(
     root = roots["bg-resolved-text" if kind == "unresolve" else "bg-thread-text"]
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     if kind == "unresolve":
+        page.locator(".lf-thread-filter-toggle").click()
         page.locator('[data-filter-value="resolved"]').click()
     elif kind == "reply":
         thread.locator("textarea").fill("A reply whose delivery is held.")
@@ -1701,6 +1726,7 @@ def test_a_late_reply_to_a_resolved_thread_stays_above_its_reopen_footer(
     )
     page, errors = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     events_model.append_event(
         serve.page_dir,
@@ -4290,9 +4316,11 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     question.locator(".lf-done").click()
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 2/2")
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()
-    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
-        "Showing 1 of 2"
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text(
+        "1 of 2 open threads · On you"
     )
     expect(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
@@ -4321,6 +4349,7 @@ def test_a_narrowing_that_hides_the_card_the_reader_stands_in_lands_them_on_the_
     page, errors = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
     card = page.locator(f'.lf-thread[data-id="{theirs}"]')

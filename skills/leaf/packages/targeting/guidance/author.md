@@ -23,7 +23,7 @@ proposing changes. Put it inside `lf-ask` and put the real operable artifact in 
 Give an element an id when it has its own durable identity. Give repeated elements the
 same meaningful class when the reader may change them together. Selection offers the
 clicked element and at most three ancestors. The reader can retain and rename several
-targets, choose instance or class scope, preview supported box-model changes, remove one
+targets, choose element or class scope, preview supported box-model changes, remove one
 change or revert the draft, and add prose for a named target before submitting once.
 
 The submitted `targets` preserve an authored id when available and always include a

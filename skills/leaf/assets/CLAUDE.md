@@ -491,14 +491,14 @@ The extension keys describe general behavior:
 | `x-thread-surface` | the upgraded widget may provide local outlets for the canonical response composer and complete Threads anchored to its exact projected data |
 | `x-work` | admits local agent work without a pending reader move, through a content or conversation seat and optional condition; an admitted page-widget claim then appears at the page edge through its target margin entry |
 | `x-exhibit` | this occurrence is evidence, not an actionable live widget |
-| `x-wide` | whether width follows a box or a drawing |
+| `x-space` | the width allocation a surface requests, independently of its internal layout |
 
 Use the exact current `$keys` descriptions and schema when editing an entry.
 This table states ownership, not a replacement schema.
 
 Booleans are appropriate only when the false case has one clear meaning.
-`x-wide` uses values because a box and a source-sized drawing answer different
-width questions. A fact that needs distinct behavior should carry those named
+`x-space` distinguishes the shared wide measure from all available room. A fact
+that needs distinct behavior should carry those named
 values instead of hiding one widget's policy in `true`.
 
 ### Data projections

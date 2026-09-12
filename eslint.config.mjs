@@ -421,6 +421,126 @@ function cyclicComponents(graph) {
 
 const architecturePlugin = {
   rules: {
+    "root-style-ownership": {
+      meta: { type: "problem", schema: [] },
+      create(context) {
+        const file = runtimeName(context.filename ?? context.getFilename());
+        // The prepaint bootstrap runs before the module graph and writes only
+        // provisional choices. root-state.js is the sole standing mutation boundary.
+        if (file === "bootstrap.js" || file === "root-state.js") return {};
+        const source = context.sourceCode ?? context.getSourceCode();
+        const propertyName = (node) =>
+          node?.type === "MemberExpression"
+            ? node.computed
+              ? node.property.type === "Literal"
+                ? node.property.value
+                : null
+              : node.property.name
+            : null;
+        const variable = (node) => {
+          if (node?.type !== "Identifier") return null;
+          for (let scope = source.getScope(node); scope; scope = scope.upper) {
+            const found = scope.set.get(node.name);
+            if (found) return found;
+          }
+          return null;
+        };
+        const initialValue = (node, seen) => {
+          const found = variable(node);
+          if (!found || seen.has(found)) return null;
+          seen.add(found);
+          const definition = found.defs.find(
+            ({ type, node: declared }) =>
+              type === "Variable" && declared.id.type === "Identifier",
+          );
+          return definition?.node.init ?? null;
+        };
+        const isDocument = (node, seen = new Set()) => {
+          if (node?.type === "ChainExpression")
+            return isDocument(node.expression, seen);
+          if (node?.type === "Identifier") {
+            if (node.name === "document" && !variable(node)?.defs.length) return true;
+            const initial = initialValue(node, seen);
+            return initial ? isDocument(initial, seen) : false;
+          }
+          return (
+            node?.type === "MemberExpression" &&
+            propertyName(node) === "document" &&
+            node.object.type === "Identifier" &&
+            node.object.name === "window"
+          );
+        };
+        const isDocumentRoot = (node, seen = new Set()) => {
+          if (node?.type === "ChainExpression")
+            return isDocumentRoot(node.expression, seen);
+          if (node?.type === "Identifier") {
+            const initial = initialValue(node, seen);
+            return initial ? isDocumentRoot(initial, seen) : false;
+          }
+          return (
+            node?.type === "MemberExpression" &&
+            ["documentElement", "body"].includes(propertyName(node)) &&
+            isDocument(node.object, seen)
+          );
+        };
+        const isRootStyle = (node, seen = new Set()) => {
+          if (node?.type === "ChainExpression")
+            return isRootStyle(node.expression, seen);
+          if (node?.type === "Identifier") {
+            const initial = initialValue(node, seen);
+            return initial ? isRootStyle(initial, seen) : false;
+          }
+          return (
+            node?.type === "MemberExpression" &&
+            propertyName(node) === "style" &&
+            isDocumentRoot(node.object, seen)
+          );
+        };
+        const reportsRootStyleTarget = (node) =>
+          isRootStyle(node) ||
+          (node?.type === "MemberExpression" && isRootStyle(node.object));
+        const report = (node) =>
+          context.report({
+            node,
+            message:
+              "Mutate document-root inline styles through root-state.js so authored revision replacement preserves ownership.",
+          });
+        return {
+          AssignmentExpression(node) {
+            if (reportsRootStyleTarget(node.left)) report(node);
+          },
+          UpdateExpression(node) {
+            if (reportsRootStyleTarget(node.argument)) report(node);
+          },
+          CallExpression(node) {
+            if (
+              node.callee.type === "MemberExpression" &&
+              ["setProperty", "removeProperty"].includes(propertyName(node.callee)) &&
+              isRootStyle(node.callee.object)
+            )
+              report(node);
+            if (
+              node.callee.type === "MemberExpression" &&
+              ["setAttribute", "removeAttribute", "toggleAttribute"].includes(
+                propertyName(node.callee),
+              ) &&
+              isDocumentRoot(node.callee.object) &&
+              node.arguments[0]?.type === "Literal" &&
+              node.arguments[0].value === "style"
+            )
+              report(node);
+            if (
+              node.callee.type === "MemberExpression" &&
+              node.callee.object.type === "Identifier" &&
+              ["Object", "Reflect"].includes(node.callee.object.name) &&
+              ["assign", "set"].includes(propertyName(node.callee)) &&
+              isRootStyle(node.arguments[0])
+            )
+              report(node);
+          },
+        };
+      },
+    },
     "runtime-graph": {
       meta: { type: "problem", schema: [] },
       create(context) {
@@ -564,8 +684,10 @@ export default [
   },
   {
     files: ["skills/leaf/assets/leaf.js"],
+    plugins: { architecture: architecturePlugin },
     rules: {
       ...entryBoundary,
+      "architecture/root-style-ownership": "error",
       "no-restricted-syntax": [
         "error",
         ...entryBoundary["no-restricted-syntax"].slice(1),
@@ -588,6 +710,7 @@ export default [
     plugins: { architecture: architecturePlugin },
     rules: {
       ...ownerBoundary,
+      "architecture/root-style-ownership": "error",
       "architecture/runtime-graph": "error",
     },
   },

@@ -15,6 +15,7 @@ import { readerStore, tabStore } from "./storage.js";
 import { THREAD_PANEL_KEY } from "./thread-panel.js";
 import { TRAY_SLOT_KEY } from "./trays.js";
 import { DESIGN_MODE_KEY } from "./design-readings.js";
+import { removeRuntimeRootStyle } from "./root-state.js";
 
 export const READER_VIEW_RESTORE_CASES = [
   { name: "the thread panel open", ...readerStore.where(THREAD_PANEL_KEY), value: "1" },
@@ -56,6 +57,6 @@ export function restoreReaderView({
   const root = document.documentElement;
   root.removeAttribute("data-lf-restore-panel");
   root.removeAttribute("data-lf-restore-tray");
-  root.style.removeProperty("--lf-thread-panel-choice");
-  root.style.removeProperty("--lf-tray-slot-choice");
+  removeRuntimeRootStyle(root, "--lf-thread-panel-choice");
+  removeRuntimeRootStyle(root, "--lf-tray-slot-choice");
 }

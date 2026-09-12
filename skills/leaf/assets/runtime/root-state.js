@@ -27,6 +27,11 @@ export function setRuntimeRootStyle(root, property, value, priority = "") {
   root.style.setProperty(property, value, priority);
 }
 
+export function removeRuntimeRootStyle(root, property) {
+  runtimeStyles.get(root)?.delete(property);
+  root.style.removeProperty(property);
+}
+
 export const runtimeRootState = (root) => ({
   attributes: new Set(runtimeAttributes.get(root) ?? []),
   styles: new Set(runtimeStyles.get(root) ?? []),

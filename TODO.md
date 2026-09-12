@@ -6,6 +6,12 @@ remain in git history.
 
 ## Now
 
+- **Cut the browser runtime over to one reactive application snapshot.** Start with the
+  demanding Lit and Signals validation slice, then complete the state, rendering,
+  presentation, export, and build cutover in the
+  [runtime vision](notes/reactive-browser-runtime.md). Authored pages remain ordinary
+  HTML and installations gain no frontend build.
+
 - **Establish the first agent-usability baseline.** Build the cold-authoring,
   reading-parity, and resume fixtures described in
   [the evaluation plan](notes/agent-usability-evals.md#first-executable-slice), then use

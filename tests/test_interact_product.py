@@ -495,20 +495,37 @@ def test_every_default_widget_stands_in_the_feature_gallery():
     )
 
 
-def test_the_feature_gallery_indexes_its_authored_elements():
-    """A developer can find a specimen by its literal custom-element name."""
+def test_the_feature_gallery_indexes_its_showcased_elements():
+    """Feature eyebrows are a literal index of showcased code names."""
     authored = FEATURE_GALLERY.read_text(encoding="utf-8")
-    tags = set(re.findall(r"<(lf-[a-z-]+)[\s>]", authored))
-    eyebrows = " ".join(
-        re.findall(
-            r'<p class="eyebrow bg-feature-elements">(.*?)</p>',
-            authored,
-            flags=re.DOTALL,
+    gallery_registry = json.loads(
+        (schema_model.BUNDLED_PACKAGES / "gallery" / "registry.json").read_text(
+            encoding="utf-8"
         )
     )
-    indexed = set(re.findall(r"lf-[a-z-]+", eyebrows))
+    apparatus = {tag for tag in gallery_registry if tag.startswith("lf-")}
+    assert apparatus
+    tags = set(re.findall(r"<(lf-[a-z0-9-]+)[\s>]", authored)) - apparatus
+    eyebrows = re.findall(
+        r'<p class="eyebrow bg-feature-elements">(.*?)</p>',
+        authored,
+        flags=re.DOTALL,
+    )
+    eyebrow_entries = [
+        [entry.strip() for entry in eyebrow.split("·")] for eyebrow in eyebrows
+    ]
+    entries = [entry for eyebrow in eyebrow_entries for entry in eyebrow]
+    assert entries
+    assert all(re.fullmatch(r"lf-[a-z0-9-]+", entry) for entry in entries), entries
+    assert all(len(eyebrow) == len(set(eyebrow)) for eyebrow in eyebrow_entries), (
+        "a feature eyebrow repeats a code name"
+    )
+    indexed = set(entries)
     assert tags
     assert tags <= indexed, f"feature eyebrows omit {', '.join(sorted(tags - indexed))}"
+    assert apparatus.isdisjoint(indexed), (
+        f"feature eyebrows expose gallery apparatus: {', '.join(sorted(apparatus & indexed))}"
+    )
 
 
 def test_shipped_widget_purposes_live_in_their_descriptions():

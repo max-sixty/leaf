@@ -135,6 +135,7 @@ import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import {
+  containingReadingRegionFor,
   effectiveScroller,
   readingPosture,
   readingRegionFor,
@@ -1621,7 +1622,7 @@ export function createVersionController({
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       regions.get(view.activeRegion) ??
-      readingRegionFor(focused()) ??
+      containingReadingRegionFor(focused()) ??
       readingRegionFor(readingBlock());
     const restored = new Set();
     if (active && view.regions?.[active.id]) {
@@ -1649,11 +1650,16 @@ export function createVersionController({
   let navigationIntent = 0;
   let lastReadingRegionId = null;
 
+  // Continuity restores scroll geometry, not the reading-key subject. Frame furniture
+  // still names its own pane to d/u through readingRegionFor; because the furniture does
+  // not live in that pane's scroller, a posture change preserves the outer region that
+  // geometrically contains it. The same distinction keeps an inline response outside a
+  // nested region body with the outer scroller that actually carries it.
   const activeReadingRegion = (
     candidates = readingRegions(),
     blocks = textBlocks(),
   ) => {
-    const focusedRegion = readingRegionFor(focused());
+    const focusedRegion = containingReadingRegionFor(focused());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
     const recent = candidates.find(({ id }) => id === lastReadingRegionId);

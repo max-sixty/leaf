@@ -5932,6 +5932,95 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     page.close()
 
 
+def test_request_controls_join_presentation_without_replacing_authored_items(
+    browser, serve
+):
+    """The holder's render proof includes its Lit controls and retains page nodes."""
+    page, errors = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
+    operations = page.locator("#dedupe-operations")
+    restart = operations.locator(':scope > lf-operation[verb="restart"]')
+    button = restart.get_by_role("button", name="Restart with a fresh worker")
+    expect(button).to_be_visible()
+    page.evaluate(
+        """async holder => {
+          const item = holder.querySelector(':scope > lf-operation[verb="restart"]');
+          const control = item.querySelector(':scope > lf-request-control');
+          window.requestItem = item;
+          window.requestControl = control;
+          window.requestAuthoredChildren = [...item.childNodes].filter(
+            child => child !== control
+          );
+          window.requestIdentityHeld = () =>
+            holder.querySelector(':scope > lf-operation[verb="restart"]') === requestItem &&
+            requestItem.querySelector(':scope > lf-request-control') === requestControl &&
+            requestAuthoredChildren.every((child, index) =>
+              requestItem.childNodes[index] === child
+            );
+
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          window.releaseRequestControl = release;
+          const schedule = control.scheduleUpdate.bind(control);
+          control.scheduleUpdate = async () => {
+            control.scheduleUpdate = schedule;
+            await held;
+            return schedule();
+          };
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          window.whenRequestPresented = presentation.whenApplicationPresented;
+          window.readRequestPresentation = presentation.readApplicationPresentation;
+        }""",
+        operations.element_handle(),
+    )
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    try:
+        button.click()
+        holding(page, held, 1, "the request whose generated control update is held")
+        page.evaluate(
+            "() => { requestPresentationReady = false; "
+            "void whenRequestPresented().then(() => { "
+            "requestPresentationReady = true; }); }"
+        )
+        assert page.evaluate("requestPresentationReady") is False
+        assert "widget:dedupe-operations:render" in page.evaluate(
+            "readRequestPresentation().pending"
+        )
+        assert page.evaluate("requestIdentityHeld()") is True
+
+        page.evaluate("releaseRequestControl()")
+        page.wait_for_function("requestPresentationReady")
+        expect(operations).to_contain_text("restart requested · waiting for the host")
+        expect(button).to_have_attribute("aria-disabled", "true")
+
+        operations.evaluate(
+            """holder => {
+              const parent = holder.parentNode;
+              const next = holder.nextSibling;
+              holder.remove();
+              parent.insertBefore(holder, next);
+              window.reconnectedRequestReady = false;
+              whenRequestPresented().then(() => {
+                reconnectedRequestReady = true;
+              });
+            }"""
+        )
+        page.wait_for_function("reconnectedRequestReady")
+        assert page.evaluate("requestIdentityHeld()") is True
+    finally:
+        page.evaluate("releaseRequestControl?.()")
+        if held:
+            held[0].continue_()
+        page.unroute("**/api/event")
+
+    round_trip(page)
+    assert errors == []
+    page.close()
+
+
 def test_a_page_request_gets_a_fresh_seat_in_a_new_revision(browser, serve):
     """A page holder's completed lifecycle does not cross a document revision,
     and its broader x-ask-surface region follows that same ready/pending reading."""

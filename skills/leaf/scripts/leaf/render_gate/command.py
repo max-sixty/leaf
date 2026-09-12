@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+from leaf.revision_artifact import RevisionArtifact
 from leaf.structure import SourceDocument
 
 from .browser import browser_hint, launch_browser
@@ -16,6 +17,7 @@ def render_check(
     revision: int,
     *,
     transition_held: bool = False,
+    artifact: RevisionArtifact | None = None,
 ) -> int:
     """Serve candidate source to the host's browser and run the render
     invariants on it. A browser is part of this gate: if it cannot launch, the
@@ -25,7 +27,11 @@ def render_check(
 
     with (
         preview_server(
-            page_dir, document, revision, transition_held=transition_held
+            page_dir,
+            document,
+            revision,
+            transition_held=transition_held,
+            artifact=artifact,
         ) as url,
         sync_playwright() as p,
     ):

@@ -696,7 +696,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
         """async () => {
           const selected = getSelection().getRangeAt(0);
           selected.startContainer.splitText(selected.startOffset + 1);
-          const {repaint} = await import('/runtime/repaint.js');
+          const {repaint} = await window.__lfRuntimeImport('/runtime/repaint.js');
           repaint();
         }"""
     )
@@ -720,7 +720,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     page.evaluate(
         """async () => {
           getSelection().removeAllRanges();
-          const {repaint} = await import('/runtime/repaint.js');
+          const {repaint} = await window.__lfRuntimeImport('/runtime/repaint.js');
           repaint();
         }"""
     )

@@ -86,7 +86,7 @@ def test_a_missing_node_has_no_passage_location(browser, serve):
     page, errors = open_page(browser, serve(SUGGESTION_PAGE))
     found = page.evaluate(
         """async () => {
-          const {closestAcross} = await import('/runtime/passages.js');
+          const {closestAcross} = await window.__lfRuntimeImport('/runtime/passages.js');
           return closestAcross(null, 'main');
         }"""
     )
@@ -1461,7 +1461,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
     ]
     bad = page.evaluate(
         """async ([langs, samples]) => {
-          const { syntax } = await import('/runtime/syntax.js');
+          const { syntax } = await window.__lfRuntimeImport('/runtime/syntax.js');
           const bad = [];
           for (const lang of langs)
             for (const src of samples) {
@@ -1588,7 +1588,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ), numbers
 
     reading = page.evaluate("""async () => {
-      const { says, textNodesUnder, wrote } = await import('/runtime/widget-api.js');
+      const { says, textNodesUnder, wrote } = await window.__lfRuntimeImport('/runtime/widget-api.js');
       const diff = document.querySelector('#patch');
       const shadow = diff.shadowRoot;
       const segments = textNodesUnder(document)
@@ -2181,7 +2181,7 @@ def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, se
       const renames = [...(shadow?.querySelectorAll('.lf-diff-rename') ?? [])];
       const rename = renames[0];
       const quotedRename = renames[1];
-      const { says, wrote } = await import('/runtime/widget-api.js');
+      const { says, wrote } = await window.__lfRuntimeImport('/runtime/widget-api.js');
       return {
         rendered: host.classList.contains('lf-rendered'),
         error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
@@ -5440,7 +5440,7 @@ def test_a_fragment_load_keeps_the_manifest_source_revision(browser, serve):
     told(page)
     result = page.evaluate(
         """async () => {
-          const {loadDataFragment} = await import('/runtime/widget-api.js');
+          const {loadDataFragment} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           let stale;
           try {
             stale = await loadDataFragment(window.priorManifest, 'app.py');
@@ -5545,7 +5545,7 @@ def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
     page, errors = open_page(browser, serve(DIFF_PAGE))
     result = page.evaluate(
         """async () => {
-          const {shadowStage} = await import('/runtime/widget-api.js');
+          const {shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const host = document.querySelector('lf-diff');
           const input = document.createElement('input');
           input.value = 'draft reply';

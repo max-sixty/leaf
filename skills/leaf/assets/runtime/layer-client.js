@@ -39,6 +39,9 @@ function reloadDelivery(message) {
 export function layerHeaders(headers = {}) {
   return {
     "Leaf-Layer": layerGeneration,
+    ...(runtime.currentRevision && {
+      "Leaf-View-Revision": String(runtime.currentRevision),
+    }),
     ...(release && { "Leaf-Release": release }),
     ...headers,
   };
@@ -116,9 +119,6 @@ export const postEvent = async (event) => {
       method: "POST",
       headers: layerHeaders({
         "Content-Type": "application/json",
-        ...(runtime.currentRevision && {
-          "Leaf-View-Revision": String(runtime.currentRevision),
-        }),
       }),
       body: JSON.stringify(event),
     });

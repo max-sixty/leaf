@@ -236,6 +236,14 @@ def _css_urls(tokens):
                 yield from _css_urls(nested)
 
 
+@lru_cache(maxsize=512)
+def _css_dependencies(source: str, declarations: bool = False) -> tuple[str, ...]:
+    parse = (
+        tinycss2.parse_declaration_list if declarations else tinycss2.parse_stylesheet
+    )
+    return tuple(_css_urls(parse(source)))
+
+
 def capture_artifact(
     page_dir: Path,
     document: SourceDocument,
@@ -283,7 +291,7 @@ def capture_artifact(
                 css = data.decode("utf-8")
             except UnicodeDecodeError as error:
                 raise ArtifactError(f"{path}: CSS is not UTF-8") from error
-            for specifier in _css_urls(tinycss2.parse_stylesheet(css)):
+            for specifier in _css_dependencies(css):
                 if specifier.startswith(("#", "data:")):
                     continue
                 edges.append(resolve_dependency(specifier, path))
@@ -333,11 +341,11 @@ def capture_artifact(
                 f"{path}: a stylesheet dependency must have CSS MIME type"
             )
         entries.append(path)
-    for specifier in _css_urls(tinycss2.parse_stylesheet(document.css)):
+    for specifier in _css_dependencies(document.css):
         if not specifier.startswith(("#", "data:")):
             entries.append(resolve_dependency(specifier, "/index.html"))
     for style in document.inline_styles:
-        for specifier in _css_urls(tinycss2.parse_declaration_list(style)):
+        for specifier in _css_dependencies(style, declarations=True):
             if not specifier.startswith(("#", "data:")):
                 entries.append(resolve_dependency(specifier, "/index.html"))
     entries.extend(document.media_refs)

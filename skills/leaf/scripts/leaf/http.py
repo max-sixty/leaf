@@ -35,7 +35,8 @@ from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
-from .revision_artifact import RevisionArtifact, read_artifact, rewrite_module
+from .revision_artifact import RevisionArtifact, read_artifact
+from .revision_delivery import deliver_document, deliver_resource
 from .revisioning import activate_source
 from .schema import (
     BINARY_TYPES,
@@ -143,7 +144,7 @@ def _scope_routes(
     return pattern.sub(
         lambda match: (
             match.group("before")
-            + (page if match.group("path").startswith(b"api/") else assets)
+            + (page if match.group("path").startswith((b"api/", b"media/")) else assets)
             + b"/"
             + match.group("path")
         ),
@@ -580,7 +581,7 @@ class Handler(BaseHTTPRequestHandler):
             "/registry.json",
             "/",
         }:
-            self.send_header("Leaf-Layer", self.layer)
+            self.send_header("Leaf-Layer", getattr(self, "response_layer", self.layer))
             self.send_header("Leaf-Server", self.server_id)
             if self.release is not None:
                 self.send_header("Leaf-Release", self.release)
@@ -715,6 +716,7 @@ class Handler(BaseHTTPRequestHandler):
         deliberately after that gate, so an unknown peer cannot choose a body-read cost.
         """
         prepared = False
+        self.response_layer = self.layer
         try:
             selected = self._select_page()
             if selected is None:
@@ -781,13 +783,18 @@ class Handler(BaseHTTPRequestHandler):
     ) -> None:
         """Serve one immutable document under the current delivery boundary."""
         try:
+            self.response_layer = artifact.registry["$layer"]["generation"]
             projected = supervised_document(
-                artifact.html.decode("utf-8"),
+                deliver_document(
+                    artifact.html.decode("utf-8"), self._artifact_root(revision)
+                ),
                 revision,
                 version,
                 server_id=self.server_id,
                 layer_id=artifact.registry["$layer"]["generation"],
-                bootstrap=self.bootstrap,
+                bootstrap=artifact.resources["/runtime/bootstrap.js"].data.decode(
+                    "utf-8"
+                ),
                 release_id=self.release,
                 page_root=self.page_root,
                 asset_root=self._artifact_root(revision),
@@ -818,7 +825,19 @@ class Handler(BaseHTTPRequestHandler):
         if match.group("name") != expected:
             return False
         artifact = self._artifact(revision)
+        self.response_layer = artifact.registry["$layer"]["generation"]
         logical = "/" + match.group("resource")
+        if probe_source := PROBE_SOURCES.get(logical):
+            self._send(
+                200,
+                "text/javascript; charset=utf-8",
+                scope_script_routes(
+                    probe_source.read_bytes(),
+                    self.page_root,
+                    asset_root=self._artifact_root(revision),
+                ),
+            )
+            return True
         source = logical
         widget = re.fullmatch(r"/widgets/(?P<tag>lf-[a-z0-9-]+)\.js", logical)
         if widget is not None:
@@ -828,15 +847,13 @@ class Handler(BaseHTTPRequestHandler):
         resource = artifact.resources.get(source)
         if resource is None:
             return False
-        body = resource.data
         root = self._artifact_root(revision)
-        if resource.mime == "application/javascript":
-            body = (
-                rewrite_module(body, source, root)
-                if source.startswith("/page/")
-                else scope_script_routes(body, self.page_root, asset_root=root)
-            )
-        elif resource.mime == "text/css":
+        body = deliver_resource(resource, source, root)
+        if resource.mime == "application/javascript" and not source.startswith(
+            "/page/"
+        ):
+            body = scope_script_routes(body, self.page_root, asset_root=root)
+        elif resource.mime == "text/css" and not source.startswith("/page/"):
             body = scope_stylesheet_routes(body, self.page_root, asset_root=root)
         ctype = resource.mime
         if ctype not in BINARY_TYPES:
@@ -874,6 +891,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send_document(artifact, mapping[version], version)
             return True
         if path.startswith("/revisions/"):
+            if (
+                re.fullmatch(r"/revisions/r[1-9][0-9]*-[a-f0-9]{16}\.html", path)
+                is None
+            ):
+                self._json({"error": "unknown revision resource"}, 404)
+                return True
             name = Path(path).name
             revision = revision_num(name)
             revisions = (
@@ -881,12 +904,15 @@ class Handler(BaseHTTPRequestHandler):
                 if self.page_snapshot is not None
                 else set(list_revisions(self.page_dir))
             )
+            if revision not in revisions:
+                self._json({"error": "unknown revision"}, 404)
+                return True
             expected_name = (
                 self.page_snapshot.revision_names.get(revision)
                 if self.page_snapshot is not None
                 else revision_path(self.page_dir, revision).name
             )
-            if revision not in revisions or expected_name != name:
+            if expected_name != name:
                 self._json({"error": "unknown revision"}, 404)
                 return True
             artifact = self._artifact(revision)
@@ -905,7 +931,9 @@ class Handler(BaseHTTPRequestHandler):
             )
             if revision is None:
                 return False
-            self._json(self._artifact(revision).registry)
+            registry = self._artifact(revision).registry
+            self.response_layer = registry["$layer"]["generation"]
+            self._json(registry)
             return True
         file = self.page_dir / path.lstrip("/")
         # The allowlist rejects traversal spellings; containment is the second
@@ -941,6 +969,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 revision = self.requested_view_revision()
                 state = self.page_state(revision)
+                self.response_layer = state["layer"]["generation"]
             except ValueError as error:
                 self._json({"error": str(error)}, 400)
                 return
@@ -962,6 +991,9 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("view revision is required")
                 sequence = self.requested_view_sequence()
                 browser = self.page_browser_view(revision, sequence)
+                self.response_layer = self._artifact(revision).registry["$layer"][
+                    "generation"
+                ]
             except ValueError as error:
                 self._json({"error": str(error)}, 400)
                 return
@@ -991,7 +1023,28 @@ class Handler(BaseHTTPRequestHandler):
         if self.page_snapshot is not None:
             self._refuse("the preview server is read-only", 403)
             return
-        current_layer = self.layer
+        try:
+            view_revision = self.requested_view_revision(header=True)
+        except ValueError as error:
+            self._refuse(str(error))
+            return
+        if view_revision is not None and view_revision not in list_revisions(
+            self.page_dir
+        ):
+            self._refuse(f"unknown view revision r{view_revision}")
+            return
+        if view_revision is not None:
+            current_layer = self._artifact(view_revision).registry["$layer"][
+                "generation"
+            ]
+        else:
+            active_revision = latest_revision(self.page_dir)
+            current_layer = (
+                self._artifact(active_revision).registry["$layer"]["generation"]
+                if active_revision is not None
+                else self.layer
+            )
+        self.response_layer = current_layer
         if self.headers.get("Leaf-Layer") != current_layer:
             # Preparation already consumed the body. A stale runtime needs the
             # current generation, not a verdict in a vocabulary it no longer speaks.
@@ -1011,16 +1064,6 @@ class Handler(BaseHTTPRequestHandler):
                 self._refuse(str(error))
                 return
             self._json({"path": media_path})
-            return
-        try:
-            view_revision = self.requested_view_revision(header=True)
-        except ValueError as error:
-            self._refuse(str(error))
-            return
-        if view_revision is not None and view_revision not in list_revisions(
-            self.page_dir
-        ):
-            self._refuse(f"unknown view revision r{view_revision}")
             return
         status, answer = accept_event(
             self.page_dir, self.posted, lambda: self.page_state(view_revision)

@@ -63,7 +63,9 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     first = revisioning_model.activate_source(page_dir, [])
     assert first.error is None and first.created and first.revision == 2
     revision = files_model.revision_path(page_dir, 2)
-    assert revision.name == files_model.revision_name(2, changed.encode())
+    from leaf.revision_artifact import artifact_name
+
+    assert revision.name == artifact_name(2, first.check.artifact) + ".html"
     assert revision.read_text() == changed
 
     unchanged = revisioning_model.activate_source(page_dir, [])

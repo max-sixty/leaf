@@ -1019,6 +1019,11 @@ def watched(page):
     page.on("console", console_message)
     page.on("pageerror", lambda e: errors.append(str(e)))
     render_checks_model.install_window_errors(page)
+    # Diagnostics join the document's captured module graph, not the mutable layer.
+    page.add_init_script("""window.__lfRuntimeImport = path => {
+      const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+      return import(new URL(path.replace(/^\\//, ''), new URL(entry, location.href)).href);
+    };""")
     return errors
 
 
@@ -1417,7 +1422,7 @@ def margins_laid_out(page):
     than polling again, so a predicate handing back the layout's own result would return
     at once and prove nothing."""
     page.wait_for_function(
-        "() => import('/runtime/margin-layout.js')"
+        "() => window.__lfRuntimeImport('/runtime/margin-layout.js')"
         ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",
         timeout=render_checks_model.SERVED_TIMEOUT_MS,
     )

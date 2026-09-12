@@ -191,7 +191,7 @@ def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_con
 
     page.evaluate(
         """async () => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const workspace = document.querySelector('#review-workspace');
           const content = workspace.querySelector(':scope > .lf-workspace-content');
           const split = content.firstElementChild;
@@ -209,7 +209,7 @@ def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_con
 
     page.evaluate(
         """async () => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           await new Promise(resolve => setTimeout(resolve, 30));
           const owner = document.querySelector('#package-surface');
           leaf.arrangeReadingElement({
@@ -272,7 +272,7 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     )
     assert ask.evaluate(
         """async node => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return leaf.readingPosture(node) === 'flow'
             && leaf.effectiveScroller(node) === document.scrollingElement;
         }"""
@@ -404,7 +404,7 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
     expect(studio).to_have_attribute("data-lf-reading-posture", "bounded")
     assert studio.evaluate(
         """async owner => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return leaf.readingPosture(owner) === 'bounded';
         }"""
     )
@@ -544,7 +544,7 @@ def test_the_monitoring_root_fits_its_release_regions_and_returns_from_flow(
     expect(monitor).to_have_attribute("data-lf-reading-posture", "bounded")
     assert page.evaluate(
         """async () => {
-          const {readingRegions} = await import('/runtime/widget-api.js');
+          const {readingRegions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const wanted = ['lp-release', 'lp-checks', 'lp-log'];
           const ids = readingRegions().map(region => region.id);
           return wanted.every(id => ids.filter(candidate => candidate === id).length === 1);
@@ -1260,7 +1260,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     # The title is a visible page label, while each repeated heading is the label of a
     # browser-owned link under .lf-ui. The authored heading remains the one passage.
     spoken = page.locator("main").evaluate(
-        "async main => (await import('/runtime/widget-api.js')).says(main)"
+        "async main => (await window.__lfRuntimeImport('/runtime/widget-api.js')).says(main)"
     )
     assert spoken.count("Prepare gradually") == 1
     assert spoken.count("Move the readers") == 1
@@ -2971,7 +2971,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     expect(actions).to_be_visible()
     bounded = page.evaluate(
         """async () => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const playground = document.querySelector('#notification-playground');
           const controls = playground.querySelector(
             '.lf-playground-controls-region > .lf-pane-content > .lf-pane-body');
@@ -3123,7 +3123,7 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
     expect(workspace).to_have_attribute("data-lf-reading-posture", "flow")
     flow = page.evaluate(
         """async () => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const playground = document.querySelector('#notification-playground');
           const controls = playground.querySelector(
             '.lf-playground-controls-region > .lf-pane-content > .lf-pane-body');
@@ -3646,7 +3646,7 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     assert playground.evaluate("root => root.values")["compact"] is False
     assert playground.evaluate(
         """async root => {
-          const {readingRegionFor} = await import('/runtime/widget-api.js');
+          const {readingRegionFor} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return readingRegionFor(root.querySelector('lf-playground-preview')) === undefined
             && getComputedStyle(root).display === 'block';
         }"""
@@ -4739,7 +4739,7 @@ def test_swipe_deck_reloads_replays_and_undoes_absolute_placement(browser, serve
     expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
     assert page.evaluate(
         """async () => {
-          const {standingState} = await import('/runtime/widget-api.js');
+          const {standingState} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const deck = document.getElementById('session-triage');
           const {state} = standingState().find(({widget}) => widget === deck);
           window.swipeCards = [...deck.querySelectorAll('lf-swipe-card')];
@@ -6165,7 +6165,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
 
     page.evaluate(
         """async () => {
-          const {commands} = await import('/runtime/widget-api.js');
+          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const suggestion = document.getElementById('sug');
           const source = document.createElement('span');
           const inspect = document.createElement('button');
@@ -6230,7 +6230,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     # collapsing the command's equivalent bindings into whichever one came first.
     page.evaluate(
         """async () => {
-          const {commands} = await import('/runtime/widget-api.js');
+          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const inspect = document.getElementById('inspect-action');
           commands(inspect, 'Inspect control', [{
             id: 'test.dead-local-x', keys: ['x'],
@@ -6269,7 +6269,7 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate(
         """async () => {
-          const {commands} = await import('/runtime/widget-api.js');
+          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
@@ -6315,7 +6315,7 @@ def test_an_ask_alias_preserves_the_original_commands_return_frame(browser, serv
 
     page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const suggestion = document.getElementById('sug');
           const control = document.createElement('button');
           control.textContent = 'Configure';
@@ -6358,7 +6358,7 @@ def test_ask_action_name_functions_must_return_text(browser, serve):
 
     messages = page.evaluate(
         """async () => {
-          const {decisionControls} = await import('/runtime/keyboard/bindings.js');
+          const {decisionControls} = await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
           const source = document.getElementById('sug');
           const control = document.createElement('button');
           source.append(control);
@@ -6407,7 +6407,7 @@ def test_every_ask_decision_consumes_one_contextual_binding_slot(browser, serve)
 
     page.evaluate(
         """async () => {
-          const {commands} = await import('/runtime/widget-api.js');
+          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const suggestion = document.getElementById('sug');
           for (const [index, key] of [...'bcdef'].entries()) {
             const binding = `Alt+${key}`;
@@ -6541,7 +6541,7 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
 
     page.evaluate(
         """async () => {
-           const {commands} = await import('/runtime/widget-api.js');
+           const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
            const source = document.getElementById('sug');
            const face = (id, top) => {
              const bindingBadge = document.createElement('span');
@@ -7598,7 +7598,7 @@ def test_an_ask_rejects_two_answer_readers_even_when_their_words_match(browser, 
     page, errors = open_page(browser, serve(ASKS_PAGE))
     page.evaluate(
         """async () => {
-          const {commands} = await import('/runtime/widget-api.js');
+          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const options = document.getElementById('honored');
           const extra = document.createElement('span');
           options.append(extra);

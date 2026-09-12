@@ -144,7 +144,6 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
 
 def test_module_capture_reads_javascript_syntax_and_rewrites_only_imports(page_dir):
     authored = page_dir / "page"
-    authored.mkdir()
     (authored / "value.js").write_text("export const value = 1;")
     module = """// import "https://outside.example/comment.js";
 const text = 'import "./missing.js"';
@@ -173,7 +172,6 @@ export { value } from "./value.js";
 
 def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_path):
     authored = page_dir / "page"
-    authored.mkdir()
     (authored / "data.json").write_text('{"value": 1}')
     outside = tmp_path / "outside.js"
     outside.write_text("export const value = 1;")
@@ -231,7 +229,6 @@ def test_an_interrupted_capture_never_publishes_a_partial_revision(
 
 def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
     authored = page_dir / "page"
-    authored.mkdir()
     (authored / "data.json").write_text('{"value": 1}')
     (page_dir / "index.html").write_text(
         PAGE.replace("</head>", '<link rel="stylesheet" href="/page/style.css"></head>')

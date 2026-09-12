@@ -1,6 +1,6 @@
 ---
 name: developing-leaf
-description: Develops changes to what Leaf readers see and do from the current checkout, including UI exploration, page previews, browser testing, and before-and-after proof.
+description: Develops Leaf itself from the current checkout, including its runtime, protocol, packages, UI exploration, page previews, and browser proof.
 ---
 
 # Develop Leaf from this checkout
@@ -10,10 +10,31 @@ Resolve the repository root three directories above this `SKILL.md`, then resolv
 continue only when it prints the same repository root. Use the absolute launcher
 throughout; a bare `leaf` command may resolve to the installed plugin instead.
 
-Read `references/glossary.md` before naming or revising reader-facing elements,
+Read this skill's `references/glossary.md` before naming or revising reader-facing elements,
 interaction contexts, navigation, chrome, view state, or an identifier governed by
-those concepts. It is Leaf's canonical implementation vocabulary. The protocol between
-the page and its agent has separate owners under `<root>/skills/leaf/references/`.
+those concepts. It is Leaf's canonical implementation vocabulary.
+
+## Read the owning contract
+
+Read the scoped `CLAUDE.md` for every implementation area the change reaches and the
+module header for each module changed. For a contract shared across modules or runtimes,
+read the sidecar beside the Python code that owns the boundary:
+
+- `<root>/skills/leaf/scripts/leaf/page-storage.md`: page files and storage invariants;
+- `<root>/skills/leaf/scripts/leaf/session-lifetime.md`: work claims, watchers, hooks,
+  and server lifetime;
+- `<root>/skills/leaf/scripts/leaf/layer-registry.md`: composition and the registry
+  vocabulary;
+- `<root>/skills/leaf/scripts/leaf/events.md`: events, undo, authorship, and conversation
+  semantics;
+- `<root>/skills/leaf/scripts/leaf/validation.md`: static and browser validation,
+  passages, and parsed source;
+- `<root>/skills/leaf/scripts/leaf/mcp-app.md`: MCP tools, the app resource,
+  process-scoped page server, private result payload, and snapshot fallback.
+
+This skill is maintainer workflow, not a second home for product specifications. Agents
+using Leaf read `<root>/skills/leaf/SKILL.md`. Package authors read the public contract
+at `<root>/skills/leaf/references/packages.md`.
 
 ## Explore an open design
 

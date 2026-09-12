@@ -34,9 +34,8 @@
       .pr-review-gesture {
         --lf-block-frame: 1;
         margin: var(--sp-3) 0;
-        padding: var(--sp-3);
-        border-inline-start: 3px solid var(--accent);
-        background: color-mix(in srgb, var(--accent) 5%, transparent);
+        padding: var(--sp-2) 0;
+        border-block: 1px solid var(--rule);
       }
 
       .pr-evidence-status {
@@ -131,12 +130,6 @@
 
         .pr-scale-facts > div:first-child {
           border-top: 0;
-        }
-      }
-
-      @media print {
-        .pr-review-gesture {
-          background: transparent;
         }
       }
     </style>
@@ -614,33 +607,6 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
           </details>
         </section>
       </details>
-
-      <section id="pr-outcome">
-        <lf-ask id="pr-outcome-decision">
-          <h2>Should this revision merge?</h2>
-          <p id="pr-outcome-context">
-            Choose the review judgment best supported by the captured revision and
-            evidence.
-          </p>
-          <lf-options id="pr-outcome-choice" choose>
-            <lf-option id="pr-outcome-follow-up">
-              <strong>Merge with two follow-ups.</strong> Add a selected-row latency
-              benchmark and a dry-run artifact regression in subsequent work.
-              <em>My take: this best matches the evidence and review trail.</em>
-            </lf-option>
-            <lf-option id="pr-outcome-approve">
-              <strong>Merge without follow-ups.</strong> Close the two remaining gaps as
-              non-actionable.
-            </lf-option>
-            <lf-option id="pr-outcome-request-changes">
-              <strong>Hold the merge for two changes.</strong> Add a selected-row
-              latency budget, and prevent <code>wt step commit --dry-run</code> from
-              staging temporary-index artifacts when <code>TMPDIR</code> is inside the
-              worktree.
-            </lf-option>
-          </lf-options>
-        </lf-ask>
-      </section>
     </main>
   </body>
 </html>

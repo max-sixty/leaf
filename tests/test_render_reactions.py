@@ -769,7 +769,13 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
 @pytest.mark.parametrize("opener", ["click", "keyboard"])
 def test_comment_response_choices_expand_in_place(browser, serve, opener, width):
     """The ellipsis and Tab extend one placed rectangle without moving its left edge."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    # Leave a wide rail on desktop so the same field exercises both a horizontal
+    # extension and the narrow viewport's wrapped choices.
+    source = PANEL_PAGE.replace(
+        "</head>",
+        "<style>body > main { max-width: 320px; margin-inline: 24px; }</style></head>",
+    )
+    page, errors = open_page(browser, serve(source))
     resized(page, width, 900)
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
@@ -849,6 +855,8 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     expect(bar.locator(".lf-fab-suggest")).to_have_attribute("aria-label", "Suggest")
     assert suggest.get_attribute("aria-expanded") is None
     field.click()
+    field.press("ControlOrMeta+a")
+    field.press("ArrowRight")
     expect(bar).to_have_class(re.compile("lf-response-open"))
     expect(choices).to_have_count(7)
     page.keyboard.press("Tab")
@@ -1032,6 +1040,8 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     """
     page, errors = open_page(browser, serve(PANEL_PAGE))
     initial_events = events_model.read_events(serve.page_dir)
+    # Start with Threads beside the page. A covering panel makes the background inert,
+    # even when some of the page remains visible beyond its edge.
     resized(page, 1000, 900)
     page.get_by_role("button", name=re.compile("^Threads")).click()
     panel_settled(page)
@@ -1039,6 +1049,9 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     bar = page.locator(".lf-fab-bar")
 
     def enter_passage():
+        expect(page.locator(".lf-thread-panel")).not_to_have_attribute(
+            "aria-modal", "true"
+        )
         box = page.locator("#how-cap").bounding_box()
         select(
             page,

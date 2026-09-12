@@ -85,7 +85,7 @@ const GROUPS = [
       },
       {
         name: "Picked up",
-        detail: "Thread · single blue ring",
+        detail: "Thread · green icon",
         icon: "comment",
         behavior: "disclosure",
         rank: "reading",
@@ -93,15 +93,15 @@ const GROUPS = [
       },
       {
         name: "Working",
-        detail: "Thread · green double ring",
+        detail: "Thread · green interior",
         icon: "comment",
         behavior: "disclosure",
         rank: "reading",
         agentPhase: "active",
       },
       {
-        name: "Working alone",
-        detail: "Activity dot · no other control can carry it",
+        name: "Activity fallback",
+        detail: "Working · no target control available",
         icon: "activity",
         behavior: "disclosure",
         rank: "reading",

@@ -166,22 +166,6 @@ so a phase does not depend on discovering a chain of references.
 - `references/packages.md`: for a package-design request, a page-authored module, or
   an event with `"about": "layer"`.
 
-### Change Leaf itself
-
-- `references/internals/page-storage.md`: when changing page files or storage
-  invariants.
-- `references/internals/session-lifetime.md`: when changing work claims,
-  watchers, hooks, or server lifetime.
-- `references/internals/layer-registry.md`: when changing composition or the
-  registry's custom vocabulary.
-- `references/internals/events.md`: when changing events, undo, authorship, or
-  conversation semantics.
-- `references/internals/validation.md`: when changing static or browser
-  validation, passages, or parsed source. These internal contracts are not for
-  ordinary page use.
-- `references/internals/mcp-app.md`: when changing the MCP tools, app resource,
-  process-scoped page server, private result payload, or snapshot fallback.
-
 ### Use a separate Codex watcher
 
 - `references/codex-watcher.md`: only after the user explicitly authorizes a

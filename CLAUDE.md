@@ -26,12 +26,15 @@ Claude Code and Codex install the tracked tree whole. Its main parts are:
 - `pyproject.toml`, `uv.lock`, and `bin/leaf`: the uv project — runtime
   dependencies plus the suite's dev group — and the launcher that runs it;
 - `skills/leaf/scripts/leaf/`: the CLI, server, event model, validation,
-  projection, vendoring, and export;
+  projection, vendoring, export, and their code-adjacent internal contracts;
 - `skills/leaf/assets/`: the browser runtime, registry, theme, and icon;
 - `skills/leaf/packages/`: the default and optional bundled content vocabularies,
   widgets, modules, and vendor files;
 - `skills/leaf/mcp-app/`: the MCP App resource an MCP host reads;
-- `skills/leaf/references/`: page-authoring and internal protocol references;
+- `skills/leaf/references/`: public contracts for page authors, package authors, and
+  hosts;
+- `.claude/skills/developing-leaf/`: the maintainer workflow and implementation
+  vocabulary;
 - `hooks/hooks.json`: the shared host hooks.
 
 `examples/` is the authored-page and render corpus. `tests/` covers the file,
@@ -49,13 +52,11 @@ which `scripts/site.py` publishes as a complete page directory beside the worked
 examples. Changing what <https://leaf.page/> says is a page edit, not a template
 edit.
 
-`TODO.md` is the ordered priority list, and `notes/` holds what its items link
-out to — the approaches considered and not taken, the sweeps of nearby projects,
-the MCP App experiment record, and the research briefs behind a TODO section.
-Only pre-commit's linters read `notes/`, and no test checks a note against the
-tree, so a note is dated evidence for the decision it records rather than a
-claim about the current tree; where the two disagree, the tree is right and the
-note is history.
+`TODO.md` is the ordered priority list. `notes/` holds active research,
+experiments, and plans for unresolved or future work. Once a design lands, move
+its contract beside the code or into the public reference whose reader acts on
+it, then delete the note. Git history carries superseded plans and rejected
+alternatives; a note is never a second specification for shipped behavior.
 
 Read the scoped instructions for the area being changed:
 
@@ -65,8 +66,8 @@ Read the scoped instructions for the area being changed:
 - `tests/CLAUDE.md`: test setup and evidence rules;
 - `scripts/CLAUDE.md`: repository tooling and generated outputs.
 
-For UI exploration or any change to what a reader sees or does, load
-`/developing-leaf`.
+For any change to Leaf itself, load `/developing-leaf`. The shipped `/leaf`
+skill is for agents that use Leaf or extend its public package interface.
 
 ### The install runs this tree
 
@@ -148,8 +149,7 @@ mutable author source; revisions are immutable, and append-only notes bind publi
 versions to them. The event log is append-only, while `data.json` is the explicit
 replace-in-place authority for typed external data. A source id keeps one contract
 for the page's lifetime.
-`skills/leaf/references/internals/page-storage.md` defines the complete
-layout.
+`skills/leaf/scripts/leaf/page-storage.md` defines the complete layout.
 
 A request is a durable, non-undoable one-shot instruction whose external effect
 may precede its receipt. The append door admits one pending request per declared

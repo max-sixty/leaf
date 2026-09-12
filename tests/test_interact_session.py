@@ -96,6 +96,7 @@ def fake_codex_cli(tmp_path: Path) -> tuple[Path, Path]:
 import json
 import os
 import sys
+import time
 
 log = os.environ["FAKE_CODEX_LOG"]
 arguments = sys.argv[1:]
@@ -110,6 +111,16 @@ if arguments == ["queue", "--help"]:
 if arguments[:1] != ["queue"]:
     print("unsupported command", file=sys.stderr)
     sys.exit(2)
+expected_cwd = os.environ.get("FAKE_CODEX_EXPECT_CWD")
+if expected_cwd and os.getcwd() != expected_cwd:
+    print(f"unexpected cwd: {{os.getcwd()}}", file=sys.stderr)
+    sys.exit(1)
+waiting = os.environ.get("FAKE_CODEX_QUEUE_WAIT")
+if waiting:
+    with open(waiting + ".started", "w", encoding="utf-8"):
+        pass
+    while not os.path.exists(waiting + ".release"):
+        time.sleep(0.01)
 failure = os.environ.get("FAKE_CODEX_QUEUE_FAILURE_ONCE")
 if failure and not os.path.exists(failure):
     with open(failure, "w", encoding="utf-8") as failed:
@@ -3787,7 +3798,7 @@ def test_codex_recovery_ignores_delivery_records_from_the_previous_adapter():
         },
     )
 
-    assert not codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert not codex_model._recover_receipt("codex-thread")
     assert not codex_model._has_delivery_work("codex-thread")
     assert files_model.read_json(legacy)["delivery_id"] == "legacy-delivery"
 
@@ -3825,8 +3836,8 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     files_model.write_json(directory / "z-old.json", epoch(first, created_at=1))
     files_model.write_json(directory / "a-new.json", epoch(second, created_at=2))
 
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
     pickups = [
         event for event in events_model.read_events(page) if event["kind"] == "pickup"
     ]
@@ -3873,10 +3884,10 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
         },
     )
 
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
     first_pass = files_model.read_json(epoch_path)["batches"]
     assert [batch["receipted"] for batch in first_pass] == [True, False]
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
 
     history = epoch_path.parent / "history" / epoch_path.name
     assert all(
@@ -3927,7 +3938,7 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
     epoch["state"] = "accepted"
     files_model.write_json(epoch_path, epoch)
 
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
     batches = files_model.read_json(epoch_path)["batches"]
     [received] = [batch for batch in batches if batch["receipted"]]
     [pending] = [batch for batch in batches if not batch["receipted"]]
@@ -3935,7 +3946,7 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
     # Reinitializing a page path starts its cursor again. Its batch is recovery
     # history, while the other page's batch is still live transport work.
     files_model.write_json(Path(received["page"]) / "cursor.json", {"seq": 0})
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
     history = epoch_path.parent / "history" / epoch_path.name
     assert files_model.read_json(history)["batches"] == [
         {**batch, "receipted": True} for batch in batches
@@ -3978,7 +3989,7 @@ def test_one_conversation_delivery_starts_and_receipts_its_app_server_turn(
         lambda *_: pytest.fail("the addressed delivery used the Codex queue fallback"),
     )
 
-    assert codex_model._recover_delivery(
+    assert codex_model._offer_queued_delivery(
         "codex",
         "codex-thread",
         "ws://127.0.0.1:4500",
@@ -3990,7 +4001,7 @@ def test_one_conversation_delivery_starts_and_receipts_its_app_server_turn(
     [(path, queue)] = codex_queues("codex-thread")
     assert queue["transport"] == {"phase": "opened", "turn": "app-server-turn"}
 
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
     pickup = next(
         event for event in events_model.read_events(page) if event["kind"] == "pickup"
     )
@@ -4042,7 +4053,7 @@ def test_multi_conversation_delivery_uses_the_same_app_server_envelope(
         lambda *_: pytest.fail("an idle App Server delivery was queued"),
     )
 
-    assert codex_model._recover_delivery(
+    assert codex_model._offer_queued_delivery(
         "codex",
         "codex-thread",
         "ws://127.0.0.1:4500",
@@ -4089,7 +4100,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
 
     monkeypatch.setattr(codex_model, "queue_delivery", queue_delivery)
     offering = threading.Thread(
-        target=lambda: codex_model._recover_delivery("codex", "codex-thread")
+        target=lambda: codex_model._offer_queued_delivery("codex", "codex-thread")
     )
     offering.start()
     assert queue_started.wait(timeout=5)
@@ -4108,7 +4119,7 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
         event["id"] for batch in payload["batches"] for event in batch["events"]
     ] == ["first"]
 
-    assert codex_model._recover_delivery("must-not-be-called", "codex-thread")
+    assert codex_model._recover_receipt("codex-thread")
     with service_model.PageTransaction(page) as transaction:
         reading = session_model.PageTick(
             page,
@@ -4224,6 +4235,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
+        "FAKE_CODEX_EXPECT_CWD": str(host_model.state_home()),
     }
     if delivery_fault == "retry":
         environment["FAKE_CODEX_QUEUE_FAILURE_ONCE"] = str(
@@ -4237,7 +4249,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
                 "start",
                 str(page),
                 "--codex-path",
-                str(program),
+                os.path.relpath(program),
             ]
         ),
         environment,
@@ -4426,6 +4438,127 @@ def test_codex_adapter_exits_after_its_offline_page_cannot_restart(
         encoding="utf-8"
     )
     assert adapter_log.count("server is not running") == 2
+
+
+def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
+    codex_claimed_page, spawn, codex_env, tmp_path, dead_pid
+):
+    page = codex_claimed_page
+    program, log = fake_codex_cli(tmp_path)
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    claim = service_model.page_claim(page)
+    files_model.write_json(
+        service_model.claim_path(page), {**claim, "pid": os.getpid()}
+    )
+    adapter = spawn(
+        [str(launcher), "codex", "run", "--codex-path", str(program)],
+        env=codex_env
+        | {
+            "CODEX_THREAD_ID": "codex-thread",
+            "FAKE_CODEX_LOG": str(log),
+            "FAKE_CODEX_QUEUE_FAILURE_ONCE": str(tmp_path / "failed-queue"),
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and not codex_model.adapter_is_live(
+            "codex-thread"
+        ):
+            time.sleep(0.05)
+        assert codex_model.adapter_is_live("codex-thread")
+        events_model.append_event(
+            page, {"kind": "comment", "author": "user", "text": "hello adapter"}
+        )
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            queues = codex_queues("codex-thread")
+            calls = (
+                [json.loads(line) for line in log.read_text().splitlines()]
+                if log.exists()
+                else []
+            )
+            if queues and queues[0][1]["state"] == "offering" and len(calls) > 1:
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("the adapter did not reach its delivery retry")
+
+        claim = service_model.page_claim(page)
+        files_model.write_json(
+            service_model.claim_path(page), {**claim, "pid": dead_pid}
+        )
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and codex_model.adapter_is_live(
+            "codex-thread"
+        ):
+            time.sleep(0.05)
+        assert not codex_model.adapter_is_live("codex-thread")
+        assert adapter.wait(timeout=5) == 0
+        assert codex_queues("codex-thread")[0][1]["state"] == "offering"
+        assert files_model.read_json(page / "cursor.json") is None
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        assert len(calls) == 2
+    finally:
+        with service_model.PageTransaction(page) as transaction:
+            transaction.release_claim()
+
+
+def test_codex_adapter_finishes_an_accepted_receipt_after_ownership_transfers(
+    codex_claimed_page, spawn, codex_env, tmp_path
+):
+    page = codex_claimed_page
+    program, log = fake_codex_cli(tmp_path)
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    session_model.cmd_status(page, "waiting", "comment on the prototype")
+    claim = service_model.page_claim(page)
+    files_model.write_json(
+        service_model.claim_path(page), {**claim, "pid": os.getpid()}
+    )
+    queue_wait = tmp_path / "held-queue"
+    adapter = spawn(
+        [str(launcher), "codex", "run", "--codex-path", str(program)],
+        env=codex_env
+        | {
+            "CODEX_THREAD_ID": "codex-thread",
+            "FAKE_CODEX_LOG": str(log),
+            "FAKE_CODEX_QUEUE_WAIT": str(queue_wait),
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not codex_model.adapter_is_live(
+        "codex-thread"
+    ):
+        time.sleep(0.05)
+    assert codex_model.adapter_is_live("codex-thread")
+
+    events_model.append_event(
+        page, {"kind": "comment", "author": "user", "text": "hello adapter"}
+    )
+    comment = events_model.read_events(page)[-1]
+    started = queue_wait.with_name(f"{queue_wait.name}.started")
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not started.exists():
+        time.sleep(0.05)
+    assert started.exists()
+
+    successor = record_claim(page, id="successor", host="codex", agent="Codex")
+    queue_wait.with_name(f"{queue_wait.name}.release").write_text("", encoding="utf-8")
+    assert adapter.wait(timeout=10) == 0
+
+    assert files_model.read_json(page / "cursor.json") == {"seq": comment["seq"]}
+    assert service_model.page_claim(page) == successor
+    pickups = [
+        event for event in events_model.read_events(page) if event["kind"] == "pickup"
+    ]
+    assert len(pickups) == 1 and pickups[0]["events"] == [comment["id"]]
 
 
 def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(

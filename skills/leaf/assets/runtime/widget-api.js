@@ -1,5 +1,8 @@
 /* The one helper surface behavior modules import. Every capability is reexported from
    its domain owner; owners import one another, and leaf.js only boots. */
+import { requestAvailable, sendRequest, watchRequestLifecycle } from "./application.js";
+import { createDefineRequestElement } from "./request-elements.js";
+
 export { READER_VIEW_RESTORE_CASES } from "./restore-state.js";
 export {
   arrangeReadingElement,
@@ -48,14 +51,13 @@ export {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
-export {
-  actionAvailable,
-  actionStands,
+export { actionAvailable, actionStands, sendAction } from "./application.js";
+export { requestAvailable, sendRequest, watchRequestLifecycle };
+export const defineRequestElement = createDefineRequestElement({
   requestAvailable,
-  sendAction,
   sendRequest,
-} from "./application.js";
-export { watchRequestLifecycle } from "./application.js";
+  watchRequestLifecycle,
+});
 export { alignText, alignedNodes } from "./text-alignment.js";
 export {
   inChrome,

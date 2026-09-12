@@ -500,12 +500,31 @@ def test_the_local_benchmark_accepts_a_git_release(tmp_path, monkeypatch):
     release = "a" * 40
     output = tmp_path / "benchmark.json"
     monkeypatch.setenv("LEAF_BENCHMARK_OUTPUT", str(output))
+    monkeypatch.setenv(
+        "LEAF_SITE_AGENT_RUNNER", str(ROOT / "scripts/benchmark-site.py")
+    )
     monkeypatch.setattr(benchmark_site.sys, "argv", ["benchmark-site.py", release])
     monkeypatch.setattr(benchmark_site, "measure", lambda target: {"release": target})
 
     benchmark_site.main()
 
     assert json.loads(output.read_text()) == {"release": release}
+
+
+def test_a_deployed_benchmark_writes_the_origin_sample(tmp_path, monkeypatch):
+    origin = "https://leaf-website-dev.example"
+    output = tmp_path / "benchmark.json"
+    configured = []
+    monkeypatch.setenv("LEAF_BENCHMARK_OUTPUT", str(output))
+    monkeypatch.delenv("LEAF_SITE_AGENT_RUNNER", raising=False)
+    monkeypatch.setattr(benchmark_site.sys, "argv", ["benchmark-site.py", origin])
+    monkeypatch.setattr(benchmark_site, "configure_origin", configured.append)
+    monkeypatch.setattr(benchmark_site, "measure", lambda release: {"release": release})
+
+    benchmark_site.main()
+
+    assert configured == [origin]
+    assert json.loads(output.read_text()) == {"release": None}
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
@@ -544,7 +563,11 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "$LEAF" in website_server.CODEX_INSTRUCTIONS
     assert "structured `leaf_delivery` tool output" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF delivery read ID" in website_server.CODEX_INSTRUCTIONS
+    assert '$LEAF reply . --text "..."' in website_server.CODEX_INSTRUCTIONS
     assert "--for EVENT_ID" in website_server.CODEX_INSTRUCTIONS
+    assert "no separate `leaf publish` command" in website_server.CODEX_INSTRUCTIONS
+    assert "$LEAF version check" not in website_server.CODEX_INSTRUCTIONS
+    assert "$LEAF status" not in website_server.CODEX_INSTRUCTIONS
     assert (
         "$LEAF resolve . --to RESPONSE_CONVERSATION"
         in website_server.CODEX_INSTRUCTIONS
@@ -1182,6 +1205,39 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
     ] == [comment["id"]]
 
 
+def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    website_server.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+    [delivery] = website_server.accept_codex_delivery("hosted-thread")
+    (page_dir / "index.html").write_text("<main>unfinished")
+
+    with pytest.raises(ValueError):
+        website_server.WebsiteCodexHost("codex")._finish_turn(
+            page_dir,
+            "hosted-thread",
+            delivery["turn"],
+            {"id": "app-server-turn", "status": "completed", "error": None},
+        )
+
+    claim = website_server.page_claim(page_dir)
+    assert claim["turn"] == delivery["turn"]
+    assert claim["turn_closed"] is not None
+    assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
+    assert [
+        obligation["event"]
+        for obligation in website_server.full_state(page_dir, read_events(page_dir))[
+            "activity"
+        ]["obligations"]
+    ] == [comment["id"]]
+
+
 def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     comment = append_event(
         page_dir,
@@ -1201,6 +1257,8 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         for_event=comment["id"],
         identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
     )
+    with website_server.PageTransaction(page_dir) as page:
+        page.set_status("working", "Finishing")
     before = read_events(page_dir)
 
     website_server.WebsiteCodexHost("codex")._finish_turn(
@@ -1211,6 +1269,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     )
 
     assert read_events(page_dir) == before
+    assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
 
 
 def test_a_host_fallback_does_not_answer_input_an_agent_turn_already_claimed(
@@ -1237,6 +1296,23 @@ def test_a_host_fallback_does_not_answer_input_an_agent_turn_already_claimed(
     )
 
     assert reply is None
+
+
+def test_a_host_fallback_survives_an_invalid_candidate_source(page_dir):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    (page_dir / "index.html").write_text("<main>unfinished")
+
+    reply = website_server.WebsiteCodexHost("codex").fallback_reply(
+        page_dir,
+        comment["id"],
+        website_server.GENERATION_FAILURE_REPLY,
+    )
+
+    assert reply is not None
+    assert reply["responds"] == comment["id"]
 
 
 def test_a_fallback_waits_for_external_turn_acceptance_to_be_recorded(
@@ -1915,6 +1991,13 @@ class _Read:
         return self.body
 
 
+class _PostedHeaders(_Read):
+    """An intercepted browser POST whose body must remain the browser's to consume."""
+
+    def json(self) -> dict:
+        raise AssertionError("the verifier re-read the browser's POST response body")
+
+
 class _StateReads:
     """One Playwright request context standing in for a page that is being read."""
 
@@ -1992,7 +2075,7 @@ class _FailedFirstTurn:
         }
         self.comments.append(comment)
         request = SimpleNamespace(method="POST", post_data_json=data)
-        return _Read(
+        return _PostedHeaders(
             {"state": {"events": [comment]}},
             url=url,
             request=request,
@@ -2005,11 +2088,12 @@ class _FailedFirstTurn:
 
     def state(self) -> dict:
         events = [
+            *self.comments,
             {
                 "kind": "reply",
                 "parent": "comment-1",
                 "text": website_server.GENERATION_FAILURE_REPLY,
-            }
+            },
         ]
         if len(self.comments) < 2:
             return {

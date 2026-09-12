@@ -1,5 +1,5 @@
 /* A monitoring root shares Leaf's page-fit lifecycle while keeping its own asymmetric
-   minimum: compact overview, wide evidence, and a persistent exception column. */
+   minimum: one release panel beside the checks and log that explain its state. */
 import {
   arrangeReadingElement,
   fitRootReadingElement,
@@ -42,10 +42,9 @@ const minimumSize = (owner, content) => {
       frame.height + furnitureHeight + length(style, "--lf-monitor-body-min-height"),
     width:
       frame.width +
-      length(style, "--lf-monitor-overview-min-width") +
+      length(style, "--lf-monitor-release-min-width") +
       length(style, "--lf-monitor-evidence-min-width") +
-      length(style, "--lf-monitor-exception-min-width") +
-      2 * length(style, "--lf-monitor-gap"),
+      length(style, "--lf-monitor-gap"),
   };
 };
 

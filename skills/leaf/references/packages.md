@@ -70,10 +70,10 @@ previews, and one typed configuration action; `targeting` lets readers select pr
 elements and submit structured, reversible change proposals; `command-hub` adds multi-agent
 orchestration widgets; `pr-review` adds a typed pull-request brief with a safe Markdown
 description and compact checks table, plus a data-backed unified call diff; `monitoring`
-adds an asymmetric overview, evidence, and exception workspace; `visual-review` adds an
-ordered website run, aligned before-and-after evidence, local flip, side-by-side,
-opacity, fit, and actual-size inspection, exact preview links, and case dispositions.
-`gallery`
+adds a release workspace with current state, checks, a run log, and a bound rollback
+request; `visual-review` adds an ordered website run, aligned before-and-after evidence,
+automatic compare orientation, local flip and overlay, fit and captured-size inspection,
+exact preview links, and case dispositions. `gallery`
 adds the static gallery of page-edge action controls, disclosure controls, and status
 indicators used only by the developer feature gallery, so ordinary pages do not select it:
 
@@ -270,12 +270,24 @@ Ask projection uses the same condition for standing state. Do not add a second
 completed attribute or trust the browser's optimistic item count. Re-vendoring must
 preserve the completion condition for every recorded action.
 
+A composition allocates a Leaf element's outer box. The package owns how the element's
+contents use that allocation, based on its available inline size rather than the page
+shell or a reading posture. Prefer intrinsic grid or flex layout. When the contents need
+a discrete breakpoint, make the element a query container and apply the conditional
+rules to its descendants. A host rule inside that block does not fail: an unnamed query
+answers from the nearest ancestor container, and `body` is a container, so the rule
+silently follows the page shell instead. Keep the host's own layout intrinsic, or put
+the properties that change on a descendant layout box.
+
 A package is for behavior, styling, or vocabulary reused across pages. Page-specific
 behavior belongs in an authored inline module and needs no package entry. A CSS-only
 widget is an entry and a theme rule. One with reusable behavior takes a module.
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
-query private chrome, or duplicate a runtime helper inside itself. What the module owes:
+query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
+`/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
+generated images or links. It uses the page's public root across ordinary, MCP, and
+published pages while the source retains its canonical path. What the module owes:
 a total, idempotent `renderState(state)`; `sendAction` for recorded user state, with a
 detail matching the declared browser schema; `says()` over `textContent`; `offer()` and
 `relabel()` on anything injected, with its room reserved from inside `measure` and
@@ -349,6 +361,8 @@ The widget still owns its implementation: supporting modules can sit beside its 
 module and use relative imports, while third-party or data files can live under
 `vendor/`. `page init` carries both directories into the page with the registry and
 theme.
+
+### Commands and keyboard routes
 
 A widget contributes each command once with `commands(source, title, rows, options)`.
 The dispatcher, shortcut bar, command reference, `aria-keyshortcuts`, and Ask projection all
@@ -505,21 +519,36 @@ do not need package-specific request bookkeeping.
 }
 ```
 
-The module imports `sendRequest`, `requestAvailable`, and
-`watchRequestLifecycle` from `/runtime/widget-api.js`. The watcher receives the
-server-projected seat, ordered `{request, receipt}` attempts, latest attempt, and
-`ready`, `pending`, or `completed` phase. A failed receipt makes the seat ready again;
-a successful receipt completes it. A page holder gets a new seat in a new authored
-revision, while a holder in frozen thread markup keeps one seat for that document's
-whole lifetime. Requests are not replayable state and are not undoable; project them
-through that watcher instead of joining raw history or inventing a pending store.
-`watchHistory` remains the audit-log surface for widgets that intentionally render
-events themselves.
+The module imports `defineRequestElement` from `/runtime/widget-api.js` for the ordinary
+request-row shape. The package supplies its control, command, and status words while the
+shared element wires each offered child into the server-projected request seat, registers
+its answer, and paints its lifecycle. A package that needs another control shape uses
+`requestAvailable`, `sendRequest`, and `watchRequestLifecycle` directly. A failed receipt
+makes the seat ready again; a successful receipt completes it. A page holder gets a new
+seat in a new authored revision, while a holder in frozen thread markup keeps one seat
+for that document's whole lifetime. Requests are not replayable state and are not
+undoable. `watchHistory` remains the audit-log surface for widgets that intentionally
+render events themselves.
 
 ```js
-const stop = watchRequestLifecycle(this, (lifecycle) => render(lifecycle));
-if (requestAvailable(this, "restart"))
-  await sendRequest(this, "restart", { target: this.getAttribute("target") });
+defineRequestElement("lf-operations", {
+  itemTag: "lf-operation",
+  controlText: "Do this",
+  commandContext: "On a host operation",
+  commandPrefix: "operation",
+  commandText: (label) => ({
+    decision: label,
+    does: `Request ${label.toLowerCase()}`,
+    line: `request ${label.toLowerCase()}`,
+  }),
+  detail: (holder) => ({ target: holder.getAttribute("target") }),
+  statusText: (request, receipt) => {
+    const operation = request.action.replaceAll("-", " ");
+    return receipt
+      ? `${operation} ${receipt.status} · ${receipt.text}`
+      : `${operation} requested · waiting for the host`;
+  },
+});
 ```
 
 The host uses the durable request id as its idempotency and recovery key, then records

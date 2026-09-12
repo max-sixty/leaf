@@ -1,10 +1,9 @@
-/* The monitor keeps one asymmetric task view while the window can hold all three
- * regions. Flow and paper preserve the authored overview, evidence, exception order. */
+/* The monitor keeps the release state beside the checks and log that support it while
+ * the window can hold the arrangement. Flow and paper preserve release, checks, log. */
 lf-monitor {
-  --lf-monitor-overview-min-width: 176px;
-  --lf-monitor-evidence-min-width: 390px;
-  --lf-monitor-exception-min-width: 284px;
-  --lf-monitor-body-min-height: 330px;
+  --lf-monitor-release-min-width: 340px;
+  --lf-monitor-evidence-min-width: 480px;
+  --lf-monitor-body-min-height: 560px;
   --lf-monitor-gap: 1px;
 }
 
@@ -49,14 +48,55 @@ lf-monitor-region > .lf-reading-before h2 {
   margin: 0;
   font-size: var(--t-4);
 }
-lf-monitor-region[zone="overview"] lf-metrics {
-  grid-template-columns: 1fr;
+lf-monitor-region[zone="release"] lf-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-lf-monitor-region[zone="overview"] lf-metric {
+lf-monitor-region[zone="release"] lf-metric {
   padding: 8px 10px;
 }
-lf-monitor-region[zone="evidence"] lf-text-document {
+lf-monitor-region[zone="log"] lf-text-document {
   margin: 0;
+}
+lf-release-actions {
+  display: block;
+  margin: var(--sp-3) 0;
+}
+lf-release-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  font-family: var(--sans);
+  font-size: var(--t-5);
+}
+lf-release-action > strong {
+  display: block;
+  grid-column: 1;
+  margin-bottom: 4px;
+  color: var(--ink);
+}
+lf-release-action > p {
+  grid-column: 1;
+  margin: 2px 0 0;
+}
+lf-release-action > .lf-request-press {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+lf-release-action[data-lf-requested] {
+  border-color: var(--accent);
+}
+lf-release-actions > .lf-request-status {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: var(--t-6);
+}
+lf-release-actions > .lf-request-status[data-status="failed"] {
+  color: var(--danger-ink);
 }
 
 @media screen {
@@ -65,12 +105,44 @@ lf-monitor-region[zone="evidence"] lf-text-document {
     > lf-monitor-grid {
     display: grid;
     grid-template-columns:
-      minmax(var(--lf-monitor-overview-min-width), 0.72fr)
-      minmax(var(--lf-monitor-evidence-min-width), 1.65fr)
-      minmax(var(--lf-monitor-exception-min-width), 1fr);
+      minmax(var(--lf-monitor-release-min-width), .72fr)
+      minmax(var(--lf-monitor-evidence-min-width), 1fr);
+    grid-template-rows: minmax(17rem, 1.15fr) minmax(13rem, 1fr);
+    grid-template-areas:
+      "release checks"
+      "release log";
     gap: var(--lf-monitor-gap);
     height: 100%;
     background: var(--rule);
+  }
+
+  lf-monitor[data-lf-reading-posture="bounded"]
+    > .lf-reading-content
+    > lf-monitor-grid
+    > lf-monitor-region[zone="release"] {
+    grid-area: release;
+  }
+
+  lf-monitor[data-lf-reading-posture="bounded"]
+    > .lf-reading-content
+    > lf-monitor-grid
+    > lf-monitor-region[zone="checks"] {
+    grid-area: checks;
+  }
+
+  lf-monitor[data-lf-reading-posture="bounded"]
+    > .lf-reading-content
+    > lf-monitor-grid
+    > lf-monitor-region[zone="log"] {
+    grid-area: log;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  lf-monitor-region[zone="log"] lf-text-document pre {
+    overflow-x: visible;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
   }
 }
 

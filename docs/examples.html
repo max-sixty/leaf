@@ -94,9 +94,6 @@
         padding: 0;
         list-style: none;
       }
-      .specialized-catalog {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
       .example-link {
         display: block;
         color: inherit;
@@ -214,7 +211,7 @@
         <h1>A page for the next step</h1>
         <p class="lede" id="lede">
           Choose an example by what you want Leaf to do. Short pages cover everyday
-          work; larger examples for code, operations, and architecture follow.
+          work; larger examples for code review and live operations follow.
         </p>
         <p id="live">
           Open an example to try its controls in a private browser session.
@@ -230,7 +227,7 @@
           <li>
             <a class="example-link" href="/examples/triage-board/">
               <span class="example-preview">
-                <img src="/media/878d7ed1853ee7de.jpg" alt="" fetchpriority="high" />
+                <img src="/media/90075991b7c2e739.jpg" alt="" fetchpriority="high" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Release planning</span>
@@ -238,8 +235,8 @@
                   >Prioritize a board</span
                 >
                 <span class="example-description">
-                  Drag four defects into release order and keep the data-risk fix ahead
-                  of the cosmetic work.
+                  Move four defects between release windows. Keep the data-risk fix in
+                  2.4 and defer work that can wait.
                 </span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
@@ -272,7 +269,7 @@
           <li>
             <a class="example-link" href="/examples/release-notes/">
               <span class="example-preview">
-                <img src="/media/4b78d4cc5606dff8.jpg" alt="" loading="lazy" />
+                <img src="/media/a154f27a5c30c2c1.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Release notes</span>
@@ -293,7 +290,7 @@
           <li>
             <a class="example-link" href="/examples/log-retention/">
               <span class="example-preview">
-                <img src="/media/a1cf7a213e46d45d.jpg" alt="" loading="lazy" />
+                <img src="/media/27d5ef9ded316811.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Retention policy</span>
@@ -314,7 +311,7 @@
           <li>
             <a class="example-link" href="/examples/ship-review/">
               <span class="example-preview">
-                <img src="/media/ac3a70205721e563.jpg" alt="" loading="lazy" />
+                <img src="/media/aa29551cdf3ada57.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Offline editing</span>
@@ -335,7 +332,7 @@
           <li>
             <a class="example-link" href="/examples/heat-loss/">
               <span class="example-preview">
-                <img src="/media/ad892ff46e1b6071.jpg" alt="" loading="lazy" />
+                <img src="/media/3b9a85158176eac2.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Home heating</span>
@@ -343,8 +340,8 @@
                   >Compare options</span
                 >
                 <span class="example-description">
-                  Compare heat loss, cost, and disruption before choosing the first home
-                  improvement to book.
+                  Compare two commentable charts with quoted cost, lead time, and
+                  disruption before choosing the first improvement to book.
                 </span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
@@ -356,7 +353,7 @@
           <li>
             <a class="example-link" href="/examples/notification-playground/">
               <span class="example-preview">
-                <img src="/media/e79cfd0de2affe2e.jpg" alt="" loading="lazy" />
+                <img src="/media/02393cabbbcb6d06.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Deployment notice</span>
@@ -379,25 +376,22 @@
       <section class="catalog" id="specialized" aria-labelledby="specialized-title">
         <div class="catalog-prose">
           <h2 id="specialized-title">Specialized examples</h2>
-          <p>
-            Longer investigations and workspaces for code review, operations, and
-            architecture.
-          </p>
+          <p>Data-backed reports and workspaces for live operations and code review.</p>
         </div>
         <ul class="example-catalog specialized-catalog">
           <li>
             <a class="example-link" href="/examples/live-progress/">
               <span class="example-preview">
-                <img src="/media/de0db4e201c9bbc0.jpg" alt="" loading="lazy" />
+                <img src="/media/bb2c301d69fff0ab.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
-                <span class="example-index">Cutover rehearsal</span>
+                <span class="example-index">Active deployment</span>
                 <span class="example-title" role="heading" aria-level="3"
-                  >Monitor live work</span
+                  >Track a release</span
                 >
                 <span class="example-description">
-                  Keep rollback evidence and the unresolved finance exception in view
-                  while choosing containment safeguards.
+                  Keep the rollout state, release steps, named checks, live log,
+                  rollback request, notes, and code changes in one operational page.
                 </span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
@@ -409,7 +403,7 @@
           <li>
             <a class="example-link" href="/examples/pr-walkthrough/">
               <span class="example-preview">
-                <img src="/media/1b4717b3511496de.jpg" alt="" loading="lazy" />
+                <img src="/media/1952fa87d58170c6.jpg" alt="" loading="lazy" />
               </span>
               <span class="example-caption">
                 <span class="example-index">Worktrunk change</span>
@@ -417,8 +411,8 @@
                   >Review a pull request</span
                 >
                 <span class="example-description">
-                  Inspect a Worktrunk change through its captured patch, diagrams, and
-                  review evidence.
+                  Review a real Worktrunk change by jumping from a semantic call diff
+                  into its exact 46-file patch and commenting in place.
                 </span>
                 <span class="example-open"
                   >Open full page <span aria-hidden="true">↗</span></span
@@ -427,26 +421,6 @@
             </a>
           </li>
 
-          <li>
-            <a class="example-link" href="/examples/security-boundary/">
-              <span class="example-preview">
-                <img src="/media/4eaac844488b2312.jpg" alt="" loading="lazy" />
-              </span>
-              <span class="example-caption">
-                <span class="example-index">Disposable workspaces</span>
-                <span class="example-title" role="heading" aria-level="3"
-                  >Explain an architecture</span
-                >
-                <span class="example-description">
-                  A detailed case study of disposable agent workspaces, from threat
-                  model to implementation and review.
-                </span>
-                <span class="example-open"
-                  >Open full page <span aria-hidden="true">↗</span></span
-                >
-              </span>
-            </a>
-          </li>
           <!-- TODO(2026-09-09): Return Command Hub to the specialized catalog after
                simplifying its initial task/agent/worktree view and making the stopped
                goal and next action understandable without platform context.

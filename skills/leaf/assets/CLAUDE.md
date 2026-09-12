@@ -2,11 +2,11 @@
 
 This file holds the contracts that cross the browser runtime's modules: what boots in
 which order, what the server and the page each own, the registry's grains, the
-layer-wide UI laws, the page's own rows (`keyboard/page.js`), what a copy or print
-keeps, the render gates, and how to work on the runtime. Everything one module
-owns is stated in that module's header comment, and the map below names the owner of
-each concern, so read the header before changing the module. Page-authoring commands
-and markup rules live in `../references/page-authoring.md`; package authoring lives in
+layer-wide UI laws, what a copy or print keeps, the render gates, and how to work on
+the runtime. Everything one module owns is stated in that module's header comment, and
+the map below names the owner of each concern, so read the header before changing the
+module. Page-authoring commands and markup rules live in
+`../references/page-authoring.md`; package authoring lives in
 `../references/packages.md`. The repository-level `CLAUDE.md` owns the rules that cross
 the JavaScript and Python runtimes, under "Cross-runtime invariants": the document
 starts state and the log changes it, each input is validated once and its reading
@@ -74,6 +74,8 @@ ended, and the pending ledger's unresolved attempts — painted on the root elem
 `data-lf-traffic` for whatever waits on the page from outside it;
 `runtime/requests.js` owns typed one-shot request availability, sending, and the
 server-projected request lifecycle watcher;
+`runtime/request-elements.js` owns shared request-control wiring, locking, selection,
+and receipt-state mechanics while each package supplies its words and bound detail;
 `runtime/asks/model.js` owns request discovery, folding, and the semantic Ask
 subscription;
 `runtime/asks/view.js` owns Ask chrome, marking, the Ask walk, and
@@ -116,21 +118,8 @@ sending, keyboard mode, and reaction-specific undo wording;
 `runtime/data.js` owns external-data acceptance, readiness, and source-contract
 subscriptions;
 `runtime/drafts.js` owns durable draft generations and cross-tab reconciliation;
-`runtime/keyboard/` owns keyboard binding vocabulary and scoped interaction:
-`bindings.js` the spelling, parsing, row fields, and checks; `scopes.js` where a group
-of rows applies; `register.js` the declared page scopes; `dispatch.js` which scope
-answers a press and what it owes the platform; `controller.js` the physical key listener
-and mode transitions; `text-entry.js` the input and composition readings; `return-stack.js` what a keyboard entry owes on the way back out, using the
-origin its caller captured before executing the command;
-`shortcut-bar.js` the short help at the foot of the page, its More control, the useful
-status opposite it or stacked above it when room is tight, and the shared reading of
-their rendered boxes;
-`command-reference.js` the complete command listing behind `?`; `go-to-sequence.js` the Go-to sequence;
-`key-badge-placement.js` shared target visibility and the numeric Ask key-badge placement pass;
-`hints.js` prefix-free transient labels and their no-drop placement pass;
-`presentation.js` how a sequence row's presses are shown;
-`runtime/keyboard/disclosure.js` owns the shared disclosure bindings and the
-disclosure watch; `runtime/keyboard/page.js` owns the page's own scopes and rows;
+`runtime/keyboard/CLAUDE.md` owns keyboard binding vocabulary, scope resolution, page
+grammar, and the map of keyboard modules;
 `runtime/notifications.js` owns visual and assistive announcements and the notice
 element the bottom status seats;
 `runtime/restore-state.js` owns the browser-state arrangements the arrival gate exercises;
@@ -601,12 +590,13 @@ underline or ring on the same selected control; the second edge reads as a stray
 In a segmented group, keep one-pixel shared seams and let fill, ink, or one outline make
 the selection distinct without adding another line inside it.
 
-Agent ownership colors the existing semantic margin control: pickup is blue, working
-is green with an inset double ring and one arrival pulse. A separate Activity control
-appears only when no semantic carrier exists. Conversation receipts carry the local
-claim beside its triggering message; thread cards do not repeat that ownership as a
-colored edge. Quiet or ended claims release ownership. Reduced motion suppresses arrival,
-and repainting or replacing a carrier cannot replay it.
+Agent ownership decorates the existing semantic margin control: pickup uses a green icon,
+moving any positive or negative tone to the existing contour; working colors its
+interior green and pulses once on arrival. A separate Activity control appears only when
+no semantic carrier exists. Conversation receipts carry the local claim beside its
+triggering message; thread cards do not repeat that ownership as a colored edge. Quiet
+or ended claims release ownership. Reduced motion suppresses arrival, and repainting or
+replacing a carrier cannot replay it.
 
 Submission feedback uses the shared lifecycle: the result of the gesture as durable
 confirmation, and `notice` for a transient acknowledgment. Persistent status text is for
@@ -624,206 +614,6 @@ because a later write replaces the live region rather than joining it. A gesture
 result only the log can supply waits instead, with
 `aria-busy` on the surface, which `chrome.css` paints on a delay so a fast answer shows
 nothing at all.
-
-## Keyboard, focus, and navigation
-
-One register defines every runtime and widget key. A row binds keys, states what
-the press does, decides when it is live, and runs it. A scope says where a group
-of rows applies and which platform keys that context claims. The dispatcher,
-shortcut bar, `?` reference, control tooltips, and announcements are projections of
-those objects.
-
-Escape has one additional semantic order that declaration position cannot change. An
-active core mode marked `escape: "inner"` and an exact focused element may consume its
-own inner step first. The latest eligible command return frame follows, then ordinary
-scene-derived and containing-scope fallbacks. Browser-owned modal and popover boundaries
-are applied outside that order, so a covered frame remains suspended and an unhandled
-native dismissal reaches the platform.
-
-Treat that register as a product grammar, not a collection of locally convenient
-shortcuts. A binding belongs only when its key is the canonical spelling for that action
-in the active scope. Reusing a key in a nearer scope must preserve that meaning; a
-familiar alternative or an unused key does not justify an alias, because every binding
-spends the scope's namespace. Before adding or changing a binding, survey the complete
-register for meaning, scope, native overlap, entry and exit symmetry, and focus
-restoration.
-Each generated hint names the exact visible control it activates. An aggregate location
-may expose each of its visible margin entries or focus itself; it never selects a descendant
-action for the reader. A press a widget built is one of those controls too, read off the
-value `offer` and `selectableOffer` write: the tag for a button, the type for a native
-checkbox or radio, or the role for a selectable offer. This lets a capability decline a
-page letter without becoming unreachable. The row states the capability, and the sequence
-reaches each control that routes to one. The reading stops where the theme's hand stops,
-because it is the same reading.
-Document every inconsistency the survey exposes in the task handoff. If the rules
-here do not settle one, escalate it to the user before choosing locally; the
-absence of a dispatch conflict does not make a binding precise.
-
-A sequential key route is rendered as one box per physical step. The boxes stay close
-enough to read as one route. In an active mode, only the longest leading sequence that
-matches presses the mode accepted wears the pressed face; another route's next key stays
-neutral. A visible control's transient destination uses the same detached overlay shape as
-a generated target hint. The placement pass centers it in the open space immediately below
-and keeps it clear of its control if it must use another side. It stands only while its sequence
-is active; the complete reference and control tooltip keep the route available at rest.
-
-The complete reference gives each distinct filter or destination its own command row.
-Search preserves a typed trailing separator and case: a query such as `g ` asks for sequence
-continuations, and `g t` ranks the lowercase filter ahead of `g T`. Every declared
-alternative is indexed from the register even when its rendered cell compacts alternatives
-into one face. All binding-prefix matches lead the result list across scopes; prose and
-scope matches follow them. The visible row order is the keyboard command-rail order too.
-
-### Page scope rows (keyboard/page.js)
-
-The register owns capabilities, not controls. Every capability the chrome offers
-has a row, and each control that reaches one is named by `control`; a
-control is a route to a capability rather than a capability of its own, so a
-second route needs no second row. A run heading in the thread panel presses the
-page to where that run is about. That travel is a capability, just as `w` and `/`
-are capabilities nothing else reaches, and each earns a row. A capability with
-no row is one the shortcut bar never advertises,
-the reference never lists, and a reader working from the keyboard never finds,
-because those three are projections of the register. Add the row in the change
-that adds the capability.
-
-Directional category walks use the category's letter, with case stating direction:
-lowercase advances and Shift goes back. `t`/`T` walks open threads and `a`/`A`
-walks open asks. Both walks clamp at their first and last destinations. Keep these as single-key
-presses rather than prefix sequences; a walk is often repeated or held. The thread walk
-uses inline thread roots while Threads is closed and panel cards while it is open; only a
-thread with no page or widget-local inline destination opens the complete index as a fallback.
-An active textual search in the thread panel instead owns `n`/`N`: those keys enter the
-found list from its container and then walk its matches, while `t`/`T` stands down so the
-motion has one spelling in that scope. For page search, Enter accepts the current match and
-`n`/`N` walks the next or previous one. Letters remain query text while a search input has
-focus; Tab and Shift-Tab walk page-search matches before acceptance.
-While the reader stands anywhere in an Ask, core gives each of its widget's ordered
-actions an independent contextual `1`–`9` route. An intrinsic widget route such as
-ArrowLeft or Mod+Enter remains unchanged and takes precedence only while focus stands in
-the widget scope that declares it. Core projects the reachable digit list into the
-shortcut bar and visible control chips. Each digit points to the original command by
-stable identity and source scope; it does not copy the command's callback or replace its
-intrinsic binding. Dispatch, the command reference, the shortcut bar, its binding badge,
-and `aria-keyshortcuts` therefore share one command and one invocation path. A package may
-lend one empty binding-badge face per action. Core uses it only while the whole face is
-visible, uncovered, and claimed by that action alone; otherwise core draws its own badge.
-Tab walks the real controls without replacing the action map. `j`/`k` scroll
-down/up by 60 pixels; `d`/`u` move 60% of
-the reading page. Both follow the active region, share a quick glide, and jump under
-reduced motion. Native Space stays with the platform and focused controls. Other letters come
-from words the surface says: `w` narrows to threads waiting on the reader while focus is
-in that panel, and enters Draw mode from the page. The Go-to sequence
-(`keyboard/go-to-sequence.js`) uses uppercase letters for named destinations and lowercase
-letters for target-kind filters and generated hints. `g t` and `g a` filter to visible
-Thread and Ask controls; their uppercase counterparts open the complete panels. `g m`
-contains every visible margin control and status indicator. A key spelling something
-nothing on screen says is a key nobody reaches for twice.
-Approval spends no fixed page letter: its visible button stays in the Tab order and takes
-native Enter or Space, while the Ask-local list gives it a contextual binding. A nearer
-scope owns every ordinary key for which it implements a Leaf invocation while that scope
-stands, even when the matching command is unavailable, so a state change cannot make the
-same press fall through into an outer operation. Escape remains the semantic unwind: a
-dead inner Escape declaration cannot strand the next live return. A row without `run` is
-presentation-only: it may name a native press or reword a shared outer handler, and does
-not shadow that handler.
-
-In Leaf's outer page grammar, `c` means commenting. A nearer focused scope may declare
-`c` for its own operation; an undeclared `c` continues outward to Comment. Enter keeps
-native activation or text editing, and the focused control's local continuation. A page
-option mark is a checkbox and toggles with
-Space or its Ask digit; it gives Enter no second meaning. The Another option field is an
-ordinary Tab stop and takes the next Ask digit after the authored options when one of the
-nine addresses remains. It follows the same text-box contract as every other textarea:
-Enter writes a newline and Mod+Enter adds the option. In a thread there is no second add
-form, so Enter from its option mark continues into the thread's existing reply.
-
-A row whose press turns a mode on and off states the mode rather than the toggle.
-`does` and `line` are functions of whether it stands, so the sentence says which
-way this press will go. When turning it on is an entry, its `returnFrame` states
-Escape's inverse rather than a second row guessing from the resulting scene.
-
-Which scope a row belongs to follows from what its press acts on. The page holds
-the presses whose subject is the page: `/` searches its text, `n`/`N` repeats that
-search, `s` names its visible
-addressable elements, `c` comments on it, `t`/`T` and `a`/`A` walk its open sets, `j`/`k` and `d`/`u` move its
-reading, and `g` opens its destinations. A surface holds the presses
-whose
-subject is that surface's own
-contents, because contents the reader is not looking at are not a thing to act
-on: `w` narrows the thread panel's list, while `/` searches it and `n`/`N` walk
-the results. Those bindings live in `PANEL`. The page's alphabet is small and every
-letter spent there is spent on every page, so a letter earns page scope only by acting
-on the page.
-
-Element-scope precedence follows focused composed-tree ancestry, not package load order
-or a reserved key list. An exact control or active mode stands first, then its nearest
-widget scope, ancestor widget scopes, Leaf's contextual and page scopes, and finally the
-browser. An element scope receives first refusal only for bindings whose rows implement
-Leaf invocation; every other key continues outward. Its implemented declaration owns
-precedence while the scope stands, while row liveness controls whether anything runs or
-is advertised. Leaf's static page tables are peers at one outer level and retain their
-live-command order. Native text and editing claims stand between an exact control scope
-and ancestor widgets, so a focused editor keeps characters, caret movement, and
-composition without preventing an exact Mod+Enter or Escape declaration.
-
-A surface may also hold the contextual form of a page intent. `c` always means
-comment; its destination follows what the reader is standing on. From the Threads
-list the panel row enters the page-comment box. Everywhere the page has a nearer
-answer—a selection, addressable element, or conversation—the page row enters that box instead.
-The rows are mutually exclusive, so the register never asks the reader to choose
-between two meanings for `c`.
-
-Each composition box's placeholder — the general box, each per-thread reply, the compact
-anchored composer, and composition boxes contributed by widgets — adds the live key that
-enters that exact box when one exists. Once focused, it adds the box's registered
-submission sequence. The accessible name states the box's purpose without either key, and
-placeholder text uses the theme's muted text color at full opacity.
-
-That the page row reaches into Threads is not an exception. Page scope already crosses
-surfaces: `t`/`T` can land on inline or panel thread cards, and `a`/`A` can land on an ask
-an agent sent inside a thread. A page key that takes the reader somewhere owes them an
-answer once they are standing there. The destination, label, command, and return frame
-all come from `commentDestination`, so the same contextual reading governs every projection.
-
-The destination is the anchor the 💬 carries, then the open thread the reader is
-in or the single inline thread held by a pressed Page Map marker, then the element they are
-standing in, and, when none of those is in hand, the page-comment box.
-`commentDestination` decides it once and states the
-sentence, return frame, shortcut bar and press together, so the reference, the line,
-what happens, and the way back cannot come to spell it differently. The pointer's answers outrank
-the standing: a selection or a raised 💬 is the more recent thing the reader
-said. `standingElement` and `standingConversation` are what "standing" means here,
-and **Standing somewhere** below owns that reading.
-
-The page-comment box lives in the Threads panel, but entering it does not mean “open
-Threads”: `g T` owns that destination and lands on the list where `w` and `/` remain
-reachable. `c` opens the panel only as the implementation container its requested box
-needs, focuses the cursor immediately, and records the prior auxiliary surface in one frame.
-Escape therefore returns directly to the exact prior control or reading place. From an
-already-entered Threads list, `c` adds one nested frame and Escape returns to that list.
-A resolved thread has no reply box, so the general box is the honest contextual answer.
-
-The addressable element's box is the composer, on the element, and not a widget's own conversation
-seat even where it has one. `commentOnTarget` writes the anchor `renderConversations`
-collects, so the remark lands in that seat's conversation by either route; reaching
-into the seat instead means escaping an author-written id into a selector, asking
-whether the box can take focus, and choosing among the boxes a seat holds once it
-carries threads. One route answers those by not asking them.
-
-`LINK` and `DISCLOSURE` describe the platform controls a reader may land on and the
-immediate word for their next press. A fold reached by a generated hint lands on its
-summary after opening it; a link reached through Tab still says that Enter follows it.
-A summary says whether it will open or close from its current state. This avoids one scope per
-native tag while keeping the next press visible.
-
-### Standing somewhere
-
-A press that acts on where the reader is standing reads it through
-`standingElement`: the unanswered Ask where focus is on a control that works it — a
-pick, a ✓, a mark — an answered Ask on its explicit review arrival, and the
-innermost addressable element everywhere else, which is the ⌥ aim's own reading. It answers nothing
-in ordinary chrome, where a reader is working on the page rather than standing in it.
 
 ## Standalone copies and print
 

@@ -370,7 +370,8 @@ customElements.define(
       });
       this.#dialog.addEventListener("close", () => {
         if (this.#dialog.open) return;
-        this.#closeExpandedInspection();
+        this.#returnExpandedInspection();
+        this.#finishReturn?.();
       });
       this.append(this.#dialog);
     }
@@ -401,16 +402,10 @@ customElements.define(
       this.#scheduleEvidenceLayout();
     }
 
-    #closeExpandedInspection() {
-      this.#returnExpandedInspection();
-      this.#finishReturn?.();
-    }
-
     #returnExpandedInspection() {
       const place = this.#expandedPlace;
       if (!place) return;
       const wasOpen = this.#dialog.open;
-      if (wasOpen) this.#dialog.close();
       place.workspaceContent.append(this.#partition);
       place.workspaceContent.style.minHeight = place.minimumHeight;
       this.#expandedPlace = null;
@@ -432,7 +427,8 @@ customElements.define(
         place.scroller.style.overflowAnchor = place.overflowAnchor;
       };
       this.#finishReturn = finish;
-      if (!wasOpen) finish();
+      if (wasOpen) this.#dialog.close();
+      else finish();
     }
 
     #buildInspector() {

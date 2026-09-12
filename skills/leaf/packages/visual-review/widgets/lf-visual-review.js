@@ -107,7 +107,22 @@ customElements.define(
     #inspector = null;
     #layoutFrame = null;
     #mode = "compare";
-    #onResize = () => this.#scheduleEvidenceLayout();
+    #onResize = () => {
+      this.#scheduleEvidenceLayout();
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement) || !this.contains(active)) return;
+      const fitted = this.#fitting?.update();
+      if (!fitted) return;
+      void fitted.then(
+        () => {
+          requestAnimationFrame(() => {
+            if (document.activeElement === active && active.isConnected)
+              active.scrollIntoView({ block: "nearest", inline: "nearest" });
+          });
+        },
+        (error) => failSoft(this, error),
+      );
+    };
     #opacity = 50;
     #progress = null;
     #queue = null;

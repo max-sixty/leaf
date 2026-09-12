@@ -363,7 +363,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     field = reader.locator(".lf-fab-input")
     expect(field).to_be_focused()
     reader.keyboard.type("Restore Back to releases")
-    resized(reader, 540, 760)
+    resized(reader, 390, 760)
     expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
     expect(field).to_have_value("Restore Back to releases")
     assert_keyboard_focus(field)

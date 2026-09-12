@@ -418,15 +418,19 @@ export function createSelectionComposer({
       // the old Alt-click promise without replacing independent work already held at
       // the destination or making a reader's next selection silently re-anchor a draft.
       const held = text ? null : loadDraft(ctx);
-      if (held) {
-        const record = JSON.parse(held);
-        ({ text, suggest, about } = record);
-        if (!drawingSupplied) drawing = record.drawing ?? null;
-      } else if (carry && (previousText || previousDrawing)) {
+      const record = held ? JSON.parse(held) : null;
+      const carrying =
+        carry &&
+        (previousText || previousDrawing) &&
+        !(record?.text || validDrawing(record?.drawing));
+      if (carrying) {
         clearDraft(previousCtx);
         text ||= previousText;
         if (!drawingSupplied) drawing = previousDrawing;
         carriedDraft = true;
+      } else if (record) {
+        ({ text, suggest, about } = record);
+        if (!drawingSupplied) drawing = record.drawing ?? null;
       } else if (!drawingSupplied) drawing = null;
     }
     pendingAnchor = anchor || null;

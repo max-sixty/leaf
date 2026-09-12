@@ -9024,7 +9024,14 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     )
     seen = """() => {
       const r = document.querySelector('#card0').getBoundingClientRect();
-      return {left: Math.round(r.left), onScreen: r.right > 0 && r.left < innerWidth};
+      const b = document.querySelector('#b').getBoundingClientRect();
+      return {
+        left: Math.round(r.left),
+        onScreen: r.right > 0 && r.left < innerWidth,
+        visible: Math.max(0, Math.min(r.right, b.right, innerWidth)
+          - Math.max(r.left, b.left, 0)),
+        width: r.width,
+      };
     }"""
 
     # The control: nothing scrolled, so the card is in front of the reader and stays put.
@@ -9037,6 +9044,26 @@ def test_c_travels_to_an_item_its_own_scroller_has_taken_away(browser, serve):
     assert page.evaluate(seen)["left"] == was["left"], (
         "the page moved under a reader who could already see the card"
     )
+    assert errors == []
+    page.close()
+
+    # The same stale standing with only the board's next-item cue left in view. The
+    # sliver is enough for the target to exist, but not enough to place its box against.
+    page, errors = open_page(browser, url)
+    page.locator("#card0 a").focus()
+    page.evaluate(
+        """() => {
+          const card = document.querySelector('#card0');
+          document.querySelector('#b').scrollLeft = card.getBoundingClientRect().width - 7;
+        }"""
+    )
+    was = page.evaluate(seen)
+    assert 0 < was["visible"] < was["width"] / 4, was
+    page.keyboard.press("c")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    now = page.evaluate(seen)
+    assert now["visible"] == pytest.approx(now["width"], abs=1), now
+    assert errors == []
     page.close()
 
     # Carried out of its own scroller after the reader stood on it — focus first, because

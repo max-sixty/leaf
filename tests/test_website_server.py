@@ -110,8 +110,8 @@ class FakeCodexHost:
             identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
         )
 
-    def respond(self, page_dir: Path, event_id: str, text: str) -> dict:
-        self.responded.append((page_dir, event_id, text))
+    def respond(self, page_dir: Path, event_id: str, text: str, **target) -> dict:
+        self.responded.append((page_dir, event_id, text, target))
         return {"id": "fast-reply"}
 
 
@@ -570,6 +570,24 @@ def test_the_private_reply_client_resolves_manifest_routes(tmp_path):
         page_dir.mkdir(parents=True, exist_ok=True)
         expected = "" if route == "/" else route
         assert website_reply.published_route(page_dir) == expected
+
+
+def test_the_private_reply_client_carries_a_new_thread_target():
+    assert website_reply.response_payload(
+        [
+            "reader-event",
+            "Moved the thread.",
+            "--section",
+            "result",
+            "--part",
+            "chart",
+        ]
+    ) == {
+        "event": "reader-event",
+        "text": "Moved the thread.",
+        "section": "result",
+        "part": "chart",
+    }
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
@@ -1404,7 +1422,11 @@ def test_a_claimed_website_turn_replies_through_the_running_adapter(page_dir):
     website_server.accept_codex_delivery("hosted-thread")
 
     reply = website_server.WebsiteCodexHost("codex").respond(
-        page_dir, comment["id"], "Done."
+        page_dir,
+        comment["id"],
+        "Done.",
+        quote="The cutoff lives in",
+        section="plan",
     )
 
     assert reply["parent"] == comment["id"]
@@ -1412,6 +1434,9 @@ def test_a_claimed_website_turn_replies_through_the_running_adapter(page_dir):
     assert reply["text"] == "Done."
     assert reply["session"] == "hosted-thread"
     assert reply["attempt"] == website_server.agent_attempt(comment["id"])
+    assert reply["revision"] == 1
+    assert reply["anchor"]["section"] == "plan"
+    assert reply["anchor"]["quote"] == "The cutoff lives in"
 
 
 def test_a_host_fallback_survives_an_invalid_candidate_source(page_dir):
@@ -1624,12 +1649,19 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             {
                 "event": comment["id"],
                 "text": "This uses the private adapter.",
+                "quote": "The cutoff lives in",
+                "section": "plan",
             },
             {"Authorization": "Bearer adapter-secret"},
         )
         assert responded == {"status": "appended", "event": "fast-reply"}
         assert agent_host.responded == [
-            (published, comment["id"], "This uses the private adapter.")
+            (
+                published,
+                comment["id"],
+                "This uses the private adapter.",
+                {"quote": "The cutoff lives in", "section": "plan", "part": ""},
+            )
         ]
 
         monkeypatch.setenv("LEAF_AGENT", "Leaf guide")

@@ -209,10 +209,10 @@ tree. Pull requests and main run that gate plus the website-worker checks. Tend
 adds focused tests during review. A daily CI run exercises the complete suite in
 one job.
 
-That suite reads one file under `worker/`: `tests/test_website_server.py` loads
-`worker/server.py` and drives the route adapter, and pre-commit's ruff hooks
-take it as they take every other Python file. Nothing on either landing path
-parses `worker/src/`: pre-commit's whitespace and typos hooks take those files,
+That suite reads the Python adapter under `worker/`: `tests/test_website_server.py`
+loads `worker/server.py` and `worker/reply.py` and drives their route, and pre-commit's
+ruff hooks take them as they take every other Python file. Nothing on either landing
+path parses `worker/src/`: pre-commit's whitespace and typos hooks take those files,
 but its prettier and eslint hooks take JavaScript and HTML rather than
 TypeScript. So a TypeScript change carries no gate until `ci`'s
 `test` job runs it, which on a `wt merge` is after main has already moved. Run

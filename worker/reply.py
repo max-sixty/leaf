@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Post one hosted reply to the already-running Leaf adapter."""
 
+import argparse
 import json
 import os
 import sys
@@ -35,16 +36,28 @@ def published_route(page_dir: Path) -> str:
     return "" if routes[0] == "/" else routes[0]
 
 
+def response_payload(arguments: list[str]) -> dict[str, str]:
+    """Parse the canonical reply fields the hosted adapter accepts."""
+    parser = argparse.ArgumentParser(prog="$LEAF_REPLY")
+    parser.add_argument("event")
+    parser.add_argument("text")
+    parser.add_argument("--quote", default="")
+    parser.add_argument("--section", default="")
+    parser.add_argument("--part", default="")
+    parsed = vars(parser.parse_args(arguments))
+    return {
+        key: value for key, value in parsed.items() if key in {"event", "text"} or value
+    }
+
+
 def main() -> None:
-    if len(sys.argv) != 3:
-        fail("usage: $LEAF_REPLY EVENT_ID TEXT")
-    event, text = sys.argv[1:]
+    payload = response_payload(sys.argv[1:])
     route = published_route(Path.cwd())
     token_path = Path(os.environ["LEAF_REPLY_TOKEN"])
     token = token_path.read_text(encoding="utf-8")
     request = urllib.request.Request(
         f"http://127.0.0.1:8080{route}/_leaf/agent/respond",
-        data=json.dumps({"event": event, "text": text}).encode(),
+        data=json.dumps(payload).encode(),
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",

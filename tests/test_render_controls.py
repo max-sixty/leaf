@@ -1313,6 +1313,34 @@ def test_a_phone_banner_folds_its_controls_into_one_menu(browser, serve, other_l
     page.close()
 
 
+def test_ask_banner_controls_keep_identity_and_focus_when_the_shelf_folds(
+    browser, serve, other_leaf
+):
+    """The shelf moves each Lit-faced native control and hands folded focus to its door."""
+    html = SUGGESTION_PAGE.replace(
+        "<title>suggestions</title>",
+        '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
+    )
+    url = serve(html)
+    panel_comment(serve.page_dir, "Is this ready?", author="claude")
+    page, errors = open_page(browser, url)
+    resized(page, 1440, 900)
+    answer_all = page.locator(".lf-answer-all")
+    expect(answer_all).to_be_visible()
+    page.evaluate(
+        "button => { window.__lfBulkControl = button; }", answer_all.element_handle()
+    )
+    answer_all.focus()
+
+    resized(page, 390, 900)
+    expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
+    expect(page.locator(".lf-banner-more")).to_be_focused()
+    assert answer_all.evaluate("button => button === window.__lfBulkControl")
+    assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
+    assert errors == []
+    page.close()
+
+
 def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, serve):
     """The dot going red is not an announcement.
 

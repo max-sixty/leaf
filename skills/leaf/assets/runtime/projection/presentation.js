@@ -4,13 +4,13 @@
    former changes as soon as a local action is staged or an authoritative view arrives;
    the latter changes only after the current widget nodes accepted a complete render.
    One presentation instance owns the commit maps, optimistic staging, coordinate
-   proof, release decisions, authored-page reset, and drag deferral observer. Stateless
-   view normalization and DOM signature/read adapters remain direct exports. */
+   proof, release decisions, authored-page reset, and drag deferral observer. It adapts
+   one complete publisher snapshot; only DOM signature/read adapters remain direct
+   exports. */
 import { authoredStates, domFacet } from "./authored.js";
-import { foldProjection, foldWidgetStates, projectionOrigins } from "./model.js";
+import { projectionOrigins } from "./model.js";
 import { currentProjection, setProjectionDeferred } from "./state.js";
-import { applicationState, readApplication } from "../semantic-state.js";
-import { pendingProjectionEntries } from "../pending/model.js";
+import { applicationState, selectWidgets } from "../semantic-state.js";
 import { stateSpecs } from "../registry.js";
 import { runtime } from "../context.js";
 import {
@@ -30,56 +30,6 @@ import { reportPageError } from "../layer-client.js";
 import { failSoft } from "../widget-upgrade.js";
 
 const { registry } = runtime;
-
-const coordinateKey = (coordinate) => JSON.stringify(coordinate);
-const domValue = (value, record) =>
-  record?.kind === "attribute" ? value.join(" ") : value;
-
-function normalize({ view, conversation, pendingEntries, receipts }) {
-  const entries = [];
-  const actionIds = [];
-  const reportIds = [];
-  const desiredIds = [];
-  const projections = [view?.document?.projection, conversation?.projection].filter(
-    Boolean,
-  );
-  for (const projection of projections) {
-    for (const wire of projection.entries ?? []) {
-      const e = wire.event;
-      const coordinate = coordinateKey(wire.coordinate);
-      const widget = elementById(e.widget);
-      const channel = e.kind === "action" ? "x-state" : "x-report";
-      const spec = widget && registry[widget.localName]?.[channel]?.[e.action];
-      entries.push(
-        spec
-          ? {
-              coordinate,
-              e,
-              restated: wire.restated ?? [],
-              scope: wire.scope,
-              spec,
-              unit: wire.coordinate[1],
-              value: domValue(wire.value, spec.record),
-            }
-          : { coordinate, e, scope: wire.scope, terminal: true },
-      );
-    }
-    actionIds.push(...(projection.actions ?? []));
-    reportIds.push(...(projection.reports ?? []));
-    desiredIds.push(...(projection.desired ?? []));
-  }
-  return foldProjection({
-    entries,
-    actionIds,
-    reportIds,
-    desiredIds,
-    coverage: view?.coverage ?? [],
-    pendingEntries: pendingProjectionEntries(pendingEntries, receipts),
-  });
-}
-
-export const projectionFromView = (view, conversation) =>
-  normalize({ view, conversation, pendingEntries: [], receipts: [] });
 
 const committedEvent = (commit) => commit?.entry?.e.id ?? null;
 
@@ -248,14 +198,14 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     });
   }
 
-  function presentCurrent(input) {
-    const projection = currentProjection();
+  function presentCurrent(snapshot) {
+    const projection = snapshot.effective.projection;
     // Before the first state or the offline fallback, authored capture has completed
     // but the application still cannot know whether an action is available. Surface
     // registration may invalidate the DOM in that interval. Publish the desired record
     // for readers, but leave the widget uncommitted so ready/offline presentation must
     // render it instead of treating this provisional authored state as current.
-    if (input.phase === "waiting") {
+    if (snapshot.phase === "waiting") {
       setProjectionDeferred(true);
       return projection;
     }
@@ -272,7 +222,7 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? [])
         elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
-    for (const [widgetId, { state, entries }] of readApplication().effective.widgets) {
+    for (const [widgetId, { state, entries }] of snapshot.effective.widgets) {
       const widget = elementById(widgetId);
       if (!widget) continue;
       const key = JSON.stringify(state);
@@ -294,8 +244,6 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
           );
           failSoft(widget, error);
           renderSettlement(widget, state);
-          setProjectionDeferred(true);
-          continue;
         }
         committedWidgets.set(widgetId, { widget, key });
         painted = true;
@@ -322,7 +270,13 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     renderQuiet(document.body, originTargets);
     document.body.setAttribute(
       PAGE_PAINT_ATTRIBUTE.applied,
-      String(projectionCoverage(projection, input.view?.coverage)),
+      String(
+        projectionCoverage(
+          projection,
+          snapshot.authoritative?.browser.views[String(snapshot.document.revision)]
+            ?.coverage,
+        ),
+      ),
     );
     if (painted)
       Promise.allSettled(
@@ -334,12 +288,12 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     return projection;
   }
 
-  function present(input) {
+  function present(snapshot) {
     const prior = runtime.restoringState;
-    if (input.pendingEntries.some((entry) => entry.rejected && entry.projection))
+    if (snapshot.unresolved.some((entry) => entry.rejected && entry.projection))
       runtime.restoringState = true;
     try {
-      return presentCurrent(input);
+      return presentCurrent(snapshot);
     } finally {
       runtime.restoringState = prior;
     }
@@ -389,28 +343,14 @@ export function shallowSigs(root) {
 }
 
 export function standingState(eventIds = null) {
-  const projection = currentProjection();
-  const desired =
-    eventIds === null
-      ? projection
-      : {
-          ...projection,
-          desired: new Map(
-            [...projection.desired].filter(([, entry]) =>
-              new Set(eventIds).has(entry.e.id),
-            ),
-          ),
-        };
-  return [...foldWidgetStates(authoredStates(), desired)].map(
-    ([id, { state, specs }]) => ({
-      get widget() {
-        return elementById(id);
-      },
-      state,
-      read: () =>
-        [...specs]
-          .filter(([, spec]) => spec.record?.kind === "body")
-          .map(([facet, spec]) => [facet, domFacet(elementById(id), spec.record)]),
-    }),
-  );
+  return [...selectWidgets(eventIds)].map(([id, { state, specs }]) => ({
+    get widget() {
+      return elementById(id);
+    },
+    state,
+    read: () =>
+      [...specs]
+        .filter(([, spec]) => spec.record?.kind === "body")
+        .map(([facet, spec]) => [facet, domFacet(elementById(id), spec.record)]),
+  }));
 }

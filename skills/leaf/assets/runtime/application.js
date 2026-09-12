@@ -17,7 +17,6 @@ import {
 import { paintKeys } from "./keyboard/scopes.js";
 import { pendingTraffic } from "./traffic.js";
 import { createPendingLedger } from "./pending/state.js";
-import { unresolvedAttempts } from "./pending/model.js";
 import { createDelivery } from "./delivery.js";
 import {
   createProjectionPresentation,
@@ -62,21 +61,8 @@ export function mountApplication(dependencies) {
 
   const stateApplying = () => stateApplication?.isApplying() ?? false;
 
-  const readings = () => ({
-    phase: runtime.statePhase,
-    view: runtime.view,
-    conversation: runtime.browser?.conversation,
-    pendingEntries: ledger.snapshot(),
-    receipts: runtime.browser?.receipts ?? [],
-  });
-  const conversationReadings = () => ({
-    phase: runtime.statePhase,
-    serverThreads: runtime.browser?.conversation?.threads ?? [],
-    receipts: runtime.browser?.receipts ?? [],
-    pendingEntries: ledger.snapshot(),
-  });
   const pendingEntries = ledger.snapshot;
-  const currentReceipts = () => runtime.browser?.receipts ?? [];
+  const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
   const pendingApprovals = () => readApplication().effective.pendingApprovals;
   const pendingRequests = () => readApplication().effective.pendingRequests;
   const openAsks = () => readOpenAsks(pendingRequests());
@@ -99,9 +85,9 @@ export function mountApplication(dependencies) {
     if (invalidating) return undefined;
     invalidating = true;
     try {
-      projection.present(readings());
+      projection.present(readApplication());
       return backgroundConversation(
-        conversation.apply(conversationReadings()),
+        conversation.apply(readApplication()),
         "conversation preparation",
       );
     } finally {
@@ -141,7 +127,7 @@ export function mountApplication(dependencies) {
   };
   const refreshConversation = () =>
     backgroundConversation(
-      conversation.apply(conversationReadings()),
+      conversation.apply(readApplication()),
       "conversation preparation",
     );
 
@@ -154,13 +140,13 @@ export function mountApplication(dependencies) {
     let staged = false;
     let presentationError = null;
     try {
-      pendingTraffic(unresolvedAttempts(ledger.snapshot()));
+      pendingTraffic(readApplication().effective.delivery);
       staged = projection.stageOptimistic(entry);
       // Desired state changes at enqueue even where the widget has already painted the
       // same value. Conversation gestures are folded in this call stack before transport.
-      projection.present(readings());
+      projection.present(readApplication());
       backgroundConversation(
-        conversation.apply(conversationReadings()),
+        conversation.apply(readApplication()),
         "optimistic conversation preparation",
       );
     } catch (error) {
@@ -305,8 +291,8 @@ export function mountApplication(dependencies) {
     renderSurfaces,
   });
 
-  const applyConversation = () => conversation.apply(conversationReadings());
-  const presentProjection = () => projection.present(readings());
+  const applyConversation = () => conversation.apply(readApplication());
+  const presentProjection = () => projection.present(readApplication());
   const accountPending = (receipts) => {
     const removed = ledger.account(receipts);
     const released = releasePending();
@@ -355,12 +341,12 @@ export function mountApplication(dependencies) {
 
   delivery = createDelivery({
     ledger,
-    currentReceipts: () => runtime.browser?.receipts ?? [],
+    currentReceipts,
     applyAcceptedState: receiveState,
     settleRejected: () =>
       stateApplication.runSerialized(async () => {
-        projection.present(readings());
-        const prepared = conversation.apply(conversationReadings());
+        projection.present(readApplication());
+        const prepared = conversation.apply(readApplication());
         releasePending();
         await prepared;
       }),

@@ -129,7 +129,7 @@ import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButCommandReference } from "./keyboard/register.js";
 
 import { sameDelivery } from "./layer-client.js";
-import { projectionFromView } from "./projection/presentation.js";
+import { projectView } from "./semantic-state.js";
 
 import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
@@ -826,7 +826,7 @@ export function createVersionController({
       throw new Error(`version v${baseVersion} has no revision`);
     const baseView = baseReading?.views?.[String(baseRevision)];
     if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
-    const baseProjection = projectionFromView(baseView, baseReading.conversation);
+    const baseProjection = projectView(baseView, baseReading.conversation);
     for (const { tag, spec } of stateSpecs()) {
       if (!spec.record || spec.record.kind === "body") continue;
       for (const widget of document.body.querySelectorAll(tag)) {

@@ -5,3 +5,5 @@ import { createSemanticApplication } from "../vendor/browser-runtime.js";
 
 export const applicationState = createSemanticApplication();
 export const readApplication = applicationState.read;
+export const projectView = applicationState.projectView;
+export const selectWidgets = applicationState.selectWidgets;

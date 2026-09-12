@@ -46,6 +46,7 @@ interface WireProjection {
     coordinate: [string, string, string];
     restated?: string[];
     scope: string;
+    spec: ActionSpec;
     value: unknown;
   }[];
   actions: string[];
@@ -90,44 +91,30 @@ export interface AuthoritativeState {
 }
 
 function normalizedProjection(
-  document: SemanticDocument,
-  state: AuthoritativeState | null,
+  view: AuthoritativeState["browser"]["views"][string] | undefined,
+  conversation: AuthoritativeState["browser"]["conversation"] | undefined,
 ) {
   const entries = [];
   const actionIds = [];
   const reportIds = [];
   const desiredIds = [];
-  const view = state?.browser.views[String(document.revision)];
-  for (const projection of [
-    view?.document.projection,
-    state?.browser.conversation.projection,
-  ]) {
+  for (const projection of [view?.document.projection, conversation?.projection]) {
     if (!projection) continue;
     for (const wire of projection.entries ?? []) {
       const e = wire.event;
-      const widget = document.authored.get(e.widget);
-      const spec =
-        widget &&
-        document.registry[widget.tag]?.[e.kind === "action" ? "x-state" : "x-report"]?.[
-          e.action
-        ];
       const coordinate = JSON.stringify(wire.coordinate);
-      entries.push(
-        spec
-          ? {
-              coordinate,
-              e,
-              restated: wire.restated ?? [],
-              scope: wire.scope,
-              spec,
-              unit: wire.coordinate[1],
-              value:
-                spec.record?.kind === "attribute"
-                  ? (wire.value as string[]).join(" ")
-                  : wire.value,
-            }
-          : { coordinate, e, scope: wire.scope, terminal: true },
-      );
+      entries.push({
+        coordinate,
+        e,
+        restated: wire.restated ?? [],
+        scope: wire.scope,
+        spec: wire.spec,
+        unit: wire.coordinate[1],
+        value:
+          wire.spec.record?.kind === "attribute"
+            ? (wire.value as string[]).join(" ")
+            : wire.value,
+      });
     }
     actionIds.push(...(projection.actions ?? []));
     reportIds.push(...(projection.reports ?? []));
@@ -180,7 +167,10 @@ export function createSemanticApplication() {
         : entry,
     );
     const projection = foldProjection({
-      ...normalizedProjection(document, state),
+      ...normalizedProjection(
+        state?.browser.views[String(document.revision)],
+        state?.browser.conversation,
+      ),
       pendingEntries: pendingProjectionEntries(pending, receipts),
     });
     const threads =
@@ -243,6 +233,36 @@ export function createSemanticApplication() {
   return Object.freeze({
     read: publisher.read,
     select: publisher.select,
+    // Version comparison receives a server projection already interpreted through the
+    // requested revision's registry. Keep that admitted spec on the wire; the current
+    // document contract must not reinterpret historical events.
+    projectView(
+      view: AuthoritativeState["browser"]["views"][string],
+      conversation: AuthoritativeState["browser"]["conversation"],
+    ) {
+      return foldProjection({
+        ...normalizedProjection(view, conversation),
+        pendingEntries: [],
+      });
+    },
+    // Render checks compare authored, carried, and current states. The event filter is
+    // a semantic selection of the same root, not a presentation-owned partial fold.
+    selectWidgets(eventIds: string[] | null = null) {
+      if (eventIds === null) return publisher.read().effective.widgets;
+      const wanted = new Set(eventIds);
+      return publisher
+        .select((root) =>
+          foldWidgetStates(root.document.authored, {
+            ...root.effective.projection,
+            desired: new Map(
+              [...root.effective.projection.desired].filter(([, entry]) =>
+                wanted.has(entry.e.id),
+              ),
+            ),
+          }),
+        )
+        .read();
+    },
     entry,
     identify(revision: number | null) {
       return publish({ document: { ...publisher.read().document, revision } });

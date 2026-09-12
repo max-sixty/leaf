@@ -33,6 +33,7 @@ const state = (taken, events = []) => ({
             entries: events.map((event) => ({
               event,
               coordinate,
+              spec,
               scope: "page",
               value: event.action,
             })),
@@ -106,6 +107,32 @@ test("accepted reading order includes non-event activity and independent source 
   assert.equal(app.acceptData({ revision: 1, sources: {} }), false);
   assert.ok(app.read().semanticEpoch > before);
   assert.equal(app.read().data.sources.input.value, 5);
+});
+
+test("historical view projection uses the publisher's captured document contract", () => {
+  const app = setup();
+  const accepted = { ...action("first"), id: "e1", seq: 1 };
+  const historical = state(2, [accepted]);
+  const historicalSpec = { ...spec, historical: true };
+  historical.browser.views[1].document.projection.entries[0].spec = historicalSpec;
+  const projection = app.projectView(
+    historical.browser.views[1],
+    historical.browser.conversation,
+  );
+  assert.equal(projection.desired.get(JSON.stringify(coordinate)).e.id, "e1");
+  assert.deepEqual(
+    projection.desired.get(JSON.stringify(coordinate)).spec,
+    historicalSpec,
+  );
+});
+
+test("filtered widget state is selected inside the publisher", () => {
+  const app = setup();
+  const accepted = { ...action("first"), id: "e1", seq: 1 };
+  app.adopt(state(2, [accepted]));
+  assert.equal(app.selectWidgets([]).get("choice").state.decision.action, null);
+  assert.equal(app.selectWidgets(["e1"]).get("choice").state.decision.action, "accept");
+  assert.equal(app.selectWidgets(null).get("choice").state.decision.action, "accept");
 });
 
 test("receipt adoption keeps attempts until presentation proof and preserves dependent undo", () => {

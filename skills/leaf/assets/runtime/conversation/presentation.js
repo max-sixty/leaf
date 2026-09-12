@@ -8,7 +8,7 @@ import { clocked } from "../presence.js";
 import { setChildren } from "../dom-children.js";
 import { el } from "../widget-elements.js";
 import { elementById, inChrome } from "../passages.js";
-import { allThreads, threadList } from "./state.js";
+import { conversationState } from "./state.js";
 import { renderConversations } from "./inline.js";
 import { holdScrollPosition, renderThreads } from "./thread-list.js";
 import { threadsBox } from "./panel-elements.js";
@@ -76,8 +76,7 @@ export function createConversationPresentation({
   }
 
   function renderCurrent() {
-    const threads = allThreads();
-    const conversations = threadList();
+    const { all: threads, listed: conversations } = conversationState();
     renderHolds(threads);
     const painted = anchorPaint.paint({
       threads,
@@ -112,7 +111,7 @@ export function createConversationPresentation({
   }
 
   function refreshNarrowing() {
-    const threads = allThreads();
+    const threads = conversationState().all;
     const prepared = renderThreads(threads, listView);
     paintAcknowledgments();
     return prepared;

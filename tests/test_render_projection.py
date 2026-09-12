@@ -16,6 +16,7 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
+from leaf import session as session_model
 from leaf import structure as structure_model
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
@@ -76,7 +77,6 @@ from render_support import (
     holding,
     leaf_page,
     live_url,
-    nudge,
     open_page,
     opened_tab,
     page_registry,
@@ -2021,7 +2021,9 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
 
     page.route("**/api/state*", hold_the_first_read)
     try:
-        nudge(serve.page_dir)
+        session_model.cmd_status(
+            serve.page_dir, "working", "exercising the held state request"
+        )
         holding(page, held, 1, "the read from revision 1")
 
         # The chip's own read remains independent of the background read held above. It
@@ -2587,8 +2589,13 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
         "resolves"
     ]
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
+    stamp_page(
+        serve.page_dir,
+        (serve.page_dir / "index.html").read_text(),
+        "capture the declaration change",
+    )
 
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/4")
     # The blanket answer went with the declaration that named its verb.
     expect(page.locator(".lf-answer-all")).to_have_count(0)
@@ -4634,7 +4641,12 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     css = vendored.read_text()
     assert css.count(hide) == 1
     vendored.write_text(css.replace(hide, ""))
-    failures = render_gate_model.render_version(browser, url)
+    stamp_page(
+        serve.page_dir,
+        (serve.page_dir / "index.html").read_text(),
+        "capture the visible settled slot",
+    )
+    failures = render_gate_model.render_version(browser, live_url(url))
     assert any(
         "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
         in failure
@@ -4653,7 +4665,12 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
             + '\n      document.addEventListener("lf-actions", () => this.setAttribute("data-lf-state", "shelve"));',
         )
     )
-    failures = render_gate_model.render_version(browser, url)
+    stamp_page(
+        serve.page_dir,
+        (serve.page_dir / "index.html").read_text(),
+        "capture the false settlement mark",
+    )
+    failures = render_gate_model.render_version(browser, live_url(url))
     assert any(
         "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
         "records no decision" in failure
@@ -5981,11 +5998,12 @@ def test_a_thread_request_uses_its_frozen_lifecycle_in_the_browser(browser, serv
             "parent": root["id"],
             "text": "Choose the host operation.",
             "markup": (
+                '<lf-ask id="thread-command-decision">'
+                "<h3>What should the host do?</h3>"
                 '<lf-operations id="thread-commands" target="parser-dedupe" '
-                'worker="w-5" worktree="tree-w-5" '
-                'label="What should the host do?">'
+                'worker="w-5" worktree="tree-w-5">'
                 '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
-                "</lf-operations>"
+                "</lf-operations></lf-ask>"
             ),
         },
     )

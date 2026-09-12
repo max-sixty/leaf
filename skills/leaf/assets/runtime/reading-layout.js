@@ -142,24 +142,43 @@ export function fitRootReadingElement({ owner, readingArrangement, minimumSize }
   let scheduled = null;
   let resize = null;
 
-  /* A root's minimum is a reading of its live layout. Read the bounded candidate in
-     the box it would receive so wrapping furniture, nested partitions, and package
-     posture rules cannot make the same window answer differently based on the posture
-     currently drawn. The temporary style and posture writes are restored in the same
-     task, before anything can paint. Height stays pinned because temporarily shortening
-     a flow document would otherwise clamp a reader's scroll position. */
-  const readBoundedMinimum = (availableWidth) => {
+  /* A root's fit is a reading of its live layout. Read both the room and the minimum
+     inside the bounded candidate so scrollbar allocation, wrapping furniture, nested
+     partitions, and package posture rules cannot make the same window answer
+     differently based on the posture currently drawn. The temporary style and posture
+     writes are restored in the same task, before anything can paint. Height stays
+     pinned because temporarily shortening a flow document would otherwise clamp a
+     reader's scroll position. */
+  const readBoundedFit = () => {
     const main = owner.parentElement;
     const root = document.documentElement;
     const styles = new Map(
-      [root, main, owner].map((element) => [element, element.getAttribute("style")]),
+      [main, owner].map((element) => [element, element.getAttribute("style")]),
     );
-    root.style.overflowY = getComputedStyle(root).overflowY;
     main.style.height = `${main.getBoundingClientRect().height}px`;
     owner.style.height = `${owner.getBoundingClientRect().height}px`;
-    owner.style.width = `${availableWidth}px`;
     try {
-      return readReadingArrangementAt(readingArrangement, "bounded", minimumSize);
+      return readReadingArrangementAt(readingArrangement, "bounded", () => {
+        const rootStyle = getComputedStyle(root);
+        const mainStyle = getComputedStyle(main);
+        const availableHeight =
+          innerHeight -
+          (Number.parseFloat(getComputedStyle(document.body, "::before").height) || 0) -
+          (Number.parseFloat(rootStyle.getPropertyValue("--lf-bottom-chrome-clear")) ||
+            0) -
+          (Number.parseFloat(mainStyle.paddingTop) || 0) -
+          (Number.parseFloat(mainStyle.paddingBottom) || 0) -
+          (Number.parseFloat(mainStyle.borderTopWidth) || 0) -
+          (Number.parseFloat(mainStyle.borderBottomWidth) || 0);
+        const availableWidth =
+          main.getBoundingClientRect().width -
+          (Number.parseFloat(mainStyle.paddingLeft) || 0) -
+          (Number.parseFloat(mainStyle.paddingRight) || 0) -
+          (Number.parseFloat(mainStyle.borderLeftWidth) || 0) -
+          (Number.parseFloat(mainStyle.borderRightWidth) || 0);
+        owner.style.width = `${availableWidth}px`;
+        return { availableHeight, availableWidth, minimum: minimumSize() };
+      });
     } finally {
       for (const [element, style] of styles) {
         if (style === null) element.removeAttribute("style");
@@ -175,17 +194,7 @@ export function fitRootReadingElement({ owner, readingArrangement, minimumSize }
       return;
     }
 
-    const rootStyle = getComputedStyle(document.documentElement);
-    const availableHeight =
-      innerHeight -
-      (Number.parseFloat(getComputedStyle(document.body, "::before").height) || 0) -
-      (Number.parseFloat(rootStyle.getPropertyValue("--lf-bottom-chrome-clear")) || 0);
-    const mainStyle = getComputedStyle(owner.parentElement);
-    const availableWidth =
-      document.body.getBoundingClientRect().width -
-      (Number.parseFloat(mainStyle.paddingLeft) || 0) -
-      (Number.parseFloat(mainStyle.paddingRight) || 0);
-    const minimum = readBoundedMinimum(availableWidth);
+    const { availableHeight, availableWidth, minimum } = readBoundedFit();
     if (
       minimum !== null &&
       (!Number.isFinite(minimum?.width) ||

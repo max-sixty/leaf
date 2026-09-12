@@ -233,6 +233,44 @@ SCROLLED_FIT_PAGE = leaf_page(
     head=FIT_BADGES,
 )
 
+POSTURE_WIDTH_PAGE = leaf_page(
+    "a root whose flow posture reserves a strip of page width",
+    """
+<lf-workspace id="fit-workspace">
+  <lf-pane id="fit-body" label="Body"><p>One pane in the workspace.</p></lf-pane>
+</lf-workspace>
+""",
+    head="""<style>
+      body:has(> main > #fit-workspace[data-lf-reading-posture="flow"]) {
+        width: calc(100% - 20px);
+      }
+    </style>""",
+)
+
+PADDED_ROOM_PAGE = leaf_page(
+    "a root inside authored body padding",
+    """
+<lf-workspace id="fit-workspace">
+  <lf-pane id="fit-body" label="Body"><p>One pane in the workspace.</p></lf-pane>
+</lf-workspace>
+""",
+    head="""<style>body { padding-inline: 20px; }</style>""",
+)
+
+PADDED_HEIGHT_PAGE = leaf_page(
+    "a root inside candidate main block padding",
+    """
+<lf-workspace id="fit-workspace">
+  <lf-pane id="fit-body" label="Body"><p>One pane in the workspace.</p></lf-pane>
+</lf-workspace>
+""",
+    head="""<style>
+      body > main:has(> #fit-workspace[data-lf-reading-posture="bounded"]) {
+        padding-block: 160px;
+      }
+    </style>""",
+)
+
 # The fitting reads the room in an animation frame and writes the posture there, and
 # `resized` has already waited for the resize event to reach the listener that asks for
 # that frame. So the new window's posture stands on the element by the frame after it,
@@ -329,6 +367,45 @@ def test_nested_furniture_reads_the_candidate_partition_posture(browser, serve):
 
     assert set(arriving.values()) == {"bounded", "flow"}, arriving
     assert arriving == shrinking
+
+
+def test_root_room_is_read_in_the_candidate_posture(browser, serve):
+    """Posture-owned page width cannot make the root retain its prior answer."""
+    page, errors = open_page(browser, serve(POSTURE_WIDTH_PAGE))
+    resized(page, 620, 900)
+    assert page.evaluate(SETTLED_POSTURE) == "bounded"
+
+    # Model the width a non-overlay standing scrollbar reserves in flow. At this
+    # narrower window the root enters flow, whose page box is 20px narrower. Returning
+    # to 620px crosses the workspace minimum only in the bounded candidate's room.
+    resized(page, 580, 900)
+    assert page.evaluate(SETTLED_POSTURE) == "flow"
+    resized(page, 620, 900)
+    assert page.evaluate(SETTLED_POSTURE) == "bounded"
+    assert errors == []
+    page.close()
+
+
+def test_root_room_is_the_candidate_main_content_box(browser, serve):
+    """Authored body padding is not room offered to a bounded root."""
+    page, errors = open_page(browser, serve(PADDED_ROOM_PAGE))
+    resized(page, 620, 900)
+    assert page.evaluate(SETTLED_POSTURE) == "flow"
+    resized(page, 660, 900)
+    assert page.evaluate(SETTLED_POSTURE) == "bounded"
+    assert errors == []
+    page.close()
+
+
+def test_root_height_is_the_candidate_main_content_box(browser, serve):
+    """Candidate main padding is not room offered to a bounded root."""
+    page, errors = open_page(browser, serve(PADDED_HEIGHT_PAGE))
+    resized(page, 1200, 500)
+    assert page.evaluate(SETTLED_POSTURE) == "flow"
+    resized(page, 1200, 700)
+    assert page.evaluate(SETTLED_POSTURE) == "bounded"
+    assert errors == []
+    page.close()
 
 
 def test_reading_a_root_minimum_leaves_the_reader_where_they_had_scrolled_to(

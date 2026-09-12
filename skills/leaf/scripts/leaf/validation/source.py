@@ -7,6 +7,7 @@ from leaf.data import empty_data, read_data
 from leaf.data_contracts import data_binding_errors, measurement_lag
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry
+from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.schema import VENDORED_FILES
 from leaf.structure import LF_META, SourceDocument, links_with_rel
 from leaf.styles import (
@@ -58,6 +59,7 @@ class SourceCheck(NamedTuple):
     errors: list[str]
     advice: list[str]
     column: int
+    artifact: RevisionArtifact | None = None
 
 
 def _source_bytes(page_dir: Path) -> tuple[bytes, str | None]:
@@ -86,10 +88,14 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
     errors.extend(page_boundary_errors(parser))
 
     for script in parser.external_scripts:
-        errors.append(
-            f"<script src> (line {script['line']}) belongs to delivery; "
-            "authored behavior must be an inline module"
-        )
+        if (
+            set(script["attrs"]) != {"type", "src"}
+            or script["attrs"].get("type") != "module"
+        ):
+            errors.append(
+                f"<script src> (line {script['line']}) must be an authored module "
+                'with exactly type="module" and src'
+            )
 
     for script in parser.inline_scripts:
         if script["attrs"] != {"type": "module"}:
@@ -105,11 +111,11 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
         )
 
     stylesheets = links_with_rel(parser.links, "stylesheet")
-    if stylesheets:
-        errors.append(
-            "external stylesheets belong to delivery; put page-specific rules "
-            f"in <style>, found {[asset['attrs'] for asset in stylesheets]}"
-        )
+    for stylesheet in stylesheets:
+        if set(stylesheet["attrs"]) != {"rel", "href"}:
+            errors.append(
+                f"<link rel=stylesheet> (line {stylesheet['line']}) must have exactly rel and href"
+            )
 
     for link in links_with_rel(parser.links, "canonical"):
         errors.append(
@@ -299,6 +305,12 @@ def check_source(
         revision,
         dropped_advice,
     )
+    artifact = None
+    if not errors and registry is not None:
+        try:
+            artifact = capture_artifact(page_dir, document, registry)
+        except ArtifactError as error:
+            errors.append(str(error))
     return SourceCheck(
         document,
         registry,
@@ -308,4 +320,5 @@ def check_source(
         errors,
         advice,
         column,
+        artifact,
     )

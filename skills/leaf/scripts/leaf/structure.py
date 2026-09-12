@@ -157,6 +157,7 @@ class SourceDocument:
         # mentions: a page documenting Leaf can write one in prose without demanding a
         # screenshot that nothing displays.
         self.media_refs = set()
+        self.page_resource_refs = set()
         # What the version says about width, each where a document says it: CSS is what
         # a <style> block holds, and a fixed width is what a rule, style="", or width=""
         # states. The column check reads these three and nothing else.
@@ -415,6 +416,14 @@ class SourceDocument:
             value
             for value in attrs.values()
             if isinstance(value, str) and value.startswith(f"/{MEDIA_DIR}/")
+        )
+        self.page_resource_refs.update(
+            value
+            for name, value in attrs.items()
+            if name in {"src", "poster"}
+            and tag != "script"
+            and isinstance(value, str)
+            and value.startswith(("/page/", "page/", "./page/"))
         )
 
         if tag == "noscript" or (

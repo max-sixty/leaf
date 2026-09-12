@@ -3,7 +3,8 @@
 from pathlib import Path
 from typing import NamedTuple
 
-from leaf.files import list_revisions, revision_path, write_revision
+from leaf.files import list_revisions
+from leaf.revision_artifact import read_artifact, write_artifact
 from leaf.validation.source import SourceCheck, check_source
 
 
@@ -19,7 +20,7 @@ def activate_source(
     events: list,
     allow_transition: bool = False,
 ) -> Activation:
-    """Activate exact valid ``index.html`` bytes, or keep the last good revision."""
+    """Activate complete valid source inputs, or keep the last good revision."""
     checked = check_source(page_dir, events, allow_transition=allow_transition)
     revisions = list_revisions(page_dir)
     active = revisions[-1] if revisions else None
@@ -27,9 +28,9 @@ def activate_source(
         return Activation(active, "; ".join(checked.errors), False, checked)
     if (
         active is not None
-        and revision_path(page_dir, active).read_bytes() == checked.document.data
+        and read_artifact(page_dir, active).digest == checked.artifact.digest
     ):
         return Activation(active, None, False, checked)
     revision = (active or 0) + 1
-    write_revision(page_dir, revision, checked.document.data)
+    write_artifact(page_dir, revision, checked.artifact)
     return Activation(revision, None, True, checked)

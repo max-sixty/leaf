@@ -77,6 +77,11 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Decide whether suggested replacements need a proper diff.** Compare the current
+  plain replacement with a before-and-after view in Threads and inline conversations.
+  Add the diff only if it makes nontrivial edits easier to review without duplicating
+  the quoted passage.
+
 - **Decide whether visual review needs expanded inspection.** Compare an embedded review
   with the same run as a bounded root review. Add expansion only if focused workspaces do
   not cover the real tasks, and keep it package-owned until a second interactive object

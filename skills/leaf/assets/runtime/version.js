@@ -2,15 +2,15 @@
  *
  * One owner, because it is one gesture: the walk through the chooser's menu states a
  * comparison per row, an activation drops the standing comparison and puts it back once
- * the new main stands, the chooser's word says whether one is standing, and the
- * activation captures the reading landmark before it replaces the authored main. Those
+ * new document stands, the chooser's word says whether one is standing, and the
+ * activation captures the reading landmark before navigating. Those
  * are local calls here rather than callbacks across a seam nothing else could stand at.
  *
  * The surface is its key rows; the chooser's nodes (control, menu, newest-version
  * chip) and the labels the banner reserves width for (`versionLabels`); the two calls
  * state application drives — `renderVersions` paints the chooser from a state,
- * `prepareActivation` fetches the revision a state names ahead of the commit that
- * installs it; the arrival landing; the menu readings the composing surface and the
+ * `prepareActivation` prepares navigation to the revision a state names; the arrival
+ * landing; the menu readings the composing surface and the
  * margin take (`closeVersionMenu`, `versionMenuIsOpen`, `comparisonBase`,
  * `comparisonChanges`, and the pair the margin's Change reading discloses with,
  * `inlineComparison` and `toggleInlineComparison`); `readingBlock`, the block the decision
@@ -30,48 +30,30 @@
  * base, and walking to the version being read clears the comparison because it has no
  * earlier base to mark against.
  *
- * The live root follows the newest version without navigating. It begins fetching as
- * soon as a state read announces the version, but `midComposition` or an open version
- * menu defers activation and leaves the newest-version chip visible. Ending the
- * composition releases the version on the next heartbeat; pressing the chip is an
- * explicit override and still keeps the live address. `goActive` is the one door for
- * that in-place newest-version request and for the way back to the live address from a
- * pinned document; `goVersion` is the door to an older public version.
+ * Every live revision activates by reloading the stable live address. Arbitrary page
+ * modules, listeners, custom elements, and styles therefore start together in a fresh
+ * browser document. `midComposition` or an open version menu defers activation and leaves
+ * the newest-version chip visible. Ending composition releases it on the next heartbeat;
+ * pressing the chip explicitly releases the composition hold. `goActive` is that door
+ * and the way back from a pinned document; `goVersion` opens an older public version.
  *
  * An older version is historical rather than live: choosing one navigates to its virtual
  * version address with `?pin`, and it stays at the revision it was pinned at while
  * offering the newest-version chip. The view record carries reading position and the
- * decision-walk landmark across that document navigation. Focus and a selection do not
- * cross to a new document. On live activation, runtime-chrome nodes and their focus
- * survive; authored-main nodes are replaced, so the semantic landmark—not a DOM node—is
- * the continuity guarantee.
+ * decision-walk landmark across navigation. Live activation additionally carries a
+ * one-use handoff containing that reading, the standing comparison, and the authored
+ * control the reader held. The new document restores a control only when its owner,
+ * kind, position, and meaning survive. Otherwise it restores the surviving owner or
+ * leaves focus on the page. Explicit historical travel carries neither focus nor a
+ * selection. Native selections, armed keyboard sequences, and arbitrary module state
+ * never cross documents. Durable drafts and the reader's chrome arrangement use their
+ * existing stores and their owners revalidate them during startup.
  *
- * The served page root is a stable live document. Its first response projects the latest
- * immutable revision and carries a runtime-only version marker. On a later state read,
- * `prepareActivation` fetches the next mapped revision in the background
- * (`revisionDocuments`). `activateRevision` replaces the authored head declarations,
- * root attributes, and `body > main`; runs the same fence, parent, dressing, settlement,
- * and authored-facet passes as startup; reconciles the log; and restores the semantic
- * reading landmark and the reader's standing. That standing is written down by id before
- * the swap — the nearest element carrying one, and the control within it by kind and
- * position — and handed back after it: the same control where the revision kept it, its
- * owner where the revision kept only that, and nothing where it kept neither. A sequence
- * armed before the swap is the runtime's and holds through it; its chips are read off
- * the document standing afterwards. The gestures `midComposition` names — item hints, a
- * reaction list, page search, a drag or grab — defer the activation instead. The chrome,
- * browser document, module globals, panel, and address remain standing.
- * A revision that changes an authored module is the exception: arbitrary page code has
- * no teardown contract, so Leaf reloads the live document instead of combining new
- * markup with old behavior.
- *
- * That activation is one presentation boundary. Its async work runs in a
- * `startViewTransition` update callback where the platform supplies one, including for
- * reduced motion (whose transition duration collapses in the theme). Concurrent state
- * responses serialize behind the active application; none may capture or replace a
- * half-upgraded main. A runtime without the API applies the same ordered boundary
- * without animation. If activation fails after advancing the document, reload the stable
- * root rather than leaving a mixed version. A layer-generation change always reloads:
- * soft activation is only valid within one vendored contract.
+ * The handoff is scoped to this page and consumed once, even when a newer revision
+ * overtakes the one that triggered navigation. Ordinary reloads and history travel
+ * cannot replay an old focus handoff. State responses serialize at the application
+ * boundary; after navigation begins the old application stays pending until its
+ * document is discarded.
  *
  * `captureView` stores a passage-based reading landmark, correction within the block,
  * and the last decision landmark. `restoreView` resolves the landmark after upgrade and
@@ -80,14 +62,9 @@
  * navigation. `landArrival` applies that ranking only after final page geometry is
  * available.
  *
- * Focus and selection are not restored across document travel. Restoring focus onto a
- * control the reader never stood on would change the next Space from page scroll to
- * activation, and a selection may refer to words the new version replaced. The saved
- * decision landmark preserves directional continuity without claiming the reader still
- * stands there. A live activation is the other case: the reader's own standing carries
- * across it (the startup order in skills/leaf/assets/CLAUDE.md), so the next press means what
- * it meant
- * before the swap.
+ * Historical travel preserves directional continuity without claiming the reader still
+ * stands on a control. Live activation restores only the reader's revalidated standing,
+ * after authoritative presentation, so a changed control cannot inherit their next press.
  *
  * A layer also owes a way out at all, over the same page the way in is live on.
  * `versionsOffered` (there is a menu) answers for the destination, the chooser standing over
@@ -99,8 +76,8 @@
  * contributor the page hasn't got must bring none — `merge` drops it — or the two
  * capabilities cannot differ in liveness under one heading.
  *
- * Served identity and authored-root snapshots are captured before boot mutates the
- * document. The controller receives application, design, and travel capabilities;
+ * Served identity is captured before boot mutates the document. The controller receives
+ * application and travel capabilities;
  * mount binds chooser/intent listeners and paints the initial version reading.
  * installArrival remains the later geometry-ready continuity boundary.
  */
@@ -108,7 +85,7 @@ import { runtime } from "./context.js";
 
 import { clippedRect, shownBox } from "./geometry.js";
 import { PRESS, walkRows } from "./keyboard/bindings.js";
-import { focused, keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
+import { focused, keys, paintKeys } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { notice } from "./notifications.js";
 import {
@@ -126,7 +103,6 @@ import {
   textNodesUnder,
   wrote,
 } from "./passages.js";
-import { settlePageInterface } from "./presentation.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
@@ -152,10 +128,8 @@ import { focusDestination } from "./focus.js";
 import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButCommandReference } from "./keyboard/register.js";
 
-import { reportPageError, sameDelivery } from "./layer-client.js";
+import { sameDelivery } from "./layer-client.js";
 import { projectionFromView } from "./projection/presentation.js";
-
-import { importWidgets, installDocument } from "./widget-loader.js";
 
 import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
@@ -181,45 +155,6 @@ runtime.currentLabel =
   runtime.currentStamp === null ? null : `v${runtime.currentStamp}`;
 servedStampMarker?.remove();
 
-// The document roots may carry authored classes, data attributes, and inline custom
-// properties that page-local styles read. The live document also paints its own facts
-// onto those same two elements. The authored share is remembered at import, before the
-// boot module has run a line: no runtime module writes the document at its own top
-// level, the runtime's stylesheets are adopted rather than written into the head, and
-// the banner's icon link comes later from the boot module. An activation can then
-// replace exactly that share without erasing the
-// presentation, layout, and mode facts the surviving runtime owns.
-const authoredAttributes = (root) =>
-  new Map([...root.attributes].map(({ name, value }) => [name, value]));
-// The authored share of the head, which a revision brings with it. Delivery marks
-// what it inserts — the identity markers, the page's canonical address, a
-// publication's card — and that share belongs to the document the reader was
-// served rather than to the revision arriving inside it.
-const versionedHeadNode = (node) =>
-  !node.hasAttribute("data-lf-runtime") &&
-  (node.localName === "title" ||
-    node.localName === "style" ||
-    node.localName === "base" ||
-    (node.localName === "meta" &&
-      (node.hasAttribute("name") || node.hasAttribute("property"))) ||
-    (node.localName === "link" &&
-      !(
-        node.rel === "stylesheet" &&
-        new URL(node.href, document.baseURI).pathname === "/theme.css"
-      )));
-const authoredModuleSource = (root) =>
-  JSON.stringify(
-    [...root.querySelectorAll('script[type="module"]:not([src])')].map(
-      (script) => script.textContent,
-    ),
-  );
-const servedAuthoredModuleSource = authoredModuleSource(document);
-const initialDocument = {
-  authoredBodyAttributes: authoredAttributes(document.body),
-  authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
-  authoredHtmlAttributes: authoredAttributes(document.documentElement),
-};
-
 /* Passive version destinations shared with banner and layout. */
 export const versionLabels = () => ["Draft", "v999"];
 export const versionBtn = el("button", "lf-btn lf-version", "Draft");
@@ -239,22 +174,18 @@ export const latestChip = el(
 latestChip.dataset.lfUrgent = "1";
 
 export function createVersionController({
-  designModeActive,
-  paintLegend,
   midComposition,
+  hasPending,
   readAndApply,
   banner,
-  stateSignoff,
   landedAt,
   setLanded,
-  resetAuthoredPage,
   readableDestination,
   scrollToElement,
 }) {
-  let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes } =
-    initialDocument;
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
+  const HANDOFF_KEY = "lf-revision-handoff";
   const LANDMARK_CAP = 160;
 
   // ---------- the version chooser ----------
@@ -356,7 +287,7 @@ export function createVersionController({
   // The newest-version chip. Its hidden pinned slot carries representative words as well
   // as a measured width: an empty button is shorter, so its first real label would still
   // move vertically. Its press goes through the chooser's one door (goActive): at the
-  // live root an explicit in-place release of the composition hold, on an immutable page
+  // live root an explicit release of the composition hold, on an immutable page
   // ordinary version travel.
 
   // The one control on this row whose arrival a reader must not miss: what they are
@@ -1249,8 +1180,8 @@ export function createVersionController({
   const comparisonChanges = () => (diffOn ? [...diffMarked] : []);
 
   // ---------- another version's document ----------
-  // One fetch for the comparison base and for the revision the live root follows. Null is
-  // a document from a layer this page no longer runs; `sameLayer` has it reloading by then.
+  // Comparison reads an inert document. A different delivery generation already starts
+  // navigation through sameDelivery, so the departing runtime must not use that reading.
   async function authoredDocument(url) {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
@@ -1260,7 +1191,7 @@ export function createVersionController({
       throw new Error(`${url} has no single authored main`);
     return doc;
   }
-  // State reads overlap, and two naming the same newer revision share one fetch.
+  // Repeated comparisons of the same immutable revision share its document fetch.
   const revisionDocuments = new Map();
   function revisionDocument(revision) {
     if (!revisionDocuments.has(revision.revision))
@@ -1275,110 +1206,10 @@ export function createVersionController({
   }
 
   // ---------- live revision activation ----------
-  function replaceAuthoredAttributes(target, source, prior) {
-    const scratch = document.createElement(target.localName);
-    for (const [name, value] of prior) scratch.setAttribute(name, value);
-    for (const name of prior.keys()) {
-      if (name === "class")
-        for (const token of scratch.classList) target.classList.remove(token);
-      else if (name === "style")
-        for (const property of scratch.style) target.style.removeProperty(property);
-      else target.removeAttribute(name);
-    }
-    const next = authoredAttributes(source);
-    for (const [name, value] of next) {
-      if (name === "class")
-        for (const token of source.classList) target.classList.add(token);
-      else if (name === "style")
-        for (const property of source.style)
-          target.style.setProperty(
-            property,
-            source.style.getPropertyValue(property),
-            source.style.getPropertyPriority(property),
-          );
-      else target.setAttribute(name, value);
-    }
-    return next;
-  }
-
-  // The chrome's sheets are adopted, not head nodes, so they cascade after everything
-  // the head holds whatever order it is written in; the authored share goes at the end.
-  function activateHead(doc, revision) {
-    for (const node of authoredHeadNodes) node.remove();
-    const next = new Set();
-    for (const node of doc.head.children) {
-      if (!versionedHeadNode(node)) continue;
-      const imported = document.importNode(node, true);
-      document.head.append(imported);
-      next.add(imported);
-    }
-    authoredHeadNodes = next;
-    let marker = document.querySelector('meta[name="lf-revision"][data-lf-runtime]');
-    if (!marker) {
-      marker = document.createElement("meta");
-      marker.name = "lf-revision";
-      marker.dataset.lfRuntime = "1";
-      document.head.append(marker);
-    }
-    marker.content = String(revision.revision);
-    stateSignoff(doc.querySelector('meta[name="lf-review"]')?.content === "sign-off");
-  }
-
-  // Resolves to the second half of the move — the reader's place and standing, and the
-  // comparison the replacement dropped — run once the state that brought the revision is
-  // on the new main.
-  async function activateRevision(doc, revision, syncLayout) {
-    const view = captureView();
-    const standing = captureStanding();
-    const source = doc.querySelector("body > main");
-    const fresh = document.importNode(source, true);
-    revisionDocuments.delete(revision.revision);
-    // A pending selection is standing too: cancel its old-document request before the
-    // authored main moves, then restore that base against the arriving revision.
-    const comparedFrom = selectedBase();
-    if (comparedFrom !== null) setDiff(false);
-
-    resetAuthoredPage();
-    await installDocument(fresh, {
-      mount: () => {
-        authoredHtmlAttributes = replaceAuthoredAttributes(
-          document.documentElement,
-          doc.documentElement,
-          authoredHtmlAttributes,
-        );
-        authoredBodyAttributes = replaceAuthoredAttributes(
-          document.body,
-          doc.body,
-          authoredBodyAttributes,
-        );
-        runtime.currentRevision = revision.revision;
-        runtime.currentStamp = revision.version;
-        runtime.currentLabel = revision.label;
-        activateHead(doc, revision);
-        document.querySelector("body > main").replaceWith(fresh);
-        pruneScopedElements();
-      },
-    });
-    await settlePageInterface();
-    syncLayout();
-    if (designModeActive()) paintLegend();
-    return () => {
-      restoreView(view);
-      restoreStanding(standing);
-      if (comparedFrom !== null) showComparison(comparedFrom);
-    };
-  }
-
-  // The move a state asks of the live root, fetched ahead of the commit that makes it.
-  // Null where there is nothing to follow — no newer revision, or a document that failed
-  // to load, which is reported; the commit's own render then lights the chip as the way
-  // to try again, and nothing here paints ahead of that commit, so a refused candidate
-  // has nothing of this move to roll back. `stale` where the document came from a
-  // re-vendored layer, so the page is reloading and the state belongs to the layer it is
-  // leaving. Whether the move happens now is asked at the commit: `midComposition` or an
-  // open menu defers it, unless the chip was pressed (goActive) — the one override, spent
-  // by the install it forced.
-  async function prepareActivation(state, syncLayout) {
+  // Navigation is the activation boundary for every revision, including content-only
+  // changes. No new module is imported into the departing document. The chip may release
+  // a composition hold, but unresolved delivery must settle before its ledger disappears.
+  async function prepareActivation(state) {
     const target = state.active;
     if (
       !LIVE_ROOT ||
@@ -1386,46 +1217,37 @@ export function createVersionController({
       target.revision <= runtime.currentRevision
     )
       return null;
-    let doc;
-    try {
-      doc = await revisionDocument(target);
-    } catch (error) {
-      reportPageError(
-        `revision ${target.revision} failed to load: ${error?.message ?? error}`,
-      );
-      return null;
-    }
-    if (doc === null) return { stale: true };
-    const reloadsDocument = authoredModuleSource(doc) !== servedAuthoredModuleSource;
-    // Step 4 of the startup order, at the boundary that runs the same passes: this
-    // version may introduce a tag the standing document never carried, and insertion is
-    // where its connectedCallback runs. Fetched here, on the same background stretch as
-    // the document itself, so the install below spends none of its view transition on a
-    // module fetch and the page the reader is still looking at is whole for the length
-    // of the import. activateRevision has no other caller, so this is the one import.
-    await importWidgets(doc.querySelector("body > main"));
     return {
       stale: false,
       activates: () =>
         target.revision > runtime.currentRevision &&
+        !hasPending() &&
         (!midComposition() || forceActivation) &&
         !versionMenuIsOpen(),
       install: () => {
         forceActivation = false;
-        if (reloadsDocument) {
-          location.reload();
-          // The new document owns the continuation. Keeping this activation pending
-          // prevents the old realm from applying state while navigation commits.
-          return new Promise(() => {});
-        }
-        return activateRevision(doc, target, syncLayout);
+        const view = captureView();
+        tabStore.set(VIEW_KEY, JSON.stringify(view));
+        tabStore.set(
+          HANDOFF_KEY,
+          JSON.stringify({
+            revision: target.revision,
+            url: location.href,
+            view,
+            standing: captureStanding(),
+            comparison: selectedBase(),
+          }),
+        );
+        location.reload();
+        // The new document owns the continuation. Keeping this activation pending
+        // prevents the old realm from applying state while navigation commits.
+        return new Promise(() => {});
       },
     };
   }
 
   // ---------- reading continuity across a replacement ----------
-  // Following a new version replaces the authored main, whether the live root keeps this
-  // document or historical travel opens another one. A raw replacement leaves the reader
+  // Following a new version opens a fresh document. A raw navigation leaves the reader
   // at the top mid-session, standing nowhere in the walk they were making. Where they are
   // rides across as one semantic view — and through tabStore on document travel, per-tab
   // because a place in a page shouldn't outlive it. Two things are recorded, because
@@ -1648,25 +1470,36 @@ export function createVersionController({
     watchReadingRegionTransitions(readingRegionTransition);
   }
 
-  // Where the reader is standing in the authored page, written down so the swap can hand
-  // it back. The Ask's numbered actions remain live over a focused pick mark; those are
-  // presses the reader is about to make, and a replacement that dropped the focus onto
-  // body took the offer down with it — the digit then picked nothing, silently. Node
-  // identity does not survive the swap, so the place is stated the way the Ask above
-  // is, by id: the nearest element carrying one, and within it the control by kind and
-  // position, since a grip or a pick mark is the runtime's and carries no id of its own.
-  // A control staged in a shadow tree is out of the place's own query and comes back as
-  // the place. The chrome stays through a swap and so does focus inside it, so a reader
-  // standing there has nothing to write down. The place is an authored element, read the
-  // way the anchor pass reads which section a passage is in: an injected row carries an
-  // id too, and is not a place a revision keeps.
+  // Standing is an authored owner and a control, not a saved DOM node. Match the control's
+  // declared role, form identity, and words as well as its location so a replacement or
+  // reordered action cannot receive the next press intended for its predecessor.
+  const controlMeaning = (control) =>
+    JSON.stringify([
+      control.localName,
+      ...[
+        "role",
+        "type",
+        "name",
+        "value",
+        "aria-label",
+        "href",
+        "target",
+        "formaction",
+        "formmethod",
+      ].map((name) => control.getAttribute(name)),
+      control.matches("button, a, input, select, textarea, [role]")
+        ? control.textContent
+        : null,
+    ]);
+
   function captureStanding() {
     const held = focused();
     if (!held || held === document.body || inChrome(held)) return null;
     const main = document.querySelector("body > main");
     const place = closestAcross(held, "[id]:not(.lf-ui)");
     if (!place || !main || !containsAcross(main, place)) return null;
-    if (place === held) return { id: place.id };
+    const owner = { id: place.id, tag: place.localName };
+    if (place === held) return { ...owner, meaning: controlMeaning(held) };
     // The first class is the one the control was built with; later ones are state the
     // fresh control will not be wearing yet. Escaped, since an authored class need not
     // be a bare identifier.
@@ -1674,9 +1507,10 @@ export function createVersionController({
       .filter(Boolean)
       .join(".");
     return {
-      id: place.id,
+      ...owner,
       kind,
       index: [...place.querySelectorAll(kind)].indexOf(held),
+      meaning: controlMeaning(held),
     };
   }
   // The same control where the revision kept it; the place where it kept only that; and
@@ -1684,18 +1518,23 @@ export function createVersionController({
   // nowhere, and body, where the page's own keys are live, is the honest answer.
   function restoreStanding(standing) {
     if (!standing) return;
-    // Only where the swap left the reader standing nowhere. The activation settles its
-    // modules asynchronously after the swap, and a reader who moved into the chrome
-    // across that gap has taken a place of their own.
+    // A reader who focused something during startup has already chosen another place.
     const held = focused();
     if (held && held !== document.body) return;
     const place = elementById(standing.id);
-    if (!place) return;
+    if (!place || place.localName !== standing.tag || inChrome(place)) return;
     const control =
       standing.kind === undefined
         ? place
         : (place.querySelectorAll(standing.kind)[standing.index] ?? place);
-    focusDestination(control);
+    if (
+      control &&
+      controlMeaning(control) === standing.meaning &&
+      !control.matches(":disabled, [aria-disabled='true']")
+    )
+      focusDestination(control);
+    else if (!place.matches("button, a, input, select, textarea, [role]"))
+      focusDestination(place);
   }
 
   function installArrival() {
@@ -1707,6 +1546,24 @@ export function createVersionController({
     // a widget, and travel to a different authored revision where a passage is a better
     // landmark than the old document's pixels.
     const navigationType = performance.getEntriesByType("navigation")[0]?.type;
+    const handoff = (() => {
+      const serialized = tabStore.get(HANDOFF_KEY);
+      tabStore.set(HANDOFF_KEY, null);
+      try {
+        const value = JSON.parse(serialized || "null");
+        return LIVE_ROOT &&
+          navigationType === "reload" &&
+          value?.url === location.href &&
+          Number.isInteger(value.revision) &&
+          value.revision <= runtime.currentRevision &&
+          Number.isInteger(value.view?.revision) &&
+          value.view.revision < runtime.currentRevision
+          ? value
+          : null;
+      } catch {
+        return null;
+      }
+    })();
     // Parsed inside its own guard, which is a different question from whether the store
     // answered: tabStore hands back null for a store that refused, and what a page wrote
     // there is only JSON while every version of this runtime agrees about the shape. A
@@ -1724,6 +1581,13 @@ export function createVersionController({
       tabStore.set(VIEW_KEY, JSON.stringify(captureView()));
     });
     function landArrival() {
+      if (handoff) {
+        restoreView(handoff.view);
+        restoreStanding(handoff.standing);
+        if (handoff.comparison !== null && stamped(handoff.comparison))
+          showComparison(handoff.comparison);
+        return;
+      }
       const aimed =
         navigationType === "navigate" &&
         targetElement(resolveAnchor({ section: fragmentId(location.hash) }));

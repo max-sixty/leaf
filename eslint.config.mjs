@@ -215,6 +215,62 @@ const runtimeDependency = (file, source) => {
   return !name.startsWith("../") || name === "../leaf.js" ? name : null;
 };
 
+let pagePaintAttributeValues;
+function pagePaintAttributesFrom(parser) {
+  if (pagePaintAttributeValues) return pagePaintAttributeValues;
+  const file = path.join(runtimeRoot, "presentation.js");
+  const ast = parser.parse(fs.readFileSync(file, "utf8"), {
+    ecmaVersion: "latest",
+    sourceType: "module",
+  });
+  const declarations = ast.body.flatMap((statement) => {
+    const declaration =
+      statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
+    return declaration?.type === "VariableDeclaration" ? declaration.declarations : [];
+  });
+  const record = declarations.find(
+    (declaration) =>
+      declaration.id.type === "Identifier" &&
+      declaration.id.name === "PAGE_PAINT_ATTRIBUTE",
+  );
+  const attributes =
+    record?.init?.type === "CallExpression" &&
+    record.init.callee.type === "MemberExpression" &&
+    !record.init.callee.computed &&
+    record.init.callee.object.type === "Identifier" &&
+    record.init.callee.object.name === "Object" &&
+    record.init.callee.property.type === "Identifier" &&
+    record.init.callee.property.name === "freeze" &&
+    record.init.arguments[0]?.type === "ObjectExpression"
+      ? record.init.arguments[0]
+      : null;
+  if (!attributes)
+    throw new Error(
+      "PAGE_PAINT_ATTRIBUTE must remain a frozen object literal for root-state linting",
+    );
+  pagePaintAttributeValues = new Map();
+  for (const property of attributes.properties) {
+    const name =
+      property.type === "Property" && !property.computed
+        ? property.key.type === "Identifier"
+          ? property.key.name
+          : property.key.value
+        : null;
+    const value =
+      property.type === "Property" &&
+      property.value.type === "Literal" &&
+      typeof property.value.value === "string"
+        ? property.value.value
+        : null;
+    if (typeof name !== "string" || value === null)
+      throw new Error(
+        "PAGE_PAINT_ATTRIBUTE keys and values must remain static strings for root-state linting",
+      );
+    pagePaintAttributeValues.set(name, value);
+  }
+  return pagePaintAttributeValues;
+}
+
 const exactClosures = new Map(
   Object.entries({
     "projection/model.js": [],
@@ -429,6 +485,9 @@ const architecturePlugin = {
         // provisional choices. root-state.js is the sole standing mutation boundary.
         if (file === "bootstrap.js" || file === "root-state.js") return {};
         const source = context.sourceCode ?? context.getSourceCode();
+        const pagePaintAttributes = pagePaintAttributesFrom(
+          context.languageOptions.parser,
+        );
         const propertyName = (node) =>
           node?.type === "MemberExpression"
             ? node.computed
@@ -449,10 +508,12 @@ const architecturePlugin = {
           const found = variable(node);
           if (!found || seen.has(found)) return null;
           seen.add(found);
-          const definition = found.defs.find(
-            ({ type, parent }) => type === "Variable" && parent?.kind === "const",
-          );
+          const definition = found.defs.find(({ type }) => type === "Variable");
           if (!definition?.node.init) return null;
+          if (
+            found.references.some((reference) => reference.isWrite() && !reference.init)
+          )
+            return null;
           if (definition.node.id.type === "Identifier") return definition.node.init;
           if (definition.node.id.type !== "ObjectPattern") return null;
           const property = definition.node.id.properties.find(
@@ -489,6 +550,38 @@ const architecturePlugin = {
               ? staticString(node.property)
               : node.property.name
             : null;
+        const importsPagePaintAttributes = (node) => {
+          const found = variable(node);
+          return Boolean(
+            found?.defs.some(
+              (definition) =>
+                definition.type === "ImportBinding" &&
+                definition.node.type === "ImportSpecifier" &&
+                definition.node.imported.name === "PAGE_PAINT_ATTRIBUTE" &&
+                /(?:^|\/)presentation\.js$/u.test(definition.parent.source.value),
+            ),
+          );
+        };
+        const isPagePaintAttributeRegistry = (node, seen = new Set()) => {
+          if (node?.type === "ChainExpression")
+            return isPagePaintAttributeRegistry(node.expression, seen);
+          if (node?.type !== "Identifier") return false;
+          if (importsPagePaintAttributes(node)) return true;
+          const initial = initialValue(node, seen);
+          return initial ? isPagePaintAttributeRegistry(initial, seen) : false;
+        };
+        const pagePaintAttributeValue = (node, seen = new Set()) => {
+          if (node?.type === "ChainExpression")
+            return pagePaintAttributeValue(node.expression, seen);
+          if (node?.type === "Identifier") {
+            const initial = initialValue(node, seen);
+            return initial ? pagePaintAttributeValue(initial, seen) : null;
+          }
+          const name = memberName(node);
+          return name !== null && isPagePaintAttributeRegistry(node.object, seen)
+            ? (pagePaintAttributes.get(name) ?? null)
+            : null;
+        };
         const isDocument = (node, seen = new Set()) => {
           if (node?.type === "ChainExpression")
             return isDocument(node.expression, seen);
@@ -641,8 +734,10 @@ const architecturePlugin = {
               ) &&
               isDocumentRoot(node.callee.object)
             ) {
-              const attribute = staticString(node.arguments[0]);
-              if (attribute !== null && !attribute.startsWith("data-lf-"))
+              const attribute =
+                staticString(node.arguments[0]) ??
+                pagePaintAttributeValue(node.arguments[0]);
+              if (!attribute?.startsWith("data-lf-"))
                 report(node, attribute === "style" ? "inline styles" : "attributes");
             }
             if (

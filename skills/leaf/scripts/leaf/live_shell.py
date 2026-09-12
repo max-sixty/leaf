@@ -7,6 +7,7 @@ candidate inputs never participate in publishing. Content-addressed media also
 keeps its page-root address for conversation markup and website metadata.
 """
 
+import json
 from pathlib import Path
 
 from .event_log import read_events
@@ -82,7 +83,11 @@ def write_live_shell(
         for logical in sorted(artifact.resources.keys() | aliases.keys()):
             source = aliases.get(logical, logical)
             resource = artifact.resources[source]
-            body = deliver_resource(resource, source, revision_root)
+            body = (
+                f"export * from {json.dumps(revision_root + source)};\n".encode()
+                if logical != source
+                else deliver_resource(resource, source, revision_root)
+            )
             if not source.startswith("/page/"):
                 if resource.mime == "text/css":
                     body = scope_stylesheet_routes(

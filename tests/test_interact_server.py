@@ -3286,6 +3286,32 @@ def test_temporary_server_close_is_bounded_by_an_idle_connection(page_dir, monke
     assert not closer.is_alive()
 
 
+def test_temporary_server_answers_a_connection_opened_before_its_request(page_dir):
+    """A connection that waits before speaking is a browser preconnecting, not a
+    socket that will never speak.
+
+    The close above used to be bounded by a one-second read deadline every connection
+    carried, which cannot tell those two apart. Chromium opens sockets ahead of need
+    and writes real requests onto them later, and a request written onto a connection
+    the server had already closed is dropped with no response, no console entry and no
+    error: in a page that reads as a subresource which never arrives and a load event
+    which never fires.
+    """
+    server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
+    client = socket.create_connection(("127.0.0.1", server.port))
+    try:
+        # Longer than any per-connection read deadline of the order the close was
+        # once bounded by, so a server still carrying one has closed this already.
+        time.sleep(2)
+        client.sendall(f"GET /?t={TOKEN} HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n".encode())
+        client.settimeout(5)
+        answer = client.recv(15)
+    finally:
+        client.close()
+        server.close()
+    assert answer.startswith(b"HTTP/1.0 200"), answer
+
+
 def test_server_can_restart_after_prompt_shutdown(page_dir):
     """The wakeup is reusable, so a normal server restart keeps serving requests."""
     httpd = hosting_model.LeafHTTPServer(

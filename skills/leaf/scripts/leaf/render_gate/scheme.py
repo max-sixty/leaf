@@ -74,22 +74,59 @@ def console_problem(message) -> str | None:
 
 
 def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
-    """Inspect the authored document while its first Leaf entry request is held."""
+    """Inspect the authored document while its first Leaf entry request is held.
+
+    Each wait here says which arrival it gave up on, and what the page was still
+    asking for. The caller reads a timeout raised out of this function as one it
+    cannot attribute, and the reading it would otherwise fall back on — that the
+    runtime never injected its banner — is wrong for the case that actually
+    happens: a subresource the page never receives leaves the document at
+    `interactive` with the runtime already running, no console entry, and no
+    error. The request still open is the only thing that names the file.
+    """
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
     held = []
     released = False
+    open_requests = set()
 
     def hold_entry(route):
         held.append(route)
 
+    def opened(request):
+        open_requests.add(request)
+
+    def settled(request):
+        open_requests.discard(request)
+
+    def reaching(arrival, wait):
+        try:
+            return wait()
+        except PlaywrightTimeout:
+            asking = sorted({urlsplit(request.url).path for request in open_requests})
+            raise RuntimeError(
+                f"the document never reached {arrival}"
+                + (f"; still requesting {', '.join(asking)}" if asking else "")
+            ) from None
+
+    page.on("request", opened)
+    page.on("requestfinished", settled)
+    page.on("requestfailed", settled)
     page.route("**/leaf.js", hold_entry, times=1)
     try:
-        page.goto(url, wait_until="commit")
-        page.wait_for_selector("body > main", state="attached")
+        reaching("its first byte", lambda: page.goto(url, wait_until="commit"))
+        reaching(
+            "an authored main",
+            lambda: page.wait_for_selector("body > main", state="attached"),
+        )
         if page.locator('script[src$="/leaf.js"]').count() != 1:
             raise RuntimeError("the document has no single canonical Leaf entry")
-        page.wait_for_function(
-            "() => [...document.styleSheets].some((sheet) => "
-            "sheet.href?.endsWith('/theme.css'))"
+        reaching(
+            "its theme stylesheet",
+            lambda: page.wait_for_function(
+                "() => [...document.styleSheets].some((sheet) => "
+                "sheet.href?.endsWith('/theme.css'))"
+            ),
         )
         findings = page.evaluate(
             """() => {
@@ -116,12 +153,15 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
             raise RuntimeError("the browser did not request one canonical Leaf entry")
         held[0].continue_()
         released = True
-        page.wait_for_load_state("load")
+        reaching("load", lambda: page.wait_for_load_state("load"))
         return findings
     finally:
         if held and not released:
             held[0].continue_()
         page.unroute("**/leaf.js", hold_entry)
+        page.remove_listener("request", opened)
+        page.remove_listener("requestfinished", settled)
+        page.remove_listener("requestfailed", settled)
 
 
 def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pages):

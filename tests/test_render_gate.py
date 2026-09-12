@@ -4,6 +4,7 @@ import itertools
 import json
 import re
 import time
+from urllib.parse import urlsplit
 
 import pytest
 from interact_support import append_command
@@ -164,6 +165,45 @@ def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
         page.close()
 
     assert findings == ["authored main has no measurable pre-upgrade layout"]
+
+
+def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, serve):
+    """A dropped subresource is the timeout the gate used to misattribute.
+
+    The runtime has already started and injected its banner by the time a held module
+    stalls the load event, so "the runtime never injected its banner" named the one
+    thing that had happened. The document stays at `interactive` with nothing logged
+    and no error raised, which leaves the open request as the only evidence of which
+    file never arrived — this is where the local server dropping a request the browser
+    wrote onto a socket it had already closed reaches the gate.
+    """
+    source = leaf_page("held module", "<h1>Waiting on a module</h1>")
+    page = browser.new_page()
+    page.set_default_timeout(5_000)
+    holding = []
+
+    def hold_module(route):
+        if holding or route.request.url.endswith("/leaf.js"):
+            route.continue_()
+            return
+        holding.append(route)
+
+    page.route("**/runtime/*.js", hold_module)
+    try:
+        with pytest.raises(RuntimeError) as stopped:
+            render_gate_scheme.start_with_pre_upgrade_proof(
+                page, serve(source, packages=())
+            )
+    finally:
+        for route in holding:
+            route.abort()
+        page.close()
+
+    assert holding, "the page asked for no runtime module, so nothing was held"
+    path = urlsplit(holding[0].request.url).path
+    assert str(stopped.value) == (
+        f"the document never reached load; still requesting {path}"
+    )
 
 
 def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):

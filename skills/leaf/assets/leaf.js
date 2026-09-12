@@ -396,7 +396,7 @@ app = mountApplication({
     renderStatus,
     renderVersions: version.renderVersions,
     stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
-    renderOthers,
+    renderOthers: offlineInteractive ? () => undefined : renderOthers,
   },
   feed: {
     prepareActivation: (state) => version.prepareActivation(state),

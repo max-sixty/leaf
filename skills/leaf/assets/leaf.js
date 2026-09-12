@@ -212,12 +212,13 @@ const targetPaintCaps = {
   shifted: targetPaint.shifted,
   geometryChanged: targetPaint.geometryChanged,
 };
+const focusedAnchorThreadId = () =>
+  focused()?.closest?.(".lf-conversation-thread")?.dataset.thread ??
+  focusedThreadOf()?.dataset.id;
 const anchorPaint = createAnchorPaint({
   targetPaint: targetPaintCaps,
   pointer: pointerAt,
-  focusedAnchorThreadId: () =>
-    focused()?.closest?.(".lf-conversation-thread")?.dataset.thread ??
-    focusedThreadOf()?.dataset.id,
+  focusedAnchorThreadId,
   hoveredPanelThreadId: () =>
     threadsBox.querySelector(":scope > .lf-thread:hover")?.dataset.id ?? null,
   panelThreadForId: (id) =>
@@ -697,6 +698,14 @@ pageKeys = createPageKeys({
 const standing = createStanding({
   markHere: asks.markHere,
   paintStanding: anchorPaint.paintStanding,
+  paintSelectedMarginEntries: () =>
+    app.margin.paintSelectedMarginEntries([
+      { kind: "ask", target: asks.standingIn() },
+      {
+        kind: "comment",
+        target: anchorPaint.placedAt(focusedAnchorThreadId())?.element,
+      },
+    ]),
   renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),
   paintGoToHints: goToSequence.paintGoToHints,
   paintTargetChooserHints: targets.paintTargetChooserHints,

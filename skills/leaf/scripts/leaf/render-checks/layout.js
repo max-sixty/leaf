@@ -77,7 +77,7 @@ function marginReading(main) {
     return floatSide(s) === "left" ? b.right <= left + 1 : b.left >= right - 1;
   };
   const residents = [...main.querySelectorAll("*")].filter((el) => {
-    if (!el.checkVisibility() || el.hasAttribute("data-lf-wide")) return false;
+    if (!el.checkVisibility() || el.hasAttribute("data-lf-space")) return false;
     const style = getComputedStyle(el);
     const box = el.getBoundingClientRect();
     // Clipped to nothing is not standing in the margin: the words a page paints for
@@ -148,7 +148,7 @@ export function misplacedBoxes() {
   // scrolled, `overflow-x: auto` having caught every descendant a line above.
   const insideWide = (el) => {
     for (let a = el.parentElement; a && a !== main; a = a.parentElement)
-      if (a.hasAttribute("data-lf-wide")) return a;
+      if (a.hasAttribute("data-lf-space")) return a;
     return null;
   };
   // What a wide widget may not escape, whatever the page has room for: the nearest
@@ -179,7 +179,7 @@ export function misplacedBoxes() {
   };
   const over = new Map();
   for (const el of main.querySelectorAll("*")) {
-    const wide = el.hasAttribute("data-lf-wide");
+    const wide = el.hasAttribute("data-lf-space");
     // A wide widget is asked whatever it stands in, where everything else is excused
     // by a scroll container above it. The excuse is about the column — a box inside a
     // scroller is drawn only as far as the scroller reaches, so it cannot spill onto
@@ -236,7 +236,7 @@ export function misplacedBoxes() {
   // resident is whatever answered for itself in the margin above (MARGIN_RESIDENTS),
   // so a project hanging its own furniture out there is covered without declaring
   // anything to this pass.
-  for (const el of main.querySelectorAll("[data-lf-wide]")) {
+  for (const el of main.querySelectorAll("[data-lf-space]")) {
     if (!el.checkVisibility()) continue;
     const b = el.getBoundingClientRect();
     const hit = residents.find((r) => {
@@ -385,8 +385,12 @@ export function withheldRoom() {
   };
 
   const found = [];
-  for (const el of main.querySelectorAll('[data-lf-wide="drawing"]')) {
+  for (const el of main.querySelectorAll('[data-lf-space="available"]')) {
     if (!el.checkVisibility()) continue;
+    if (
+      getComputedStyle(el).getPropertyValue("--lf-natural-inline-size").trim() !== "1"
+    )
+      continue;
     const short = el.scrollWidth - el.clientWidth;
     if (short <= 1) continue;
     const room = roomAt(el);

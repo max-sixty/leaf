@@ -130,7 +130,7 @@
     }
   },
   "lf-roster": {
-    "description": "Who is working, and where each of them stands right now. Children are lf-agent elements only. Where lf-tasks is the work and lf-milestones the schedule, a roster is the other axis a page running several workers needs: the tree says a task is active, and only the roster says which of five sessions is holding it, what that one is doing this minute, and whether anybody has heard from it since breakfast. Reach for it on a page one orchestrator publishes and several workers report to — the standing hub arrangement — and leave it off a page with one agent on it, where the banner already says everything a roster would.\n\nIt stands wider than the prose column where the window has the room (x-wide), because a roster is read across rather than down: the comparison a reader wants is one agent's line against the next, and a column narrow enough for prose puts each line's own facts on two rows and destroys it.",
+    "description": "Who is working, and where each of them stands right now. Children are lf-agent elements only. Where lf-tasks is the work and lf-milestones the schedule, a roster is the other axis a page running several workers needs: the tree says a task is active, and only the roster says which of five sessions is holding it, what that one is doing this minute, and whether anybody has heard from it since breakfast. Reach for it on a page one orchestrator publishes and several workers report to — the standing hub arrangement — and leave it off a page with one agent on it, where the banner already says everything a roster would.\n\nIt stands wider than the prose column where the window has the room (x-space), because a roster is read across rather than down: the comparison a reader wants is one agent's line against the next, and a column narrow enough for prose puts each line's own facts on two rows and destroys it.",
     "type": "object",
     "properties": {
       "id": {
@@ -141,7 +141,7 @@
     "additionalProperties": false,
     "x-content": "members",
     "x-upgrade": false,
-    "x-wide": "box",
+    "x-space": "wide",
     "x-example": "<lf-roster id=\"aviary-crew\">\n  <lf-agent id=\"ag-wren\" state=\"working\" on=\"t-feeders\">\n    <strong>wren</strong> Holds the feeder rebuild end to end.\n  </lf-agent>\n  <lf-agent id=\"ag-finch\" state=\"waiting\" on=\"t-baffles\">\n    <strong>finch</strong> Baffles are fitted and green; the work is yours to read.\n  </lf-agent>\n  <lf-agent id=\"ag-junco\" state=\"idle\">\n    <strong>junco</strong> Free — nothing assigned since the corpus snapshot.\n  </lf-agent>\n</lf-roster>"
   },
   "lf-agent": {
@@ -396,7 +396,7 @@
       "author": "Keep one empty, stable worktree address beside each worker whose evidence the host can inspect:\n\n```html\n<lf-worktree id=\"tree-wren\" source=\"project-worktrees\"></lf-worktree>\n```\n\nThe page chooses the source id. Reuse one id for widgets that read the same snapshot, or use different ids when a page has independent worktree feeds. Do not author branch, diffstat, tests, file tree, or diff into the version; the host supplies those observed facts through the bound source, and comments stay attached by worktree and datum keys when the snapshot changes."
     },
     "x-upgrade": true,
-    "x-wide": "box",
+    "x-space": "wide",
     "x-example": "<lf-command id=\"project-command\">\n  <lf-agent id=\"wren\" state=\"working\">\n    <strong>wren</strong> Owns the feed rebuild.\n    <lf-worktree id=\"tree-wren\" source=\"project-worktrees\"></lf-worktree>\n  </lf-agent>\n</lf-command>"
   },
   "lf-operations": {

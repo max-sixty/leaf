@@ -664,10 +664,24 @@ def start_direct_agent(context, url: str, comment: dict) -> None:
     )
 
 
+def read_agent_state(context, state_url: str, layer: str, release: str) -> dict:
+    """Read the authoritative state for one activated deployment session."""
+    response = context.request.get(
+        state_url,
+        headers={"Leaf-Layer": layer, "Leaf-Release": release},
+        timeout=120_000,
+    )
+    check(response.ok, f"{state_url} returned {response.status}")
+    return response.json()
+
+
 def ask_for_the_heading(
     context,
     page,
     url: str,
+    state_url: str,
+    layer: str,
+    release: str,
     heading: str,
     profile: AgentProfile,
     ask: int,
@@ -690,19 +704,23 @@ def ask_for_the_heading(
         box.press("ControlOrMeta+Enter")
     posted = response_info.value
     check(posted.ok, f"{url} rejected its deployment-check comment")
-    accepted = posted.json()
     profile.reference = posted.headers.get("leaf-session-reference")
     profile.mark(f"acknowledged {ask}")
+    # The response headers are the acknowledgement edge. Read the admitted event
+    # through the same authoritative state endpoint that owns every later milestone;
+    # consuming this intercepted response body again can wait forever in Playwright
+    # after the page's fetch and the Worker have both finished with the stream.
+    accepted = read_agent_state(context, state_url, layer, release)
     check(
-        "state" in accepted,
+        "events" in accepted,
         f"{url} answered its deployment-check comment without admitting it: {accepted}",
     )
-    profile.observe(accepted["state"])
+    profile.observe(accepted)
     attempt = posted.request.post_data_json["attempt"]
     comment = next(
         (
             event
-            for event in accepted.get("state", {}).get("events", [])
+            for event in accepted.get("events", [])
             if event.get("attempt") == attempt
         ),
         None,
@@ -733,13 +751,7 @@ def await_turn(
     answer = None
     current: dict = {}
     while True:
-        current_response = context.request.get(
-            state_url,
-            headers={"Leaf-Layer": layer, "Leaf-Release": release},
-            timeout=120_000,
-        )
-        check(current_response.ok, f"{state_url} returned {current_response.status}")
-        current = current_response.json()
+        current = read_agent_state(context, state_url, layer, release)
         profile.observe(current)
         replies = [
             event
@@ -808,7 +820,17 @@ def ask_until_answered(
         # What that turn published is carried across it: an agent handed a heading it
         # has already published has no reason to publish it again.
         revision = state["active"]["revision"]
-        comment = ask_for_the_heading(context, page, url, heading, profile, asks)
+        comment = ask_for_the_heading(
+            context,
+            page,
+            url,
+            state_url,
+            layer,
+            release,
+            heading,
+            profile,
+            asks,
+        )
         state, published, replies, answer = await_turn(
             context,
             url,

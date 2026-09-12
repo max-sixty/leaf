@@ -30,8 +30,8 @@ image = "../Dockerfile.website"
 # Product routes give every browser a private Leaf session. The container runs Codex
 # App Server as well as Leaf, so the smallest interactive instance is `basic`; `lite`
 # provides only 1/16 vCPU and 256 MiB. Cloudflare's account limit fits 6,000
-# concurrent basic instances; reserve one hundred slots for the standing dev
-# application so rollout verification can replace several warm reader sessions.
+# concurrent basic instances; reserve ninety slots for the standing dev application
+# and leave ten slots free for rollout bookkeeping.
 max_instances = 5900
 instance_type = "basic"
 # A visible tab's news stream keeps an active session alive. During a release,
@@ -95,7 +95,7 @@ routes = []
   name = "leaf-website-dev-leafexamplesession"
   class_name = "LeafWebsiteSession"
   image = "../Dockerfile.website"
-  max_instances = 100
+  max_instances = 90
   instance_type = "basic"
   rollout_active_grace_period = 600
 

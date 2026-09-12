@@ -6,38 +6,12 @@ from pathlib import Path
 
 import click
 
-from leaf.agent_state import cmd_conversation_read, cmd_page_state
-from leaf.codex import cmd_codex_launch, cmd_codex_start, run_adapter
-from leaf.conversation import (
-    cmd_comment,
-    cmd_edit,
-    cmd_reply,
-    cmd_report,
-    cmd_resolve,
-    thread_of,
-)
-from leaf.data import cmd_data_capture, cmd_data_clear, cmd_data_set
-from leaf.delivery import cmd_delivery_read
-from leaf.exporting import cmd_export
-from leaf.hooks import cmd_hook
-from leaf.host import host_identity
-from leaf.hosting import cmd_serve, cmd_serve_temporary, cmd_stop, start_server
-from leaf.media import cmd_media
-from leaf.packages import cmd_package_check, cmd_package_init, cmd_package_install
-from leaf.page import cmd_guidance
-from leaf.publishing import cmd_stamp
-from leaf.requests import cmd_receipt
 from leaf.schema import (
     ACK_BATCH_INSTRUCTION,
     EVENTS_FILE,
     SKILL_ROOT,
     WAIT_BATCH_OUTPUT_INSTRUCTION,
 )
-from leaf.service import PageTransaction, restore_page_claim, take_page_claim
-from leaf.session import cmd_ack, cmd_idle, cmd_status, cmd_wait
-from leaf.transcript import cmd_events, cmd_transcript
-from leaf.validation.command import cmd_check
-from leaf.vendoring import cmd_init
 
 
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
@@ -100,6 +74,8 @@ def codex_launch(codex_path: str | None) -> None:
 
     This integration is experimental.
     """
+    from leaf.codex import cmd_codex_launch
+
     try:
         sys.exit(cmd_codex_launch(codex_path))
     except RuntimeError as error:
@@ -120,6 +96,8 @@ def codex_start(
     app_server: str | None,
 ) -> None:
     """Start one task-wide delivery carrier and claim PAGE for it."""
+    from leaf.codex import cmd_codex_start
+
     try:
         click.echo(cmd_codex_start(resolve_dir(dir), codex_path, app_server))
     except RuntimeError as error:
@@ -136,6 +114,8 @@ def codex_run(
     app_server: str | None,
 ) -> None:
     """Run the detached carrier child."""
+    from leaf.codex import run_adapter
+
     sys.exit(run_adapter(codex_path, ready_fd, app_server))
 
 
@@ -168,6 +148,8 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
     read. A package may contain any subset of the package layout, including zero,
     one, or many widgets.
     """
+    from leaf.vendoring import cmd_init
+
     if selected and no_packages:
         raise click.UsageError("--package and --no-packages cannot be used together")
     if any(not selection for selection in selected):
@@ -199,6 +181,8 @@ def package_init(package_path: Path, widget: str | None) -> None:
 
     With --widget, add one checked upgraded content widget starter.
     """
+    from leaf.packages import cmd_package_init
+
     cmd_package_init(package_path, widget)
 
 
@@ -210,6 +194,8 @@ def package_init(package_path: Path, widget: str | None) -> None:
 )
 def package_check(package_path: Path) -> None:
     """Check the package as one composed unit."""
+    from leaf.packages import cmd_package_check
+
     cmd_package_check(package_path)
 
 
@@ -225,6 +211,8 @@ def package_install(package_path: Path) -> None:
     `page init --package NAME` then selects it by its directory name, on the
     same terms as a package Leaf ships.
     """
+    from leaf.packages import cmd_package_install
+
     cmd_package_install(package_path)
 
 
@@ -243,6 +231,8 @@ def media(dir: str, files) -> None:
     Copies each image into the page under a content-addressed name and prints
     its page path followed by its source file.
     """
+    from leaf.media import cmd_media
+
     for src, url in cmd_media(resolve_dir(dir), [Path(f) for f in files]):
         print(f"{url}\t{src}")
 
@@ -252,6 +242,8 @@ def media(dir: str, files) -> None:
 @click.argument("audience", required=False, metavar="AUDIENCE")
 def guidance(dir: str, audience: str | None) -> None:
     """List audiences, or print the guidance for AUDIENCE."""
+    from leaf.page import cmd_guidance
+
     cmd_guidance(resolve_dir(dir), audience)
 
 
@@ -262,6 +254,8 @@ def state(dir: str) -> None:
     object: effective content with source and edit addresses, standing state,
     reports, open Asks, conversation summaries, versions, presence, and bound data.
     Content follows the same document projection as the browser."""
+    from leaf.agent_state import cmd_page_state
+
     cmd_page_state(resolve_dir(dir))
 
 
@@ -274,6 +268,8 @@ def delivery() -> None:
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 def delivery_read(delivery_id: str) -> None:
     """Print DELIVERY_ID with its complete batches and response requirements."""
+    from leaf.delivery import cmd_delivery_read
+
     cmd_delivery_read(delivery_id)
 
 
@@ -305,6 +301,8 @@ def conversation_read(
     limit: int,
 ) -> None:
     """Print one current conversation and a page of its exact event history."""
+    from leaf.agent_state import cmd_conversation_read
+
     cmd_conversation_read(
         resolve_dir(dir),
         conversation_id,
@@ -334,6 +332,8 @@ def data() -> None:
 )
 def data_set(dir: str, source: str, input_file, capture_label: str | None) -> None:
     """Validate and replace SOURCE with one complete JSON value."""
+    from leaf.data import cmd_data_set
+
     try:
         value = json.load(input_file)
     except json.JSONDecodeError as error:
@@ -377,6 +377,8 @@ def data_capture(
     label: str | None,
 ) -> None:
     """Capture FILE as SOURCE's current value and an immutable snapshot."""
+    from leaf.data import cmd_data_capture
+
     cmd_data_capture(resolve_dir(dir), source, input_file, lines, label, capture_format)
 
 
@@ -385,6 +387,8 @@ def data_capture(
 @click.argument("source", metavar="SOURCE")
 def data_clear(dir: str, source: str) -> None:
     """Clear SOURCE while retaining captures selected by durable documents."""
+    from leaf.data import cmd_data_clear
+
     cmd_data_clear(resolve_dir(dir), source)
 
 
@@ -405,6 +409,8 @@ def check(dir: str, render: bool) -> None:
     host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
     CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
     """
+    from leaf.validation.command import cmd_check
+
     sys.exit(cmd_check(resolve_dir(dir), render))
 
 
@@ -426,6 +432,8 @@ def stamp(dir: str, text: str, completes: tuple[str, ...], as_json: bool) -> Non
     widget claim otherwise survives unrelated versions, and a version cannot
     silently remove its page target.
     """
+    from leaf.publishing import cmd_stamp
+
     accepted = cmd_stamp(resolve_dir(dir), text, completes)
     if as_json:
         print(json.dumps(accepted, ensure_ascii=False))
@@ -453,6 +461,8 @@ def export(dir: str, out: Path, version: int) -> None:
 
     Renders the version in the host's browser, then writes a standalone copy.
     """
+    from leaf.exporting import cmd_export
+
     sys.exit(cmd_export(resolve_dir(dir), out, version))
 
 
@@ -495,6 +505,10 @@ def start(dir: str, host: str | None, standing: bool) -> None:
     goes down with the session that claimed it besides. A page already served
     prints that server's URL and is left alone.
     """
+    from leaf.host import host_identity
+    from leaf.hosting import start_server
+    from leaf.service import PageTransaction, restore_page_claim, take_page_claim
+
     page_dir = resolve_dir(dir)
     claim_transition = None if standing else take_page_claim(page_dir)
     if claim_transition:
@@ -532,6 +546,9 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
     Browser harnesses use `--temporary`; a reader page in an agent session uses
     `server start`. A page already served prints that server's URL and exits.
     """
+    from leaf.hosting import cmd_serve, cmd_serve_temporary
+    from leaf.service import restore_page_claim, take_page_claim
+
     page_dir = resolve_dir(dir)
     if temporary:
         if standing:
@@ -554,6 +571,8 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
 @click.option("--revive", is_flag=True, hidden=True)
 def _serve(dir: str, host: str | None, standing: bool, revive: bool) -> None:
     """Private child process spawned by server start and Watch revival."""
+    from leaf.hosting import cmd_serve
+
     cmd_serve(resolve_dir(dir), host, standing, revive, detached=True)
 
 
@@ -561,6 +580,8 @@ def _serve(dir: str, host: str | None, standing: bool, revive: bool) -> None:
 @click.argument("dir", metavar="PAGE")
 def stop(dir: str) -> None:
     """Stop a page's server."""
+    from leaf.hosting import cmd_stop
+
     print(cmd_stop(resolve_dir(dir)))
 
 
@@ -600,6 +621,8 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
     within a couple of minutes of the ending, and one nobody renews at all goes
     quiet after about a quarter of an hour — on the banner and each local line.
     """
+    from leaf.session import cmd_idle, cmd_status
+
     page_dir = resolve_dir(dir)
     if state == "idle":
         cmd_idle(page_dir, detail, on)
@@ -618,6 +641,8 @@ def status(dir: str, state: str, detail: str, on: str | None) -> None:
 @click.argument("dir", metavar="PAGE", required=False)
 def wait(dir: str | None) -> None:
     """Print one page's unacknowledged events and reports, then exit."""
+    from leaf.session import cmd_wait
+
     sys.exit(cmd_wait(resolve_dir(dir) if dir else None))
 
 
@@ -629,6 +654,8 @@ def wait(dir: str | None) -> None:
 @click.argument("seq", type=click.IntRange(min=1), metavar="SEQ")
 def ack(dir: str, seq: int) -> None:
     """Acknowledge one complete batch and wait for the next one."""
+    from leaf.session import cmd_ack, cmd_wait
+
     page_dir = resolve_dir(dir)
     cmd_ack(page_dir, seq)
     # Ack already succeeded, so ignore the following wait's delivery/end code.
@@ -654,12 +681,18 @@ def comment(
     The user answers it in the browser and resolves it there. Refuses a quote the
     active revision does not hold, or holds more than once.
     """
+    from leaf.conversation import cmd_comment
+
     cmd_comment(resolve_dir(dir), quote, section, part, text, markup)
 
 
 @cli.command(short_help="Reply to a thread as the agent.")
 @click.argument("dir", metavar="PAGE")
-@click.option("--to", required=True, metavar="ID", help="comment or reply ID to answer")
+@click.option(
+    "--to",
+    metavar="ID",
+    help="comment or reply ID to answer (inferred for a delivered reply)",
+)
 @click.option(
     "--for",
     "for_event",
@@ -694,8 +727,13 @@ def reply(
     """Post a threaded reply as the agent (--text or stdin).
 
     Supplying --quote, --section, or --part moves the conversation's current anchor in
-    the same event. The opening comment keeps its original anchor in the log.
+    the same event. The opening comment keeps its original anchor in the log. With one
+    reply obligation in this turn's opened delivery, --to and --for are inferred. The
+    command validates and activates a changed source before posting, so a reply never
+    announces an invalid page edit.
     """
+    from leaf.conversation import cmd_reply, thread_of
+
     page_dir = resolve_dir(dir)
     accepted = cmd_reply(
         page_dir,
@@ -708,6 +746,7 @@ def reply(
         quote=quote,
         section=section,
         part=part,
+        validate_source=True,
     )
     if as_json:
         print(json.dumps(accepted, ensure_ascii=False))
@@ -726,6 +765,8 @@ def edit(dir: str, to: str, text: str, as_json: bool) -> None:
     The original and every revision remain in the append-only event log. Frozen
     widget markup is not editable.
     """
+    from leaf.conversation import cmd_edit, thread_of
+
     page_dir = resolve_dir(dir)
     accepted = cmd_edit(page_dir, to, text)
     if as_json:
@@ -748,6 +789,8 @@ def resolve(dir: str, to: str) -> None:
     since answered the question it put. Reply first where the thread asked something —
     closing is not an answer, and the panel names the agent that did it.
     """
+    from leaf.conversation import cmd_resolve
+
     cmd_resolve(resolve_dir(dir), to)
 
 
@@ -764,6 +807,8 @@ def report(dir: str, widget: str, verb: str, fields: tuple) -> None:
     page paints the report live as provisional news; it stands until a version
     absorbs or overrules it, and the page's watcher wakes to fold it in.
     """
+    from leaf.conversation import cmd_report
+
     cmd_report(resolve_dir(dir), widget, verb, fields)
 
 
@@ -778,6 +823,8 @@ def report(dir: str, widget: str, verb: str, fields: tuple) -> None:
 @click.option("--text", help="host outcome (default: stdin)")
 def receipt(dir: str, request: str, status: str, text: str) -> None:
     """Record exactly one terminal host outcome for REQUEST."""
+    from leaf.requests import cmd_receipt
+
     cmd_receipt(resolve_dir(dir), request, status, text)
 
 
@@ -801,6 +848,8 @@ def events(dir: str, after: int, conversation: str | None) -> None:
     CONVERSATION is an exact identity lookup, not a general event filter. This is
     read-only and does not acknowledge user events.
     """
+    from leaf.transcript import cmd_events
+
     cmd_events(resolve_dir(dir), after, conversation)
 
 
@@ -808,12 +857,16 @@ def events(dir: str, after: int, conversation: str | None) -> None:
 @click.argument("dir", metavar="PAGE")
 def transcript(dir: str) -> None:
     """Print the page's exchange as Markdown."""
+    from leaf.transcript import cmd_transcript
+
     cmd_transcript(resolve_dir(dir))
 
 
 @cli.command(hidden=True)
 def hook() -> None:
     """Answer an agent-host hook on stdin."""
+    from leaf.hooks import cmd_hook
+
     try:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError as error:

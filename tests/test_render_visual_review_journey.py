@@ -69,13 +69,25 @@ def test_visual_inspection_chains_document_scroll_and_expands_without_losing_pla
     )
     url = url.rsplit("/versions/", 1)[0] + "/?" + url.partition("?")[2]
     page, errors = open_page(browser, url)
-    page.set_viewport_size({"width": 1000, "height": 700})
+    page.set_viewport_size({"width": 1726, "height": 900})
     widget = page.locator("#visual-review-run")
     expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
     expect(page.get_by_text("The review follows this context.")).to_be_visible()
     expect(
         page.get_by_text("The decision record continues after the evidence.")
     ).to_be_visible()
+    wide_case = widget.locator(".lf-vr-case:not([hidden])")
+    wide_host = wide_case.locator(".lf-vr-shot-host")
+    assert wide_case.evaluate(
+        """(node, host) => {
+          const style = getComputedStyle(node);
+          const available = node.clientWidth - parseFloat(style.paddingLeft)
+            - parseFloat(style.paddingRight);
+          return Math.abs(host.getBoundingClientRect().width - available) < 1;
+        }""",
+        wide_host.element_handle(),
+    )
+    page.set_viewport_size({"width": 1000, "height": 700})
     widget.scroll_into_view_if_needed()
     host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     widget.get_by_role("button", name="Full frame").click()

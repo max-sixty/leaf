@@ -431,10 +431,12 @@ lf-visual-review[data-inspection-expanded="true"] .lf-vr-expand {
 }
 
 .lf-vr-shot-host {
+  box-sizing: border-box;
   display: grid;
   align-items: start;
   justify-items: center;
   min-width: 0;
+  width: 100%;
   height: var(--lf-vr-stage-height, auto);
   min-height: 14rem;
   max-height: 35rem;

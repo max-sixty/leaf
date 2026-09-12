@@ -3,11 +3,15 @@
 import itertools
 import json
 import re
+import threading
 import time
+from urllib.parse import urlsplit
 
 import pytest
 from interact_support import append_command
 from leaf import event_log as events_model
+from leaf import hosting as hosting_model
+from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf.render_gate import readings as render_gate_readings
@@ -53,6 +57,7 @@ from render_support import (
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
     TINTED_LINE_PAGE,
+    TOKEN,
     TYPED_PARTS_PAGE,
     UNANSWERED_CODE_PAGE,
     UNMARKABLE_PAGE,
@@ -164,6 +169,147 @@ def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
         page.close()
 
     assert findings == ["authored main has no measurable pre-upgrade layout"]
+
+
+def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, serve):
+    """A dropped subresource is the timeout the gate used to misattribute.
+
+    The runtime has already started and injected its banner by the time a held module
+    stalls the load event, so "the runtime never injected its banner" named the one
+    thing that had happened. The document stays at `interactive` with nothing logged
+    and no error raised, which leaves the open request as the only evidence of which
+    file never arrived — this is where the local server dropping a request the browser
+    wrote onto a socket it had already closed reaches the gate.
+    """
+    source = leaf_page("held module", "<h1>Waiting on a module</h1>")
+    page = browser.new_page()
+    page.set_default_timeout(5_000)
+    holding = []
+
+    def hold_module(route):
+        if holding or route.request.url.endswith("/leaf.js"):
+            route.continue_()
+            return
+        holding.append(route)
+
+    page.route("**/runtime/*.js", hold_module)
+    try:
+        with pytest.raises(RuntimeError) as stopped:
+            render_gate_scheme.start_with_pre_upgrade_proof(
+                page, serve(source, packages=())
+            )
+    finally:
+        for route in holding:
+            route.abort()
+        page.close()
+
+    assert holding, "the page asked for no runtime module, so nothing was held"
+    path = urlsplit(holding[0].request.url).path
+    assert str(stopped.value) == (
+        f"the document never reached load; still requesting {path}"
+    )
+
+
+def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
+    browser, serve
+):
+    """The proof holds the Leaf entry itself until after the theme stylesheet, so the
+    entry is open at every wait before that by the gate's own choice. Naming it
+    beside what the page is waiting for would point a reader at the hold rather than
+    at the file that never came."""
+    source = leaf_page("held theme", "<h1>Waiting on a theme</h1>")
+    page = browser.new_page()
+    page.set_default_timeout(5_000)
+    holding = []
+
+    def hold_theme(route):
+        holding.append(route)
+
+    page.route("**/theme.css", hold_theme)
+    try:
+        with pytest.raises(RuntimeError) as stopped:
+            render_gate_scheme.start_with_pre_upgrade_proof(
+                page, serve(source, packages=())
+            )
+    finally:
+        for route in holding:
+            route.abort()
+        page.close()
+
+    assert holding, "the page asked for no theme stylesheet, so nothing was held"
+    assert str(stopped.value) == (
+        "the document never reached its theme stylesheet; still requesting /theme.css"
+    )
+
+
+def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
+    browser, serve
+):
+    """Past the release the entry is the page's own request. What the wait above
+    leaves out is the hold, not the file — and a load event still waiting on an entry
+    the server accepted and then dropped is exactly the ending this reading exists to
+    name, so the release has to hand the entry back to the page."""
+    served = serve(leaf_page("dropped entry", "<h1>Dropped</h1>"), packages=())
+    asked = threading.Event()
+
+    class Drops(http_model.handler_for(serve.page_dir, TOKEN)):
+        """Answers everything but the Leaf entry, which it accepts and drops."""
+
+        def do_GET(self):
+            if self.path.startswith("/leaf.js"):
+                asked.set()
+                time.sleep(300)  # longer than any patience the gate could have
+                return
+            super().do_GET()
+
+    httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), Drops)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    dropped = (
+        urlsplit(served)
+        ._replace(netloc=f"127.0.0.1:{httpd.server_address[1]}")
+        .geturl()
+    )
+    page = browser.new_page()
+    page.set_default_timeout(5_000)
+    try:
+        with pytest.raises(RuntimeError) as stopped:
+            render_gate_scheme.start_with_pre_upgrade_proof(page, dropped)
+    finally:
+        page.close()
+        httpd.shutdown()
+
+    assert asked.is_set(), "the browser never asked for the entry, so nothing dropped"
+    assert str(stopped.value) == (
+        "the document never reached load; still requesting /leaf.js"
+    )
+
+
+def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
+    browser, serve, monkeypatch
+):
+    """A server that refuses the document leaves the proof with nothing to wait for
+    and the page with no console message of its own. The status the gate collected is
+    the only thing that says why the wait stopped, so the named wait carries it."""
+    real_proof = render_gate_scheme.start_with_pre_upgrade_proof
+
+    def promptly(page, url):
+        page.set_default_timeout(2_000)
+        return real_proof(page, url)
+
+    monkeypatch.setattr(render_gate_scheme, "start_with_pre_upgrade_proof", promptly)
+    served = serve(leaf_page("refused", "<h1>Refused</h1>"), packages=())
+    refused = served.split("?")[0] + "?t=not-the-page-key"
+
+    failures, _notices, completed = render_gate_scheme._render_scheme(
+        browser, refused, "light", {"width": 1200, "height": 900}, 3_000, []
+    )
+
+    assert completed is False
+    assert len(failures) == 1
+    assert failures[0].startswith(
+        "[light] pre-upgrade proof failed: the document never reached an authored main"
+    )
+    assert f"403 {refused}" in failures[0]
 
 
 def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(

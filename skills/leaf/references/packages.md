@@ -175,7 +175,11 @@ runtime exposes declared layout facts as `[data-lf-inline]`, `[data-lf-space]`, 
 tags. `x-space: wide` requests the shared capped evidence width; `x-space: available`
 requests all room left after enclosing frames, chrome, and actual margin residents.
 Neither value chooses the widget's internal layout; the package arranges its own content
-inside the allocation. A box a package scrolls sideways needs no declaration of its own: the runtime
+inside the allocation. A package whose available surface preserves a drawing's natural
+inline size sets `--lf-natural-inline-size: 1` on that surface so the render gate can
+distinguish honest source overflow from room withheld by the page; Leaf resets the fact
+on every declared surface, so it applies only to the element that states it. A box a
+package scrolls sideways needs no declaration of its own: the runtime
 measures every scroller on each layout and marks each edge with content beyond it.
 Leaf fades the content at those edges, so a widget that has to scroll says so without
 the package writing anything. In particular, an interactive

@@ -1532,19 +1532,23 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
  * the question is also what leaves an lf-toc written into ordinary prose alone; the
  * posture reaches every box on the page, and only the sidebar's map wants it. */
 @media screen and (hover: hover) and (pointer: fine) {
+  /* The resting contents spine occupies one compact hit lane. Hover, keyboard focus,
+   * and the go-to sequence reveal its labels and expand the same live claim. Core reads
+   * the claim for the sidebar box and page allocation, so hidden labels do not reserve
+   * their full presentation and revealed labels stay clear of available content. */
+  main:has(> aside.sidebar > lf-toc:only-child) {
+    --lf-sidebar-claim: 64px;
+  }
+  main:has(> aside.sidebar > lf-toc:only-child:is(:hover, :focus-within)),
+  body[data-lf-go-to-active] main:has(> aside.sidebar > lf-toc:only-child) {
+    --lf-sidebar-claim: 344px;
+  }
   @container lf-content-frame style(--lf-sidebar-posture: margin) {
     @container style(--lf-sidebar-slot: margin) {
       lf-toc { position: fixed;
                left: calc(var(--lf-shell-inset-left, 0px) + var(--sp-4));
                top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
-               /* The generic sidebar guarantees a 240px map and its gutter. Once the
-                * reading column can stay centred with room left over, spend that empty
-                * margin on shorter labels until the map reaches 320px. */
-               width: clamp(
-                 calc(var(--sidebar) - var(--sp-4)),
-                 calc((100cqi - min(var(--col), var(--lf-room))) / 2
-                   + var(--lf-shift) - 2 * var(--sp-4)),
-                 320px);
+               width: calc(var(--lf-sidebar-claim, var(--sidebar)) - var(--sp-4));
                /* TODO: the shortcut bar covers this map's last entry — 21 of its 36 pixels,
                 * on every page with a spine, at every width, with nothing to scroll it
                 * clear. The map is the fourth region standing in the line's band and the
@@ -1839,7 +1843,6 @@ lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre
    word for a module having replaced its body, so this is the sentence theme.css's
    `.lf-error` rule makes about a failure, said where the word for the other half
    lives. */
-[data-lf-space="available"]:not(.lf-rendered) { --lf-room: 0px; display: block; }
 
 /* A chart's colors are all here, and none of them are in its module. Plot leaves every
  * mark `currentColor` unless a color channel says otherwise, and lf-chart never passes

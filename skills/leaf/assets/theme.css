@@ -657,6 +657,7 @@ main {
  * reading. A live page and a standalone copy therefore use the same arithmetic. */
 @media screen {
   [data-lf-space] {
+    --lf-natural-inline-size: 0;
     --lf-surplus: max(0px, calc(var(--lf-reach) - 100%));
     --lf-grow-l: calc(var(--lf-surplus) / 2);
     --lf-grow-r: calc(var(--lf-surplus) / 2);
@@ -673,10 +674,11 @@ main {
     contain: inline-size;
   }
   [data-lf-space="wide"] {
-    --lf-reach: min(var(--wide), var(--lf-space-room, var(--lf-room, 0px)));
+    --lf-reach: min(var(--wide), var(--lf-room, 0px),
+      var(--lf-space-bound, 99999px));
   }
   [data-lf-space="available"] {
-    --lf-reach: var(--lf-space-room, var(--lf-room, 0px));
+    --lf-reach: min(var(--lf-room, 0px), var(--lf-space-bound, 99999px));
   }
   /* A widget whose upgrade failed is showing the message and the source it choked on
    * (failSoft), and prose is the column's. The room it declared was for the drawing it
@@ -722,7 +724,9 @@ main {
    * wide element against the nearest ancestor that draws one. It could not see through a
    * scroll container until a diagram in a board card was drawn 332px across the next
    * column, and four widgets letting a diagram out were found the day it could. */
-  @container style(--lf-block-frame: 1) { * { --lf-room: 0px; } }
+  @container style(--lf-block-frame: 1) {
+    * { --lf-room: 0px; }
+  }
   main > * { --lf-room: inherit; }
 }
 @media screen and (max-width: 640px) {
@@ -1061,7 +1065,7 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
   @container lf-shell (min-width: 1152px) {
   html:not(.lf-copy)
     main:has(> aside.sidebar):not(:has(aside.sidenote)) {
-    --strip-l: var(--sidebar);
+    --strip-l: var(--lf-sidebar-claim, var(--sidebar));
     --lf-sidebar-posture: margin;
     /* Keep the reading column on the page's axis while both margin residents fit in
        its existing gutters. If they need more room, spend the outer page edges and
@@ -1075,43 +1079,51 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
     --lf-shift: calc(
       max(0px, var(--strip-l) + var(--lf-sidebar-edge) - var(--lf-gutter))
       - max(0px, var(--strip-r) + var(--lf-sidebar-edge) - var(--lf-gutter)));
-    --lf-space-room:
-      calc(50cqi - var(--lf-shift) + min(var(--col), var(--lf-room)) / 2);
     & [data-lf-space] {
-      --lf-grow-l: 0px;
-      --lf-grow-r: var(--lf-surplus);
+      --lf-space-bound: calc(100cqi
+        - var(--lf-sidebar-claim, var(--sidebar)) - 2 * var(--col-pad));
+      --lf-grow-l: min(calc(var(--lf-surplus) / 2),
+        max(0px, calc(50cqi + var(--lf-shift)
+          - min(var(--col), var(--lf-room)) / 2
+          - var(--lf-sidebar-claim, var(--sidebar)) - var(--col-pad))));
+      --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
     }
   }
   html:not(.lf-copy) main:not(:has(aside.sidenote))
     > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
-    width: calc(var(--sidebar) - var(--sp-4));
+    width: calc(var(--lf-sidebar-claim, var(--sidebar)) - var(--sp-4));
     max-height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
     overflow-y: auto;
-    margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
+    margin: 0 var(--sp-4) var(--sp-4)
+      calc(-1 * var(--lf-sidebar-claim, var(--sidebar)));
   }
   }
   @container lf-shell (min-width: 1416px) {
   html:not(.lf-copy)
     main:has(> aside.sidebar):has(aside.sidenote) {
-    --strip-l: var(--sidebar);
+    --strip-l: var(--lf-sidebar-claim, var(--sidebar));
     --lf-sidebar-posture: margin;
-    --lf-space-room:
-      calc(50cqi - var(--lf-shift) + min(var(--col), var(--lf-room)) / 2);
     & [data-lf-space] {
-      --lf-grow-l: 0px;
-      --lf-grow-r: var(--lf-surplus);
+      --lf-space-bound: calc(100cqi
+        - var(--lf-sidebar-claim, var(--sidebar)) - 2 * var(--col-pad));
+      --lf-grow-l: min(calc(var(--lf-surplus) / 2),
+        max(0px, calc(50cqi + var(--lf-shift)
+          - min(var(--col), var(--lf-room)) / 2
+          - var(--lf-sidebar-claim, var(--sidebar)) - var(--col-pad))));
+      --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
     }
   }
   html:not(.lf-copy) main:has(aside.sidenote)
     > aside.sidebar:nth-child(1 of aside.sidebar) {
     float: left; clear: left; position: sticky;
     top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
-    width: calc(var(--sidebar) - var(--sp-4));
+    width: calc(var(--lf-sidebar-claim, var(--sidebar)) - var(--sp-4));
     max-height: calc(100vh - var(--lf-banner-h, 0px) - 2 * var(--sp-4));
     overflow-y: auto;
-    margin: 0 var(--sp-4) var(--sp-4) calc(-1 * var(--sidebar));
+    margin: 0 var(--sp-4) var(--sp-4)
+      calc(-1 * var(--lf-sidebar-claim, var(--sidebar)));
   }
   }
 }
@@ -1956,11 +1968,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      own apparatus. A copy runs no script and keeps the marks it was exported with, the
      way it keeps the rail its decided rows reserved. */
   [data-lf-space][data-lf-yield~="r"] {
-    --lf-space-room:
+    --lf-space-bound:
       calc(50cqi + var(--lf-shift) + min(var(--col), var(--lf-room)) / 2);
     --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;
   }
   main:has(> aside.sidebar) [data-lf-space][data-lf-yield~="r"] {
+    --lf-space-bound: 100%;
     --lf-grow-l: 0px; --lf-grow-r: 0px;
   }
 }

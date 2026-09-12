@@ -19,6 +19,10 @@ lf-diagram { --lf-diagram-paper: var(--paper); --lf-diagram-ink: var(--ink);
              font-family: var(--mono); font-size: var(--code-size);
              line-height: var(--code-line); font-variant-ligatures: none;
              color: var(--code-muted); overflow-x: auto; }
+lf-diagram[data-lf-space="available"]:not(.lf-rendered) {
+  --lf-room: 0px;
+  display: block;
+}
 lf-diagram.lf-rendered { font: inherit; color: inherit; overflow: visible; }
 /* The drawing keeps its natural size. Flexible spacers spend the allocation on each
  * side so a drawing that fits remains on the prose axis; when it does not fit they give

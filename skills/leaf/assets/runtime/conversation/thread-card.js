@@ -80,6 +80,10 @@ export function threadNode(t, grow, commands) {
   // answering for a comment the reader just sent renames this node in place, and a
   // handler holding the earlier name would go on addressing a thread nothing wears.
   const liveId = () => div.dataset.id;
+  const shownCard = () =>
+    threadsBox.querySelector(
+      `:scope > .lf-thread[data-id="${CSS.escape(liveId())}"]:not([hidden])`,
+    );
   div.tabIndex = -1; // t/T focus target; the thread scope's Enter drops into its reply box
   div.dataset.id = t.root.id;
   div.dataset.resolved = String(Boolean(t.resolved));
@@ -127,14 +131,24 @@ export function threadNode(t, grow, commands) {
       ...settlement,
       liveId,
       prepareLanding: () => {
-        // Resolving removes this card and its focus. Land on the thread that takes its
-        // place, or the previous thread when this one was last in the list.
+        // Resolving removes this card and its focus in the optimistic presentation.
+        // Land in that same turn on the thread that takes its place, or the previous
+        // thread when this one was last in the list. A refusal restores the original
+        // thread only while no later reader gesture has claimed the landing.
         const mayLand = travel.retainPanelLanding(div);
         const at = openThreads().indexOf(div);
-        return () => {
-          if (!mayLand()) return;
-          const kept = openThreads();
-          (kept[at] ?? kept[at - 1] ?? threadsBox).focus({ preventScroll: true });
+        let mayRestore = () => false;
+        return {
+          optimistic: () => {
+            if (!mayLand()) return;
+            const kept = openThreads();
+            const destination = kept[at] ?? kept[at - 1] ?? threadsBox;
+            destination.focus({ preventScroll: true });
+            mayRestore = travel.retainPanelLanding(destination);
+          },
+          refused: () => {
+            if (mayRestore()) shownCard()?.focus({ preventScroll: true });
+          },
         };
       },
     });
@@ -173,8 +187,26 @@ export function threadNode(t, grow, commands) {
       liveId,
       prepareLanding: () => {
         const mayLand = travel.retainPanelLanding(div);
-        return () => {
-          if (mayLand()) travel.showThread(liveId());
+        const narrowing = travel.retainNarrowing();
+        let mayRestore = () => false;
+        return {
+          optimistic: () => {
+            if (!mayLand()) return;
+            travel.showThread(liveId());
+            narrowing.replaced();
+            const destination = shownCard();
+            if (destination) mayRestore = travel.retainPanelLanding(destination);
+          },
+          refused: () => {
+            const restoreFocus = mayRestore();
+            narrowing.restore(() => {
+              if (!restoreFocus) return;
+              // Restoring the resolved state folds the optimistic open card. Finish
+              // that transition through the ordinary direct-arrival path before
+              // putting back the narrower view it clears.
+              travel.showThread(liveId(), { focus: "thread" });
+            });
+          },
         };
       },
     });

@@ -248,10 +248,16 @@
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
-.lf-margin-entry[data-lf-agent-phase="picked_up"][data-lf-tone="positive"] {
+.lf-margin-entry:is(
+  [data-lf-agent-phase="picked_up"],
+  [data-lf-agent-phase="active"]
+)[data-lf-tone="positive"] {
   border-color: var(--ok-ink);
 }
-.lf-margin-entry[data-lf-agent-phase="picked_up"][data-lf-tone="negative"] {
+.lf-margin-entry:is(
+  [data-lf-agent-phase="picked_up"],
+  [data-lf-agent-phase="active"]
+)[data-lf-tone="negative"] {
   border-color: var(--danger-ink);
 }
 .lf-margin-entry[data-lf-agent-phase="active"] {

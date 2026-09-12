@@ -1590,7 +1590,8 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
 
     indexed_sections = page.locator(".bg-feature-elements").evaluate_all(
         """eyebrows => eyebrows.map(eyebrow => {
-          const scope = eyebrow.closest('section') || eyebrow.closest('main');
+          const scope = eyebrow.closest('section');
+          if (!scope) return {section: 'page', missing: ['no containing section']};
           const elements = [...scope.querySelectorAll('*')];
           for (const template of scope.querySelectorAll('template')) {
             elements.push(...template.content.querySelectorAll('*'));
@@ -1601,7 +1602,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
           ]));
           const listed = eyebrow.textContent.split('·').map(entry => entry.trim());
           return {
-            section: scope.id || 'page',
+            section: scope.id,
             missing: listed.filter(identifier => !present.has(identifier)),
           };
         })"""
@@ -2441,6 +2442,17 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     ]
     assert {reading["icon"] for reading in picked_up} == {
         token_colour(page, "--ok-ink")
+    }
+    page.evaluate("() => window.setToneAgentPhase('active')")
+    active = [button.evaluate(read) for button in buttons]
+    assert [reading["shell"][1] for reading in active] == [
+        ordinary[0]["shell"][1],
+        token_colour(page, "--ok-ink"),
+        token_colour(page, "--danger-ink"),
+    ]
+    assert {reading["icon"] for reading in active} == {token_colour(page, "--ok-ink")}
+    assert {reading["shell"][2] for reading in active} == {
+        token_colour(page, "--ok-wash")
     }
     page.evaluate("() => window.setToneAgentPhase(null)")
 

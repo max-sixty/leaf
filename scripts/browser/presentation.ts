@@ -452,20 +452,25 @@ export function createPresentationCoordinator<
     for (;;) {
       const target = current();
       await whenPresented(target.document, target.semanticEpoch);
-      const latest = current();
-      const reading = read();
       // A waiter resumes in a microtask. An earlier waiter may have opened a newer
       // publication or replaced a renderer in the same epoch before this continuation
       // runs, so readiness is current only after re-reading both owners.
-      if (
-        Object.is(reading.document, latest.document) &&
-        reading.semanticEpoch === latest.semanticEpoch &&
-        reading.presentedEpoch >= latest.semanticEpoch &&
-        reading.sealed &&
-        reading.pending.length === 0
-      )
-        return "presented";
+      if (currentPresented(current)) return "presented";
     }
+  }
+
+  function currentPresented(
+    current: () => PresentationPublication<DocumentToken>,
+  ): boolean {
+    const latest = current();
+    const reading = read();
+    return (
+      Object.is(reading.document, latest.document) &&
+      reading.semanticEpoch === latest.semanticEpoch &&
+      reading.presentedEpoch >= latest.semanticEpoch &&
+      reading.sealed &&
+      reading.pending.length === 0
+    );
   }
 
   async function whenCurrentRegionsPresented(
@@ -521,6 +526,7 @@ export function createPresentationCoordinator<
     committed,
     whenPresented,
     whenCurrentPresented,
+    currentPresented,
     whenCurrentRegionsPresented,
     read,
   });

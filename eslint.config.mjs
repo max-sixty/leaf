@@ -562,11 +562,14 @@ export default [
     },
   },
   {
-    files: ["skills/leaf/scripts/leaf/render-checks/replay.js"],
+    files: [
+      "skills/leaf/scripts/leaf/render-checks/replay.js",
+      "skills/leaf/scripts/leaf/render-checks/runtime.js",
+    ],
     rules: {
-      // Replay compares the publisher's authored, carried, and current selections.
-      // That historical validation is deliberately private rather than part of the
-      // package-facing widget controller.
+      // Render checks compare the publisher's historical selections and current
+      // presentation. Those validation readings are deliberately private rather than
+      // part of the package-facing widget controller.
       "no-restricted-imports": [
         "error",
         {
@@ -579,11 +582,11 @@ export default [
           patterns: [
             {
               regex: "^/runtime/(?!widget-api\\.js$|validation\\.js$)",
-              message: "Render replay uses the public API or its validation adapter.",
+              message: "Render checks use the public API or validation adapter.",
             },
             {
               regex: "^\\.{1,2}/(?:.*/)?runtime/",
-              message: "Render replay uses absolute runtime boundaries.",
+              message: "Render checks use absolute runtime boundaries.",
             },
             {
               regex: "^\\.{1,2}/(?:.*/)?(?:leaf|widget-api)\\.js$",

@@ -287,6 +287,49 @@ def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser,
     assert all("must be synchronous" in failure for failure in failures)
 
 
+def test_current_presentation_probe_reopens_and_ignores_superseded_work(browser, serve):
+    """The arrival latch stays set while current mechanical readiness can reopen."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    assert render_checks_model.evaluate_probe(page, "initiallyPresented") is True
+    assert render_checks_model.evaluate_probe(page, "currentPresented") is True
+
+    page.evaluate(
+        """async () => {
+          const {
+            attachApplicationPresentation,
+            setPresentationFailureReporter,
+          } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          setPresentationFailureReporter(() => {});
+          window.probePresentation = attachApplicationPresentation(
+            'test:current-readiness', document.body,
+          );
+          window.probeOlderSettled = false;
+          window.probeOlder = probePresentation.present(
+            'older',
+            new Promise(resolve => { window.releaseProbeOlder = resolve; }),
+          ).then(() => { probeOlderSettled = true; });
+        }"""
+    )
+    assert page.locator("body").get_attribute("data-lf-presented") == "1"
+    assert render_checks_model.evaluate_probe(page, "currentPresented") is False
+
+    page.evaluate("() => probePresentation.present('newer', undefined)")
+    render_checks_model.wait_for_probe(page, "currentPresented")
+    assert page.evaluate("() => probeOlderSettled") is False
+
+    page.evaluate("() => releaseProbeOlder()")
+    page.evaluate("() => probeOlder")
+    page.evaluate(
+        """() => probePresentation.present(
+          'failed', Promise.reject(new Error('failed for readiness proof')),
+        )"""
+    )
+    assert render_checks_model.evaluate_probe(page, "currentPresented") is True
+    page.evaluate("() => probePresentation.disconnect()")
+    assert errors == []
+    page.close()
+
+
 def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
     """The module loader has the gate's deadline even though page.evaluate has none."""
     asked = []
@@ -490,7 +533,7 @@ def test_every_restore_case_a_reader_can_return_to_is_arrived_in(browser, serve)
     )
     declared = browser.new_page()
     declared.goto(url, wait_until="load")
-    render_checks_model.wait_for_probe(declared, "presented")
+    render_checks_model.wait_for_probe(declared, "currentPresented")
     restore_cases = reader_view_restore_cases(declared)
     suggestion_state = declared.locator("#sug-rewrite").get_attribute("data-lf-state")
     option_transition = declared.locator("#wait-day").evaluate(
@@ -568,7 +611,7 @@ def test_shadow_stage_withholds_package_transitions_until_presentation(browser, 
 
         held.pop().continue_()
         page.unroute("**/api/state*")
-        render_checks_model.wait_for_probe(page, "presented")
+        render_checks_model.wait_for_probe(page, "currentPresented")
         assert (
             page.evaluate(
                 """() => getComputedStyle(document.querySelector("#how-patch")
@@ -1091,7 +1134,7 @@ def _author_lying_callout(tmp_path):
     ("failed_stage", "expects_projection"),
     [
         ("pageSettled", True),
-        ("presented", False),
+        ("currentPresented", False),
         ("logApplied", False),
         ("dataApplied", False),
     ],

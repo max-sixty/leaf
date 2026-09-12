@@ -269,7 +269,7 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
         unsettled = [
             f"the runtime never finished replaying the log ({applied} action(s))"
         ]
-    elif failed_stage == "presented":
+    elif failed_stage == "currentPresented":
         unsettled = [
             "the runtime never presented the page after applying its current state"
         ]

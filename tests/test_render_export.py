@@ -1158,6 +1158,77 @@ def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):
         )
 
 
+def test_export_waits_for_a_current_presentation_opened_after_arrival(
+    browser, serve, monkeypatch
+):
+    """The monotonic arrival latch cannot authorize a later half-drawn copy."""
+    source = leaf_page(
+        "current export readiness",
+        '<h1>Current export readiness</h1><p id="export-reading">initial</p>',
+    )
+
+    def hold_later_presentation(page):
+        page.add_init_script(
+            """addEventListener('DOMContentLoaded', () => {
+              const arm = async () => {
+                if (
+                  window.__lfExportPresentation ||
+                  document.body.dataset.lfPresented !== '1'
+                ) return;
+                const entry = document.querySelector(
+                  'script[data-lf-entry]'
+                ).dataset.lfEntry;
+                const {attachApplicationPresentation} = await import(
+                  new URL(
+                    'runtime/semantic-state.js',
+                    new URL(entry, location.href),
+                  ).href
+                );
+                const target = document.querySelector('#export-reading');
+                const presentation = attachApplicationPresentation(
+                  'test:export-current-readiness', target,
+                );
+                let settle;
+                const completion = new Promise(resolve => { settle = resolve; });
+                window.__lfExportPresentation = presentation;
+                window.__lfReleaseExportPresentation = () => {
+                  target.textContent = 'current';
+                  settle();
+                };
+                void presentation.present('current', completion);
+              };
+              new MutationObserver(arm).observe(document.body, {
+                attributes: true,
+                attributeFilter: ['data-lf-presented'],
+              });
+              void arm();
+            }, {once: true});"""
+        )
+
+    original_wait = render_checks_model.wait_for_probe
+    probed = []
+
+    def release_at_current_probe(page, name, *args):
+        if name == "currentPresented":
+            probed.append(name)
+            page.wait_for_function(
+                "() => Boolean(window.__lfReleaseExportPresentation)"
+            )
+            page.evaluate("() => window.__lfReleaseExportPresentation()")
+        return original_wait(page, name, *args)
+
+    monkeypatch.setattr(render_checks_model, "wait_for_probe", release_at_current_probe)
+    exported = exporting_model.export_page(
+        primed(browser, hold_later_presentation),
+        serve(source),
+        serve.page_dir,
+        "v1.html",
+    )
+
+    assert probed == ["currentPresented"]
+    assert '<p id="export-reading">current</p>' in exported
+
+
 def test_export_waits_for_the_snapshot_the_browser_can_receive(
     browser, serve, monkeypatch
 ):

@@ -365,11 +365,19 @@ test("current readiness follows a publication opened before its continuation", a
       ready = true;
       return outcome;
     });
+  assert.equal(
+    coordinator.currentPresented(() => current),
+    false,
+  );
 
   releaseFirst();
   await first;
   await Promise.resolve();
   assert.equal(ready, false);
+  assert.equal(
+    coordinator.currentPresented(() => current),
+    false,
+  );
   assert.deepEqual(coordinator.read().pending, ["widget"]);
   releaseSecond();
   await second;
@@ -420,6 +428,10 @@ test("current readiness follows a same-epoch renderer replacement", async () => 
   releaseReplacement();
   await replacement;
   assert.equal(await readiness, "presented");
+  assert.equal(
+    coordinator.currentPresented(() => current),
+    true,
+  );
 });
 
 test("scoped readiness does not wait for an unrelated deferred region", async () => {

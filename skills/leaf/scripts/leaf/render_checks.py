@@ -158,7 +158,7 @@ def wait_for_presentation(
     stages = [("dataApplied", (data_revision,))]
     if replayed_events:
         stages.append(("logApplied", (replayed_events,)))
-    stages.append(("presented", ()))
+    stages.append(("currentPresented", ()))
     if settled:
         stages.append(("pageSettled", ()))
     for name, args in stages:

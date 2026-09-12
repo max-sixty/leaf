@@ -373,9 +373,12 @@ Open ordinary browser pages through `open_page`. It installs `Traffic` and
 
 - `data-lf-upgraded="1"` says widget upgrade finished.
 - `data-lf-applied` says a replay pass applied the event log.
-- `data-lf-presented="1"` says the authoritative projection or offline fallback
-  is safe for recorded interaction. The anchor pass and anchored composer begin
-  here; authored HTML may have painted earlier.
+- `data-lf-presented="1"` says the initial authoritative projection or offline fallback
+  crossed the interaction boundary. The anchor pass and anchored composer begin here;
+  authored HTML may have painted earlier.
+- The current presentation probe says every required renderer for the active semantic
+  epoch has settled. A later publication or same-epoch replacement can make it false
+  while `data-lf-presented` remains set.
 
 These are independent facts. Network quiet implies neither. A browser action
 sent before replay has landed may be ignored without a later assertion revealing

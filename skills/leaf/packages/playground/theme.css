@@ -194,9 +194,8 @@ lf-playground-output {
   --lf-block-frame: 1;
   display: block;
   margin: 0;
-  padding: var(--sp-2) var(--sp-3);
-  border-left: 3px solid var(--accent);
-  background: var(--field);
+  padding: var(--sp-3) 0;
+  border-block: 1px solid var(--rule);
   color: var(--ink-2);
   font: var(--t-6)/1.5 var(--sans);
 }

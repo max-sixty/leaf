@@ -47,18 +47,19 @@
     "createApplicationPublisher",
     "createPresentationCoordinator",
     "createSemanticApplication",
-    "html"
+    "html",
+    "repeat"
   ],
   "externalizedModules": [],
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js.map": {
-      "bytes": 329487,
-      "sha256": "db204c850b37c796939c77995ccaaa5f8cc921e69665f3be5e7e05d505ac5ce1"
+      "bytes": 368160,
+      "sha256": "f7eb4f5959df225a2d53e08146bec3212e1d4425b09b1d8eef88b149762beb7e"
     },
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 39141,
-      "sha256": "3dd5ab683d2f8d55abb274722f75ed39a828784bc2ecc59e9b43f914a096820b"
+      "bytes": 41463,
+      "sha256": "6e17e6fcabb4d0fb414035dc2bf74c22d5e874cd25c94067d5250d61560b97fe"
     },
     "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
       "bytes": 7267,

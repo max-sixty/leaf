@@ -40,6 +40,18 @@ check for standing page contracts and frozen thread markup, while historical-onl
 use their captured registries. Request-offer attributes are authored static state: registry
 validation rejects an `x-state` or `x-report` record that could rewrite one.
 
+## Integrated presentation kernel
+
+The pure presentation coordinator is integrated at `2274f93a`. It owns document and
+semantic/presented epochs, sealed publication barriers, stable regions, renderer and
+ticket generations, replacement/disconnection, async descendant membership, fail-soft
+completion, and stale-document/value suppression. Its causal domain suite covers work
+that completes before sealing and obsolete seals as well as the longer renderer races.
+
+The kernel is deliberately not wired into runtime readiness yet. That cutover follows
+the public widget controller so one presentation seam can replace every legacy queue at
+once; until then, existing presentation stamps and queues remain authoritative.
+
 ## Remaining implementation
 
 Implement the public `widgetController(owner)` and migrate package/page modules away from
@@ -51,8 +63,9 @@ identity, quote, declaration, and request-offer facts come from the authored rev
 projected ownership, Ask state, lifecycle, availability, provenance, and exact Undo come
 from the publisher.
 
-Then replace independent readiness queues with the semantic/presented epoch and ticket
-coordinator before converting generated regions to Lit. Complete the design-intent and
+Then wire the integrated semantic/presented epoch and ticket coordinator across every
+independent readiness queue before converting generated regions to Lit. Complete the
+design-intent and
 Targeting cutover, preserve the fresh-document wait-until-settled model with combined
 proof, add offline interactive export without weakening script-free static export, and
 dissolve this checkpoint plus both plan notes into their owning contracts.
@@ -64,6 +77,9 @@ semantic and compatibility integration, 142 outbox/startup browser cases, all 11
 projection cases, all 99 server cases, 274 interaction-contract cases, and 10 browser
 build/domain tests pass. Generated browser output and pre-commit are clean. Run the final
 everyday suite again after the remaining slices are integrated.
+
+The presentation kernel adds eight focused causal cases; its TypeScript check,
+18-case browser/build suite, and touched-file pre-commit checks pass.
 
 The website bundler slice passed 61 worker tests, typecheck, five immutable-shell tests,
 three site tests, and a complete site build/bundle. Local pre-commit passes.
@@ -85,6 +101,8 @@ checkpoint with final test evidence. Landing still needs explicit authorization.
 
 - Integration: `/Users/maximilian/workspace/leaf.reactive-page-runtime`.
 - Semantic publisher: `/Users/maximilian/workspace/leaf.astra-fresh-revision-activation`.
+- Presentation coordinator and design intent:
+  `/Users/maximilian/workspace/leaf.sol-vocabulary-compatibility`.
 - Contributor build and website bundler: `/Users/maximilian/workspace/leaf.astra-browser-build`.
 - Captured revisions, static export, and MCP: `/Users/maximilian/workspace/leaf.astra-revision-artifact`.
 

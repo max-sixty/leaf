@@ -65,8 +65,6 @@ from render_support import (
     TWO_HOLDER_PAGE,
     TWO_HOLDER_SPARE_PAGE,
     WRAP_TOP,
-    _traffic,
-    _until,
     actions,
     address_code,
     author_test_widget,
@@ -1710,14 +1708,13 @@ diff --git a/tests/second.py b/tests/second.py
     page.close()
 
 
-def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
+def test_the_live_page_navigates_for_a_revision_and_stamps_without_navigating(
     browser, serve
 ):
     """A valid save advances the live surface; stamping only changes its label.
 
-    The next file is fetched while the reader keeps this document, then its authored
-    main replaces the old one and replay catches it up. The URL, runtime identity, open
-    chrome, and passage's viewport coordinate therefore survive. Five paragraphs arrive
+    A revision opens a fresh document at the same address. The open panel and the
+    passage's viewport coordinate survive through explicit saved state. Five paragraphs arrive
     above that passage so a raw scroll offset cannot satisfy the position assertion.
     """
     version_url = serve(LIVE_V1)
@@ -1729,8 +1726,9 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         """() => { document.scrollingElement.scrollBy({
           top: document.getElementById('live-reading').getBoundingClientRect().top - 140,
           behavior: 'instant'
-        }); window.__leafDocument = 'the same runtime'; }"""
+        }); }"""
     )
+    original_document = page.evaluate("performance.timeOrigin")
     before = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
@@ -1741,8 +1739,8 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     told(page)
     expect(page).to_have_title("Live second")
 
-    assert page.evaluate("window.__leafDocument") == "the same runtime", (
-        "the version replaced the browser document rather than its authored page"
+    assert page.evaluate("performance.timeOrigin") != original_document, (
+        "the revision retained the previous browser document"
     )
     assert "/versions/" not in page.url, (
         f"the update changed the live address to {page.url}"
@@ -1780,7 +1778,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         == "2"
     ), "the new version's page-local style did not activate"
 
-    page.evaluate("window.__leafMain = document.querySelector('main')")
+    draft_document = page.evaluate("performance.timeOrigin")
     stamped = CliRunner().invoke(
         cli_model.cli,
         ["version", "stamp", str(serve.page_dir), "--text", "new findings"],
@@ -1791,10 +1789,10 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     signoff = page.locator(".lf-signoff")
     expect(signoff).to_be_visible()
     assert signoff.evaluate("el => parseFloat(el.style.minWidth) > 0"), (
-        "soft activation measured approval while its control was detached"
+        "approval was measured while its control was detached"
     )
-    assert page.evaluate("window.__leafMain === document.querySelector('main')"), (
-        "stamping the displayed revision replaced its main"
+    assert page.evaluate("performance.timeOrigin") == draft_document, (
+        "stamping the displayed revision replaced its document"
     )
 
     page.locator(".lf-general textarea").fill("This comment belongs to the live draft.")
@@ -1806,25 +1804,38 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
 
 
 def test_a_live_revision_with_new_authored_code_reloads_the_document(browser, serve):
-    """A module revision gets a fresh realm instead of inheriting old behavior."""
-    first = LIVE_V1.replace(
-        "</head>",
-        '<script type="module">globalThis.__authoredRevision = "one";</script></head>',
+    """A new constructor and its listeners run once, with fresh local state."""
+    module = """<script type="module">
+customElements.define('page-counter', class extends HTMLElement {
+  connectedCallback() {
+    let count = 0;
+    const button = document.createElement('button');
+    const label = () => { button.textContent = `Count ${count}`; };
+    button.addEventListener('click', () => { count += 1; label(); });
+    label();
+    this.append(button);
+  }
+});
+document.querySelector('#counter').append(document.createElement('page-counter'));
+</script>"""
+    first = LIVE_V1.replace("</head>", module + "</head>").replace(
+        "</main>", '<div id="counter"></div></main>'
     )
     second = LIVE_V2.replace(
-        "</head>",
-        '<script type="module">globalThis.__authoredRevision = "two";</script></head>',
-    )
+        "</head>", module.replace("count += 1", "count += 10") + "</head>"
+    ).replace("</main>", '<div id="counter"></div></main>')
     page, errors = open_page(browser, live_url(serve(first)))
-    page.wait_for_function("() => globalThis.__authoredRevision === 'one'")
-    page.evaluate("globalThis.__oldDocument = true")
+    page.get_by_role("button", name="Count 0", exact=True).click()
+    expect(page.get_by_role("button", name="Count 1", exact=True)).to_be_visible()
+    original_document = page.evaluate("performance.timeOrigin")
 
     (serve.page_dir / "index.html").write_text(second)
     told(page)
 
     expect(page).to_have_title("Live second")
-    page.wait_for_function("() => globalThis.__authoredRevision === 'two'")
-    assert page.evaluate("globalThis.__oldDocument") is None
+    page.get_by_role("button", name="Count 0", exact=True).click()
+    expect(page.get_by_role("button", name="Count 10", exact=True)).to_be_visible()
+    assert page.evaluate("performance.timeOrigin") != original_document
     assert "/versions/" not in page.url
     assert errors == []
     page.close()
@@ -1880,8 +1891,8 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     expect(page).to_have_title("Live first")
     expect(page.locator(".lf-latest-chip")).to_be_visible()
 
-    # An explicit press may override the hold, but it is still an in-place activation:
-    # the live address and the panel draft both survive it.
+    # An explicit press may override the hold: the live address and the durable panel
+    # draft both survive the new document.
     page.locator(".lf-latest-chip").click()
     expect(page).to_have_title("Live second")
     assert "/versions/" not in page.url
@@ -1917,23 +1928,14 @@ def test_the_live_page_defers_for_typing_then_adopts_without_a_press(browser, se
     page.close()
 
 
-def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
+def test_live_activation_restores_standing_but_restarts_keyboard_sequences(
     browser, serve
 ):
-    """A revision arriving under a reader mid-press keeps their next press live.
+    """Only explicit, revalidated standing crosses the fresh-document boundary.
 
-    Two kinds of pending input meet an activation. A sequence is the runtime's: bare `g`
-    names the visible targets, and the chips are read off whichever document is standing,
-    so the window holds through the swap and a fresh hint lands in the new page — minus
-    the hint for a link the revision took away, which is the honest reading. The reader's
-    standing is the document's: the Ask's "1–3 One / Two / Another option" actions
-    remain live over a focused pick mark, and the swap that replaced main dropped that
-    focus onto body, taking the offer down with it — the digit then picked nothing,
-    silently. The place is written down by id before the swap and handed back after it,
-    so the fresh mark holds the focus and the digit picks, acknowledged in the bottom
-    status. One revision arrives as a
-    draft and the next as a stamped version, since both replace the page under the
-    reader by the same door."""
+    An armed sequence is local to its document; the reader starts it again against the
+    current target set. A surviving authored control keeps its keyboard meaning.
+    """
     version_url = serve(LIVE_KEYS_V1)
     page, errors = open_page(browser, live_url(version_url))
     chips = page.locator(".lf-go-to-hint")
@@ -1944,9 +1946,11 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_V2)
     told(page)
     expect(page).to_have_title("Live keys second")
+    expect(link_chips).to_have_count(0)
+    page.keyboard.press("g")
     expect(link_chips).to_have_count(2)
     assert "visible target" in shortcut_bar_text(page), (
-        "the sequence did not follow the new document"
+        "the new sequence did not use the current document"
     )
     page.keyboard.type(address_code(page, "Link", "lk-link-three"))
     expect(page.locator("#lk-para")).to_be_focused()
@@ -1978,18 +1982,8 @@ def test_the_presses_a_reader_is_mid_way_through_survive_the_page_following(
     page.close()
 
 
-def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_broken(
-    browser, serve
-):
-    """A read can outlive the revision it named and come back to a page that has moved.
-
-    An answer carries the view of the revision its request named and of the active one
-    the page may activate into, and of no other. A press that activates while such a read
-    is in the air therefore leaves the page standing on a revision the answer says nothing
-    about, and composition holds it from taking the newer one instead. That is a stale
-    answer rather than a broken page: nothing is applied, nothing is reported, and the
-    next read — asked on the revision the page now stands on — carries it forward.
-    """
+def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
+    """A request started by the old realm cannot apply a later response in the new one."""
     version_url = serve(LIVE_V1)
     page, errors = open_page(browser, live_url(version_url))
     page.locator(".lf-threads-toggle").click()
@@ -2049,15 +2043,7 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
             "$layer"
         ]["generation"]
         assert held[0].request.headers.get("leaf-layer") == generation
-        traffic = _traffic(page).read()
-        assert traffic.asked == traffic.heard + 1, (
-            "the held read ended before the test released it"
-        )
         release_the_held_read()
-        _until(page, lambda t: t.heard > traffic.heard, "a state answer came back")
-        # Not `ticked`: the heartbeat dispatches `lf-actions` on its own cadence, so the
-        # page's next pass can be one this delivery had no part in. Wait instead until
-        # the page holds the reading the server holds.
         told(page)
         expect(page).to_have_title("Live second")
         assert errors == []
@@ -2081,6 +2067,44 @@ def test_an_answer_asked_on_a_revision_the_page_has_left_is_stale_rather_than_br
         release_the_held_read()
         page.unroute("**/api/state*")
         page.close()
+
+
+def test_live_activation_revalidates_control_meaning_and_consumes_the_handoff(
+    browser, serve
+):
+    """A surviving id cannot transfer focus to a changed action, or replay it later."""
+    first = leaf_page(
+        "First action",
+        '<h1>Review</h1><button id="operation" type="button">Inspect</button>',
+    )
+    second = first.replace("First action", "Second action").replace(
+        ">Inspect</button>", ">Publish</button>"
+    )
+    page, errors = open_page(browser, live_url(serve(first)))
+    operation = page.get_by_role("button", name="Inspect", exact=True)
+    operation.focus()
+    expect(operation).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(second)
+    wait_for_revision(page, 2)
+    expect(page.get_by_role("button", name="Publish", exact=True)).not_to_be_focused()
+    assert page.evaluate("document.activeElement === document.body")
+
+    # An unchanged action does retain focus across a subsequent live revision.
+    page.get_by_role("button", name="Publish", exact=True).focus()
+    (serve.page_dir / "index.html").write_text(
+        second.replace("Second action", "Third action")
+    )
+    wait_for_revision(page, 3)
+    expect(page.get_by_role("button", name="Publish", exact=True)).to_be_focused()
+
+    # Its one-use handoff must not restore that action on an ordinary reload.
+    page.locator("h1").click()
+    page.reload()
+    page.wait_for_function(BOTH_STAMPS)
+    assert page.evaluate("document.activeElement === document.body")
+    assert errors == []
+    page.close()
 
 
 def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
@@ -2114,68 +2138,48 @@ def test_a_widget_textarea_holds_an_arriving_live_version(browser, serve):
     page.evaluate(
         "() => document.querySelector('#shadow-editor').shadowRoot.activeElement.blur()"
     )
-    ticked(page)
+    wait_for_revision(page, 2)
     expect(page).to_have_title("Live second")
     assert errors == []
     page.close()
 
 
-def test_overlapping_state_answers_share_one_live_version_activation(browser, serve):
-    """Two ordinary polls cannot replace the main twice.
-
-    Hold the shared version-file request past one polling interval, so a second timer
-    response joins the first while both await that document. One transition proves the
-    serialization is at the commit boundary, after asynchronous preparation, rather than
-    only before it.
-    """
+def test_a_pending_navigation_prevents_another_live_activation(browser, serve):
+    """The departing document stops applying state after its navigation starts."""
     page, errors = open_page(browser, live_url(serve(LIVE_V1)))
-    page.evaluate(
-        """() => {
-          const start = document.startViewTransition.bind(document);
-          window.__leafTransitions = 0;
-          document.startViewTransition = update => {
-            window.__leafTransitions += 1;
-            return start(update);
-          };
-        }"""
-    )
+    held = []
 
-    def slow_version(route):
-        time.sleep(3)
-        route.continue_()
+    def hold_navigation(route):
+        if route.request.is_navigation_request():
+            held.append(route)
+        else:
+            route.continue_()
 
-    page.route("**/revisions/r2-*.html", slow_version)
-    (serve.page_dir / "index.html").write_text(LIVE_V2)
-
-    expect(page).to_have_title("Live second", timeout=10_000)
-    assert page.evaluate("window.__leafTransitions") == 1
+    page.route("**/*", hold_navigation)
+    try:
+        (serve.page_dir / "index.html").write_text(LIVE_V2)
+        holding(page, held, 1, "the fresh revision document")
+        # A newer save overtakes this navigation. The same live root response owns
+        # the final revision; the old realm cannot launch another activation.
+        (serve.page_dir / "index.html").write_text(LIVE_V3)
+        held[0].continue_()
+        told(page)
+        expect(page).to_have_title("Live third")
+        assert len(held) == 1
+    finally:
+        page.unroute("**/*", hold_navigation)
     assert errors == []
     page.close()
 
 
-def test_a_skipped_transition_lands_the_version_without_a_fault(browser, serve):
-    """A skipped view transition still runs its update, but it rejects `ready`, which
-    the activation never awaits. Unhandled, that rejection reached the page's error
-    report, and every version landing in a hidden tab wrote an `error` event into
-    the log. The harness cannot hide a document, so the skip is invoked directly; it
-    is the same algorithm a hidden document runs.
-    """
+def test_a_revision_navigates_without_the_view_transition_api(browser, serve):
+    """Fresh-document activation does not depend on same-document animation."""
     page, errors = open_page(browser, live_url(serve(LIVE_V1)))
-    page.evaluate(
-        """() => {
-          const start = document.startViewTransition.bind(document);
-          document.startViewTransition = update => {
-            const transition = start(update);
-            transition.skipTransition();
-            return transition;
-          };
-        }"""
-    )
+    page.evaluate("document.startViewTransition = undefined")
     (serve.page_dir / "index.html").write_text(LIVE_V2)
 
-    # The rejection is dispatched before the skipped update runs as its own task, so
-    # a landed version is the edge after which the report would already be written.
     expect(page).to_have_title("Live second", timeout=10_000)
+    page.wait_for_function(BOTH_STAMPS)
     assert errors == []
     page.close()
 
@@ -6782,35 +6786,15 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
     page.close()
 
 
-def test_command_hub_stops_listening_after_live_version_replacement(browser, serve):
-    """A command removed with the old main cannot emit another projection."""
+def test_command_hub_gets_a_new_document_after_live_version_replacement(browser, serve):
+    """Old command owners and their event listeners disappear with the document."""
     url = serve(COMMAND_HUB_EXAMPLE)
     page, errors = open_page(browser, live_url(url))
-    page.evaluate("window.__retiredCommand = document.querySelector('#hub-plan')")
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(COMMAND_HUB_PAGE)
-    stamp_version_file(serve.page_dir, 2, "same plan")
+    original_document = page.evaluate("performance.timeOrigin")
+    stamp_page(serve.page_dir, COMMAND_HUB_PAGE, "same plan")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    page.evaluate(
-        """() => {
-          window.__retiredUpdates = 0;
-          document.addEventListener("lf-command-update", event => {
-            if (event.detail.plan === window.__retiredCommand)
-              window.__retiredUpdates += 1;
-          });
-        }"""
-    )
-
-    retired_updates = page.evaluate(
-        f"""async () => {{
-          window.__retiredCommand.querySelector('#api-errors')
-            .setAttribute('status', 'done');
-          await ({ONE_FRAME})();
-          return window.__retiredUpdates;
-        }}"""
-    )
-
-    assert retired_updates == 0
+    assert page.evaluate("performance.timeOrigin") != original_document
     assert errors == []
     page.close()
 

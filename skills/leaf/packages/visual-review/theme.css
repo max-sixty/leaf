@@ -437,6 +437,8 @@ lf-visual-review[data-inspection-expanded="true"] .lf-vr-expand {
   min-width: 0;
   height: var(--lf-vr-stage-height, auto);
   min-height: 14rem;
+  max-height: 35rem;
+  aspect-ratio: 2;
   overflow: auto;
   border: 1px solid var(--rule);
   border-radius: var(--r);
@@ -641,6 +643,13 @@ lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-case {
 
 lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-shot-host {
   min-height: 0;
+  max-height: none;
+  aspect-ratio: auto;
+}
+
+lf-visual-review[data-inspection-expanded="true"] .lf-vr-shot-host {
+  max-height: none;
+  aspect-ratio: auto;
 }
 
 @container (max-width: 28rem) {
@@ -729,6 +738,8 @@ html.lf-copy .lf-vr-case + .lf-vr-case {
 html.lf-copy .lf-vr-shot-host {
   height: auto;
   min-height: 0;
+  max-height: none;
+  aspect-ratio: auto;
   overflow: visible;
 }
 
@@ -770,6 +781,8 @@ html.lf-copy .lf-vr-details > .lf-vr-provenance {
   .lf-vr-shot-host {
     height: auto;
     min-height: 0;
+    max-height: none;
+    aspect-ratio: auto;
     overflow: visible;
   }
 

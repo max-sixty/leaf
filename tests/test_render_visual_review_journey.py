@@ -165,6 +165,18 @@ def test_visual_inspection_chains_document_scroll_and_expands_without_losing_pla
     page.wait_for_function(
         "top => document.scrollingElement.scrollTop === top", arg=page_scroll
     )
+    assert page.evaluate("document.scrollingElement.style.overflowAnchor") == ""
+
+    widget.evaluate(
+        """node => {
+          node.querySelector('.lf-vr-expand').click();
+          node.querySelector('.lf-vr-expanded-close').click();
+          node.querySelector('.lf-vr-expand').click();
+        }"""
+    )
+    expect(dialog).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(expand).to_be_focused()
 
     page.set_viewport_size({"width": 390, "height": 844})
     widget.locator(".lf-vr-case-select").select_option("open-mobile-package-catalog")
@@ -218,6 +230,11 @@ def test_visual_inspection_chains_document_scroll_and_expands_without_losing_pla
         assert title in pdf_text
     expect(widget).to_have_attribute("data-inspection-mode", "overlay")
     expect(widget).to_have_attribute("data-inspection-scale", "actual")
+    expand.press("Enter")
+    expect(dialog).to_be_visible()
+    widget.evaluate("node => node.remove()")
+    expect(dialog).to_have_count(0)
+    assert page.evaluate("document.scrollingElement.style.overflowAnchor") == ""
     assert errors == []
     page.close()
 

@@ -1984,7 +1984,10 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
 <div style="height: 1000px"></div>
 """,
     )
-    page, errors = open_page(browser, live_url(serve(first)))
+    page, errors = open_page(
+        browser,
+        live_url(serve(first, packages=(*EXAMPLE_PACKAGES, "./.leaf"))),
+    )
     paragraph = page.locator("lf-shadow-reading").locator("p")
     paragraph.scroll_into_view_if_needed()
     page.evaluate(

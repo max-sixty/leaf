@@ -6,7 +6,7 @@ lf-visual-review {
   display: block;
   box-sizing: border-box;
   margin-block: var(--sp-4);
-  overflow: hidden;
+  overflow: clip;
   border: 1px solid var(--border-2);
   border-radius: calc(var(--r) * 1.25);
   background: var(--paper);
@@ -85,6 +85,10 @@ lf-visual-review > .lf-reading-after {
 .lf-vr-queue-region > .lf-pane-content > .lf-pane-body,
 .lf-vr-evidence-region > .lf-pane-content > .lf-pane-body {
   padding: 0;
+}
+
+.lf-vr-evidence-region > .lf-pane-content > .lf-pane-body {
+  overscroll-behavior: auto;
 }
 
 .lf-vr-queue-region > .lf-pane-content > .lf-pane-body {
@@ -374,14 +378,17 @@ lf-visual-review > .lf-reading-after {
 }
 
 .lf-vr-shot-host {
+  box-sizing: border-box;
   display: grid;
   align-items: start;
   justify-items: center;
   min-width: 0;
+  width: 100%;
   height: var(--lf-vr-stage-height, auto);
   min-height: 14rem;
+  max-height: 35rem;
+  aspect-ratio: 2;
   overflow: auto;
-  overscroll-behavior: contain;
   border: 1px solid var(--rule);
   border-radius: var(--r);
   background: color-mix(in srgb, var(--field) 42%, var(--paper));
@@ -585,6 +592,8 @@ lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-case {
 
 lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-shot-host {
   min-height: 0;
+  max-height: none;
+  aspect-ratio: auto;
 }
 
 @container (max-width: 28rem) {
@@ -667,6 +676,8 @@ html.lf-copy .lf-vr-case + .lf-vr-case {
 html.lf-copy .lf-vr-shot-host {
   height: auto;
   min-height: 0;
+  max-height: none;
+  aspect-ratio: auto;
   overflow: visible;
 }
 
@@ -707,6 +718,8 @@ html.lf-copy .lf-vr-details > .lf-vr-provenance {
   .lf-vr-shot-host {
     height: auto;
     min-height: 0;
+    max-height: none;
+    aspect-ratio: auto;
     overflow: visible;
   }
 

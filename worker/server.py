@@ -965,6 +965,22 @@ def _agent_response(posted: dict) -> tuple[str, str, dict[str, str]]:
     return event_id, text, target
 
 
+def _agent_response_timing(headers) -> dict[str, int]:
+    """Validate the private helper's process and request clocks."""
+    values = {}
+    for header, field in (
+        ("Leaf-Agent-Helper-Entered-At-Ms", "helperEnteredAtMs"),
+        ("Leaf-Agent-Helper-Request-At-Ms", "helperRequestAtMs"),
+    ):
+        raw = headers.get(header)
+        if raw is None or not raw.isascii() or not raw.isdecimal() or len(raw) > 16:
+            raise ValueError(f"{header} must be a Unix millisecond timestamp")
+        values[field] = int(raw)
+    if values["helperRequestAtMs"] < values["helperEnteredAtMs"]:
+        raise ValueError("agent response helper request precedes its main entry")
+    return values
+
+
 def published_page(
     site_root: Path, pages: dict, path: str
 ) -> tuple[Path, str, str, str] | None:
@@ -1044,6 +1060,7 @@ class WebsitePageHandler(Handler):
         try:
             if path == AGENT_RESPOND_PATH:
                 event_id, text, target = _agent_response(self.posted)
+                helper_timing = _agent_response_timing(self.headers)
             else:
                 event_id, text = _agent_event(
                     self.posted,
@@ -1061,6 +1078,15 @@ class WebsitePageHandler(Handler):
             return
 
         if path == AGENT_RESPOND_PATH:
+            log_agent(
+                "agent_response_helper_arrived",
+                eventId=event_id,
+                durationMs=(
+                    helper_timing["helperRequestAtMs"]
+                    - helper_timing["helperEnteredAtMs"]
+                ),
+                **helper_timing,
+            )
             try:
                 accepted = self.agent_host.respond(
                     self.page_dir, event_id, text, **target

@@ -580,6 +580,69 @@ def test_the_private_reply_client_carries_a_new_thread_target():
     }
 
 
+def test_the_private_reply_client_timing_is_ordered():
+    assert website_server._agent_response_timing(
+        {
+            "Leaf-Agent-Helper-Entered-At-Ms": "1789180475000",
+            "Leaf-Agent-Helper-Request-At-Ms": "1789180475125",
+        }
+    ) == {
+        "helperEnteredAtMs": 1789180475000,
+        "helperRequestAtMs": 1789180475125,
+    }
+    with pytest.raises(ValueError, match="precedes"):
+        website_server._agent_response_timing(
+            {
+                "Leaf-Agent-Helper-Entered-At-Ms": "1789180475000",
+                "Leaf-Agent-Helper-Request-At-Ms": "1789180474999",
+            }
+        )
+
+
+def test_the_private_reply_client_sends_its_timing(tmp_path, monkeypatch, capsys):
+    token = tmp_path / "reply-token"
+    token.write_text("adapter-secret", encoding="utf-8")
+    requests = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def read(self):
+            return b'{"status":"appended"}'
+
+    def urlopen(request, timeout):
+        requests.append((request, timeout))
+        return Response()
+
+    monkeypatch.setattr(
+        website_reply.sys,
+        "argv",
+        ["reply.py", "reader-event", "The reply."],
+    )
+    monkeypatch.setattr(website_reply, "published_route", lambda page: "/example")
+    monkeypatch.setattr(
+        website_reply.time,
+        "time_ns",
+        iter([1_000_000_000, 1_125_000_000]).__next__,
+    )
+    monkeypatch.setattr(website_reply.urllib.request, "urlopen", urlopen)
+    monkeypatch.setenv("LEAF_REPLY_TOKEN", str(token))
+
+    website_reply.main()
+
+    request, timeout = requests[0]
+    headers = {key.lower(): value for key, value in request.header_items()}
+    assert request.full_url == "http://127.0.0.1:8080/example/_leaf/agent/respond"
+    assert headers["leaf-agent-helper-entered-at-ms"] == "1000"
+    assert headers["leaf-agent-helper-request-at-ms"] == "1125"
+    assert timeout == 20
+    assert capsys.readouterr().out == '{"status":"appended"}\n'
+
+
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
     """A hosted task must not discover or initialize another plugin environment."""
     site_root = tmp_path / "site"
@@ -1642,7 +1705,11 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
                 "quote": "The cutoff lives in",
                 "section": "plan",
             },
-            {"Authorization": "Bearer adapter-secret"},
+            {
+                "Authorization": "Bearer adapter-secret",
+                "Leaf-Agent-Helper-Entered-At-Ms": "1789180475000",
+                "Leaf-Agent-Helper-Request-At-Ms": "1789180475125",
+            },
         )
         assert responded == {"status": "appended", "event": "fast-reply"}
         assert agent_host.responded == [

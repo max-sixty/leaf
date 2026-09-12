@@ -26,7 +26,18 @@ The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer. Docker is
 additionally needed for the complete website boundary and `scripts/linux-suite.sh`.
 
 A container without IPv6 cannot run the two tests that bind the stated-host
-wildcard `::`; run those from a workstation.
+wildcard `::`; run those from a workstation. An agent sandbox that mediates
+writes takes three more of the everyday suite, so reproduce a failure in this
+group on the unmodified tree before spending a session on it.
+`test_staged_writes_honor_umask_without_copying_a_replaced_symlink_mode` reads
+back the mode its own `umask(0o077)` should have produced, and a mediated write
+ignores the process umask — a plain `open()` under that umask lands `0o664`
+whatever wrote it. `test_app_server_observer_connects_over_a_private_unix_socket`
+and `test_codex_launch_owns_one_private_app_server` put the App Server socket
+under `/tmp`, which such a sandbox mounts read-only. The second reaches `/tmp`
+through `cmd_codex_launch`'s own `dir="/tmp"` rather than through an arrangement
+of its own, so it stands on where the product puts that socket rather than on
+the test.
 
 The everyday suite needs no network after setup. It runs one shipped page through the
 browser gate and the shared chrome contracts whose regressions must block a pull request:

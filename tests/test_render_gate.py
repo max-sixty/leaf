@@ -790,21 +790,26 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
                 "addEventListener('DOMContentLoaded', () => "
                 "console.error('ordinary error from first attempt'), {once: true});"
             )
+        if number < 4:  # every page in the first complete attempt
             resize_notice_after_last_probe(page)
-        elif number >= 4:  # the first attempt, then every confirming page
+        else:  # every confirming page
             page.set_default_timeout(500)
-            page.route("**/leaf.js", lambda route: route.abort())
+            page.route("**/_leaf/render-checks/index.js", lambda route: route.abort())
         pages.append(page)
 
     failures = render_gate_model.render_version(
         primed(browser, prepare), serve(LONG_PAGE)
     )
 
-    assert any("ordinary error from first attempt" in failure for failure in failures)
-    assert any("runtime never injected its banner" in failure for failure in failures)
+    assert any(
+        "ordinary error from first attempt" in failure for failure in failures
+    ), failures
+    assert any("browser probe module failed" in failure for failure in failures), (
+        failures
+    )
     assert any(
         "confirming render attempt did not complete" in failure for failure in failures
-    )
+    ), failures
 
 
 def test_page_navigation_classifies_only_its_resize_notices(browser, serve):

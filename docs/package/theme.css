@@ -96,6 +96,25 @@ body:has(> main > .sitenote) > main {
   text-decoration: underline;
 }
 
+/* A framed example gives the site label a furniture seat inside its own header. On a
+ * window wide enough for that frame, keep the label and its routes on one compact row
+ * so site context does not consume the workspace allocation it is introducing. */
+@media screen and (min-width: 960px) {
+  main > :only-child > header > .sitenote {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+  }
+
+  main > :only-child > header > .sitenote p.sitenote-nav {
+    flex: none;
+    margin-top: 0;
+  }
+}
+
 @media print {
   .sitenote {
     display: none;

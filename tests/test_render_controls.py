@@ -277,6 +277,18 @@ CONTROL_ARCHETYPES = (
         "select": "min-height",
     },
     {
+        # The case queue's Previous, case selector, and Next controls share the
+        # row above the evidence. Selecting another title changes the native select's
+        # contents without moving the buttons around it.
+        "name": "visual-review-navigation",
+        "source": VISUAL_REVIEW_GALLERY,
+        "coverage": (
+            ".lf-vr-queue-region :is(.lf-vr-previous, .lf-vr-case-select, .lf-vr-next)"
+        ),
+        "target": ".lf-vr-case-select",
+        "select": "keep-mobile-destinations",
+    },
+    {
         # The visual inspector's view and size presses are joined groups whose selected
         # treatment changes in place. Pressing Flip exercises both states while its
         # Compare, Overlay, and size neighbours stay under the reader's pointer.

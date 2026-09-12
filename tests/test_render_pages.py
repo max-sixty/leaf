@@ -14,7 +14,7 @@ from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
-from leaf.passages import enclosing_ids
+from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_gate import version as render_gate_model
 from PIL import Image, ImageChops
@@ -496,7 +496,9 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     attribute the runtime turns into text, two paragraphs whose join is a space in one
     reading and nothing in the other. The generated corpus derives its tab bodies from
     these sources; its generation check owns that composition, while this sweep keeps
-    one file reading for every page an author can change."""
+    one file reading for every page an author can change. A page that authors only a
+    data-backed widget has no file passage to compare; its data anchors are covered at
+    their projection boundary."""
     # Suppress the shipped log while retaining companion data. This sweep
     # writes its own anchors and then compares the whole painted mark against
     # exactly those quotes; a seeded thread paints into the same highlight and
@@ -507,9 +509,20 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     url = serve(source, seed_log=False)
     d = serve.page_dir
     anchors = written_anchors(d, html)
-    # Focused package pages can carry one compact authored passage around a data-driven
-    # widget. Nine overlapping anchors still exercise section, prefix, and suffix
-    # resolution across the whole passage without forcing filler prose into the page.
+    document = structure_model.SourceDocument(html)
+    registry = registry_storage.load_registry(d)
+    authored = page_passages(document, registry).text
+    # A focused data-driven page may author only the widget that projects its words.
+    # Its data anchors are covered at that boundary; there is no file passage for this
+    # file-to-browser reading to exercise.
+    if not authored.strip():
+        assert anchors == []
+        assert any(
+            registry[node["tag"]].get("x-data") for node in document.by_id.values()
+        ), f"{source.stem} has neither authored passages nor a data-backed widget"
+        return
+    # Nine overlapping anchors exercise section, prefix, and suffix resolution across
+    # a compact authored passage without forcing filler prose into the page.
     assert len(anchors) >= 9, (
         f"only {len(anchors)} anchors over {source.stem}; sweep too thin"
     )

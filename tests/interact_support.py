@@ -204,7 +204,6 @@ def install_payload(destination):
 PAGE = """<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
 <title>t</title>
 </head>
 <body>

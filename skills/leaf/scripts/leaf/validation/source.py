@@ -130,6 +130,12 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
             "belongs to delivery"
         )
 
+    for encoding in parser.encoding_metas:
+        errors.append(
+            f"<meta charset> (line {encoding['line']}) belongs to delivery; "
+            "Leaf declares UTF-8 before authored head content"
+        )
+
     for meta in parser.named_metas:
         if not meta["name"].startswith("lf-"):
             continue  # ordinary document metadata: a title, a description, a card

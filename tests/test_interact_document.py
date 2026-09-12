@@ -528,6 +528,19 @@ def test_check_leaves_the_layers_policy_to_delivery(page_dir):
     assert "belongs to delivery" in result.output
 
 
+def test_check_leaves_the_documents_encoding_to_delivery(page_dir):
+    """One declaration at delivery's first-byte boundary owns document encoding."""
+    version = page_dir / ".fixture-versions" / "v1.html"
+    authored = version.read_text().replace(
+        "</head>", '<meta charset="utf-8">\n</head>'
+    )
+    version.write_text(authored)
+    result = check(page_dir)
+    assert result.exit_code == 1
+    assert "<meta charset>" in result.output
+    assert "belongs to delivery" in result.output
+
+
 def test_check_refuses_markup_the_browser_never_renders(page_dir):
     """<template> parses into an inert fragment and <noscript> stays unrendered
     in any scripting browser, while the file's reading would take both for the

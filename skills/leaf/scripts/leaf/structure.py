@@ -142,6 +142,7 @@ class SourceDocument:
         # after a description does not need a second parse of the same head.
         self.named_metas = []
         self.http_equivs = []  # {equiv, content, line, position, raw} per meta
+        self.encoding_metas = []  # {charset, line} per authored encoding declaration
         # The authored page lives under one direct body > main because that is the
         # element the first-replay presentation boundary withholds. Both assets that
         # establish that boundary belong in head; anything paintable outside main would
@@ -396,6 +397,8 @@ class SourceDocument:
                     "raw": self._span_source(location.start_tag),
                 }
             )
+        if tag == "meta" and attrs.get("charset"):
+            self.encoding_metas.append({"charset": attrs["charset"], "line": line})
         if attrs.get("style"):
             self.inline_styles.append(attrs["style"])
         if tag in PIXEL_WIDTH_TAGS and attrs.get("width"):

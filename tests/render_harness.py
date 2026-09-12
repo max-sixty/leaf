@@ -85,7 +85,6 @@ def leaf_page(title: str, body: str, *, head: str = "") -> str:
     return f"""<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
 <title>{title}</title>
 {extra_head}
 </head>

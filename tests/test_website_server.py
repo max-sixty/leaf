@@ -106,7 +106,6 @@ class FakeCodexHost:
 PAGE_SOURCE = """<!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
     <title>Choose the next fix</title>
     <meta name="description" content="Pick one." />
   </head>

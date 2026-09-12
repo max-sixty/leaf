@@ -3246,7 +3246,6 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
     artifact = serve.page_dir / "deployment-notification.html"
     first_artifact = """<!doctype html>
 <html lang="en">
-<meta charset="utf-8">
 <title>Checkout needs attention</title>
 <style>
 body { font-family: system-ui, sans-serif; }

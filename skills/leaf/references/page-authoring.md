@@ -53,9 +53,9 @@ other role.
 ## Document scaffold
 
 Write a complete HTML document. The authored head names and describes the page;
-Leaf adds the CSP, identity, theme, runtime, and canonical address when it delivers
-the document. Put page-specific CSS in `<style>` and JavaScript in inline module
-blocks. Every `lf-*` element has an explicit end tag.
+Leaf adds the encoding, CSP, identity, theme, runtime, and canonical address when it
+delivers the document. Put page-specific CSS in `<style>` and JavaScript in inline
+module blocks. Every `lf-*` element has an explicit end tag.
 
 The title and description are what the page says it is anywhere outside itself: a
 tab, a search result, a link someone pastes into a chat. Write a description that
@@ -65,7 +65,6 @@ stands alone, since whoever reads it there has none of the page around it.
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>…</title>
   <meta name="description" content="…">

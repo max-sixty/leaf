@@ -1225,14 +1225,14 @@ export function createMarginProjection({
         const quiet =
           claimActivity.get(`${update.target.kind}:${update.target.id}`)?.quiet ??
           false;
+        const age = ago(update.ts);
         const account = [
           update.agent || "Agent",
           update.text || humanized(update.action),
-          quiet ? "quiet" : null,
+          quiet ? `Was active ${age}` : null,
         ]
           .filter(Boolean)
           .join(" · ");
-        const age = ago(update.ts);
         add(groups, target, {
           kind: "activity",
           id: `activity:${update.id}`,

@@ -1469,6 +1469,8 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-message-receipt[data-lf-dropped] .lf-receipt-state { color: var(--warn-ink); }
 .lf-receipt-state { flex: 0 1 auto; min-width: 0; overflow: hidden;
   color: inherit; white-space: nowrap; text-overflow: ellipsis; }
+.lf-receipt-live { position: absolute; width: 1px; height: 1px; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 /* The name and age hold their size; the state uses the remaining width. */
 :is(.lf-msg-head, .lf-conversation-head):has(> .lf-message-receipt)
   > :is(b, time) { flex: none; }

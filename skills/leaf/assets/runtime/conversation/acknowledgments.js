@@ -13,9 +13,9 @@
    applications, and in their place, so an unchanged phase is not re-announced: a node
    taken out of the document and put back replays every animation it wears and
    re-announces its live region. A phase change updates words and semantic color with no
-   motion. Its live state span changes only with semantic phase, detail, or the rounded
-   age carried by a past-active state. A newly constructed margin card uses the same
-   writer on its detached subtree before display. */
+   motion. The visible state may update its rounded age; a separate clipped live region
+   omits that clock and changes only with semantic phase or detail. A newly constructed
+   margin card uses the same writer on its detached subtree before display. */
 import { ago } from "../presence.js";
 import { el } from "../widget-elements.js";
 import { runtime } from "../context.js";
@@ -23,9 +23,11 @@ import { agentWorkPhase } from "../updates.js";
 import { elementById, inChrome, pageQueryAll } from "../passages.js";
 import { threadList } from "./state.js";
 
-const phaseText = (receipt) => {
+const phaseText = (receipt, includeAge = true) => {
   if (receipt.phase === "active") {
-    const phase = receipt.quiet ? `● Was active ${ago(receipt.ts)}` : "● Active";
+    const phase = receipt.quiet
+      ? `● Was active${includeAge ? ` ${ago(receipt.ts)}` : ""}`
+      : "● Active";
     return receipt.detail ? `${phase} — ${receipt.detail}` : phase;
   }
   if (receipt.phase === "queued") return "✓ Queued";
@@ -36,8 +38,8 @@ const phaseText = (receipt) => {
 };
 
 // One retained node follows one reader move through every semantic phase. Only a
-// phase, detail, or rounded-age change touches its live region, so the heartbeat does
-// not make a screen reader repeat an unchanged state every two seconds. A semantic
+// phase or detail change touches its live region, so the heartbeat does not make a
+// screen reader repeat an unchanged state as the visible rounded age advances. A semantic
 // change is a change of words and paint and nothing else: motion here would answer
 // a question the reader already asked, and an animation the line wore would replay
 // on any move the heartbeat made (below).
@@ -51,10 +53,12 @@ function paintReceipt(host, receipt, wanted) {
     line.dataset.lfGen = "1";
     line.dataset.receiptId = receipt.id;
     const state = el("span", "lf-receipt-state");
-    state.setAttribute("role", "status");
-    state.setAttribute("aria-live", "polite");
-    state.setAttribute("aria-atomic", "true");
-    line.append(state);
+    state.setAttribute("aria-hidden", "true");
+    const live = el("span", "lf-receipt-live");
+    live.setAttribute("role", "status");
+    live.setAttribute("aria-live", "polite");
+    live.setAttribute("aria-atomic", "true");
+    line.append(state, live);
   }
   // Leave a receipt already at the end of its metadata row where it stands. Removing
   // and reinserting it would restart any animation and re-announce its live region.
@@ -65,6 +69,9 @@ function paintReceipt(host, receipt, wanted) {
   const semantic = phaseText(receipt);
   if (state.textContent !== semantic) state.textContent = semantic;
   if (state.title !== semantic) state.title = semantic;
+  const live = line.querySelector(":scope > .lf-receipt-live");
+  const announced = phaseText(receipt, false);
+  if (live.textContent !== announced) live.textContent = announced;
   const workPhase = agentWorkPhase(receipt);
   line.classList.toggle("is-active", workPhase === "active");
   line.classList.toggle("is-picked-up", workPhase === "picked_up");

@@ -3660,6 +3660,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     work_line = page.locator(".lf-receipt")
+    visible_work_line = work_line.locator(".lf-receipt-state")
     work_button = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
 
@@ -3695,7 +3696,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     claim(events_model.now_iso())
     # A claim somebody is keeping says nothing about silence.
     expect(work_line).to_have_count(1)
-    expect(work_line).not_to_contain_text("Was active")
+    expect(visible_work_line).not_to_contain_text("Was active")
     expect(work_button).to_have_count(1)
     expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
@@ -3710,8 +3711,11 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(page.locator(".lf-status-text")).to_have_text(
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
-    expect(work_line).to_have_text(
+    expect(visible_work_line).to_have_text(
         re.compile(r"^● Was active 40m ago — reading the reconnect traces$")
+    )
+    expect(work_line.locator(".lf-receipt-live")).to_have_text(
+        "● Was active — reading the reconnect traces"
     )
     expect(work_line.locator("time")).to_have_count(0)
     expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
@@ -3740,7 +3744,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(page.locator(".lf-status-text")).to_have_text(
         re.compile(r"^Claude is working — rerunning the failing shard")
     )
-    expect(work_line).to_have_text(
+    expect(visible_work_line).to_have_text(
         re.compile(r"^● Was active 6m ago — reading the reconnect traces$")
     )
     expect(work_line.locator("time")).to_have_count(0)
@@ -3765,7 +3769,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
         ),
         session="delegate",
     )
-    expect(work_line).not_to_contain_text("Was active")
+    expect(visible_work_line).not_to_contain_text("Was active")
     expect(work_line.locator("time")).to_have_count(0)
     expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
     expect(work_button).to_have_attribute("data-lf-agent-phase", "active")
@@ -3774,7 +3778,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     # than latching on the first time it is late.
     record_claim(d, id="s")
     claim(events_model.now_iso())
-    expect(work_line).not_to_contain_text("Was active")
+    expect(visible_work_line).not_to_contain_text("Was active")
     expect(work_line).to_have_count(1)
     expect(held_thread).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
     expect(work_button).to_have_attribute("data-lf-agent-phase", "active")
@@ -3790,7 +3794,7 @@ def test_a_work_line_says_when_its_claim_has_gone_quiet(browser, serve, tmp_path
     expect(inline).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))
     assert inline.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     claim(quiet_ts)
-    expect(inline.locator(".lf-receipt")).to_have_text(
+    expect(inline.locator(".lf-receipt-state")).to_have_text(
         re.compile(r"^● Was active 40m ago — reading the reconnect traces$")
     )
     expect(inline).not_to_have_attribute("data-lf-agent-phase", re.compile(".+"))

@@ -845,6 +845,9 @@ img, svg, video { max-width: 100%; height: auto; }
  * one. */
 table { display: block; overflow-x: auto; border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
+/* A cell already supplies the identifier's frame and spacing. Cloned inline-code
+   padding can overflow a wrapped line even when its words fit the column. */
+:is(th, td) code:not(pre code) { padding: 0; background: none; font-size: var(--t-6); }
 caption { text-align: left; font-size: var(--t-6); color: var(--muted);
           margin-bottom: 6px; }
 th, td { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--rule);

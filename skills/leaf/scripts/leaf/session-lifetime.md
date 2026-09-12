@@ -36,9 +36,12 @@ already standing when the move arrives cannot answer it.
 
 The activity fold defines precedence once. An unsettled opened interaction outranks
 a `waiting` declaration, so a receipt cannot say **Picked up** while the banner says
-the agent awaits the reader. A fresh `working` declaration is considered only when
-its recorded event floor reaches the obligations it could describe. Turn identity,
-not elapsed time, decides whether opened delivery belongs to the turn now running.
+the agent awaits the reader. A fresh `working` declaration whose recorded event floor
+reaches the standing obligations is current work. If newer interactions are only
+**Queued**, an otherwise current declaration or live Codex activity remains visible
+alongside them and the banner names both facts; the older event floor does not claim
+that work has started on the queued input. Turn identity, not elapsed time, decides
+whether opened delivery belongs to the turn now running.
 Fresh activity from the claimed Codex task's App Server outranks that declaration
 while its watcher is live. It is an observation bound to one turn and event floor,
 not a second work declaration; the declaration remains underneath and becomes current

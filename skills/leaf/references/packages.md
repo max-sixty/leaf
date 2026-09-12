@@ -244,9 +244,11 @@ caller supplies the complete minimum as `{width, height}` and keeps the composit
 policy: the default workspace derives one recursively from equal partitions, while an
 asymmetric package root may read its own grid tracks. That reading is taken with the
 root held at the width a bounded allocation would give it and at the height it already
-occupies, so live boxes a minimum measures describe the posture under decision rather
-than the one currently drawn, and a root in flow does not report the taller furniture of
-the narrower reading measure as its own minimum. The returned `update()` promise
+occupies, so a root in flow does not report the taller furniture of the narrower reading
+measure as its own minimum. The posture itself is not held, so everything it governs —
+the bounded grid, a columns partition's split, the frame margin trim — is still the
+arrangement currently drawn, and a minimum that measures a descendant's live box
+measures it there. The returned `update()` promise
 joins initial settlement; `cleanup()` retires its observers and listeners.
 
 `registerReadingRegion({id, host, body})` binds identity separately from the current

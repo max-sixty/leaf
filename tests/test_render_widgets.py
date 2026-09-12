@@ -4117,6 +4117,48 @@ def test_an_unchanged_swipe_projection_repaints_nothing(browser, serve):
     page.close()
 
 
+def test_clearing_an_answer_optimistically_restores_the_approval_gate(browser, serve):
+    """An answer verb with an empty recorded value leaves its Ask unanswered."""
+    html = leaf_page(
+        "approval after a cleared pick",
+        """
+<lf-ask id="release-decision"><h1>Ship this release?</h1>
+  <lf-options id="release-options" choose>
+    <lf-option id="release-ship">Ship it</lf-option>
+    <lf-option id="release-hold">Hold it</lf-option>
+  </lf-options>
+</lf-ask>
+""",
+        head='<meta name="lf-review" content="sign-off">',
+    )
+    page, errors = open_page(browser, serve(html))
+    approve = page.locator(".lf-signoff")
+    pick = page.locator("#release-ship .lf-pick")
+
+    pick.click()
+    round_trip(page)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect(approve).to_be_enabled()
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    pick.click()
+    holding(page, held, 1, "the cleared selection")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect(approve).to_be_disabled()
+    expect(approve).to_have_attribute(
+        "title", "Answer every Ask before approving this work"
+    )
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect(approve).to_be_disabled()
+    assert errors == []
+    page.close()
+
+
 def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve):
     """Every input route ends at a button click, and quick classifications retain
     gesture order while the outbox serializes their requests."""

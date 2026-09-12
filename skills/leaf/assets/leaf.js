@@ -100,7 +100,6 @@ import {
   createTrays,
   asksPanel,
   currentTray,
-  othersBtn,
   othersPanel,
   reserveListClearance,
 } from "./runtime/trays.js";
@@ -128,11 +127,11 @@ import {
 // checks can inspect either distribution without turning it into a package API.
 const validationEntry = document.querySelector("script[data-lf-entry]");
 if (validationEntry) validationEntry.lfCurrentPresentationReady = applicationPresented;
-import { overflowMenu, showNews } from "./runtime/banner-shelf.js";
+import { overflowMenu } from "./runtime/banner-shelf.js";
 import {
   leavesOffered,
   othersLinks,
-  paintLeavesOffer,
+  presentLeaves,
   renderOthers,
   declareLeavesKeys,
 } from "./runtime/live-leaves.js";
@@ -599,7 +598,7 @@ trays = createTrays({
   syncLayout: layout.syncLayout,
   closePreview: app.margin.closePreview,
   leavesOffered,
-  paintLeavesOffer,
+  presentLeaves,
   renderAsks: asks.renderAsks,
   renderMargin: app.margin.renderMargin,
   registerAuxiliarySurface: auxiliaryModality.registerAuxiliarySurface,
@@ -888,7 +887,7 @@ async function presentPage() {
   }
   responseSurface.updateFab();
   trays.restoreTray();
-  showNews(othersBtn, leavesOffered());
+  presentLeaves();
   paintKeys();
   void syncInteractionGallery();
   paintVersionApproval();

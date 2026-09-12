@@ -2470,13 +2470,17 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     before, widest = page.evaluate(
         """() => { const b = document.querySelector('.lf-others');
                    const before = b.offsetWidth;
+                   const face = [...b.childNodes];
                    b.textContent = 'All leaves (999)';
-                   return [before, b.offsetWidth]; }"""
+                   const widest = b.offsetWidth;
+                   b.replaceChildren(...face);
+                   return [before, widest]; }"""
     )
     assert widest == before, (
         f"'All leaves (999)' grew the button {before}px -> {widest}px: its "
-        "reserve list no longer names the widest label renderOthers writes"
+        "reserve list no longer names the widest Leaves presentation label"
     )
+    expect(btn).to_have_text("All leaves (2)")
     assert errors == []
     page.close()
 
@@ -2733,33 +2737,38 @@ def test_a_panel_row_follows_its_pages_status_live(
 
 
 def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
-    browser, serve, other_leaf
+    browser, serve, other_leaf, live_leaf
 ):
-    """A held Leaves paint reopens readiness without advancing semantics."""
+    """One held Leaves face keeps its complete prior view behind current readiness."""
     _, other_dir = other_leaf
+    _, closing_dir = live_leaf("closing", "The closing leaf")
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
-    row = page.locator("a.lf-others-row")
+    btn = page.locator(".lf-others")
+    rows = page.locator("a.lf-others-row")
+    row = rows.filter(has_text="The other leaf")
+    expect(btn).to_have_text("All leaves (3)")
+    expect(rows).to_have_count(2)
     row.focus()
     before = page.evaluate(
         """async () => {
-          const list = document.querySelector('lf-leaves-list');
+          const face = document.querySelector('lf-leaves-banner-face');
           const presentation = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js'
           );
-          const schedule = list.scheduleUpdate.bind(list);
+          const schedule = face.scheduleUpdate.bind(face);
           let release;
           const held = new Promise(resolve => { release = resolve; });
           let armed = true;
-          list.scheduleUpdate = () => {
+          face.scheduleUpdate = () => {
             if (!armed) return schedule();
             armed = false;
             return held.then(schedule);
           };
           window.releaseLeavesPaint = release;
-          const row = document.querySelector('a.lf-others-row');
-          window.leavesRowBefore = row;
+          window.leavesRowBefore = document.activeElement;
+          window.leavesButtonBefore = document.querySelector('.lf-others');
           window.leavesPresentation = presentation;
           const reading = presentation.readApplicationPresentation();
           return {
@@ -2776,6 +2785,10 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
             "ts": events_model.now_iso(),
         },
     )
+    files_model.write_json(
+        closing_dir / "status.json",
+        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+    )
     told(page)
     held = page.evaluate(
         """() => {
@@ -2789,6 +2802,8 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
             semanticEpoch: reading.semanticEpoch,
             presentedEpoch: reading.presentedEpoch,
             ready: leavesReady,
+            label: leavesButtonBefore.textContent,
+            rows: document.querySelectorAll('a.lf-others-row').length,
           };
         }"""
     )
@@ -2797,14 +2812,19 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
         "semanticEpoch": before["semanticEpoch"],
         "presentedEpoch": before["presentedEpoch"],
         "ready": False,
+        "label": "All leaves (3)",
+        "rows": 2,
     }
     page.evaluate("releaseLeavesPaint()")
     page.wait_for_function("window.leavesReady")
+    expect(btn).to_have_text("All leaves (2)")
+    expect(rows).to_have_count(1)
     expect(row.locator(".lf-others-line")).to_have_text("Working — recording the demo")
     assert page.evaluate(
         """() => {
           const reading = leavesPresentation.readApplicationPresentation();
           return {
+            sameButton: leavesButtonBefore === document.querySelector('.lf-others'),
             sameRow: leavesRowBefore === document.querySelector('a.lf-others-row'),
             focused: document.activeElement === leavesRowBefore,
             semanticEpoch: reading.semanticEpoch,
@@ -2812,6 +2832,7 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
           };
         }"""
     ) == {
+        "sameButton": True,
         "sameRow": True,
         "focused": True,
         "semanticEpoch": before["semanticEpoch"],
@@ -2990,33 +3011,37 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
 
 
 def test_a_failed_leaves_update_keeps_the_committed_list_and_settles(
-    browser, serve, other_leaf
+    browser, serve, other_leaf, live_leaf
 ):
-    """A failed Leaves paint reports once, keeps prior usable DOM, and can recover."""
+    """A failed Leaves paint reports once, restores its whole prior view, and recovers."""
     _, other_dir = other_leaf
+    _, closing_dir = live_leaf("closing", "The closing leaf")
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
-    line = page.locator("a.lf-others-row .lf-others-line")
+    btn = page.locator(".lf-others")
+    rows = page.locator("a.lf-others-row")
+    line = rows.filter(has_text="The other leaf").locator(".lf-others-line")
+    expect(btn).to_have_text("All leaves (3)")
+    expect(rows).to_have_count(2)
     expect(line).to_have_text("Working — running the suite")
     page.evaluate(
         """() => {
           const list = document.querySelector('lf-leaves-list');
           const render = list.render.bind(list);
+          window.leavesButtonBefore = document.querySelector('.lf-others');
+          window.leavesRowsBefore = [...document.querySelectorAll('a.lf-others-row')];
           list.render = () => {
             list.render = render;
+            window.leavesLabelAtFailure = leavesButtonBefore.textContent;
             window.leavesPaintFailed = true;
             throw new Error('deliberate leaves failure');
           };
         }"""
     )
     files_model.write_json(
-        other_dir / "status.json",
-        {
-            "state": "working",
-            "detail": "this paint fails",
-            "ts": events_model.now_iso(),
-        },
+        closing_dir / "status.json",
+        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
     )
     told(page)
     page.wait_for_function("window.leavesPaintFailed")
@@ -3028,7 +3053,22 @@ def test_a_failed_leaves_update_keeps_the_committed_list_and_settles(
           return presentation.readApplicationPresentation().pending.length === 0;
         }"""
     )
+    expect(btn).to_have_text("All leaves (3)")
+    expect(rows).to_have_count(2)
     expect(line).to_have_text("Working — running the suite")
+    assert page.evaluate(
+        """() => ({
+          changedBeforeFailure: leavesLabelAtFailure,
+          sameButton: leavesButtonBefore === document.querySelector('.lf-others'),
+          sameRows: leavesRowsBefore.every(
+            (row, index) => row === document.querySelectorAll('a.lf-others-row')[index]
+          ),
+        })"""
+    ) == {
+        "changedBeforeFailure": "All leaves (2)",
+        "sameButton": True,
+        "sameRows": True,
+    }
     assert errors == ["leaf: Presentation failed: deliberate leaves failure"]
 
     files_model.write_json(
@@ -3040,6 +3080,8 @@ def test_a_failed_leaves_update_keeps_the_committed_list_and_settles(
         },
     )
     told(page)
+    expect(btn).to_have_text("All leaves (2)")
+    expect(rows).to_have_count(1)
     expect(line).to_have_text("Working — the next paint lands")
     assert errors == ["leaf: Presentation failed: deliberate leaves failure"]
     page.close()

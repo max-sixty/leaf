@@ -97,8 +97,8 @@ envelope's obligations name the required response operation. For a reply, run
 `$LEAF_REPLY EVENT_ID "..."` with the obligation's exact event id; if the source changed,
 it validates and publishes that source while answering the obligation. If the edit
 removes or replaces the passage an anchored thread points to, add `--quote`, `--section`,
-or `--section ... --part ...` to move the thread onto its current result. For a version
-response, edit and publish the page and then run
+or `--section ... --part ...` after the reply text to move the thread onto its current
+result. For a version response, edit and publish the page and then run
 `$LEAF resolve . --to RESPONSE_CONVERSATION`;
 and use `$LEAF receipt` for a request. A native final message is transcript-only and
 never becomes a Leaf response. You may revise index.html,

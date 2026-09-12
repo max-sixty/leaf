@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Post one hosted reply to the already-running Leaf adapter."""
 
-import argparse
 import json
 import os
 import sys
@@ -38,16 +37,20 @@ def published_route(page_dir: Path) -> str:
 
 def response_payload(arguments: list[str]) -> dict[str, str]:
     """Parse the canonical reply fields the hosted adapter accepts."""
-    parser = argparse.ArgumentParser(prog="$LEAF_REPLY")
-    parser.add_argument("event")
-    parser.add_argument("text")
-    parser.add_argument("--quote", default="")
-    parser.add_argument("--section", default="")
-    parser.add_argument("--part", default="")
-    parsed = vars(parser.parse_args(arguments))
-    return {
-        key: value for key, value in parsed.items() if key in {"event", "text"} or value
-    }
+    usage = "$LEAF_REPLY EVENT_ID TEXT [--quote TEXT] [--section ID] [--part ID]"
+    if len(arguments) < 2:
+        fail(f"usage: {usage}")
+    event, text, *options = arguments
+    payload = {"event": event, "text": text}
+    while options:
+        if len(options) < 2 or options[0] not in {"--quote", "--section", "--part"}:
+            fail(f"usage: {usage}")
+        option, value, *options = options
+        key = option.removeprefix("--")
+        if key in payload:
+            fail(f"{option} may be supplied once")
+        payload[key] = value
+    return payload
 
 
 def main() -> None:

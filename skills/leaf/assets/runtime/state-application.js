@@ -28,6 +28,7 @@ export function createStateApplication({
   stateSignoff,
   renderOthers,
   applyConversation,
+  prepareProjection,
   presentProjection,
   accountPending,
   panelIsOpen,
@@ -116,6 +117,10 @@ export function createStateApplication({
       }
       observeServerNow(state.now);
       stateApplying = true;
+      // Frozen thread preparation can publish newly captured authored state before
+      // projection runs. Hold chrome presentation now so the adopted epoch cannot
+      // inherit an older commit while that asynchronous boundary is open.
+      const preparedProjection = prepareProjection();
       try {
         settleAcceptedDrafts();
         replaceClaimState({ sources: state.claims || [], held: state.activity.held });
@@ -127,7 +132,7 @@ export function createStateApplication({
         // Frozen thread widgets join the document here. Their authored capture
         // republishes the same semantic root before widget rendering reads it.
         await applyConversation();
-        presentProjection();
+        presentProjection(preparedProjection);
         await applyConversation();
         await notifyDataSubscribers();
         if (runtime.reading !== null)

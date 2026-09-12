@@ -2,19 +2,53 @@
 
    Leaf captures identity and declarations before upgrade. This controller exposes only
    immutable publisher selections and commands validated against the newest selection;
-   the owner DOM is never a semantic store. Local editing may defer subscriber paint
-   once, and asynchronous visible preparation joins the existing presentation queue
-   through one seam until the epoch coordinator replaces that queue. */
-import { applicationState } from "./semantic-state.js";
+   the owner DOM is never a semantic store. Its semantic render and asynchronous
+   preparation are two stable widget-id regions: neither can supersede the other's
+   proof. Local editing defers the render region at its newest unpublished reading. */
+import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import {
   captureWidgetReference,
   descriptorStillMatches,
   widgetDescriptor,
 } from "./widget-descriptors.js";
-import { registerPresentation } from "./widget-upgrade.js";
+import { failSoft } from "./widget-upgrade.js";
 
 const controllers = new WeakMap();
+const lifecycles = new WeakMap();
+let lifecycleObserver = null;
+
+const visitElements = (node, visit) => {
+  if (!(node instanceof Element)) return;
+  visit(node);
+  for (const child of node.querySelectorAll("*")) visit(child);
+};
+
+function watchLifetime(owner, lifecycle) {
+  lifecycles.set(owner, lifecycle);
+  if (lifecycleObserver) return;
+  lifecycleObserver = new MutationObserver((records) => {
+    const changed = new Set();
+    for (const record of records) {
+      for (const node of record.addedNodes)
+        visitElements(node, (el) => changed.add(el));
+      for (const node of record.removedNodes)
+        visitElements(node, (el) => changed.add(el));
+    }
+    // Mutation records describe intermediate moves. `isConnected` after the whole
+    // batch distinguishes a real removal from Leaf's presentation-only reparenting.
+    for (const element of changed) {
+      const ownerLifecycle = lifecycles.get(element);
+      if (!ownerLifecycle) continue;
+      if (element.isConnected) ownerLifecycle.connect();
+      else ownerLifecycle.disconnect();
+    }
+  });
+  lifecycleObserver.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
+}
 
 const immutable = (value) => {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
@@ -110,17 +144,105 @@ function createWidgetController(owner) {
   const selected = applicationState.selectWidget(descriptor);
   const subscriptions = new Set();
   let deferred = false;
+  let deferredReading = null;
+  let deferredHold = null;
   let stopSelection = null;
+  let renderHandle = null;
+  let preparationHandle = null;
+  let preparation = null;
+  let preparationBatch = null;
 
   const read = () =>
     descriptorStillMatches(owner, descriptor)
       ? selected.read()
       : unavailable(selected.read());
 
-  const publish = () => {
-    if (deferred) return;
-    for (const subscription of [...subscriptions]) subscription(read());
+  const render = () => {
+    if (!renderHandle && owner.isConnected)
+      renderHandle = attachWidgetPresentation(descriptor.id, "render", owner);
+    return renderHandle;
   };
+
+  const prepared = () => {
+    if (!preparationHandle && owner.isConnected)
+      preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner);
+    return preparationHandle;
+  };
+
+  const presentRender = (reading, callbacks) => {
+    const handle = render();
+    const failures = [];
+    for (const subscription of callbacks) {
+      try {
+        subscription(reading);
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    const failure =
+      failures.length > 1
+        ? new AggregateError(failures, "widget presentation failed")
+        : failures[0];
+    if (handle) {
+      const completion = failure
+        ? Promise.reject(failure)
+        : owner.updateComplete?.then
+          ? owner.updateComplete
+          : undefined;
+      void handle.present(reading, completion, (reason) => failSoft(owner, reason));
+    }
+  };
+
+  const holdRender = (reading) => {
+    deferredReading = reading;
+    const handle = render();
+    if (!handle) return;
+    let release;
+    const completion = new Promise((resolve) => {
+      release = resolve;
+    });
+    const prior = deferredHold;
+    deferredHold = { release };
+    void handle.present(reading, completion);
+    // The newer ticket is installed before the old hold settles, so an obsolete value
+    // cannot briefly acknowledge the current epoch between two deferred publications.
+    prior?.release();
+  };
+
+  const publish = () => {
+    const reading = read();
+    if (deferred) {
+      holdRender(reading);
+      return;
+    }
+    presentRender(reading, [...subscriptions]);
+  };
+
+  const connect = () => {
+    if (!owner.isConnected) return;
+    if (subscriptions.size && !stopSelection) {
+      render();
+      stopSelection = selected.subscribe(publish);
+    }
+    if (preparation && !preparationHandle) {
+      const handle = prepared();
+      if (handle) void handle.present(preparation.value, preparation.completion);
+    }
+  };
+
+  const disconnect = () => {
+    stopSelection?.();
+    stopSelection = null;
+    renderHandle?.disconnect();
+    renderHandle = null;
+    preparationHandle?.disconnect();
+    preparationHandle = null;
+    deferredHold?.release();
+    deferredHold = null;
+    deferredReading = null;
+  };
+
+  watchLifetime(owner, { connect, disconnect });
 
   return Object.freeze({
     read,
@@ -128,13 +250,18 @@ function createWidgetController(owner) {
       if (typeof callback !== "function")
         throw new TypeError("A widget subscription needs a callback");
       subscriptions.add(callback);
-      if (!stopSelection) stopSelection = selected.subscribe(publish);
-      else callback(read());
+      if (!stopSelection) connect();
+      else presentRender(read(), [callback]);
       return () => {
         subscriptions.delete(callback);
         if (!subscriptions.size) {
           stopSelection?.();
           stopSelection = null;
+          renderHandle?.disconnect();
+          renderHandle = null;
+          deferredHold?.release();
+          deferredHold = null;
+          deferredReading = null;
         }
       };
     },
@@ -184,13 +311,36 @@ function createWidgetController(owner) {
         if (resumed) return read();
         resumed = true;
         deferred = false;
-        for (const subscription of [...subscriptions]) subscription(read());
+        const latest = deferredReading ?? read();
+        const hold = deferredHold;
+        deferredReading = null;
+        deferredHold = null;
+        if (subscriptions.size) presentRender(latest, [...subscriptions]);
+        hold?.release();
         invalidateDom();
-        return read();
+        return latest;
       };
     },
     present(promise) {
-      return registerPresentation(Promise.resolve(promise));
+      if (!promise?.then) throw new TypeError("Widget presentation must be a promise");
+      const value = read();
+      if (!preparationBatch || preparationBatch.value !== value) {
+        preparationBatch = { value, promises: [] };
+      }
+      preparationBatch.promises.push(promise);
+      const batch = preparationBatch;
+      const completion = Promise.all(batch.promises);
+      batch.completion = completion;
+      preparation = { value, completion };
+      const handle = prepared();
+      if (handle) void handle.present(value, completion);
+      const clear = () => {
+        if (preparationBatch?.completion === completion) preparationBatch = null;
+      };
+      completion.then(clear, clear);
+      // Package code may await the concrete renderer result (lf-diff does); the
+      // coordinator's aggregate is mechanical bookkeeping, not a replacement value.
+      return promise;
     },
   });
 }

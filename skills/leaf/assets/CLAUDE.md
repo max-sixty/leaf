@@ -323,12 +323,15 @@ Startup order is load-bearing:
    descriptor before upgrade changes the DOM.
 6. Import the modules declared by `x-upgrade` for the tags this document
    contains, and no others.
-7. Wait for controller-registered presentation, then run the shared dressing passes.
-8. Capture authored record facets from the upgraded, authored state.
-9. Settle optional runtime-owned page interface that composes those widgets.
+7. Start the shared dressing passes and wait for the current coordinator publication,
+   including controller-registered widget preparation and the dressing region.
+8. Capture authored record facets from the upgraded authored state, then wait for
+   subscribers to present that semantic publication.
+9. Present the optional runtime-owned page-interface region that composes those widgets.
 10. Mark `body` `data-lf-upgraded="1"`.
-11. Start the state feed; its first answer is applied, reconciled, and presents the
-    page. The feed waits a bounded time for that answer and then presents without one,
+11. Start the state feed; its first answer is applied and reconciled, then current
+    coordinator readiness presents the page. The feed waits a bounded time for that
+    answer and then presents without one,
     offline, rather than letting a container that has stopped answering decide whether
     the page arrives at all. The read is not cancelled by that wait: it keeps the page's
     one read slot, and its answer applies when it lands, as any later read's does.

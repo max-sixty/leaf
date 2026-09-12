@@ -13,6 +13,7 @@ import {
   PRESENTATION,
 } from "./runtime/presentation.js";
 import { mountApplication } from "./runtime/application.js";
+import { whenApplicationPresented } from "./runtime/semantic-state.js";
 import { createEngagement } from "./runtime/composing/engagement.js";
 import { createCompositionInputs } from "./runtime/composing/input.js";
 import {
@@ -311,6 +312,7 @@ const inputs = createCompositionInputs({
 });
 
 app = mountApplication({
+  reportPageError,
   createEngagement,
   targetChooserOpen: () => targets.targetChooserOpen(),
   pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
@@ -830,7 +832,7 @@ async function syncInteractionGallery() {
 }
 watchProjection(document.body, () => void syncInteractionGallery());
 document.addEventListener(PAGE_INTERFACE, (event) =>
-  event.detail.pending.push(syncInteractionGallery()),
+  event.detail.present(syncInteractionGallery()),
 );
 
 if (!containedPage) {
@@ -846,7 +848,9 @@ if (!containedPage) {
 const { landArrival, savedView } = version.installArrival();
 const savedComposer = selectionComposer.pendingComposer();
 
-function presentPage() {
+async function presentPage() {
+  if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
+  await whenApplicationPresented();
   if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
   setAnchoringReady(true);
   try {

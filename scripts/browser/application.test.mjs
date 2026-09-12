@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createSemanticApplication } from "./application.ts";
+import { createPresentationCoordinator } from "./presentation.ts";
 
 const spec = { unit: "widget", facet: "decision" };
 const descriptor = {
@@ -80,6 +81,64 @@ const setup = () => {
 };
 const decision = (app) =>
   app.read().effective.widgets.get("choice").state.decision.action;
+
+test("semantic publication opens before subscribers and seals the newest nested epoch", async () => {
+  const document = {};
+  const coordinator = createPresentationCoordinator({ reportFailure: assert.fail });
+  const lifecycle = [];
+  const app = createSemanticApplication({
+    presentation: {
+      begin(epoch) {
+        lifecycle.push(["begin", epoch]);
+        return coordinator.begin(document, epoch);
+      },
+      seal(publication) {
+        lifecycle.push(["seal", publication.semanticEpoch]);
+        return coordinator.seal(publication);
+      },
+    },
+  });
+  assert.deepEqual(lifecycle, [
+    ["begin", 0],
+    ["seal", 0],
+  ]);
+
+  let release;
+  const held = new Promise((resolve) => {
+    release = resolve;
+  });
+  let presentation;
+  let nested = false;
+  app
+    .select((root) => root.phase)
+    .subscribe((phase) => {
+      if (phase !== "offline" || nested) return;
+      nested = true;
+      assert.equal(coordinator.read().semanticEpoch, 1);
+      const renderer = coordinator.attach("widget", {});
+      presentation = renderer.present("offline", held);
+      app.acceptData({ revision: 0, sources: {} });
+    });
+
+  lifecycle.length = 0;
+  app.setPhase("offline");
+  assert.deepEqual(lifecycle, [
+    ["begin", 1],
+    ["begin", 2],
+    ["seal", 2],
+  ]);
+  assert.deepEqual(coordinator.read().pending, ["widget"]);
+  let ready = false;
+  const readiness = coordinator.whenPresented(document, 2).then((outcome) => {
+    ready = true;
+    return outcome;
+  });
+  await Promise.resolve();
+  assert.equal(ready, false);
+  release("proof");
+  await presentation;
+  assert.equal(await readiness, "presented");
+});
 
 test("one synchronous immutable reading combines authored, accepted, and later pending gestures", () => {
   const app = setup();

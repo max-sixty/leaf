@@ -114,6 +114,10 @@ interface Waiter<DocumentToken extends object> {
   readonly resolve: (outcome: PresentationOutcome) => void;
 }
 
+interface RegionWaiter<DocumentToken extends object, Region> extends Waiter<DocumentToken> {
+  readonly regions: ReadonlySet<Region>;
+}
+
 export function createPresentationCoordinator<
   DocumentToken extends object,
   Region,
@@ -127,6 +131,7 @@ export function createPresentationCoordinator<
   let presentedEpoch = -1;
   let barrier: Barrier<DocumentToken, Region, Renderer, Value, Proof> | null = null;
   let waiters: Waiter<DocumentToken>[] = [];
+  let regionWaiters: RegionWaiter<DocumentToken, Region>[] = [];
   const rendererGenerations = new Map<Region, number>();
   const regions = new Map<
     Region,
@@ -147,6 +152,28 @@ export function createPresentationCoordinator<
       else remaining.push(waiter);
     }
     waiters = remaining;
+  }
+
+  function regionOutcome(waiter: RegionWaiter<DocumentToken, Region>) {
+    if (document === null || !Object.is(waiter.document, document))
+      return "superseded";
+    if (semanticEpoch > waiter.semanticEpoch) return "superseded";
+    if (semanticEpoch < waiter.semanticEpoch || !barrier?.sealed) return null;
+    return [...waiter.regions].some(
+      (region) => barrier?.members.get(region)?.commit === null,
+    )
+      ? null
+      : "presented";
+  }
+
+  function resolveRegionWaiters() {
+    const remaining = [];
+    for (const waiter of regionWaiters) {
+      const outcome = regionOutcome(waiter);
+      if (outcome) waiter.resolve(outcome);
+      else remaining.push(waiter);
+    }
+    regionWaiters = remaining;
   }
 
   function completeBarrier() {
@@ -206,6 +233,7 @@ export function createPresentationCoordinator<
       sealed: false,
       completed: false,
     };
+    resolveRegionWaiters();
     return publication;
   }
 
@@ -213,6 +241,7 @@ export function createPresentationCoordinator<
     if (!barrier || barrier.publication !== publication) return false;
     barrier.sealed = true;
     completeBarrier();
+    resolveRegionWaiters();
     return true;
   }
 
@@ -252,6 +281,7 @@ export function createPresentationCoordinator<
       member.ticket = null;
       member.commit = commit;
       completeBarrier();
+      resolveRegionWaiters();
     }
   }
 
@@ -350,6 +380,7 @@ export function createPresentationCoordinator<
           return;
         retiringBarrier.members.delete(region);
         completeBarrier();
+        resolveRegionWaiters();
       });
     };
 
@@ -390,6 +421,66 @@ export function createPresentationCoordinator<
     });
   }
 
+  function whenRegionsPresented(
+    targetDocument: DocumentToken,
+    targetSemanticEpoch: number,
+    regions: readonly Region[],
+  ): Promise<PresentationOutcome> {
+    validEpoch(targetSemanticEpoch);
+    const wanted = new Set(regions);
+    return new Promise((resolve) => {
+      const waiter = {
+        document: targetDocument,
+        semanticEpoch: targetSemanticEpoch,
+        regions: wanted,
+        resolve,
+      };
+      const outcome = regionOutcome(waiter);
+      if (outcome) resolve(outcome);
+      else regionWaiters.push(waiter);
+    });
+  }
+
+  async function whenCurrentPresented(
+    current: () => PresentationPublication<DocumentToken>,
+  ): Promise<PresentationOutcome> {
+    for (;;) {
+      const target = current();
+      await whenPresented(target.document, target.semanticEpoch);
+      const latest = current();
+      const reading = read();
+      // A waiter resumes in a microtask. An earlier waiter may have opened a newer
+      // publication or replaced a renderer in the same epoch before this continuation
+      // runs, so readiness is current only after re-reading both owners.
+      if (
+        Object.is(reading.document, latest.document) &&
+        reading.semanticEpoch === latest.semanticEpoch &&
+        reading.presentedEpoch >= latest.semanticEpoch &&
+        reading.sealed &&
+        reading.pending.length === 0
+      )
+        return "presented";
+    }
+  }
+
+  async function whenCurrentRegionsPresented(
+    current: () => PresentationPublication<DocumentToken>,
+    regions: readonly Region[],
+  ): Promise<PresentationOutcome> {
+    const wanted = [...new Set(regions)];
+    for (;;) {
+      const target = current();
+      await whenRegionsPresented(target.document, target.semanticEpoch, wanted);
+      const latest = current();
+      const outcome = regionOutcome({
+        ...latest,
+        regions: new Set(wanted),
+        resolve: () => {},
+      });
+      if (outcome === "presented") return outcome;
+    }
+  }
+
   function read(): PresentationReading<DocumentToken, Region> {
     return Object.freeze({
       document,
@@ -406,5 +497,14 @@ export function createPresentationCoordinator<
     });
   }
 
-  return Object.freeze({ begin, seal, attach, committed, whenPresented, read });
+  return Object.freeze({
+    begin,
+    seal,
+    attach,
+    committed,
+    whenPresented,
+    whenCurrentPresented,
+    whenCurrentRegionsPresented,
+    read,
+  });
 }

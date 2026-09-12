@@ -4,7 +4,11 @@
    mounts the application before widget upgrade; exported functions are stable closures
    for the public widget API and fail clearly if invoked before that boundary. */
 import { runtime } from "./context.js";
-import { applicationState, readApplication } from "./semantic-state.js";
+import {
+  applicationState,
+  readApplication,
+  setPresentationFailureReporter,
+} from "./semantic-state.js";
 import { newAttempt } from "./drafts.js";
 import { saidNow } from "./presence.js";
 import { announce, notice } from "./notifications.js";
@@ -45,6 +49,7 @@ const app = () => {
 
 export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
+  setPresentationFailureReporter(dependencies.reportPageError);
   const ledger = createPendingLedger({ newAttempt, now: saidNow });
   const hasPending = ledger.hasUnresolved;
   const engagement = dependencies.createEngagement({

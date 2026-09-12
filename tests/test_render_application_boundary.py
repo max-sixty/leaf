@@ -413,3 +413,149 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     assert page.evaluate("legacyActionEvents") == 0
     assert errors == []
     page.close()
+
+
+def test_widget_controller_owns_presentation_across_values_and_lifetimes(
+    browser, serve
+):
+    """One widget owns distinct render and preparation regions across its lifetime."""
+    source = LIVE_V1.replace(
+        '<h1 id="live-title">Live first</h1>',
+        '<h1 id="live-title">Live first</h1>'
+        '<lf-local id="page-local" choice="idle"></lf-local>',
+    )
+    page, errors = open_page(
+        browser,
+        live_url(
+            serve(
+                source,
+                page_files={
+                    "registry.json": json.dumps(PAGE_DECLARATION),
+                    "widgets/lf-local.js": PAGE_WIDGET,
+                },
+            )
+        ),
+    )
+    page.evaluate(
+        """async () => {
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          window.pageLocal = document.querySelector('#page-local');
+          window.whenLeafPresented = presentation.whenApplicationPresented;
+          window.readLeafPresentation = presentation.readApplicationPresentation;
+          window.heldPreparation = () => {
+            let release;
+            const promise = new Promise(resolve => { release = resolve; });
+            return {promise, release};
+          };
+        }"""
+    )
+
+    # Several children prepared by one owner are one requirement. A later call for the
+    # same reading includes the earlier promise rather than superseding it.
+    returned = page.evaluate(
+        """() => {
+          window.firstPreparation = heldPreparation();
+          window.secondPreparation = heldPreparation();
+          const first = pageLocal.controller.present(firstPreparation.promise);
+          const second = pageLocal.controller.present(secondPreparation.promise);
+          window.preparationReady = false;
+          whenLeafPresented().then(() => { preparationReady = true; });
+          return {
+            first: first === firstPreparation.promise,
+            second: second === secondPreparation.promise,
+            pending: readLeafPresentation().pending,
+          };
+        }"""
+    )
+    assert returned == {
+        "first": True,
+        "second": True,
+        "pending": ["widget:page-local:preparation"],
+    }
+    page.evaluate("firstPreparation.release('first')")
+    assert page.evaluate("preparationReady") is False
+    page.evaluate("secondPreparation.release('second')")
+    page.wait_for_function("preparationReady", timeout=3000)
+
+    # Deferral installs a held render ticket for each selected value. Refusal publishes
+    # the newest authoritative value, but neither it nor the older optimistic ticket may
+    # count as presented until the one-shot resume paints that newest reading.
+    held_events = []
+    page.route("**/api/event", lambda route: held_events.append(route))
+    page.evaluate("window.pageLocal = document.querySelector('#page-local')")
+    before = int(page.locator("#page-local").get_attribute("data-readings"))
+    page.evaluate("window.resumeLocal = pageLocal.controller.defer(); true")
+    page.locator("#page-local").get_by_role("button", name="Choose").click()
+    expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
+    assert page.evaluate("Number(pageLocal.dataset.readings)") == before
+    attempt = held_events[0].request.post_data_json["attempt"]
+    held_events[0].fulfill(
+        status=200,
+        json={
+            "ok": False,
+            "attempt": attempt,
+            "error": "refused before append",
+            "final": True,
+        },
+    )
+    expect(page.locator("#page-local")).to_have_attribute("data-delivery", "refused")
+    assert page.evaluate("Number(pageLocal.dataset.readings)") == before
+    assert page.locator("#page-local").get_by_role("status").text_content() == "chosen"
+    page.evaluate(
+        "presentationReady = false; "
+        "whenLeafPresented().then(() => { presentationReady = true; }); true"
+    )
+    assert page.evaluate("presentationReady") is False
+    resumed = page.evaluate(
+        "resumeLocal(); const once = Number(pageLocal.dataset.readings); "
+        "resumeLocal(); [once, Number(pageLocal.dataset.readings)]"
+    )
+    assert resumed == [before + 1, before + 1]
+    expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
+    page.wait_for_function("presentationReady", timeout=3000)
+    page.unroute("**/api/event")
+
+    # A removed owner retires both regions. Reconnecting the same instance reattaches
+    # its still-pending preparation at the same semantic epoch, so an already resolved
+    # readiness call cannot be reused as proof for the replacement renderer.
+    page.evaluate(
+        """() => {
+          window.pageLocal = document.querySelector('#page-local');
+          window.reconnectPreparation = heldPreparation();
+          pageLocal.controller.present(reconnectPreparation.promise);
+          window.beforeRemovalReady = false;
+          whenLeafPresented().then(() => { beforeRemovalReady = true; });
+          pageLocal.remove();
+        }"""
+    )
+    page.wait_for_function("beforeRemovalReady", timeout=3000)
+    page.evaluate(
+        """() => {
+          document.querySelector('main').append(pageLocal);
+          window.reconnectedReady = false;
+          whenLeafPresented().then(() => { reconnectedReady = true; });
+          return true;
+        }"""
+    )
+    assert page.evaluate("reconnectedReady") is False
+    assert page.evaluate("readLeafPresentation().pending") == [
+        "widget:page-local:preparation"
+    ]
+    page.evaluate("reconnectPreparation.release('reconnected')")
+    page.wait_for_function("reconnectedReady", timeout=3000)
+
+    # A synchronous render failure cannot escape the publisher or leave a partial
+    # widget as presentation proof. The coordinator reports it, installs the existing
+    # visible fail-soft body, and settles the region.
+    page.evaluate(
+        "pageLocal.controller.subscribe(() => { "
+        "throw new Error('deliberate render failure'); }); true"
+    )
+    expect(page.locator("#page-local .lf-error")).to_have_text(
+        "<lf-local> failed: deliberate render failure"
+    )
+    page.wait_for_function("readLeafPresentation().pending.length === 0", timeout=3000)
+    assert errors == ["leaf: Presentation failed: deliberate render failure"]
+    page.close()

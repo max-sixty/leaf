@@ -277,6 +277,14 @@ CONTROL_ARCHETYPES = (
         "select": "min-height",
     },
     {
+        # Moving to the next case changes the selected title and enables Previous;
+        # both controls must stay in place beside Next through that transition.
+        "name": "visual-review-navigation",
+        "source": VISUAL_REVIEW_GALLERY,
+        "coverage": ".lf-vr-queue-region :is(button, select)",
+        "target": ".lf-vr-next",
+    },
+    {
         # The visual inspector's view and size presses are joined groups whose selected
         # treatment changes in place. Pressing Flip exercises both states while its
         # Compare, Overlay, and size neighbours stay under the reader's pointer.

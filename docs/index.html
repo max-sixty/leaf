@@ -124,6 +124,8 @@
         const empty = document.querySelector("#try-empty");
         if (empty) empty.hidden = Boolean(selected);
         for (const example of examples) {
+          const placeholder = example.querySelector(":scope > [data-try-placeholder]");
+          if (placeholder) placeholder.hidden = example.childElementCount > 1;
           example.hidden = example !== selected;
         }
       };
@@ -162,7 +164,7 @@
       <section id="try">
         <!-- Page task for Leaf guide: Each task owns one example in try-result.
              Each option already has one article whose id is the option id plus
-             "-example". Replace that article's placeholder on its first selection.
+             "-example". Replace its data-try-placeholder element on first selection.
              Never move, remove, rename, or set hidden on these articles; the page
              module shows the chosen one. Preserve their reader decisions, output,
              and conversations on later selections.
@@ -194,13 +196,15 @@
             Your example will appear here. Then select a passage to ask for a change.
           </p>
           <article id="try-plan-example" hidden>
-            <p>Leaf guide is preparing a short proposal to review.</p>
+            <p data-try-placeholder>
+              Leaf guide is preparing a short proposal to review.
+            </p>
           </article>
           <article id="try-decision-example" hidden>
-            <p>Leaf guide is preparing a small decision.</p>
+            <p data-try-placeholder>Leaf guide is preparing a small decision.</p>
           </article>
           <article id="try-progress-example" hidden>
-            <p>Leaf guide is preparing a live-work example.</p>
+            <p data-try-placeholder>Leaf guide is preparing a live-work example.</p>
           </article>
         </div>
       </section>

@@ -858,6 +858,8 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     )
     assert "Do not run\n  `$LEAF_REPLY`" in website_server.CODEX_INSTRUCTIONS
     assert "no separate `leaf publish` command" in website_server.CODEX_INSTRUCTIONS
+    assert "$LEAF page state ." in website_server.CODEX_INSTRUCTIONS
+    assert "correct any `source.error`" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF version check" not in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF status" not in website_server.CODEX_INSTRUCTIONS
     assert (

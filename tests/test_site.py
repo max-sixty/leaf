@@ -266,6 +266,13 @@ def test_the_homepage_shows_the_example_selected_by_the_reader(hosted, browser):
             page.get_by_role("checkbox", name=f"choose one: {label}").click()
             expect(page.locator(f"#{example_id}")).to_be_visible()
             expect(page.locator("#try-result > article:visible")).to_have_count(1)
+
+        decision = page.locator("#try-decision-example")
+        decision.evaluate(
+            "node => node.insertAdjacentHTML('beforeend', '<h3>Ready</h3>')"
+        )
+        expect(decision.locator("[data-try-placeholder]")).to_be_hidden()
+        expect(decision.get_by_role("heading", name="Ready")).to_be_visible()
         assert errors == []
     finally:
         page.close()

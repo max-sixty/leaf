@@ -887,6 +887,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     ]
     assert "$LEAF" in website_server.CODEX_INSTRUCTIONS
     assert "structured `leaf_delivery` tool output" in website_server.CODEX_INSTRUCTIONS
+    assert "$LEAF delivery claim ID" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF delivery read ID" in website_server.CODEX_INSTRUCTIONS
     assert '$LEAF_REPLY EVENT_ID "..."' in website_server.CODEX_INSTRUCTIONS
     assert "your normal final message is the\n  only reply operation" in (

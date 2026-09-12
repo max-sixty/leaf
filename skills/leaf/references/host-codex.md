@@ -70,8 +70,9 @@ completed text through the same reply contract as `leaf reply`; do not run a rep
 command for that response. The committed reply retains the thread's standing anchor.
 
 A `leaf-delivery` pointer may arrive through Codex's durable local queue with no App
-Server observer left to bind or stream its turn. Reading the immutable envelope does not
-change that. Follow the UI-first work claim in `conversation-loop.md`, then use the
+Server observer left to bind or stream its turn. Claiming its first outstanding move
+updates the page immediately; reading the immutable envelope does not. Follow the
+UI-first delivery claim in `conversation-loop.md`, then use the
 explicit `reply`, `resolve`, or `receipt` operation for every obligation, including one
 plain reply. A live observer may also recognize the exact pointer, but its final-message
 commit skips an obligation the explicit operation already settled. The immutable
@@ -127,9 +128,9 @@ the adapter. If the task has been unloaded, the item stays queued until Codex
 reopens it.
 
 The queued message is a `leaf-delivery` XML element shown as one line in a code
-block. It names the canonical `delivery read` operation and an immutable delivery
-`id`; run `leaf delivery read <id>`, claim the first subject you start, and process its
-`batches` with explicit Leaf operations. Do not wait or acknowledge: the adapter owns
+block. It names the canonical `delivery claim` operation and an immutable delivery
+`id`; run it before `leaf delivery read <id>`, then process the envelope's `batches`
+with explicit Leaf operations. Do not wait or acknowledge: the adapter owns
 both. The same delivery id may return after an uncertain queue
 response, so treat a page-and-sequence pair already handled in this task as a
 retry. Queue acceptance records **Queued** activity.

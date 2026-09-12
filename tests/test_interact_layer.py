@@ -83,7 +83,7 @@ Commands:
   comment       Open an agent thread — on a passage, or on the page whole.
   conversation  Read one exact Leaf conversation.
   data          Set, capture, or clear page-bound external data.
-  delivery      Read immutable input delivered by any Leaf host.
+  delivery      Claim or read input delivered by any Leaf host.
   edit          Edit one of this agent session's messages.
   events        Print the event log as JSON lines.
   mcp           Run Leaf's bundled MCP Apps server.

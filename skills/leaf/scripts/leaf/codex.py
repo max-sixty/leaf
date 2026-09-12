@@ -126,7 +126,7 @@ def app_server_delivery_id(message: dict) -> str | None:
             if (
                 pointer.tag == "leaf-delivery"
                 and set(pointer.attrib) == {"id", "operation"}
-                and pointer.attrib["operation"] == "delivery read"
+                and pointer.attrib["operation"] == "delivery claim"
             ):
                 found.add(pointer.attrib["id"])
     return next(iter(found)) if len(found) == 1 else None
@@ -977,7 +977,7 @@ def adapter_start_lock_path(session_id: str) -> Path:
 
 def _prompt(delivery_id: str) -> str:
     delivery = ElementTree.Element(
-        "leaf-delivery", {"id": delivery_id, "operation": "delivery read"}
+        "leaf-delivery", {"id": delivery_id, "operation": "delivery claim"}
     )
     pointer = ElementTree.tostring(delivery, encoding="unicode")
     return f"```xml\n{pointer}\n```"

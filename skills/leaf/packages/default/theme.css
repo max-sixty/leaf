@@ -1639,10 +1639,15 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
         -webkit-line-clamp: 1;
       }
       /* When the labels themselves exceed the map's height, this is an ordinary open,
-       * scrollable outline instead. It does not pretend that a rail and a displaced list
-       * share coordinates. */
+       * scrollable outline instead. Unlike the transient map, it is always interactive,
+       * so it keeps an opaque paper and fits the free gutter rather than covering the
+       * document beneath it. */
       lf-toc[data-lf-outline] .lf-toc-nav {
         --lf-toc-label-opacity: 1;
+        width: max(40px, min(320px,
+          calc(50cqi + var(--lf-shift) - min(var(--col), var(--lf-room)) / 2
+            - 2 * var(--sp-4))));
+        background: var(--paper);
         overflow-y: auto; pointer-events: auto;
       }
       lf-toc[data-lf-outline] .lf-toc-nav::before,

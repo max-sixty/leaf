@@ -1066,6 +1066,7 @@ RAIL_BANDS = """() => {
              later: box(document.getElementById('later')),
              column: { left: mb.left + parseFloat(ms.paddingLeft),
                        right: mb.right - parseFloat(ms.paddingRight) },
+             pageLeft: bb.left + parseFloat(bs.paddingLeft),
              pageRight: bb.right - parseFloat(bs.paddingRight),
              sideways: body.scrollWidth - body.clientWidth };
 }"""

@@ -1975,7 +1975,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
      way it keeps the rail its decided rows reserved. */
   [data-lf-space][data-lf-yield~="r"] {
     --lf-space-bound:
-      calc(50cqi + var(--lf-shift) + min(var(--col), var(--lf-room)) / 2);
+      calc(50cqi + var(--lf-shift) + min(var(--col), var(--lf-room)) / 2
+        - var(--col-pad));
     --lf-grow-l: var(--lf-surplus); --lf-grow-r: 0px;
   }
 }

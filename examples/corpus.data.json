@@ -136,7 +136,7 @@
         "id": "open-mobile-package-catalog",
         "title": "Optional packages get focused destinations",
         "path": "/packages/",
-        "action": "At 390 px, expand the inspection and compare the first task section on each Packages page.",
+        "action": "At 390 px, compare the first task section on each Packages page.",
         "result": "The candidate replaces the general package tutorial opening with one-column links to focused package pages.",
         "classification": "changed",
         "capture": {

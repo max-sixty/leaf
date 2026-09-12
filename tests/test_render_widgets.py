@@ -2556,6 +2556,19 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
     expect(toc).to_have_attribute("data-lf-outline", "")
     expect(links.last).to_be_focused()
     expect(links.last).to_be_in_viewport()
+
+    resized(page, 1152, 600)
+    expect(toc).to_have_attribute("data-lf-outline", "")
+    nav_box = nav.bounding_box()
+    column_left = page.locator("h1").bounding_box()["x"]
+    assert nav_box["x"] + nav_box["width"] <= column_left - 16, (
+        "the persistent outline covers the document instead of fitting its gutter: "
+        f"outline ends at {nav_box['x'] + nav_box['width']:.0f}px, "
+        f"column starts at {column_left:.0f}px"
+    )
+    assert nav.evaluate("node => getComputedStyle(node).backgroundColor") != (
+        "rgba(0, 0, 0, 0)"
+    )
     assert errors == []
     page.close()
 

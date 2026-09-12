@@ -56,7 +56,11 @@ recreation is a sketch.
 ## Prove and hand off a visible change
 
 Leaf's current product focus is desktop. Use a representative desktop viewport for
-the primary screenshots, preview inspection, and visual review.
+the primary screenshots, preview inspection, and visual review. Capture the viewport
+when fixed chrome should appear in the result. A Playwright screenshot of an element
+taller than the viewport composites fixed overlays into the element's page-space bounds
+and misrepresents their position; crop the viewport image afterward when a smaller region
+is needed.
 
 Re-vendor before trusting a browser result after a runtime, theme, registry, or
 widget change. An `/ui-sweep` and a look at a composed page are worth the time;

@@ -26,9 +26,11 @@ const browserGlobals = Object.fromEntries(
     "HTMLScriptElement",
     "HTMLSpanElement",
     "Highlight",
+    "IntersectionObserver",
     "MutationObserver",
     "Node",
     "Range",
+    "Response",
     "ResizeObserver",
     "SVGAnimatedLength",
     "SVGElement",
@@ -863,6 +865,23 @@ export default [
           .slice(1)
           .filter(
             (rule) => rule.selector !== 'ImportExpression[source.value="/leaf.js"]',
+          ),
+      ],
+    },
+  },
+  {
+    // The site verifier resolves the release-scoped runtime URL from the page under
+    // test. That URL is data, so its two imports cannot be static dependency edges.
+    files: ["scripts/verify-site-browser.js"],
+    languageOptions: { globals: browserGlobals, sourceType: "script" },
+    rules: {
+      "no-undef": "error",
+      "no-restricted-syntax": [
+        "error",
+        ...publicRuntimeBoundary["no-restricted-syntax"]
+          .slice(1)
+          .filter(
+            (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
           ),
       ],
     },

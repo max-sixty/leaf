@@ -77,6 +77,18 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Decide whether visual review needs expanded inspection.** Compare an embedded review
+  with the same run as a bounded root review. Add expansion only if focused workspaces do
+  not cover the real tasks, and keep it package-owned until a second interactive object
+  proves the same entry, state-preservation, return, narrow-screen, copy, and print
+  lifecycle.
+
+- **Test whether one Leaf artifact needs several page-level views.** Start from a real
+  task that cannot remain coherent as one document or one queue/detail workspace. Compare
+  stable page-level tabs with separate linked Leaf pages, including URLs, revisions,
+  conversations, keyboard navigation, narrow screens, and export. Do not add a router or
+  another persisted selection model before that case exists.
+
 - **Let readers disable character bindings.** Define one route filter with a complete
   persistence and accessibility contract. Commands, non-character routes, and visible
   controls remain available.

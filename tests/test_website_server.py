@@ -547,7 +547,9 @@ def test_an_unbound_queued_website_turn_leaves_the_direct_turn_running(page_dir)
     stream = website_server.PageTransaction(page_dir).status["stream"]["activity"]
     assert (stream["turn"], stream["detail"]) == (opened["turn"], "Still working")
     activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
-    assert activity["kind"] == "handling"
+    assert activity["kind"] == "working"
+    assert activity["counts"]["handling"] == 1
+    assert activity["counts"]["queued"] == 1
     assert [obligation["event"] for obligation in activity["obligations"]] == [
         first["id"],
         second["id"],
@@ -2426,6 +2428,7 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
 def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
     page = browser.new_page()
     try:
+        verify_site.observe_startup(page)
         url = "https://site-verifier.test/visible-response"
         page.route(
             url,
@@ -2438,14 +2441,13 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
             ),
         )
         page.goto(url)
-        page.evaluate(verify_site.VISIBLE_REPLY_INIT)
-        page.evaluate(verify_site.VISIBLE_REPLY_WATCH)
+        page.evaluate("window.__leafVerifier.startVisibleReplyClock")
         page.wait_for_timeout(100)
-        assert page.evaluate(verify_site.VISIBLE_REPLY_READING) is None
+        assert page.evaluate("window.__leafVerifier.visibleReplyAt") is None
 
         page.locator(".lf-msg.claude").scroll_into_view_if_needed()
-        page.wait_for_function(verify_site.VISIBLE_REPLY_READY)
-        assert page.evaluate(verify_site.VISIBLE_REPLY_READING) is not None
+        page.wait_for_function("window.__leafVerifier.visibleReplyRecorded")
+        assert page.evaluate("window.__leafVerifier.visibleReplyAt") is not None
     finally:
         page.close()
 
@@ -2619,7 +2621,7 @@ class _FailedFirstTurn:
         self.draft = text
 
     def evaluate(self, script: str) -> float:
-        assert script == verify_site.VISIBLE_REPLY_WATCH
+        assert script == "window.__leafVerifier.startVisibleReplyClock"
         return 100.0
 
     def press(self, key: str) -> None:
@@ -2893,14 +2895,14 @@ class _DeployedPage:
         self.initial_presented_at = (
             presented_at if initial_presented_at is None else initial_presented_at
         )
-        self.init_scripts: list[str] = []
+        self.init_scripts: list[Path] = []
         self.presentation_waits: list[int] = []
         self.visible_reply_waits: list[int] = []
         self.revision_waits: list[tuple[int, int]] = []
         self.clicks: list[str] = []
 
-    def add_init_script(self, script: str) -> None:
-        self.init_scripts.append(script)
+    def add_init_script(self, *, path: Path) -> None:
+        self.init_scripts.append(path)
 
     def on(self, event: str, handler) -> None:
         pass
@@ -2916,10 +2918,10 @@ class _DeployedPage:
     def wait_for_function(
         self, expression: str, *, arg: int | None = None, timeout: int
     ) -> None:
-        if expression == verify_site.VISIBLE_REPLY_READY:
+        if expression == "window.__leafVerifier.visibleReplyRecorded":
             self.visible_reply_waits.append(timeout)
             return
-        assert "lf-revision" in expression and arg is not None
+        assert expression == "window.__leafVerifier.revisionAtLeast" and arg is not None
         self.revision_waits.append((arg, timeout))
         if self.revision >= arg:
             return
@@ -2937,11 +2939,11 @@ class _DeployedPage:
         return _PresentationWait(self.presentation_waits)
 
     def evaluate(self, script: str):
-        if script == verify_site.VISIBLE_REPLY_WATCH:
+        if script == "window.__leafVerifier.startVisibleReplyClock":
             return 100.0
-        if script == verify_site.VISIBLE_REPLY_READING:
+        if script == "window.__leafVerifier.visibleReplyAt":
             return 12_600.0
-        if script == verify_site.STARTUP_READING:
+        if script == "window.__leafVerifier.startupReading":
             presented_at = (
                 self.presented_at
                 if len(self.presentation_waits) > 1
@@ -2966,9 +2968,9 @@ class _DeployedPage:
             }
         if "presented?.at" in script:
             return self.presented_at
-        if "lf-revision" in script:
+        if script == "window.__leafVerifier.revision":
             return str(self.revision)
-        if "lf-status-text" in script:
+        if script == "window.__leafVerifier.status":
             return self.banner
         return []
 
@@ -3088,10 +3090,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # The stamps the message needs to say which stall it was. Without them a page that
     # upgraded and stalled on its first state read reports the same "no startup
     # milestone" as one whose modules never arrived.
-    assert page.init_scripts == [
-        verify_site.PROFILE_SCRIPT,
-        verify_site.VISIBLE_REPLY_INIT,
-    ]
+    assert page.init_scripts == [verify_site.VERIFIER_SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
     reported = capsys.readouterr().out
     assert "presented in 28444 ms" in reported

@@ -2,6 +2,7 @@
 
 import html
 import json
+import subprocess
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -155,7 +156,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         for script in parsed.inline_scripts:
             assert script_hash(script["body"]) in html.unescape(document)
         expected_widget = (
-            f'import {{ value }} from "{root}/page/nested/value.js"; window.widget = value;'.encode()
+            f'export * from "{root}/page/widgets/lf-options.js";\n'.encode()
             if version == 2
             else scope_script_routes(
                 artifact.resources["/widgets/lf-options.js"].data,
@@ -165,9 +166,9 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         )
         assert (resources / "widgets" / "lf-options.js").read_bytes() == expected_widget
         if version == 2:
-            assert (
-                resources / "page" / "widgets" / "lf-options.js"
-            ).read_bytes() == expected_widget
+            assert (resources / "page" / "widgets" / "lf-options.js").read_text() == (
+                f'import {{ value }} from "{root}/page/nested/value.js"; window.widget = value;'
+            )
 
     assert (destination / "index.html").read_bytes() == (
         destination / "versions" / "v2.html"
@@ -184,15 +185,26 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         assert not (destination / mutable).exists()
 
 
+@pytest.mark.parametrize("bundled", [False, True])
 def test_a_browser_executes_the_published_capture_with_live_api_routes(
-    page_dir, tmp_path, browser
+    page_dir, tmp_path, browser, bundled
 ):
     authored = page_dir / "page"
     (authored / "nested").mkdir(parents=True)
+    (authored / "widgets").mkdir()
+    (authored / "widgets" / "lf-options.js").write_text(
+        "window.widgetLoads = (window.widgetLoads || 0) + 1; "
+        "export const moduleUrl = import.meta.url; "
+        'export const prose = "import.meta.url"; '
+        'customElements.define("lf-options", class extends HTMLElement {});'
+    )
     (authored / "app.js").write_text(
         'import { value } from "./nested/value.js"; '
+        'import { moduleUrl, prose } from "./widgets/lf-options.js"; '
         'document.querySelector("#read").addEventListener("click", () => { '
-        'document.querySelector("#result").textContent = value; });'
+        'document.querySelector("#result").textContent = value; '
+        'document.querySelector("#module").textContent = '
+        "`${window.widgetLoads}: ${prose}: ${moduleUrl}`; });"
     )
     (authored / "nested" / "value.js").write_text('export const value = "Captured";')
     (authored / "style.css").write_text('@import "./nested/theme.css";')
@@ -201,7 +213,8 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
         "Published module",
         '<section id="study"><h1>Published module</h1>'
         '<button id="read" type="button">Read captured value</button>'
-        '<output id="result">Waiting</output></section>',
+        '<output id="result">Waiting</output><output id="module">Waiting</output>'
+        '<lf-options><lf-option id="only">Only choice</lf-option></lf-options></section>',
         head='<script type="module" src="./page/app.js"></script>'
         '<link rel="stylesheet" href="./page/style.css">',
     )
@@ -225,6 +238,23 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             destination,
             server_id=server.httpd.RequestHandlerClass.server_id,
         )
+        root = "/revisions/" + revision_path(page_dir, activation.revision).stem
+        if bundled:
+            bundler = Path(__file__).parents[1] / "worker" / "bundle-runtime.mjs"
+            subprocess.run(
+                [
+                    "node",
+                    "--input-type=module",
+                    "-e",
+                    (
+                        f"import {{ bundleLayer }} from {json.dumps(bundler.as_uri())}; "
+                        "await bundleLayer(process.argv[1], process.argv[2]);"
+                    ),
+                    str(destination / root.lstrip("/")),
+                    root,
+                ],
+                check=True,
+            )
         # The API stays live, while the static host is only allowed to read the
         # materialized public tree. It cannot silently use the server's asset route.
         assert context.request.get(server.url).ok
@@ -259,7 +289,11 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
         expect(button).to_be_focused()
         page.keyboard.press("Enter")
         expect(page.locator("#result")).to_have_text("Captured")
-        root = "/revisions/" + revision_path(page_dir, activation.revision).stem
+        expect(page.locator("#module")).to_have_text(
+            f"1: import.meta.url: {server.origin}{root}/page/widgets/lf-options.js"
+        )
+        assert root + "/widgets/lf-options.js" in loaded
+        assert root + "/page/widgets/lf-options.js" in loaded
         assert root + "/page/nested/value.js" in loaded
         assert root + "/page/nested/theme.css" in loaded
         assert errors == []

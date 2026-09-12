@@ -1,20 +1,24 @@
 """The bundled MCP server exposes Leaf without becoming another state authority."""
 
+import asyncio
 import json
 import os
 import shutil
 import sys
+import urllib.request
 from pathlib import Path
+from urllib.parse import urljoin
 
 import pytest
 from interact_support import PAGE, run_async
 from leaf import event_log as events_model
+from leaf.files import replace_files
 from leaf.mcp_app import APP_MIME, SNAPSHOT_FORMAT, app_snapshot, apply_event
 from leaf.mcp_page import PAGE_RESOURCE_URI, ProcessPageServer
 from leaf.mcp_server import make_mcp_server
 from leaf.passages import TEXT_BLOCK_TAGS
 from leaf.revisioning import activate_source
-from leaf.structure import UTF8_BOM
+from leaf.structure import UTF8_BOM, SourceDocument
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
@@ -161,12 +165,13 @@ def test_mcp_snapshot_is_authored_source_with_current_cursors_and_private_bytes(
         "eventSeq": 0,
         "pending": 0,
         "url": None,
+        "source_error": None,
     }
     assert "<main>" in private["document"]
-    assert "<style>" in private["document"]
+    assert "<style" in private["document"]
     assert private["document"].startswith(UTF8_BOM)
     assert private["document"].index('<meta charset="utf-8"') < 1024
-    assert private["authoredCss"] == ""
+    assert private["authoredStyles"] == []
     assert "--paper: #191815" in private["darkTheme"]
     assert "prefers-color-scheme: dark" not in private["theme"]
     assert private["eventSeq"] == 0
@@ -308,11 +313,18 @@ def test_stdio_snapshot_write_boundary_accepts_only_comments(page_dir):
     ]
 
 
-def test_stdio_presentation_tools_explain_a_stale_page_layer(page_dir):
+@pytest.mark.parametrize("damage", ["stale", "missing", "malformed"])
+def test_stdio_presentation_keeps_the_captured_layer_when_candidate_breaks(
+    page_dir, damage
+):
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
-    del registry["$events"]["kinds"]["pickup"]
-    registry_path.write_text(json.dumps(registry))
+    generation = registry["$layer"]["generation"]
+    theme = (page_dir / "theme.css").read_bytes()
+
+    def read_url(url):
+        with urllib.request.urlopen(url) as response:
+            return response.read(), response.headers
 
     async def exchange():
         parameters = StdioServerParameters(
@@ -325,21 +337,59 @@ def test_stdio_presentation_tools_explain_a_stale_page_layer(page_dir):
             ClientSession(reader, writer) as session,
         ):
             await session.initialize()
-            return [
+            first = await session.call_tool("leaf_present", {"page": str(page_dir)})
+            inline_url = first.meta["leaf"]["inline_url"]
+            if damage == "missing":
+                registry_path.unlink()
+            elif damage == "malformed":
+                registry_path.write_text("{not json")
+            else:
+                del registry["$events"]["kinds"]["pickup"]
+                registry_path.write_text(json.dumps(registry))
+            replace_files(
+                [
+                    (page_dir / "theme.css", b":root { --mutable-only: 1; }", False),
+                    (
+                        page_dir / "runtime/bootstrap.js",
+                        b"throw Error('mutable bootstrap');",
+                        False,
+                    ),
+                ]
+            )
+            results = [
                 await session.call_tool(name, {"page": str(page_dir)})
                 for name in ("leaf_present", "leaf_present_snapshot")
             ]
+            body, headers = await asyncio.to_thread(read_url, inline_url)
+            assert headers["Leaf-Layer"] == generation
+            html = body.decode()
+            assert "mutable bootstrap" not in html
+            assert "<main>" in html
+            href = next(
+                link["attrs"]["href"]
+                for link in SourceDocument(html).links
+                if "stylesheet" in link["attrs"].get("rel", "").split()
+            )
+            body, _ = await asyncio.to_thread(read_url, urljoin(inline_url, href))
+            assert body == theme
+            body, _ = await asyncio.to_thread(
+                read_url, urljoin(inline_url, "api/state")
+            )
+            state = json.loads(body)
+            assert state["active"]["revision"] == 1
+            assert state["layer"]["generation"] == generation
+            assert state["source_error"]
+            return results
 
     results = run_async(exchange)
 
     for result in results:
-        assert result.is_error is True
-        assert "cannot be presented with its vendored layer" in result.content[0].text
-        assert (
-            "$events.kinds must equal Leaf's fixed transport contract"
-            in result.content[0].text
-        )
-        assert f"leaf page init {page_dir}" in result.content[0].text
+        assert result.is_error is False, result.content[0].text
+        assert result.structured_content["source_error"]
+    snapshot = results[1].meta["leaf"]
+    assert snapshot["revision"] == 1
+    assert "--mutable-only" not in snapshot["theme"]
+    assert "--mutable-only" not in snapshot["document"]
 
 
 def test_stdio_presentation_tools_explain_every_page_precondition(page_dir, tmp_path):
@@ -353,11 +403,11 @@ def test_stdio_presentation_tools_explain_every_page_precondition(page_dir, tmp_
         revision.unlink()
 
     missing_registry = tmp_path / "missing-registry"
-    shutil.copytree(page_dir, missing_registry)
+    shutil.copytree(no_active, missing_registry)
     (missing_registry / "registry.json").unlink()
 
     malformed_registry = tmp_path / "malformed-registry"
-    shutil.copytree(page_dir, malformed_registry)
+    shutil.copytree(no_active, malformed_registry)
     (malformed_registry / "registry.json").write_text("{not json")
 
     cases = {

@@ -325,6 +325,7 @@ def declare_data_input(
     input_name="data",
     guidance=None,
     snapshot=False,
+    activate=True,
 ):
     """Add one typed widget input and bind it in the latest fixture version."""
     registry_path = page_dir / "registry.json"
@@ -370,10 +371,11 @@ def declare_data_input(
         fixture_version_path(page_dir, versions[-1]).write_bytes(
             source_path.read_bytes()
         )
-    activated = revisioning_model.activate_source(
-        page_dir, events_model.read_events(page_dir)
-    )
-    assert activated.error is None
+    if activate:
+        activated = revisioning_model.activate_source(
+            page_dir, events_model.read_events(page_dir)
+        )
+        assert activated.error is None
 
 
 def publish(d, version=1):
@@ -1077,6 +1079,8 @@ def neighbour_page(directory, title=None, dead=False, published=True):
         "<body><main><p>words</p></main></body></html>"
     )
     (directory / ".fixture-versions" / "v1.html").write_text(html)
+    initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(directory)])
+    assert initialized.exit_code == 0, initialized.output
     files_model.write_revision(directory, 1, html.encode())
     # What `page init` writes: a page always has a status record.
     files_model.write_json(

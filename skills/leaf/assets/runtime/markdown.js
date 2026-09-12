@@ -52,7 +52,7 @@ export function loadMarkdown(onError = null) {
           if (!isCanonicalMediaUrl(token.href)) return false;
           const source = scopedMediaUrl(token.href);
           const label = token.text || "Image";
-          let image = `<button type="button" class="lf-media-open lf-message-media" data-lf-media-url="${escapeAttribute(source)}" aria-label="View ${escapeAttribute(label)}"><img src="${escapeAttribute(source)}" alt="${escapeAttribute(token.text)}"`;
+          let image = `<button type="button" class="lf-media-open lf-message-media" data-lf-offer="button" data-lf-said data-lf-media-url="${escapeAttribute(source)}" aria-label="View ${escapeAttribute(label)}"><img src="${escapeAttribute(source)}" alt="${escapeAttribute(token.text)}"`;
           if (token.title) image += ` title="${escapeAttribute(token.title)}"`;
           return image + "></button>";
         },

@@ -267,7 +267,19 @@ def check_source(
     except RegistryError as error:
         registry = None
         errors.append(str(error))
-    revision = revision_reading(page_dir, data, events, registry)
+    artifact = None
+    if not errors and registry is not None:
+        try:
+            artifact = capture_artifact(
+                page_dir,
+                document,
+                registry,
+                declaration_sources=page_registry.declaration_sources,
+                widget_sources=page_registry.widget_sources,
+            )
+        except ArtifactError as error:
+            errors.append(str(error))
+    revision = revision_reading(page_dir, data, events, artifact)
     stored_data, registry_errors = _registry_errors(
         page_dir, events, document, registry
     )
@@ -297,18 +309,6 @@ def check_source(
         revision,
         dropped_advice,
     )
-    artifact = None
-    if not errors and registry is not None:
-        try:
-            artifact = capture_artifact(
-                page_dir,
-                document,
-                registry,
-                declaration_sources=page_registry.declaration_sources,
-                widget_sources=page_registry.widget_sources,
-            )
-        except ArtifactError as error:
-            errors.append(str(error))
     return SourceCheck(
         document,
         registry,

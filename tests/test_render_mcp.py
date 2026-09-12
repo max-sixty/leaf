@@ -303,7 +303,8 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         page.locator("#late").wait_for()
         page.wait_for_function("() => document.querySelector('#late').naturalWidth > 0")
         assert page.locator("#late").get_attribute("src") == (
-            f"{root}/media/051bee487bfb5d13.png"
+            f"{root}/revisions/{revision_path(page_dir, 3).stem}"
+            "/media/051bee487bfb5d13.png"
         )
         assert all(
             resource.startswith(f"{pages.origin}{root}/")
@@ -724,23 +725,44 @@ def test_snapshot_app_renders_general_and_anchored_feedback_without_claiming_del
 
 
 def test_mcp_app_keeps_authored_css_without_running_authored_code(browser, page_dir):
-    media = page_dir / "media"
-    media.mkdir(exist_ok=True)
-    (media / "0123456789abcdef.png").write_bytes(b"leaf")
+    assets = page_dir / "page"
+    styles = assets / "styles"
+    styles.mkdir(parents=True)
+    (styles / "main.css").write_text(
+        '@import "./palette.css";\n#plan h2 { background-image: url("../badge.svg"); }'
+    )
+    (styles / "palette.css").write_text(
+        ":root { --captured-color: rgb(12, 34, 56); }\n"
+        "#plan h2 { color: var(--captured-color); }"
+    )
+    (styles / "print.css").write_text("#plan h2 { color: rgb(78, 90, 12); }")
+    (assets / "badge.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">'
+        '<rect width="24" height="24" fill="navy"/></svg>'
+    )
     source = page_dir / "index.html"
     source.write_text(
-        source.read_text().replace(
+        source.read_text()
+        .replace(
             "</head>",
-            "<style>#plan h2 { color: rgb(12, 34, 56); "
-            "background-image: url(/media/0123456789abcdef.png); }</style>"
+            '<link rel="stylesheet" href="/page/styles/main.css">'
+            "<style>#plan h2 { letter-spacing: 1px; }</style>"
+            '<style media="print">@import "/page/styles/print.css";</style>'
             '<script type="module">window.authoredCodeRan = true;</script></head>',
+        )
+        .replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><img src="/page/badge.svg" alt="Captured badge" width="24" height="24">',
         )
     )
     activated = activate_source(page_dir, read_events(page_dir))
     assert activated.error is None and activated.revision == 2
+    (page_dir / "registry.json").write_text("{broken candidate")
+    (styles / "palette.css").write_text("#plan h2 { color: red; }")
+    (assets / "badge.svg").write_text("not the captured image")
     _, private = app_snapshot(str(page_dir))
-    assert "#plan h2 { color: rgb(12, 34, 56);" in private["authoredCss"]
-    assert "url(data:image/png;base64," in private["authoredCss"]
+    assert private["revision"] == 2
+    assert private["source_error"]
     page = browser.new_page(viewport={"width": 1100, "height": 900})
     try:
         page.set_content(HOST)
@@ -764,8 +786,17 @@ def test_mcp_app_keeps_authored_css_without_running_authored_code(browser, page_
             .evaluate(
                 "host => getComputedStyle(host.shadowRoot.querySelector('#plan h2')).backgroundImage"
             )
-            .startswith('url("data:image/png;base64,')
+            .startswith('url("data:image/svg+xml;base64,')
         )
+        expect(app.get_by_role("img", name="Captured badge")).to_have_js_property(
+            "naturalWidth", 24
+        )
+        heading = app.locator("#page-host").get_by_role(
+            "heading", name="Plan", exact=True
+        )
+        expect(heading).to_have_css("letter-spacing", "1px")
+        page.emulate_media(media="print")
+        expect(heading).to_have_css("color", "rgb(78, 90, 12)")
         assert (
             app.locator("#page-host").evaluate(
                 "host => host.shadowRoot.querySelectorAll('script').length"
@@ -798,7 +829,10 @@ def test_mcp_snapshot_contains_hostile_navigation_and_authored_css(browser, page
             'formaction="data:text/html,escaped"></form>'
         ),
     )
-    private["authoredCss"] += """
+    private["authoredStyles"].append(
+        {
+            "media": "",
+            "css": """
       :root#page-host {
         position: fixed !important;
         inset: 0 !important;
@@ -809,7 +843,9 @@ def test_mcp_snapshot_contains_hostile_navigation_and_authored_css(browser, page
         transform: scale(2) !important;
         background: red;
       }
-    """
+    """,
+        }
+    )
     page = browser.new_page(viewport={"width": 1100, "height": 900})
     try:
         page.set_content(HOST)

@@ -3072,6 +3072,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
       const mb = main.getBoundingClientRect(), sb = sidebar.getBoundingClientRect();
       const eb = exhibit.getBoundingClientRect();
       const toc = document.querySelector('lf-toc').getBoundingClientRect();
+      const nav = document.querySelector('lf-toc .lf-toc-nav').getBoundingClientRect();
       const marginClusters = [...document.querySelectorAll('.lf-margin-cluster')]
         .filter(node => node.checkVisibility());
       const marginRight = Math.max(0,
@@ -3091,11 +3092,16 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         float: ss.float, position: ss.position,
         sidebar: {left: sb.left, right: sb.right, top: sb.top, width: sb.width},
         toc: {left: toc.left, right: toc.right, width: toc.width},
+        nav: {left: nav.left, right: nav.right, width: nav.width},
         column: {
           left: mb.left + parseFloat(ms.paddingLeft),
           right: mb.right - parseFloat(ms.paddingRight),
         },
         marginCount: marginClusters.length, marginRight,
+        document: {
+          width: document.documentElement.scrollWidth,
+          height: document.documentElement.scrollHeight,
+        },
         viewportWidth: document.documentElement.clientWidth,
         exhibit: {left: eb.left, right: eb.right},
       };
@@ -3126,28 +3132,36 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     )
     assert page.evaluate(sideways) == 0
 
-    # The real pointer route expands the hit lane and its reservation together. Moving
-    # back to the document returns both to the compact spine.
+    # The real pointer route reveals a translucent map over the settled document. Its
+    # compact reservation and every unrelated box remain fixed under the reader's aim.
     page.locator("lf-toc").hover()
     page.wait_for_function(
-        "() => document.querySelector('aside.sidebar').getBoundingClientRect().width > 300"
+        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 1"
     )
     expanded = page.evaluate(reading)
-    assert expanded["strip"] == 344 and expanded["sidebar"]["width"] == 320
-    assert expanded["toc"]["width"] == 320
+    assert expanded["strip"] == 64 and expanded["sidebar"]["width"] == 40
+    assert expanded["toc"]["width"] == 40
+    assert expanded["nav"]["width"] == 320
+    assert expanded["column"] == roomy["column"]
+    assert expanded["exhibit"] == roomy["exhibit"]
+    assert expanded["document"] == roomy["document"]
     page.locator("h1").hover()
     page.wait_for_function(
-        "() => document.querySelector('aside.sidebar').getBoundingClientRect().width < 60"
+        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
     page.keyboard.press("g")
     expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
     page.wait_for_function(
-        "() => document.querySelector('aside.sidebar').getBoundingClientRect().width > 300"
+        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 1"
     )
+    revealed_by_keyboard = page.evaluate(reading)
+    assert revealed_by_keyboard["column"] == roomy["column"]
+    assert revealed_by_keyboard["exhibit"] == roomy["exhibit"]
+    assert revealed_by_keyboard["document"] == roomy["document"]
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
     page.wait_for_function(
-        "() => document.querySelector('aside.sidebar').getBoundingClientRect().width < 60"
+        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
     # A left auxiliary surface and the page's own left margin are consecutive strips. The fixed

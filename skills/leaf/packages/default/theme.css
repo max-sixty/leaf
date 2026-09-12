@@ -1532,10 +1532,10 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
  * the question is also what leaves an lf-toc written into ordinary prose alone; the
  * posture reaches every box on the page, and only the sidebar's map wants it. */
 @media screen and (hover: hover) and (pointer: fine) {
-  /* The resting contents spine occupies one compact hit lane. Hover, keyboard focus,
-   * and the go-to sequence reveal its labels and expand the same live claim. Core reads
-   * the claim for the sidebar box and page allocation, so hidden labels do not reserve
-   * their full presentation and revealed labels stay clear of available content. */
+  /* The resting contents spine occupies one compact hit lane. Its labels reveal over
+   * the settled page: a transient pointer or keyboard state cannot renegotiate the
+   * document's width. The fixed map may overflow its 40px sidebar box, while only that
+   * compact lane receives an undisclosed pointer gesture. */
   main:has(> aside.sidebar > lf-toc:only-child) {
     --lf-sidebar-claim: 64px;
     --lf-sidebar-shell-bound: calc(100cqi - var(--lf-sidebar-claim)
@@ -1544,16 +1544,14 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       - min(var(--col), var(--lf-room)) / 2
       - var(--lf-sidebar-claim) - var(--col-pad)));
   }
-  main:has(> aside.sidebar > lf-toc:only-child:is(:hover, :focus-within)),
-  body[data-lf-go-to-active] main:has(> aside.sidebar > lf-toc:only-child) {
-    --lf-sidebar-claim: 344px;
-  }
   @container lf-content-frame style(--lf-sidebar-posture: margin) {
     @container style(--lf-sidebar-slot: margin) {
       lf-toc { position: fixed;
                left: calc(var(--lf-shell-inset-left, 0px) + var(--sp-4));
                top: calc(var(--lf-banner-h, 0px) + var(--sp-4));
-               width: calc(var(--lf-sidebar-claim, var(--sidebar)) - var(--sp-4));
+               z-index: 4;
+               width: 40px;
+               pointer-events: none;
                /* TODO: the shortcut bar covers this map's last entry — 21 of its 36 pixels,
                 * on every page with a spine, at every width, with nothing to scroll it
                 * clear. The map is the fourth region standing in the line's band and the
@@ -1573,10 +1571,12 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
                margin: 0; }
       body[data-lf-upgraded="1"] lf-toc { transition: left .18s ease; }
       body[data-lf-sizing] lf-toc { transition: none; }
-      lf-toc .lf-toc-nav { height: 100%; border: 0; padding: 0;
+      lf-toc .lf-toc-nav { width: 320px; height: 100%; border: 0; padding: 0;
                            --lf-toc-label-opacity: 0;
-                           pointer-events: none; }
-      lf-toc .lf-toc-nav::before { content: ""; position: absolute; inset: 0;
+                           pointer-events: none;
+                           transition: background-color .24s ease-out; }
+      lf-toc .lf-toc-nav::before { content: ""; position: absolute;
+                                   top: 0; bottom: 0; left: 0; width: 40px;
                                    z-index: 0; pointer-events: auto; }
       lf-toc .lf-toc-heading { display: none; }
       lf-toc .lf-toc-rows { position: relative; display: flex; height: 100%;
@@ -1627,6 +1627,7 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
       lf-toc .lf-toc-nav:is(:hover, :focus-within),
       body[data-lf-go-to-active] lf-toc .lf-toc-nav {
         --lf-toc-label-opacity: 1;
+        background: color-mix(in srgb, var(--paper) 92%, transparent);
       }
       lf-toc .lf-toc-nav:is(:hover, :focus-within) a {
         animation: lf-toc-enable-links 0s .24s forwards;

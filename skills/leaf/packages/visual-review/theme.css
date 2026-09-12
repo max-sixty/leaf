@@ -125,6 +125,13 @@ lf-visual-review > .lf-reading-after {
   margin-inline-start: auto;
 }
 
+/* A root review already is the page's inspection surface, including when a constrained
+ * window reflows that workspace. Offering a modal copy adds navigation without giving
+ * the evidence another context. */
+lf-visual-review[data-lf-workspace-context="root"] .lf-vr-expand {
+  display: none;
+}
+
 .lf-vr-expanded {
   box-sizing: border-box;
   width: 96vw;

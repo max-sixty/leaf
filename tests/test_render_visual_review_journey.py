@@ -26,6 +26,20 @@ VISUAL_REVIEW_GALLERY = next(
 )
 
 
+def test_root_visual_review_is_already_the_inspection_surface(browser, serve):
+    """A bounded review does not offer a second modal presentation of itself."""
+    page, errors = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    widget = page.locator("#visual-review-run")
+    expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
+    expect(widget.get_by_role("button", name="Expand inspection")).to_be_hidden()
+    page.set_viewport_size({"width": 390, "height": 844})
+    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
+    expect(widget).to_have_attribute("data-lf-workspace-context", "root")
+    expect(widget.get_by_role("button", name="Expand inspection")).to_be_hidden()
+    assert errors == []
+    page.close()
+
+
 def target_document(title, body):
     """One small release site whose links and pixels are the capture subject."""
     style = """<style>

@@ -1662,7 +1662,12 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     )
     navigation = page.get_by_role("navigation", name="On this page")
     move = navigation.get_by_role("link", name="Move the readers")
-    navigation.hover()
+    navigation_box = navigation.bounding_box()
+    assert navigation_box is not None
+    page.mouse.move(
+        navigation_box["x"] + 20,
+        navigation_box["y"] + navigation_box["height"] / 2,
+    )
     expect(move).to_have_css("pointer-events", "auto")
     move.click()
     expect(page).to_have_url(re.compile(r"#move$"))
@@ -1784,15 +1789,15 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     )
     prepare_box = page.locator("#prepare").bounding_box()
     assert prepare_box is not None
-    assert nav_box["width"] == pytest.approx(292, abs=1)
-    assert prepare_box["x"] - nav_box["x"] - nav_box["width"] == pytest.approx(
-        24, abs=1
+    assert nav_box["width"] == pytest.approx(320, abs=1)
+    assert prepare_box["x"] < nav_box["x"] + nav_box["width"], (
+        "the revealed map is meant to overlay the settled document rather than move it"
     )
 
     resized(page, 1800, 900)
     expect(nav).to_have_css("width", "320px")
     resized(page, 1152, 900)
-    expect(nav).to_have_css("width", "240px")
+    expect(nav).to_have_css("width", "320px")
     resized(page, 1400, 900)
     assert nav.bounding_box() == nav_box
     markers = nav.locator(".lf-toc-start, li").evaluate_all(
@@ -1922,7 +1927,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     expect(prepare).to_have_css("opacity", "0")
     expect(prepare).to_have_css("pointer-events", "none")
 
-    nav.hover()
+    page.mouse.move(nav_box["x"] + 20, nav_box["y"] + nav_box["height"] / 2)
     page.keyboard.press("g")
     expect(link_hints).to_have_count(nav.locator("a").count())
     for link in nav.locator("a").all():

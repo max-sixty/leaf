@@ -117,8 +117,18 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
     return null;
   }
 
-  function undoableAction(widget, action, unit = null) {
-    if (stateApplying()) return null;
+  function withdrawableAction(widget, action, unit = null) {
+    const spec = stateSpecs().find(
+      ({ tag, channel, verb }) =>
+        tag === widget.localName && channel === "x-state" && verb === action,
+    )?.spec;
+    if (spec) {
+      const wantedUnit = unit ?? widget.id;
+      const pending = currentProjection().actions.get(
+        stateCoordinate(widget.id, wantedUnit, spec),
+      );
+      if (pending && typeof pending.e.id === "symbol") return pending.e;
+    }
     const candidate = (runtime.view?.undo ?? []).find(({ event }) => {
       if (
         event.kind !== "action" ||
@@ -128,13 +138,13 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
       )
         return false;
       if (unit === null) return true;
-      const spec = stateSpecs().find(
-        ({ tag, channel, verb }) =>
-          tag === widget.localName && channel === "x-state" && verb === action,
-      )?.spec;
       return spec && unitOf(event, spec) === unit;
     });
     return candidate && canUndoAction(candidate) ? candidate.event : null;
+  }
+
+  function undoableAction(widget, action, unit = null) {
+    return stateApplying() ? null : withdrawableAction(widget, action, unit);
   }
 
   const words = {
@@ -144,8 +154,8 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
     done: "Took back your approval",
   };
 
-  async function withdraw(event) {
-    if (stateApplying() || unaccountedGesture()) {
+  async function withdraw(event, { allowPending = false } = {}) {
+    if (stateApplying() || (!allowPending && unaccountedGesture())) {
       notice("Wait for the current change to finish before undoing");
       return null;
     }
@@ -165,6 +175,10 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
   }
 
   async function undoLast() {
+    if (stateApplying() || unaccountedGesture()) {
+      notice("Wait for the current change to finish before undoing");
+      return;
+    }
     const event = undoable();
     if (event) await withdraw(event);
   }
@@ -178,5 +192,6 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
     undoableAction,
     undoLast,
     withdraw,
+    withdrawableAction,
   };
 }

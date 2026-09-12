@@ -22,6 +22,7 @@ export function createDelivery({
     let announced = false;
     for (;;) {
       ledger.nameParent(entry, currentReceipts());
+      if (!ledger.nameUndo(entry, currentReceipts())) return { accepted: null };
       const { event } = entry;
       if (entry.readEvent) return { accepted: entry.readEvent };
       const sent = await Promise.race([

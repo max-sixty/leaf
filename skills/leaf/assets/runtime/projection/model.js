@@ -28,10 +28,12 @@ const compareProjected = (a, b) => {
   return a.localOrder - b.localOrder;
 };
 
-/* Fold normalized durable entries and pending local winners into the four canonical
+/* Fold normalized durable entries and pending local gestures into the canonical
    projection views. Each entry carries `coordinate`, `e`, `unit`, `spec`, and `value`;
    it may also carry `restated`, `scope`, or `terminal`. Pending entries are already
-   filtered for rejection and authoritative receipts by their delivery owner. */
+   filtered for rejection and authoritative receipts by their delivery owner. A pending
+   undo removes its target from the same coordinate fold, revealing the newest surviving
+   local action, durable action, standing report, or authored state in that order. */
 export function foldProjection({
   entries = [],
   actionIds = [],
@@ -45,6 +47,7 @@ export function foldProjection({
   const classified = new Map();
   const desired = new Map();
   const byId = new Map();
+  const pendingWithdrawals = new Map();
 
   for (const entry of entries) {
     classified.set(entry.e.id, entry);
@@ -75,12 +78,56 @@ export function foldProjection({
     classified.set(e.id, { e, terminal: record.coordinate === null });
   }
 
+  const durableWithdrawn = new Set(
+    coverage
+      .map(({ event }) => event)
+      .filter((event) => event.kind === "undo")
+      .map((event) => event.undoes),
+  );
+  const pendingActions = [];
+  const withdrawn = new Set();
+  const recompute = (coordinate) => {
+    const local = pendingActions
+      .filter((entry) => entry.coordinate === coordinate && !withdrawn.has(entry.e.id))
+      .at(-1);
+    const durable = [...classified.values()]
+      .filter(
+        (entry) =>
+          !entry.terminal &&
+          entry.coordinate === coordinate &&
+          entry.e.kind === "action" &&
+          !entry.restated?.length &&
+          !durableWithdrawn.has(entry.e.id) &&
+          !withdrawn.has(entry.e.id),
+      )
+      .sort(compareProjected)
+      .at(-1);
+    const action = local ?? durable;
+    if (action) actions.set(coordinate, action);
+    else actions.delete(coordinate);
+    const report = reports.get(coordinate)?.at(-1);
+    if (action) desired.set(coordinate, action);
+    else if (report) desired.set(coordinate, report);
+    else desired.delete(coordinate);
+  };
+
   for (const entry of pendingEntries) {
-    actions.set(entry.coordinate, entry);
-    desired.set(entry.coordinate, entry);
+    if (entry.kind === "undo") {
+      const targetId =
+        entry.targetEntry?.acceptedId ??
+        entry.targetEntry?.readEvent?.id ??
+        entry.target.e.id;
+      const target = classified.get(targetId) ?? entry.target;
+      withdrawn.add(targetId);
+      pendingWithdrawals.set(targetId, target);
+      recompute(entry.coordinate);
+      continue;
+    }
+    pendingActions.push(entry);
+    recompute(entry.coordinate);
   }
 
-  return { actions, reports, classified, desired };
+  return { actions, reports, classified, desired, pendingWithdrawals };
 }
 
 const authoredFacet = (authoredSnapshots, coordinate) => {

@@ -26,9 +26,9 @@ import {
   paintKeys,
   quoted,
   sendAction,
-  undoableAction,
   watchActions,
   withdraw,
+  withdrawableAction,
   worksInside,
 } from "/runtime/widget-api.js";
 
@@ -192,7 +192,7 @@ customElements.define(
         this.#cards(this.#pile("pass")).length + this.#cards(this.#pile("keep")).length;
       const progress = unseen.length
         ? `${unseen.length} queued · ${classified} done`
-        : `${classified} done · queue clear`;
+        : `All done! · ${classified} classified`;
       const piles = this.#piles().map((pile) => ({
         pile,
         verdict: pile.getAttribute("verdict"),
@@ -240,10 +240,9 @@ customElements.define(
     };
 
     #returnable(card) {
-      const finish = undoableAction(this, "finish", card.id);
+      const finish = withdrawableAction(this, "finish", card.id);
       if (finish) return finish;
-      if (!actionAvailable(this, "swipe")) return null;
-      return undoableAction(this, "swipe", card.id);
+      return withdrawableAction(this, "swipe", card.id);
     }
 
     #returnControl(card) {
@@ -260,7 +259,7 @@ customElements.define(
         this.#render();
         let returned = false;
         try {
-          returned = Boolean(await withdraw(event));
+          returned = Boolean(await withdraw(event, { allowPending: true }));
         } finally {
           this.#returning.delete(card.id);
           if (this.isConnected) this.#render();

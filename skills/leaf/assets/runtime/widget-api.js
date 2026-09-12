@@ -70,7 +70,13 @@ export {
   wrote,
 } from "./passages.js";
 export { ago, clocked, clockValue, quietSince } from "./presence.js";
-export { shallowSigs, standingState, undoableAction, withdraw } from "./application.js";
+export {
+  shallowSigs,
+  standingState,
+  undoableAction,
+  withdraw,
+  withdrawableAction,
+} from "./application.js";
 export { shadowStage } from "./shadow-stage.js";
 export { agentName, revisionLabel } from "./context.js";
 export { loadDataFragment, watchData } from "./data.js";

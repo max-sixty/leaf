@@ -12,6 +12,12 @@ remain in git history.
   Targeting, add representative website examples, and preserve interaction in an
   explicit offline export.
 
+- **Cut the browser runtime over to one reactive application snapshot.** Start with the
+  demanding Lit and Signals validation slice, then complete the state, rendering,
+  presentation, export, and build cutover in the
+  [runtime vision](notes/reactive-browser-runtime.md). Authored pages remain ordinary
+  HTML and installations gain no frontend build.
+
 - **Make the page instance a complete authored artifact.** Follow the
   [page-instance boundary specification](notes/page-instance-boundary.md) to capture
   page-owned dependencies and declarations, separate design intent from source

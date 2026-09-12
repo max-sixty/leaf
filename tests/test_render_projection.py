@@ -4997,12 +4997,22 @@ def test_a_thread_question_asks_until_answered(browser, serve):
 
     # Taking back a recordless chrome answer rebuilds its authored controls and the
     # same standing projection opens the decision again. The selection is another facet,
-    # so it survives that rebuild.
-    undo(page)
+    # so it survives that rebuild. Hold the command at the wire: reopening belongs to
+    # the local projection, not to a later server read. In particular, the surviving
+    # `choose` action cannot answer a thread set whose `x-awaits.until` names `answer`.
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.keyboard.press("z")
     expect(decisions).to_have_text("Asks 1/2")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
+    holding(page, held, 1, "the thread answer's withdrawal")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(decisions).to_have_text("Asks 1/2")
 
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
     # reaches Threads. A stray digit there neither travels nor picks; t then Enter makes

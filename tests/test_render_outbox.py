@@ -1654,6 +1654,33 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     page.close()
 
 
+def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(browser, serve):
+    """Optimistic withdrawal re-folds the coordinate instead of deleting its current
+    value. A prior durable action therefore appears immediately and stays through the
+    accepted undo response.
+    """
+    page, errors = open_page(browser, serve(UNDO_PAGE))
+    page.locator("#opt-a").click()
+    round_trip(page)
+    page.locator("#opt-b").click()
+    round_trip(page)
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        page.keyboard.press("z")
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    holding(page, held, 1, "the optimistic withdrawal")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+
+    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    assert errors == []
+    page.close()
+
+
 def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     """Withdrawing an accept renders the null settlement facet. The same suggestion
     regains its old passage and decision controls without replacing its subtree."""

@@ -11,6 +11,7 @@ import { allAsks } from "./asks/model.js";
 import { walkRows } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { iconElement } from "./icons.js";
+import { createLiveLeavesList } from "./live-leaves-list.js";
 import { dismissBannerControls, focusBannerControl } from "./banner-shelf.js";
 import { createAskTrayList } from "./asks/tray-list.js";
 // The left side holds one tray at a time. `setOpenTray` owns `openTrayKey` and renders the
@@ -110,8 +111,8 @@ export const othersPanel = el("nav", "lf-ui lf-tray-panel lf-others-panel");
 othersPanel.id = "lf-leaves";
 othersPanel.setAttribute("aria-label", "Leaves on this machine");
 othersPanel.tabIndex = -1;
-const leavesFurniture = trayFurniture(othersPanel, "Leaves");
-export const leavesList = leavesFurniture.list;
+const leavesFurniture = trayFurniture(othersPanel, "Leaves", createLiveLeavesList());
+export const liveLeavesList = leavesFurniture.list;
 // A tray of the page's active asks, on the same edge: open and answered rows in the
 // order the page asks them. The list is declaration-driven, so a widget joins without
 // a row here knowing what kind of thing it is standing for.

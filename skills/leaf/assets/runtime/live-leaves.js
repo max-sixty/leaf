@@ -1,12 +1,11 @@
 /* This module owns the machine-leaves tray's rows, presence words, and walk. */
 import { ago, clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
-import { leavesList, trayIsOpen, othersBtn, othersPanel } from "./trays.js";
+import { liveLeavesList, trayIsOpen, othersBtn, othersPanel } from "./trays.js";
 import { showNews } from "./banner-shelf.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { walkRows } from "./keyboard/bindings.js";
 import { toneFor } from "./banner.js";
-import { el } from "./widget-elements.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 
 let others = [];
@@ -134,10 +133,8 @@ const rowAccount = (entry, title, line) =>
     .filter(Boolean)
     .join("\n");
 
-const othersRows = new Map(); // keyed by URL; the self row under its own key
 function renderOthersNow(state) {
   const offeredBefore = leavesOffered();
-  const walkOfferedBefore = othersLinks().length > 0;
   // Null is the explicit pre-read state. It has no self presence to draw, and recovery
   // from a refused first reading must remove every row that candidate introduced.
   // A closed leaf is not one of the machine's live pages and drops out of the tray on
@@ -166,61 +163,22 @@ function renderOthersNow(state) {
   if (othersBtn.textContent !== said) othersBtn.textContent = said;
   // While the panel stands its button stands too, whatever the count just did.
   paintLeavesOffer();
-  let anchor = null; // the row before this one, so order holds without rebuilding
-  for (const { key, title, entry } of wanted) {
-    let row = othersRows.get(key);
-    if (!row) {
-      // The self row is a marked div — the reader is already here, so there is
-      // nothing to open; every other row is a link to its page's own tab.
-      row =
-        key === "self"
-          ? el("div", "lf-others-row lf-others-self")
-          : Object.assign(el("a", "lf-others-row"), {
-              href: key,
-              target: "_blank",
-              rel: "noopener",
-            });
-      if (key !== "self")
-        keys(row, "In the leaves tray", [
-          {
-            id: "leaf.open",
-            keys: ["Enter"],
-            does: "Open that leaf in a tab",
-            line: "open it in a tab",
-          },
-        ]);
-      const head = el("div", "lf-others-head");
-      head.append(el("span", "lf-dot"), el("span", "lf-others-title"));
-      if (key === "self") head.append(el("span", "lf-chip", "this page"));
-      row.append(head, el("div", "lf-others-line"));
-      othersRows.set(key, row);
-    }
-    const { tone, line } = rowPresence(entry);
-    const [rowDot, rowTitle] = row.querySelectorAll(".lf-dot, .lf-others-title");
-    const rowLine = row.querySelector(".lf-others-line");
-    // Written only on change: an unchanged poll must not feed the mutation stream
-    // a screen reader rebuilds its buffer on.
-    const dotCls = "lf-dot" + (tone ? " " + tone : "");
-    if (rowDot.className !== dotCls) rowDot.className = dotCls;
-    if (rowTitle.textContent !== title) rowTitle.textContent = title;
-    if (rowLine.textContent !== line) rowLine.textContent = line;
-    // Everything the row was too narrow to say, on the row itself (see rowAccount).
-    const account = rowAccount(entry, title, line);
-    if (row.title !== account) row.title = account;
-    const place = anchor ? anchor.nextElementSibling : leavesList.firstElementChild;
-    if (place !== row) leavesList.insertBefore(row, place);
-    anchor = row;
-  }
-  for (const [key, row] of othersRows)
-    if (!wanted.some((w) => w.key === key)) {
-      row.remove();
-      othersRows.delete(key);
-    }
-  if (
-    offeredBefore !== leavesOffered() ||
-    walkOfferedBefore !== othersLinks().length > 0
-  )
-    paintKeys();
+  const rows = Object.freeze(
+    wanted.map(({ key, title, entry }) => {
+      const { tone, line } = rowPresence(entry);
+      return Object.freeze({
+        key,
+        self: key === "self",
+        href: key === "self" ? null : key,
+        title,
+        tone,
+        line,
+        account: rowAccount(entry, title, line),
+      });
+    }),
+  );
+  if (offeredBefore !== leavesOffered()) paintKeys();
+  return liveLeavesList.present(rows);
 }
 
 export const renderOthers = clocked(document.body, renderOthersNow);

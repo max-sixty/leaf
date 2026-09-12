@@ -2704,6 +2704,95 @@ def test_a_panel_row_follows_its_pages_status_live(
     page.close()
 
 
+def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
+    browser, serve, other_leaf
+):
+    """A held Leaves paint reopens readiness without advancing semantics."""
+    _, other_dir = other_leaf
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    row = page.locator("a.lf-others-row")
+    row.focus()
+    before = page.evaluate(
+        """async () => {
+          const list = document.querySelector('lf-leaves-list');
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          const schedule = list.scheduleUpdate.bind(list);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          let armed = true;
+          list.scheduleUpdate = () => {
+            if (!armed) return schedule();
+            armed = false;
+            return held.then(schedule);
+          };
+          window.releaseLeavesPaint = release;
+          const row = document.querySelector('a.lf-others-row');
+          window.leavesRowBefore = row;
+          window.leavesPresentation = presentation;
+          const reading = presentation.readApplicationPresentation();
+          return {
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+          };
+        }"""
+    )
+    files_model.write_json(
+        other_dir / "status.json",
+        {
+            "state": "working",
+            "detail": "recording the demo",
+            "ts": events_model.now_iso(),
+        },
+    )
+    told(page)
+    held = page.evaluate(
+        """() => {
+          window.leavesReady = false;
+          leavesPresentation.whenApplicationPresented().then(() => {
+            window.leavesReady = true;
+          });
+          const reading = leavesPresentation.readApplicationPresentation();
+          return {
+            pending: reading.pending,
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+            ready: leavesReady,
+          };
+        }"""
+    )
+    assert held == {
+        "pending": ["leaves"],
+        "semanticEpoch": before["semanticEpoch"],
+        "presentedEpoch": before["presentedEpoch"],
+        "ready": False,
+    }
+    page.evaluate("releaseLeavesPaint()")
+    page.wait_for_function("window.leavesReady")
+    expect(row.locator(".lf-others-line")).to_have_text("Working — recording the demo")
+    assert page.evaluate(
+        """() => {
+          const reading = leavesPresentation.readApplicationPresentation();
+          return {
+            sameRow: leavesRowBefore === document.querySelector('a.lf-others-row'),
+            focused: document.activeElement === leavesRowBefore,
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+          };
+        }"""
+    ) == {
+        "sameRow": True,
+        "focused": True,
+        "semanticEpoch": before["semanticEpoch"],
+        "presentedEpoch": before["presentedEpoch"],
+    }
+    assert errors == []
+    page.close()
+
+
 def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     """A closed leaf leaves the tray on the poll that says so. Its server stays
     up — a standing one for good — so the row would otherwise stand forever and the
@@ -2719,6 +2808,7 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     page.keyboard.press("Shift+l")
     rows = page.locator("a.lf-others-row")
     expect(rows).to_have_count(1)
+    rows.first.focus()
     files_model.write_json(
         other_dir / "status.json",
         {"state": "idle", "detail": "", "ts": events_model.now_iso()},
@@ -2727,6 +2817,7 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     expect(rows).to_have_count(0)
     expect(btn).to_have_text("All leaves (1)")
     expect(page.locator(".lf-others-self .lf-others-title")).to_have_text("long")
+    expect(page.locator(".lf-others-panel")).to_be_focused()
     # The open panel remains the modal destination after its last link leaves. Its own
     # nav is the fallback landing, and its global destination remains the same toggle as the
     # banner door even though that inert door is unavailable to a pointer.
@@ -2739,6 +2830,190 @@ def test_a_closed_leaf_clears_itself_off_the_tray(browser, serve, other_leaf):
     told(page)
     expect(btn).not_to_be_visible()
     assert errors == []
+    page.close()
+
+
+def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
+    browser, serve, live_leaf, one_reader
+):
+    """Keyed rows preserve a surviving link and hand a removed link to its neighbour."""
+    second_url, _ = live_leaf("second", "Middle leaf")
+    _, other_dir = live_leaf("other", "The other leaf")
+    page, errors = open_page(browser, serve(LONG_PAGE), context=one_reader)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    rows = page.locator("a.lf-others-row")
+    expect(rows).to_have_count(2)
+    rows.nth(1).focus()
+    page.evaluate("window.focusedLeaf = document.activeElement")
+
+    live_leaf("first", "A first leaf")
+    told(page)
+    expect(rows).to_have_count(3)
+    expect(rows.nth(2).locator(".lf-others-title")).to_have_text("The other leaf")
+    assert page.evaluate(
+        "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
+    )
+
+    files_model.write_json(
+        other_dir / "status.json",
+        {"state": "idle", "detail": "", "ts": events_model.now_iso()},
+    )
+    told(page)
+    expect(rows).to_have_count(2)
+    expect(rows.nth(1).locator(".lf-others-title")).to_have_text("Middle leaf")
+    expect(rows.nth(1)).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    expect(rows.first).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(rows.nth(1)).to_be_focused()
+    destination = rows.nth(1).get_attribute("href")
+    assert destination is not None and destination.startswith(f"{second_url}/?t=")
+    tab = opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
+    tab.close()
+    assert errors == []
+    page.close()
+
+
+def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
+    browser, serve, other_leaf
+):
+    """A time-only Leaves repaint repairs presentation at the current epoch."""
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    before = page.evaluate(
+        """async () => {
+          const context = await window.__lfRuntimeImport('/runtime/context.js');
+          const leaves = await window.__lfRuntimeImport('/runtime/live-leaves.js');
+          const presence = await window.__lfRuntimeImport('/runtime/presence.js');
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          const state = structuredClone(context.runtime.state);
+          state.others[0].activity.kind = 'away';
+          state.others[0].activity.quiet = true;
+          state.others[0].activity.dropped = false;
+          state.others[0].activity.ts = new Date().toISOString();
+          presence.observeServerNow(new Date().toISOString());
+          await leaves.renderOthers(state);
+          const list = document.querySelector('lf-leaves-list');
+          const schedule = list.scheduleUpdate.bind(list);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          let armed = true;
+          list.scheduleUpdate = () => {
+            if (!armed) return schedule();
+            armed = false;
+            return held.then(schedule);
+          };
+          window.releaseLeavesClock = release;
+          window.leavesPresentation = presentation;
+          window.leavesPresence = presence;
+          const reading = presentation.readApplicationPresentation();
+          return {
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+          };
+        }"""
+    )
+    expect(page.locator("a.lf-others-row .lf-others-line")).to_have_text(
+        "Quiet (just now)"
+    )
+    held = page.evaluate(
+        """() => {
+          leavesPresence.observeServerNow(
+            new Date(Date.now() + 60_000).toISOString()
+          );
+          window.leavesClockTick = leavesPresence.tickClock(() => {});
+          window.leavesReady = false;
+          leavesPresentation.whenApplicationPresented().then(() => {
+            window.leavesReady = true;
+          });
+          const reading = leavesPresentation.readApplicationPresentation();
+          return {
+            pending: reading.pending,
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+            ready: leavesReady,
+          };
+        }"""
+    )
+    assert held == {
+        "pending": ["leaves"],
+        "semanticEpoch": before["semanticEpoch"],
+        "presentedEpoch": before["presentedEpoch"],
+        "ready": False,
+    }
+    page.evaluate("releaseLeavesClock()")
+    page.wait_for_function("window.leavesReady")
+    page.evaluate("leavesClockTick")
+    expect(page.locator("a.lf-others-row .lf-others-line")).to_have_text(
+        "Quiet (1m ago)"
+    )
+    assert page.evaluate(
+        """() => {
+          const reading = leavesPresentation.readApplicationPresentation();
+          return [reading.semanticEpoch, reading.presentedEpoch];
+        }"""
+    ) == [before["semanticEpoch"], before["presentedEpoch"]]
+    assert errors == []
+    page.close()
+
+
+def test_a_failed_leaves_update_keeps_the_committed_list_and_settles(
+    browser, serve, other_leaf
+):
+    """A failed Leaves paint reports once, keeps prior usable DOM, and can recover."""
+    _, other_dir = other_leaf
+    page, errors = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    line = page.locator("a.lf-others-row .lf-others-line")
+    expect(line).to_have_text("Working — running the suite")
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('lf-leaves-list');
+          const render = list.render.bind(list);
+          list.render = () => {
+            list.render = render;
+            window.leavesPaintFailed = true;
+            throw new Error('deliberate leaves failure');
+          };
+        }"""
+    )
+    files_model.write_json(
+        other_dir / "status.json",
+        {
+            "state": "working",
+            "detail": "this paint fails",
+            "ts": events_model.now_iso(),
+        },
+    )
+    told(page)
+    page.wait_for_function("window.leavesPaintFailed")
+    page.wait_for_function(
+        """async () => {
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          return presentation.readApplicationPresentation().pending.length === 0;
+        }"""
+    )
+    expect(line).to_have_text("Working — running the suite")
+    assert errors == ["leaf: Presentation failed: deliberate leaves failure"]
+
+    files_model.write_json(
+        other_dir / "status.json",
+        {
+            "state": "working",
+            "detail": "the next paint lands",
+            "ts": events_model.now_iso(),
+        },
+    )
+    told(page)
+    expect(line).to_have_text("Working — the next paint lands")
+    assert errors == ["leaf: Presentation failed: deliberate leaves failure"]
     page.close()
 
 

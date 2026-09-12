@@ -4684,6 +4684,8 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
     result = page.evaluate(
         """async () => {
           const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
           const widget = document.querySelector('lf-feed');
           let currentRevision = null;
           const stopCurrent = watchData(widget, 'rows', snapshot => {
@@ -4702,8 +4704,6 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
           const captured = [];
           const stopCaptured = watchData(widget, 'rows', snapshot => { captured.push(snapshot); });
           widget.setAttribute('source', 'deployments');
-          document.dispatchEvent(new Event('lf-data'));
-          stopCaptured();
 
           let failedCalls = 0;
           let message = null;
@@ -4715,7 +4715,11 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
           } catch (error) {
             message = error.message;
           }
-          document.dispatchEvent(new Event('lf-data'));
+          const next = structuredClone(runtime.data);
+          next.revision += 1;
+          next.sources.deployments.revision += 1;
+          acceptData(next);
+          stopCaptured();
           return {currentRevision, unbound, absent, captured, failedCalls, message};
         }"""
     )
@@ -4736,8 +4740,9 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
 ):
     """Data acceptance can advance while a mounted source awaits syntax rendering.
 
-    Hold subscriber notification until that first render completes, then compare the
-    old rendering, the replacement, and an immutable capture of the same source.
+    The captured publisher selection registers its replacement synchronously, while
+    subscriber notification begins its paint. Compare the old rendering, replacement,
+    and immutable capture to prove each completed projection retains its own provenance.
     """
     authored = leaf_page(
         "source provenance",
@@ -4784,8 +4789,9 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
           });
           const original = runtime.data;
           try {
-            // Mount starts watchData's delivery before acceptance advances. The real
-            // syntax await keeps projectData behind that acceptance in this turn.
+            // Mount starts watchData's delivery before acceptance advances. The
+            // publisher selection captures the replacement in this turn, but the real
+            // syntax await keeps the old projectData paint behind acceptance.
             source.after(mounted);
             const newer = structuredClone(original);
             newer.revision = 2;
@@ -5011,6 +5017,8 @@ def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
           const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
           const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+          const {readApplicationPresentation} =
+            await window.__lfRuntimeImport('/runtime/semantic-state.js');
           let release;
           let calls = 0;
           const stop = watchData(document.querySelector('lf-feed'), 'rows', () => {
@@ -5020,6 +5028,12 @@ def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
           next.revision++;
           next.sources.deployments.revision = next.revision;
           acceptData(next);
+          const selectedBeforeNotify = {
+            calls,
+            pending: readApplicationPresentation().pending.some(region =>
+              region.startsWith('data:deployments:rows:'),
+            ),
+          };
           const first = notifyDataSubscribers();
           while (!release) await new Promise(resolve => setTimeout(resolve, 0));
           let complete = false;
@@ -5029,9 +5043,15 @@ def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
           release();
           await Promise.all([first, again]);
           stop();
-          return {before, after: document.body.dataset.lfDataRevision, revision: next.revision};
+          return {
+            selectedBeforeNotify,
+            before,
+            after: document.body.dataset.lfDataRevision,
+            revision: next.revision,
+          };
         }"""
     )
+    assert result["selectedBeforeNotify"] == {"calls": 1, "pending": True}
     assert result["before"] == {"complete": False, "calls": 2, "ready": "1"}
     assert result["after"] == str(result["revision"])
     assert errors == []
@@ -5089,11 +5109,12 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
         }
         return nativeFetch(...args);
       };
-      document.addEventListener('lf-data', () => {
+      const dataObserver = new MutationObserver(() => {
         const datum = document.querySelector('[data-lf-datum="api"]');
         if (window.__lfRevisionRegistryBlocked && datum?.textContent.includes('Running'))
           window.__lfDataDuringStartup = true;
       });
+      dataObserver.observe(document, {subtree: true, childList: true, characterData: true});
     """
     page, errors = open_page(
         browser, live_url(data_projection_page(serve)), init_script=activation_probe

@@ -121,7 +121,6 @@ customElements.define(
     #progress = null;
     #queue = null;
     #queueHost = null;
-    #finishReturn = null;
     #run = null;
     #scale = "fit";
     #scope = "focus";
@@ -183,7 +182,6 @@ customElements.define(
       this.#copyObserver?.disconnect();
       this.#copyObserver = null;
       this.#returnExpandedInspection();
-      this.#finishReturn?.("force");
       if (this.#layoutFrame !== null) cancelAnimationFrame(this.#layoutFrame);
       this.#layoutFrame = null;
       this.#cleanupLayout();
@@ -371,7 +369,6 @@ customElements.define(
       this.#dialog.addEventListener("close", () => {
         if (this.#dialog.open) return;
         this.#returnExpandedInspection();
-        this.#finishReturn?.("close");
       });
       this.append(this.#dialog);
     }
@@ -379,7 +376,6 @@ customElements.define(
     #openExpandedInspection() {
       if (this.#dialog.open) return;
       if (!this.#caseEntries.has(this.#selected)) return;
-      this.#finishReturn?.("force");
       this.#expandedOrigin = document.activeElement;
       const workspaceContent = this.querySelector(":scope > .lf-workspace-content");
       const scroller = effectiveScroller(this);
@@ -405,7 +401,6 @@ customElements.define(
     #returnExpandedInspection() {
       const place = this.#expandedPlace;
       if (!place) return;
-      const wasOpen = this.#dialog.open;
       place.workspaceContent.append(this.#partition);
       place.workspaceContent.style.minHeight = place.minimumHeight;
       this.#expandedPlace = null;
@@ -413,27 +408,16 @@ customElements.define(
       this.#expand.setAttribute("aria-expanded", "false");
       const origin = this.#expandedOrigin;
       this.#expandedOrigin = null;
-      let closeDone = !wasOpen;
-      let geometryReady = false;
-      const finish = (milestone) => {
-        if (this.#finishReturn !== finish) return;
-        if (milestone === "close") closeDone = true;
-        if (milestone === "geometry") geometryReady = true;
-        if (milestone === "force") closeDone = geometryReady = true;
-        if (!closeDone || !geometryReady) return;
-        this.#finishReturn = null;
-        place.scroller.scrollTop = place.scrollTop;
-        if (origin?.isConnected) origin.focus({ preventScroll: true });
-        place.scroller.scrollTop = place.scrollTop;
-        place.scroller.style.overflowAnchor = place.overflowAnchor;
-      };
-      this.#finishReturn = finish;
-      if (wasOpen) this.#dialog.close();
+      if (this.#dialog.open) this.#dialog.close();
       this.#paintEvidenceLayout();
       // Resolve the returned partition's CSS-owned flow height before restoring the
       // document position; no later evidence paint changes that outer geometry.
       this.#partition.getBoundingClientRect();
-      finish("geometry");
+      place.scroller.scrollTop = place.scrollTop;
+      if (origin?.isConnected) origin.focus({ preventScroll: true });
+      place.scroller.scrollTop = place.scrollTop;
+      place.scroller.style.overflowAnchor = place.overflowAnchor;
+      layoutChanged(this);
     }
 
     #buildInspector() {

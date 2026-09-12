@@ -1,9 +1,9 @@
 # Agent-driven UI quality options
 
 This note records options for combining the quality acceptance policy and discovery
-allocation work previously called **#1** and **#5**. It is an options document, not a
-product contract. Delete it once the operating model has been tried and its surviving
-rules have moved into the skills and tests that own them.
+allocation work from the September 2026 UI quality assessment. It is an options
+document, not a product contract. Delete it once the operating model has been tried and
+its surviving rules have moved into the skills and tests that own them.
 
 The goal is to let agents repeatedly find and repair consequential reader-facing
 problems without building a Leaf-specific QA application or maintaining an exhaustive
@@ -344,8 +344,9 @@ or dashboard change.
 
 Start with Option A and no new persistent service:
 
-1. Narrow Tend's stronger UI acceptance rule to the affected reader journey and every
-   anomaly genuinely encountered during `/ui-sweep`.
+1. Add an affected-reader-journey acceptance rule to `running-tend`; keep its general
+   claimed-path review threshold unchanged. The new rule covers every anomaly genuinely
+   encountered during `/ui-sweep`.
 2. Let the standing sweep choose short missions from the diff, recent defect mechanisms,
    shipped examples, and recent run summaries.
 3. Run a cold reader independently before or after the source-informed repair.

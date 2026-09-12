@@ -642,15 +642,15 @@ export function createMarginProjection({
   const secondaryReadings = (entry, primaryControl) =>
     readingChoices(entry).slice(primaryControl ? 0 : 1);
 
-  function threadMarginEntry(entry) {
+  function readingMarginEntry(entry, kind) {
     const marker = rows.get(entry.key);
-    if (marker && !marker.hidden && primaryReading(entry)?.kind === "comment")
-      return marker;
-    const choice = threadReading(entry);
+    if (marker && !marker.hidden && primaryReading(entry)?.kind === kind) return marker;
+    const choice = readingChoices(entry).find((candidate) => candidate.kind === kind);
     return choice
       ? (readingMarginEntries.get(readingKey(entry, choice)) ?? null)
       : null;
   }
+  const threadMarginEntry = (entry) => readingMarginEntry(entry, "comment");
   const secondaryControls = (entry, primary) =>
     directControls(entry).filter(
       (control) => control !== primary && entry.shownControls.has(control),
@@ -2833,6 +2833,26 @@ export function createMarginProjection({
   // moved the rows, and the card follows in that same frame, so a reader never sees it
   // standing above or below where its controls used to be.
 
+  // Standing selection belongs to the reading, not to focus or a particular feature's
+  // control. Resolve it through the same inventory that decides which reading is the
+  // visible marker and which is an unfolded option, then paint one shared state on the
+  // compact projection. An open disclosure continues to use aria-expanded instead.
+  function paintSelectedMarginEntries(selections) {
+    const selected = new Set();
+    for (const selection of selections) {
+      const entry = pageInventory.find(
+        (candidate) => candidate.target === selection.target,
+      );
+      const control = entry && readingMarginEntry(entry, selection.kind);
+      if (control?.isConnected) selected.add(control);
+    }
+    for (const control of document.querySelectorAll(
+      ".lf-margin-entry[data-lf-target-selected]",
+    ))
+      if (!selected.has(control)) control.removeAttribute("data-lf-target-selected");
+    for (const control of selected) control.setAttribute("data-lf-target-selected", "");
+  }
+
   const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));
   const unfoldedMarginEntries = () =>
     expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
@@ -2958,6 +2978,7 @@ export function createMarginProjection({
     keyboardRung,
     openInlineThread,
     openPageThread,
+    paintSelectedMarginEntries,
     marginEntryChoices,
     unfoldedMarginEntries,
     foldMarginEntryOptions,

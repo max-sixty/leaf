@@ -1074,6 +1074,35 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
     context.close()
 
 
+def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
+    """The page and margin projections identify the same selected Ask."""
+    page, errors = open_page(browser, serve(ASK_PAGE))
+    resized(page, 1440, 900)
+
+    page.keyboard.press("a")
+    first = page.locator("#jobs-decision")
+    expect(first).to_be_focused()
+    first_marker = page.locator(
+        '[data-lf-margin-for="jobs-decision"] > .lf-margin-marker'
+    )
+    expect(first).to_have_attribute("data-lf-ask", "1")
+    expect(first_marker).to_have_attribute("data-lf-target-selected", "")
+    assert first_marker.evaluate(
+        "marker => getComputedStyle(marker).borderTopColor"
+    ) == first.evaluate("ask => getComputedStyle(ask).outlineColor")
+    page.keyboard.press("a")
+    expect(page.locator("#bracket-decision")).to_be_focused()
+    expect(first_marker).not_to_have_attribute(
+        "data-lf-target-selected", re.compile(".*")
+    )
+    expect(
+        page.locator('[data-lf-margin-for="bracket-decision"] > .lf-margin-marker')
+    ).to_have_attribute("data-lf-target-selected", "")
+
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])
 def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, width):
     """The developer sampler stays usable after edits, verdicts, and dense overflow."""
@@ -4007,6 +4036,10 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     )
     expect(receipt).to_have_count(1)
     assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
+    reaction = receipt.get_by_role("button", name="keep reaction actions", exact=True)
+    reaction.click()
+    expect(reaction).to_have_attribute("aria-expanded", "true")
+    expect(reaction).to_have_css("border-top-color", token_colour(page, "--accent"))
     assert errors == []
     page.close()
 
@@ -4543,6 +4576,8 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     ), geometry
     assert 319 <= geometry["cardWidth"] <= 460, geometry
     expect(thread.locator(".lf-conversation-thread")).to_be_focused()
+    expect(marker).to_have_attribute("data-lf-target-selected", "")
+    expect(marker).to_have_css("border-top-color", token_colour(page, "--accent"))
     expect(reply).to_be_hidden()
     thread.get_by_role("button", name="Reply", exact=True).click()
     expect(reply).to_be_focused()

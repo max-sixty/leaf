@@ -47,6 +47,8 @@ semantic/presented epochs, sealed publication barriers, stable regions, renderer
 ticket generations, replacement/disconnection, async descendant membership, fail-soft
 completion, and stale-document/value suppression. Its causal domain suite covers work
 that completes before sealing and obsolete seals as well as the longer renderer races.
+An equal-value renderer replacement reopens mechanical readiness at the same semantic
+epoch; the replacement must commit while the stale instance cannot satisfy the repair.
 
 The kernel is deliberately not wired into runtime readiness yet. That cutover follows
 the public widget controller so one presentation seam can replace every legacy queue at
@@ -83,8 +85,8 @@ from the publisher.
 Then wire the integrated semantic/presented epoch and ticket coordinator across every
 independent readiness queue before converting generated regions to Lit. Complete the
 Targeting identity/controller cutover, add offline interactive export without weakening
-script-free static export, and
-dissolve this checkpoint plus both plan notes into their owning contracts.
+script-free static export, then dissolve this checkpoint plus both plan notes into their
+owning contracts.
 
 ## Verification checkpoint
 
@@ -94,8 +96,8 @@ projection cases, all 99 server cases, 274 interaction-contract cases, and 10 br
 build/domain tests pass. Generated browser output and pre-commit are clean. Run the final
 everyday suite again after the remaining slices are integrated.
 
-The presentation kernel adds eight focused causal cases; its TypeScript check,
-18-case browser/build suite, and touched-file pre-commit checks pass.
+The presentation kernel has ten focused causal cases; its TypeScript check, 20-case
+browser/build suite, and touched-file pre-commit checks pass.
 
 The design-intent cutover passes its 12 focused admission, composition, filtering,
 label, placement, transcript, and gallery cases plus an integration rerun of the server

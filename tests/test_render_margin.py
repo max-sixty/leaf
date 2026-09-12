@@ -1308,6 +1308,11 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     cancel_draft = draft.get_by_role("button", name="Cancel", exact=True)
     expect(save).to_have_attribute("data-lf-state", "engaged")
     expect(cancel_draft).to_have_attribute("data-lf-state", "engaged")
+    # Rank is what orders these against every other engaged entry, and a widget states
+    # it once at construction. An option name the grammar does not know leaves the
+    # default standing, so read the rank the pair arrives with, not only its state.
+    expect(save).to_have_attribute("data-lf-rank", "complete")
+    expect(cancel_draft).to_have_attribute("data-lf-rank", "escape")
     cancel_draft.click()
     waiting = page.locator('[data-lf-margin-for="bg-history"]').get_by_role(
         "status", name=re.compile(r"^Waiting for pickup for ")
@@ -1332,6 +1337,8 @@ def test_the_feature_gallery_carries_a_margin_entry_through_its_whole_lifecycle(
     cancel_failure = workflow.get_by_role("button", name="Cancel", exact=True)
     expect(retry).to_have_attribute("data-lf-state", "failed")
     expect(cancel_failure).to_have_attribute("data-lf-state", "failed")
+    expect(retry).to_have_attribute("data-lf-rank", "complete")
+    expect(cancel_failure).to_have_attribute("data-lf-rank", "escape")
     expect(workflow).to_contain_text("Failed")
     cancel_failure.click()
     page.unroute("**/api/event")
@@ -1572,6 +1579,32 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
         "5 · 🔎 · support.",
         "6 · 🎯 · prioritize.",
     ]
+    assert errors == []
+    page.close()
+
+
+def test_a_margin_entry_refuses_an_option_outside_its_grammar(browser, serve):
+    """An axis stated under an unknown name is a refusal, not a silent default.
+
+    Every axis has a default, so a caller that names one wrongly — the way a rename of
+    this vocabulary reaches a call site — would otherwise get the default and no word
+    about it, and the widget would look as if it had stated nothing.
+    """
+    page, errors = open_page(browser, serve(PANEL_PAGE))
+    refusal = page.evaluate(
+        """async () => {
+          const {offer, marginEntry} = await import('/runtime/widget-api.js');
+          try {
+            marginEntry(offer('button', ''), {
+              key: 'cancel', icon: 'cross', label: 'Cancel', role: 'escape'
+            });
+          } catch (error) {
+            return error.message;
+          }
+          return null;
+        }"""
+    )
+    assert refusal == "Unknown margin entry option: role"
     assert errors == []
     page.close()
 

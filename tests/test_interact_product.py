@@ -1538,8 +1538,10 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     assert events_model.read_events(page_dir) == before_unidentified_edit
 
 
-def test_edit_refuses_a_page_vendored_before_its_event_contract(page_dir, monkeypatch):
-    """A contract-bearing writer speaks only the vocabulary vendored into the page."""
+def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
+    page_dir, monkeypatch
+):
+    """An edit uses the active revision's contract, not a broken candidate."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     message = events_model.append_event(
         page_dir,
@@ -1562,9 +1564,9 @@ def test_edit_refuses_a_page_vendored_before_its_event_contract(page_dir, monkey
         ["edit", str(page_dir), "--to", message["id"], "--text", "Revised."],
     )
 
-    assert result.exit_code != 0
-    assert "$events.kinds must equal Leaf's fixed transport contract" in result.output
-    assert events_model.read_events(page_dir) == before
+    assert result.exit_code == 0, result.output
+    assert events_model.read_events(page_dir)[:-1] == before
+    assert events_model.read_events(page_dir)[-1]["text"] == "Revised."
 
 
 def test_markup_enters_only_through_the_cli_gate(server, page_dir):
@@ -1717,7 +1719,9 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "…" in head and len(head) < len(long_quote) / 2, head
 
 
-def test_markup_needs_the_registry_and_text_does_not(page_dir):
+def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear(
+    page_dir,
+):
     """Text renders with every raw tag escaped, so a plain reply has nothing to
     validate and posts without the registry; markup is checked against it, so without
     one the gate refuses rather than guessing."""
@@ -1753,8 +1757,7 @@ def test_markup_needs_the_registry_and_text_does_not(page_dir):
             '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>',
         ],
     )
-    assert with_markup.exit_code != 0
-    assert "no registry.json" in with_markup.output
+    assert with_markup.exit_code == 0, with_markup.output
 
 
 def test_comment_requires_the_registry_its_runtime_reads(page_dir):

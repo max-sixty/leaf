@@ -337,11 +337,7 @@ def supervised_document(
         if release_id is not None
         else ""
     )
-    public_root = (
-        f' data-lf-page-root="{html.escape(page_root, quote=True)}"'
-        if release_id is not None
-        else ""
-    )
+    public_root = f' data-lf-page-root="{html.escape(page_root, quote=True)}"'
     assets = asset_root if asset_root is not None else page_root
     theme_head, entry_head = _runtime_assets(assets)
     asset_path = assets.rstrip("/")
@@ -844,6 +840,14 @@ class Handler(BaseHTTPRequestHandler):
             implementation = artifact.implementations.get(widget.group("tag"))
             if implementation is not None:
                 source = implementation["path"]
+        if source != logical:
+            target = json.dumps(self._artifact_root(revision) + source)
+            self._send(
+                200,
+                "application/javascript; charset=utf-8",
+                f"export * from {target};\n".encode(),
+            )
+            return True
         resource = artifact.resources.get(source)
         if resource is None:
             return False

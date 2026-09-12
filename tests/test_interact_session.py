@@ -1829,9 +1829,10 @@ def test_a_batch_says_what_each_kind_present_asks_of_the_agent(page_dir, capsys)
     }
 
 
-def test_a_page_with_no_handling_does_not_substitute_another_layer(page_dir, capsys):
+def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
+    handling = registry["$events"]["handling"]["comment"]
     del registry["$events"]["handling"]
     registry_path.write_text(json.dumps(registry))
 
@@ -1843,7 +1844,7 @@ def test_a_page_with_no_handling_does_not_substitute_another_layer(page_dir, cap
 
     assert session_model.cmd_wait(page_dir) == 0
     _, header, _ = delivered(capsys.readouterr().out)
-    assert header["handling"] == {}
+    assert header["handling"] == {"comment": handling}
 
 
 def test_reopening_a_thread_reveals_its_unanswered_claim(page_dir):
@@ -6644,7 +6645,7 @@ def test_server_start_forwards_flags_and_returns_service_output(page_dir):
 def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
     page_dir, spawn, monkeypatch, lifetime
 ):
-    """Disabled desired state makes re-vendor replace the whole contract."""
+    """Re-vendor requires quiescence and preserves the active revision contract."""
     publish(page_dir)
     old_skill = page_dir.parent / "old-skill"
     old_scripts = old_skill / "scripts"
@@ -6691,11 +6692,8 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
         "attempt": "replacement_route_1",
     }
     status, body = fetch(endpoint, data=json.dumps(comment).encode(), token=None)
-    assert status == 400
-    assert (
-        "Additional properties are not allowed ('attempt' was unexpected)"
-        in (json.loads(body)["error"])
-    )
+    # Editing the mutable layer cannot change admission for captured revision r1.
+    assert status == 200, body
 
     project_layer = page_dir.parent / ".leaf"
     project_layer.mkdir()

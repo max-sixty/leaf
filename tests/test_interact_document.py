@@ -4085,7 +4085,9 @@ def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
     its binding reaches an immutable revision. A reply becomes immutable immediately, so
     admitting a different meaning there would leave set, clear, and source check reading
     a conflict the reply door itself allowed."""
-    declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
+    declare_data_input(
+        page_dir, "project-feed", {"type": "array"}, contract="rows", activate=False
+    )
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["$data"]["contracts"]["other-rows"] = {
@@ -4098,14 +4100,18 @@ def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
         "x-data": {"data": {"contract": "other-rows", "source": "source"}},
     }
     registry_path.write_text(json.dumps(registry))
-    for revision in files_model.list_revisions(page_dir):
-        path = files_model.revision_path(page_dir, revision)
-        path.write_text(
-            path.read_text().replace(
-                '<lf-test-data id="test-data" source="project-feed"></lf-test-data>\n',
-                "",
-            )
+    source = page_dir / "index.html"
+    draft = source.read_text()
+    source.write_text(
+        draft.replace(
+            '<lf-test-data id="test-data" source="project-feed"></lf-test-data>\n', ""
         )
+    )
+    activation = revisioning_model.activate_source(
+        page_dir, events_model.read_events(page_dir)
+    )
+    assert activation.error is None
+    source.write_text(draft)
     documents = data_contracts_model.page_data_documents(
         page_dir, events_model.read_events(page_dir)
     )

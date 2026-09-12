@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import pytest
 from leaf.codex import _queues as codex_queues
 from leaf.event_log import append_event, read_events
+from leaf.files import revision_path
 from leaf.hosting import server_at
 from leaf.http import supervised_document
 
@@ -1631,7 +1632,11 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
 
         document, headers = get(f"{root}/examples/decision/")
         assert b'src="/examples/decision/sitenote.js"' in document
-        assert b'data-lf-entry="/examples/decision/leaf.js"' in document
+        artifact = revision_path(published, 1).stem
+        assert (
+            f'data-lf-entry="/examples/decision/revisions/{artifact}/leaf.js"'.encode()
+            in document
+        )
         assert headers["Content-Security-Policy"] == "frame-ancestors 'none'"
         assert headers["Leaf-Session"] == "active"
 
@@ -1835,7 +1840,11 @@ def test_a_product_route_uses_the_same_real_page_server(
     try:
         document, _ = get(f"{root}{page_root}/")
         assert b"data-lf-site" not in document
-        assert f'data-lf-entry="{page_root}/leaf.js"'.encode() in document
+        artifact = revision_path(published, 1).stem
+        assert (
+            f'data-lf-entry="{page_root}/revisions/{artifact}/leaf.js"'.encode()
+            in document
+        )
         assert get(f"{root}{page_root}/sitenote.js")[0] == b"export {};"
         state = json.loads(get(f"{root}{page_root}/api/state")[0])
         assert state["publication"] == {

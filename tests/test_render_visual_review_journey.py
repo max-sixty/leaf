@@ -10,6 +10,7 @@ from leaf import hosting as hosting_model
 from leaf import media as media_model
 from playwright.sync_api import expect
 from render_support import (
+    PAGE_FIXTURES,
     leaf_page,
     open_page,
     resized,
@@ -21,6 +22,51 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+VISUAL_REVIEW_GALLERY = next(
+    path for path in PAGE_FIXTURES if path.stem == "visual-review-gallery"
+)
+
+
+def test_embedded_visual_review_uses_native_scroll_chaining(browser, serve):
+    """The evidence owns its useful range without containing its scroll boundary."""
+    url = serve(VISUAL_REVIEW_GALLERY)
+    stamp_page(
+        serve.page_dir,
+        leaf_page(
+            "visual inspection in flow",
+            """<h1>Review the package change</h1>
+<p style="min-height: 28rem">The review follows this context.</p>
+<section><lf-visual-review id="visual-review-run" source="gallery-visual-run"></lf-visual-review></section>
+<p style="min-height: 40rem">The decision record continues after the evidence.</p>""",
+        ),
+        "put visual inspection in document flow",
+    )
+    url = url.rsplit("/versions/", 1)[0] + "/?" + url.partition("?")[2]
+    page, errors = open_page(browser, url)
+    resized(page, 1000, 700)
+    widget = page.locator("#visual-review-run")
+    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
+    expect(widget.get_by_role("button", name="Expand inspection")).to_have_count(0)
+    widget.scroll_into_view_if_needed()
+    host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    widget.get_by_role("button", name="Full frame").click()
+    widget.get_by_role("button", name="100%").click()
+    page.wait_for_function(
+        "node => node.scrollHeight > node.clientHeight", arg=host.element_handle()
+    )
+    assert host.evaluate("node => getComputedStyle(node).overscrollBehaviorY") == "auto"
+    point = host.evaluate(
+        "node => { const r = node.getBoundingClientRect();"
+        " return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }"
+    )
+    page.mouse.move(point["x"], point["y"])
+    document_start = page.evaluate("document.scrollingElement.scrollTop")
+    page.mouse.wheel(0, 320)
+    page.wait_for_function("node => node.scrollTop > 0", arg=host.element_handle())
+    assert page.evaluate("document.scrollingElement.scrollTop") == document_start
+    assert errors == []
+    page.close()
 
 
 def go_to(page, target, kind="Control"):

@@ -328,3 +328,96 @@ test("a failed presentation reports once, installs fail-soft proof, and settles"
     proof: "fallback proof",
   });
 });
+
+test("current readiness follows a publication opened before its continuation", async () => {
+  const document = {};
+  const coordinator = createPresentationCoordinator({ reportFailure: assert.fail });
+  let current = { document, semanticEpoch: 0 };
+  const firstPublication = coordinator.begin(document, 0);
+  const renderer = coordinator.attach("widget", {});
+  let releaseFirst;
+  const first = renderer.present(
+    "first",
+    new Promise((resolve) => {
+      releaseFirst = resolve;
+    }),
+  );
+  coordinator.seal(firstPublication);
+
+  const stale = coordinator.whenPresented(document, 0);
+  let releaseSecond;
+  let second;
+  stale.then(() => {
+    current = { document, semanticEpoch: 1 };
+    const secondPublication = coordinator.begin(document, 1);
+    second = renderer.present(
+      "second",
+      new Promise((resolve) => {
+        releaseSecond = resolve;
+      }),
+    );
+    coordinator.seal(secondPublication);
+  });
+  let ready = false;
+  const readiness = coordinator
+    .whenCurrentPresented(() => current)
+    .then((outcome) => {
+      ready = true;
+      return outcome;
+    });
+
+  releaseFirst();
+  await first;
+  await Promise.resolve();
+  assert.equal(ready, false);
+  assert.deepEqual(coordinator.read().pending, ["widget"]);
+  releaseSecond();
+  await second;
+  assert.equal(await readiness, "presented");
+});
+
+test("current readiness follows a same-epoch renderer replacement", async () => {
+  const document = {};
+  const coordinator = createPresentationCoordinator({ reportFailure: assert.fail });
+  const current = { document, semanticEpoch: 0 };
+  const publication = coordinator.begin(document, 0);
+  const firstRenderer = coordinator.attach("widget", {});
+  let releaseFirst;
+  const first = firstRenderer.present(
+    "value",
+    new Promise((resolve) => {
+      releaseFirst = resolve;
+    }),
+  );
+  coordinator.seal(publication);
+
+  const stale = coordinator.whenPresented(document, 0);
+  let releaseReplacement;
+  let replacement;
+  stale.then(() => {
+    firstRenderer.disconnect();
+    const nextRenderer = coordinator.attach("widget", {});
+    replacement = nextRenderer.present(
+      "value",
+      new Promise((resolve) => {
+        releaseReplacement = resolve;
+      }),
+    );
+  });
+  let ready = false;
+  const readiness = coordinator
+    .whenCurrentPresented(() => current)
+    .then((outcome) => {
+      ready = true;
+      return outcome;
+    });
+
+  releaseFirst();
+  await first;
+  await Promise.resolve();
+  assert.equal(ready, false);
+  assert.deepEqual(coordinator.read().pending, ["widget"]);
+  releaseReplacement();
+  await replacement;
+  assert.equal(await readiness, "presented");
+});

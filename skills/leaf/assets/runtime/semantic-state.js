@@ -25,12 +25,16 @@ export const selectWidgets = applicationState.selectWidgets;
 export const attachWidgetPresentation = (widget, kind, renderer) =>
   presentation.attach(`widget:${widget}:${kind}`, renderer);
 export const whenApplicationPresented = () =>
-  presentation.whenPresented(documentToken, readApplication().semanticEpoch);
+  presentation.whenCurrentPresented(() => ({
+    document: documentToken,
+    semanticEpoch: readApplication().semanticEpoch,
+  }));
 export const readApplicationPresentation = presentation.read;
 export function setPresentationFailureReporter(report) {
   if (typeof report !== "function")
     throw new TypeError("Presentation failure reporting needs a callback");
-  reportPresentationFailure = report;
+  reportPresentationFailure = (reason) =>
+    report(`Presentation failed: ${reason?.message ?? reason}`);
 }
 export const watchSemantic = (callback) =>
   applicationState

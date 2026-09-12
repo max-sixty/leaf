@@ -4,13 +4,13 @@
    former changes as soon as a local action is staged or an authoritative view arrives;
    the latter changes only after the current widget nodes accepted a complete render.
    One presentation instance owns the commit maps, optimistic staging, coordinate
-   proof, release decisions, authored-page reset, and drag deferral observer. It adapts
-   one complete publisher snapshot; only DOM signature/read adapters remain direct
-   exports. */
+   proof, authored-page reset, drag deferral observer, and the projection chrome's
+   presentation ticket. It adapts one complete publisher snapshot; only DOM
+   signature/read adapters remain direct exports. */
 import { authoredStates } from "./authored.js";
 import { projectionOrigins } from "./model.js";
-import { currentProjection, setProjectionDeferred } from "./state.js";
-import { applicationState } from "../semantic-state.js";
+import { projectionDeferred, setProjectionDeferred } from "./state.js";
+import { applicationState, attachApplicationPresentation } from "../semantic-state.js";
 import { stateSpecs } from "../registry.js";
 import { runtime } from "../context.js";
 import {
@@ -80,6 +80,36 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
   const committedWidgets = new Map();
 
   let projectionDragObserver = null;
+  let presentationHandle = null;
+  let activePresentation = null;
+
+  const presentation = () => {
+    presentationHandle ??= attachApplicationPresentation("projection:chrome", document);
+    return presentationHandle;
+  };
+
+  // State application sometimes has to prepare frozen widget markup before it can
+  // project it. Claim this epoch synchronously after semantic adoption so an inherited
+  // chrome commit cannot acknowledge the new reading during that preparation.
+  function prepare(snapshot) {
+    let resolve;
+    const completion = new Promise((done) => {
+      resolve = done;
+    });
+    const pending = {
+      epoch: snapshot.semanticEpoch,
+      value: snapshot.effective.projection,
+      resolve,
+      claimed: false,
+    };
+    const prior = activePresentation;
+    activePresentation = pending;
+    void presentation().present(pending.value, completion);
+    // Install the newer ticket before completing obsolete work. Its late completion
+    // can no longer satisfy the active region.
+    prior?.resolve();
+    return pending;
+  }
 
   function coordinateProjectionCommitted(projection, entry) {
     const desired = projection.desired.get(entry.coordinate);
@@ -96,33 +126,6 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     return Boolean(
       entry && (entry.terminal || coordinateProjectionCommitted(projection, entry)),
     );
-  }
-
-  function localCoordinateCommitted(projection, entry) {
-    const local = entry.projection;
-    if (!local) return true;
-    const widget = elementById(local.e.widget);
-    if (!widget) return true;
-    const desired = projection.desired.get(local.coordinate) ?? null;
-    const commit = committedProjection.get(local.coordinate);
-    return (
-      commit?.widget === widget &&
-      commit.unit === elementById(local.unit) &&
-      committedEvent(commit) === (desired?.e.id ?? null)
-    );
-  }
-
-  function releasableEntries(entries, projection = currentProjection()) {
-    return entries.filter((entry) => {
-      if (!entry.answered || entry.event.kind !== "action") return false;
-      return entry.rejected
-        ? localCoordinateCommitted(projection, entry)
-        : Boolean(
-            entry.presented &&
-            entry.readEvent &&
-            projectionCommitted(projection, entry.readEvent),
-          );
-    });
   }
 
   // Every action reaches the send door after its widget has painted the semantic
@@ -288,21 +291,39 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
     return projection;
   }
 
-  function present(snapshot) {
+  function present(snapshot, prepared = null) {
+    const pending =
+      prepared !== null &&
+      prepared === activePresentation &&
+      !prepared.claimed &&
+      prepared.epoch === snapshot.semanticEpoch
+        ? prepared
+        : prepare(snapshot);
+    pending.claimed = true;
     const prior = runtime.restoringState;
     if (snapshot.unresolved.some((entry) => entry.rejected && entry.projection))
       runtime.restoringState = true;
     try {
-      return presentCurrent(snapshot);
+      const projection = presentCurrent(snapshot);
+      if (!projectionDeferred()) {
+        if (activePresentation === pending) activePresentation = null;
+        pending.resolve(projection);
+      }
+      return projection;
+    } catch (error) {
+      // There is no complete chrome result to commit. Keep this ticket pending and
+      // preserve the existing application error boundary; a later presentation first
+      // supersedes this hold, then tries the current semantic root again.
+      throw error;
     } finally {
       runtime.restoringState = prior;
     }
   }
 
   return {
+    prepare,
     present,
     stageOptimistic,
-    releasableEntries,
     resetAuthoredPage,
     projectionCommitted,
     coordinateProjectionCommitted,

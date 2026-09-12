@@ -74,14 +74,31 @@ def console_problem(message) -> str | None:
 
 
 def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
-    """Inspect the authored document while its first Leaf entry request is held."""
+    """Inspect the authored document while its first Leaf entry request is held.
+
+    The hold outlives the entry it holds. Playwright turns a page's request
+    interception off as soon as its last route handler is spent, and a `times=1`
+    handler is spent at the moment the entry is released — which is the moment the
+    module layer starts asking for a hundred-odd files. Turning interception off
+    under that burst loses requests: the document stops at `interactive` with a
+    module still in flight, or with nothing in flight and no load event, and neither
+    ending writes a console entry. So this handler stays registered until after the
+    load event and lets a later entry request through, and the one teardown happens
+    in the `finally` below, on a document that has already loaded.
+    """
     held = []
     released = False
 
     def hold_entry(route):
+        # Only the first is held. A later one is passed through rather than left
+        # standing, because this handler has to outlive the entry it holds and a
+        # second hold nothing releases would be a wait with no end.
+        if held:
+            route.continue_()
+            return
         held.append(route)
 
-    page.route("**/leaf.js", hold_entry, times=1)
+    page.route("**/leaf.js", hold_entry)
     try:
         page.goto(url, wait_until="commit")
         page.wait_for_selector("body > main", state="attached")

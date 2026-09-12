@@ -297,13 +297,40 @@ the descriptor. `read()` returns an immutable `{state, provenance, actions, requ
 request, delivery}` snapshot. Each command entry carries its availability and exact
 history or Undo candidates. `subscribe(callback)` invokes immediately from the same
 publisher, returns cleanup, and should be stopped on disconnect; reconnecting subscribes
-again. `dispatch({kind: "action" | "request", verb, detail, attempt?})` and
+again. `dispatch({kind: "action" | "request", verb, detail, references?, attempt?})` and
 `dispatch({kind: "undo", target})` synchronously return `null` when the newest reading
 refuses the command, otherwise `{reading, delivery}`. The returned reading already holds
 the optimistic semantic result; delivery later yields the admitted event or null and a
 refusal restores authoritative state. Undo targets only a stable `id` or `attempt` from
 the current command entry's candidates. The server remains final admission for every
 command.
+
+An `x-state` or `x-report` verb may declare `references`, a map whose keys are
+package- or page-chosen semantic roles. Each role uses the same target contract as
+`x-refers`: `{}` accepts any authored element, while `{via, where}` constrains a
+registered widget through a package-owned registry map. The event carries the matching
+role map as a sibling of `detail`; roles are never encoded in detail-field names:
+
+```json
+{
+  "references": {
+    "source": {},
+    "container": { "via": "$layout.widgets", "where": { "role": "container" } }
+  }
+}
+```
+
+Use `controller.reference(element)` to capture each record. For a page widget the
+boundary is that immutable revision's authored `<main>`; for a widget in a conversation
+it is the one frozen-markup fragment that contains the widget. The target may therefore
+be a sibling outside the sender, but never escapes its document. Authored ids are exact;
+anonymous elements use Leaf's structural record and refuse when it is detached or
+ambiguous. `dispatch()` requires exactly the declared roles and validates their record
+shape before transport; the server resolves them again against source and is final
+authority. The declaration applies equally to recordless verbs.
+
+Worker reports supply the same map with `leaf report --references '<JSON-object>'`.
+Omit the option only for a verb that declares no reference roles.
 
 What the module owes:
 a total, idempotent `renderState(state)`; `widgetController(owner).dispatch()` for recorded user state, with a

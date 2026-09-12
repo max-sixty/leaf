@@ -50,10 +50,13 @@ interrupted load. Source files and standalone exports carry no startup superviso
 its explanations; this contract does not mirror that inventory.
 
 The append transaction records state coordinates and direct dependencies in an
-action or report's `meaning`. Identity-bearing fields come from the declared fold
-unit and attribute-set or position record. Additional string or string-array
-fields must be named in `references`; arbitrary detail strings carry no identity.
-The current document still supplies containment when reading those dependencies.
+action or report's `meaning`. Identity-bearing detail fields come from the declared
+fold unit and attribute-set or position record. A verb's optional `references` map
+declares package- or page-named roles using the same `{}` or `{via, where}` target
+contract as `x-refers`; the event carries the matching role-to-stable-target-record map
+beside `detail`. The append door resolves every role in the command's immutable source
+document. Id records and structural anchors join direct dependencies; arbitrary detail
+strings carry no identity.
 
 A state verb that creates authored children declares `creates: {field, child}`.
 The optional detail field is the canonical map from generated element ids to their

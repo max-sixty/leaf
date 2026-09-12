@@ -12,7 +12,7 @@ from .contract import (
     RegistryError,
     declares_string,
     json_validator,
-    registry_path,
+    reference_relation_error,
     state_specs,
     visual_part_attribute,
 )
@@ -182,7 +182,7 @@ def validate_widget_relations(
         _validate_widget_interactions(tag, entry, properties, awaits, response, path)
         validate_widget_state_relations(tag, entry, declarations, path)
         validate_widget_record_contracts(
-            tag, entry, properties, said, declarations, path
+            tag, entry, properties, said, registry, declarations, path
         )
         validate_widget_retirement(tag, entry, slots, declarations, path)
 
@@ -382,29 +382,8 @@ def _validate_widget_structure(
                 f"{path}: <{tag}> {key} names undeclared attributes {unknown}"
             )
     for attribute, reference in entry.get("x-refers", {}).items():
-        via = reference.get("via")
-        if via is None:
-            continue
-        relation = registry_path(registry, via)
-        if not isinstance(relation, dict):
-            raise RegistryError(
-                f"{path}: <{tag}> x-refers `{attribute}` names unknown registry "
-                f"map {via!r}"
-            )
-        predicate = reference["where"]
-        matches = [
-            target
-            for target, declaration in relation.items()
-            if target in declarations
-            and isinstance(declaration, dict)
-            and all(declaration.get(key) == value for key, value in predicate.items())
-        ]
-        if not matches:
-            expected = ", ".join(f"{key}={value!r}" for key, value in predicate.items())
-            raise RegistryError(
-                f"{path}: <{tag}> x-refers `{attribute}` requires {via} "
-                f"where {expected}, but no declared widget matches"
-            )
+        if error := reference_relation_error(reference, registry, declarations):
+            raise RegistryError(f"{path}: <{tag}> x-refers `{attribute}` {error}")
     if part_attribute := visual_part_attribute(entry):
         if not (
             "id" in entry.get("required", [])

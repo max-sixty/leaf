@@ -893,6 +893,43 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
     assert "x-report" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
 
 
+def test_report_cli_carries_the_declared_reference_role_map(page_dir):
+    _tasks_version(page_dir, 1, "active")
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-task"]["x-report"]["status"]["references"] = {"source": {}}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    publish(page_dir)
+    references = json.dumps({"source": {"kind": "id", "id": "backfill-first"}})
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "report",
+            str(page_dir),
+            "t-parser",
+            "status",
+            "--references",
+            references,
+            "status=done",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    accepted = json.loads(result.output)
+    assert accepted["references"] == json.loads(references)
+    assert set(accepted["meaning"]["depends"]) == {
+        "backfill-first",
+        "t-parser",
+    }
+
+    missing = CliRunner().invoke(
+        cli_model.cli,
+        ["report", str(page_dir), "t-parser", "status", "status=review"],
+    )
+    assert missing.exit_code != 0
+    assert "missing declared reference roles ['source']" in missing.output
+
+
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     before = registry_storage.layer_generation(page_dir)
     transition = leases_model.transition_lock(page_dir)
@@ -3385,6 +3422,38 @@ def test_a_typed_reference_names_a_reachable_package_role(page_dir, reference, m
         registry_validation.validate_registry(registry, "test registry")
 
 
+@pytest.mark.parametrize(
+    ("reference", "message"),
+    [
+        (
+            {"via": "$missing.widgets", "where": {"role": "goal"}},
+            "names unknown registry map '$missing.widgets'",
+        ),
+        (
+            {"via": "$command.widgets", "where": {"role": "imaginary"}},
+            "but no declared widget matches",
+        ),
+    ],
+)
+def test_a_verb_reference_role_names_a_reachable_package_relation(
+    page_dir, reference, message
+):
+    """Event roles use the same target contract as authored x-refers attributes."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-state"]["choose"]["references"] = {"source": reference}
+
+    with pytest.raises(registry_contract.RegistryError, match=re.escape(message)):
+        registry_validation.validate_registry(registry, "test registry")
+
+
+def test_old_detail_field_reference_declarations_are_refused(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-state"]["choose"]["references"] = ["options"]
+
+    with pytest.raises(registry_contract.RegistryError, match="not of type 'object'"):
+        registry_validation.validate_registry(registry, "test registry")
+
+
 @pytest.mark.parametrize("section", ["$events", "$languages", "$tones"])
 def test_init_inherits_contract_members_a_layer_does_not_state(
     page_dir, tmp_path, section
@@ -4377,7 +4446,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
 def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     server, page_dir
 ):
-    """Direct identities are durable; their containment remains a current reading."""
+    """Declared role records resolve in source and preserve their admitted meaning."""
     from copy import deepcopy
 
     from leaf.files import latest_revision
@@ -4385,12 +4454,20 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
 
     registry = json.loads((page_dir / "registry.json").read_text())
     choose = registry["lf-options"]["x-state"]["choose"]
-    choose["detail"]["properties"].update(
-        annotation={"type": "string"}, dependency={"type": "string"}
-    )
-    choose["references"] = ["dependency"]
+    choose["detail"]["properties"]["annotation"] = {"type": "string"}
+    choose["references"] = {
+        "context": {},
+        "source": {
+            "via": "$roles.widgets",
+            "where": {"role": "choice"},
+        },
+    }
+    registry["lf-options"]["x-state"]["answer"]["references"] = {"source": {}}
+    registry["$roles"] = {"widgets": {"lf-option": {"role": "choice"}}}
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    source = PAGE.replace("<lf-options>", '<lf-options id="picks" choose>')
+    source = PAGE.replace("<lf-options>", '<lf-options id="picks" choose>').replace(
+        "</section>", "<div><span>A</span><span>B</span></div></section>"
+    )
     (page_dir / ".fixture-versions" / "v1.html").write_text(source)
     publish(page_dir)
     revision = latest_revision(page_dir)
@@ -4402,7 +4479,14 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
         "detail": {
             "options": ["flag-first"],
             "annotation": "plan-choice-decision",
-            "dependency": "backfill-first",
+        },
+        "references": {
+            "context": {
+                "kind": "structure",
+                "anchor": "plan",
+                "path": [{"tree": "light", "tag": "p"}],
+            },
+            "source": {"kind": "id", "id": "backfill-first"},
         },
         "attempt": "named-dependencies",
     }
@@ -4414,6 +4498,22 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
         "picks",
         "flag-first",
         "backfill-first",
+        "plan",
+    }
+    recordless = {
+        "kind": "action",
+        "revision": revision,
+        "widget": "picks",
+        "action": "answer",
+        "detail": {},
+        "references": {"source": {"kind": "id", "id": "backfill-first"}},
+        "attempt": "recordless-reference",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(recordless).encode())
+    assert status == 200, body
+    assert set(json.loads(body)["state"]["events"][-1]["meaning"]["depends"]) == {
+        "backfill-first",
+        "picks",
     }
     within = passages_model.enclosing_ids(structure_model.SourceDocument(source))
     assert event_folds_model.action_retracted(
@@ -4423,14 +4523,77 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     assert not event_folds_model.action_retracted(
         accepted, {"backfill-first": revision + 1}, moved
     )
-    empty = {
+    for attempt, reference, problem in [
+        (
+            "detached-reference",
+            {"kind": "id", "id": "not-there"},
+            "detached",
+        ),
+        (
+            "ambiguous-reference",
+            {
+                "kind": "structure",
+                "anchor": "plan",
+                "path": [
+                    {"tree": "light", "tag": "div"},
+                    {"tree": "light", "tag": "span"},
+                ],
+            },
+            "ambiguous",
+        ),
+    ]:
+        refused = {
+            **command,
+            "attempt": attempt,
+            "references": {**command["references"], "context": reference},
+        }
+        status, body = fetch(f"{server}/api/event", data=json.dumps(refused).encode())
+        assert status == 400, body
+        assert problem in json.loads(body)["error"]
+    wrong_relation = {
         **command,
-        "attempt": "empty-dependency",
-        "detail": {**command["detail"], "dependency": ""},
+        "attempt": "wrong-reference-relation",
+        "references": {
+            **command["references"],
+            "source": {"kind": "id", "id": "plan"},
+        },
     }
-    status, body = fetch(f"{server}/api/event", data=json.dumps(empty).encode())
+    status, body = fetch(
+        f"{server}/api/event", data=json.dumps(wrong_relation).encode()
+    )
     assert status == 400, body
-    assert "identity fields are invalid" in json.loads(body)["error"]
+    assert "must name a $roles.widgets widget" in json.loads(body)["error"]
+    noncanonical = {
+        **command,
+        "attempt": "structural-id-reference",
+        "references": {
+            **command["references"],
+            "source": {
+                "kind": "structure",
+                "anchor": "backfill-first",
+                "path": [],
+            },
+        },
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(noncanonical).encode())
+    assert status == 400, body
+    assert "must use that exact id record" in json.loads(body)["error"]
+    for attempt, supplied, problem in [
+        (
+            "missing-reference-role",
+            {"source": command["references"]["source"]},
+            "missing declared reference roles ['context']",
+        ),
+        (
+            "undeclared-reference-role",
+            {**command["references"], "other": command["references"]["source"]},
+            "carries undeclared reference roles ['other']",
+        ),
+    ]:
+        refused = {**command, "attempt": attempt, "references": supplied}
+        status, body = fetch(f"{server}/api/event", data=json.dumps(refused).encode())
+        assert status == 400, body
+        assert problem in json.loads(body)["error"]
     document = structure_model.SourceDocument(source)
     assert (
         candidate_vocabulary_gaps(page_dir, events, document, registry, revision) == []
@@ -4438,13 +4601,69 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     facet = deepcopy(registry)
     facet["lf-options"]["x-state"]["choose"]["facet"] = "other"
     references = deepcopy(registry)
-    references["lf-options"]["x-state"]["choose"]["references"] = []
+    references["lf-options"]["x-state"]["choose"]["references"] = {
+        "context": {},
+        "source": {},
+    }
     answer = deepcopy(registry)
     answer["lf-options"]["x-awaits"]["answers"] = ["answer"]
-    for incoming in (facet, references, answer):
+    for incoming in (facet, answer):
         assert "changes admitted meaning" in "\n".join(
             candidate_vocabulary_gaps(page_dir, events, document, incoming, revision)
         )
+    assert "changes its admitted reference-role declaration" in "\n".join(
+        candidate_vocabulary_gaps(page_dir, events, document, references, revision)
+    )
+
+
+def test_thread_action_references_use_their_frozen_markup_root(server, page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-state"]["choose"]["references"] = {"context": {}}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "Choose?"},
+    )
+    conversation_model.cmd_reply(
+        page_dir,
+        "c1",
+        "Use this context:",
+        '<p>Frozen context</p><lf-ask id="thread-ask"><h2>Choose one</h2>'
+        '<lf-options id="thread-picks" choose><lf-option id="thread-option">'
+        "Thread option</lf-option></lf-options></lf-ask>",
+        for_event="c1",
+    )
+    revision = files_model.latest_revision(page_dir)
+    command = {
+        "kind": "action",
+        "revision": revision,
+        "widget": "thread-picks",
+        "action": "choose",
+        "detail": {"options": ["thread-option"]},
+        "references": {
+            "context": {
+                "kind": "structure",
+                "path": [{"tree": "light", "tag": "p"}],
+            }
+        },
+        "attempt": "thread-reference",
+    }
+
+    status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
+    assert status == 200, body
+    assert (
+        json.loads(body)["state"]["events"][-1]["references"] == command["references"]
+    )
+
+    escaped = {
+        **command,
+        "attempt": "thread-reference-escaped",
+        "references": {"context": {"kind": "id", "id": "backfill-first"}},
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(escaped).encode())
+    assert status == 400, body
+    assert "detached in its authored document" in json.loads(body)["error"]
 
 
 def test_revendoring_preserves_an_admitted_completion_condition(page_dir):

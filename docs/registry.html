@@ -541,13 +541,13 @@
                   failure reopens it, and success completes it. Each request is durable
                   and not undoable because the host may already have acted.
                   <code>leaf receipt</code> appends exactly one linked
-                  <code>succeeded</code> or <code>failed</code> outcome, and
-                  <code>watchRequestLifecycle</code> supplies the holder's
-                  server-projected request seat, exact request/receipt attempts, latest
-                  attempt, and ready/pending/completed phase to its package module. Leaf
-                  transports and validates the protocol but does not interpret verbs or
-                  execute them; package-owned guidance tells the host what each verb
-                  means, and external data carries replaceable evidence produced by it.
+                  <code>succeeded</code> or <code>failed</code> outcome, and the widget
+                  controller supplies the holder's server-projected request seat, exact
+                  request/receipt attempts, latest attempt, and ready/pending/completed
+                  phase to its package module. Leaf transports and validates the
+                  protocol but does not interpret verbs or execute them; package-owned
+                  guidance tells the host what each verb means, and external data
+                  carries replaceable evidence produced by it.
                 </p>
               </details>
             </div>
@@ -643,7 +643,8 @@
                 verb's detail schema (the payload half of the log's forever-contract),
                 its semantic facet, fold unit, optional current-state
                 <code>requires</code>, optional generated-child <code>creates</code>,
-                optional <code>completion</code>, and the record form its state takes in
+                optional <code>completion</code>, optional semantic
+                <code>references</code> role map, and the record form its state takes in
                 markup.
               </p>
               <details class="reference-more">
@@ -670,12 +671,12 @@
                   and an absent field means the action is not an answer. Historical
                   settlement uses the admitted owner-unit-facet coordinate even after
                   the widget retires; independent facets on the widget coexist. A report
-                  cannot declare resolves. Optional references names additional string
-                  or string-array detail fields carrying element identities; fold units
-                  and attribute-set or position records already declare their own
-                  references. Admission snapshots those direct identities while
-                  retraction keeps reading current containment. The facet, unit,
-                  requires, creates, and record forms are $state's.
+                  cannot declare resolves. Optional references maps package- or
+                  page-named roles to the same {} or {via, where} target contract as
+                  x-refers; matching stable target records travel beside detail and must
+                  resolve uniquely in the sending source document. Ids and structural
+                  anchors become direct dependencies. The facet, unit, requires,
+                  creates, and record forms are $state's.
                 </p>
               </details>
             </div>

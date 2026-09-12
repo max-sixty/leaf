@@ -73,7 +73,11 @@ POSTs, and page-error channel;
 ended, and the pending ledger's unresolved attempts — painted on the root element as
 `data-lf-traffic` for whatever waits on the page from outside it;
 `runtime/widget-controller.js` owns the public, publisher-backed action and request
-reading, dispatch, subscription lifetime, and presentation seam;
+reading, document-bound target-reference capture, declared-role dispatch validation,
+subscription lifetime, and presentation seam;
+`runtime/target-references.js` owns stable id and structural target records, exact
+resolution, immutable page and frozen-fragment boundaries, and the shared pointer and
+keyboard candidate walk;
 `runtime/application.js` owns typed action, undo, and one-shot request transport;
 `runtime/request-elements.js` owns the controller-backed request-control adapter while
 each package supplies its words and bound detail;

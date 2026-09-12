@@ -15,7 +15,7 @@ def direct_dependencies(event: dict, spec: dict) -> list[str]:
     detail = event["detail"]
     owner = event["widget"]
     unit = owner if spec["unit"] == "widget" else detail[spec["unit"]]
-    fields = list(spec.get("references", []))
+    fields = []
     record = spec.get("record") or {}
     if record.get("kind") in {"attribute", "position"}:
         fields.append(record["value"])
@@ -24,6 +24,14 @@ def direct_dependencies(event: dict, spec: dict) -> list[str]:
         value = detail.get(field)
         if value is not None:
             dependencies.extend(value if isinstance(value, list) else [value])
+    for reference in event.get("references", {}).values():
+        identity = (
+            reference.get("id")
+            if reference.get("kind") == "id"
+            else reference.get("anchor")
+        )
+        if identity:
+            dependencies.append(identity)
     dependencies.extend(created_children(event, spec))
     return dependencies
 
@@ -106,6 +114,7 @@ def stored_meaning_error(
         fields = [
             ("record", "record form"),
             ("completion", "completion condition"),
+            ("references", "reference-role declaration"),
         ]
         if event["kind"] == "action":
             fields.append(("creates", "creates declaration"))

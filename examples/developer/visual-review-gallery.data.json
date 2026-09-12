@@ -30,6 +30,12 @@
           "locale": "en-US",
           "timezone": "America/Los_Angeles"
         },
+        "focus": {
+          "x": 20,
+          "y": 100,
+          "width": 350,
+          "height": 640
+        },
         "before": "/media/2e67d22047659af6.png",
         "after": "/media/0150b6de0768161e.png"
       },
@@ -51,6 +57,12 @@
           "colorScheme": "light",
           "locale": "en-US",
           "timezone": "America/Los_Angeles"
+        },
+        "focus": {
+          "x": 20,
+          "y": 108,
+          "width": 350,
+          "height": 110
         },
         "before": "/media/3cf0e3efe80c6b01.png",
         "after": "/media/4f465a0582ab00fe.png"

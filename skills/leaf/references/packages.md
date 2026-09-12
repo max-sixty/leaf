@@ -72,8 +72,8 @@ orchestration widgets; `pr-review` adds a typed pull-request brief with a safe M
 description and compact checks table, plus a data-backed unified call diff; `monitoring`
 adds a release workspace with current state, checks, a run log, and a bound rollback
 request; `visual-review` adds an ordered website run, aligned before-and-after evidence,
-automatic compare orientation, local flip and overlay, fit and captured-size inspection,
-exact preview links, and case dispositions. `gallery`
+automatic compare orientation, authored focus with full-frame context, local flip and
+overlay, fit and captured-size inspection, exact preview links, and case dispositions. `gallery`
 adds the static gallery of page-edge action controls, disclosure controls, and status
 indicators used only by the developer feature gallery, so ordinary pages do not select it:
 

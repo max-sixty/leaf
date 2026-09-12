@@ -6,22 +6,19 @@ remain in git history.
 
 ## Now
 
-- **Make Leaf a complete playground builder.** Follow the
-  [playground capability plan](notes/playground-capability-plan.md) to unify custom
-  state with controls and output, restore discovery and task-shaped recipes, improve
-  Targeting, add representative website examples, and preserve interaction in an
-  explicit offline export.
+- **Make the page instance complete and its browser state coherent.** Treat the
+  [page-instance boundary](notes/page-instance-boundary.md) and
+  [reactive runtime vision](notes/reactive-browser-runtime.md) as one program: capture a
+  complete revision, prove page-owned declarations through the final public behavior
+  API, cut semantic publication and rendering over, then add interactive export through
+  the shared presentation boundary. Authored pages remain ordinary HTML and
+  installations gain no frontend build.
 
-- **Cut the browser runtime over to one reactive application snapshot.** Start with the
-  demanding Lit and Signals validation slice, then complete the state, rendering,
-  presentation, export, and build cutover in the
-  [runtime vision](notes/reactive-browser-runtime.md). Authored pages remain ordinary
-  HTML and installations gain no frontend build.
-
-- **Make the page instance a complete authored artifact.** Follow the
-  [page-instance boundary specification](notes/page-instance-boundary.md) to capture
-  page-owned dependencies and declarations, separate design intent from source
-  ownership, generalize target identity, and add an explicit interactive export mode.
+- **Make Leaf a complete playground builder.** Once the joint page and runtime boundary
+  exists, follow the [playground capability plan](notes/playground-capability-plan.md) to
+  unify custom state with controls and output, restore discovery and task-shaped
+  recipes, improve Targeting, add representative website examples, and preserve
+  interaction in the shared offline mode.
 
 - **Establish the first agent-usability baseline.** Build the cold-authoring,
   reading-parity, and resume fixtures described in
@@ -84,10 +81,9 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
   persistence and accessibility contract. Commands, non-character routes, and visible
   controls remain available.
 
-- **Finish fast visual inspection with authored change regions.** Automatic compare,
-  flip, overlay, fit, and captured-size views now work without changing the visual-run contract
-  or case ids. Add disclosed masks and changed-region navigation once repeated reviews
-  establish the smallest useful authored region contract.
+- **Add disclosed masks to visual-review evidence.** Authored case-level focus areas now
+  make small changes findable without adding nested review units. Add masks only once
+  repeated reviews establish the smallest disclosure and export contract.
 
 - **Open visual-review targets beside Leaf through the host.** Coordinate the exact
   case URL in a real browser pane and report mutable-preview staleness without treating

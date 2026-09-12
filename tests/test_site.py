@@ -560,8 +560,9 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
     page, errors = open_page(browser, url)
     try:
         review = page.locator("#visual-review-run")
-        for index in (0, 1):
-            review.locator(".lf-vr-case-tab").nth(index).click()
+        case_select = review.get_by_role("combobox", name="Selected visual case")
+        for case_id in ("open-mobile-package-catalog", "keep-mobile-destinations"):
+            case_select.select_option(case_id)
             comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
             expect(comparison).to_be_visible()
             images = comparison.locator("img")

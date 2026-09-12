@@ -44,6 +44,34 @@ def _deadline(ts: str | None, grace: timedelta, now: datetime) -> datetime | Non
     return due if due > now else None
 
 
+def canonical_stream_reply(
+    present: dict, now_iso: str, reply: dict | None
+) -> dict | None:
+    """Project one provisional reply against its session lease and age."""
+    if reply is None:
+        return None
+    result = dict(reply)
+    if result.get("state") == "active" and (
+        result.get("session") != present.get("claim_session")
+        or not present["listening"]
+        or _quiet(
+            result.get("updated_at") or result.get("ts"),
+            datetime.fromisoformat(now_iso),
+            WORKING_GRACE,
+        )
+    ):
+        result["state"] = "disconnected"
+    return result
+
+
+def _reply_evidence(reply: dict) -> dict:
+    """Keep response settlement evidence in activity without duplicating its text."""
+    return {
+        key: reply.get(key)
+        for key in ("state", "session", "turn", "reply_to", "responds", "settles")
+    } | {"has_text": bool(reply.get("text"))}
+
+
 def transition_due(activity: dict, now_iso: str) -> bool:
     """Whether a projected activity reading has reached its refresh boundary."""
     due = _moment(activity.get("next_transition_at"))
@@ -93,6 +121,7 @@ def canonical_activity(
     interaction_evidence: list[dict],
     now_iso: str,
     stream: dict | None = None,
+    reply: dict | None = None,
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot."""
     now = datetime.fromisoformat(now_iso)
@@ -123,6 +152,16 @@ def canonical_activity(
     if due := _deadline(status.get("ts"), WORKING_GRACE, now):
         deadlines.append(due)
     if stream and (due := _deadline(stream.get("ts"), WORKING_GRACE, now)):
+        deadlines.append(due)
+    if (
+        reply
+        and reply.get("state") == "active"
+        and (
+            due := _deadline(
+                reply.get("updated_at") or reply.get("ts"), WORKING_GRACE, now
+            )
+        )
+    ):
         deadlines.append(due)
     if due := _deadline(present.get("turn_closed"), TURN_RENEWAL_GRACE, now):
         deadlines.append(due)
@@ -255,4 +294,5 @@ def canonical_activity(
         "next_transition_at": min(deadlines).isoformat() if deadlines else None,
         "interactions": interactions,
         "obligations": obligations,
+        **({"reply": _reply_evidence(reply)} if reply is not None else {}),
     }

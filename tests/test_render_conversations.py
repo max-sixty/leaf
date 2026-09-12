@@ -7,11 +7,13 @@ from copy import deepcopy
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_command
+from interact_support import append_command, record_claim
 from leaf import cli as cli_model
 from leaf import conversation as conversation_model
 from leaf import event_log as events_model
+from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
+from leaf import service as service_model
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -55,6 +57,56 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+def test_a_durable_reply_repaints_an_empty_stream_placeholder(browser, serve, request):
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Answer me here", {"section": "h-how"})
+    claim = record_claim(
+        serve.page_dir,
+        id="codex-thread",
+        host="codex",
+        agent="Codex",
+    )
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(serve.page_dir, claim)
+    )
+    assert lease
+    request.addfinalizer(lease.close)
+    attempt = service_model.stream_reply_attempt("leaf-turn")
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.set_status("waiting", "Reader feedback")
+        transaction.set_stream_reply(
+            "codex-thread",
+            "leaf-turn",
+            root,
+            root,
+            None,
+            "",
+            "active",
+        )
+
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    message = page.locator(f'.lf-msg[data-attempt="{attempt}"]')
+    expect(message.locator(".lf-msg-text")).to_be_empty()
+
+    reply = conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "The complete answer.",
+        "",
+        for_event=root,
+        attempt=attempt,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.clear_stream_reply("codex-thread", "leaf-turn")
+
+    expect(message).to_have_attribute("data-mid", reply["id"])
+    expect(message.locator(".lf-msg-text")).to_have_text("The complete answer.")
+    assert errors == []
 
 
 @pytest.mark.parametrize("resolved", [False, True])

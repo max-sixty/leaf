@@ -13,6 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from leaf.codex import _prompt as delivery_prompt
 from leaf.codex import _queues as codex_queues
 from leaf.event_log import append_event, read_events
 from leaf.hosting import TemporaryPageServer, server_at
@@ -246,14 +247,22 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
         lambda page: {"id": "hosted-thread", "host": "codex"},
     )
     requests = []
+    follows = []
 
     def request(method, params, before_close=None):
         requests.append((method, params))
         if before_close is not None:
-            before_close(
-                "socket",
-                {"thread": {"id": "hosted-thread", "status": {"type": status}}},
-                [],
+            follows.append(
+                before_close(
+                    "socket",
+                    {
+                        "thread": {
+                            "id": "hosted-thread",
+                            "status": {"type": status},
+                        }
+                    },
+                    [],
+                )
             )
         return {"thread": {"id": "hosted-thread", "status": {"type": status}}}
 
@@ -276,7 +285,29 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
     monkeypatch.setattr(
         website_server,
         "prepare_codex_delivery",
-        lambda *_: SimpleNamespace(prompt="delivery-pointer", payload={}),
+        lambda *_: SimpleNamespace(
+            prompt="delivery-pointer",
+            payload={
+                "id": "delivery-1",
+                "batches": [
+                    {
+                        "page": str(page_dir),
+                        "events": [
+                            {
+                                "id": "reader-event",
+                                "obligation": {
+                                    "response": {
+                                        "kind": "reply",
+                                        "to": "reader-event",
+                                        "for": "reader-event",
+                                    }
+                                },
+                            }
+                        ],
+                    }
+                ],
+            },
+        ),
     )
     monkeypatch.setattr(
         website_server,
@@ -320,11 +351,17 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
     if status == "active":
         assert queued == [("codex", "hosted-thread", "delivery-pointer", host.endpoint)]
         assert accepted == [(("hosted-thread",), {"phase": "queued"})]
+        assert follows[0][-1] == "delivery-1"
+        assert follows[0][-2] == {
+            "page": str(page_dir),
+            "reply_to": "reader-event",
+            "responds": "reader-event",
+        }
     else:
         assert queued == []
 
 
-def test_a_second_website_comment_is_observed_from_queue_to_terminal_turn(page_dir):
+def test_a_queued_website_reply_binds_only_to_its_delivery_turn(page_dir):
     identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
     append_event(
         page_dir,
@@ -336,32 +373,68 @@ def test_a_second_website_comment_is_observed_from_queue_to_terminal_turn(page_d
         page_dir,
         {"kind": "comment", "author": "user", "text": "second while active"},
     )
-    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    prepared = website_server.prepare_codex_delivery(
+        page_dir, identity, {"pid": os.getpid()}
+    )
     [queued] = website_server.accept_codex_delivery("hosted-thread", phase="queued")
+
+    def queued_turn(turn_id, delivery_id):
+        return {
+            "method": "turn/started",
+            "params": {
+                "threadId": "hosted-thread",
+                "turn": {
+                    "id": turn_id,
+                    "status": "inProgress",
+                    "items": [
+                        {
+                            "id": f"message-{turn_id}",
+                            "type": "userMessage",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": delivery_prompt(delivery_id),
+                                }
+                            ],
+                        }
+                    ],
+                },
+            },
+        }
 
     class Socket:
         def __init__(self):
             self.messages = iter(
                 [
+                    queued_turn("other-turn", "another-delivery"),
                     {
                         "method": "turn/completed",
                         "params": {
                             "threadId": "hosted-thread",
-                            "turn": {"id": "first-turn", "status": "completed"},
+                            "turn": {
+                                "id": "other-turn",
+                                "status": "completed",
+                                "items": [],
+                            },
                         },
                     },
-                    {
-                        "method": "turn/started",
-                        "params": {
-                            "threadId": "hosted-thread",
-                            "turn": {"id": "queued-turn", "status": "inProgress"},
-                        },
-                    },
+                    queued_turn("queued-turn", prepared.payload["id"]),
                     {
                         "method": "turn/completed",
                         "params": {
                             "threadId": "hosted-thread",
-                            "turn": {"id": "queued-turn", "status": "completed"},
+                            "turn": {
+                                "id": "queued-turn",
+                                "status": "completed",
+                                "items": [
+                                    {
+                                        "id": "answer",
+                                        "type": "agentMessage",
+                                        "phase": "final_answer",
+                                        "text": "The queued answer",
+                                    }
+                                ],
+                            },
                         },
                     },
                 ]
@@ -382,6 +455,8 @@ def test_a_second_website_comment_is_observed_from_queue_to_terminal_turn(page_d
         None,
         None,
         queued["events"],
+        website_server.stream_reply_target(prepared.payload),
+        prepared.payload["id"],
     )
 
     pickups = [
@@ -393,9 +468,99 @@ def test_a_second_website_comment_is_observed_from_queue_to_terminal_turn(page_d
         ("queued", None),
         ("opened", "queued-turn"),
     ]
+    replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert [(reply["responds"], reply["text"]) for reply in replies] == [
+        (second["id"], "The queued answer")
+    ]
     claim = website_server.page_claim(page_dir)
     assert claim["turn"] == "queued-turn"
     assert claim["turn_closed"] is not None
+    assert socket.closed
+
+
+def test_an_unbound_queued_website_turn_leaves_the_direct_turn_running(page_dir):
+    first = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "first"},
+    )
+    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
+    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    [opened] = website_server.accept_codex_delivery("hosted-thread")
+    second = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "second while active"},
+    )
+    prepared = website_server.prepare_codex_delivery(
+        page_dir, identity, {"pid": os.getpid()}
+    )
+    [queued] = website_server.accept_codex_delivery("hosted-thread", phase="queued")
+    website_server._set_stream_activity(
+        "hosted-thread", opened["turn"], "Still working"
+    )
+
+    class Socket:
+        closed = False
+
+        def __init__(self):
+            self.messages = iter(
+                [
+                    {
+                        "method": "turn/started",
+                        "params": {
+                            "threadId": "hosted-thread",
+                            "turn": {
+                                "id": "unidentified-turn",
+                                "status": "inProgress",
+                                "items": [],
+                            },
+                        },
+                    },
+                    {
+                        "method": "turn/completed",
+                        "params": {
+                            "threadId": "hosted-thread",
+                            "turn": {
+                                "id": "unidentified-turn",
+                                "status": "completed",
+                                "items": [],
+                            },
+                        },
+                    },
+                ]
+            )
+
+        def recv(self, timeout):
+            try:
+                return json.dumps(next(self.messages))
+            except StopIteration as error:
+                raise OSError("connection closed") from error
+
+        def close(self):
+            self.closed = True
+
+    socket = Socket()
+    website_server.WebsiteCodexHost("codex")._follow_turn(
+        socket,
+        page_dir,
+        "hosted-thread",
+        None,
+        None,
+        queued["events"],
+        website_server.stream_reply_target(prepared.payload),
+        prepared.payload["id"],
+    )
+
+    claim = website_server.page_claim(page_dir)
+    assert claim["turn"] == opened["turn"]
+    assert claim["turn_closed"] is None
+    stream = website_server.PageTransaction(page_dir).status["stream"]["activity"]
+    assert (stream["turn"], stream["detail"]) == (opened["turn"], "Still working")
+    activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
+    assert activity["kind"] == "handling"
+    assert [obligation["event"] for obligation in activity["obligations"]] == [
+        first["id"],
+        second["id"],
+    ]
     assert socket.closed
 
 
@@ -433,8 +598,8 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
     monkeypatch.setattr(
         website_server,
         "accept_codex_delivery",
-        lambda *args: (
-            accepted.append(args)
+        lambda *args, **kwargs: (
+            accepted.append((args, kwargs))
             or [
                 {
                     "page": page_dir,
@@ -470,6 +635,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
             "turn/start",
             {
                 "threadId": "hosted-thread",
+                "clientUserMessageId": "delivery-1",
                 "input": [],
                 "toolOutput": {
                     "name": "leaf_delivery",
@@ -480,7 +646,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
             [],
         )
     ]
-    assert accepted == [("hosted-thread",)]
+    assert accepted == [(("hosted-thread",), {"turn": "initial-turn"})]
 
 
 def test_an_ephemeral_website_task_is_not_persisted(page_dir, monkeypatch):
@@ -687,13 +853,22 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "structured `leaf_delivery` tool output" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF delivery read ID" in website_server.CODEX_INSTRUCTIONS
     assert '$LEAF_REPLY EVENT_ID "..."' in website_server.CODEX_INSTRUCTIONS
+    assert "your normal final message is the\n  only reply operation" in (
+        website_server.CODEX_INSTRUCTIONS
+    )
+    assert "Do not run\n  `$LEAF_REPLY`" in website_server.CODEX_INSTRUCTIONS
     assert "no separate `leaf publish` command" in website_server.CODEX_INSTRUCTIONS
+    assert "$LEAF version check" not in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF status" not in website_server.CODEX_INSTRUCTIONS
     assert (
         "$LEAF resolve . --to RESPONSE_CONVERSATION"
         in website_server.CODEX_INSTRUCTIONS
     )
-    assert "native final message" in website_server.CODEX_INSTRUCTIONS
+    assert "normal final" in website_server.CODEX_INSTRUCTIONS
+    assert "Use exactly one response path" in website_server.CODEX_INSTRUCTIONS
+    assert (
+        "The host binds, streams, and commits it" in website_server.CODEX_INSTRUCTIONS
+    )
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -1062,7 +1237,7 @@ def test_notifications_before_start_response_reach_the_turn_follower(
     monkeypatch.setattr(
         website_server,
         "accept_codex_delivery",
-        lambda *args: [
+        lambda *args, **kwargs: [
             {
                 "page": page_dir,
                 "events": ("reader-event",),
@@ -1213,7 +1388,18 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                     "method": "turn/completed",
                     "params": {
                         "threadId": "hosted-thread",
-                        "turn": {"id": "initial-turn", "status": "completed"},
+                        "turn": {
+                            "id": "initial-turn",
+                            "status": "completed",
+                            "items": [
+                                {
+                                    "id": "message-1",
+                                    "type": "agentMessage",
+                                    "phase": "final_answer",
+                                    "text": "Deployment verified.",
+                                }
+                            ],
+                        },
                     },
                 }
             ),
@@ -1232,6 +1418,21 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
     socket = Socket()
     updates = []
     clears = []
+    streamed = []
+    committed = []
+
+    class ReplyStream:
+        def __init__(self, session, turn, target):
+            streamed.append((session, turn, dict(target)))
+
+        def update(self, update):
+            message = update.get("message") if update is not None else None
+            if message is not None and message["phase"] == "final_answer":
+                streamed.append((message["text"], message["complete"]))
+
+        def finish(self, state, text):
+            committed.append((state, text))
+
     monkeypatch.setattr(
         website_server,
         "_set_stream_activity",
@@ -1242,6 +1443,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         "_clear_stream_activity",
         lambda *args: clears.append(args),
     )
+    monkeypatch.setattr(website_server, "AppServerReplyStream", ReplyStream)
 
     host = website_server.WebsiteCodexHost("codex")
     finished = []
@@ -1253,6 +1455,11 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         "initial-turn",
         "leaf-turn",
         ("reader-event",),
+        {
+            "page": str(page_dir),
+            "reply_to": "reader-event",
+            "responds": "reader-event",
+        },
     )
 
     assert updates == [
@@ -1261,6 +1468,19 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         ("hosted-thread", "initial-turn", "Deployment verified."),
     ]
     assert clears == [("hosted-thread", "initial-turn")]
+    assert streamed == [
+        (
+            "hosted-thread",
+            "initial-turn",
+            {
+                "page": str(page_dir),
+                "reply_to": "reader-event",
+                "responds": "reader-event",
+            },
+        ),
+        ("Deployment verified.", True),
+    ]
+    assert committed == [("completed", "Deployment verified.")]
     logs = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert [record["event"] for record in logs] == [
         "turn_following_started",
@@ -1292,7 +1512,18 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
             page_dir,
             "hosted-thread",
             "leaf-turn",
-            {"id": "initial-turn", "status": "completed"},
+            {
+                "id": "initial-turn",
+                "status": "completed",
+                "items": [
+                    {
+                        "id": "message-1",
+                        "type": "agentMessage",
+                        "phase": "final_answer",
+                        "text": "Deployment verified.",
+                    }
+                ],
+            },
         )
     ]
     assert socket.closed
@@ -1385,12 +1616,13 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
     [delivery] = website_server.accept_codex_delivery("hosted-thread")
     (page_dir / "index.html").write_text("<main>unfinished")
 
-    website_server.WebsiteCodexHost("codex")._finish_turn(
-        page_dir,
-        "hosted-thread",
-        delivery["turn"],
-        {"id": "app-server-turn", "status": "completed", "error": None},
-    )
+    with pytest.raises(ValueError):
+        website_server.WebsiteCodexHost("codex")._finish_turn(
+            page_dir,
+            "hosted-thread",
+            delivery["turn"],
+            {"id": "app-server-turn", "status": "completed", "error": None},
+        )
 
     claim = website_server.page_claim(page_dir)
     assert claim["turn"] == delivery["turn"]
@@ -1402,6 +1634,76 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
             "activity"
         ]["obligations"]
     ] == [comment["id"]]
+
+
+def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    website_server.prepare_codex_delivery(
+        page_dir,
+        {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"},
+        {"pid": os.getpid()},
+    )
+    [delivery] = website_server.accept_codex_delivery(
+        "hosted-thread", turn="app-server-turn"
+    )
+    (page_dir / "index.html").write_text("<main>unfinished")
+
+    class Socket:
+        closed = False
+
+        def recv(self, timeout):
+            return json.dumps(
+                {
+                    "method": "turn/completed",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turn": {
+                            "id": "app-server-turn",
+                            "status": "completed",
+                            "items": [
+                                {
+                                    "id": "answer",
+                                    "type": "agentMessage",
+                                    "phase": "final_answer",
+                                    "text": "Done.",
+                                }
+                            ],
+                        },
+                    },
+                }
+            )
+
+        def close(self):
+            self.closed = True
+
+    socket = Socket()
+    with pytest.raises(ValueError, match="unclosed tags"):
+        website_server.WebsiteCodexHost("codex")._follow_turn(
+            socket,
+            page_dir,
+            "hosted-thread",
+            "app-server-turn",
+            delivery["turn"],
+            delivery["events"],
+            {
+                "page": str(page_dir),
+                "reply_to": comment["id"],
+                "responds": comment["id"],
+            },
+        )
+
+    claim = website_server.page_claim(page_dir)
+    assert claim["turn_closed"] is not None
+    reply = website_server.PageTransaction(page_dir).status["stream"]["reply"]
+    assert (reply["state"], reply["text"], reply["settles"]) == (
+        "failed",
+        "Done.",
+        False,
+    )
+    assert socket.closed
 
 
 def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
@@ -1464,16 +1766,25 @@ def test_a_host_fallback_does_not_answer_input_an_agent_turn_already_claimed(
     assert reply is None
 
 
-def test_a_claimed_website_turn_replies_through_the_running_adapter(page_dir):
+def test_an_explicit_website_reply_wins_over_the_streamed_final(page_dir):
     comment = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
     identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
     website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
-    website_server.accept_codex_delivery("hosted-thread")
+    [delivery] = website_server.accept_codex_delivery("hosted-thread")
+    target = {
+        "page": str(page_dir),
+        "reply_to": comment["id"],
+        "responds": comment["id"],
+    }
+    stream = website_server.AppServerReplyStream(
+        "hosted-thread", delivery["turn"], target
+    )
+    host = website_server.WebsiteCodexHost("codex")
 
-    reply = website_server.WebsiteCodexHost("codex").respond(
+    reply = host.respond(
         page_dir,
         comment["id"],
         "Done.",
@@ -1489,6 +1800,12 @@ def test_a_claimed_website_turn_replies_through_the_running_adapter(page_dir):
     assert reply["revision"] == 1
     assert reply["anchor"]["section"] == "plan"
     assert reply["anchor"]["quote"] == "The cutoff lives in"
+    assert stream.finish("completed", "Answered on the page.") is None
+    replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert [(event["text"], event["responds"]) for event in replies] == [
+        ("Done.", comment["id"])
+    ]
+    assert "stream" not in website_server.PageTransaction(page_dir).status
 
 
 def test_a_host_fallback_survives_an_invalid_candidate_source(page_dir):
@@ -2043,20 +2360,28 @@ def test_a_failed_page_action_preserves_the_change_and_offers_a_retry(
         if failure == "publication":
             source.write_text("<main>unfinished")
         for _ in range(2):
-            host._finish_turn(
-                page_dir,
-                "action-thread",
-                delivery["turn"],
-                {
-                    "id": "failed-turn",
-                    "status": (
-                        "completed"
-                        if failure in {"publication", "omission"}
-                        else "failed"
-                    ),
-                    "error": None,
-                },
-            )
+            finished = {
+                "id": "failed-turn",
+                "status": (
+                    "completed" if failure in {"publication", "omission"} else "failed"
+                ),
+                "error": None,
+            }
+            if failure == "publication":
+                with pytest.raises(ValueError):
+                    host._finish_turn(
+                        page_dir,
+                        "action-thread",
+                        delivery["turn"],
+                        finished,
+                    )
+            else:
+                host._finish_turn(
+                    page_dir,
+                    "action-thread",
+                    delivery["turn"],
+                    finished,
+                )
         assert website_server.page_claim(page_dir)["turn_closed"] is not None
 
     state = website_server.full_state(page_dir, read_events(page_dir))

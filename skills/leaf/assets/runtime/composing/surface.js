@@ -85,7 +85,7 @@ import { anchorLabel } from "../conversation/messages.js";
 import { reactionsAt } from "../conversation/model.js";
 import { allThreads } from "../conversation/state.js";
 
-import { readingRegionFor, shownRegionBounds } from "../reading-regions.js";
+import { containingReadingRegionFor, shownRegionBounds } from "../reading-regions.js";
 
 export const BANNER_CLEAR = 48;
 let floatingUiModule = null;
@@ -246,26 +246,39 @@ export function createResponseSurface({
       ? Promise.resolve(true)
       : new Promise((resolve) => fabPositionWaiters.push(resolve));
 
+  const captureFabFocus = () => {
+    const element = focused();
+    if (!(element instanceof HTMLElement) || !fabBar.contains(element)) return null;
+    const selection =
+      element === fabInput
+        ? {
+            start: element.selectionStart,
+            end: element.selectionEnd,
+            direction: element.selectionDirection,
+          }
+        : null;
+    return { element, selection };
+  };
+
+  const restoreFabFocus = (held) => {
+    if (!held || focused() === held.element || !held.element.isConnected) return;
+    held.element.focus({ preventScroll: true });
+    if (held.selection)
+      held.element.setSelectionRange(
+        held.selection.start,
+        held.selection.end,
+        held.selection.direction,
+      );
+  };
+
   // Reparenting the canonical response bar is presentation, not a composer transition.
   // Preserve the exact typing position across light/shadow DOM moves; Chromium may put
   // focus on the shadow host while a focused textarea is adopted into its tree.
   function moveFab(parent) {
     if (fabBar.parentElement === parent) return;
-    const held = focused();
-    const holdsFocus = held instanceof HTMLElement && fabBar.contains(held);
-    const selection =
-      holdsFocus && held === fabInput
-        ? {
-            start: held.selectionStart,
-            end: held.selectionEnd,
-            direction: held.selectionDirection,
-          }
-        : null;
+    const held = captureFabFocus();
     parent.append(fabBar);
-    if (!holdsFocus || focused() === held) return;
-    held.focus({ preventScroll: true });
-    if (selection)
-      held.setSelectionRange(selection.start, selection.end, selection.direction);
+    restoreFabFocus(held);
   }
 
   function seatFab(outlet) {
@@ -285,12 +298,23 @@ export function createResponseSurface({
 
   function restoreFab({ place = true } = {}) {
     if (!fabInlineOutlet && fabBar.parentElement === responseHome) return false;
+    // Resetting the inline presentation hides the response before moving it back to the
+    // viewport plane. Capture the exact focused control first; hiding a focused subtree
+    // makes Chromium move focus to body before moveFab can observe what was held.
+    const held = captureFabFocus();
     stopFabPositioning({ reset: true });
     fabInlineOutlet = null;
     fabFloating = true;
     delete fabBar.dataset.lfPresentation;
     moveFab(responseHome);
-    if (place && fabAnchor && !placeFab()) showFab(null);
+    if (place && fabAnchor) {
+      const displacedFocus = focused();
+      if (!placeFab()) showFab(null);
+      else if (held)
+        void fabPositioned().then((positioned) => {
+          if (positioned && focused() === displacedFocus) restoreFabFocus(held);
+        });
+    }
     return true;
   }
 
@@ -382,7 +406,7 @@ export function createResponseSurface({
     if (!fabAnchor || !target) return false;
     const owner = fabTargetAt();
     const block = fabAnchor.quote && owner;
-    const readingRegion = owner && readingRegionFor(owner);
+    const readingRegion = owner && containingReadingRegionFor(owner);
     let regionBounds = readingRegion && shownRegionBounds(readingRegion);
     let boundary = floatBoundary(regionBounds);
     // Keep the response within its pane while that pane can hold the compact control.

@@ -189,16 +189,20 @@ reach the agent even when they require no conversational reply. The accepted
 event and active turn are not yet mirrored into Durable Object storage, and no alarm
 recovers work that exceeds the Worker's 30-second `waitUntil` window.
 Container startup warms App Server and the Leaf CLI entrypoint concurrently, reducing
-cold runtime-filesystem work before a model command. A reply uses the private
-capability-authenticated `$LEAF_REPLY` adapter already running in the container instead
-of starting another Python process with Leaf's dependency graph. That adapter still
-calls the canonical `leaf reply` implementation, including source validation and
-publication; `$LEAF` remains the interface for delivery reads, resolves, and receipts.
+cold runtime-filesystem work before a model command. Each App Server turn is bound to
+one immutable delivery id: the direct request carries it as `clientUserMessageId`, and
+a queued turn carries it in the exact `leaf-delivery` pointer. A bound delivery with one
+plain reply streams the final-answer item into its addressed thread and commits that
+same completed text through the canonical reply writer, even if its turn closes or the
+next turn opens first. Each reply in a multi-response delivery uses the private
+capability-authenticated `$LEAF_REPLY` adapter already running in the container. Both
+routes retain source validation and publication; `$LEAF` remains the interface for
+delivery reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
-The canonical response contract determines settlement: a reply answers a conversation,
-authored state incorporates a page action, a version response also requires its
-conversation's resolution, and a request receives a terminal receipt. The turn's final
-assistant message remains in the Codex transcript.
+The canonical response contract determines settlement: the bound final-answer message
+or an explicit reply answers a conversation, authored state incorporates a page action,
+a version response also requires its conversation's resolution, and a request receives
+a terminal receipt.
 
 Startup failure or rate limiting produces a failure reply when the event permits one.
 A failed page action instead gets an anchored retry conversation. The same conversation

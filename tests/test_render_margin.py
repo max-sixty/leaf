@@ -337,9 +337,8 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
             "RecalcStyleCount",
         )
     }
-    # The write-on-change guards keep the corpus at 8 layouts and 57–58 style
-    # recalculations over five refreshes. These bounds leave room for browser
-    # bookkeeping while refusing the 33 / 127–128 regression from unconditional writes.
+    # These bounds leave room for browser bookkeeping while refusing a widget render
+    # that writes its already-painted state on every heartbeat.
     assert work["LayoutCount"] <= refreshes * 4, work
     assert work["RecalcStyleCount"] <= refreshes * 18, work
     assert geometry_reads == refreshes, geometry_reads

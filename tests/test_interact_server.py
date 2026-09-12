@@ -1054,9 +1054,89 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     signoff = PAGE.replace(
         "<title>t</title>",
         '<title>t</title>\n<meta name="lf-review" content="sign-off">',
-    )
+    ).replace("<lf-options>", '<lf-options id="choice" choose>')
     (page_dir / ".fixture-versions" / "v2.html").write_text(signoff)
     publish(page_dir, version=2)
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
+        ).encode(),
+    )
+    assert status == 400
+    assert json.loads(body)["error"] == (
+        "v2 still has unanswered Asks: plan-choice-decision"
+    )
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "action",
+                "revision": 2,
+                "widget": "choice",
+                "action": "choose",
+                "detail": {"options": ["flag-first"]},
+            }
+        ).encode(),
+    )
+    assert status == 200, body
+
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "approval-question",
+            "author": "user",
+            "revision": 2,
+            "text": "Which follow-up should ship?",
+        },
+    )
+    reply = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            "approval-question",
+            "--for",
+            "approval-question",
+            "--text",
+            "Choose the follow-up:",
+            "--markup",
+            (
+                '<lf-ask id="thread-approval-decision"><h3>Which follow-up?</h3>'
+                '<lf-options id="thread-approval" choose>'
+                '<lf-option id="thread-approval-a"><strong>A</strong></lf-option>'
+                "</lf-options></lf-ask>"
+            ),
+        ],
+    )
+    assert reply.exit_code == 0, reply.output
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {"kind": "done", "version": 2, "revision": 2, "text": "Looks good"}
+        ).encode(),
+    )
+    assert status == 400
+    assert json.loads(body)["error"] == (
+        "v2 still has unanswered Asks: thread-approval-decision"
+    )
+
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "action",
+                "revision": 2,
+                "widget": "thread-approval",
+                "action": "choose",
+                "detail": {"options": ["thread-approval-a"]},
+            }
+        ).encode(),
+    )
+    assert status == 200, body
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps(

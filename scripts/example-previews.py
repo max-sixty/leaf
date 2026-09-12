@@ -15,6 +15,7 @@ import importlib.util
 import io
 import json
 import re
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -23,6 +24,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from example_assets import LOCK, specification
+from example_assets import example_previews as locked_previews
 from example_data import catalog_sources
 from leaf.hosting import server_at
 from PIL import Image
@@ -148,6 +150,19 @@ def stage(captures: dict[str, bytes], staging: Path) -> Path:
     return checkout
 
 
+def bootstrap_previews(target: Path) -> Path:
+    """Supply an image for every route before newly added stills exist."""
+    current = locked_previews()
+    fallback = next(iter(sorted(current.glob("example-*.jpg"))), None)
+    if fallback is None:
+        raise RuntimeError("the pinned asset revision contains no catalog preview")
+    target.mkdir(parents=True)
+    for source in catalog_sources():
+        preview = current / f"example-{source.stem}.jpg"
+        shutil.copy2(preview if preview.is_file() else fallback, target / preview.name)
+    return target
+
+
 def publish(checkout: Path) -> str:
     """Commit and push a verified preview set, then update Leaf's exact pin."""
     repository, _ = specification()
@@ -164,16 +179,19 @@ def publish(checkout: Path) -> str:
 
 
 def main() -> None:
-    # The first build may be the one creating previews that the catalog already names.
-    # Its other links still resolve; the ordinary verified rebuild below checks all of
-    # them once the new bytes exist.
     captures: dict[str, bytes] = {}
 
-    with sync_playwright() as playwright:
+    with (
+        tempfile.TemporaryDirectory(prefix="leaf-preview-site-") as raw_site,
+        sync_playwright() as playwright,
+    ):
+        staging = Path(raw_site)
+        previews = bootstrap_previews(staging / "previews")
+        site = staging / "site"
+        site_build.build_examples(site, catalog_previews=previews)
         browser = playwright.chromium.launch()
         try:
-            site_build.build(site_build.OUT, verify_links=False)
-            with serve_examples(site_build.OUT) as origin:
+            with serve_examples(site) as origin:
                 page = browser.new_page(viewport=VIEWPORT, color_scheme="light")
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
@@ -194,19 +212,19 @@ def main() -> None:
                     if errors:
                         raise RuntimeError(f"{source.name}: {errors[:3]}")
                     captures[target] = output.getvalue()
-
-            with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
-                checkout = stage(captures, Path(raw))
-                previews = set((checkout / "examples").glob("example-*.jpg"))
-                update_catalog(previews)
-                site_build.build(
-                    site_build.OUT,
-                    catalog_previews=checkout / "examples",
-                )
-                revision = publish(checkout)
-                print(f"  max-sixty/leaf-assets@{revision}")
         finally:
             browser.close()
+
+    with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
+        checkout = stage(captures, Path(raw))
+        previews = set((checkout / "examples").glob("example-*.jpg"))
+        update_catalog(previews)
+        site_build.build(
+            site_build.OUT,
+            catalog_previews=checkout / "examples",
+        )
+        revision = publish(checkout)
+        print(f"  max-sixty/leaf-assets@{revision}")
     print(f"✓ {len(catalog_sources())} previews")
 
 

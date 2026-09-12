@@ -35,6 +35,12 @@
    The banner and tray instead use `allAsks`, the current page-and-thread inventory
    that retains an answered action Ask and a request throughout its lifecycle.
 
+   Approval gates on `approvalBlockingAsks`: the active inventory read through the
+   server's answer predicates and the browser's optimistic action projection. Request
+   Asks retain their durable lifecycle. This keeps the counter durable while letting the
+   approval control reflect a result the page has already drawn; refusal removes that
+   winner and restores the gate.
+
    Three readings ask the other question — whether the request is *answered* — and all say
    so by emptying the seats (`answeredContext`, stated beside the shape rather than by a
    caller reaching into it, so a member derived from those conversations later cannot
@@ -55,11 +61,15 @@
 
 import { watchProjection } from "../projection-watch.js";
 import { registry, tagsDeclaring } from "../registry.js";
-import { closestAcross, elementById } from "../passages.js";
+import { closestAcross, elementById, inChrome } from "../passages.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
-import { authoredParents } from "../projection/authored.js";
-import { currentProjection } from "../projection/state.js";
+import {
+  authoredFacet,
+  authoredParents,
+  stateCoordinate,
+} from "../projection/authored.js";
+import { currentProjection, projectionDeferred } from "../projection/state.js";
 
 /* Server-projected ask state, resolved onto the browser's live DOM. */
 const authoredParentOf = (node) => authoredParents.get(node);
@@ -157,6 +167,76 @@ export const allAsks = () => asks("all");
 export const openAsks = (pendingRequestEvents) => asks("reader", pendingRequestEvents);
 export const unansweredAsks = (pendingRequestEvents) =>
   asks("unanswered", pendingRequestEvents);
+
+const attributeConditionHolds = (element, when = {}) =>
+  Object.entries(when).every(([attribute, values]) =>
+    values.some((value) =>
+      typeof value === "boolean"
+        ? element.hasAttribute(attribute) === value
+        : element.getAttribute(attribute) === value,
+    ),
+  );
+
+function projectedHolder(element, reading) {
+  let holder = projectedParent(element, reading);
+  while (holder && !registry[holder.localName])
+    holder = projectedParent(holder, reading);
+  return holder;
+}
+
+function completionMet(source, spec, reading) {
+  const completion = spec.completion;
+  if (!completion) return true;
+  const empty = completion.empty;
+  const containers = [...source.querySelectorAll(empty.within)].filter((element) =>
+    attributeConditionHolds(element, empty.when),
+  );
+  if (containers.length !== 1) return false;
+  const container = containers[0];
+  return ![source, ...source.querySelectorAll("*")]
+    .filter((element) => registry[element.localName])
+    .some(
+      (element) =>
+        element !== container && projectedHolder(element, reading) === container,
+    );
+}
+
+function answerStands(source, verb, reading) {
+  const spec = registry[source.localName]?.["x-state"]?.[verb];
+  if (!spec) return false;
+  const held = [...reading.projection.actions.values()].find(
+    ({ e }) => e.widget === source.id && e.action === verb,
+  );
+  const record = spec.record;
+  if (spec.unit === "widget" && ["attribute", "value"].includes(record?.kind)) {
+    const value =
+      held?.value ?? authoredFacet(stateCoordinate(source.id, source.id, spec));
+    return value !== undefined && value !== null && value !== "";
+  }
+  return Boolean(held && completionMet(source, spec, reading));
+}
+
+// Approval is the one Ask consumer that must include optimistic action state. The
+// counter and tray intentionally report durable progress, but the approval gate cannot
+// tell a reader to answer a question whose answer is already on screen and waiting in
+// the outbox. Read answer verbs from the same projection that painted that result; a
+// refusal removes the local winner before the next gate paint.
+export function approvalBlockingAsks(pendingRequestEvents) {
+  const reading = answeredContext();
+  const durable = new Set(unansweredAsks(pendingRequestEvents));
+  if (projectionDeferred()) return [...durable];
+  return allAsks().filter((ask) => {
+    const source = askSource(ask);
+    const awaits = askEntry(source);
+    if (!awaits) return durable.has(ask);
+    const until = inChrome(source) && awaits?.until;
+    const answers =
+      until && attributeConditionHolds(source, until.when)
+        ? [until.verb]
+        : (awaits?.answers ?? []);
+    return !answers.some((verb) => answerStands(source, verb, reading));
+  });
+}
 
 // A package subscribes to the semantic projection, never to the transport's broad
 // invalidation event. The first reading is synchronous, which lets a connected

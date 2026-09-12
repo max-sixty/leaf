@@ -395,6 +395,9 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         expect(page.locator("body > main")).to_have_css("pointer-events", "auto")
         initial = page.locator("body > main").bounding_box()
         assert initial["y"] == pytest.approx(banner_height, abs=1)
+        assert page.locator("body").bounding_box()["height"] == pytest.approx(
+            900, abs=1
+        )
         assert (
             page.evaluate("() => getComputedStyle(document.body, '::after').content")
             == "none"
@@ -410,6 +413,9 @@ def test_authored_html_paints_while_runtime_startup_is_held(
         assert {key: presented[key] for key in ("x", "y", "width")} == pytest.approx(
             {key: initial[key] for key in ("x", "y", "width")}, abs=1
         ), f"runtime startup moved the {width}px shell"
+        assert page.locator("body").bounding_box()["height"] == pytest.approx(
+            900, abs=1
+        )
         assert errors == []
     finally:
         for route in boot:

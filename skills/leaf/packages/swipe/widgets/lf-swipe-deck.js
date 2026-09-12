@@ -6,7 +6,9 @@
  * `finish`: that one event both places its card and completes the deck's Ask, so returning
  * that card restores both. Complete projection supplies the ordered cards in every pile;
  * this module places the retained nodes and carries only the live pointer gesture. A
- * card's parent pile presents whether it is unseen, passed, or kept.
+ * card's parent pile presents whether it is unseen, passed, or kept. The complete
+ * painted reading is memoized, so a broad action heartbeat that changes no deck state
+ * writes nothing and repaints keyboard scopes only when action availability changes.
  *
  * Piles remain labeled lists in quoted exhibits and static copies. Quoted decks stop at
  * that structure: no controls, tab stops, key scope, or pointer listeners are installed.
@@ -45,6 +47,8 @@ customElements.define(
     #pointer = null;
     #interactive = false;
     #returning = new Set();
+    #painted = null;
+    #keysAvailable = null;
     #stop = null;
 
     connectedCallback() {
@@ -61,6 +65,8 @@ customElements.define(
     disconnectedCallback() {
       this.#stop?.();
       this.#stop = null;
+      this.#painted = null;
+      this.#keysAvailable = null;
       this.#restorePointer();
     }
 
@@ -181,31 +187,56 @@ customElements.define(
       const active = this.#active();
       const action = this.#action();
       const available = Boolean(active && action && actionAvailable(this, action));
-      this.#pass.disabled = !available;
-      this.#keep.disabled = !available;
-
       const unseen = this.#cards(this.#pile("unseen"));
       const classified =
         this.#cards(this.#pile("pass")).length + this.#cards(this.#pile("keep")).length;
-      this.#progress.textContent = unseen.length
+      const progress = unseen.length
         ? `${unseen.length} queued · ${classified} done`
         : `${classified} done · queue clear`;
+      const piles = this.#piles().map((pile) => ({
+        pile,
+        verdict: pile.getAttribute("verdict"),
+        cards: this.#cards(pile).map((card) => ({
+          card,
+          active: card === active && available,
+          returnable: Boolean(this.#returnable(card)),
+          returning: this.#returning.has(card.id),
+        })),
+      }));
+      const reading = JSON.stringify({
+        available,
+        progress,
+        piles: piles.map(({ verdict, cards }) => ({
+          verdict,
+          cards: cards.map(({ card, active, returnable, returning }) => ({
+            id: card.id,
+            active,
+            returnable,
+            returning,
+          })),
+        })),
+      });
+      if (reading === this.#painted) return;
 
-      for (const pile of this.#piles()) {
-        const cards = this.#cards(pile);
-        for (const card of cards) {
-          card.tabIndex = card === active && available ? 0 : -1;
+      const keysMoved = available !== this.#keysAvailable;
+      this.#pass.disabled = !available;
+      this.#keep.disabled = !available;
+      this.#progress.textContent = progress;
+
+      for (const { pile, verdict, cards } of piles) {
+        for (const { card, active, returnable, returning } of cards) {
+          card.tabIndex = active ? 0 : -1;
           const button = card.querySelector(":scope > .lf-swipe-return");
           if (!button) continue;
-          const event = this.#returnable(card);
-          button.hidden = !event;
-          button.disabled = this.#returning.has(card.id);
+          button.hidden = !returnable;
+          button.disabled = returning;
         }
         const label = pile.querySelector(':scope > [data-lf-said="verdict"]');
-        if (label)
-          label.textContent = `${VERDICTS[pile.getAttribute("verdict")]} · ${cards.length}`;
+        if (label) label.textContent = `${VERDICTS[verdict]} · ${cards.length}`;
       }
-      paintKeys();
+      if (keysMoved) paintKeys();
+      this.#keysAvailable = available;
+      this.#painted = reading;
     };
 
     #returnable(card) {

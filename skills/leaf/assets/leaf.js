@@ -294,6 +294,7 @@ const version = createVersionController({
   designModeActive: designMode.active,
   paintLegend: designMode.paintLegend,
   midComposition: () => app.midComposition(),
+  hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
   banner,
   stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),

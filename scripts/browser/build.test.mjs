@@ -19,6 +19,7 @@ test("locked source reproduces the complete committed output", async () => {
   assert.deepEqual(manifest.exports, [
     "LitElement",
     "createApplicationPublisher",
+    "createSemanticApplication",
     "html",
   ]);
   assert.deepEqual(manifest.externalizedModules, []);

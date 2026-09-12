@@ -3,6 +3,16 @@
   "sourceRoots": [
     "scripts/browser"
   ],
+  "sourceInputs": [
+    "scripts/browser/application.ts",
+    "scripts/browser/index.ts",
+    "scripts/browser/snapshot.ts",
+    "skills/leaf/assets/runtime/anchor-coordinate.js",
+    "skills/leaf/assets/runtime/conversation/identity.js",
+    "skills/leaf/assets/runtime/conversation/model.js",
+    "skills/leaf/assets/runtime/pending/model.js",
+    "skills/leaf/assets/runtime/projection/model.js"
+  ],
   "entryPoints": {
     "skills/leaf/assets/vendor/browser-runtime.js": "scripts/browser/index.ts"
   },
@@ -34,18 +44,19 @@
   "exports": [
     "LitElement",
     "createApplicationPublisher",
+    "createSemanticApplication",
     "html"
   ],
   "externalizedModules": [],
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js.map": {
-      "bytes": 236239,
-      "sha256": "611765d8c13e11849d48eecfc0131dbd35b08a7fa7595c241f3972ec6ecafbb2"
+      "bytes": 289176,
+      "sha256": "0f42567734c0cbd5b37e92603289d240ea99f3c9b0cb902410e7346f79c14c78"
     },
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 20136,
-      "sha256": "fc30189de02a15976d83febd2e03c5b1777444dcf87b0716cec4e45bce9c7948"
+      "bytes": 30925,
+      "sha256": "e2e7bb3c07319588c3f73e85bfc8851309fa6d319f9c38458cf2943a4d9bc91a"
     },
     "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
       "bytes": 7267,

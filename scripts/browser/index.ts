@@ -1,6 +1,7 @@
 /** Internal framework bundle. Content modules import runtime/widget-api.js. */
 export { LitElement, html } from "lit";
 export { createApplicationPublisher } from "./snapshot.js";
+export { createSemanticApplication } from "./application.js";
 export type {
   ApplicationSnapshot,
   Immutable,

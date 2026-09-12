@@ -119,10 +119,6 @@ def test_the_page_policy_blocks_non_fetch_escape_routes(browser, serve):
             '<base href="https://outside.invalid/rebased/">'
             """<script type="module">
 window.authoredModuleRan = true;
-window.dataModuleImport = import("/api/state").then(
-  () => "executed",
-  () => "blocked",
-);
 </script>"""
         ),
     )
@@ -147,7 +143,19 @@ window.dataModuleImport = import("/api/state").then(
     )
     try:
         page.wait_for_function("() => window.authoredModuleRan === true")
-        assert page.evaluate("window.dataModuleImport") == "blocked"
+        assert (
+            page.evaluate(
+                """async () => {
+                  try {
+                    await import('/api/state');
+                    return 'executed';
+                  } catch {
+                    return 'blocked';
+                  }
+                }"""
+            )
+            == "blocked"
+        )
         page.wait_for_function("() => window.__cspViolations.includes('base-uri')")
         served = urlparse(page.url)
         assert (
@@ -509,8 +517,13 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
       }""",
         )
     )
+    stamp_page(
+        serve.page_dir,
+        (serve.page_dir / "index.html").read_text(),
+        "capture the projected-link renderer",
+    )
 
-    page, errors = open_page(browser, url)
+    page, errors = open_page(browser, live_url(url))
     links = page.locator('#deployments a[href="https://example.com/status"]')
     expect(links).to_have_count(2)
     expect(links.first).to_have_attribute("target", "_blank")
@@ -2146,7 +2159,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
         const input = args[0];
         const url = typeof input === 'string' ? input : input.url;
         const path = new URL(url, location.href).pathname;
-        if (path === '/registry.json') {
+        if (path.endsWith('/registry.json')) {
           window.lfRegistryBlocked = true;
           return window.lfRegistryGate.then(() => nativeFetch(...args));
         }
@@ -2242,15 +2255,21 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
 
 
 def _asked(context):
-    """Every path this context's pages ever ask for, listening before the first one.
+    """Every logical resource this context asks for, listening before the first one.
 
     The count is what the reading is about, so the listener goes on the context rather
     than on a page: `open_page` makes the page and navigates it in one call, and a
     listener attached to what it hands back has already missed the document, the theme,
-    the registry and every module.
+    the registry and every module. Revision resources are immutable addresses; these
+    tests compare the logical module or asset loaded, so strip only that captured prefix.
     """
     paths = []
-    context.on("request", lambda request: paths.append(urlparse(request.url).path))
+
+    def record(request):
+        path = urlparse(request.url).path
+        paths.append(re.sub(r"^/revisions/r\d+-[0-9a-f]+", "", path))
+
+    context.on("request", record)
     return paths
 
 
@@ -4557,30 +4576,11 @@ def test_new_data_in_a_stale_event_response_is_still_accepted(browser, serve):
 
 def test_conversation_timestamps_age_without_new_state(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE, comments=1))
-    d = serve.page_dir
-    comment = next(e for e in events_model.read_events(d) if e["kind"] == "comment")
-    events_model.append_event(
-        d,
-        {
-            "kind": "reply",
-            "author": "claude",
-            "parent": comment["id"],
-            "responds": comment["id"],
-            "text": "settled for this clock-only test",
-        },
-    )
-    session_model.cmd_status(d, "idle", "")
-    files_model.write_json(
-        d / "status.json",
-        {
-            **files_model.read_json(d / "status.json"),
-            "ts": (datetime.now().astimezone() - timedelta(hours=1)).isoformat(),
-        },
-    )
-    told(page)
     page.keyboard.press("c")
     timestamp = page.locator(".lf-msg-head > time").first
     expect(timestamp).to_have_text("just now")
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
     ticked(page)
     expect(timestamp).to_have_text("3h ago")
@@ -5003,55 +5003,37 @@ def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
     page.close()
 
 
-def test_data_notification_waits_for_a_version_activation(browser, serve):
-    """A crossed data response may advance its revision during activation, but its
-    subscribers cannot paint the old or half-upgraded document.
-
-    Hold the view transition after the replacement document has mounted. A newer source
-    response arrives while that activation still owns the page. Its value should render
-    only after the activation releases.
-    """
+def test_data_written_during_fresh_revision_startup_waits_for_activation(
+    browser, serve
+):
+    """A source update cannot paint until the new revision document has activated."""
     activation_probe = """
-      window.__lfTransitionHeld = false;
-      window.__lfDataDuringActivation = false;
-      window.__lfSawDataRevisionTwo = false;
+      window.__lfRevisionRegistryBlocked = false;
+      window.__lfDataDuringStartup = false;
       const nativeFetch = window.fetch.bind(window);
       window.fetch = async (...args) => {
-        const response = await nativeFetch(...args);
         const input = args[0];
         const url = typeof input === 'string' ? input : input.url;
-        if (new URL(url, location.href).pathname === '/api/state') {
-          response.clone().json().then(state => {
-            if (state.data?.revision >= 2) window.__lfSawDataRevisionTwo = true;
+        const path = new URL(url, location.href).pathname;
+        if (path.startsWith('/revisions/r2-') && path.endsWith('/registry.json')) {
+          window.__lfRevisionRegistryBlocked = true;
+          return new Promise(resolve => {
+            window.__lfReleaseRevisionRegistry = () => resolve(nativeFetch(...args));
           });
         }
-        return response;
+        return nativeFetch(...args);
       };
       document.addEventListener('lf-data', () => {
         const datum = document.querySelector('[data-lf-datum="api"]');
-        if (window.__lfTransitionHeld && datum?.textContent.includes('Running'))
-          window.__lfDataDuringActivation = true;
+        if (window.__lfRevisionRegistryBlocked && datum?.textContent.includes('Running'))
+          window.__lfDataDuringStartup = true;
       });
-      document.startViewTransition = update => {
-        const ready = Promise.resolve();
-        const finished = Promise.resolve()
-          .then(update)
-          .then(() => {
-            window.__lfTransitionHeld = true;
-            return new Promise(resolve => {
-              window.__lfReleaseTransition = () => {
-                window.__lfTransitionHeld = false;
-                resolve();
-              };
-            });
-          });
-        return {ready, finished};
-      };
     """
     page, errors = open_page(
         browser, live_url(data_projection_page(serve)), init_script=activation_probe
     )
     d = serve.page_dir
+    original_document = page.evaluate("performance.timeOrigin")
     current = (d / ".fixture-versions" / "v1.html").read_text()
     _publish(
         d,
@@ -5059,7 +5041,8 @@ def test_data_notification_waits_for_a_version_activation(browser, serve):
         current.replace("Live status follows.", "Live status follows now."),
         "refreshed the page",
     )
-    page.wait_for_function("() => window.__lfTransitionHeld === true")
+    page.wait_for_function("() => window.__lfRevisionRegistryBlocked === true")
+    assert page.evaluate("performance.timeOrigin") != original_document
 
     data_model.cmd_data_set(
         d,
@@ -5069,13 +5052,13 @@ def test_data_notification_waits_for_a_version_activation(browser, serve):
             {"key": "worker", "value": "Ready"},
         ],
     )
-    page.wait_for_function("() => window.__lfSawDataRevisionTwo === true")
     page.wait_for_timeout(100)
-    assert not page.evaluate("() => window.__lfDataDuringActivation"), (
-        "a source subscriber painted while version activation still owned the document"
-    )
+    assert not page.evaluate("() => window.__lfDataDuringStartup")
+    expect(page.locator('[data-lf-datum="api"]')).to_have_count(0)
 
-    page.evaluate("() => window.__lfReleaseTransition()")
+    page.evaluate("() => window.__lfReleaseRevisionRegistry()")
+    page.wait_for_function(BOTH_STAMPS)
+    nudge(d)
     expect(page.locator('[data-lf-datum="api"]')).to_contain_text("Running")
     expect(page.locator("#lede")).to_have_text("Live status follows now.")
     assert errors == []
@@ -5093,7 +5076,7 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
             content_type="text/javascript",
             body="await window.__lfRuntimeImport('/runtime/widget-api.js');\n"
             "window.apiImportedBeforeBoot = true;\n"
-            "await import('/leaf-boot.js');",
+            "await import('./leaf-boot.js');",
         ),
     )
 

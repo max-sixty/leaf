@@ -129,11 +129,12 @@ import { foldShelf, reserveNewsSlot, showNews } from "./banner-shelf.js";
 import { allButCommandReference } from "./keyboard/register.js";
 
 import { sameDelivery } from "./layer-client.js";
-import { projectionFromView } from "./projection/presentation.js";
+import { projectView } from "./semantic-state.js";
 
 import { anchoringIsReady, fragmentId, resolveAnchor } from "./anchor-resolution.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { domFacet, stateCoordinate } from "./projection/authored.js";
+import { applicationState } from "./semantic-state.js";
 
 // Which document this is, read off the served page before anything else asks: the
 // revision the server rendered, the stamp a pinned version URL or its marker names, and
@@ -145,7 +146,7 @@ const servedRevision = document.querySelector(
 const servedStampMarker = document.querySelector(
   'meta[name="lf-version"][data-lf-runtime]',
 );
-runtime.currentRevision = servedRevision ? parseInt(servedRevision, 10) : null;
+applicationState.identify(servedRevision ? parseInt(servedRevision, 10) : null);
 runtime.currentStamp = servedStampMarker
   ? parseInt(servedStampMarker.content, 10)
   : VERSION_MATCH
@@ -621,12 +622,10 @@ export function createVersionController({
     }
   }
 
-  // `null` is the page before its first state. A rendering is a function of its argument
-  // and the three current-document facts on `runtime`, so state application rolls a
-  // refused candidate back by painting the last accepted state again.
+  // `null` is the page before its first accepted state. Version controls read the
+  // immutable document revision and the accepted root; labels are presentation state.
   function renderVersions(state) {
     runtime.versions.splice(0, runtime.versions.length, ...(state?.versions ?? []));
-    runtime.active = state === null ? null : structuredClone(state.active);
     if (
       LIVE_ROOT &&
       runtime.active !== null &&
@@ -636,8 +635,6 @@ export function createVersionController({
       runtime.currentLabel = runtime.active.label;
     } else if (runtime.currentStamp !== null) {
       runtime.currentLabel = `v${runtime.currentStamp}`;
-      const current = stamped(runtime.currentStamp);
-      if (current) runtime.currentRevision = current.revision;
     }
     // Nothing to open until the log says what versions there are, and a control that
     // answers nothing is a way in painted where there is no layer behind it — the same
@@ -829,7 +826,7 @@ export function createVersionController({
       throw new Error(`version v${baseVersion} has no revision`);
     const baseView = baseReading?.views?.[String(baseRevision)];
     if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
-    const baseProjection = projectionFromView(baseView, baseReading.conversation);
+    const baseProjection = projectView(baseView, baseReading.conversation);
     for (const { tag, spec } of stateSpecs()) {
       if (!spec.record || spec.record.kind === "body") continue;
       for (const widget of document.body.querySelectorAll(tag)) {

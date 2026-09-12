@@ -1115,7 +1115,7 @@ export function createMarginProjection({
     }
 
     const projection = currentProjection();
-    for (const origin of projectionOrigins(authoredStates, projection)) {
+    for (const origin of projectionOrigins(authoredStates(), projection)) {
       const target = elementById(origin.unit);
       if (!target) continue;
       const face = KINDS[origin.origin];

@@ -8,9 +8,14 @@
  */
 import { computed, signal } from "@preact/signals-core";
 
-export type Immutable<T> = T extends object
-  ? { readonly [K in keyof T]: Immutable<T[K]> }
-  : T;
+export type Immutable<T> =
+  T extends Map<infer K, infer V>
+    ? ReadonlyMap<Immutable<K>, Immutable<V>>
+    : T extends Set<infer V>
+      ? ReadonlySet<Immutable<V>>
+      : T extends object
+        ? { readonly [K in keyof T]: Immutable<T[K]> }
+        : T;
 
 export interface ApplicationSnapshot {
   readonly document: unknown;
@@ -26,8 +31,17 @@ export interface SnapshotReading<T> {
 }
 
 function immutable<T>(value: T): Immutable<T> {
-  if (value !== null && typeof value === "object") {
-    for (const child of Object.values(value)) immutable(child);
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    const refuse = () => {
+      throw new TypeError("Application snapshots are read-only");
+    };
+    if (value instanceof Map || value instanceof Set) {
+      for (const child of value.values()) immutable(child);
+      for (const name of value instanceof Map
+        ? ["set", "delete", "clear"]
+        : ["add", "delete", "clear"])
+        Object.defineProperty(value, name, { value: refuse });
+    } else for (const child of Object.values(value)) immutable(child);
     Object.freeze(value);
   }
   return value as Immutable<T>;

@@ -159,7 +159,7 @@ def candidate_vocabulary_gaps(
                         e, candidate_page.by_id, incoming
                     )
                 else:
-                    error = declared_request_error(e, candidate_page, thread, incoming)
+                    error = declared_request_error(e, document, thread, incoming)
                 if error:
                     key = f"{kind} contract: {error}"
                 elif error := stored_meaning_error(

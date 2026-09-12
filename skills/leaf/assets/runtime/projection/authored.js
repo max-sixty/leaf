@@ -4,6 +4,8 @@
  * restoration statement is retained. */
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 import { COLLAPSE, quoteFrom, textNodesUnder } from "../passages.js";
+import { applicationState, readApplication } from "../semantic-state.js";
+import { runtime } from "../context.js";
 
 /* The authored initial condition, read once after upgrade and before projection.
    These typed values are inputs to the complete widget projection; no cloned DOM,
@@ -34,7 +36,7 @@ import { COLLAPSE, quoteFrom, textNodesUnder } from "../passages.js";
    Ownership of record members stops at `recordedOwner`, the nearest widget with a
    declared record. A custom outer container must not capture or restore a nested
    recorded widget's members. */
-export const authoredStates = new Map();
+export const authoredStates = () => readApplication().document.authored;
 export const authoredParents = new WeakMap();
 const recordedOwner = (member) => {
   const selector = recordedWidgetSelector();
@@ -105,6 +107,7 @@ function initialFacet(widget, spec) {
 }
 
 export function captureAuthoredFacets(root = document) {
+  const captured = new Map();
   const byTag = new Map();
   for (const { tag, spec } of stateSpecs()) {
     const facets = byTag.get(tag) ?? new Map();
@@ -116,7 +119,7 @@ export function captureAuthoredFacets(root = document) {
     const widgets = [...root.querySelectorAll(tag)];
     if (root.nodeType === Node.ELEMENT_NODE && root.matches(tag)) widgets.unshift(root);
     for (const widget of widgets) {
-      if (!widget.id || authoredStates.has(widget.id)) continue;
+      if (!widget.id || authoredStates().has(widget.id)) continue;
       for (const spec of specs.values())
         if (spec.unit === "widget" && spec.record?.kind === "position")
           for (const container of [
@@ -127,7 +130,8 @@ export function captureAuthoredFacets(root = document) {
               positions[container.id] = [...container.children]
                 .filter((part) => part.id)
                 .map((part) => part.id);
-      authoredStates.set(widget.id, {
+      captured.set(widget.id, {
+        tag,
         specs,
         positions,
         state: Object.fromEntries(
@@ -136,13 +140,15 @@ export function captureAuthoredFacets(root = document) {
       });
     }
   }
+  if (captured.size || !Object.keys(readApplication().document.registry).length)
+    applicationState.captureAuthored(captured, runtime.registry);
 }
 
 // Comparison is deliberately lossy (body whitespace and position indexes), while
 // rendering always receives the complete initial value above.
 export function authoredFacet(coordinate) {
   const [owner, unit, facet] = JSON.parse(coordinate);
-  const authored = authoredStates.get(owner);
+  const authored = authoredStates().get(owner);
   if (!authored) return undefined;
   const spec = authored.specs.get(facet);
   const record = spec.record;

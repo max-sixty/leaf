@@ -129,6 +129,9 @@ export async function buildOutputs() {
   const manifest = {
     format: "leaf-browser-build-v1",
     sourceRoots: ["scripts/browser"],
+    sourceInputs: Object.keys(result.metafile.inputs)
+      .filter((name) => !name.startsWith("node_modules/"))
+      .sort(),
     entryPoints: { [modulePath]: entry },
     outputRoot,
     lockfile: "package-lock.json",

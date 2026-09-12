@@ -12,6 +12,7 @@
    map of their own.*/
 
 import { runtime } from "./context.js";
+import { applicationState } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { registry } from "./registry.js";
 import { clocked } from "./presence.js";
@@ -31,9 +32,7 @@ export function acceptData(candidate) {
     throw new TypeError(
       "state data must carry a non-negative integer revision and sources",
     );
-  if (candidate.revision <= runtime.data.revision) return false;
-  runtime.data = structuredClone(candidate);
-  return true;
+  return applicationState.acceptData(candidate);
 }
 
 // A watcher can mount after its source snapshot has already been accepted (most notably

@@ -140,7 +140,8 @@ and the deadline at which canonical activity asks for another server read;
 `runtime/state-feed.js` owns state reads, offline handling, the shared clock and deferred retries,
 event-stream wakeups, and first-read presentation scheduling and retry;
 `runtime/state-application.js` owns stale-answer ordering, application serialization,
-state commit, projection, notification, pending accounting, and rollback;
+accepted-state publication, projection, notification, presentation-failure reporting,
+and pending accounting after presentation proof;
 `runtime/banner.js` owns banner wording, tone, tab-icon paint, and announcing a
 status kind that has changed;
 `runtime/banner-shelf.js` owns news-control reservation and focus continuity, and
@@ -251,9 +252,10 @@ passive panel elements and geometry readings;
 `runtime/projection/authored.js` owns typed authored initial values and anchor
 parentage; `runtime/projection/data.js` owns keyed runtime-data DOM reconciliation;
 `runtime/projection/model.js` folds authored, canonical, and pending records without DOM;
-`runtime/projection/state.js` holds the desired semantic reading;
-`runtime/projection/presentation.js` normalizes DOM inputs and owns presentation, deferred
-widget work, and node-specific commit proof within its constructed instance;
+`runtime/projection/state.js` selects the publisher's desired semantic reading and holds
+only deferred-presentation state; `runtime/projection/presentation.js` adapts one
+published snapshot to the DOM and owns deferred widget work and node-specific commit
+proof within its constructed instance;
 `runtime/projection/commands.js` owns action eligibility and undo commands.
 
 The widget layer loads the vendored
@@ -272,11 +274,11 @@ Each mutable fact has one writer:
 | external data | the latest accepted page data revision | `receiveState` replaces current values and retained captures; `watchData` delivers the authored current-or-snapshot selection to widget modules |
 | projected data | an external snapshot or other records the widget is currently given | `projectData` reconciles their keyed rendering; the DOM does not become another record store |
 | version shown by the live document | the immutable revision named by its delivery prelude | a newer active revision navigates the stable live address into a fresh document; a public version address derives the version number from its URL |
-| accepted history | the server event log | `receiveState` replaces `events` after a complete read |
-| the reading the page has applied | the server's `/api/state` answer | `receiveState` writes `runtime.reading` and paints `data-lf-reading` |
-| unresolved browser work | the application-owned pending ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
-| desired semantic state | authored state, log projection, then pending overlay | projection presentation installs the folded reading, which may precede deferred DOM work |
-| rendered conversation | the server's thread projection, then pending messages | `foldThreads`, installed by conversation presentation |
+| accepted history | the server event log | the application publisher adopts one complete server answer |
+| the reading the page has applied | the server's `/api/state` answer | the publisher adopts `reading`; state presentation paints `data-lf-reading` only after every required view succeeds |
+| unresolved browser work | the publisher's one ordered ledger | commands enqueue; accepted state accounts receipts; projection commit proof permits action release |
+| desired semantic state | authored state, log projection, then pending overlay | the application publisher exposes one folded reading, which may precede deferred DOM work |
+| rendered conversation | the server's thread projection, then pending messages | the publisher exposes one effective conversation; conversation presentation adapts it to retained DOM nodes |
 | proof of what the DOM currently represents | the projection presentation instance's commit records | `stageOptimistic` and `present`; release requires the same instance's proof |
 | anchor paint | thread and composer anchor records | the anchor paint owner |
 | where each thread's passage lands | this version's resolution of its anchor | anchor paint writes a rich placed record with its element, exact datum, and exact/fallback/outdated status |
@@ -724,9 +726,12 @@ animation can expose the behavior.
 map. The manifest names its inputs, exports, and output hashes; `scripts/CLAUDE.md`
 owns the contributor build and check commands. The internal bundle contains Lit and
 Signals once, with no external imports or runtime compiler. Content modules import
-only `runtime/widget-api.js`. The publisher accepts caller-derived snapshots and
-exposes read-only selectors; it does not own Leaf's semantic folds or application
-lifecycle. Regenerate this output through its owning script, never by editing it.
+only `runtime/widget-api.js`. The publisher owns Leaf's pure semantic folds and exposes
+read-only selectors; DOM rendering, transport promises, and presentation proof remain
+in runtime adapters. Server projection entries carry the declaration admitted from
+their captured revision, so neither active nor historical views reinterpret an event
+through the current DOM's registry. Regenerate this output through its owning script,
+never by editing it.
 
 Run `node --check` on the module, formatting, and a focused real-browser test while
 iterating. A module that reads another owner as it evaluates parses and lints clean and

@@ -46,6 +46,13 @@ uv run pytest tests/test_render_widgets.py -q -n0 -k board
 uv run pytest --lf --lfnf=none -x -n0
 ```
 
+Formatted CLI output lives in `tests/_regtest_outputs/`. After an intentional
+change, reset only the affected test, then inspect the recorded diff before committing:
+
+```sh
+uv run pytest --regtest-reset -n0 <node-id>
+```
+
 Before handing over a browser-facing change, run its complete browser file and
 the everyday suite. `wt merge` runs pre-commit and the everyday suite after
 rebasing. Pull requests and main run pre-commit, the everyday suite, and the

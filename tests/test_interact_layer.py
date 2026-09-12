@@ -64,165 +64,30 @@ EXPECTED_PAGE_DIRECTORIES = (
 )
 
 
-@pytest.mark.parametrize(
-    ("args", "expected"),
-    [
-        pytest.param(
-            ["--help"],
-            """Usage: leaf [OPTIONS] COMMAND [ARGS]...
+def test_cli_help_groups_commands_with_complete_summaries(regtest):
+    cases = {
+        "root": ["--help"],
+        "codex": ["codex", "--help"],
+        "data": ["data", "--help"],
+        "package": ["package", "--help"],
+        "package-init": ["package", "init", "--help"],
+        "page": ["page", "--help"],
+        "version": ["version", "--help"],
+        "server": ["server", "--help"],
+    }
 
-  Build and run interactive pages a session shares with its user.
+    for name, args in cases.items():
+        result = CliRunner().invoke(
+            cli_model.cli,
+            args,
+            prog_name="leaf",
+            terminal_width=80,
+        )
 
-Options:
-  --version  Print the payload directory this leaf runs from.
-  --help     Show this message and exit.
-
-Commands:
-  ack           Acknowledge one batch, then wait for the next.
-  codex         Launch Codex and connect Leaf pages to its tasks.
-  comment       Open an agent thread — on a passage, or on the page whole.
-  conversation  Read one exact Leaf conversation.
-  data          Set, capture, or clear page-bound external data.
-  delivery      Read immutable input delivered by any Leaf host.
-  edit          Edit one of this agent session's messages.
-  events        Print the event log as JSON lines.
-  mcp           Run Leaf's bundled MCP Apps server.
-  package       Create, check, and install packages.
-  page          Create pages and add media.
-  receipt       Record the terminal outcome of a reader request.
-  reply         Reply to a thread as the agent.
-  report        Report a state change onto a page widget, as a worker.
-  resolve       Close a thread as the agent.
-  server        Start, run, or stop the local server.
-  status        Set the agent's banner state.
-  transcript    Print the page's exchange as Markdown.
-  version       Check, stamp, and export versions.
-  wait          Print one page's unacknowledged events and reports, then exit.
-""",
-            id="root",
-        ),
-        pytest.param(
-            ["codex", "--help"],
-            """Usage: leaf codex [OPTIONS] COMMAND [ARGS]...
-
-  Launch Codex or run Leaf's detached delivery carrier.
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  launch  Launch an experimental streaming Codex terminal.
-  start   Keep PAGE connected after this turn ends.
-""",
-            id="codex",
-        ),
-        pytest.param(
-            ["data", "--help"],
-            """Usage: leaf data [OPTIONS] COMMAND [ARGS]...
-
-  Manage current values and immutable file captures.
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  capture  Capture a bound UTF-8 file.
-  clear    Clear current and unreferenced captures.
-  set      Replace one bound source value.
-""",
-            id="data",
-        ),
-        pytest.param(
-            ["package", "--help"],
-            """Usage: leaf package [OPTIONS] COMMAND [ARGS]...
-
-  Create, check, and install packages.
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  check    Check a package as one unit.
-  init     Create a package directory.
-  install  Install a package for selection by name.
-""",
-            id="package",
-        ),
-        pytest.param(
-            ["package", "init", "--help"],
-            """Usage: leaf package init [OPTIONS] PACKAGE
-
-  Create the package layout without replacing existing files.
-
-  With --widget, add one checked upgraded content widget starter.
-
-Options:
-  --widget TAG  add one upgraded content widget starter
-  --help        Show this message and exit.
-""",
-            id="package-init",
-        ),
-        pytest.param(
-            ["page", "--help"],
-            """Usage: leaf page [OPTIONS] COMMAND [ARGS]...
-
-  Create pages and add media.
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  guidance  List or print composed guidance by audience.
-  init      Create or re-vendor a page directory.
-  media     Add images and print their page paths.
-  state     Print where the page stands, as JSON.
-""",
-            id="page",
-        ),
-        pytest.param(
-            ["version", "--help"],
-            """Usage: leaf version [OPTIONS] COMMAND [ARGS]...
-
-  Check, stamp, and export versions.
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  check   Check the mutable page source.
-  export  Export a stamped version to one HTML file.
-  stamp   Stamp the current source as the next version.
-""",
-            id="version",
-        ),
-        pytest.param(
-            ["server", "--help"],
-            """Usage: leaf server [OPTIONS] COMMAND [ARGS]...
-
-  Start, run, or stop the local server.
-
-Options:
-  --help  Show this message and exit.
-
-Commands:
-  run    Serve a page in the foreground until stopped.
-  start  Start a page's server and print its URL.
-  stop   Stop a page's server.
-""",
-            id="server",
-        ),
-    ],
-)
-def test_cli_help_groups_commands_with_complete_summaries(args, expected):
-    result = CliRunner().invoke(
-        cli_model.cli,
-        args,
-        prog_name="leaf",
-        terminal_width=80,
-    )
-
-    assert result.exit_code == 0
-    assert result.output == expected
+        assert result.exit_code == 0
+        # pytest-regtest treats code points above Latin-1 as binary.
+        output = result.output.encode("ascii", "backslashreplace").decode()
+        regtest.write(f"## {name}\n{output}\n")
 
 
 @pytest.mark.parametrize("command", ["wait", "ack"])

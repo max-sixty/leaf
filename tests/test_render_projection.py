@@ -679,6 +679,9 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "/media/a99a1b63048502d0.png": (
             EXAMPLE_MEDIA / "a99a1b63048502d0.png"
         ).read_bytes(),
+        "/media/3cf0e3efe80c6b01.png": (
+            EXAMPLE_MEDIA / "3cf0e3efe80c6b01.png"
+        ).read_bytes(),
     }
     url = live_url(serve(authored, packages=("visual-review",), media=media))
     capture = {
@@ -945,7 +948,9 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     page.keyboard.press("g")
     next_box = next_button.bounding_box()
     assert next_box
-    next_code = page.locator(".lf-go-to-hint[data-lf-hint-code]").evaluate_all(
+    go_to_hints = page.locator(".lf-go-to-hint[data-lf-hint-code]")
+    expect(go_to_hints).not_to_have_count(0)
+    next_code = go_to_hints.evaluate_all(
         """(hints, target) => hints.map(hint => {
           const box = hint.getBoundingClientRect();
           const dx = box.x + box.width / 2 - (target.x + target.width / 2);
@@ -1038,10 +1043,43 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "focus 120,300 640×220 CSS px falls outside its captured images"
     )
     expect(case_select).to_be_visible()
-    data_model.cmd_data_set(serve.page_dir, "docs-run", changed)
+    unequal_pair = changed | {
+        "cases": [
+            changed["cases"][0]
+            | {
+                "focus": {"x": 20, "y": 80, "width": 300, "height": 150},
+                "after": "/media/3cf0e3efe80c6b01.png",
+            },
+            *changed["cases"][1:],
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "docs-run", unequal_pair)
+    told(page)
+    expect(widget.locator(".lf-error")).to_contain_text(
+        "before is 1800px wide and after is 780px"
+    )
+    corrected = changed | {
+        "cases": [
+            changed["cases"][0]
+            | {
+                "capture": capture | {"viewport": capture["viewport"] | {"width": 1000}}
+            },
+            *changed["cases"][1:],
+        ]
+    }
+    data_model.cmd_data_set(serve.page_dir, "docs-run", corrected)
     told(page)
     expect(widget.locator(".lf-error")).to_have_count(0)
     expect(first.locator("lf-shot img")).to_have_count(2)
+    widget.get_by_role("button", name="100%").click()
+    decoded_css_width = first.locator("lf-shot img").first.evaluate(
+        "image => image.naturalWidth / 2"
+    )
+    assert first.locator("lf-shot img").first.evaluate(
+        "image => image.getBoundingClientRect().width"
+    ) == pytest.approx(decoded_css_width, abs=1), (
+        "captured CSS coordinates must render against the decoded image, not stale viewport metadata"
+    )
     with sending(page, "a corrected visual disposition"):
         first.get_by_role("button", name="Needs work").click()
     expect(first).to_have_attribute("data-disposition", "needs-work")

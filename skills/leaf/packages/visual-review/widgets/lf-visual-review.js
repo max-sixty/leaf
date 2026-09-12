@@ -455,6 +455,9 @@ customElements.define(
           });
         return image.naturalHeight ? image.naturalHeight / ratio : fallbackHeight;
       });
+      const widths = images.map((image) =>
+        image.naturalWidth ? image.naturalWidth / ratio : capture.viewport.width,
+      );
       const focus = entry.record.focus;
       if (
         focus &&
@@ -485,7 +488,10 @@ customElements.define(
         return;
       }
       const activeFocus = focus && this.#scope === "focus" ? focus : null;
-      const sourceWidth = capture.viewport.width;
+      // Focus coordinates name captured CSS pixels, so the decoded capture and the
+      // rendered source must share one width authority. The recorded viewport remains
+      // provenance; using it here could silently shift a valid focus when they differ.
+      const sourceWidth = widths[0];
       const width = activeFocus?.width ?? sourceWidth;
       const visibleHeights = activeFocus
         ? [activeFocus.height, activeFocus.height]

@@ -499,6 +499,7 @@ lf-visual-review > .lf-reading-after {
       display: block;
       height: var(--lf-vr-focus-height);
       overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     lf-visual-review[data-inspection-mode="compare"]

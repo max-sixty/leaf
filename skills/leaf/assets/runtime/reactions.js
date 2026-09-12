@@ -210,7 +210,7 @@ export function createReactionController({
       token: name,
       anchor: structuredClone(anchor),
     };
-    if (designModeActive()) event.about = "layer";
+    if (designModeActive()) event.about = "design";
     const sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
     hideComposer();
     showFab(null);

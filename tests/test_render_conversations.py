@@ -897,7 +897,7 @@ def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve)
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "about": "layer",
+            "about": "design",
             "text": "The middle third is too long.",
         },
     )["id"]
@@ -919,10 +919,10 @@ def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve)
         whole,
     ], "the panel is not reading in the page's order"
 
-    # A layer comment about the page as a whole has an address to show but no passage
+    # A design comment about the page as a whole has an address to show but no passage
     # to return to. It is a static label, not a broken anchored-thread control.
     whole_label = page.locator(f'.lf-thread[data-id="{whole}"] .lf-quote')
-    expect(whole_label).to_have_text("layer · the page")
+    expect(whole_label).to_have_text("design · the page")
     expect(whole_label).not_to_have_class(re.compile(r"\bdetached\b"))
     expect(whole_label).not_to_have_attribute("role", "button")
 
@@ -1324,14 +1324,14 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     waiting = panel_comment(
         d, "Which local wording is right?", {"section": "lede"}, "claude"
     )
-    layer = events_model.append_event(
+    design = events_model.append_event(
         d,
         {
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "about": "layer",
-            "text": "The layer control is crowded.",
+            "about": "design",
+            "text": "The shortcut control is crowded.",
             "anchor": {"section": "lf-shortcut-bar"},
         },
     )["id"]
@@ -1356,7 +1356,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     expect(page.locator('[data-filter-value="page"]')).to_have_text("Page (1)")
     expect(page.locator('[data-filter-value="local"]')).to_have_text("Anchored (3)")
     expect(page.locator('[data-filter-value="content"]')).to_have_text("Content (3)")
-    expect(page.locator('[data-filter-value="layer"]')).to_have_text("Layer (1)")
+    expect(page.locator('[data-filter-value="design"]')).to_have_text("Design (1)")
     expect(page.locator('[data-filter-value="gone"]')).to_have_text(
         "No longer here (1)"
     )
@@ -1392,7 +1392,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     page.locator('[data-filter-value="content"]').click()
     expect(visible).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{gone}"]')).to_be_visible()
-    expect(page.locator(f'.lf-thread[data-id="{layer}"]')).to_be_hidden()
+    expect(page.locator(f'.lf-thread[data-id="{design}"]')).to_be_hidden()
     page.locator('[data-filter-value="gone"]').click()
     expect(visible).to_have_count(1)
 
@@ -1404,7 +1404,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    for value in ("page", "local", "content", "layer", "gone"):
+    for value in ("page", "local", "content", "design", "gone"):
         expect(page.locator(f'[data-filter-value="{value}"]')).to_have_attribute(
             "aria-pressed", "false"
         )
@@ -2784,10 +2784,10 @@ def test_a_thread_on_a_widget_in_a_reply_travels_in_the_panel_that_holds_it(
     page.close()
 
 
-def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, serve):
+def test_a_design_thread_about_fixed_chrome_moves_neither_box(browser, serve):
     """A part that stands over both documents is in neither, and nothing travels to it.
 
-    Design mode lets a reader comment on the layer's own parts, and several of them are
+    Design mode lets a reader comment on fixed runtime parts, and several of them are
     `position: fixed` — the shortcut bar, the banner, the composer. Such a part is on screen
     already, and it is in no scroller's flow, so its rect answers to the viewport rather
     than to either region's scroll. `scrollerFor` says which of the two regions an
@@ -2811,16 +2811,16 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
                 "text": f"Aside {n}. " + "Long enough to wrap in the panel. " * 4,
             },
         )
-    # The shape design mode writes about the layer: `about` says which, and the anchor
+    # The shape design mode writes about design: `about` says which, and the anchor
     # names the part the runtime gave an id.
     events_model.append_event(
         d,
         {
             "kind": "comment",
-            "id": "fx-on-layer",
+            "id": "fx-on-design",
             "author": "user",
             "revision": 1,
-            "about": "layer",
+            "about": "design",
             "text": "The shortcut bar reads dim against the wash.",
             "anchor": {"section": "lf-shortcut-bar"},
         },
@@ -2844,17 +2844,18 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     page, errors = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    expect(page.locator(".lf-group", has_text="Page design")).to_have_count(1)
     expect(page.locator(".lf-shortcut-bar")).to_be_visible()
 
     page.evaluate("() => { document.scrollingElement.scrollTop = 1200; }")
     # Where the reader is standing when they press: the thread on screen, which is
     # also what the driver's own scroll-into-view would arrange. Read after it, so the
     # baseline is the page as the press finds it rather than as the test left it.
-    thread = page.locator('.lf-thread[data-id="fx-on-layer"] .lf-quote')
+    thread = page.locator('.lf-thread[data-id="fx-on-design"] .lf-quote')
     thread.scroll_into_view_if_needed()
     before = page.evaluate(BOTH_BOXES)
     seen = """() => {
-      const t = document.querySelector('.lf-thread[data-id="fx-on-layer"]');
+      const t = document.querySelector('.lf-thread[data-id="fx-on-design"]');
       const view = document.querySelector('.lf-threads').getBoundingClientRect();
       return t ? t.getBoundingClientRect().top - view.top : null;
     }"""
@@ -2865,7 +2866,7 @@ def test_a_thread_about_a_fixed_part_of_the_layer_moves_neither_box(browser, ser
     after = page.evaluate(BOTH_BOXES)
 
     assert after == before, (
-        f"a thread about a fixed part of the layer moved something: {before} -> {after}"
+        f"a design thread about fixed chrome moved something: {before} -> {after}"
     )
     assert page.evaluate(seen) == stood, (
         "the press moved the thread the reader pressed, which is the surface they were "

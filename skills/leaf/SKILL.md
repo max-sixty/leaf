@@ -164,7 +164,7 @@ so a phase does not depend on discovering a chain of references.
   URL, `--host`, a standing page, re-vendoring a served page, or resuming another
   session's page.
 - `references/packages.md`: for a package-design request, a page-authored module, or
-  an event with `"about": "layer"`.
+  an event with `"about": "design"`.
 
 ### Use a separate Codex watcher
 

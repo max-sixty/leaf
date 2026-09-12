@@ -5,7 +5,7 @@ theme, one widget, a family of widgets, helper modules, libraries, external-data
 contracts, or any combination of them. The layer is different: it is the checked
 result that `page init` vendors after composing the kernel and packages.
 
-Read this reference when a design comment arrives with `"about": "layer"`, or
+Read this reference when a design comment arrives with `"about": "design"`, or
 when `/leaf` is invoked on a widget to build or a look to change.
 
 ## Package reach
@@ -857,9 +857,9 @@ subject, and the page it makes shows the widget in use.
 
 ## A design comment
 
-The reader's design mode (`l` in the browser) posts a comment about the layer rather
-than the page: `"about": "layer"`, anchored on the element they clicked or the words they
-selected. The anchor's `section` is a widget's id, or the id of a runtime part —
+The reader's design mode (`l` in the browser) marks presentation or interaction intent
+rather than assigning ownership: `"about": "design"`, anchored on the element they
+clicked or the words they selected. The anchor's `section` is a widget's id, or the id of a runtime part —
 `lf-banner`, `lf-threads-toggle` (the panel), `lf-leaves` (the leaves panel), `lf-versions`,
 `lf-composer`, `lf-comment-button` (the margin's Comment control), `lf-shortcut-bar`, `lf-command-reference` — and
 `part` names the control the click landed on, where it landed on one (`Accept`,
@@ -868,14 +868,15 @@ selected. The anchor's `section` is a widget's id, or the id of a runtime part �
 ```json
 {
   "kind": "comment",
-  "about": "layer",
+  "about": "design",
   "version": 3,
   "anchor": { "section": "feeder-board" },
   "text": "cards are cramped — give the column a floor"
 }
 ```
 
-Answer it with the layer: change it where the table above says, `page init` the page,
-stamp the version, and reply in-thread saying where the fix landed. The new version is
-the answer, on the element the comment was made on. A comment naming leaf itself is the
-hand-off above.
+Inspect the current source owner, then change the page instance unless the affected
+behavior is already reusable or the reader asks for broader reach. Re-vendor when the
+change belongs in a package or Leaf, stamp the version, and reply in-thread saying where
+the fix landed. The new version is the answer, on the element the comment was made on.
+A comment naming Leaf itself follows the hand-off above.

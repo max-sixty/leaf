@@ -256,7 +256,7 @@ export function msgNode(m) {
 // because the two together are a name, where the words alone read as a quote the thread
 // does not hold.
 //
-// A design comment (`about: "layer"`) reads "layer ·" first, because what follows names
+// A design comment (`about: "design"`) reads "design ·" first, because what follows names
 // the thing whose look or behaviour is in question rather than the words on it: the
 // control the press landed on where it landed on one (`part`), then the element — a
 // widget by its tag and id, a runtime part by its name — since a design comment's
@@ -272,11 +272,11 @@ function datumLabel(anchor) {
 }
 
 export function anchorLabel(anchor, about, omitted = null) {
-  if (about === "layer") {
+  if (about === "design") {
     const addressable = anchor?.section ? elementById(anchor.section) : null;
     const name = addressable ? designName(addressable) : anchor?.section || "the page";
     const on = anchor?.part ? `${anchor.part} · ${name}` : name;
-    return anchor?.quote ? `layer · ${on} · “${anchor.quote}”` : `layer · ${on}`;
+    return anchor?.quote ? `design · ${on} · “${anchor.quote}”` : `design · ${on}`;
   }
   const datum = datumLabel(anchor);
   if (datum) return anchor?.quote ? `${datum} · “${anchor.quote}”` : `§ ${datum}`;

@@ -885,7 +885,7 @@ def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, s
 
 
 def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
-    """Sign-off gating, layer comments, and transport refusal are real core journeys."""
+    """Sign-off gating, design comments, and transport refusal are real core journeys."""
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1280, 900)
 
@@ -907,7 +907,7 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
         option_box["y"] + option_box["height"] / 2,
     )
     expect(page.locator("#lf-composer-quote")).to_have_text(
-        "layer · lf-option · bg-choice-street"
+        "design · lf-option · bg-choice-street"
     )
     expect(option).not_to_have_attribute("chosen", "")
     page.locator(".lf-composer textarea").fill("The sample option needs less padding.")
@@ -916,7 +916,7 @@ def test_the_feature_gallery_exercises_core_reader_workflows(browser, serve):
     design_comment = [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment" and event.get("about") == "layer"
+        if event["kind"] == "comment" and event.get("about") == "design"
     ][-1]
     assert design_comment["anchor"] == {"section": "bg-choice-street"}
     page.locator("body").focus()

@@ -40,6 +40,37 @@ check for standing page contracts and frozen thread markup, while historical-onl
 use their captured registries. Request-offer attributes are authored static state: registry
 validation rejects an `x-state` or `x-report` record that could rewrite one.
 
+## Integrated presentation kernel
+
+The pure presentation coordinator is integrated at `2274f93a`. It owns document and
+semantic/presented epochs, sealed publication barriers, stable regions, renderer and
+ticket generations, replacement/disconnection, async descendant membership, fail-soft
+completion, and stale-document/value suppression. Its causal domain suite covers work
+that completes before sealing and obsolete seals as well as the longer renderer races.
+An equal-value renderer replacement reopens mechanical readiness at the same semantic
+epoch; the replacement must commit while the stale instance cannot satisfy the repair.
+
+The kernel is deliberately not wired into runtime readiness yet. That cutover follows
+the public widget controller so one presentation seam can replace every legacy queue at
+once; until then, existing presentation stamps and queues remain authoritative.
+
+## Integrated design intent
+
+The no-alias design-comment cutover is integrated at `aa745905`. The closed event
+contract, browser producers, conversation filtering and placement, transcript, example,
+agent route, and package guidance now use `about: "design"`; `about: "layer"` is refused.
+Infrastructure meanings of layer generation, composed package ownership, registry
+sources, and delivery headers remain unchanged.
+
+## Integrated fresh-document proof
+
+The activation-continuity proof is consolidated at `f7526f72`. One causal browser
+journey now holds a local option delivery, proves the candidate revision cannot replace
+that document, releases the attempt, and observes a new `performance.timeOrigin` with
+the accepted standing choice, semantic reading position, valid authored-control focus,
+and closed general draft restored. A page-module global deliberately does not survive.
+No runtime mechanism or cross-document retry state was added.
+
 ## Remaining implementation
 
 Implement the public `widgetController(owner)` and migrate package/page modules away from
@@ -51,11 +82,11 @@ identity, quote, declaration, and request-offer facts come from the authored rev
 projected ownership, Ask state, lifecycle, availability, provenance, and exact Undo come
 from the publisher.
 
-Then replace independent readiness queues with the semantic/presented epoch and ticket
-coordinator before converting generated regions to Lit. Complete the design-intent and
-Targeting cutover, preserve the fresh-document wait-until-settled model with combined
-proof, add offline interactive export without weakening script-free static export, and
-dissolve this checkpoint plus both plan notes into their owning contracts.
+Then wire the integrated semantic/presented epoch and ticket coordinator across every
+independent readiness queue before converting generated regions to Lit. Complete the
+Targeting identity/controller cutover, add offline interactive export without weakening
+script-free static export, then dissolve this checkpoint plus both plan notes into their
+owning contracts.
 
 ## Verification checkpoint
 
@@ -64,6 +95,16 @@ semantic and compatibility integration, 142 outbox/startup browser cases, all 11
 projection cases, all 99 server cases, 274 interaction-contract cases, and 10 browser
 build/domain tests pass. Generated browser output and pre-commit are clean. Run the final
 everyday suite again after the remaining slices are integrated.
+
+The presentation kernel has ten focused causal cases; its TypeScript check, 20-case
+browser/build suite, and touched-file pre-commit checks pass.
+
+The design-intent cutover passes its 12 focused admission, composition, filtering,
+label, placement, transcript, and gallery cases plus an integration rerun of the server
+round trip and composed panel facets. The locked browser build remains unchanged.
+
+The consolidated application-boundary and outbox files pass all 49 cases; the combined
+fresh-document journey also passes independently on the integration branch.
 
 The website bundler slice passed 61 worker tests, typecheck, five immutable-shell tests,
 three site tests, and a complete site build/bundle. Local pre-commit passes.
@@ -85,6 +126,8 @@ checkpoint with final test evidence. Landing still needs explicit authorization.
 
 - Integration: `/Users/maximilian/workspace/leaf.reactive-page-runtime`.
 - Semantic publisher: `/Users/maximilian/workspace/leaf.astra-fresh-revision-activation`.
+- Presentation coordinator and design intent:
+  `/Users/maximilian/workspace/leaf.sol-vocabulary-compatibility`.
 - Contributor build and website bundler: `/Users/maximilian/workspace/leaf.astra-browser-build`.
 - Captured revisions, static export, and MCP: `/Users/maximilian/workspace/leaf.astra-revision-artifact`.
 

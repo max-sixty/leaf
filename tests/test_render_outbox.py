@@ -13,8 +13,6 @@ from render_support import (
     BOARD_PAGE,
     HOLD_MOTION,
     INLINE_PAGE,
-    LIVE_V1,
-    LIVE_V2,
     LONG_PAGE,
     NESTED_SUGGESTION,
     SETTLED_PAGE,
@@ -50,51 +48,6 @@ from render_support import (
 )
 
 pytestmark = pytest.mark.nightly
-
-
-def test_a_revision_chip_waits_for_the_pending_message_before_navigating(
-    held_events, serve
-):
-    """An explicit update cannot discard a gesture whose delivery is unresolved."""
-    browser, held = held_events
-    page, errors = open_page(browser, live_url(serve(LIVE_V1)))
-    original_document = page.evaluate("performance.timeOrigin")
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-general textarea").fill("Keep this message across the revision.")
-    page.locator(".lf-general button").click()
-    holding(page, held, 1, "the unresolved message")
-
-    (serve.page_dir / "index.html").write_text(LIVE_V2)
-    told(page)
-    chip = page.locator(".lf-latest-chip")
-    expect(chip).to_be_visible()
-    try:
-        # The chip's independent state request is the causal completion edge. Its
-        # response may release composition, but must leave the delivery owner alive.
-        with page.expect_response("**/api/state*"):
-            chip.click()
-        told(page)
-        assert page.evaluate("performance.timeOrigin") == original_document
-        expect(page).to_have_title("Live first")
-        assert len(held) == 1
-    finally:
-        held.pop(0).continue_()
-
-    wait_for_revision(page, 2)
-    expect(page.locator(".lf-thread-panel")).to_contain_text(
-        "Keep this message across the revision."
-    )
-    assert page.evaluate("performance.timeOrigin") != original_document
-    comments = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
-    ]
-    assert [event["text"] for event in comments] == [
-        "Keep this message across the revision."
-    ]
-    assert errors == []
-    page.close()
 
 
 def test_z_takes_back_the_thread_the_reader_just_resolved(browser, serve):

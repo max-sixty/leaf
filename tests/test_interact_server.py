@@ -747,8 +747,8 @@ def test_server_round_trip(server, page_dir):
     assert status == 200
     moved = event_model.read_events(page_dir)[-1]
     assert moved["author"] == "user" and moved["detail"]["to"] == "col-doing"
-    # A design comment: about the layer, anchored on a runtime part the version never
-    # holds, naming the control the press landed on. The door takes it as posted, and
+    # A design comment is anchored on a runtime part the version never holds, naming
+    # the control the press landed on. The door takes its design intent as posted, and
     # the transcript says which kind of comment it was.
     status, _ = fetch(
         f"{server}/api/event",
@@ -757,16 +757,16 @@ def test_server_round_trip(server, page_dir):
                 "kind": "comment",
                 "revision": 2,
                 "text": "the button reads dim",
-                "about": "layer",
+                "about": "design",
                 "anchor": {"section": "lf-banner", "part": "Threads"},
             }
         ).encode(),
     )
     assert status == 200
     design = event_model.read_events(page_dir)[-1]
-    assert design["about"] == "layer" and design["anchor"]["part"] == "Threads"
+    assert design["about"] == "design" and design["anchor"]["part"] == "Threads"
     transcript = CliRunner().invoke(cli_model.cli, ["transcript", str(page_dir)])
-    assert "> § lf-banner · Threads  — about the layer" in transcript.output
+    assert "> § lf-banner · Threads  — about the design" in transcript.output
     drawing = {
         "format": "leaf-drawing/1",
         "points": [[-20, 74], [50, 10], [120, 74]],
@@ -920,8 +920,9 @@ def test_server_round_trip(server, page_dir):
             "anchor": {"section": "feeder-board"},
             "drawing": {**drawing, "points": [[float("nan"), 0.2], [0.5, 0.2]]},
         },
-        # A design comment is about the layer, and that is the one word the field
-        # takes: a browser inventing a second subject is refused at the door.
+        # Design is the field's only subject: the retired ownership alias and a browser
+        # inventing a second subject are both refused at the door.
+        {"kind": "comment", "revision": 2, "text": "x", "about": "layer"},
         {"kind": "comment", "revision": 2, "text": "x", "about": "page"},
         {"kind": "comment", "revision": 2, "text": "x", "about": True},
         {

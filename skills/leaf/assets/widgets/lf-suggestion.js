@@ -170,7 +170,19 @@ customElements.define(
     #watchReading() {
       if (quoted(this) || !this.#row) return;
       this.#controller ??= widgetController(this);
-      this.#stopReading ??= this.#controller.subscribe(() => {
+      this.#stopReading ??= this.#controller.subscribe((reading) => {
+        const active = document.activeElement;
+        const focused = active?.lfForwardedControl ?? active;
+        if (
+          this.#row.contains(focused) &&
+          (reading.state.settlement.value ?? null) !== (this.dataset.lfState || null)
+        ) {
+          // Signals publish before the projection adapter. Keep the currently focused
+          // control until that adapter applies the new state: #replaceControls can then
+          // hand focus directly to its semantic replacement instead of losing the
+          // reader's place when this subscriber removes it first.
+          return;
+        }
         if (!this.dataset.lfState) {
           this.#paintAvailability();
           return;

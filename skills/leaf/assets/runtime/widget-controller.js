@@ -10,6 +10,7 @@ import { dispatchWidget, invalidateDom } from "./application.js";
 import {
   captureWidgetReference,
   descriptorStillMatches,
+  resolveWidgetReference,
   widgetDescriptor,
 } from "./widget-descriptors.js";
 import { failSoft } from "./widget-upgrade.js";
@@ -291,6 +292,13 @@ function createWidgetController(owner) {
         !(command.kind === "action"
           ? before.actions[command.verb]?.available
           : before.requests[command.verb]?.available)
+      )
+        return null;
+      if (
+        semantic &&
+        Object.values(command.references ?? {}).some(
+          (reference) => resolveWidgetReference(owner, reference).status !== "resolved",
+        )
       )
         return null;
       const delivery = dispatchWidget(

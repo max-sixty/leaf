@@ -113,6 +113,9 @@ export function captureWidgetReference(owner, target) {
   return reference;
 }
 
+export const resolveWidgetReference = (owner, reference) =>
+  resolveTargetReference(referenceBoundaryByElement.get(owner), reference);
+
 export function descriptorStillMatches(owner, descriptor) {
   if (owner.id !== descriptor.id || owner.localName !== descriptor.tag) return false;
   if (

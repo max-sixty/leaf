@@ -1829,21 +1829,6 @@ lf-chart:not(.lf-rendered) > pre,
 lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre {
              background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
              font: inherit; line-height: inherit; overflow: visible; }
-/* Until it has drawn, a drawing's box is not a drawing's box: what stands in it is the
-   authored source, which is evidence and reads at the column's width from the column's
-   own left edge. Both halves of the drawing rule are wrong for it — the room, since
-   there is no drawing to be around, and the row, whose whole job is placing one. The
-   rule is written against the `x-space: available` declaration rather than against a tag,
-   so it stays here where every page reads it while the one drawing widget shipped today
-   travels in the `diagram` package. The runtime marks the element before any module
-   imports, so this is not a corner: the renderer is fetched lazily, so every diagram
-   spends its loading interval as source centred in most of the window, at an indent set
-   by its own longest line — three diagrams, three indents, none of them the column's. A page whose module
-   never arrives spends the rest of its life that way. `.lf-rendered` is this package's
-   word for a module having replaced its body, so this is the sentence theme.css's
-   `.lf-error` rule makes about a failure, said where the word for the other half
-   lives. */
-
 /* A chart's colors are all here, and none of them are in its module. Plot leaves every
  * mark `currentColor` unless a color channel says otherwise, and lf-chart never passes
  * one — it gives each series' marks a class and nothing else — so `color` on that class

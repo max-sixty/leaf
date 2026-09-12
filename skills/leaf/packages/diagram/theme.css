@@ -1,8 +1,7 @@
 /* The diagram package's presentation. Everything here was in the default package's
  * theme until the diagram renderer left every page carrying a large bundle most never
- * draw with. What moved is the tag's own rules; the declaration-driven half — the
- * shared allocation stays in core; this package owns the source-sized drawing's
- * alignment and scrolling inside it. */
+ * draw with. The shared declaration-driven allocation stays in core; this package owns
+ * the diagram's source presentation, natural-size alignment, and scrolling. */
 
 /* Pre-upgrade presentation, so a page degrades readably: the same shape the default
  * package states for its own upgraded widgets, restated here for this tag. The
@@ -19,6 +18,12 @@ lf-diagram { --lf-diagram-paper: var(--paper); --lf-diagram-ink: var(--ink);
              font-family: var(--mono); font-size: var(--code-size);
              line-height: var(--code-line); font-variant-ligatures: none;
              color: var(--code-muted); overflow-x: auto; }
+/* Until the module draws, this box holds authored source rather than a drawing. That
+ * source reads from the column's left edge instead of taking the available allocation
+ * or the flex row that positions an SVG. The runtime marks x-space before it imports
+ * the lazy renderer, so the preload rule lives with the diagram whose loading and
+ * permanent no-module states need it. A failed render becomes `.lf-error`; core's
+ * fail-soft room rule then makes the same column-width decision. */
 lf-diagram[data-lf-space="available"]:not(.lf-rendered) {
   --lf-room: 0px;
   display: block;

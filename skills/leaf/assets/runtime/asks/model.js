@@ -1,4 +1,4 @@
-/* Server-projected ask state plus exact pending withdrawals, resolved onto the
+/* Server-projected ask state plus the canonical action projection, resolved onto the
    browser's live DOM: which asks
    are open, answered, or waiting on the agent, and the three lists the banner, the tray,
    and the walks read.
@@ -53,7 +53,7 @@
    the visible/navigation surface. `actionAvailable` still queries whether the source or
    an ancestor's aggregate is open. A module reading `openAsks()` calls
    `askSource()` when it needs the actionable widget rather than the reader-facing
-   region. A pending withdrawal re-folds its owner's declared answer and completion
+   region. A pending gesture re-folds its owner's declared answer and completion
    predicate locally; refusal removes that overlay and restores the authoritative Ask. */
 
 import { watchProjection } from "../projection-watch.js";
@@ -206,6 +206,7 @@ export const projectedParent = (el, reading) =>
 
 function asks(kind, pendingRequestEvents) {
   if (!pagePresented()) return [];
+  const projection = currentProjection();
   const requested = new Set(
     kind === "all" ? [] : pendingRequestEvents.map((event) => event.widget),
   );
@@ -214,14 +215,17 @@ function asks(kind, pendingRequestEvents) {
   const optimistic =
     kind === "all"
       ? []
-      : optimisticallyReopened(currentProjection()).map((el) => ({
+      : optimisticallyReopened(projection).map((el) => ({
           id: askSurface(el).id,
         }));
   const elements = [...documentAsks, ...conversationAsks, ...optimistic]
     .map((ask) => elementById(ask.id))
-    .filter(
-      (element) => element && (kind === "all" || !requested.has(askSource(element).id)),
-    );
+    .filter((element) => {
+      if (!element) return false;
+      if (kind === "all") return true;
+      const source = askSource(element);
+      return !requested.has(source.id) && !projectionAnswered(source, projection);
+    });
   return [...new Set(elements)].sort((left, right) => {
     if (left === right) return 0;
     return left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING

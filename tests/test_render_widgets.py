@@ -4028,7 +4028,21 @@ def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
     deck.get_by_role("button", name="← Pass", exact=True).click()
     page.locator("#idea-csv-export").focus()
     page.keyboard.press("ArrowRight")
-    deck.get_by_role("button", name="← Pass", exact=True).click()
+    round_trip(page)
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        deck.get_by_role("button", name="← Pass", exact=True).click()
+
+    # The final answer is already the visible application state even though its POST is
+    # still held. Every semantic consumer reads that moment: the deck, progress count,
+    # and approval gate cannot disagree for one network round trip.
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect(approve).to_be_enabled()
+    holding(page, held, 1, "the final classification")
+    held[0].continue_()
+    page.unroute("**/api/event")
     round_trip(page)
 
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
@@ -4271,7 +4285,7 @@ def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
         page.keyboard.press(binding)
     round_trip(page)
     expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
-    expect(deck.locator(".lf-swipe-progress")).to_have_text("All done!! · 6 classified")
+    expect(deck.locator(".lf-swipe-progress")).to_have_text("All done! · 6 classified")
     expect(
         second.get_by_role(
             "button", name="Return Bound fallback lifetime to queue", exact=True

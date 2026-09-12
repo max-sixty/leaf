@@ -189,7 +189,7 @@ customElements.define(
         this.#cards(this.#pile("pass")).length + this.#cards(this.#pile("keep")).length;
       this.#progress.textContent = unseen.length
         ? `${unseen.length} queued · ${classified} done`
-        : `All done!! · ${classified} classified`;
+        : `All done! · ${classified} classified`;
 
       for (const pile of this.#piles()) {
         const cards = this.#cards(pile);

@@ -309,22 +309,19 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
     page, errors = open_page(browser, serve(BOARD_PAGE))
     outcome = page.evaluate(
         """async () => {
-          const {sendAction} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const board = document.querySelector('#sprint');
+          const controller = widgetController(board);
           const attempt = 'one-attempt-two-actions';
-          const first = sendAction(
-            board,
-            'move',
-            {card: 'card-heater', to: 'col-done', index: 0},
-            {attempt},
-          );
-          const second = sendAction(
-            board,
-            'move',
-            {card: 'card-baffle', to: 'col-done', index: 0},
-            {attempt},
-          );
-          return Promise.all([first, second]);
+          const first = controller.dispatch({
+            kind: 'action', verb: 'move', attempt,
+            detail: {card: 'card-heater', to: 'col-done', index: 0},
+          });
+          const second = controller.dispatch({
+            kind: 'action', verb: 'move', attempt,
+            detail: {card: 'card-baffle', to: 'col-done', index: 0},
+          });
+          return Promise.all([first?.delivery ?? null, second?.delivery ?? null]);
         }"""
     )
     round_trip(page)
@@ -849,11 +846,11 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({sendAction}) => {
+            """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
               const widget = document.querySelector('#sprint');
               const detail = {card: 'card-baffle', to: 'col-todo', index: 2};
               document.getElementById(detail.to).append(document.getElementById(detail.card));
-              void sendAction(widget, 'move', detail);
+              widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
             }); }"""
         )
     expect(page.locator("#col-todo > lf-card")).to_have_count(3)
@@ -963,20 +960,20 @@ customElements.define("lf-outer-board", class extends HTMLElement {
 
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({sendAction}) => {
+            """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
               const widget = document.querySelector('#outer');
               const detail = {card: 'outer-card', to: 'outer-done', index: 0};
               document.getElementById(detail.to).append(document.getElementById(detail.card));
-              void sendAction(widget, 'move', detail);
+              widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
             }); }"""
         )
     page.wait_for_timeout(0)
     page.evaluate(
-        """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({sendAction}) => {
+        """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
           const widget = document.querySelector('#inner');
           const detail = {card: 'inner-card', to: 'inner-done', index: 0};
           document.getElementById(detail.to).append(document.getElementById(detail.card));
-          void sendAction(widget, 'move', detail);
+          widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
         }); }"""
     )
     expect(page.locator("#inner-done #inner-card")).to_have_count(1)
@@ -2398,11 +2395,11 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
         },
         layer_widgets={
             "lf-preparation.js": """
-import {once, settle} from '/runtime/widget-api.js';
+import {once, widgetController} from '/runtime/widget-api.js';
 customElements.define('lf-preparation', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    settle(fetch('/preparation-content').then(() => {
+    widgetController(this).present(fetch('/preparation-content').then(() => {
       this.dataset.ready = 'yes';
     }));
   }

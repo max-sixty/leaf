@@ -433,11 +433,16 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             for e in events
             if e["kind"] == "action" and e["widget"] in carried_ids
         ]
-        # Named among what the runtime hands the render gate, which is where a
-        # standing winner has to appear for the gate to reapply it at all. Read once:
-        # the fold is the whole log's, not one widget's.
+        # Named by each carried widget's public semantic reading, which is where a
+        # standing winner has to appear for the gate to reapply it at all.
         standing = page.evaluate(
-            "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).standingState().map((s) => s.widget.id)"
+            """async ids => {
+              const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              return ids.filter(id => Object.values(
+                widgetController(document.getElementById(id)).read().actions,
+              ).some(action => action.standing.length));
+            }""",
+            decided_here,
         )
         for wid in decided_here:
             decided.append(wid)

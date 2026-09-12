@@ -2867,11 +2867,12 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
 
     sequence = page.evaluate(
         """async () => {
-          const {actionSequence} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const widget = document.getElementById('draft-ops');
-          const first = actionSequence(widget, 'edit');
+          const controller = widgetController(widget);
+          const first = controller.read().actions.edit.history;
           first[0].detail.text = 'A widget must not mutate the runtime log.';
-          return actionSequence(widget, 'edit')
+          return controller.read().actions.edit.history
             .map(event => [event.seq, event.detail.text]);
         }"""
     )
@@ -2917,7 +2918,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
     )
     old_sequence = old.evaluate(
         """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
-          .actionSequence(document.getElementById('draft-ops'), 'edit')
+          .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
           .map(event => event.revision)"""
     )
     assert old_sequence == [1]
@@ -2930,7 +2931,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
     )
     latest_sequence = latest.evaluate(
         """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
-          .actionSequence(document.getElementById('draft-ops'), 'edit')
+          .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
           .map(event => event.revision)"""
     )
     assert latest_sequence == [1, 2]

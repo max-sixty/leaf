@@ -4035,11 +4035,13 @@ def test_dismissing_versions_during_thread_upgrade_preserves_the_new_version(
         },
         layer_widgets={
             "lf-menu-preparation.js": """
-import {once, settle} from '/runtime/widget-api.js';
+import {once, widgetController} from '/runtime/widget-api.js';
 customElements.define('lf-menu-preparation', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    settle(new Promise(resolve => { window.finishMenuPreparation = resolve; }));
+    widgetController(this).present(
+      new Promise(resolve => { window.finishMenuPreparation = resolve; }),
+    );
   }
 });
 """

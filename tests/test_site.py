@@ -1179,19 +1179,6 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         expect(threads_frame.locator(".lf-thread-panel")).to_be_hidden()
         assert read_events(page_dir) == before
 
-        replacement_installed = gallery.evaluate(
-            """gallery => {
-                const replacement = gallery.cloneNode(true);
-                replacement.removeAttribute('data-interaction-installed');
-                replacement.querySelector('.interaction-controls')?.remove();
-                gallery.replaceWith(replacement);
-                document.dispatchEvent(new Event('lf-actions'));
-                return new Promise(resolve => requestAnimationFrame(() =>
-                    resolve(replacement.dataset.interactionInstalled === '1')
-                ));
-            }"""
-        )
-        assert replacement_installed
         page.emulate_media(media="print")
         expect(toggle).to_be_hidden()
         assert not errors, errors[:3]

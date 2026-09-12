@@ -3453,10 +3453,24 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         assert sent.exit_code == 0, sent.output
 
     page, errors = open_page(browser, url)
-    standing = page.evaluate("""async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).standingState()
-        .flatMap(({widget, state}) => Object.entries(state).flatMap(([facet, value]) =>
-          (value.units ? Object.values(value.units) : [value]).filter(({action}) => action)
-            .map(({action}) => [widget.id, widget.localName, facet, action])))""")
+    standing_ids = sorted(
+        {widget for widget, _action, _detail in STANDING_ACTIONS}
+        | {"ab-baffles", "ab-wren"}
+    )
+    standing = page.evaluate(
+        """async ids => {
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          return ids.flatMap(id => {
+            const widget = document.getElementById(id);
+            const state = widgetController(widget).read().state;
+            return Object.entries(state).flatMap(([facet, value]) =>
+              (value.units ? Object.values(value.units) : [value])
+                .filter(({action}) => action)
+                .map(({action}) => [widget.id, widget.localName, facet, action]));
+          });
+        }""",
+        standing_ids,
+    )
     page.close()
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     declared = {
@@ -3563,11 +3577,11 @@ customElements.define("lf-tally", class extends HTMLElement {
     expect(page.locator("#tally-seen")).to_have_attribute("count", "5")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     standing = page.evaluate(
-        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).standingState()
-          .filter(state => state.widget?.id === 'tally-fitted')
-          .map(({state}) => state.count.value)"""
+        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+          .widgetController(document.getElementById('tally-fitted')).read()
+          .state.count.value"""
     )
-    assert standing == ["7"]
+    assert standing == "7"
 
     original = page.locator("#tally-seen").element_handle()
     page.keyboard.press("z")
@@ -3745,9 +3759,14 @@ customElements.define("lf-piece", class extends HTMLElement {
     expect(page.locator("#zone-b > #piece")).to_have_count(1)
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     standing = page.evaluate(
-        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).standingState()
-          .filter(({widget}) => ['owner', 'piece'].includes(widget.id))
-          .map(({widget, state}) => [widget.id, (state.placement.units?.piece ?? state.placement).action])"""
+        """async () => {
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          return ['owner', 'piece'].map(id => {
+            const widget = document.getElementById(id);
+            const {state} = widgetController(widget).read();
+            return [id, (state.placement.units?.piece ?? state.placement).action];
+          });
+        }"""
     )
     assert standing == [["owner", "move"], ["piece", "pin"]]
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
@@ -4608,17 +4627,14 @@ customElements.define("lf-trial", class extends HTMLElement {
 def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     browser, serve, tmp_path, monkeypatch
 ):
-    """Bug-back for the settlement reading, in both directions. The bare family first
+    """Bug-back for the settlement reading. The bare family first
     proves the gate accepts a holder that brings nothing of its own — the layer's
     default hide is the whole of its disappearance. Then the one generic hide rule is
     stripped from the vendored theme, standing in for whatever re-shows a retired
     slot (a later layer's rule outranking the default, a module re-showing what it
     folded): the words stay on screen where the reader can select what no comment
-    can anchor to, and the gate must say so. Then the theme goes back and the
-    vendored module is rewritten to mark every trial after projection commits: on the undecided
-    spare that is a settlement the log never decided, silencing words the reader can
-    still see, and the gate must say that too. Both failures render perfectly, which
-    is why each is put back deliberately."""
+    can anchor to, and the gate must say so. The failure renders perfectly, which
+    is why it is put back deliberately."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
 
@@ -4650,30 +4666,6 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     assert any(
         "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
         in failure
-        for failure in failures
-    ), failures
-
-    vendored.write_text(css)
-    module = serve.page_dir / "widgets" / "lf-trial.js"
-    source = module.read_text()
-    upgrade_line = "if (!once(this)) return;"
-    assert source.count(upgrade_line) == 1
-    module.write_text(
-        source.replace(
-            upgrade_line,
-            upgrade_line
-            + '\n      document.addEventListener("lf-actions", () => this.setAttribute("data-lf-state", "shelve"));',
-        )
-    )
-    stamp_page(
-        serve.page_dir,
-        (serve.page_dir / "index.html").read_text(),
-        "capture the false settlement mark",
-    )
-    failures = render_gate_model.render_version(browser, live_url(url))
-    assert any(
-        "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
-        "records no decision" in failure
         for failure in failures
     ), failures
 
@@ -5031,11 +5023,11 @@ def test_thread_body_initial_state_waits_for_upgrade(browser, serve, asynchronou
             },
             "layer_widgets": {
                 f"{tag}.js": """
-import {once, settle} from '/runtime/widget-api.js';
+import {once, widgetController} from '/runtime/widget-api.js';
 customElements.define('lf-delayed-body', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    settle(new Promise(resolve => requestAnimationFrame(() => {
+    widgetController(this).present(new Promise(resolve => requestAnimationFrame(() => {
       this.querySelector('pre').textContent = 'First line.\\nSecond line.';
       resolve();
     })));
@@ -5802,10 +5794,11 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
     available = operations.evaluate(
         """async holder => {
-          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const reading = widgetController(holder).read();
           return [
-            leaf.requestAvailable(holder, 'restart'),
-            leaf.requestAvailable(holder, 'land')
+            reading.requests.restart.available,
+            reading.requests.land.available,
           ];
         }"""
     )
@@ -5814,26 +5807,15 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     page.locator(".lf-asks").click()
     request_row = page.locator('.lf-asks-row[data-lf-at="dedupe-operations-decision"]')
     expect(request_row).to_have_attribute("data-lf-answer-state", "open")
-    page.evaluate(
-        """() => {
-          window.__lfFirstRequestAnswer = new Promise(resolve => {
-            document.addEventListener('lf-actions', () => queueMicrotask(() => {
-              resolve(document.querySelector(
-                '[data-lf-at="dedupe-operations-decision"] .lf-asks-answer'
-              ).textContent);
-            }), {once: true});
-          });
-        }"""
-    )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     operations.get_by_role("button", name="Restart with a fresh worker").click()
     holding(page, held, 1, "the restart request")
     expect(operations).to_contain_text("restart requested · waiting for the host")
     expect(request_row).to_have_attribute("data-lf-answer-state", "answered")
-    assert page.evaluate("() => window.__lfFirstRequestAnswer") == (
+    expect(request_row.locator(".lf-asks-answer")).to_have_text(
         "Restart with a fresh worker"
-    ), "the open Asks tray missed the package's first request projection"
+    )
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)

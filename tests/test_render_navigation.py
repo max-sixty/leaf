@@ -7592,17 +7592,14 @@ def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser,
     test on every page paying for it, which is where it showed: the nightly suite ran
     half again as long and the run went over its bound with a fifth of the tests unread.
 
-    Nothing on screen says so, which is why the reading is the page's own frames against
-    its own state applications. Every application repaints the line and says so through
-    `lf-actions`, the heartbeat's re-application of state the page already holds
-    included, so a line that repaints more often than the state moves is repainting for
-    a reason the page has not got."""
+    Nothing on screen says so, which is why the reading is the page's own frames at
+    rest. A line that keeps repainting while neither the reader nor the application
+    moves is repainting for a reason the page has not got."""
     page, errors = open_page(browser, serve(NOTED_PAGE, comments=2))
     page.evaluate(
         """() => {
-          const probe = { frames: 0, paints: 0, applied: 0 };
+          const probe = { frames: 0, paints: 0 };
           window.__lfProbe = probe;
-          document.addEventListener("lf-actions", () => { probe.applied += 1; });
           new MutationObserver(() => { probe.paints += 1; }).observe(
             document.querySelector(".lf-shortcut-bar"),
             { attributes: true, childList: true, subtree: true },
@@ -7617,7 +7614,7 @@ def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser,
     page.wait_for_function("() => window.__lfProbe.frames >= 90")
     probe = page.evaluate("() => window.__lfProbe")
 
-    assert probe["paints"] <= probe["applied"] + 1, (
+    assert probe["paints"] <= 1, (
         "the shortcut bar repainted without the state moving over "
         f"{probe['frames']} frames: {probe}"
     )

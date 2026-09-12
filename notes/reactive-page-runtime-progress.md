@@ -60,6 +60,15 @@ agent route, and package guidance now use `about: "design"`; `about: "layer"` is
 Infrastructure meanings of layer generation, composed package ownership, registry
 sources, and delivery headers remain unchanged.
 
+## Integrated fresh-document proof
+
+The activation-continuity proof is consolidated at `f7526f72`. One causal browser
+journey now holds a local option delivery, proves the candidate revision cannot replace
+that document, releases the attempt, and observes a new `performance.timeOrigin` with
+the accepted standing choice, semantic reading position, valid authored-control focus,
+and closed general draft restored. A page-module global deliberately does not survive.
+No runtime mechanism or cross-document retry state was added.
+
 ## Remaining implementation
 
 Implement the public `widgetController(owner)` and migrate package/page modules away from
@@ -73,9 +82,8 @@ from the publisher.
 
 Then wire the integrated semantic/presented epoch and ticket coordinator across every
 independent readiness queue before converting generated regions to Lit. Complete the
-Targeting identity/controller cutover, preserve the fresh-document wait-until-settled
-model with combined
-proof, add offline interactive export without weakening script-free static export, and
+Targeting identity/controller cutover, add offline interactive export without weakening
+script-free static export, and
 dissolve this checkpoint plus both plan notes into their owning contracts.
 
 ## Verification checkpoint
@@ -92,6 +100,9 @@ The presentation kernel adds eight focused causal cases; its TypeScript check,
 The design-intent cutover passes its 12 focused admission, composition, filtering,
 label, placement, transcript, and gallery cases plus an integration rerun of the server
 round trip and composed panel facets. The locked browser build remains unchanged.
+
+The consolidated application-boundary and outbox files pass all 49 cases; the combined
+fresh-document journey also passes independently on the integration branch.
 
 The website bundler slice passed 61 worker tests, typecheck, five immutable-shell tests,
 three site tests, and a complete site build/bundle. Local pre-commit passes.

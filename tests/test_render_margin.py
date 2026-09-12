@@ -5139,7 +5139,9 @@ def test_the_thread_card_survives_trays_and_authored_sidebars(browser, serve):
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     # Reading the card's box needs the placement, which the reopened card takes a frame
-    # to measure. Visibility alone would read the transparent card at the viewport origin.
+    # to measure. Reopening clears the placement attribute but keeps the inline left and
+    # top of the previous open, so visibility alone would read the card at the position
+    # it held before the shell widened.
     expect(page.locator(".lf-margin-preview")).to_have_attribute(
         "data-lf-thread-placement", re.compile(r".+")
     )

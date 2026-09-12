@@ -552,6 +552,35 @@ in agreement.
 
 ## Layout and motion
 
+### Space and scrolling
+
+Allocate width independently of scrolling posture. Prose keeps its reading measure;
+visual evidence may use a wider area, and an inspection surface may use the available
+task area. Core owns that allocation after chrome, enclosing frames, and actual margin
+occupancy. Packages declare their space needs and arrange content within the allocation;
+authors choose the reading sequence and evidence. Width demand is independent of a
+widget's internal drawing layout. Compact navigation must not reserve a full sidebar
+when its presentation no longer needs one, and a free side may use room the other side
+cannot take. Keep annotation access and visible residents clear of expanding content.
+
+Ordinary document content grows in flow. A bounded inspection object may scroll inside
+that document, with native scroll chaining into the document at its boundary, including
+when the object has no overflow. Use the effective reading posture, not a widget's tag,
+to choose scroll ownership: a bounded task region owns its scrolling, while an embedded
+or responsive flow arrangement cooperates with its containing document. Avoid adding
+another vertical scroller inside a region without an inspection need. Modal surfaces
+isolate background scrolling. Wheel and ordinary touch gestures retain their navigation
+meaning; deliberate controls or gestures enter pan and zoom. Every necessary scroller
+has a keyboard route, discernible bounds, and visible focus.
+
+Inspection preserves useful detail. Allocate room before shrinking evidence; support
+aligned detail and whole-object context rather than treating a fitted overview as proof
+of legibility. An explicit expanded inspection preserves the selected object, inspection
+state, and surrounding document position on return. Narrow screens reflow surrounding
+prose and controls while retaining deliberate access to two-dimensional evidence.
+
+### Stability
+
 The page must hold still under the reader's aim. A state change may repaint any
 box, but it must not move controls adjacent to the gesture that caused it. News
 arriving without a gesture must not move any chrome control. A content change

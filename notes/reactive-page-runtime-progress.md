@@ -57,8 +57,10 @@ subscribers have registered their work. Current readiness revalidates newer epoc
 same-epoch renderer replacement; scoped waits do not inherit unrelated deferred work.
 The monotonic `data-lf-presented` mark remains only the initial presentation milestone.
 Render checks, the browser harness, and export now revalidate the active document's
-current coordinator reading after that milestone. Conversation/projection chrome are the
-remaining legacy readiness consumers.
+current coordinator reading after that milestone. Conversation and projection chrome use
+the same coordinator, including frozen-widget preparation, drag deferral, fail-soft
+settlement, and pending-action retirement. The synchronous browser probe lives on Leaf's
+own bootstrap element so modular pages and bundled published shells share the contract.
 
 ## Integrated design intent
 
@@ -123,13 +125,38 @@ only live or settled decisions request a controller. This preserves the registry
 intentionally id-less specimen while keeping missing semantic identity a hard controller
 error.
 
+Option marks and the thread-only Done control are integrated at `4de2b74a`. Authored
+`lf-option` descendants remain stable light DOM; one controller reading drives the
+generated controls, and their `updateComplete` participates in widget presentation.
+
+The Asks tray list is integrated at `dd0e66bf`. One keyed light-DOM Lit owner replaces
+the manual row map, preserves row identity and focus across reorder or removal, resolves
+activation against the current Ask id, and keeps pending action retirement behind the
+`asks` presentation region. A failed update retains the prior usable list and settles
+through the coordinator.
+
+## Integrated interactive export
+
+Offline-interactive export is integrated at `a9f3facd`. It packages the captured revision
+graph, accepted state, locked runtime, authored modules, styles, and media into one file.
+The normal publisher and presentation coordinator render it from `file://`; local controls
+and navigation remain active, host commands are unavailable before dispatch, and CSP plus
+embedded resource addressing permit no external request. Script-free static export remains
+the default and uses its existing browser-rendered path.
+
+The export work also exposed a startup cycle in the projection region: provisional
+`waiting` chrome held the current barrier that had to finish before the first state feed
+could start. That provisional ticket now settles without committing widget state; the
+authoritative `ready` publication opens a new ticket and paints the actual projection.
+
 ## Remaining implementation
 
-Finish the conversation/projection queues.
-Continue converting generated regions to Lit by ownership boundary, beginning with the
-shared options controls. Add offline interactive export without weakening script-free
-static export, then dissolve this checkpoint plus both plan notes into their owning
-contracts.
+Continue converting generated regions to Lit by ownership boundary. The live Leaves list
+and Ask banner/bulk controls are the active next slices; conversation surfaces, margin
+entries, and remaining chrome follow where their authored-node and reparenting boundaries
+can be retained explicitly. Resolve the two deterministic outbox/focus regressions found by
+the serial browser run, complete the final integration and performance checks, then dissolve
+this checkpoint plus both plan notes into their owning contracts.
 
 ## Verification checkpoint
 
@@ -167,7 +194,19 @@ reference contract cases and the quoted settled-options journey also pass. The e
 data slice separately passes 13 startup/provenance cases and touched-file pre-commit.
 The current-readiness probe slice passes the 32 browser domain/build tests, causal
 same-epoch replacement/failure and late-export browser cases, nine neighboring harness
-journeys, and touched-file pre-commit.
+journeys, and touched-file pre-commit. Its synchronous harness correction passes the nine
+formerly early-returning journeys. The complete suite then passed 1082 of 1083 cases; the
+one bundled-shell failure identified an unpublished-module assumption in the probe, and
+both bundled and modular published-shell cases pass after the bootstrap-element cutover.
+
+Conversation/projection coordination passes its focused region, frozen-widget, retirement,
+and startup journeys. The interactive export's `file://` journey, static preview neighbor,
+waiting-to-ready projection proof, 33 browser domain/build tests, and touched-file
+pre-commit checks pass on the integrated tree.
+
+The keyed Asks list passes five focused journeys and all 33 browser domain/build tests on
+the integrated tree. The broader Ask keyboard selection exposed one stale test proxy for
+generated custom-element controls; its authored-Ask ownership proof now passes directly.
 
 The website bundler slice passed 61 worker tests, typecheck, five immutable-shell tests,
 three site tests, and a complete site build/bundle. Local pre-commit passes.

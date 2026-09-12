@@ -35,6 +35,7 @@ from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
+from .revision_artifact import RevisionArtifact, read_artifact, rewrite_module
 from .revisioning import activate_source
 from .schema import (
     BINARY_TYPES,
@@ -93,20 +94,20 @@ def _query_int(raw, name: str, minimum: int) -> int:
 
 _ROOTED_SCRIPT_ROUTE = re.compile(
     rb'(?P<before>["\'`])/(?P<path>'
-    rb"(?:api|runtime|widgets|vendor|media)/|"
+    rb"(?:api|page|runtime|widgets|vendor|media)/|"
     rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
     rb")"
 )
 _ROOTED_STYLESHEET_ROUTE = re.compile(
     rb'(?P<before>["\'`(])/(?P<path>'
-    rb"(?:api|runtime|widgets|vendor|media)/|"
+    rb"(?:api|page|runtime|widgets|vendor|media)/|"
     rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
     rb")"
 )
 
 _ROOTED_PAGE_ATTRIBUTE = re.compile(
     rb'(?P<before>=\s*["\'])/(?P<path>'
-    rb"(?:api|runtime|widgets|vendor|media)/|"
+    rb"(?:api|page|runtime|widgets|vendor|media)/|"
     rb"(?:registry\.json|theme\.css|icon\.svg|leaf\.js)"
     rb")",
     re.IGNORECASE,
@@ -747,7 +748,7 @@ class Handler(BaseHTTPRequestHandler):
     def _serve_root(self) -> None:
         if self.page_snapshot is not None:
             revision = self.page_snapshot.active["revision"]
-            source = self.page_snapshot.document.html
+            artifact = self.page_snapshot.artifacts[revision]
             version = self.page_snapshot.active["version"]
         else:
             with PageTransaction(self.page_dir) as page:
@@ -757,22 +758,39 @@ class Handler(BaseHTTPRequestHandler):
             if revision is None:
                 self._json({"error": missing_revision(self.page_dir)}, 404)
                 return
-            source = revision_path(self.page_dir, revision).read_text(encoding="utf-8")
+            artifact = read_artifact(self.page_dir, revision)
             version = stamped_version(events, revision)
-        self._send_document(source, revision, version)
+        self._send_document(artifact, revision, version)
 
-    def _send_document(self, source: str, revision: int, version: int | None) -> None:
+    def _revision_name(self, revision: int) -> str:
+        if self.page_snapshot is not None:
+            return self.page_snapshot.revision_names[revision]
+        return revision_path(self.page_dir, revision).name
+
+    def _artifact(self, revision: int) -> RevisionArtifact:
+        if self.page_snapshot is not None:
+            return self.page_snapshot.artifacts[revision]
+        return read_artifact(self.page_dir, revision)
+
+    def _artifact_root(self, revision: int) -> str:
+        name = self._revision_name(revision).removesuffix(".html")
+        return self.page_root.rstrip("/") + f"/revisions/{name}"
+
+    def _send_document(
+        self, artifact: RevisionArtifact, revision: int, version: int | None
+    ) -> None:
         """Serve one immutable document under the current delivery boundary."""
         try:
             projected = supervised_document(
-                source,
+                artifact.html.decode("utf-8"),
                 revision,
                 version,
                 server_id=self.server_id,
-                layer_id=self.layer,
+                layer_id=artifact.registry["$layer"]["generation"],
                 bootstrap=self.bootstrap,
                 release_id=self.release,
                 page_root=self.page_root,
+                asset_root=self._artifact_root(revision),
                 before_runtime=self._document_head(),
             )
         except ValueError as error:
@@ -780,11 +798,59 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._send(200, "text/html; charset=utf-8", projected)
 
+    def _serve_artifact_resource(self, path: str) -> bool:
+        match = re.fullmatch(
+            r"/revisions/(?P<name>r(?P<revision>[1-9][0-9]*)-[a-f0-9]{16})/"
+            r"(?P<resource>.+)",
+            path,
+        )
+        if match is None:
+            return False
+        revision = int(match.group("revision"))
+        revisions = (
+            set(self.page_snapshot.artifacts)
+            if self.page_snapshot is not None
+            else set(list_revisions(self.page_dir))
+        )
+        if revision not in revisions:
+            return False
+        expected = self._revision_name(revision).removesuffix(".html")
+        if match.group("name") != expected:
+            return False
+        artifact = self._artifact(revision)
+        logical = "/" + match.group("resource")
+        source = logical
+        widget = re.fullmatch(r"/widgets/(?P<tag>lf-[a-z0-9-]+)\.js", logical)
+        if widget is not None:
+            implementation = artifact.implementations.get(widget.group("tag"))
+            if implementation is not None:
+                source = implementation["path"]
+        resource = artifact.resources.get(source)
+        if resource is None:
+            return False
+        body = resource.data
+        root = self._artifact_root(revision)
+        if resource.mime == "application/javascript":
+            body = (
+                rewrite_module(body, source, root)
+                if source.startswith("/page/")
+                else scope_script_routes(body, self.page_root, asset_root=root)
+            )
+        elif resource.mime == "text/css":
+            body = scope_stylesheet_routes(body, self.page_root, asset_root=root)
+        ctype = resource.mime
+        if ctype not in BINARY_TYPES:
+            ctype += "; charset=utf-8"
+        self._send(200, ctype, body)
+        return True
+
     def _document_head(self) -> str:
         """Transport-specific delivery metadata inserted before the runtime entry."""
         return ""
 
     def _serve_page_path(self, path: str) -> bool:
+        if self._serve_artifact_resource(path):
+            return True
         if path.startswith("/versions/"):
             version = version_num(Path(path).name)
             events = (
@@ -804,14 +870,8 @@ class Handler(BaseHTTPRequestHandler):
                     404,
                 )
                 return True
-            source = (
-                self.page_snapshot.documents[mapping[version]].html
-                if self.page_snapshot is not None
-                else revision_path(self.page_dir, mapping[version]).read_text(
-                    encoding="utf-8"
-                )
-            )
-            self._send_document(source, mapping[version], version)
+            artifact = self._artifact(mapping[version])
+            self._send_document(artifact, mapping[version], version)
             return True
         if path.startswith("/revisions/"):
             name = Path(path).name
@@ -829,20 +889,23 @@ class Handler(BaseHTTPRequestHandler):
             if revision not in revisions or expected_name != name:
                 self._json({"error": "unknown revision"}, 404)
                 return True
-            source = (
-                self.page_snapshot.documents[revision].html
-                if self.page_snapshot is not None
-                else revision_path(self.page_dir, revision).read_text(encoding="utf-8")
-            )
+            artifact = self._artifact(revision)
             events = (
                 list(self.page_snapshot.events)
                 if self.page_snapshot is not None
                 else read_events(self.page_dir)
             )
-            self._send_document(source, revision, stamped_version(events, revision))
+            self._send_document(artifact, revision, stamped_version(events, revision))
             return True
-        if path == "/registry.json" and self.page_snapshot is not None:
-            self._json(self.page_snapshot.registry)
+        if path == "/registry.json":
+            revision = (
+                self.page_snapshot.active["revision"]
+                if self.page_snapshot is not None
+                else latest_revision(self.page_dir)
+            )
+            if revision is None:
+                return False
+            self._json(self._artifact(revision).registry)
             return True
         file = self.page_dir / path.lstrip("/")
         # The allowlist rejects traversal spellings; containment is the second
@@ -912,7 +975,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/favicon.ico":
             self._send(204, "image/x-icon", b"")
             return
-        if SERVED_PATH.fullmatch(path) and self._serve_page_path(path):
+        if (
+            path.startswith("/revisions/") or SERVED_PATH.fullmatch(path)
+        ) and self._serve_page_path(path):
             return
         self._json({"error": "not found"}, 404)
 

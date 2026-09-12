@@ -655,13 +655,13 @@ def test_server_round_trip(server, page_dir):
         b'<meta name="lf-revision" data-lf-runtime content="2">'
         b'<meta name="lf-version" data-lf-runtime content="1">'
     )
+    artifact_root = f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
+    entry = (
+        f'<script type="module" src="{artifact_root}/leaf.js" data-lf-runtime></script>'
+    ).encode()
     assert marker in body
     assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in body
-    assert (
-        body.index(marker)
-        < body.index(b'<script type="module" src="/leaf.js" data-lf-runtime></script>')
-        < body.index(b"</style>")
-    )
+    assert body.index(marker) < body.index(entry) < body.index(b"</style>")
     # Historical source remains delivery-free; today's boundary is applied when read.
     with urllib.request.urlopen(f"{server}/versions/v1.html?t={TOKEN}") as response:
         pinned = response.read()
@@ -989,6 +989,7 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
     assert stamped.exit_code == 0, stamped.output
     revision = files_model.latest_revision(page_dir)
     marker = f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
+    artifact_root = f"/revisions/{files_model.revision_path(page_dir, revision).stem}"
     for address in (
         "/",
         "/versions/v1.html",
@@ -998,7 +999,8 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
         assert status == 200, address
         assert b'<link rel="canonical" href="/" data-lf-runtime>' in body, address
         assert marker.encode() in body, address
-        assert b'data-lf-entry="/leaf.js"' in body, address
+        assert f'data-lf-entry="{artifact_root}/leaf.js"'.encode() in body, address
+        assert fetch(server + artifact_root + "/leaf.js")[0] == 200, address
 
 
 def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(

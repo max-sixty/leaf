@@ -237,7 +237,12 @@ def _css_urls(tokens):
 
 
 def capture_artifact(
-    page_dir: Path, document: SourceDocument, registry: dict
+    page_dir: Path,
+    document: SourceDocument,
+    registry: dict,
+    *,
+    declaration_sources: Mapping[str, str] | None = None,
+    widget_sources: Mapping[str, str] | None = None,
 ) -> RevisionArtifact:
     """Capture the candidate's complete inputs without executing authored code."""
     resources = {}
@@ -299,6 +304,17 @@ def capture_artifact(
                 capture("/" + path.relative_to(page_dir).as_posix())
     resources["/registry.json"] = Resource(_json(registry), "application/json")
 
+    if widget_sources is None:
+        widget_sources = {
+            tag: f"widgets/{tag}.js"
+            for tag, entry in registry.items()
+            if tag.startswith("lf-")
+            and entry.get("x-upgrade")
+            and f"/widgets/{tag}.js" in resources
+        }
+    for source in widget_sources.values():
+        capture("/" + source.lstrip("/"))
+
     entries = []
     for script in document.inline_scripts:
         for _, _, specifier in _javascript_imports(
@@ -334,14 +350,11 @@ def capture_artifact(
 
     implementations = {
         tag: {
-            "path": f"/widgets/{tag}.js",
-            "owner": "layer",
-            "digest": resources[f"/widgets/{tag}.js"].digest,
+            "path": "/" + source.lstrip("/"),
+            "owner": "page" if source.startswith("page/") else "layer",
+            "digest": resources["/" + source.lstrip("/")].digest,
         }
-        for tag, entry in registry.items()
-        if tag.startswith("lf-")
-        and entry.get("x-upgrade")
-        and f"/widgets/{tag}.js" in resources
+        for tag, source in widget_sources.items()
     }
     manifest = _json(
         {
@@ -349,6 +362,7 @@ def capture_artifact(
             "entries": sorted(set(entries)),
             "public_modules": list(PUBLIC_MODULES),
             "layer": registry.get("$layer", {}),
+            "declarations": dict(declaration_sources or {}),
             "implementations": implementations,
             "resources": {
                 path: {

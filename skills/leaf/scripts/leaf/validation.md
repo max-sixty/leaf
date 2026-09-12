@@ -5,12 +5,13 @@
 `version check` is a deterministic check of the exact mutable `index.html` (no
 browser, near-free; activation and `version stamp` run the same boundary): the HTML parses with balanced
 tags; one direct `<body><main>` contains all authored content; page-authored behavior
-appears only in inline module blocks, never external or classic scripts,
-event-handler attributes, or `javascript:` URLs; page-specific presentation appears
-in `<style>`, never an external stylesheet. CSP, runtime, theme, page identity, and
+appears only in inline modules or literal local module graphs rooted below `/page/`,
+never classic scripts, network imports, event-handler attributes, or `javascript:` URLs;
+page-specific presentation appears inline or in captured `/page/` stylesheets. CSP,
+runtime, theme, page identity, and
 canonical address belong to delivery and are rejected in source. Delivery inserts
 them at the start of `<head>`, before authored executable content, and hashes each
-authored module into the served policy. Every lf-* element validates against the vendored registry
+authored inline module into the served policy. Every lf-* element validates against the effective registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
 one of each slot, at least one of them, no nesting, `resolves` naming a real

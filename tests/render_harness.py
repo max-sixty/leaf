@@ -129,8 +129,7 @@ def wait_for_revision(page, revision: int) -> None:
         "?.content === String(revision)",
         arg=revision,
     )
-    # activateRevision writes the marker while it is replacing the authored document,
-    # before the encompassing state transaction replays and publishes its reading.
+    # Navigation installs the marker before the fresh runtime reads authoritative state.
     # The marker answers which source is installed; the reading answers whether that
     # source and the server state that selected it became one complete browser view.
     told(page)
@@ -427,6 +426,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
         preview=None,
         website_publication=None,
         seed_log=True,
+        page_files=None,
     ):
         monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
         project = tmp_path / ".leaf"
@@ -491,6 +491,10 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 if fixture_media.is_file():
                     (d / "media").mkdir(exist_ok=True)
                     shutil.copy2(fixture_media, d / "media" / fixture_media.name)
+        for name, content in (page_files or {}).items():
+            path = d / "page" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
         for name, data in (media or {}).items():
             path = d / name.lstrip("/")
             path.parent.mkdir(parents=True, exist_ok=True)

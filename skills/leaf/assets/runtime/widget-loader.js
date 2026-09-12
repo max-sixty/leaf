@@ -93,6 +93,12 @@ export function rememberPassageParts(scope = document, source = ["page", null]) 
 // the same conversation again all cost nothing. A failed import stays rejected:
 // startup and activation must not present markup whose required module is absent.
 const modules = new Map();
+const registryUrl = () =>
+  document.querySelector("script[data-lf-runtime][data-lf-probe]")?.dataset.lfProbe ??
+  "/registry.json";
+const widgetUrl = (tag) =>
+  new URL(`widgets/${tag}.js`, new URL("./", new URL(registryUrl(), document.baseURI)))
+    .href;
 const presentTags = (scope, holds) =>
   tagsDeclaring(holds).filter((tag) => scope.querySelector(tag));
 
@@ -106,7 +112,7 @@ export async function importWidgets(scope) {
   if (presentTags(scope, (entry) => entry["x-shadow"]).length) await loadShadowRules();
   await Promise.all(
     presentTags(scope, (entry) => entry["x-upgrade"]).map((tag) => {
-      if (!modules.has(tag)) modules.set(tag, import(`/widgets/${tag}.js`));
+      if (!modules.has(tag)) modules.set(tag, import(widgetUrl(tag)));
       return modules.get(tag);
     }),
   );
@@ -130,7 +136,7 @@ export async function installDocument(
 }
 
 export async function upgradeWidgets({ buildReactionBar }) {
-  const response = await fetch("/registry.json");
+  const response = await fetch(registryUrl());
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
   if (!sameDelivery(response)) return false;

@@ -168,7 +168,9 @@ def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
     assert status["detail"] == session_model.DELIVERY_CLAIM_DETAIL
     assert status["handling"]["target"] == {"kind": "thread", "id": "first"}
     assert status["handling"]["event"] == first["id"]
-    [receipt] = page_state(page_dir)["activity"]["interactions"]
+    live = page_state(page_dir)
+    assert "handling" not in live["status"]
+    [receipt] = live["activity"]["interactions"]
     assert (receipt["event"], receipt["phase"], receipt["detail"]) == (
         first["id"],
         "active",

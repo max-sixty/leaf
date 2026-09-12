@@ -166,6 +166,57 @@ def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
     assert findings == ["authored main has no measurable pre-upgrade layout"]
 
 
+@pytest.mark.parametrize(
+    ("asset", "stage"),
+    [
+        ("versions/v1.html?*", "navigation"),
+        ("theme.css", "theme stylesheet"),
+        ("runtime/banner.js", "document load after releasing Leaf"),
+    ],
+)
+def test_startup_timeouts_name_the_blocked_stage_and_request(
+    browser, serve, monkeypatch, asset, stage
+):
+    held = []
+    pages = []
+
+    def prepare(page):
+        page.set_default_timeout(2_000)
+        page_held = []
+
+        def hold(route):
+            page_held.append(route)
+            held.append(route)
+
+        close = page.close
+
+        def close_after_release():
+            for route in page_held:
+                route.continue_()
+            page.unroute(f"**/{asset}", hold)
+            close()
+
+        page.route(f"**/{asset}", hold)
+        monkeypatch.setattr(page, "close", close_after_release)
+        pages.append(page)
+
+    failures = render_gate_model.render_version(
+        primed(browser, prepare), serve(LONG_PAGE, packages=())
+    )
+
+    # Release happens only when the gate has collected its failure and closes.
+    assert len(held) == len(pages) == 4
+    assert all(page.is_closed() for page in pages)
+    assert {failure.split("]", 1)[0] for failure in failures} == {"[light", "[dark"}
+    assert all(f"timed out waiting for {stage}" in failure for failure in failures)
+    assert all("unfinished requests: " in failure for failure in failures)
+    assert all(f"/{asset.split('?')[0]}" in failure for failure in failures)
+    assert all("test-page-key" not in failure for failure in failures)
+    assert all(
+        "runtime never injected its banner" not in failure for failure in failures
+    )
+
+
 def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):
     """Pane bounds are real scroll bounds, so content past a pane's first fold remains
     reachable without being exempted from the ordinary geometry checks."""
@@ -792,19 +843,25 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
             )
             resize_notice_after_last_probe(page)
         elif number >= 4:  # the first attempt, then every confirming page
-            page.set_default_timeout(500)
-            page.route("**/leaf.js", lambda route: route.abort())
+            page.set_default_timeout(2_000)
+            # The gate owns the leaf.js hold; refuse an imported module so that
+            # the entry cannot shadow the fault with its own route.continue_().
+            page.route("**/runtime/banner.js", lambda route: route.abort())
         pages.append(page)
 
     failures = render_gate_model.render_version(
-        primed(browser, prepare), serve(LONG_PAGE)
+        primed(browser, prepare), serve(LONG_PAGE), served_timeout_ms=2_000
     )
 
-    assert any("ordinary error from first attempt" in failure for failure in failures)
-    assert any("runtime never injected its banner" in failure for failure in failures)
+    assert any(
+        "ordinary error from first attempt" in failure for failure in failures
+    ), failures
+    assert any(
+        "runtime never injected its banner" in failure for failure in failures
+    ), failures
     assert any(
         "confirming render attempt did not complete" in failure for failure in failures
-    )
+    ), failures
 
 
 def test_page_navigation_classifies_only_its_resize_notices(browser, serve):

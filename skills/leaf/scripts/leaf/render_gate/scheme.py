@@ -73,10 +73,17 @@ def console_problem(message) -> str | None:
     return None
 
 
+class PreUpgradeTimeout(TimeoutError):
+    """The authored-document proof or its release did not finish loading."""
+
+
 def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
     """Inspect the authored document while its first Leaf entry request is held."""
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
     held = []
     released = False
+    stage = "navigation"
 
     def hold_entry(route):
         held.append(route)
@@ -84,9 +91,11 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
     page.route("**/leaf.js", hold_entry, times=1)
     try:
         page.goto(url, wait_until="commit")
+        stage = "authored main"
         page.wait_for_selector("body > main", state="attached")
         if page.locator('script[src$="/leaf.js"]').count() != 1:
             raise RuntimeError("the document has no single canonical Leaf entry")
+        stage = "theme stylesheet"
         page.wait_for_function(
             "() => [...document.styleSheets].some((sheet) => "
             "sheet.href?.endsWith('/theme.css'))"
@@ -114,10 +123,14 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
         )
         if len(held) != 1:
             raise RuntimeError("the browser did not request one canonical Leaf entry")
+        stage = "release of the Leaf entry"
         held[0].continue_()
         released = True
+        stage = "document load after releasing Leaf"
         page.wait_for_load_state("load")
         return findings
+    except PlaywrightTimeout as error:
+        raise PreUpgradeTimeout(f"the browser timed out waiting for {stage}") from error
     finally:
         if held and not released:
             held[0].continue_()
@@ -134,6 +147,10 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
     page._leaf_probe_timeout_ms = served_timeout_ms
     errors = []
     resize_notices = []
+    pending_requests = set()
+    page.on("request", lambda request: pending_requests.add(request))
+    page.on("requestfinished", lambda request: pending_requests.discard(request))
+    page.on("requestfailed", lambda request: pending_requests.discard(request))
 
     def served_here(path):
         return served(page, url, path, timeout_ms=served_timeout_ms)
@@ -172,12 +189,34 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
         # pre-upgrade authored structure exists without racing module execution.
         pre_upgrade = start_with_pre_upgrade_proof(page, url)
         wait_for_probe(page, "runtimeStarted")
-    except PlaywrightTimeout:
-        page.close()
+    except (PreUpgradeTimeout, PlaywrightTimeout) as error:
         explanations = [*errors, *resize_notices]
+        if pending_requests:
+            addresses = [urlsplit(request.url) for request in pending_requests]
+            explanations.append(
+                "unfinished requests: "
+                + ", ".join(
+                    sorted(
+                        {
+                            address._replace(
+                                netloc=address.netloc.rsplit("@", 1)[-1],
+                                query="",
+                                fragment="",
+                            ).geturl()
+                            for address in addresses
+                        }
+                    )
+                )
+            )
+        failure = (
+            str(error)
+            if isinstance(error, PreUpgradeTimeout)
+            else "the runtime never injected its banner"
+        )
+        page.close()
         return (
             [
-                f"[{scheme}] the runtime never injected its banner — "
+                f"[{scheme}] {failure} — "
                 + ("; ".join(explanations) or "and no console message explains why")
             ],
             [],

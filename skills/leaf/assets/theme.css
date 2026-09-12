@@ -1080,12 +1080,11 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
       max(0px, var(--strip-l) + var(--lf-sidebar-edge) - var(--lf-gutter))
       - max(0px, var(--strip-r) + var(--lf-sidebar-edge) - var(--lf-gutter)));
     & [data-lf-space] {
-      --lf-space-bound: calc(100cqi
-        - var(--lf-sidebar-claim, var(--sidebar)) - 2 * var(--col-pad));
+      --lf-space-bound: var(--lf-sidebar-shell-bound,
+        calc(50cqi - var(--lf-shift)
+          + min(var(--col), var(--lf-room)) / 2 - var(--col-pad)));
       --lf-grow-l: min(calc(var(--lf-surplus) / 2),
-        max(0px, calc(50cqi + var(--lf-shift)
-          - min(var(--col), var(--lf-room)) / 2
-          - var(--lf-sidebar-claim, var(--sidebar)) - var(--col-pad))));
+        var(--lf-sidebar-free-left, 0px));
       --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
     }
   }
@@ -1106,12 +1105,11 @@ main > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-sidebar-slot: margin; 
     --strip-l: var(--lf-sidebar-claim, var(--sidebar));
     --lf-sidebar-posture: margin;
     & [data-lf-space] {
-      --lf-space-bound: calc(100cqi
-        - var(--lf-sidebar-claim, var(--sidebar)) - 2 * var(--col-pad));
+      --lf-space-bound: var(--lf-sidebar-shell-bound,
+        calc(50cqi - var(--lf-shift)
+          + min(var(--col), var(--lf-room)) / 2 - var(--col-pad)));
       --lf-grow-l: min(calc(var(--lf-surplus) / 2),
-        max(0px, calc(50cqi + var(--lf-shift)
-          - min(var(--col), var(--lf-room)) / 2
-          - var(--lf-sidebar-claim, var(--sidebar)) - var(--col-pad))));
+        var(--lf-sidebar-free-left, 0px));
       --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
     }
   }

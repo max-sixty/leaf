@@ -1538,6 +1538,11 @@ lf-toc a:hover, lf-toc a:focus-visible { color: var(--accent); }
    * their full presentation and revealed labels stay clear of available content. */
   main:has(> aside.sidebar > lf-toc:only-child) {
     --lf-sidebar-claim: 64px;
+    --lf-sidebar-shell-bound: calc(100cqi - var(--lf-sidebar-claim)
+      - 2 * var(--col-pad));
+    --lf-sidebar-free-left: max(0px, calc(50cqi + var(--lf-shift)
+      - min(var(--col), var(--lf-room)) / 2
+      - var(--lf-sidebar-claim) - var(--col-pad)));
   }
   main:has(> aside.sidebar > lf-toc:only-child:is(:hover, :focus-within)),
   body[data-lf-go-to-active] main:has(> aside.sidebar > lf-toc:only-child) {

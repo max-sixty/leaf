@@ -1795,7 +1795,8 @@ graph LR
 def test_available_space_is_a_generic_package_capacity(browser, serve):
     """An available surface with no sidebar receives the page room even when it is
     ordinary compound markup. Diagram's source-sized layout must not be the mechanism
-    that grants the shared capacity."""
+    that grants the shared capacity. An ordinary prose-adjacent sidebar then withholds
+    its whole side, unlike the contents spine that declares its shell-edge occupancy."""
     entry = {
         "description": "A project package's compound review surface.",
         "type": "object",
@@ -1840,6 +1841,41 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
     assert at["width"] > 1600, at
     assert abs(at["children"][0] - at["children"][1]) <= 1, at
     assert at["children"][0] > 750, at
+    assert at["sideways"] == 0, at
+    assert errors == []
+    page.close()
+
+    source = leaf_page(
+        "Available package surface with ordinary sidebar",
+        """
+<style>
+lf-roomy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+lf-roomy > section { min-height: 300px; border: 1px solid currentColor; }
+</style>
+<aside class="sidebar">
+  <p>Reference</p><p>Supporting information</p><p>Helpful link</p>
+  <p>Further notes</p><p>Useful actions</p>
+</aside>
+<h1 id="t">Available package surface</h1>
+<lf-roomy id="roomy"><section>One</section><section>Two</section></lf-roomy>
+""",
+    )
+    page, errors = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
+    resized(page, 1726, 900)
+    at = page.evaluate("""() => {
+      const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
+      const surface = document.querySelector('lf-roomy').getBoundingClientRect();
+      return {
+        sidebar: {left: sidebar.left, right: sidebar.right,
+                  top: sidebar.top, bottom: sidebar.bottom},
+        surface: {left: surface.left, right: surface.right,
+                  top: surface.top, bottom: surface.bottom, width: surface.width},
+        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    }""")
+    assert at["surface"]["top"] < at["sidebar"]["bottom"], at
+    assert at["surface"]["left"] >= at["sidebar"]["right"] + 23, at
+    assert at["surface"]["width"] > 1080, at
     assert at["sideways"] == 0, at
     assert errors == []
     page.close()

@@ -1197,6 +1197,7 @@ def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve
     page.locator('[data-lf-margin-for="left-head"] .lf-margin-marker').click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
+    expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
     geometry = preview.evaluate(
         """card => {
           const box = card.getBoundingClientRect();

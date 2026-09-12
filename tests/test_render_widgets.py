@@ -5991,16 +5991,19 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         expect(page.locator(STANDING_ASK)).to_have_count(1)
         expect(decisions).to_have_text("Asks 1/5")
 
-    # Every request has an answering control, so the walk never has to lend a tab stop
-    # to authored content.
+    # Every request has an answering control, so the walk never has to leave a borrowed
+    # tab stop on an Ask it has left. A generated custom element may now be the public
+    # role-bearing control itself, so a dash in its tag no longer means authored widget
+    # paint. Ask ids are the exact ownership boundary this assertion is about; the
+    # currently standing Ask alone may retain the stop that focus is using.
     expect(page.locator(STANDING_ASK)).to_have_count(1)
-    # Asked of the tag's dash, the platform's own mark of a widget element, which is what
-    # the export's own sweep for stray stops asks (BAKE).
     assert (
         page.evaluate(
-            "() => [...document.querySelectorAll('main [tabindex]')]"
-            "  .filter(el => el.tagName.includes('-') && !el.hasAttribute('data-lf-ask'))"
-            "  .map(el => el.tagName.toLowerCase() + '#' + el.id)"
+            "ids => ids.filter(id => {"
+            "  const ask = document.getElementById(id);"
+            "  return ask.hasAttribute('tabindex') && !ask.hasAttribute('data-lf-ask');"
+            "})",
+            ASKS_IN_ORDER,
         )
         == []
     ), "a lent tab stop was left on a decision the reader has walked off"

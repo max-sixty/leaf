@@ -618,6 +618,7 @@ export default [
       "skills/leaf/assets/runtime/dom-children.js",
       "skills/leaf/assets/runtime/focus.js",
       "skills/leaf/assets/runtime/repaint.js",
+      "skills/leaf/assets/runtime/root-state.js",
       "skills/leaf/assets/runtime/conversation/identity.js",
     ],
     rules: {

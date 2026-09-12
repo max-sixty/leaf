@@ -40,6 +40,7 @@
 // auxiliary surfaces, send commands, or reconcile conversation DOM.
 import { drawnEdge } from "./drawn-edge.js";
 import { motion } from "./motion.js";
+import { setRuntimeRootStyle } from "./root-state.js";
 
 // The width the panel stands at for a reader who has not moved its edge. 420 since
 // threads carry questions — option rows are the one thread content that can't scroll or
@@ -208,7 +209,7 @@ export function createChromeLayout({
     // reaches it, and it runs under the line at every width. It does not take the band
     // today, deliberately: `lf-toc`'s own rule in the default theme carries the reasoning
     // and the TODO, which is that the line has to be a hover or a foot and not both.
-    document.documentElement.style.setProperty("--lf-bottom-chrome-clear", clear);
+    setRuntimeRootStyle(document.documentElement, "--lf-bottom-chrome-clear", clear);
     // A tray's list is the page's other scroll region, in the corner the line is
     // written into. Its foot is the window's, the tray being held to `bottom: 0`, so the
     // document's band is its band — and it states it twice, because it reaches

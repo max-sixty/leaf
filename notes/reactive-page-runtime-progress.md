@@ -83,8 +83,8 @@ from the publisher.
 Then wire the integrated semantic/presented epoch and ticket coordinator across every
 independent readiness queue before converting generated regions to Lit. Complete the
 Targeting identity/controller cutover, add offline interactive export without weakening
-script-free static export, and
-dissolve this checkpoint plus both plan notes into their owning contracts.
+script-free static export, then dissolve this checkpoint plus both plan notes into their
+owning contracts.
 
 ## Verification checkpoint
 

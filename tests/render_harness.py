@@ -1327,11 +1327,12 @@ def opened_tab(page, destination, press, timeout=10_000):
 # Nothing is intercepted by it and no request's behavior changes; what changes is
 # that a route registered later — a keystroke before the gesture it holds — only
 # adds a pattern to a list the browser is already consulting.
-NEVER_ASKED_FOR = "**/__leaf_arms_interception__"
-
-
-def arm_interception(page):
-    page.route(NEVER_ASKED_FOR, lambda route: route.abort())
+#
+# The arm is the render gate's own, which needs it for the other end of the same
+# fact: interception comes back down when a route list empties, and requests
+# crossing that transition are lost just as silently.
+NEVER_ASKED_FOR = render_gate_model.INTERCEPTION_ARM
+arm_interception = render_gate_model.arm_interception
 
 
 def primed(browser, prepare):

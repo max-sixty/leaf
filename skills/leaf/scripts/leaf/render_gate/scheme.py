@@ -73,15 +73,54 @@ def console_problem(message) -> str | None:
     return None
 
 
+INTERCEPTION_ARM = "**/__leaf_arms_interception__"
+
+
+def arm_interception(page):
+    """Keep this page's request interception on for the whole of its life.
+
+    Playwright turns interception off the moment a page's route list empties, and
+    requests crossing that transition are lost with nothing said about it: the
+    document stops at `interactive` with no load event, or a read the runtime is
+    waiting on never lands, and neither ending writes a console entry. The gate
+    holds the Leaf entry through a route and takes that route away again, so a page
+    it opens would otherwise see the list empty at the `unroute` — measured on the
+    corpus page, with `/api/state`, `/registry.json` and `/icon.svg` still in
+    flight. A route on a pattern nothing ever asks for keeps the list non-empty, so
+    no such transition is ever sent. `arm_interception` in the suite's own harness
+    arms the pages a test opens for the same reason.
+    """
+    page.route(INTERCEPTION_ARM, lambda route: route.abort())
+
+
 def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
-    """Inspect the authored document while its first Leaf entry request is held."""
+    """Inspect the authored document while its first Leaf entry request is held.
+
+    The hold outlives the entry it holds. Playwright turns a page's request
+    interception off as soon as its last route handler is spent, and a `times=1`
+    handler is spent at the moment the entry is released — which is the moment the
+    module layer starts asking for a hundred-odd files. Turning interception off
+    under that burst loses requests: the document stops at `interactive` with a
+    module still in flight, or with nothing in flight and no load event, and neither
+    ending writes a console entry. So this handler stays registered until after the
+    load event and lets a later entry request through. The `unroute` in the `finally`
+    below is not the safe point either — a loaded document is not an idle one, and the
+    runtime's own `/api/state` read is still open there — so the page carries
+    `arm_interception` and its route list never empties at all.
+    """
     held = []
     released = False
 
     def hold_entry(route):
+        # Only the first is held. A later one is passed through rather than left
+        # standing, because this handler has to outlive the entry it holds and a
+        # second hold nothing releases would be a wait with no end.
+        if held:
+            route.continue_()
+            return
         held.append(route)
 
-    page.route("**/leaf.js", hold_entry, times=1)
+    page.route("**/leaf.js", hold_entry)
     try:
         page.goto(url, wait_until="commit")
         page.wait_for_selector("body > main", state="attached")
@@ -131,6 +170,7 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
 
     page = browser.new_page(viewport=viewport, color_scheme=scheme)
     opened_pages.append(page)
+    arm_interception(page)
     page._leaf_probe_timeout_ms = served_timeout_ms
     errors = []
     resize_notices = []

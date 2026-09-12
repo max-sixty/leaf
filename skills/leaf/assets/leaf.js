@@ -543,7 +543,6 @@ layout = createChromeLayout({
     panel,
     closeBtn,
     panelFoot,
-    threadsBox,
     shortcutBarEl,
     bottomStatusEl,
     chromeRoot,

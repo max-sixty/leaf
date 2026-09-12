@@ -1786,11 +1786,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      Hints are the eye's copy of facts spoken elsewhere and stay aria-hidden; More is a
      real control. Useful transient state balances the line at the opposite edge: a
      semantic walk's live ordinal, or a brief command or arrival notice in its place.
-     syncLayout keeps the line out of a side-by-side thread panel and, over a covering
-     panel, lifts it only when its rendered box actually meets the panel foot. The chrome
-     root reserves that fixed bottom surface for each scroll region it crosses, so its
-     last lines never end underneath it. Overflow remains a backstop for a window too
-     narrow to hold even the short line. */
+     syncLayout keeps the line out of a side-by-side thread panel. A covering thread
+     panel makes it inert background, so that foreground does not move it or reserve its
+     own list around it. The chrome root reserves the fixed bottom surface for scroll
+     regions it crosses, so their last lines never end underneath it. Overflow remains a
+     backstop for a window too narrow to hold even the short line. */
   :is(.lf-shortcut-bar, .lf-bottom-status) {
     color: var(--muted); font-size: var(--t-6); padding: 5px 10px;
     border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }

@@ -3867,22 +3867,21 @@ def test_covering_panel_takes_the_page_scroll_with_it(browser, serve):
     page.close()
 
 
-def test_a_sheet_lifts_the_shortcut_bar_text_only_when_its_foot_reaches_the_same_lane(
-    browser, serve
-):
-    """The shortcut bar clears the panel foot when their rendered rectangles meet.
+def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve):
+    """Foreground composer growth does not move or reserve around inert chrome.
 
-    A covering panel is not itself a collision: at the screenshot's 783px width its
-    footer occupies the right lane while a focused composer's shorter shortcut bar fits in
-    the left. The old breakpoint proxy still lifted the line by the footer's full height,
-    marooning it over unrelated page content. The list reserves room on the same actual
-    overlap reading, and a wider sequence proves that the decision follows changing content
-    rather than one hand-picked width."""
+    The covering panel and shortcut bar can occupy the same viewport pixels, but they are
+    not peers: modality puts the panel above the scrim and makes the bar inert background.
+    Treating their rectangles as a collision made every newline in the panel's composer
+    lift the unrelated bar by one line and add the same false reservation to the thread
+    list. Beside the page, the live bar still yields the panel's actual strip."""
     page, errors = open_page(browser, serve(ADDRESSED_PAGE, comments=1))
-    resized(page, 420, 900)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    resized(page, 600, 900)
+    page.locator(".lf-threads-toggle").click()
+    field = page.locator(".lf-general textarea")
+    field.click()
+    field.fill("One line")
+    page.evaluate(RENDERED)
 
     def boxes():
         return page.evaluate("""() => {
@@ -3894,66 +3893,44 @@ def test_a_sheet_lifts_the_shortcut_bar_text_only_when_its_foot_reaches_the_same
             const list = document.querySelector(".lf-threads");
             const style = getComputedStyle(list);
             return {shortcut_bar: rect(".lf-shortcut-bar"), foot: rect(".lf-thread-panel-foot"),
-                    list: rect(".lf-threads"),
+                    lineInert: document.querySelector(".lf-shortcut-bar").inert,
                     viewportHeight: innerHeight,
                     listInlinePad: list.style.paddingBottom,
                     listPad: parseFloat(style.paddingBottom),
                     listScrollPad: parseFloat(style.scrollPaddingBottom)};
         }""")
 
-    covering = boxes()
-    assert covering["shortcut_bar"]["bottom"] <= covering["foot"]["top"], (
-        f"the shortcut bar stood on the sheet's foot: {covering}"
+    one_line = boxes()
+    assert one_line["lineInert"], one_line
+    assert one_line["shortcut_bar"]["right"] > one_line["foot"]["left"], (
+        f"the fixture no longer exercises the overlapping lanes: {one_line}"
     )
-    # The line reaches back over the list, so the list reserves at least as much of its
-    # own end as the line stands on — spent the wheel's way and the walk's way both.
-    covered = covering["list"]["bottom"] - covering["shortcut_bar"]["top"]
-    assert covered > 0, f"the line no longer reaches the list at all: {covering}"
-    assert covering["listPad"] >= covered, (
-        f"the sheet's list left its last thread under the shortcut bar: {covering}"
+    assert one_line["shortcut_bar"]["bottom"] > one_line["foot"]["top"], (
+        f"the fixture no longer exercises the old vertical collision: {one_line}"
     )
-    assert covering["listScrollPad"] >= covered, (
-        f"a walk to the last thread would stop under the shortcut bar: {covering}"
-    )
-
-    # At the reported width the panel still has covering posture, but its footer and the
-    # focused composer's shortcut bar occupy separate horizontal lanes. Posture alone used to
-    # leave the line floating a whole footer-height above its ordinary position.
-    resized(page, 783, 1004)
-    page.locator(".lf-general textarea").focus()
-    page.evaluate(RENDERED)
-    assert page.evaluate(
-        "() => getComputedStyle(document.scrollingElement).overflowY === 'hidden'"
-    ), "the screenshot-width panel no longer has covering posture"
-    separate = boxes()
-    assert separate["shortcut_bar"]["right"] < separate["foot"]["left"], separate
     assert (
-        abs(separate["shortcut_bar"]["bottom"] - (separate["viewportHeight"] - 14)) < 1
-    ), f"a disjoint footer still lifted the shortcut bar: {separate}"
-    assert separate["listPad"] < 20 and separate["listScrollPad"] < 20, (
-        f"the panel list reserved room for a line in another lane: {separate}"
-    )
-    assert separate["listInlinePad"] == "", (
-        f"the disjoint line overrode the panel list's own inset: {separate}"
-    )
+        abs(one_line["shortcut_bar"]["bottom"] - (one_line["viewportHeight"] - 14)) < 1
+    ), one_line
 
-    # The global Go-to sequence belongs to the covering auxiliary surface here. It must not restore
-    # the inert page's wider line, so the line and list remain in the same disjoint posture.
-    page.keyboard.press("g")
+    field.fill("One line\nSecond line\nThird line")
     page.evaluate(RENDERED)
-    sequence = boxes()
-    assert sequence["shortcut_bar"]["right"] < sequence["foot"]["left"], sequence
-    assert sequence["listPad"] < 20 and sequence["listScrollPad"] < 20, sequence
-
-    # Beside the page the line is capped left of the panel, so the list keeps the inset
-    # the stylesheet gives it rather than room for a line that never reaches it.
-    resized(page, 1200, 900)
-    page.wait_for_function(
-        """() => parseFloat(
-            getComputedStyle(document.querySelector('.lf-threads')).paddingBottom
-        ) < 20"""
+    multiline = boxes()
+    assert multiline["foot"]["height"] > one_line["foot"]["height"], (
+        f"the composer did not grow: {one_line}, {multiline}"
     )
+    assert multiline["shortcut_bar"] == one_line["shortcut_bar"], (
+        f"growing the foreground composer moved the background shortcut bar: "
+        f"{one_line}, {multiline}"
+    )
+    assert multiline["listPad"] < 20 and multiline["listScrollPad"] < 20, (
+        f"the foreground list reserved room for inert background chrome: {multiline}"
+    )
+    assert multiline["listInlinePad"] == "", multiline
+
+    # Beside the page, the bar is live page chrome and yields the panel's whole strip.
+    resized(page, 1200, 900)
     beside = boxes()
+    assert not beside["lineInert"], beside
     assert beside["shortcut_bar"]["right"] <= beside["foot"]["left"] + 1, (
         f"the line crossed into the panel it stands beside: {beside}"
     )
@@ -3989,16 +3966,12 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
             const r = document.querySelector(selector).getBoundingClientRect();
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
-              return {shortcut_bar: rect('.lf-shortcut-bar'), footer: rect('.lf-thread-panel-foot'),
+              return {shortcut_bar: rect('.lf-shortcut-bar'),
                       width: innerWidth, height: innerHeight};
         }"""
     )
-    footer_height = boxes["footer"]["bottom"] - boxes["footer"]["top"]
     assert (
-        abs(
-            boxes["shortcut_bar"]["bottom"]
-            - (boxes["height"] - footer_height - 14 - insets["bottom"])
-        )
+        abs(boxes["shortcut_bar"]["bottom"] - (boxes["height"] - 14 - insets["bottom"]))
         < 1
     )
     assert abs(boxes["shortcut_bar"]["left"] - (18 + insets["left"])) < 1

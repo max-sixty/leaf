@@ -41,10 +41,14 @@ the page-wide detail when neither admits a local claim.
 
 An inline delivery advances each included reader move to **Picked up** and the page
 to **handling** when it enters this turn. A queued Codex pointer remains **Queued**;
-reading its envelope does not prove an App Server turn opened it. For that pointer,
-make the first page command a useful `working` declaration, with `--on` for the
-conversation or widget you start on. For either carrier, `--on` strengthens one receipt
-to **Active**. Do not write
+reading its envelope does not prove an App Server turn opened it.
+
+UI feedback is the first operation for an actionable delivery. An inline delivery
+already names its page and subject, so write a useful `working` declaration before
+reading source, planning the implementation, editing, testing, or delegating. A queued
+pointer first needs `delivery read` to resolve that address; write the declaration next.
+Use `--on` for the conversation or widget you start on, which strengthens its receipt to
+**Active**. Do not write
 `waiting` merely to end the delivery step. Write it after replies, revisions, or
 receipts have settled what this turn took in; until then the canonical activity
 fold continues to report the stronger exact handling evidence.

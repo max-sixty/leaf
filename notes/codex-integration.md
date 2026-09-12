@@ -10,6 +10,10 @@ The near-term target is Direction A: Leaf accompanies a normal user-owned Codex
 task. Directions B-D remain possible, but they require Leaf to own progressively
 more of the conversation and agent harness.
 
+[Responsive reader feedback](reader-feedback-responsiveness.md) specifies the
+reader-visible ordering and latency contract. This note owns the Codex transport and
+response-routing design that supplies those facts.
+
 ## What works now
 
 `leaf codex launch` starts a private Codex App Server and an interactive Codex

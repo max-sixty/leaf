@@ -71,13 +71,13 @@ command for that response. The committed reply retains the thread's standing anc
 
 A `leaf-delivery` pointer may arrive through Codex's durable local queue with no App
 Server observer left to bind or stream its turn. Reading the immutable envelope does not
-change that. Make `leaf status … working "…"` the first page command, adding `--on`
-when the work has a thread or widget subject, then use the explicit `reply`, `resolve`,
-or `receipt` operation for every obligation, including one plain reply. A live observer
-may also recognize the exact pointer, but its final-message commit skips an obligation
-the explicit operation already settled. The immutable delivery address remains
-authoritative if the turn closes, the observer reconnects, or a later turn starts;
-current-turn identity governs only live activity and provisional text.
+change that. Follow the UI-first work claim in `conversation-loop.md`, then use the
+explicit `reply`, `resolve`, or `receipt` operation for every obligation, including one
+plain reply. A live observer may also recognize the exact pointer, but its final-message
+commit skips an obligation the explicit operation already settled. The immutable
+delivery address remains authoritative if the turn closes, the observer reconnects, or
+a later turn starts; current-turn identity governs only live activity and provisional
+text.
 Keep the CLI open because it is still the interactive client for approvals and
 user input.
 

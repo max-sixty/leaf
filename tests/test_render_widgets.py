@@ -8197,8 +8197,9 @@ def test_the_gate_passes_a_chart_whose_tick_names_its_month_on_a_second_line(
     assert render_gate_model.render_version(browser, url) == []
 
 
+@pytest.mark.parametrize("scroll_to_chart", [False, True])
 def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_other(
-    browser, serve
+    browser, serve, scroll_to_chart
 ):
     """The other half of the exemption above, put back as a bug: a label's own lines are
     one run of words the drawing lays out together, and two labels landing on each other
@@ -8217,6 +8218,10 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
     The only standing bug-back on this pass reporting is the float's, and that is an HTML
     page whose runs never get an SVG label at all."""
     page, errors = open_page(browser, serve(CHART_PAGE))
+    # The root scrollport must not hide page-content collisions from this reading,
+    # whether the chart starts below the fold or the reader has scrolled to it.
+    if scroll_to_chart:
+        page.locator("#c-line").scroll_into_view_if_needed()
     # Two ticks the drawing places by transform, one stood on the other. The labels stay
     # whole, so what lands is two <text> elements rather than two lines of one.
     moved = page.evaluate(

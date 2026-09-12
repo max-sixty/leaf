@@ -34,7 +34,14 @@ export function coveredWords({
   // reader is given. The walk below stays in the light DOM, so the climb does too.
   const painted = (el, drawn) => {
     let box = drawn;
-    for (let ancestor = el; ancestor && box; ancestor = ancestor.parentElement) {
+    // Root overflow belongs to the viewport, not the root element's client rect.
+    // That rect moves with document scrolling and cannot clip page-content words:
+    // this probe reads collisions throughout the page, including below the fold.
+    for (
+      let ancestor = el;
+      ancestor && ancestor !== document.documentElement && box;
+      ancestor = ancestor.parentElement
+    ) {
       const style = getComputedStyle(ancestor);
       if (style.overflowX !== "visible" || style.overflowY !== "visible") {
         const bounds = ancestor.getBoundingClientRect();

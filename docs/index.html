@@ -5,10 +5,10 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>leaf · generative UI for your agent</title>
+    <title>leaf · generative UI for agents</title>
     <meta
       name="description"
-      content="Your agent builds the page your task needs. Review plans, make decisions, and follow live work in a page that responds. A plugin for Claude Code and Codex."
+      content="Generative UI for Claude Code and Codex. Review plans, make decisions, and follow live work in a page your agent can revise."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
@@ -17,11 +17,6 @@
       }
       body.site-page header.hero {
         margin-bottom: 24px;
-      }
-      .hero .intro {
-        color: var(--muted);
-        font-size: var(--t-5);
-        margin-bottom: 10px;
       }
       .hero-actions {
         display: flex;
@@ -40,14 +35,6 @@
       }
       #try-intro {
         margin-bottom: 12px;
-      }
-      #try-result {
-        margin-top: 20px;
-      }
-      figure.shot img {
-        box-sizing: border-box;
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
       }
       .home-examples {
         list-style: none;
@@ -114,30 +101,6 @@
         }
       }
     </style>
-    <script type="module">
-      const showChosenExample = () => {
-        const chosen = document.querySelector(
-          "#first-task-choice lf-option[chosen]",
-        )?.id;
-        const examples = [...document.querySelectorAll("#try-result > article")];
-        const selected = examples.find((example) => example.id === `${chosen}-example`);
-        const empty = document.querySelector("#try-empty");
-        if (empty) empty.hidden = Boolean(selected);
-        for (const example of examples) {
-          const placeholder = example.querySelector(":scope > [data-try-placeholder]");
-          if (placeholder) placeholder.hidden = example.childElementCount > 1;
-          example.hidden = example !== selected;
-        }
-      };
-
-      new MutationObserver(showChosenExample).observe(document.body, {
-        subtree: true,
-        childList: true,
-        attributes: true,
-        attributeFilter: ["chosen"],
-      });
-      showChosenExample();
-    </script>
   </head>
   <body class="site-page">
     <main>
@@ -149,8 +112,7 @@
       </nav>
 
       <header class="hero" id="top">
-        <p class="intro">Generative UI for Claude Code and Codex</p>
-        <h1>Your agent builds the page your task needs.</h1>
+        <h1>Generative UI for Agents</h1>
         <p class="lede" id="lede">
           Review a plan, make a decision, or follow live work. Comment and act in the
           page; your agent responds and revises it.
@@ -162,78 +124,15 @@
       </header>
 
       <section id="try">
-        <!-- Page task for Leaf guide: Each task owns one example in try-result.
-             Each option already has one article whose id is the option id plus
-             "-example". Replace its data-try-placeholder element on first selection.
-             Never move, remove, rename, or set hidden on these articles; the page
-             module shows the chosen one. Preserve their reader decisions, output,
-             and conversations on later selections.
-             Keep the hero, choice group, gallery, installation, and the head
-             module that shows the chosen example.
-             For a plan, write a short proposal with one real tradeoff to comment on.
-             For a decision, offer a self-contained lf-ask with meaningful options
-             and carry the reader's answer into a revised recommendation.
-             For live work, prepare a factual outline for a short Leaf announcement
-             from this page. Show a checklist: outline prepared, announcement pending.
-             End that turn with an lf-ask offering "Write it". After the reader answers,
-             write the announcement and complete the same checklist, retaining the
-             outline and answered Ask. Label invented context as an example.
-             An added option is the reader's task: add an article to try-result
-             whose id is that option's id plus "-example", then build it there.
-             Respond to later comments and actions by continuing that example. -->
-        <lf-ask id="first-task">
-          <h2>What would you like to try?</h2>
+        <!-- Page task for Leaf guide: Respond to comments by editing this private
+             copy. Keep the hero, invitation, gallery, and installation. -->
+        <div id="first-task">
+          <h2>Ask Leaf guide to edit this page.</h2>
           <p id="try-intro">
-            Choose a task. Leaf guide will build a small example here in your private
-            copy of this page.
+            Select any sentence, describe the change you want, and send the comment.
+            Leaf guide will revise your private copy here.
           </p>
-          <lf-options id="first-task-choice" choose>
-            <lf-option id="try-plan">Review a plan</lf-option>
-            <lf-option id="try-decision">Make a decision</lf-option>
-            <lf-option id="try-progress">Watch work change</lf-option>
-          </lf-options>
-        </lf-ask>
-        <div id="try-result">
-          <p id="try-empty">
-            Your example will appear here. Then select a passage to ask for a change.
-          </p>
-          <article id="try-plan-example" hidden>
-            <p data-try-placeholder>
-              Leaf guide is preparing a short proposal to review.
-            </p>
-          </article>
-          <article id="try-decision-example" hidden>
-            <p data-try-placeholder>Leaf guide is preparing a small decision.</p>
-          </article>
-          <article id="try-progress-example" hidden>
-            <p data-try-placeholder>Leaf guide is preparing a live-work example.</p>
-          </article>
         </div>
-      </section>
-
-      <section id="loop">
-        <h2>The conversation stays with the work.</h2>
-        <p id="loop-comment">
-          A comment belongs to the passage it asks about. A choice or a moved card
-          reaches the agent where it is working. Its next revision arrives in the same
-          page, with your decisions and reading position preserved.
-        </p>
-        <figure class="shot" id="session-shot">
-          <picture>
-            <source
-              media="(prefers-color-scheme: dark)"
-              srcset="/media/e52f0072f87eb069.png"
-            />
-            <img
-              src="/media/e5d9c6d6ea8f360b.png"
-              loading="lazy"
-              alt="A migration plan with a comment anchored to its rollback proposal, Claude's reply beside it, and a new version of the plan."
-            />
-          </picture>
-          <figcaption>
-            A rollback question, the agent's answer, and the revised plan together.
-          </figcaption>
-        </figure>
       </section>
 
       <section id="range">

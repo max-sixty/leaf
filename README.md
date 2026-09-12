@@ -4,9 +4,9 @@
 
 > **Experimental software; not ready for general use.**
 
-Your agent builds the page your task needs. Review a plan, make a decision, or
-follow live work. Comment and act in the page; your agent responds and revises it.
-Leaf is a plugin for Claude Code and Codex.
+Leaf is generative UI for Claude Code and Codex. Review a plan, make a decision,
+or follow live work in a page you can comment on and change. The agent responds by
+revising the page.
 
 ![A Leaf page with an anchored comment, the agent's reply, and a revised plan](docs/session-light.png)
 

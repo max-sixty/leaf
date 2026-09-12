@@ -89,7 +89,6 @@ const CODEX_PROXY_CREDENTIAL = "leaf-outbound-proxy";
 const CLOUDFLARE_CONTAINER_CA = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
 interface LeafEvent {
   id: string;
-  seq?: number;
   attempt?: string;
   kind: string;
   action?: string;
@@ -98,7 +97,6 @@ interface LeafEvent {
 
 interface AcceptedEvent {
   event: LeafEvent;
-  needsDispatch: boolean;
   needsReply: boolean;
 }
 
@@ -113,18 +111,7 @@ interface ModelRequestFields {
 interface LeafStateAnswer {
   state?: {
     events?: LeafEvent[];
-    cursor?: number;
-    active?: { revision: number };
-    browser?: {
-      views: Record<
-        string,
-        { document: { projection: { actions: string[] } } }
-      >;
-    } | null;
-    activity?: {
-      interactions?: Array<{ event?: string | null }>;
-      obligations?: Array<{ event?: string }>;
-    };
+    activity?: { obligations?: Array<{ event?: string }> };
   };
 }
 
@@ -560,21 +547,8 @@ async function acceptedEvent(
       (candidate) => candidate.attempt === posted.attempt,
     );
     if (!event) return null;
-    const state = answer.state;
-    const standingActions = state?.active
-      ? state.browser?.views[String(state.active.revision)]?.document.projection.actions
-      : undefined;
-    const unreadAction =
-      event.seq !== undefined &&
-      state?.cursor !== undefined &&
-      event.seq > state.cursor &&
-      (standingActions?.includes(event.id) ?? false);
     return {
       event,
-      needsDispatch:
-        unreadAction || (state?.activity?.interactions?.some(
-          (interaction) => interaction.event === event.id,
-        ) ?? false),
       needsReply:
         answer.state?.activity?.obligations?.some(
           (obligation) => obligation.event === event.id,
@@ -783,7 +757,7 @@ export default {
       if (accepted) {
         recordAcceptedEvent(env, route, manifest.release, reference, accepted);
       }
-      if (accepted?.needsDispatch) {
+      if (accepted?.needsReply) {
         const sourceId = request.headers.get("CF-Connecting-IP") ?? sessionId;
         const params = {
           sessionId,

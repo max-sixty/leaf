@@ -167,27 +167,24 @@ records `responseVisibleMs` from the first non-empty agent reply the open Thread
 actually displays; `repliedMs` is the independent durable-state observation and is not a
 substitute for that reader-visible milestone.
 
-When Leaf accepts reader input that needs agent handling, the event remains in its
-canonical activity interactions or is an unread standing page action. The Worker
-returns the accepted state and starts the agent dispatch through `waitUntil`. The
-browser does not wait for Container or App Server startup, and there is no second
-scheduler between the request and its already-selected reader container. The dispatch
-reserves source capacity, then asks that container to create or resume one Codex App
-Server task rooted at the actual page directory and deliver the event through Leaf's
-immutable delivery envelope, passed
+When Leaf accepts a reader message that its canonical activity projection says needs
+a response, the Worker returns the accepted state and starts the agent dispatch through
+`waitUntil`. The browser does not wait for Container or App Server startup, and there is
+no second scheduler between the request and its already-selected reader container. The
+dispatch reserves source capacity, then asks that container to create or resume one
+Codex App Server task rooted at the actual page directory and deliver the event through
+Leaf's immutable delivery envelope, passed
 inline as structured `leaf_delivery` when the task is idle or queued by its immutable
 `leaf-delivery` id while a turn is active. The website-specific App Server starts
 without the authoring plugin: its compact developer
 instructions and the ready `$LEAF` CLI are the complete interface, so skill discovery
 cannot turn a small reader response into a full authoring workflow. The hosted task can
-revise `index.html`, validate it, append thread replies, and leave the page waiting. It
-copies every standing markup action into source, including option state, board placement,
-and draft bodies, before its turn closes. The initiating App Server connection projects
-the turn's native activity notifications back through Leaf. For queued input it stays
-subscribed through the active turn, records the queued turn opening, and observes that
-turn to its terminal state. The container's
-pickup is idempotent, so a repeated dispatch does not start the work twice. Page actions
-reach the agent even when they require no conversational reply. The accepted
+revise `index.html`, validate it, append thread replies, and leave the page waiting. The
+initiating App Server connection projects the turn's native activity notifications back
+through Leaf. For queued input it stays subscribed through the active turn, records the
+queued turn opening, and observes that turn to its terminal state. The container's
+pickup is idempotent, so a repeated dispatch does not start the work twice. A task
+startup failure appends a short failure reply through the same event log. The accepted
 event and active turn are not yet mirrored into Durable Object storage, and no alarm
 recovers work that exceeds the Worker's 30-second `waitUntil` window.
 Container startup warms App Server and the Leaf CLI entrypoint concurrently, reducing
@@ -201,19 +198,9 @@ capability-authenticated `$LEAF_REPLY` adapter already running in the container.
 routes retain source validation and publication; `$LEAF` remains the interface for
 delivery reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
-The canonical response contract determines settlement: the bound final-answer message
-or an explicit reply answers a conversation, authored state incorporates a page action,
-a version response also requires its conversation's resolution, and a request receives
-a terminal receipt.
-
-Startup failure or rate limiting produces a failure reply when the event permits one.
-A failed page action instead gets an anchored retry conversation. The same conversation
-appears when an accepted action's turn fails, completes without incorporating the
-action, or cannot publish its final source. The notice leaves the action unsettled and
-tells the reader to reply to retry; it does not invent a reply obligation or claim the
-change succeeded. Turn closure remains visible through canonical activity. Invalid
-working source leaves the last valid revision active, and reader input can still reach
-the agent to repair it.
+The bound final-answer message, an explicit `leaf reply`, a page revision closed with
+`leaf resolve`, or a `leaf receipt` settles accepted input.
+A failed or interrupted turn still gets a deterministic failure reply from the host.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the
@@ -224,7 +211,7 @@ handler permits the Responses API request and replaces that dummy value with the
 Worker's `OPENAI_API_KEY`. The actual secret never enters model-visible processes or
 files. One Cloudflare-native brake allows twenty task starts per source IP per minute
 in each Cloudflare location and, under a separate key, twenty model calls per reader
-container per minute. An over-limit turn receives a visible busy notice or a model-rate
+container per minute. An over-limit turn receives a visible busy reply or a model-rate
 error without sending anything to OpenAI. There is no site-wide quota.
 
 Run the complete local site with Docker available:

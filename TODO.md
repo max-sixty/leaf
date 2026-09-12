@@ -77,6 +77,11 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Find a specific first task for the public home page.** The current page starts
+  with the comment-and-revise loop: a visitor asks Leaf guide to edit their private copy.
+  Replace that interim prompt only after testing a task a new visitor would actually
+  bring; avoid canned choices that manufacture work for the guide.
+
 - **Let readers disable character bindings.** Define one route filter with a complete
   persistence and accessibility contract. Commands, non-character routes, and visible
   controls remain available.

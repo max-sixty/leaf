@@ -24,114 +24,12 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
+VERIFIER_SCRIPT = ROOT / "scripts" / "verify-site-browser.js"
 PAGES = (
     ("/", "product", True),
     ("/examples/triage-board/", "example", True),
     ("/examples/feature-gallery/versions/v1.html", "example", False),
 )
-PROFILE_SCRIPT = """(() => {
-  window.__leafStartup = {};
-  const snapshot = () => {
-    const resources = performance.getEntriesByType("resource");
-    const code = resources.filter(entry => {
-      const url = new URL(entry.name);
-      return url.origin === location.origin &&
-        (url.pathname.endsWith(".js") || url.pathname.endsWith(".css") ||
-         url.pathname.endsWith("/registry.json"));
-    });
-    const javascript = code.filter(entry => new URL(entry.name).pathname.endsWith(".js"));
-    const state = resources.filter(entry =>
-      new URL(entry.name).pathname.endsWith("/api/state"));
-    const bytes = entries => entries.reduce((total, entry) => total + entry.encodedBodySize, 0);
-    const lastResponse = entries =>
-      entries.length ? Math.max(...entries.map(entry => entry.responseEnd)) : null;
-    return {
-      at: performance.now(),
-      code_loaded: lastResponse(code),
-      js_loaded: lastResponse(javascript),
-      state_loaded: lastResponse(state),
-      requests: resources.length,
-      bytes: bytes(resources),
-      code_requests: code.length,
-      code_bytes: bytes(code),
-      js_requests: javascript.length,
-      js_bytes: bytes(javascript),
-    };
-  };
-  const record = () => {
-    const body = document.body;
-    if (!body) return;
-    for (const [name, attribute] of [
-      ["upgraded", "data-lf-upgraded"],
-      ["presented", "data-lf-presented"],
-    ]) {
-      if (body.hasAttribute(attribute) && !window.__leafStartup[name])
-        window.__leafStartup[name] = snapshot();
-    }
-  };
-  new MutationObserver(record).observe(document, {
-    attributes: true,
-    attributeFilter: ["data-lf-upgraded", "data-lf-presented"],
-    childList: true,
-    subtree: true,
-  });
-  record();
-})()"""
-STARTUP_READING = """() => {
-  const navigation = performance.getEntriesByType("navigation")[0];
-  return {
-    first_byte: navigation.responseStart,
-    document: navigation.responseEnd,
-    paint: Object.fromEntries(
-      performance.getEntriesByType("paint").map(entry => [entry.name, entry.startTime])
-    ),
-    ...window.__leafStartup,
-  };
-}"""
-VISIBLE_REPLY_INIT = """(() => {
-  window.__leafWatchVisibleAgentReply = () => {
-    const started = sessionStorage.getItem('leaf-visible-reply-started');
-    if (started === null || sessionStorage.getItem('leaf-visible-reply-at') !== null)
-      return;
-    const seen = new WeakSet();
-    const intersections = new IntersectionObserver(entries => {
-      const visible = entries.find(({isIntersecting, target}) =>
-        isIntersecting &&
-        target.querySelector('.lf-msg-text')?.textContent.trim() &&
-        target.checkVisibility()
-      );
-      if (!visible || sessionStorage.getItem('leaf-visible-reply-at') !== null) return;
-      sessionStorage.setItem('leaf-visible-reply-at', String(Date.now()));
-      mutations.disconnect();
-      intersections.disconnect();
-    });
-    const observe = () => {
-      for (const message of document.querySelectorAll('.lf-msg.claude')) {
-        if (!seen.has(message) && message.querySelector('.lf-msg-text')?.textContent.trim()) {
-          seen.add(message);
-          intersections.observe(message);
-        }
-      }
-    };
-    const mutations = new MutationObserver(observe);
-    mutations.observe(document, {attributes: true, childList: true, subtree: true});
-    observe();
-  };
-  window.__leafWatchVisibleAgentReply();
-})()"""
-VISIBLE_REPLY_WATCH = """() => {
-  const started = Date.now();
-  sessionStorage.setItem('leaf-visible-reply-started', String(started));
-  sessionStorage.removeItem('leaf-visible-reply-at');
-  window.__leafWatchVisibleAgentReply();
-  return started;
-}"""
-VISIBLE_REPLY_READING = """() => {
-  const visible = sessionStorage.getItem('leaf-visible-reply-at');
-  return visible === null ? null : Number(visible);
-}"""
-VISIBLE_REPLY_READY = """() =>
-  sessionStorage.getItem('leaf-visible-reply-at') !== null"""
 
 
 # One hosted Codex turn runs at the model's pace, not this gate's. `TURN_PATIENCE`
@@ -182,7 +80,7 @@ def unpresented(url: str, reached: list[str], failures: list[str]) -> str:
 
     Presentation is every later check's precondition, so the timeout is where this
     gate stops, and the run log has held only the wait's own traceback: not the page
-    that stalled, and not how far it got. `PROFILE_SCRIPT` already records each
+    that stalled, and not how far it got. The browser verifier records each
     startup stamp as it lands, and the two stamps separate the two ways to stall —
     an upgrade that never settled leaves none, while a first state read that never
     answered leaves `upgraded` standing alone.
@@ -194,7 +92,7 @@ def unpresented(url: str, reached: list[str], failures: list[str]) -> str:
 
 def observe_startup(page: Page) -> list[str]:
     """Every verifier page records milestones and the errors that stop reaching them."""
-    page.add_init_script(PROFILE_SCRIPT)
+    page.add_init_script(path=VERIFIER_SCRIPT)
     failures: list[str] = []
     page.on(
         "console",
@@ -212,7 +110,7 @@ def await_presentation(
     try:
         page.locator("body[data-lf-presented]").wait_for(timeout=timeout)
     except PlaywrightTimeout:
-        reached = page.evaluate("() => Object.keys(window.__leafStartup ?? {})")
+        reached = page.evaluate("window.__leafVerifier.startupMilestones")
         raise RuntimeError(unpresented(url, reached, failures)) from None
 
 
@@ -239,14 +137,10 @@ def verify_page(
     check(response is not None and response.ok, f"{url} did not load")
     await_presentation(page, url, failures)
 
-    identity = page.locator("script[data-lf-server]").evaluate(
-        "script => ({layer: script.dataset.lfLayer, release: script.dataset.lfRelease})"
-    )
+    identity = page.evaluate("window.__leafVerifier.identity")
     check(identity["release"] == release, f"{url} served release {identity['release']}")
     prefix = f"/_leaf-release/{release}/"
-    resources = page.evaluate(
-        "performance.getEntriesByType('resource').map(entry => entry.name)"
-    )
+    resources = page.evaluate("window.__leafVerifier.resourceNames")
     code = [
         resource
         for resource in resources
@@ -281,23 +175,14 @@ def verify_page(
         ),
         f"{url} activated a container before interaction",
     )
-    media = page.evaluate(
-        """async () => {
-          const script = document.querySelector("script[data-lf-server]");
-          const moduleUrl = new URL("runtime/media.js", new URL(script.dataset.lfEntry, location.origin));
-          return {
-            path: (await import(moduleUrl.href)).scopedMediaUrl("/media/0123456789abcdef.png"),
-            root: script.dataset.lfPageRoot,
-          };
-        }"""
-    )
+    media = page.evaluate("window.__leafVerifier.scopedMedia")
     expected_media = f"{media['root']}/media/0123456789abcdef.png"
     check(
         media["path"] == expected_media,
         f"{url} scoped private media into the release namespace: {media['path']}",
     )
     check(not failures, f"{url} reported browser errors: {failures}")
-    startup = page.evaluate(STARTUP_READING)
+    startup = page.evaluate("window.__leafVerifier.startupReading")
     if not activate:
         context.close()
         return startup
@@ -408,21 +293,9 @@ def verify_cross_tab_activation(browser, *, origin: str) -> None:
         response = page.goto(url, wait_until="load", timeout=120_000)
         check(response is not None and response.ok, f"{url} did not load")
         await_presentation(page, url, failures)
-    follower.evaluate(
-        """() => {
-          window.__leafActivated = 0;
-          document.addEventListener("lf-session-active", () => window.__leafActivated++);
-        }"""
-    )
-    leader.evaluate(
-        """async () => {
-          const script = document.querySelector("script[data-lf-server]");
-          const moduleUrl = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
-          const client = await import(moduleUrl.href);
-          client.observeSession(new Response(null, {headers: {"Leaf-Session": "active"}}));
-        }"""
-    )
-    follower.wait_for_function("window.__leafActivated === 1", timeout=5_000)
+    follower.evaluate("window.__leafVerifier.observeCrossTabActivation")
+    leader.evaluate("window.__leafVerifier.activateSession")
+    follower.wait_for_function("window.__leafVerifier.crossTabActivated", timeout=5_000)
     context.close()
 
 
@@ -687,7 +560,9 @@ def ask_for_the_heading(
     box.fill(text)
     if ask == 1:
         profile.started = time.monotonic()
-        profile.visible_reply_started_ms = page.evaluate(VISIBLE_REPLY_WATCH)
+        profile.visible_reply_started_ms = page.evaluate(
+            "window.__leafVerifier.startVisibleReplyClock"
+        )
     with page.expect_response(
         lambda response: (
             response.url.endswith("/api/event") and response.request.method == "POST"
@@ -881,7 +756,7 @@ def verify_agent_turn(
     context, page, failures, url, state_url, state = agent_session(
         browser, release, origin=origin, direct_agent=direct_agent
     )
-    initial_startup = page.evaluate(STARTUP_READING)
+    initial_startup = page.evaluate("window.__leafVerifier.startupReading")
     if release is None:
         release = state.get("release")
         check(isinstance(release, str), f"{state_url} returned no release")
@@ -891,8 +766,6 @@ def verify_agent_turn(
     layer = state["layer"]["generation"]
     heading = f"Deployment {release[:8]} verified"
     page.locator(".lf-threads-toggle").click()
-    page.add_init_script(VISIBLE_REPLY_INIT)
-    page.evaluate(VISIBLE_REPLY_INIT)
     asked = ask_until_answered(
         context,
         page,
@@ -907,21 +780,14 @@ def verify_agent_turn(
     )
     turn, asks, revision, profile = asked
     try:
-        page.wait_for_function(VISIBLE_REPLY_READY, timeout=30_000)
+        page.wait_for_function(
+            "window.__leafVerifier.visibleReplyRecorded", timeout=30_000
+        )
     except PlaywrightTimeout:
         pass
-    visible_reply_at = page.evaluate(VISIBLE_REPLY_READING)
+    visible_reply_at = page.evaluate("window.__leafVerifier.visibleReplyAt")
     if visible_reply_at is None:
-        visible_reply_debug = page.evaluate(
-            """() => ({
-              panel: document.querySelector('.lf-thread-panel')?.checkVisibility(),
-              messages: [...document.querySelectorAll('.lf-msg')].map(node => ({
-                author: [...node.classList],
-                hasText: Boolean(node.querySelector('.lf-msg-text')?.textContent.trim()),
-                visible: node.checkVisibility(),
-              })),
-            })"""
-        )
+        visible_reply_debug = page.evaluate("window.__leafVerifier.visibleReplyDebug")
         raise RuntimeError(
             f"{url} reply never became visible in Threads: {visible_reply_debug}"
         )
@@ -958,7 +824,7 @@ def verify_agent_turn(
         f"{url} did not reload after its agent turn",
     )
     await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
-    startup = page.evaluate(STARTUP_READING)
+    startup = page.evaluate("window.__leafVerifier.startupReading")
     presented_at = startup.get("presented", {}).get("at")
     # Presentation no longer says the reload's first read landed: the runtime presents at
     # its own fixed wait whether or not the container has answered, and following the
@@ -973,8 +839,7 @@ def verify_agent_turn(
     followed_at = time.monotonic()
     try:
         page.wait_for_function(
-            "want => Number(document.querySelector('meta[name=\"lf-revision\"]')"
-            "?.content) >= want",
+            "window.__leafVerifier.revisionAtLeast",
             arg=published["revision"],
             timeout=TURN_PRESENTATION,
         )
@@ -988,9 +853,7 @@ def verify_agent_turn(
     # Which of the two ways this can fail: a browser still standing on the built
     # document never followed the agent's revision, while one that followed it and
     # shows another heading is the agent's edit rather than the reader's page.
-    shown = page.evaluate(
-        "() => document.querySelector('meta[name=\"lf-revision\"]')?.content ?? null"
-    )
+    shown = page.evaluate("window.__leafVerifier.revision")
     # A page standing on the built document has two ways to get there, and the banner
     # separates them: one whose first read answered was told revision 1 and stands under
     # that reading's activity line, while one that presented offline was never told
@@ -998,9 +861,7 @@ def verify_agent_turn(
     # see the read, so it reports what the page says about it. A presented page always
     # has this line — the chrome mounts it reading ‘Connecting…’ and every render
     # replaces its words — so there is no third answer to guard for.
-    banner = page.evaluate(
-        "() => document.querySelector('.lf-status-text')?.textContent?.trim() || null"
-    )
+    banner = page.evaluate("window.__leafVerifier.status")
     check(
         (shown or "").isdigit() and int(shown) >= published["revision"],
         f"{url} stands on revision {shown} rather than following the published "

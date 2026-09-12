@@ -28,7 +28,7 @@ from leaf.projection import (
 )
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction
-from leaf.structure import parse_revision
+from leaf.structure import SourceDocument, parse_revision
 from leaf.thread_context import thread_roots
 from leaf.validation.admission import check_markup, read_text_arg
 
@@ -128,10 +128,25 @@ def _current_anchor(
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
+    document = parse_revision(page_dir, revision)
+    return revision, _capture_anchor(
+        page_dir, events, document, quote, section, part, revision
+    )
+
+
+def _capture_anchor(
+    page_dir: Path,
+    events: list,
+    document: SourceDocument,
+    quote: str,
+    section: str,
+    part: str,
+    revision: int,
+) -> dict:
+    """Capture a target against one exact document reading."""
     from leaf.anchor_capture import capture_anchor
     from leaf.registry.storage import require_registry
 
-    document = parse_revision(page_dir, revision)
     registry = require_registry(page_dir)
     page = page_reading(document, events, registry, revision)
     decided = retirement_outcomes(page.projection.actions, registry)
@@ -149,7 +164,7 @@ def _current_anchor(
         )
     except ValueError as err:
         sys.exit(f"can't anchor in revision r{revision}: {err}")
-    return revision, anchor
+    return anchor
 
 
 @contract_writer
@@ -357,6 +372,7 @@ def cmd_reply(
             sys.exit(f"conversation {root_id!r} has no current anchor to detach")
         reply_revision = None
         prospective_page = None
+        prospective_anchor = None
         source_events = events
         source_matches_active = True
         if validate_source or detach:
@@ -397,6 +413,16 @@ def cmd_reply(
                         f"{'; '.join(checked.errors)}"
                     )
                 prospective_page = checked.document
+                if moving:
+                    prospective_anchor = _capture_anchor(
+                        page_dir,
+                        events,
+                        checked.document,
+                        quote,
+                        section,
+                        part,
+                        (active or 0) + 1,
+                    )
         fragment = (
             check_markup(page_dir, "reply", markup, events, page=prospective_page)
             if markup
@@ -429,20 +455,16 @@ def cmd_reply(
                     f"cannot {operation} while index.html is invalid: {activation.error}"
                 )
             reply_revision = activation.revision
-        revision, anchor = (
-            _current_anchor(
-                page_dir,
-                events,
-                quote,
-                section,
-                part,
-                revision=reply_revision,
+        if prospective_anchor is not None:
+            revision, anchor = reply_revision, prospective_anchor
+        elif moving:
+            revision, anchor = _current_anchor(
+                page_dir, events, quote, section, part, revision=reply_revision
             )
-            if moving
-            else (reply_revision, None)
-            if detach
-            else (None, None)
-        )
+        elif detach:
+            revision, anchor = reply_revision, None
+        else:
+            revision, anchor = None, None
         event = {
             "kind": "reply",
             "author": "claude",

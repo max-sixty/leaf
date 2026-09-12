@@ -269,6 +269,25 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     v2 = v1.replace('<p id="old-wording">The retry starts here.</p>', "")
     (page_dir / "index.html").write_text(v2)
 
+    mistyped = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--section",
+            "flowe",
+            "--text",
+            "This target must not partly land.",
+        ],
+    )
+    assert mistyped.exit_code != 0
+    assert "no element id 'flowe'" in mistyped.output
+    assert files_model.latest_revision(page_dir) == 1
+    assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
+
     moved = CliRunner().invoke(
         cli_model.cli,
         [

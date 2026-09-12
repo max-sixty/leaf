@@ -52,6 +52,14 @@ The kernel is deliberately not wired into runtime readiness yet. That cutover fo
 the public widget controller so one presentation seam can replace every legacy queue at
 once; until then, existing presentation stamps and queues remain authoritative.
 
+## Integrated design intent
+
+The no-alias design-comment cutover is integrated at `aa745905`. The closed event
+contract, browser producers, conversation filtering and placement, transcript, example,
+agent route, and package guidance now use `about: "design"`; `about: "layer"` is refused.
+Infrastructure meanings of layer generation, composed package ownership, registry
+sources, and delivery headers remain unchanged.
+
 ## Remaining implementation
 
 Implement the public `widgetController(owner)` and migrate package/page modules away from
@@ -65,8 +73,8 @@ from the publisher.
 
 Then wire the integrated semantic/presented epoch and ticket coordinator across every
 independent readiness queue before converting generated regions to Lit. Complete the
-design-intent and
-Targeting cutover, preserve the fresh-document wait-until-settled model with combined
+Targeting identity/controller cutover, preserve the fresh-document wait-until-settled
+model with combined
 proof, add offline interactive export without weakening script-free static export, and
 dissolve this checkpoint plus both plan notes into their owning contracts.
 
@@ -80,6 +88,10 @@ everyday suite again after the remaining slices are integrated.
 
 The presentation kernel adds eight focused causal cases; its TypeScript check,
 18-case browser/build suite, and touched-file pre-commit checks pass.
+
+The design-intent cutover passes its 12 focused admission, composition, filtering,
+label, placement, transcript, and gallery cases plus an integration rerun of the server
+round trip and composed panel facets. The locked browser build remains unchanged.
 
 The website bundler slice passed 61 worker tests, typecheck, five immutable-shell tests,
 three site tests, and a complete site build/bundle. Local pre-commit passes.

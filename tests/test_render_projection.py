@@ -1818,6 +1818,7 @@ def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser,
     landmarks retain their exact coordinate.
     """
     title = "The page instance should own the complete one-off playground"
+    revised_title = "The complete one-off playground belongs to the page instance"
     first = leaf_page(
         "Heading continuity",
         f"""
@@ -1878,10 +1879,12 @@ def test_revision_changes_keep_the_complete_heading_below_reader_chrome(browser,
     )
     assert view["quote"].startswith(title), view
     assert view["quoteTop"] >= clipped["inset"], view
+    assert view["section"] == "title", view
+    assert view["sectionTop"] >= clipped["inset"], view
 
     stamp_page(
         serve.page_dir,
-        first.replace("1200px", "1201px"),
+        first.replace(title, revised_title).replace("1200px", "1201px"),
         "Changed evidence below the page heading",
     )
     wait_for_revision(page, 2)

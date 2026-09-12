@@ -270,6 +270,7 @@ export function createVersionController({
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
   const LANDMARK_CAP = 160;
+  const HEADING = "h1, h2, h3, h4, h5, h6";
 
   // ---------- the version chooser ----------
   // `runtime.versions` is spliced in place, never reassigned: context's readers hold it.
@@ -1504,6 +1505,10 @@ export function createVersionController({
   function captureRegion(region = null) {
     const box = region ? effectiveScroller(region) : pageScroller;
     const boxTop = shownBox(box).top;
+    const landmarkTop = (element, top) =>
+      element?.matches(HEADING)
+        ? Math.max(top, Number.parseFloat(getComputedStyle(box).scrollPaddingTop) || 0)
+        : top;
     const view = { y: box.scrollTop };
     for (const [block, rect] of blocksOnScreen(region)) {
       const section = block.closest("[id]");
@@ -1511,7 +1516,7 @@ export function createVersionController({
         // The first on-screen block's section, kept only until a quotable block supplies
         // its own: a page with nothing quotable on screen still has somewhere to land.
         view.section = section.id;
-        view.sectionTop = shownBox(section).top - boxTop;
+        view.sectionTop = landmarkTop(section, shownBox(section).top - boxTop);
       }
       // Written down the way a comment's quote is, so the search that re-finds it is
       // looking for a string of the same kind.
@@ -1521,20 +1526,15 @@ export function createVersionController({
         // Unconditionally, so a quotable block under no section clears the earlier one
         // rather than sending the search into a subtree its text isn't in.
         view.section = section?.id;
-        view.sectionTop = section && shownBox(section).top - boxTop;
+        view.sectionTop =
+          section && landmarkTop(section, shownBox(section).top - boxTop);
         view.quote = text;
-        const exactTop = rect.top - boxTop;
         // A partially covered paragraph is still a reading place: its visible lines
         // should stay where the reader left them. A heading identifies the place as a
         // whole, so a coordinate that hides its opening words is not a valid heading
-        // landmark. Normalize that state here, once, rather than teaching every restore
-        // path to repair it after document replacement.
-        view.quoteTop = block.matches("h1, h2, h3, h4, h5, h6")
-          ? Math.max(
-              exactTop,
-              Number.parseFloat(getComputedStyle(box).scrollPaddingTop) || 0,
-            )
-          : exactTop;
+        // landmark. Normalize both quote and fallback section state here, once, rather
+        // than teaching every restore path to repair it after document replacement.
+        view.quoteTop = landmarkTop(block, rect.top - boxTop);
         break;
       }
     }

@@ -60,7 +60,7 @@ const matchesState = (thread, value = state) =>
 const matchesScope = (thread, value = scope) =>
   !value || (value === "page" ? !thread.anchor : Boolean(thread.anchor));
 const matchesSubject = (thread, value = subject) =>
-  !value || (value === "layer") === (thread.root.about === "layer");
+  !value || (value === "design") === (thread.root.about === "design");
 const matchesGone = (_thread, group, value = onlyGone) =>
   !value || group.key === "gone";
 

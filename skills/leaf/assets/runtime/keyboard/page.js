@@ -881,7 +881,7 @@ export function createPageKeys({
     },
   ]);
 
-  // Design mode: a page mode the reader stands in for a batch of remarks about the layer.
+  // Design mode: a page mode the reader stands in for a batch of design remarks.
   // Its Escape is the innermost rung while it stands — a composer opened in it closes
   // first (COMPOSER is nearer), then the mode, then the panels — and the press it is made
   // of is not a key at all, so that row binds nothing and says nothing on the line, the

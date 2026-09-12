@@ -137,8 +137,8 @@ def _thread_heading(thread: dict) -> str:
             head += f" · {anchor['part']}"
     else:
         head = "> (page-level)"
-    if thread["root"].get("about") == "layer":
-        head += "  — about the layer"
+    if thread["root"].get("about") == "design":
+        head += "  — about the design"
     closed = thread["resolved"]
     if closed and closed["author"] == "claude":
         # Named where the reader was not the one who closed it. A transcript is

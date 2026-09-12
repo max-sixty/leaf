@@ -1521,11 +1521,11 @@ def test_a_reload_under_a_held_aim_rearms_on_the_first_move(browser, serve):
 
 
 def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser, serve):
-    """A press in design mode is a comment about the layer, and that is all it does.
+    """A press in design mode is a design comment, and that is all it does.
 
     The mode is primary while it stands, even over the ⌥ aim: a modified press on a
     widget names the widget rather than aiming or working it, so a pick mark can be
-    pointed at without picking. The comment posts with `about: "layer"`, which is how
+    pointed at without picking. The comment posts with `about: "design"`, which is how
     the agent tells "this control looks wrong" from a remark about the words — nothing
     about the anchor alone says which. Both halves are asserted: the log's event, and
     the page exactly as it was."""
@@ -1568,7 +1568,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     composer = page.locator(".lf-composer")
     expect(composer).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text(
-        "layer · lf-option · opt-shim"
+        "design · lf-option · opt-shim"
     )
     # The press did nothing to the page: not a pick, not a focus, nothing in the markup
     # but the composer's own outline on the element it is about.
@@ -1587,7 +1587,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     events = events_model.read_events(serve.page_dir)
     posted = [e for e in events if e["kind"] == "comment"]
     assert [(e["about"], e["anchor"]) for e in posted] == [
-        ("layer", {"section": "opt-shim"})
+        ("design", {"section": "opt-shim"})
     ]
     assert [e for e in events if e["kind"] == "action"] == []
     # The retained thread names the target the same way the composer named the box. The
@@ -1596,7 +1596,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     panel = page.locator(".lf-thread-panel")
     expect(panel).to_be_visible()
     expect(panel.locator(".lf-thread .lf-quote")).to_have_text(
-        "layer · lf-option · opt-shim"
+        "design · lf-option · opt-shim"
     )
     panel_reply = panel.locator(".lf-thread textarea:focus")
     expect(panel_reply).to_have_count(1)
@@ -1646,7 +1646,7 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
     page.keyboard.up("Alt")
     slider.click()
     expect(page.locator("#lf-composer-quote")).to_have_text(
-        "layer · Volume · section · volume"
+        "design · Volume · section · volume"
     )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -1688,7 +1688,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
 
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text(
-        re.compile(r"^layer · Accept .* · lf-suggestion · sug-refill$")
+        re.compile(r"^design · Accept .* · lf-suggestion · sug-refill$")
     )
     assert page.locator("#sug-refill").get_attribute("aria-busy") is None, (
         "the margin entry action started while Design mode was opening its comment"
@@ -1742,7 +1742,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     accept.click()
 
     expect(page.locator("#lf-composer-quote")).to_have_text(
-        re.compile(r"^layer · Accept .* · lf-suggestion · reply-suggestion$")
+        re.compile(r"^design · Accept .* · lf-suggestion · reply-suggestion$")
     )
     round_trip(page)
     assert not [
@@ -1757,7 +1757,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
 def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     """The banner, the panel, a control on either: what no comment could reach before.
 
-    The anchor pass passes over the runtime's own layer, so a remark about the Threads
+    The anchor pass passes over runtime chrome, so a remark about the Threads
     button had nowhere to land. In design mode the press on it is a comment on it —
     anchored on the part the runtime named (`lf-banner`), naming the control the press
     landed on — and the button does not do what it does: the panel stays closed."""
@@ -1769,7 +1769,7 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
     expect(page.locator(".lf-inspect")).to_have_text(f"{said} · banner")
     threads.click()
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator("#lf-composer-quote")).to_have_text(f"layer · {said} · banner")
+    expect(page.locator("#lf-composer-quote")).to_have_text(f"design · {said} · banner")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.locator(".lf-composer textarea").fill("reads dim against the wash")
     with sending(page, "the comment on the chrome"):
@@ -1778,7 +1778,7 @@ def test_design_mode_reaches_the_chrome_and_names_the_control(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
     ]
     assert [(e["about"], e["anchor"]) for e in posted] == [
-        ("layer", {"section": "lf-banner", "part": said})
+        ("design", {"section": "lf-banner", "part": said})
     ]
     # The thread's mark is the outline an element anchor wears, on the chrome too.
     expect(page.locator("#lf-banner")).to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -1844,7 +1844,7 @@ def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
         page.locator(".lf-thread-panel").evaluate("el => getComputedStyle(el).zIndex")
     ), "the field opened on chrome underneath the auxiliary surface it describes"
     expect(page.locator("#lf-composer-quote")).to_have_text(
-        "layer · Thread panel width · threads"
+        "design · Thread panel width · threads"
     )
     page.close()
 
@@ -1859,7 +1859,7 @@ def test_design_mode_takes_an_edge_rather_than_drawing_it(browser, serve):
 
 def test_design_mode_leaves_prose_to_the_selection(browser, serve):
     """Words are still the way to point at words: a drag on prose selects, and the
-    comment it raises is about the layer; a plain click on prose comments on the block.
+    comment it raises is about design; a plain click on prose comments on the block.
 
     The mode takes presses on widgets, controls and the chrome at the press, ahead of the
     page. Prose it leaves to the browser, or "this heading is too small" would have no
@@ -1879,14 +1879,14 @@ def test_design_mode_leaves_prose_to_the_selection(browser, serve):
     page.keyboard.press("Enter")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text(
-        "layer · heading · t · “Rollout”"
+        "design · heading · t · “Rollout”"
     )
     page.keyboard.press("Escape")  # the composer, draft kept; the mode still stands
     expect(page.locator(".lf-composer")).to_be_hidden()
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     heading.click(position={"x": 4, "y": 4})
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator("#lf-composer-quote")).to_have_text("layer · heading · t")
+    expect(page.locator("#lf-composer-quote")).to_have_text("design · heading · t")
     assert errors == []
     page.close()
 
@@ -2517,7 +2517,9 @@ def test_design_mode_treats_a_renderer_node_as_part_of_its_widget(browser, serve
     page.keyboard.press("l")
     handler.click()
 
-    expect(page.locator("#lf-composer-quote")).to_have_text("layer · lf-diagram · flow")
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        "design · lf-diagram · flow"
+    )
     page.locator(".lf-composer textarea").fill(
         "the diagram needs a stronger affordance"
     )
@@ -2529,7 +2531,7 @@ def test_design_mode_treats_a_renderer_node_as_part_of_its_widget(browser, serve
         if event["kind"] == "comment"
     ]
     assert [(event["about"], event["anchor"]) for event in posted] == [
-        ("layer", {"section": "flow"})
+        ("design", {"section": "flow"})
     ]
     expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(handler).not_to_have_class(re.compile(r"\blf-mark-el\b"))

@@ -125,7 +125,7 @@ export function groupFor(t, outline, placedAt) {
       : { key: "page", label: "About the page as a whole" };
   if (inChrome(place))
     return layerPart(place)
-      ? { key: "layer", label: "The page's own layer" }
+      ? { key: "design", label: "Page design" }
       : { key: "sent", label: "Sent in the conversation" };
   const heading = headingFor(place, outline);
   // A page its author wrote no headings into has no runs to name, and a run with no name

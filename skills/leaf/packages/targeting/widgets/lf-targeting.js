@@ -81,7 +81,7 @@ customElements.define(
       if (!once(this)) {
         if (this.#interactive) this.#applyPreview();
         if (this.#interactive)
-          this.#stop ??= this.#controller.subscribe(this.#paintAvailability);
+          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         return;
       }
       try {
@@ -96,7 +96,7 @@ customElements.define(
         if (this.#interactive) this.#build();
         this.#ready = true;
         if (this.#interactive)
-          this.#stop ??= this.#controller.subscribe(this.#paintAvailability);
+          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         this.#render();
       } catch (error) {
         this.#restorePreview();

@@ -326,9 +326,12 @@ customElements.define(
 
     #watchReading() {
       if (quoted(this) || !this.#row) return;
-      this.#stopActions ??= this.#controller.subscribe((reading) =>
-        this.#renderHistory(reading.actions.edit.history),
-      );
+      this.#stopActions ??= this.#controller.subscribe((reading) => {
+        this.#renderHistory(reading.actions.edit.history);
+        this.#paintAvailability();
+        if (this.#ta && !this.#resumeProjection && reading.actions.edit.available)
+          this.#resumeProjection = this.#controller.defer();
+      });
     }
 
     #watchDraft() {
@@ -607,7 +610,7 @@ customElements.define(
         notice("Wait for the current edit to finish sending");
         return;
       }
-      this.#resumeProjection ??= this.#controller.defer();
+      if (this.#available()) this.#resumeProjection ??= this.#controller.defer();
       const ta = offer("textarea", "lf-draft-edit");
       ta.name = "edit";
       // A set-aside edit outranks the authored text here too: reopening resumes it.

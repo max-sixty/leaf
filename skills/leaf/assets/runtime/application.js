@@ -179,7 +179,7 @@ export function mountApplication(dependencies) {
           (event) =>
             event.attempt === command.target || event.id === command.target,
         );
-      if (!candidate || stateApplying()) return null;
+      if (!candidate) return null;
       runtime.undoing = true;
       paintKeys();
       const answer = startPost({ kind: "undo", undoes: candidate.id });

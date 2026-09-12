@@ -71,7 +71,7 @@ customElements.define(
       if (!once(this)) {
         if (this.#interactive && this.#ready) this.#registerLayout();
         if (this.#interactive)
-          this.#stop ??= this.#controller.subscribe(this.#paintAvailability);
+          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         this.#paintAvailability();
         return;
       }
@@ -79,7 +79,7 @@ customElements.define(
         this.#build();
         this.#ready = true;
         if (this.#interactive)
-          this.#stop ??= this.#controller.subscribe(this.#paintAvailability);
+          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
       } catch (error) {
         this.#cleanupLayout();
         failSoft(this, error);

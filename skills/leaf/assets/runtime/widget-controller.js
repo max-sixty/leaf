@@ -68,6 +68,7 @@ function createWidgetController(owner) {
     descriptorStillMatches(owner, descriptor) ? selected.read() : unavailable(selected.read());
 
   const publish = () => {
+    if (deferred) return;
     for (const subscription of [...subscriptions]) subscription(read());
   };
 
@@ -129,6 +130,7 @@ function createWidgetController(owner) {
         if (resumed) return read();
         resumed = true;
         deferred = false;
+        for (const subscription of [...subscriptions]) subscription(read());
         invalidateDom();
         return read();
       };

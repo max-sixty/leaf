@@ -159,9 +159,20 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
+    deferred_at = page.evaluate(
+        "window.pageLocal = document.querySelector('#page-local'); "
+        "window.resumeLocal = pageLocal.controller.defer(); "
+        "Number(pageLocal.dataset.readings)"
+    )
     page.locator("#page-local").get_by_role("button", name="Choose").click()
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     expect(page.locator("#page-local")).to_have_attribute("data-delivery", "pending")
+    assert page.evaluate("Number(pageLocal.dataset.readings)") == deferred_at
+    resumed_at = page.evaluate(
+        "resumeLocal(); const once = Number(pageLocal.dataset.readings); "
+        "resumeLocal(); [once, Number(pageLocal.dataset.readings)]"
+    )
+    assert resumed_at == [deferred_at + 1, deferred_at + 1]
     assert len(held) == 1
     attempt = held[0].request.post_data_json["attempt"]
     held[0].fulfill(

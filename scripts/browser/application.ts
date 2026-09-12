@@ -355,7 +355,12 @@ export function createSemanticApplication() {
   };
   const publisher = createApplicationPublisher(initial);
   let order = 0;
-  let signature = semanticSignature([initial.effective, initial.data, initial.phase]);
+  let signature = semanticSignature([
+    initial.effective,
+    initial.data,
+    initial.phase,
+    initial.authoritative?.browser,
+  ]);
 
   function derive(
     document: SemanticDocument,
@@ -423,7 +428,12 @@ export function createSemanticApplication() {
       next.unresolved,
       next.phase,
     );
-    const nextSignature = semanticSignature([next.effective, next.data, next.phase]);
+    const nextSignature = semanticSignature([
+      next.effective,
+      next.data,
+      next.phase,
+      next.authoritative?.browser,
+    ]);
     next.semanticEpoch =
       prior.semanticEpoch +
       Number(

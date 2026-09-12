@@ -73,7 +73,7 @@ rules a new or changed example has to meet.
   a Codex turn, its `turnId` also finds the model-request timings. Analytics Engine is
   aggregate product telemetry, not a log index.
 - `record-demo.sh` regenerates `docs/demo.gif`; `record-demo.py` draws it and the three
-  photographs of the same staged scene beside it — the landing page's light and dark
+  photographs of the same staged scene beside it — the README's light and dark
   session stills, and `session-card.png` at the 1.91:1 an unfurler draws a card at.
   Keep the latter while the product can make those frames stale.
 

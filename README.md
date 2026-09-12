@@ -8,7 +8,17 @@ Leaf is generative UI for Claude Code and Codex. Review a plan, make a decision,
 or follow live work in a page you can comment on and change. The agent responds by
 revising the page.
 
-![A Leaf page with an anchored comment, the agent's reply, and a revised plan](docs/session-light.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="docs/session-light.png">
+</picture>
+
+<details>
+<summary>Watch the comment-and-revision loop</summary>
+
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](docs/demo.gif)
+
+</details>
 
 [Try Leaf on the home page](https://leaf.page/), where Leaf guide responds in your
 private copy, or [explore the examples](https://leaf.page/examples/).

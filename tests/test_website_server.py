@@ -1,5 +1,6 @@
 """The website route adapter preserves Leaf's canonical served-page contract."""
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -2321,6 +2322,37 @@ def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypa
     with example_previews.serve_examples(site) as root:
         state = json.loads(get(f"{root}/examples/ideas-to-implement/api/state")[0])
     assert state["publication"]["kind"] == "example"
+
+
+def test_the_preview_generator_updates_every_linked_example_image(
+    tmp_path, monkeypatch
+):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    preview = tmp_path / "example-decision.jpg"
+    preview.write_bytes(b"new decision preview")
+    old = "/media/0123456789abcdef.jpg"
+    expected = hashlib.sha256(preview.read_bytes()).hexdigest()[:16]
+    (docs / "examples.html").write_text(
+        f'<a class="example-link" href="/examples/decision/">\n'
+        f'  <span><img src="{old}"></span>\n'
+        "</a>\n",
+        encoding="utf-8",
+    )
+    (docs / "index.html").write_text(
+        f'<a href="/examples/decision/"><img src="{old}" loading="lazy"></a>\n'
+        f'<img src="{old}" alt="unlinked">\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(example_previews, "DOCS", docs)
+
+    example_previews.update_catalog({preview})
+
+    replacement = f"/media/{expected}.jpg"
+    assert replacement in (docs / "examples.html").read_text()
+    home = (docs / "index.html").read_text()
+    assert replacement in home
+    assert f'<img src="{old}" alt="unlinked">' in home
 
 
 def test_a_failed_verifier_page_reports_its_browser_errors(browser):

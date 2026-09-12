@@ -95,6 +95,7 @@ export function createResponseSurface({
   panelCovers,
   markAt,
   scrollToElement,
+  scrollRevealedElement,
   visualActionAnchor,
   hideComposer,
   openComposer,
@@ -738,7 +739,7 @@ export function createResponseSurface({
     // A clipped sliver can be enough to offer a viewport-local hint, but not enough to
     // place a response box against. `nearest` reveals it while leaving a target already
     // in front of the reader exactly where it is.
-    scrollToElement(addressable, "instant", "nearest");
+    scrollRevealedElement(addressable, "instant", "nearest");
   }
 
   function commentOnAddressable(addressable) {

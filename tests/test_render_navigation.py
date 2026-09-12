@@ -8913,6 +8913,26 @@ def test_c_in_a_seated_conversation_reaches_the_thread_it_is_in(browser, serve):
     page.close()
 
 
+@pytest.mark.parametrize("gesture", ["keyboard", "pointer"])
+def test_commenting_on_a_closed_disclosure_leaves_it_closed(browser, serve, gesture):
+    """Reaching Comment may scroll a visible summary without revealing its contents."""
+    page, errors = open_page(browser, serve(DISCLOSED_PAGE))
+    disclosure = page.locator("#dsc")
+    summary = page.locator("#dsc-head")
+    expect(disclosure).not_to_have_attribute("open", "")
+
+    if gesture == "keyboard":
+        summary.focus()
+        page.keyboard.press("c")
+    else:
+        summary.click(modifiers=["Alt"])
+
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(disclosure).not_to_have_attribute("open", "")
+    assert errors == []
+    page.close()
+
+
 def test_target_chooser_reveals_a_clipped_board_card_before_commenting(browser, serve):
     """A visible sliver is enough to offer a hint, but not to place a response box.
 

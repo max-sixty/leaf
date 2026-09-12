@@ -463,6 +463,7 @@ responseSurface = createResponseSurface({
   panelCovers: navigation.panelCovers,
   markAt: anchorPaint.markAt,
   scrollToElement: anchorTravel.scrollToElement,
+  scrollRevealedElement: anchorTravel.scrollRevealedElement,
   visualActionAnchor: anchorControls.visualActionAnchor,
   hideComposer: selectionComposer.hideComposer,
   openComposer: selectionComposer.openComposer,

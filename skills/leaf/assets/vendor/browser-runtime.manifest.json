@@ -6,6 +6,7 @@
   "sourceInputs": [
     "scripts/browser/application.ts",
     "scripts/browser/index.ts",
+    "scripts/browser/presentation.ts",
     "scripts/browser/snapshot.ts",
     "skills/leaf/assets/runtime/anchor-coordinate.js",
     "skills/leaf/assets/runtime/conversation/identity.js",
@@ -44,6 +45,7 @@
   "exports": [
     "LitElement",
     "createApplicationPublisher",
+    "createPresentationCoordinator",
     "createSemanticApplication",
     "html"
   ],
@@ -51,12 +53,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js.map": {
-      "bytes": 302888,
-      "sha256": "268c58f3b6600ce25411a9e47fef0c15027b8aa57a08c878ba6c325dfce8d64e"
+      "bytes": 323893,
+      "sha256": "e3a8e84d6548eb92381586a2a117004cf281243a69fac605be9657fc6790f126"
     },
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 34062,
-      "sha256": "7ab9bc0c5e8f0fee115abb2b2283f0ab26eb7fb350aa39d1caba94427f7fd244"
+      "bytes": 37914,
+      "sha256": "68ce69f8f7f702fcd5e09a9723320297b5e758bfcf35d2c9242d5c3b687a5cba"
     },
     "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
       "bytes": 7267,

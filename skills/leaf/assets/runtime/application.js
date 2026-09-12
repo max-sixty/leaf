@@ -215,6 +215,9 @@ export function mountApplication(dependencies) {
       widget: descriptor.id,
       action: command.verb,
       detail: structuredClone(command.detail ?? {}),
+      ...(command.references && {
+        references: structuredClone(command.references),
+      }),
       ...(command.attempt && { attempt: command.attempt }),
     });
   }

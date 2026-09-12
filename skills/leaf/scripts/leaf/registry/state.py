@@ -7,6 +7,7 @@ from .contract import (
     RegistryError,
     declares_string,
     json_validator,
+    reference_relation_error,
     state_specs,
 )
 
@@ -160,6 +161,7 @@ def validate_widget_record_contracts(
     entry: dict,
     properties: dict,
     said: set,
+    registry: dict,
     declarations: dict,
     path,
 ) -> None:
@@ -254,15 +256,11 @@ def validate_widget_record_contracts(
                 raise RegistryError(
                     f"{path}: <{tag}> `{verb}` carries resolves but is not an x-awaits answer"
                 )
-        for field in spec.get("references", []):
-            schema = detail_properties.get(field, {})
-            if not (
-                schema.get("type") == "string"
-                or schema.get("type") == "array"
-                and schema.get("items", {}).get("type") == "string"
-            ):
+        for role, reference in spec.get("references", {}).items():
+            if error := reference_relation_error(reference, registry, declarations):
                 raise RegistryError(
-                    f"{path}: <{tag}> `{verb}` reference `{field}` must declare a string or string array"
+                    f"{path}: <{tag}> {channel} verb `{verb}` reference role "
+                    f"`{role}` {error}"
                 )
         undeclared = [field for field in fields if field not in detail_properties]
         optional = [field for field in fields if field not in required]

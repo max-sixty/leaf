@@ -7,7 +7,12 @@
    proof. Local editing defers the render region at its newest unpublished reading. */
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
-import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
+import {
+  captureWidgetReference,
+  descriptorStillMatches,
+  resolveWidgetReference,
+  widgetDescriptor,
+} from "./widget-descriptors.js";
 import { failSoft } from "./widget-upgrade.js";
 
 const controllers = new WeakMap();
@@ -81,6 +86,53 @@ const undoCandidate = (reading, target) => {
     .flatMap(({ undo }) => undo)
     .find((event) => event.attempt === wanted || event.id === wanted);
 };
+
+const plainObject = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+const exactKeys = (value, keys) =>
+  plainObject(value) &&
+  Object.keys(value).length === keys.length &&
+  keys.every((key) => key in value);
+
+const validTargetReference = (reference) => {
+  if (reference?.kind === "id")
+    return (
+      exactKeys(reference, ["kind", "id"]) &&
+      typeof reference.id === "string" &&
+      Boolean(reference.id)
+    );
+  if (reference?.kind !== "structure") return false;
+  const keys = "anchor" in reference ? ["kind", "anchor", "path"] : ["kind", "path"];
+  return (
+    exactKeys(reference, keys) &&
+    (!("anchor" in reference) ||
+      (typeof reference.anchor === "string" && Boolean(reference.anchor))) &&
+    Array.isArray(reference.path) &&
+    reference.path.every(
+      (step) =>
+        exactKeys(step, ["tree", "tag"]) &&
+        ["light", "shadow"].includes(step.tree) &&
+        typeof step.tag === "string" &&
+        Boolean(step.tag),
+    )
+  );
+};
+
+function validateReferences(descriptor, command) {
+  const channel = command.kind === "action" ? "x-state" : "x-request";
+  const roles = Object.keys(
+    descriptor.declaration[channel]?.[command.verb]?.references ?? {},
+  ).sort();
+  const supplied = "references" in command ? command.references : {};
+  if (
+    !exactKeys(supplied, roles) ||
+    Object.values(supplied).some((reference) => !validTargetReference(reference))
+  )
+    throw new TypeError(
+      `Widget ${command.kind} ${command.verb} references must match declared roles ${JSON.stringify(roles)}`,
+    );
+}
 
 function createWidgetController(owner) {
   if (!(owner instanceof Element))
@@ -231,6 +283,7 @@ function createWidgetController(owner) {
         throw new TypeError(
           "Widget action and request commands need {kind, verb, detail}",
         );
+      if (semantic) validateReferences(descriptor, command);
       if (!descriptorStillMatches(owner, descriptor)) return null;
       const before = read();
       if (undo && !undoCandidate(before, command.target)) return null;
@@ -241,12 +294,22 @@ function createWidgetController(owner) {
           : before.requests[command.verb]?.available)
       )
         return null;
+      if (
+        semantic &&
+        Object.values(command.references ?? {}).some(
+          (reference) => resolveWidgetReference(owner, reference).status !== "resolved",
+        )
+      )
+        return null;
       const delivery = dispatchWidget(
         descriptor,
         undo ? { kind: "undo", target: commandTarget(command.target) } : command,
       );
       if (!delivery) return null;
       return immutable({ reading: read(), delivery });
+    },
+    reference(target) {
+      return immutable(captureWidgetReference(owner, target));
     },
     defer() {
       if (deferred) throw new Error("Widget presentation is already deferred");

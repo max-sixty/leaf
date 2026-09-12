@@ -725,6 +725,72 @@ class SourceDocument:
         return sorted({i for i in self.all_ids if i.startswith("lf-")})
 
 
+def resolve_source_target_reference(
+    document: SourceDocument, reference: dict, *, fragment: bool = False
+) -> dict:
+    """Resolve one browser target record against its immutable authored boundary.
+
+    A page record starts at its one authored ``main``. Frozen message markup is a
+    fragment, so its top-level authored nodes form a virtual root. Only light-DOM
+    steps exist in source; a shadow step therefore resolves to no authored target
+    rather than being guessed from upgraded output.
+    """
+
+    virtual = {"content": document.content}
+    if fragment:
+        root = virtual
+    else:
+        mains = [node for node in document.nodes if node["tag"] == "main"]
+        if len(mains) != 1:
+            return {"status": "ambiguous" if mains else "detached"}
+        root = mains[0]
+
+    def children(node: dict) -> list[dict]:
+        return [child for child in node.get("content", []) if isinstance(child, dict)]
+
+    def descendants(node: dict, *, include: bool = True):
+        if include:
+            yield node
+        for child in children(node):
+            yield from descendants(child)
+
+    def matching_id(identity: str) -> list[dict]:
+        return [
+            node
+            for node in descendants(root, include=not fragment)
+            if node.get("attrs", {}).get("id") == identity
+        ]
+
+    if reference["kind"] == "id":
+        candidates = matching_id(reference["id"])
+    else:
+        candidates = [root]
+        if anchor := reference.get("anchor"):
+            candidates = matching_id(anchor)
+            if len(candidates) > 1:
+                return {"status": "ambiguous"}
+        for step in reference["path"]:
+            if step["tree"] != "light":
+                candidates = []
+                break
+            candidates = [
+                child
+                for parent in candidates
+                for child in children(parent)
+                if child["tag"] == step["tag"] and not child.get("attrs", {}).get("id")
+            ]
+            if not candidates:
+                break
+        if fragment and not reference.get("anchor") and not reference["path"]:
+            candidates = []
+
+    if not candidates:
+        return {"status": "detached"}
+    if len(candidates) != 1:
+        return {"status": "ambiguous"}
+    return {"status": "resolved", "target": candidates[0]}
+
+
 def links_with_rel(links: list[dict], rel: str) -> list[dict]:
     """The indexed links declaring one relation. `rel` carries a space-separated
     token list, so a relation is a token in it rather than a substring of it."""

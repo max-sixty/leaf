@@ -154,3 +154,50 @@ def test_pointer_and_keyboard_targets_share_the_unbounded_candidate_walk(
     ]
     assert errors == []
     page.close()
+
+
+def test_a_frozen_fragment_boundary_survives_its_nodes_being_connected(browser, serve):
+    page, errors = open_page(browser, serve(TARGET_PAGE))
+    reading = page.evaluate(
+        """async () => {
+          const {
+            captureTargetReference,
+            resolveTargetReference,
+            targetReferenceBoundary,
+          } = await window.__lfRuntimeImport('/runtime/target-references.js');
+          const template = document.createElement('template');
+          template.innerHTML = '<section id="fragment-anchor"><p>One</p></section>' +
+            '<aside><em>Two</em></aside>';
+          const paragraph = template.content.querySelector('p');
+          const emphasis = template.content.querySelector('em');
+          const boundary = targetReferenceBoundary(template.content.children);
+          document.querySelector('#scope').append(template.content);
+          const anchored = captureTargetReference(boundary, paragraph);
+          const unanchored = captureTargetReference(boundary, emphasis);
+          return {
+            anchored,
+            unanchored,
+            anchoredStatus: resolveTargetReference(boundary, anchored).status,
+            unanchoredStatus: resolveTargetReference(boundary, unanchored).status,
+          };
+        }"""
+    )
+
+    assert reading == {
+        "anchored": {
+            "kind": "structure",
+            "anchor": "fragment-anchor",
+            "path": [{"tree": "light", "tag": "p"}],
+        },
+        "unanchored": {
+            "kind": "structure",
+            "path": [
+                {"tree": "light", "tag": "aside"},
+                {"tree": "light", "tag": "em"},
+            ],
+        },
+        "anchoredStatus": "resolved",
+        "unanchoredStatus": "resolved",
+    }
+    assert errors == []
+    page.close()

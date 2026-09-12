@@ -156,7 +156,7 @@ def candidate_vocabulary_gaps(
                     )
                 elif kind == "report":
                     error = event_contracts.report_contract_error(
-                        e, candidate_page.by_id, incoming
+                        e, candidate_page, incoming, resolve_references=False
                     )
                 else:
                     error = declared_request_error(e, document, thread, incoming)

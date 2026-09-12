@@ -137,9 +137,7 @@ customElements.define(
         outletFor: (entry) => this.#threadOutlet(entry),
         end: () => {},
       });
-      this.stopActions ??= this.#controller.subscribe(() =>
-        this.#paintAvailability(),
-      );
+      this.stopActions ??= this.#controller.subscribe(() => this.#paintAvailability());
       this.stopWatching ??= watchData(this, "run", (snapshot) => this.#show(snapshot));
     }
 

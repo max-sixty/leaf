@@ -243,9 +243,7 @@ customElements.define(
         line: "grab the card",
         // .lf-dragging without a grab is a live pointer drag — one gesture at a time.
         when: () =>
-          this.#available() &&
-          !held() &&
-          !this.classList.contains("lf-dragging"),
+          this.#available() && !held() && !this.classList.contains("lf-dragging"),
         run: () => this.#grab(card, grip),
       };
       // The tooltip names the keys the row binds rather than a letter typed beside it: the
@@ -464,12 +462,20 @@ customElements.define(
         kind: "action",
         verb: "move",
         detail: {
-        card: card.id,
-        to: to.id,
-        index: this.#cards(to).indexOf(card),
+          card: card.id,
+          to: to.id,
+          index: this.#cards(to).indexOf(card),
         },
       });
-      sent?.delivery.then((ok) => {
+      // A pointer drag can outlive the reading that enabled it. If admission has
+      // already closed by drop time, there is no optimistic publication to repaint
+      // the board, so put the moved native node back from the controller's current
+      // semantic state immediately.
+      if (!sent) {
+        this.renderState(this.#controller.read().state);
+        return;
+      }
+      sent.delivery.then((ok) => {
         if (ok)
           notice(
             `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute(

@@ -222,7 +222,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         '<lf-options id="package-options" choose>'
         '<lf-option id="package-a">A</lf-option>'
         '<lf-option id="package-b">B</lf-option>'
-        '</lf-options></lf-ask>',
+        "</lf-options></lf-ask>",
     )
     version_url = serve(
         source,
@@ -345,7 +345,9 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.unroute("**/api/event")
 
     readings = int(page.locator("#page-local").get_attribute("data-readings"))
-    page.evaluate("window.pageLocal = document.querySelector('#page-local'); pageLocal.remove()")
+    page.evaluate(
+        "window.pageLocal = document.querySelector('#page-local'); pageLocal.remove()"
+    )
     page.locator("#package-a").click()
     round_trip(page)
     assert page.evaluate("Number(pageLocal.dataset.readings)") == readings

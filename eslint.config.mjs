@@ -249,7 +249,6 @@ const applicationOwners = new Set([
   "thread-panel.js",
   "pending/state.js",
   "projection/commands.js",
-  "requests.js",
   "state-application.js",
   "state-feed.js",
   "auxiliary-chrome.js",
@@ -431,11 +430,14 @@ const architecturePlugin = {
                 node,
                 message: "Private runtime owners never import the boot entry.",
               });
-            if (file !== "widget-api.js" && direct.includes("application.js"))
+            if (
+              !["widget-api.js", "widget-controller.js"].includes(file) &&
+              direct.includes("application.js")
+            )
               context.report({
                 node,
                 message:
-                  "Only widget-api.js may import the runtime application composition root.",
+                  "Only the public widget boundary may import the runtime application composition root.",
               });
             if (file !== "keyboard/page.js" && direct.includes("keyboard/page.js"))
               context.report({
@@ -549,6 +551,39 @@ export default [
             {
               regex: "^\\.{1,2}/(?:.*/)?runtime/",
               message: "Behavior and probe modules use /runtime/widget-api.js.",
+            },
+            {
+              regex: "^\\.{1,2}/(?:.*/)?(?:leaf|widget-api)\\.js$",
+              message: "Do not create a relative edge to the entry or public facade.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["skills/leaf/scripts/leaf/render-checks/replay.js"],
+    rules: {
+      // Replay compares the publisher's authored, carried, and current selections.
+      // That historical validation is deliberately private rather than part of the
+      // package-facing widget controller.
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "/leaf.js",
+              message: "Import Leaf capabilities from /runtime/widget-api.js.",
+            },
+          ],
+          patterns: [
+            {
+              regex: "^/runtime/(?!widget-api\\.js$|validation\\.js$)",
+              message: "Render replay uses the public API or its validation adapter.",
+            },
+            {
+              regex: "^\\.{1,2}/(?:.*/)?runtime/",
+              message: "Render replay uses absolute runtime boundaries.",
             },
             {
               regex: "^\\.{1,2}/(?:.*/)?(?:leaf|widget-api)\\.js$",

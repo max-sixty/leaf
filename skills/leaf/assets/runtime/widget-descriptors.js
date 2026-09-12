@@ -18,7 +18,8 @@ const candidates = (root) => {
   if (!tags.length) return [];
   const selector = tags.join(",");
   const found = [...root.querySelectorAll(selector)];
-  if (root.nodeType === Node.ELEMENT_NODE && root.matches(selector)) found.unshift(root);
+  if (root.nodeType === Node.ELEMENT_NODE && root.matches(selector))
+    found.unshift(root);
   return found;
 };
 
@@ -96,8 +97,8 @@ export function descriptorStillMatches(owner, descriptor) {
     )
   )
     return false;
-  const currentOffers = requestOffers(owner, descriptor.declaration).sort((left, right) =>
-    JSON.stringify(left).localeCompare(JSON.stringify(right)),
+  const currentOffers = requestOffers(owner, descriptor.declaration).sort(
+    (left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)),
   );
   const capturedOffers = [...descriptor.offers].sort((left, right) =>
     JSON.stringify(left).localeCompare(JSON.stringify(right)),

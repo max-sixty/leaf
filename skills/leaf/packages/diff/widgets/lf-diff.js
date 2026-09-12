@@ -1421,11 +1421,9 @@ customElements.define(
     renderState(state) {
       const reviewed = state?.review?.units ?? {};
       for (const entry of this.fileEntries ?? [])
-        this.setReviewed(
-          entry,
-          reviewed[entry.record.path]?.detail.reviewed ?? false,
-          { repaint: false },
-        );
+        this.setReviewed(entry, reviewed[entry.record.path]?.detail.reviewed ?? false, {
+          repaint: false,
+        });
       this.refreshDiffTools();
     }
   },

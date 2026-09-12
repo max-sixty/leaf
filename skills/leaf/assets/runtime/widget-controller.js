@@ -7,10 +7,7 @@
    through one seam until the epoch coordinator replaces that queue. */
 import { applicationState } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
-import {
-  descriptorStillMatches,
-  widgetDescriptor,
-} from "./widget-descriptors.js";
+import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
 import { registerPresentation } from "./widget-upgrade.js";
 
 const controllers = new WeakMap();
@@ -65,7 +62,9 @@ function createWidgetController(owner) {
   let stopSelection = null;
 
   const read = () =>
-    descriptorStillMatches(owner, descriptor) ? selected.read() : unavailable(selected.read());
+    descriptorStillMatches(owner, descriptor)
+      ? selected.read()
+      : unavailable(selected.read());
 
   const publish = () => {
     if (deferred) return;

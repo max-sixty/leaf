@@ -249,7 +249,10 @@ test("the selected revision keeps carried action history from earlier revisions"
   delete read.browser.views[1];
   app.adopt(read);
   assert.deepEqual(
-    app.selectWidget(current).read().actions.accept.history.map(({ id }) => id),
+    app
+      .selectWidget(current)
+      .read()
+      .actions.accept.history.map(({ id }) => id),
     ["e-old"],
   );
 });

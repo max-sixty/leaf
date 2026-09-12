@@ -204,9 +204,11 @@ customElements.define(
           : next.has(option)
             ? `Chose “${name}”`
             : `Dropped “${name}”`;
-        this.#dispatch("choose", this.#addition.detailFor(next))?.delivery.then((ok) => {
-          if (ok) notice(`${said} — sent`);
-        });
+        this.#dispatch("choose", this.#addition.detailFor(next))?.delivery.then(
+          (ok) => {
+            if (ok) notice(`${said} — sent`);
+          },
+        );
       });
     }
 

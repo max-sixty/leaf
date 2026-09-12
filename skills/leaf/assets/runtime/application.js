@@ -176,8 +176,7 @@ export function mountApplication(dependencies) {
       const candidate = Object.values(reading.actions)
         .flatMap(({ undo }) => undo)
         .find(
-          (event) =>
-            event.attempt === command.target || event.id === command.target,
+          (event) => event.attempt === command.target || event.id === command.target,
         );
       if (!candidate) return null;
       runtime.undoing = true;

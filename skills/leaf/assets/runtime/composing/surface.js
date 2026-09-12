@@ -500,7 +500,7 @@ export function createResponseSurface({
             // fractional CSS pixel look like a missing margin rail.
             size({
               ...overflow,
-              apply({ availableWidth, availableHeight, placement }) {
+              apply({ availableWidth, placement }) {
                 if (!stillCurrent()) return;
                 const side = placement.split("-", 1)[0];
                 const laneWidth =
@@ -515,17 +515,12 @@ export function createResponseSurface({
                 // relative connection preserves the field's inline start as its content
                 // grows while allowing target reflow to carry that start with it.
                 setWidth(Math.max(0, Math.min(availableWidth, laneWidth)));
-                const laneHeight =
-                  side === "top"
-                    ? keepClear.top - boundary.top - 6
-                    : side === "bottom"
-                      ? boundary.bottom - keepClear.bottom - 6
-                      : boundary.height;
-                setHeight(
-                  /^(left|right)$/.test(side)
-                    ? boundary.height
-                    : Math.max(0, Math.min(availableHeight, laneHeight)),
-                );
+                // Placement keeps the compact field clear of the target. Its text may
+                // then use the whole visible band: shift moves a growing bar back into
+                // that band, even when doing so eventually overlays page content. A
+                // target beginning at the band edge must not turn the field's limit
+                // into zero and leave the draft inside a one-line scroller.
+                setHeight(boundary.height);
               },
             }),
             initial &&

@@ -368,7 +368,7 @@ def read_watch_pass(
                 )
                 return _WatchPass(readings, live, 2)
             continue
-        if reading.live:
+        if reading.live and not reading.lost:
             live.append(reading)
         if reading.restarted:
             print(
@@ -405,12 +405,26 @@ def read_watch_pass(
                     open_session_turn(watch.session_id, reading.transaction)
             return _WatchPass(readings, live, 0)
         if reading.lost:
+            # A session-wide carrier still serves its other leaves. Treat the
+            # unavailable page as fatal only when it is the named watch, or when
+            # the completed pass finds no live page left to carry.
+            if named is None or not paths_same(reading.page_dir, named):
+                continue
             print(
                 f"{reading.page_dir}: server is not running; restart it with "
                 f"`leaf server start {reading.page_dir}`",
                 file=sys.stderr,
             )
             return _WatchPass(readings, live, 2)
+    lost = [reading for reading in readings if reading.lost]
+    if lost and not live:
+        for reading in lost:
+            print(
+                f"{reading.page_dir}: server is not running; restart it with "
+                f"`leaf server start {reading.page_dir}`",
+                file=sys.stderr,
+            )
+        return _WatchPass(readings, live, 2)
     return _WatchPass(readings, live, None)
 
 
@@ -466,15 +480,16 @@ def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
     batch reaches that next durable consumer.
 
     A wait ends on someone speaking, on the last watched leaf ending, or on a
-    server being down with no restart to make. It puts no clock on how long a
-    user takes, because there is no such measurement to take from this side of
-    the wire: a page whose address their browser can't route to and one they
-    simply haven't opened yet look identical at every length, so a deadline over
-    it announces the first while describing the second — and the second is the
-    ordinary case. Only their browser can tell them apart, and the user holds
-    the URL from the turn that handed it over, so the report comes from them;
-    references/serving-pages.md's "Unreachable URLs and `--host`" carries the
-    recourse."""
+    server being down with no restart to make — the named page's at once, an
+    unnamed sibling's only once no live watched leaf remains. It puts no clock
+    on how long a user takes, because there is no such measurement to take from
+    this side of the wire: a page whose address their browser can't route to and
+    one they simply haven't opened yet look identical at every length, so a
+    deadline over it announces the first while describing the second — and the
+    second is the ordinary case. Only their browser can tell them apart, and the
+    user holds the URL from the turn that handed it over, so the report comes
+    from them; references/serving-pages.md's "Unreachable URLs and `--host`"
+    carries the recourse."""
     if page_dir is not None and claim_named:
         claim_page(page_dir)
     identity = host_identity()

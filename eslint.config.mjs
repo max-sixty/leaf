@@ -421,7 +421,7 @@ function cyclicComponents(graph) {
 
 const architecturePlugin = {
   rules: {
-    "root-style-ownership": {
+    "root-state-ownership": {
       meta: { type: "problem", schema: [] },
       create(context) {
         const file = runtimeName(context.filename ?? context.getFilename());
@@ -450,11 +450,45 @@ const architecturePlugin = {
           if (!found || seen.has(found)) return null;
           seen.add(found);
           const definition = found.defs.find(
-            ({ type, node: declared }) =>
-              type === "Variable" && declared.id.type === "Identifier",
+            ({ type, parent }) => type === "Variable" && parent?.kind === "const",
           );
-          return definition?.node.init ?? null;
+          if (!definition?.node.init) return null;
+          if (definition.node.id.type === "Identifier") return definition.node.init;
+          if (definition.node.id.type !== "ObjectPattern") return null;
+          const property = definition.node.id.properties.find(
+            (candidate) =>
+              candidate.type === "Property" &&
+              candidate.value.type === "Identifier" &&
+              candidate.value.name === node.name,
+          );
+          if (!property) return null;
+          const literalKey =
+            property.key.type === "Literal" && typeof property.key.value === "string";
+          if (property.computed && !literalKey) return null;
+          return {
+            type: "MemberExpression",
+            object: definition.node.init,
+            property: property.key,
+            computed: property.computed || literalKey,
+          };
         };
+        const staticString = (node, seen = new Set()) => {
+          if (node?.type === "Literal" && typeof node.value === "string")
+            return node.value;
+          if (node?.type === "TemplateLiteral" && node.expressions.length === 0)
+            return node.quasis[0].value.cooked;
+          if (node?.type === "Identifier") {
+            const initial = initialValue(node, seen);
+            return initial ? staticString(initial, seen) : null;
+          }
+          return null;
+        };
+        const memberName = (node) =>
+          node?.type === "MemberExpression"
+            ? node.computed
+              ? staticString(node.property)
+              : node.property.name
+            : null;
         const isDocument = (node, seen = new Set()) => {
           if (node?.type === "ChainExpression")
             return isDocument(node.expression, seen);
@@ -496,21 +530,102 @@ const architecturePlugin = {
             isDocumentRoot(node.object, seen)
           );
         };
+        const isRootFacade = (node, name, seen = new Set()) => {
+          if (node?.type === "ChainExpression")
+            return isRootFacade(node.expression, name, seen);
+          if (node?.type === "Identifier") {
+            const initial = initialValue(node, seen);
+            return initial ? isRootFacade(initial, name, seen) : false;
+          }
+          return (
+            node?.type === "MemberExpression" &&
+            memberName(node) === name &&
+            isDocumentRoot(node.object, seen)
+          );
+        };
+        const isRootDataset = (node) => isRootFacade(node, "dataset");
+        const isRootClassList = (node) => isRootFacade(node, "classList");
+        const ownsDatasetKey = (key) =>
+          typeof key === "string" && /^lf[A-Z]/u.test(key);
+        const ownsDatasetMember = (node) => ownsDatasetKey(memberName(node));
+        const ownsDatasetObject = (node) =>
+          node?.type === "ObjectExpression" &&
+          node.properties.every(
+            (property) =>
+              property.type === "Property" &&
+              property.kind === "init" &&
+              ownsDatasetKey(
+                !property.computed && property.key.type === "Identifier"
+                  ? property.key.name
+                  : staticString(property.key),
+              ),
+          );
+        const ownsClassTokens = (operation, nodes) => {
+          const tokens =
+            operation === "toggle"
+              ? nodes.slice(0, 1)
+              : operation === "replace"
+                ? nodes.slice(0, 2)
+                : nodes;
+          return tokens.every((argument) => staticString(argument)?.startsWith("lf-"));
+        };
         const reportsRootStyleTarget = (node) =>
           isRootStyle(node) ||
           (node?.type === "MemberExpression" && isRootStyle(node.object));
-        const report = (node) =>
+        const report = (node, kind) =>
           context.report({
             node,
-            message:
-              "Mutate document-root inline styles through root-state.js so authored revision replacement preserves ownership.",
+            message: `Mutate document-root ${kind} through root-state.js so authored revision replacement preserves ownership.`,
           });
         return {
           AssignmentExpression(node) {
-            if (reportsRootStyleTarget(node.left)) report(node);
+            if (reportsRootStyleTarget(node.left)) report(node, "inline styles");
+            else if (
+              node.left.type === "MemberExpression" &&
+              isRootDataset(node.left.object) &&
+              !ownsDatasetMember(node.left)
+            )
+              report(node, "attributes");
+            else if (
+              node.left.type === "MemberExpression" &&
+              isRootClassList(node.left.object)
+            )
+              report(node, "attributes");
+            else if (
+              node.left.type === "MemberExpression" &&
+              isDocumentRoot(node.left.object)
+            )
+              report(node, "attributes");
           },
           UpdateExpression(node) {
-            if (reportsRootStyleTarget(node.argument)) report(node);
+            if (reportsRootStyleTarget(node.argument)) report(node, "inline styles");
+            else if (
+              node.argument.type === "MemberExpression" &&
+              isRootDataset(node.argument.object) &&
+              !ownsDatasetMember(node.argument)
+            )
+              report(node, "attributes");
+            else if (
+              node.argument.type === "MemberExpression" &&
+              isRootClassList(node.argument.object)
+            )
+              report(node, "attributes");
+            else if (
+              node.argument.type === "MemberExpression" &&
+              isDocumentRoot(node.argument.object)
+            )
+              report(node, "attributes");
+          },
+          UnaryExpression(node) {
+            if (
+              node.operator === "delete" &&
+              node.argument.type === "MemberExpression" &&
+              ((isRootDataset(node.argument.object) &&
+                !ownsDatasetMember(node.argument)) ||
+                isRootClassList(node.argument.object) ||
+                isDocumentRoot(node.argument.object))
+            )
+              report(node, "attributes");
           },
           CallExpression(node) {
             if (
@@ -518,25 +633,45 @@ const architecturePlugin = {
               ["setProperty", "removeProperty"].includes(propertyName(node.callee)) &&
               isRootStyle(node.callee.object)
             )
-              report(node);
+              report(node, "inline styles");
             if (
               node.callee.type === "MemberExpression" &&
               ["setAttribute", "removeAttribute", "toggleAttribute"].includes(
                 propertyName(node.callee),
               ) &&
-              isDocumentRoot(node.callee.object) &&
-              node.arguments[0]?.type === "Literal" &&
-              node.arguments[0].value === "style"
+              isDocumentRoot(node.callee.object)
+            ) {
+              const attribute = staticString(node.arguments[0]);
+              if (attribute !== null && !attribute.startsWith("data-lf-"))
+                report(node, attribute === "style" ? "inline styles" : "attributes");
+            }
+            if (
+              node.callee.type === "MemberExpression" &&
+              ["add", "remove", "toggle", "replace"].includes(
+                propertyName(node.callee),
+              ) &&
+              isRootClassList(node.callee.object) &&
+              !ownsClassTokens(propertyName(node.callee), node.arguments)
             )
-              report(node);
+              report(node, "attributes");
             if (
               node.callee.type === "MemberExpression" &&
               node.callee.object.type === "Identifier" &&
               ["Object", "Reflect"].includes(node.callee.object.name) &&
-              ["assign", "set"].includes(propertyName(node.callee)) &&
-              isRootStyle(node.arguments[0])
-            )
-              report(node);
+              ["assign", "set"].includes(propertyName(node.callee))
+            ) {
+              if (isRootStyle(node.arguments[0])) report(node, "inline styles");
+              else if (isDocumentRoot(node.arguments[0])) report(node, "attributes");
+              else if (isRootClassList(node.arguments[0])) report(node, "attributes");
+              else if (isRootDataset(node.arguments[0])) {
+                const operation = propertyName(node.callee);
+                const owned =
+                  operation === "assign"
+                    ? node.arguments.slice(1).every(ownsDatasetObject)
+                    : ownsDatasetKey(staticString(node.arguments[1]));
+                if (!owned) report(node, "attributes");
+              }
+            }
           },
         };
       },
@@ -687,7 +822,7 @@ export default [
     plugins: { architecture: architecturePlugin },
     rules: {
       ...entryBoundary,
-      "architecture/root-style-ownership": "error",
+      "architecture/root-state-ownership": "error",
       "no-restricted-syntax": [
         "error",
         ...entryBoundary["no-restricted-syntax"].slice(1),
@@ -710,7 +845,7 @@ export default [
     plugins: { architecture: architecturePlugin },
     rules: {
       ...ownerBoundary,
-      "architecture/root-style-ownership": "error",
+      "architecture/root-state-ownership": "error",
       "architecture/runtime-graph": "error",
     },
   },

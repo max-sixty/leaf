@@ -1139,12 +1139,9 @@ STANDING_ACTIONS = [
                     "name": "Release card",
                     "scope": "element",
                     "className": None,
-                    "selector": {
-                        "authoredId": "ab-release-card",
-                        "path": [{"tag": "section", "index": 0}],
-                        "label": "<section#ab-release-card>",
-                        "text": "Release notes",
-                    },
+                    "reference": {"kind": "id", "id": "ab-release-card"},
+                    "label": "<section#ab-release-card>",
+                    "text": "Release notes",
                 }
             ],
             "changes": [

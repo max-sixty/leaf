@@ -183,10 +183,27 @@ def test_agent_logs_are_structured_and_content_free(capsys):
     }
 
 
-def test_agent_logs_keep_every_event_in_a_batched_turn_searchable():
-    assert website_server.agent_event_fields(("event-1", "event-2")) == {
-        "eventIds": ("event-1", "event-2")
-    }
+def test_agent_logs_keep_every_event_in_a_batched_turn_searchable(capsys):
+    website_server.log_agent(
+        "turn_start_completed",
+        **website_server.agent_event_fields(("event-1", "event-2")),
+        turnId="turn-1",
+    )
+
+    assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == [
+        {
+            "component": "leaf-agent",
+            "event": "turn_start_completed",
+            "turnId": "turn-1",
+            "eventId": "event-1",
+        },
+        {
+            "component": "leaf-agent",
+            "event": "turn_start_completed",
+            "turnId": "turn-1",
+            "eventId": "event-2",
+        },
+    ]
 
 
 @pytest.mark.parametrize(
@@ -628,6 +645,7 @@ def test_an_attach_waiting_on_failed_prewarm_retries_startup(page_dir, monkeypat
         return process
 
     monkeypatch.setattr(host, "_ensure_server", ensure_server)
+    monkeypatch.setattr(host, "_warm_leaf_cli", lambda: None)
     monkeypatch.setattr(website_server, "page_claim", lambda page: None)
     monkeypatch.setattr(host, "_start_thread", lambda *args: "hosted-thread")
 
@@ -695,24 +713,64 @@ def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
     assert start_calls == [None]
 
 
-def test_the_website_host_prewarms_app_server_in_the_background(monkeypatch):
+def test_the_website_host_prewarms_app_server_and_leaf_cli_in_the_background(
+    monkeypatch,
+):
     host = website_server.WebsiteCodexHost("codex")
-    started = threading.Event()
-    release = threading.Event()
+    app_started = threading.Event()
+    leaf_started = threading.Event()
+    leaf_finished = threading.Event()
+    release_app = threading.Event()
+    release_leaf = threading.Event()
 
     def ensure_server():
-        started.set()
-        release.wait(timeout=2)
+        app_started.set()
+        release_app.wait(timeout=2)
+
+    def warm_leaf_cli():
+        leaf_started.set()
+        release_leaf.wait(timeout=2)
+        leaf_finished.set()
 
     monkeypatch.setattr(host, "_ensure_server", ensure_server)
+    monkeypatch.setattr(host, "_warm_leaf_cli", warm_leaf_cli)
 
     thread = host.prewarm()
 
-    assert started.wait(timeout=2)
+    assert app_started.wait(timeout=2)
+    assert leaf_started.wait(timeout=2)
     assert thread.is_alive()
-    release.set()
+    release_app.set()
     thread.join(timeout=2)
     assert not thread.is_alive()
+    release_leaf.set()
+    assert leaf_finished.wait(timeout=2)
+
+
+def test_the_leaf_cli_prewarm_runs_the_installed_command(monkeypatch):
+    host = website_server.WebsiteCodexHost("codex")
+    calls = []
+
+    monkeypatch.setattr(
+        website_server.subprocess,
+        "run",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    host._warm_leaf_cli()
+
+    assert calls == [
+        (
+            ([website_server.LEAF_COMMAND, "--version"],),
+            {
+                "stdin": website_server.subprocess.DEVNULL,
+                "stdout": website_server.subprocess.DEVNULL,
+                "stderr": website_server.subprocess.DEVNULL,
+                "check": True,
+                "timeout": 20,
+            },
+        )
+    ]
 
 
 def test_closing_the_website_host_stops_its_app_server(tmp_path):
@@ -1744,6 +1802,33 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
         "agent": "Leaf guide",
         "install_url": "/#install",
     }
+
+
+def test_the_preview_generator_bootstraps_a_new_catalog_entry(tmp_path, monkeypatch):
+    current = tmp_path / "current"
+    current.mkdir()
+    existing = current / "example-existing.jpg"
+    source_preview = next(example_previews.locked_previews().glob("example-*.jpg"))
+    shutil.copy2(source_preview, existing)
+    source = ROOT / "examples" / "ideas-to-implement.html"
+    sources = [source]
+    monkeypatch.setattr(example_previews, "locked_previews", lambda: current)
+    monkeypatch.setattr(example_previews, "catalog_sources", lambda: sources)
+    monkeypatch.setattr(example_previews.site_build, "catalog_sources", lambda: sources)
+    monkeypatch.setattr(
+        example_previews.site_build, "published_page_sources", lambda: sources
+    )
+
+    previews = example_previews.bootstrap_previews(tmp_path / "previews")
+    site = tmp_path / "site"
+    example_previews.site_build.build_examples(site, catalog_previews=previews)
+
+    assert (
+        previews / "example-ideas-to-implement.jpg"
+    ).read_bytes() == existing.read_bytes()
+    with example_previews.serve_examples(site) as root:
+        state = json.loads(get(f"{root}/examples/ideas-to-implement/api/state")[0])
+    assert state["publication"]["kind"] == "example"
 
 
 def test_a_failed_verifier_page_reports_its_browser_errors(browser):

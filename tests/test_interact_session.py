@@ -4440,6 +4440,118 @@ def test_codex_adapter_exits_after_its_offline_page_cannot_restart(
     assert adapter_log.count("server is not running") == 2
 
 
+def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
+    codex_claimed_page, under_codex, codex_env, tmp_path
+):
+    """One unavailable leaf cannot break another page's browser-to-task path."""
+    live = codex_claimed_page
+    source = re.sub(r"\s*<lf-diagram.*?</lf-diagram>", "", PAGE, flags=re.DOTALL)
+    (live / "index.html").write_text(source, encoding="utf-8")
+    stamped = CliRunner().invoke(
+        cli_model.cli,
+        ["version", "stamp", str(live), "--text", "published"],
+    )
+    assert stamped.exit_code == 0, stamped.output
+    offline = tmp_path / "a-offline-page"
+    vendoring_model.cmd_init(offline)
+    session_model.cmd_status(offline, "waiting", "earlier review")
+    files_model.write_json(
+        offline / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": False,
+            "lifetime": "session",
+        },
+    )
+    claim = service_model.page_claim(live)
+    files_model.write_json(
+        service_model.claim_path(offline), {**claim, "page": str(offline.resolve())}
+    )
+
+    program, log = fake_codex_cli(tmp_path)
+    launcher = PLUGIN_ROOT / "bin" / "leaf"
+    session_model.cmd_status(live, "waiting", "current review")
+    started = under_codex(
+        shlex.join(
+            [
+                str(launcher),
+                "codex",
+                "start",
+                str(live),
+                "--codex-path",
+                str(program),
+            ]
+        ),
+        codex_env
+        | {
+            "CODEX_THREAD_ID": "codex-thread",
+            "FAKE_CODEX_LOG": str(log),
+        },
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    out, err = started.communicate(timeout=60)
+    assert started.returncode == 0, f"{out}{err}"
+    claim = service_model.page_claim(live)
+    files_model.write_json(
+        service_model.claim_path(live), {**claim, "pid": os.getpid()}
+    )
+
+    try:
+        service = files_model.read_json(live / "service.json")
+        origin = f"http://{service['host']}:{service['port']}"
+        status, body = fetch(
+            f"{origin}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "comment",
+                    "revision": 1,
+                    "text": "Does this reach the task?",
+                    "attempt": "offline_sibling_comment_1",
+                }
+            ).encode(),
+            token=server_model.host_key(),
+        )
+        assert status == 200, body
+        comment = json.loads(body)["state"]["events"][-1]
+
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if files_model.read_json(live / "cursor.json") == {"seq": comment["seq"]}:
+                break
+            time.sleep(0.05)
+        else:
+            adapter_log = codex_model.adapter_log_path("codex-thread").read_text(
+                encoding="utf-8"
+            )
+            pytest.fail(
+                "the browser comment did not reach the Codex queue: "
+                f"adapter_log={adapter_log!r}"
+            )
+
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        [queued] = [call for call in calls if "--thread" in call]
+        assert queued[queued.index("--thread") + 1] == "codex-thread"
+        prompt = queued[queued.index("--message") + 1]
+        delivery = ElementTree.fromstring(prompt.splitlines()[1])
+        payload = files_model.read_json(
+            codex_model.delivery_path(delivery.attrib["id"])
+        )
+        [delivered_comment] = payload["batches"][0]["events"]
+        assert (delivered_comment["id"], delivered_comment["text"]) == (
+            comment["id"],
+            "Does this reach the task?",
+        )
+    finally:
+        for page in (offline, live):
+            session_model.cmd_status(page, "idle", "")
+            with service_model.PageTransaction(page) as transaction:
+                transaction.release_claim()
+
+
 def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
     codex_claimed_page, spawn, codex_env, tmp_path, dead_pid
 ):

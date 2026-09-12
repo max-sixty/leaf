@@ -4,6 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .anchor_capture import capture_anchor
+from .document_reading import read_document
 from .event_contracts import (
     action_contract_error,
     datum_anchor_error,
@@ -13,8 +14,8 @@ from .event_contracts import (
     visual_anchor_error,
 )
 from .event_log import AttemptConflict
-from .events import undo_error
-from .files import list_revisions, version_revisions
+from .events import build_threads, undo_error
+from .files import list_revisions, revision_path, version_revisions
 from .passages import active_enclosing
 from .projection import (
     generated_children,
@@ -27,6 +28,7 @@ from .registry.reactions import reaction_tokens
 from .registry.storage import load_registry
 from .requests import request_contract_error
 from .schema import MESSAGE_KINDS
+from .served_state.conversation import browser_conversation
 from .service import PageTransaction
 from .structure import parse_revision, revision_review_mode
 
@@ -116,6 +118,25 @@ class _TransactionValidation:
                 f"v{self.event['version']} does not declare "
                 '<meta name="lf-review" content="sign-off">, so it has no '
                 "approval to record",
+            )
+        html = revision_path(self.page_dir, self.event["revision"]).read_text(
+            encoding="utf-8"
+        )
+        page = page_reading(html, self.events, self.registry, self.event["revision"])
+        threads = build_threads(self.events, page.within)
+        document = read_document(page, threads)
+        conversation, _reading = browser_conversation(
+            self.events, self.registry, threads
+        )
+        unanswered = [
+            *document.asks["unanswered"],
+            *conversation["asks"]["unanswered"],
+        ]
+        if unanswered:
+            identities = ", ".join(ask["id"] for ask in unanswered)
+            return event_rejection(
+                self.event,
+                f"v{self.event['version']} still has unanswered Asks: {identities}",
             )
         return None
 

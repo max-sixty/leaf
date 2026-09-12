@@ -100,20 +100,22 @@ and turn ids, a per-request id, status and byte count, but never copy a prompt, 
 or unrecognized Codex metadata.
 
 Query Workers Observability through Cloudflare's REST API. Set `from_ms` and `to_ms` to
-the incident window in Unix milliseconds and use either the canonical event id or the
-public session reference as `needle`:
+the incident window in Unix milliseconds. Use the canonical event id; when only the
+public session reference is known, set `lookup_key=reference` and use that value instead:
 
 ```sh
 account_id=...
-needle=...
+lookup_key=eventId
+lookup_value=...
 from_ms=...
 to_ms=...
 
 jq -n \
-  --arg needle "$needle" \
+  --arg lookup_key "$lookup_key" \
+  --arg lookup_value "$lookup_value" \
   --argjson from "$from_ms" \
   --argjson to "$to_ms" \
-  '{queryId:"leaf-agent-diagnostic",timeframe:{from:$from,to:$to},view:"events",limit:100,parameters:{datasets:[],filterCombination:"and",filters:[{key:"component",operation:"eq",type:"string",value:"leaf-agent"}],needle:{value:$needle,isRegex:false,matchCase:true}}}' \
+  '{queryId:"leaf-agent-diagnostic",timeframe:{from:$from,to:$to},view:"events",limit:100,parameters:{datasets:[],filterCombination:"and",filters:[{key:"component",operation:"eq",type:"string",value:"leaf-agent"},{key:$lookup_key,operation:"eq",type:"string",value:$lookup_value}]}}' \
 | curl --fail-with-body --silent --show-error \
     --request POST \
     --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
@@ -121,6 +123,13 @@ jq -n \
     --data-binary @- \
     "https://api.cloudflare.com/client/v4/accounts/$account_id/workers/observability/telemetry/query"
 ```
+
+When starting from a public reference, first take the `eventId` from its
+`event_accepted` record and repeat the query with `lookup_key=eventId`. Then use the
+returned `turnId` as `lookup_key=turnId` to retrieve the model-transport records for
+that turn. Batched turns emit one searchable lifecycle record per event id. An explicit
+structured-field filter is required; Cloudflare's free-text `needle` does not reliably
+match values inside structured logs.
 
 Require `result.statistics.abr_level` to be `1`; narrow the timeframe if Cloudflare
 reports a sampled result. From a session reference, the Analytics Engine support query
@@ -172,6 +181,8 @@ pickup is idempotent, so a repeated dispatch does not start the work twice. A ta
 startup failure appends a short failure reply through the same event log. The accepted
 event and active turn are not yet mirrored into Durable Object storage, and no alarm
 recovers work that exceeds the Worker's 30-second `waitUntil` window.
+Container startup warms App Server and the Leaf CLI entrypoint concurrently, reducing
+cold runtime-filesystem work before the model's first response command.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
 Only explicit `leaf reply`, a page revision closed with `leaf resolve`, and `leaf
 receipt` settle accepted input; the turn's final assistant message remains in the

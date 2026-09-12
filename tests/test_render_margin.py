@@ -337,9 +337,8 @@ def test_unchanged_margin_refresh_cost_is_bounded_by_refresh_count(browser, serv
             "RecalcStyleCount",
         )
     }
-    # The write-on-change guards keep the corpus at 8 layouts and 57–58 style
-    # recalculations over five refreshes. These bounds leave room for browser
-    # bookkeeping while refusing the 33 / 127–128 regression from unconditional writes.
+    # These bounds leave room for browser bookkeeping while refusing a widget render
+    # that writes its already-painted state on every heartbeat.
     assert work["LayoutCount"] <= refreshes * 4, work
     assert work["RecalcStyleCount"] <= refreshes * 18, work
     assert geometry_reads == refreshes, geometry_reads
@@ -4192,6 +4191,50 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     expect(preview).to_be_hidden()
     marker.click()
     expect(preview).to_be_hidden()
+
+    assert errors == []
+    page.close()
+
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_the_margin_reply_keeps_its_shape_when_the_reader_enters_it(
+    browser, serve, color_scheme
+):
+    """The compact reply is the editor at rest, not a differently shaped precursor."""
+    page, errors = open_page(
+        browser,
+        serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
+        color_scheme=color_scheme,
+    )
+    resized(page, 1440, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
+
+    preview = page.locator(".lf-margin-preview")
+    reply = preview.get_by_role("button", name="Reply", exact=True)
+    editor = preview.locator("textarea")
+    expect(reply).to_be_visible()
+    resting_box = reply.bounding_box()
+    resting_face = reply.evaluate(
+        """node => {
+          const style = getComputedStyle(node);
+          return [style.backgroundColor, style.borderRadius];
+        }"""
+    )
+
+    reply.hover()
+    expect(reply).to_have_css("background-color", resting_face[0])
+    reply.click()
+    expect(editor).to_be_focused()
+    assert editor.bounding_box() == pytest.approx(resting_box, abs=0.5)
+    assert (
+        editor.evaluate(
+            """node => {
+          const style = getComputedStyle(node);
+          return [style.backgroundColor, style.borderRadius];
+        }"""
+        )
+        == resting_face
+    )
 
     assert errors == []
     page.close()

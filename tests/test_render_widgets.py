@@ -3968,6 +3968,196 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     page.close()
 
 
+def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
+    """The worked example keeps the decision and both actions in one phone view,
+    then records a rapid mix of touch, button, and keyboard classifications."""
+    source = Path(__file__).parent.parent / "examples" / "ideas-to-implement.html"
+    url = serve(source)
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page, errors = open_page(browser, url, context=context)
+    deck = page.locator("#ideas-deck")
+    approve = page.locator(".lf-signoff")
+    expect(approve).to_be_disabled()
+    expect(approve).to_have_attribute(
+        "title", "Answer every Ask before approving this work"
+    )
+    first = page.locator("#idea-shared-filters")
+
+    layout = page.evaluate(
+        """() => {
+          const card = document.querySelector('#idea-shared-filters').getBoundingClientRect();
+          const controls = document.querySelector('.lf-swipe-controls').getBoundingClientRect();
+          return {
+            cardBottom: card.bottom,
+            controlsBottom: controls.bottom,
+            viewportHeight: innerHeight,
+            pageWidth: document.documentElement.scrollWidth,
+            viewportWidth: document.documentElement.clientWidth,
+          };
+        }"""
+    )
+    assert layout["cardBottom"] <= layout["viewportHeight"]
+    assert layout["controlsBottom"] <= layout["viewportHeight"]
+    assert layout["pageWidth"] == layout["viewportWidth"] == 390
+
+    box = first.bounding_box()
+    assert box
+    x = round(box["x"] + box["width"] / 2)
+    y = round(box["y"] + box["height"] / 2)
+    cdp = context.new_cdp_session(page)
+    cdp.send(
+        "Input.dispatchTouchEvent",
+        {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]},
+    )
+    for step in range(1, 8):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {
+                "type": "touchMove",
+                "touchPoints": [
+                    {"x": x + round(box["width"] * 0.35 * step / 7), "y": y}
+                ],
+            },
+        )
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    expect(page.locator("#ideas-keep > #idea-shared-filters")).to_have_count(1)
+
+    deck.get_by_role("button", name="← Pass", exact=True).click()
+    page.locator("#idea-csv-export").focus()
+    page.keyboard.press("ArrowRight")
+    round_trip(page)
+
+    # The final answer moves locally before delivery. Approval reads that same
+    # semantic projection: the durable counter can still be one response behind, but
+    # the control must not tell the reader to answer the card they just classified.
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    deck.get_by_role("button", name="← Pass", exact=True).click()
+    holding(page, held, 1, "the final classification")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect(approve).to_be_enabled()
+    expect(approve).to_have_attribute(
+        "title", "Approve this work; the page stays open for follow-up"
+    )
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    assert page.eval_on_selector_all(
+        "#ideas-pass > lf-swipe-card", "cards => cards.map(card => card.id)"
+    ) == ["idea-draft-warning", "idea-report-prefetch"]
+    assert page.eval_on_selector_all(
+        "#ideas-keep > lf-swipe-card", "cards => cards.map(card => card.id)"
+    ) == ["idea-shared-filters", "idea-csv-export"]
+    assert [
+        (event["detail"]["card"], event["detail"]["to"])
+        for event in actions(serve.page_dir)
+    ] == [
+        ("idea-shared-filters", "ideas-keep"),
+        ("idea-draft-warning", "ideas-pass"),
+        ("idea-csv-export", "ideas-keep"),
+        ("idea-report-prefetch", "ideas-pass"),
+    ]
+
+    page.set_viewport_size({"width": 1200, "height": 900})
+    wide = page.evaluate(
+        """() => {
+          const passed = document.querySelector('#ideas-pass').getBoundingClientRect();
+          const kept = document.querySelector('#ideas-keep').getBoundingClientRect();
+          return {
+            passedTop: passed.top,
+            keptTop: kept.top,
+            pageWidth: document.documentElement.scrollWidth,
+            viewportWidth: document.documentElement.clientWidth,
+          };
+        }"""
+    )
+    assert wide["passedTop"] == pytest.approx(wide["keptTop"], abs=0.02)
+    assert wide["pageWidth"] == wide["viewportWidth"] == 1200
+
+    expect(approve).to_have_text("Approve version")
+    expect(approve).to_be_enabled()
+    approve.click()
+    round_trip(page)
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "done"
+    assert errors == []
+    page.close()
+    context.close()
+
+
+def test_an_unchanged_swipe_projection_repaints_nothing(browser, serve):
+    """The broad action heartbeat is not a reason to restate a settled deck."""
+    page, errors = open_page(browser, serve(SWIPE_PAGE))
+    mutations = page.locator("#session-triage").evaluate(
+        """deck => {
+          const observer = new MutationObserver(() => {});
+          observer.observe(deck, {
+            subtree: true,
+            childList: true,
+            characterData: true,
+            attributes: true,
+          });
+          document.dispatchEvent(new Event('lf-actions'));
+          const records = observer.takeRecords().map(record => ({
+            kind: record.type,
+            attribute: record.attributeName,
+            target: record.target.id || record.target.className || record.target.nodeName,
+          }));
+          observer.disconnect();
+          return records;
+        }"""
+    )
+    assert mutations == []
+    assert errors == []
+    page.close()
+
+
+def test_clearing_an_answer_optimistically_restores_the_approval_gate(browser, serve):
+    """An answer verb with an empty recorded value leaves its Ask unanswered."""
+    html = leaf_page(
+        "approval after a cleared pick",
+        """
+<lf-ask id="release-decision"><h1>Ship this release?</h1>
+  <lf-options id="release-options" choose>
+    <lf-option id="release-ship">Ship it</lf-option>
+    <lf-option id="release-hold">Hold it</lf-option>
+  </lf-options>
+</lf-ask>
+""",
+        head='<meta name="lf-review" content="sign-off">',
+    )
+    page, errors = open_page(browser, serve(html))
+    approve = page.locator(".lf-signoff")
+    pick = page.locator("#release-ship .lf-pick")
+
+    pick.click()
+    round_trip(page)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect(approve).to_be_enabled()
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    pick.click()
+    holding(page, held, 1, "the cleared selection")
+    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect(approve).to_be_disabled()
+    expect(approve).to_have_attribute(
+        "title", "Answer every Ask before approving this work"
+    )
+
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect(approve).to_be_disabled()
+    assert errors == []
+    page.close()
+
+
 def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve):
     """Every input route ends at a button click, and quick classifications retain
     gesture order while the outbox serializes their requests."""

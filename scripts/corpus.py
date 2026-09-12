@@ -24,6 +24,7 @@ CORPUS_DATA = EXAMPLES_DIR / "corpus.data.json"
 # Keep the short core pages first; specialist and regression surfaces follow.
 PUBLIC_TABS = [
     ("triage-board", "Triage"),
+    ("ideas-to-implement", "Ideas"),
     ("release-notes", "Notes"),
     ("log-retention", "Retention"),
     ("ship-review", "Ship review"),

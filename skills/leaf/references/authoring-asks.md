@@ -65,5 +65,6 @@ A page whose approval unblocks work declares:
 <meta name="lf-review" content="sign-off">
 ```
 
-An informational page omits it. A `done` event approves the work and leaves the
-page live while that work proceeds.
+An informational page omits it. Approval becomes available after every Ask on the
+page is answered. A `done` event approves the work and leaves the page live while
+that work proceeds.

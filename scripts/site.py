@@ -29,6 +29,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from functools import partial
 from html.parser import HTMLParser
 from importlib import import_module
@@ -119,12 +121,18 @@ def local_targets(html: str) -> list[str]:
     return targets
 
 
-def published_pages(out: Path) -> list[tuple[Path, str]]:
+def published_pages(
+    out: Path, *, include_products: bool = True
+) -> list[tuple[Path, str]]:
     """The page directories and clean public roots the website server projects."""
-    product = [
-        (product_page(out, source.name), PRODUCT_ROUTES[source.name].rstrip("/"))
-        for source in product_sources()
-    ]
+    product = (
+        [
+            (product_page(out, source.name), PRODUCT_ROUTES[source.name].rstrip("/"))
+            for source in product_sources()
+        ]
+        if include_products
+        else []
+    )
     examples = [
         (page, f"/examples/{page.name}")
         for page in sorted((out / "examples").iterdir())
@@ -358,6 +366,21 @@ def publish_product_pages(
         leaf(env, "status", str(target), "idle")
 
 
+def publish_examples(out: Path, env: dict) -> None:
+    """Publish worked examples and developer references without product pages."""
+    shutil.copy2(DOCS / "sitenote.js", out / "sitenote.js")
+    for source in published_page_sources():
+        published = out / "examples" / source.stem
+        prepare_page(
+            published,
+            read_fixture(source),
+            partial(leaf, env),
+            final_status="idle",
+            current_note="As published",
+        )
+        print(f"  {source.stem}")
+
+
 def publish_pages(out: Path, env: dict, catalog_previews: Path | None = None) -> None:
     """Canonical interactive product documents and worked examples."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -385,21 +408,15 @@ def publish_pages(out: Path, env: dict, catalog_previews: Path | None = None) ->
         )
         products = checked_product_sources(product_page, env)
         publish_product_pages(product_page, out, products, env)
-        shutil.copy2(DOCS / "sitenote.js", out / "sitenote.js")
-
-        for source in published_page_sources():
-            published = out / "examples" / source.stem
-            prepare_page(
-                published,
-                read_fixture(source),
-                partial(leaf, env),
-                final_status="idle",
-                current_note="As published",
-            )
-            print(f"  {source.stem}")
+    publish_examples(out, env)
 
 
-def publish_live_shells(out: Path, catalog_previews: Path | None = None) -> Path:
+def publish_live_shells(
+    out: Path,
+    catalog_previews: Path | None = None,
+    *,
+    include_products: bool = True,
+) -> Path:
     """Materialize the public bytes of every private page directory."""
     images = social_images(catalog_previews)
     digest = hashlib.sha256()
@@ -417,7 +434,7 @@ def publish_live_shells(out: Path, catalog_previews: Path | None = None) -> Path
     shutil.rmtree(assets, ignore_errors=True)
     assets.mkdir(parents=True)
     manifest = {"release": release, "pages": {}}
-    for page_dir, page_root in published_pages(out):
+    for page_dir, page_root in published_pages(out, include_products=include_products):
         destination = assets / page_root.lstrip("/")
         key = "root" if page_root == "" else page_root.strip("/").replace("/", "--")
         asset_root = f"/_leaf-release/{release}/{key}"
@@ -484,15 +501,9 @@ def publish_live_shells(out: Path, catalog_previews: Path | None = None) -> Path
     return assets
 
 
-def build(
-    out: Path,
-    *,
-    verify_links: bool = True,
-    catalog_previews: Path | None = None,
-) -> None:
-    shutil.rmtree(out, ignore_errors=True)
-    out.mkdir(parents=True)
-
+@contextmanager
+def build_environment() -> Iterator[dict[str, str]]:
+    """Yield the host environment with user Leaf overlays withheld."""
     # The layer a visitor gets is the shipped one, plus this project's: a page dir
     # vendors the user's ~/.config/leaf overlay too, and that one belongs to
     # whoever is running the build. An empty config home is what withholds it —
@@ -508,6 +519,28 @@ def build(
     env.pop("CODEX_THREAD_ID", None)
     with tempfile.TemporaryDirectory() as config_home:
         env["XDG_CONFIG_HOME"] = config_home
+        yield env
+
+
+def build_examples(out: Path, *, catalog_previews: Path) -> None:
+    """Build only the public example routes used to record catalog previews."""
+    shutil.rmtree(out, ignore_errors=True)
+    out.mkdir(parents=True)
+    with build_environment() as env:
+        publish_examples(out, env)
+    publish_live_shells(out, catalog_previews, include_products=False)
+
+
+def build(
+    out: Path,
+    *,
+    verify_links: bool = True,
+    catalog_previews: Path | None = None,
+) -> None:
+    shutil.rmtree(out, ignore_errors=True)
+    out.mkdir(parents=True)
+
+    with build_environment() as env:
         publish_pages(out, env, catalog_previews)
     publish_live_shells(out, catalog_previews)
 

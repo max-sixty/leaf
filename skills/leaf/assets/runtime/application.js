@@ -7,7 +7,12 @@ import { runtime } from "./context.js";
 import { newAttempt } from "./drafts.js";
 import { saidNow } from "./presence.js";
 import { announce, notice } from "./notifications.js";
-import { openAsks as readOpenAsks, watchAsks as observeAsks } from "./asks/model.js";
+import {
+  approvalBlockingAsks as readApprovalBlockingAsks,
+  openAsks as readOpenAsks,
+  unansweredAsks as readUnansweredAsks,
+  watchAsks as observeAsks,
+} from "./asks/model.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { pendingTraffic } from "./traffic.js";
 import { createPendingLedger } from "./pending/state.js";
@@ -80,6 +85,8 @@ export function mountApplication(dependencies) {
   const pendingRequests = () =>
     pendingRequestEvents(pendingEntries(), currentReceipts());
   const openAsks = () => readOpenAsks(pendingRequests());
+  const unansweredAsks = () => readUnansweredAsks(pendingRequests());
+  const approvalBlockingAsks = () => readApprovalBlockingAsks(pendingRequests());
   const watchAsks = (owner, callback) => observeAsks(owner, pendingRequests, callback);
 
   const releasePending = () => {
@@ -424,6 +431,7 @@ export function mountApplication(dependencies) {
     ...projectionUpdates,
     ...requests,
     ...engagement,
+    approvalBlockingAsks,
     beginRead: beginStateRead,
     conversationBox,
     createComment,
@@ -437,6 +445,7 @@ export function mountApplication(dependencies) {
     mountConversation: conversation.mount,
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
     openAsks,
+    unansweredAsks,
     paintAcknowledgments: conversation.paintAcknowledgments,
     pendingApprovals,
     pendingRequests,
@@ -463,6 +472,7 @@ export function mountApplication(dependencies) {
 export const actionAvailable = (...args) => app().actionAvailable(...args);
 export const actionSequence = (...args) => app().actionSequence(...args);
 export const actionStands = (...args) => app().actionStands(...args);
+export const approvalBlockingAsks = (...args) => app().approvalBlockingAsks(...args);
 export const beginRead = (...args) => app().beginRead(...args);
 export const conversationBox = (...args) => app().conversationBox(...args);
 export const createComment = (...args) => app().createComment(...args);
@@ -474,6 +484,7 @@ export const landInConversation = (...args) => app().landInConversation(...args)
 export const midComposition = (...args) => app().midComposition(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 export const openAsks = (...args) => app().openAsks(...args);
+export const unansweredAsks = (...args) => app().unansweredAsks(...args);
 export const pendingApprovals = (...args) => app().pendingApprovals(...args);
 export const pendingRequests = (...args) => app().pendingRequests(...args);
 export const post = (...args) => app().post(...args);

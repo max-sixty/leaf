@@ -43,13 +43,26 @@ An inline delivery advances each included reader move to **Picked up** and the p
 to **handling** when it enters this turn. A queued Codex pointer remains **Queued**;
 reading its envelope does not prove an App Server turn opened it.
 
-UI feedback is the first operation for an actionable delivery. An inline delivery
-already names its page and subject, so write a useful `working` declaration before
-reading source, planning the implementation, editing, testing, or delegating. A queued
-pointer first needs `delivery read` to resolve that address; write the declaration next.
-Use `--on` for the conversation or widget you start on, which strengthens its receipt to
-**Active**. Do not write
-`waiting` merely to end the delivery step. Write it after replies, revisions, or
+UI feedback is the first operation for every delivery:
+
+```bash
+leaf delivery claim <delivery-id>
+```
+
+The command atomically selects the first delivered reader move that is still
+outstanding, writes `working` with “Reading your feedback,” and strengthens that exact
+move's receipt to **Active**. It changes nothing when a retry contains no outstanding
+reader move. For a queued pointer, run `delivery read` only after this claim. An inline
+delivery already carries the envelope and needs no read.
+
+After reading the feedback, a more specific claim can name the exact delivered event:
+
+```bash
+leaf delivery claim <delivery-id> --event <event-id> --detail "checking the rollout"
+```
+
+Use `status --on` for proactive subject work that did not begin with a delivery. Do not
+write `waiting` merely to end the delivery step. Write it after replies, revisions, or
 receipts have settled what this turn took in; until then the canonical activity
 fold continues to report the stronger exact handling evidence.
 

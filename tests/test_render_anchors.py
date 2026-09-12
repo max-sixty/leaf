@@ -2731,6 +2731,74 @@ def test_an_ambiguous_revised_passage_detaches_until_the_agent_moves_it(browser,
     page.close()
 
 
+def test_a_removed_subject_keeps_its_conversation_open_and_detached(browser, serve):
+    """The author explicitly detaches a thread whose subject leaves the page. Its
+    historical quote remains readable in Threads, but it has no page mark, margin row,
+    or destination that could conflate it with surviving content."""
+    url = serve(DRIFT_V1)
+    page, errors = open_page(browser, live_url(url))
+    page.evaluate("""() => {
+        const p = document.querySelector('#drift p');
+        const phrase = 'The version stamp never lands';
+        const at = p.firstChild.data.indexOf(phrase);
+        const want = document.createRange();
+        want.setStart(p.firstChild, at); want.setEnd(p.firstChild, at + phrase.length);
+        const selection = getSelection();
+        selection.removeAllRanges(); selection.addRange(want);
+        document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
+    }""")
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.locator(".lf-fab-input").focus()
+    page.locator(".lf-composer textarea").fill("why is this section here?")
+    page.locator(".lf-composer button.primary").click()
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+
+    d = serve.page_dir
+    root = next(
+        event for event in events_model.read_events(d) if event["kind"] == "comment"
+    )
+    replacement = DRIFT_V1.replace(
+        '<section id="drift">\n'
+        "<p>Cache warmup runs first. The version stamp never lands. Retries are capped at three.</p>\n"
+        "<p>Queue drain runs first. The version stamp never lands. Retries are capped at four.</p>\n"
+        "</section>",
+        '<section id="current"><h2>Current work</h2><p>The old section was removed.</p></section>',
+    )
+    (d / "index.html").write_text(replacement)
+    detached = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(d),
+            "--to",
+            root["id"],
+            "--for",
+            root["id"],
+            "--detach",
+            "--text",
+            "I removed the section; this conversation no longer has a page target.",
+        ],
+    )
+    assert detached.exit_code == 0, detached.output
+    wait_for_revision(page, 2)
+    told(page)
+
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
+    assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    expect(page.locator('.lf-group[data-group="gone"]')).to_have_text(
+        "No longer in this version"
+    )
+    quote = page.locator(f'.lf-thread[data-id="{root["id"]}"] .lf-quote')
+    expect(quote).to_contain_text("The version stamp never lands")
+    expect(quote).to_have_class(re.compile(r"\bdetached\b"))
+    expect(quote).to_have_attribute("aria-disabled", "true")
+    expect(quote).to_have_attribute("title", re.compile("no longer"))
+    assert errors == []
+    page.close()
+
+
 def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
     """A stored context is counted in code points; the comparison counts code units; and an
     astral character is two of the second for one of the first. Ask the page for the first

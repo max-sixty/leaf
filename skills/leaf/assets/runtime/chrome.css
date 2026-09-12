@@ -1709,11 +1709,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     scroll-padding-block: var(--here-ring-room); }
   .lf-margin-thread { min-width: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
   .lf-margin-thread:first-child { padding-top: 0; border-top: 0; }
-  .lf-margin-thread .lf-conversation-msg:first-child { margin-top: 0; }
+  .lf-margin-thread .lf-conversation-msg:first-of-type { margin-top: 0; }
   .lf-margin-thread .lf-say { align-items: stretch;
     position: sticky; bottom: 0; padding-top: 12px;
     background: var(--card); }
-  .lf-margin-thread .lf-say textarea { min-width: 0; }
+  .lf-margin-thread .lf-say textarea { min-width: 0;
+    max-height: min(50vh, var(--lf-thread-editor-room, 50vh)); }
   .lf-margin-preview[data-lf-thread] .lf-margin-thread-body > .lf-conversation-thread {
     position: static; }
   .lf-margin-preview[data-lf-thread] .lf-conversation-thread > .lf-thread-head {

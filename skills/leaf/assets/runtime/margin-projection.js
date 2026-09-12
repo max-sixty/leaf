@@ -795,7 +795,8 @@ export function createMarginProjection({
       active.matches(".lf-conversation-thread") ||
       active.closest(".lf-thread-head") ||
       !previewList.contains(active)
-    ) return;
+    )
+      return;
     const card = previewList.getBoundingClientRect();
     const activeBox = active.getBoundingClientRect();
     const inset = 12;
@@ -946,6 +947,21 @@ export function createMarginProjection({
                   "--lf-thread-max-height",
                   `${Math.max(0, beside ? boundary.height : availableHeight)}px`,
                 );
+                // The reply scrolls internally once it fills the conversation's
+                // remaining room. A viewport-only cap can put its first line and
+                // Send on opposite sides of the transcript's clipping boundary.
+                for (const input of previewList.querySelectorAll(".lf-say textarea")) {
+                  const row = input.closest(".lf-say");
+                  const thread = row.closest(".lf-conversation-thread");
+                  const style = getComputedStyle(thread);
+                  const furniture = row.offsetHeight - input.offsetHeight;
+                  const inset =
+                    parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+                  input.style.setProperty(
+                    "--lf-thread-editor-room",
+                    `${Math.max(40, previewList.clientHeight - furniture - inset)}px`,
+                  );
+                }
               },
             }),
             shift({

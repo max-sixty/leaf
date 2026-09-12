@@ -4943,6 +4943,30 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     expect(preview).to_be_visible()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
+    page.keyboard.press("Escape")
+    resized(page, 1280, 600)
+    marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
+    marker.click()
+    preview.get_by_role("button", name="Reply", exact=True).click()
+    editor = preview.locator("textarea")
+    draft = "\n".join(
+        f"Line {n}: " + "The reply keeps its complete editor visible. " * 2
+        for n in range(18)
+    )
+    editor.fill(draft)
+    for edge, caret in [("ArrowLeft", 0), ("ArrowRight", len(draft))]:
+        editor.press("ControlOrMeta+a")
+        editor.press(edge)
+        expect(editor).to_have_value(draft)
+        assert editor.evaluate("node => node.selectionStart") == caret
+        page.wait_for_function("""() => {
+          const list = document.querySelector('.lf-margin-preview-list').getBoundingClientRect();
+          const editor = document.querySelector('.lf-margin-preview textarea').getBoundingClientRect();
+          const send = document.querySelector('.lf-margin-preview .lf-compose-submit').getBoundingClientRect();
+          return editor.top >= list.top - 1 && editor.bottom <= list.bottom + 1
+            && send.top >= list.top && send.bottom <= list.bottom + 1;
+        }""")
+
     assert errors == []
     page.close()
 

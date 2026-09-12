@@ -9,7 +9,7 @@ and requests another reading at its next deadline; it does not run a second fold
 
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
-| work declaration: state, detail, event floor, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
+| work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | exact delivery handling: event, target, detail, event floor | `handling` in `status.json` | `leaf delivery claim`, derived from an immutable delivery and current page state | when the move settles, another delivered move replaces it, the claim expires, or the claimant's lifetime ends |
 | live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live Codex reply: session, turn, exact response address, item, text, and completion state | optional `stream.reply` in `status.json` | the App Server connection bound to a delivery with one plain reply | the completed message becomes a durable reply, another operation settles it, or the stream fails or disconnects |

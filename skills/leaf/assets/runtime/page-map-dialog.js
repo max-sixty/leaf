@@ -178,6 +178,7 @@ export function createPageMapDialog({
       ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
       label: record.label,
       visibleLabel: visibleMarginEntryLabel(record),
+      context: record.context,
     });
     syncForwardedMarginEntryState(button, control);
   }

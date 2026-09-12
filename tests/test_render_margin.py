@@ -4856,13 +4856,28 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
         """card => {
           const banner = document.querySelector('.lf-banner').getBoundingClientRect();
           const box = card.getBoundingClientRect();
+          const list = card.querySelector('.lf-margin-preview-list');
           return {bannerBottom: banner.bottom, top: box.top, bottom: box.bottom,
-                  clientHeight: card.clientHeight, scrollHeight: card.scrollHeight};
+                  clientHeight: list.clientHeight, scrollHeight: list.scrollHeight};
         }"""
     )
     assert capped["top"] >= capped["bannerBottom"] + 7, capped
     assert capped["bottom"] <= 472.5, capped
     assert capped["scrollHeight"] > capped["clientHeight"], capped
+    # The conversation scrolls; its subject and settlement remain usable. A tall
+    # focused root must not scroll the title away just to fit its entire transcript.
+    title = preview.locator(".lf-margin-preview-title")
+    resolve = preview.get_by_role("button", name="Resolve thread", exact=True)
+    title_box = title.bounding_box()
+    resolve_box = resolve.bounding_box()
+    preview.locator(".lf-margin-preview-list").hover()
+    page.mouse.wheel(0, -800)
+    ticked(page)
+    assert title.bounding_box() == pytest.approx(title_box, abs=0.5)
+    assert resolve.bounding_box() == pytest.approx(resolve_box, abs=0.5)
+    assert title_box["y"] >= capped["top"], title_box
+    assert resolve_box["y"] >= capped["top"], resolve_box
+    assert resolve_box["y"] + resolve_box["height"] <= capped["bottom"], resolve_box
     resized_shell(page, 1920, 900)
 
     page.keyboard.press("g")

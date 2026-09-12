@@ -789,13 +789,20 @@ export function createMarginProjection({
   function keepThreadPreviewFocusVisible() {
     const active = document.activeElement;
     if (!(active instanceof HTMLElement) || !preview.contains(active)) return;
-    const card = preview.getBoundingClientRect();
+    // A conversation root is a reading destination, not a control that must fit
+    // whole. Its header stays outside this scrollport, as does settlement.
+    if (
+      active.matches(".lf-conversation-thread") ||
+      active.closest(".lf-thread-head") ||
+      !previewList.contains(active)
+    ) return;
+    const card = previewList.getBoundingClientRect();
     const activeBox = active.getBoundingClientRect();
     const inset = 12;
     if (activeBox.bottom > card.bottom - inset)
-      preview.scrollTop += activeBox.bottom - card.bottom + inset;
+      previewList.scrollTop += activeBox.bottom - card.bottom + inset;
     else if (activeBox.top < card.top + inset)
-      preview.scrollTop -= card.top + inset - activeBox.top;
+      previewList.scrollTop -= card.top + inset - activeBox.top;
   }
   function deferThreadPreviewFocus(positioned, focus) {
     const pending = { key: previewEntry?.key, holding: document.activeElement };
@@ -2465,6 +2472,7 @@ export function createMarginProjection({
     const threadItems = entry.items.filter((item) => item.kind === "comment");
     const wanted = requestedItem ?? previewThreadItem ?? focusedItem;
     const selected = threadItems.find((item) => item.id === wanted) ?? threadItems[0];
+    if (previewThreadItem !== (selected?.id ?? null)) previewList.scrollTop = 0;
     previewThreadItem = selected?.id ?? null;
     const targetHeading = entry.target?.querySelector(":scope > strong")?.textContent;
     // A target with a heading is named by it. One without — an aside, a paragraph —

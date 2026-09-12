@@ -350,14 +350,15 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
 @pytest.mark.parametrize(
     "width,panel_open", [(1440, False), (1440, True), (390, False)]
 )
-def test_a_growing_comment_starts_clear_then_uses_the_viewport(
+def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
     browser, serve, width, panel_open
 ):
-    """The compact field avoids its target; its draft then gets the available viewport.
+    """A passage and its growing editor remain visible together.
 
-    A growing field may overlay page content instead of becoming a small scroller. Its
-    trailing actions stay with the last line, and its corners keep the first and last
-    line readable after the one-line capsule grows into an editor.
+    Without a horizontal rail, the compact field chooses the vertical side with more
+    reachable room. It keeps that side while growing and moves the reading region only
+    enough to reveal itself. Its trailing actions stay with the last line, and its
+    corners keep the first and last line readable after the capsule becomes an editor.
     """
     page, errors = open_page(
         browser,
@@ -394,6 +395,12 @@ def test_a_growing_comment_starts_clear_then_uses_the_viewport(
     expect(field).to_be_visible()
     field.click()
     compact = field.bounding_box()
+    placement = page.locator(".lf-fab-bar").get_attribute("data-lf-placement")
+    before_scroll = page.evaluate("scrollY")
+    if placement in {"top-end", "bottom-end"}:
+        assert placement == "bottom-end", (
+            "the page has substantially more reachable room below this passage"
+        )
     clear = """() => {
           const target = document.getElementById('passage').getBoundingClientRect();
           const field = document.querySelector('.lf-fab-input').getBoundingClientRect();
@@ -422,6 +429,10 @@ def test_a_growing_comment_starts_clear_then_uses_the_viewport(
     field.fill(content)
     expect(field).to_have_value(content)
     expanded = field.bounding_box()
+    assert page.locator(".lf-fab-bar").get_attribute("data-lf-placement") == placement
+    assert page.evaluate(clear), (
+        "the growing composer covers the passage it comments on"
+    )
     assert expanded["width"] > compact["width"]
     assert expanded["height"] > compact["height"] * 5
     assert expanded["x"] >= 0 and expanded["x"] + expanded["width"] <= width
@@ -434,6 +445,8 @@ def test_a_growing_comment_starts_clear_then_uses_the_viewport(
             expanded["x"] + expanded["width"]
             < page.locator(".lf-thread-panel").bounding_box()["x"]
         )
+    if placement == "bottom-end":
+        assert page.evaluate("scrollY") > before_scroll
     page.mouse.move(8, 450)
     page.mouse.wheel(0, 300)
     page.wait_for_function("() => scrollY >= 300")
@@ -441,6 +454,62 @@ def test_a_growing_comment_starts_clear_then_uses_the_viewport(
     field.fill("Brief")
     expect(field).to_have_value("Brief")
     assert field.bounding_box()["height"] == compact["height"]
+    assert errors == []
+    page.close()
+
+
+def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser, serve):
+    """The stable vertical choice reads both the visible band and scroll travel."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Comment above",
+                '<div style="height: 100vh"></div><p id="passage">'
+                "A passage near the end of its page has more reachable room above it."
+                '</p><div style="height: 500px"></div>',
+            )
+        ),
+    )
+    resized(page, 390, 900)
+    page.evaluate("() => scrollTo({top: document.documentElement.scrollHeight})")
+    page.evaluate(RENDERED)
+    paragraph = page.locator("#passage")
+    points = paragraph.evaluate(
+        """el => {
+          const node = el.firstChild;
+          const first = document.createRange(), last = document.createRange();
+          first.setStart(node, 2); first.setEnd(node, 3);
+          last.setStart(node, 18); last.setEnd(node, 19);
+          const a = first.getBoundingClientRect(), b = last.getBoundingClientRect();
+          return [[a.left, a.top + a.height / 2], [b.right, b.top + b.height / 2]];
+        }"""
+    )
+    select(page, *points)
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+    before_scroll = page.evaluate("scrollY")
+
+    field.fill(
+        "\n".join(
+            f"Line {line}: the whole comment remains above its passage."
+            for line in range(20)
+        )
+    )
+    page.evaluate(RENDERED)
+    expect(bar).to_have_attribute("data-lf-placement", "top-end")
+    assert page.evaluate("scrollY") < before_scroll
+    boxes = page.evaluate(
+        """() => {
+          const passage = document.getElementById('passage').getBoundingClientRect();
+          const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+          return {passageTop: passage.top, barBottom: bar.bottom};
+        }"""
+    )
+    assert boxes["barBottom"] <= boxes["passageTop"], boxes
     assert errors == []
     page.close()
 

@@ -225,9 +225,13 @@
 .lf-margin-entry:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not([aria-disabled="true"]) {
   background: var(--lf-agent-tint, var(--chip));
 }
-.lf-margin-entry[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
+.lf-margin-entry[data-lf-behavior="disclosure"]:is(button, [role="button"]):is(:hover, [aria-expanded="true"]):not([aria-disabled="true"]) {
   border-color: var(--accent);
 }
+/* A selected page reading and its compact Page Map projection share one accent. Reuse
+   the entry's existing contour: category still owns its weight, and keyboard focus can
+   add the one outer ring that says where input will land. */
+.lf-margin-entry[data-lf-target-selected] { border-color: var(--accent); }
 .lf-margin-entry:is(:focus-visible, .lf-focus-visible) {
   outline: var(--here-ring); --lf-here-ring: margin-entry; outline-offset: 1px;
 }
@@ -487,14 +491,12 @@ html.lf-copy mark.lf-react { background: var(--react); color: inherit;
 .lf-reacts { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .lf-react-mark { text-align: center; }
 /* Opening a standing reaction leaves its familiar face in place and reveals the
-   separately named removal action beside it. The relation changes; the mark does not
-   acquire a selected ring or pretend the reaction itself changed. */
+   separately named removal action beside it. Its existing contour takes the shared
+   disclosure accent; the mark does not gain a second ring or pretend the reaction
+   itself changed. */
 .lf-react-mark[data-lf-behavior="disclosure"] {
   border-width: 2px; border-color: var(--border-2); color: var(--ink);
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
-}
-.lf-margin-entry.lf-react-mark[data-lf-behavior="disclosure"]:is(button, [role="button"]):hover:not([aria-disabled="true"]) {
-  border-color: var(--border-2);
 }
 /* The draft's own passage uses the accent contour. An open composer is on screen
    whenever this is, and an already-posted element keeps the posted colour instead, so

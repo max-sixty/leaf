@@ -479,16 +479,17 @@ def cmd_wait(page_dir: Path | None = None, *, claim_named: bool = True) -> int:
     what consumes it. The wait owner advances the cursor only after the complete
     batch reaches that next durable consumer.
 
-    A wait ends on someone speaking, on the last watched leaf ending, or when no
-    live watched leaf remains and a server is down with no restart to make. It
-    puts no clock on how long a user takes, because there is no such measurement
-    to take from this side of the wire: a page whose address their browser can't
-    route to and one they simply haven't opened yet look identical at every
-    length, so a deadline over it announces the first while describing the
-    second — and the second is the ordinary case. Only their browser can tell
-    them apart, and the user holds the URL from the turn that handed it over, so
-    the report comes from them; references/serving-pages.md's "Unreachable URLs
-    and `--host`" carries the recourse."""
+    A wait ends on someone speaking, on the last watched leaf ending, or on a
+    server being down with no restart to make — the named page's at once, an
+    unnamed sibling's only once no live watched leaf remains. It puts no clock
+    on how long a user takes, because there is no such measurement to take from
+    this side of the wire: a page whose address their browser can't route to and
+    one they simply haven't opened yet look identical at every length, so a
+    deadline over it announces the first while describing the second — and the
+    second is the ordinary case. Only their browser can tell them apart, and the
+    user holds the URL from the turn that handed it over, so the report comes
+    from them; references/serving-pages.md's "Unreachable URLs and `--host`"
+    carries the recourse."""
     if page_dir is not None and claim_named:
         claim_page(page_dir)
     identity = host_identity()

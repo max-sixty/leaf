@@ -50,9 +50,14 @@ that completes before sealing and obsolete seals as well as the longer renderer 
 An equal-value renderer replacement reopens mechanical readiness at the same semantic
 epoch; the replacement must commit while the stale instance cannot satisfy the repair.
 
-The kernel is deliberately not wired into runtime readiness yet. That cutover follows
-the public widget controller so one presentation seam can replace every legacy queue at
-once; until then, existing presentation stamps and queues remain authoritative.
+Semantic publication, document installation, the page interface, widget render and
+preparation regions, frozen-thread capture, and external-data subscriptions now use the
+kernel. Publication opens before the Signals root changes and seals after synchronous
+subscribers have registered their work. Current readiness revalidates newer epochs and
+same-epoch renderer replacement; scoped waits do not inherit unrelated deferred work.
+The monotonic `data-lf-presented` mark remains only the initial presentation milestone.
+Conversation/projection chrome and the render/export readiness probes are the remaining
+legacy readiness consumers.
 
 ## Integrated design intent
 
@@ -96,16 +101,34 @@ than silently retargeting. The Targeting package keeps the visible label and con
 separate from durable identity, exposes arm/disarm/reset/current-draft lifecycle, keeps
 unresolved target cards visible, and refuses submission until every target resolves.
 Its package schema was cut over with the widget so the new draft format is never emitted
-into an admission contract that would reject it. Generic multi-role declaration and
-admission validation remain a later Targeting slice.
+into an admission contract that would reject it.
+
+Generic multi-role declarations and admission are integrated at `b40980fe`. Action and
+report contracts declare named reference roles; the browser captures exact ids or
+prose-free structural records inside the immutable page or frozen-fragment boundary, and
+the server resolves and validates those records against the captured source contract.
+Dispatch re-resolves immediately before transport, so removal or newly ambiguous
+structure refuses the gesture instead of silently retargeting it.
+
+## Integrated first Lit owners
+
+Shared request controls are integrated at `dc698331`. Lit owns only generated request
+buttons and statuses; authored operation/release nodes and their descendants remain
+identity-stable light DOM. One immutable controller reading drives the generated state,
+and the holder's `updateComplete` includes its child controls.
+
+Quoted and purely structural option groups remain outside semantic state at `a85a3c71`;
+only live or settled decisions request a controller. This preserves the registry's
+intentionally id-less specimen while keeping missing semantic identity a hard controller
+error.
 
 ## Remaining implementation
 
-Wire the integrated semantic/presented epoch and ticket coordinator through the public
-widget controller, then across every independent readiness queue before converting
-generated regions to Lit. Complete generic multi-role Targeting declarations and
-admission, add offline interactive export without weakening script-free static export,
-then dissolve this checkpoint plus both plan notes into their owning contracts.
+Finish the conversation/projection queues and current render/export readiness probe.
+Continue converting generated regions to Lit by ownership boundary, beginning with the
+shared options controls. Add offline interactive export without weakening script-free
+static export, then dissolve this checkpoint plus both plan notes into their owning
+contracts.
 
 ## Verification checkpoint
 
@@ -135,6 +158,12 @@ The Targeting foundation passes four core-reference journeys, two package-contro
 journeys, standing replay, package validation, syntax checks, and touched-file
 pre-commit. The complete widget module passes 152 cases; its two chart failures are the
 same baseline failures above.
+
+The integrated coordinator and external-data cutover passes all 32 browser domain/build
+tests. A combined current-branch run of application-boundary, target-reference, startup,
+and the package-init render regression passes all 104 cases; eight focused semantic
+reference contract cases and the quoted settled-options journey also pass. The external
+data slice separately passes 13 startup/provenance cases and touched-file pre-commit.
 
 The website bundler slice passed 61 worker tests, typecheck, five immutable-shell tests,
 three site tests, and a complete site build/bundle. Local pre-commit passes.

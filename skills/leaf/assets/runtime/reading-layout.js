@@ -139,22 +139,36 @@ export function fitRootReadingElement({ owner, readingArrangement, minimumSize }
   let scheduled = null;
   let resize = null;
 
+  /* A root's minimum is a reading of its own live layout, and flow lays that layout out
+     in the narrow measure column rather than the wide box bounded would give it. Header
+     text that wraps to an extra line there reports a minimum taller than the posture
+     being decided would ever have, so one window has two stable answers: a root already
+     in flow reads itself too tall to leave it, while the same window entered from
+     bounded stays bounded. The reading is therefore taken with the root pinned to the
+     width bounded allocates, which is what the available box already describes. The
+     write, the reading, and the restore are one task, so nothing paints between them —
+     and the root keeps the height it already occupies across the reading, because
+     furniture that grows shorter at the wider width would otherwise shorten the
+     document under a reader who has scrolled down it, and the browser clamps their
+     position to the page it measured rather than the one it restores. */
+  const readMinimumAt = (availableWidth) => {
+    const style = { width: owner.style.width, height: owner.style.height };
+    owner.style.height = `${owner.getBoundingClientRect().height}px`;
+    owner.style.width = `${availableWidth}px`;
+    try {
+      return minimumSize();
+    } finally {
+      owner.style.width = style.width;
+      owner.style.height = style.height;
+    }
+  };
+
   const choosePosture = async () => {
     if (!active || !owner.isConnected) return;
     if (owner.dataset.lfWorkspaceContext !== "root") {
       await readingArrangement.setReadingPosture("flow");
       return;
     }
-
-    const minimum = minimumSize();
-    if (
-      minimum !== null &&
-      (!Number.isFinite(minimum?.width) ||
-        !Number.isFinite(minimum?.height) ||
-        minimum.width < 0 ||
-        minimum.height < 0)
-    )
-      throw new Error("leaf: a root minimum must be null or a finite width and height");
 
     const rootStyle = getComputedStyle(document.documentElement);
     const availableHeight =
@@ -166,6 +180,16 @@ export function fitRootReadingElement({ owner, readingArrangement, minimumSize }
       document.body.getBoundingClientRect().width -
       (Number.parseFloat(mainStyle.paddingLeft) || 0) -
       (Number.parseFloat(mainStyle.paddingRight) || 0);
+    const minimum = readMinimumAt(availableWidth);
+    if (
+      minimum !== null &&
+      (!Number.isFinite(minimum?.width) ||
+        !Number.isFinite(minimum?.height) ||
+        minimum.width < 0 ||
+        minimum.height < 0)
+    )
+      throw new Error("leaf: a root minimum must be null or a finite width and height");
+
     const bounded =
       minimum !== null &&
       availableWidth >= minimum.width &&

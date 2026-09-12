@@ -12,7 +12,6 @@
    read them by id. */
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsReader } from "./model.js";
-import { el } from "../widget-elements.js";
 import {
   filterControls,
   findInput,
@@ -71,9 +70,8 @@ export const inFilter = (thread, group) =>
   matchesSubject(thread) &&
   matchesGone(thread, group);
 
-const noMatch = el("div", "lf-empty");
-export function noMatchNote() {
-  const said = finding
+export function noMatchText() {
+  return finding
     ? `No shown thread matches “${finding}”.`
     : scope || subject || onlyGone
       ? "No threads match these filters."
@@ -84,8 +82,6 @@ export function noMatchNote() {
           : state === "resolved"
             ? "No resolved threads."
             : "No open threads.";
-  if (noMatch.textContent !== said) noMatch.textContent = said;
-  return noMatch;
 }
 
 const entries = (threads, groups) =>

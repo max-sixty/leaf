@@ -5,19 +5,18 @@
    for every textual/geometry view. Its presentation ticket commits the conversation
    surfaces together with preparation for frozen widgets newly joined to the panel. */
 import { clocked } from "../presence.js";
-import { setChildren } from "../dom-children.js";
-import { el } from "../widget-elements.js";
 import { elementById, inChrome } from "../passages.js";
 import { conversationState } from "./state.js";
 import { renderConversations } from "./inline.js";
-import { holdScrollPosition, renderThreads } from "./thread-list.js";
+import {
+  holdScrollPosition,
+  renderThreadListUnavailable,
+  renderThreads,
+} from "./thread-list.js";
 import { threadsBox } from "./panel-elements.js";
 import { paintAcknowledgmentsNow } from "./acknowledgments.js";
 import { paintNarrowing, revealThread } from "./narrowing.js";
-import { removeConversationNode } from "./reaction-strips.js";
 import { attachApplicationPresentation, readApplication } from "../semantic-state.js";
-
-const waitingNote = el("div", "lf-empty", "Loading current threads…");
 
 function renderHolds(threads) {
   for (const node of document.querySelectorAll("[data-lf-held]"))
@@ -53,9 +52,10 @@ export function createConversationPresentation({
   };
 
   function present(value, paint) {
-    let resolve;
-    const completion = new Promise((done) => {
+    let resolve, reject;
+    const completion = new Promise((done, fail) => {
       resolve = done;
+      reject = fail;
     });
     const pending = { resolve };
     const prior = activePresentation;
@@ -65,32 +65,25 @@ export function createConversationPresentation({
     let painted;
     try {
       painted = paint();
+      void Promise.resolve(painted).then(resolve, reject);
     } catch (error) {
-      // The retained prior conversation is the fallback. Leave this attempt pending
-      // so readiness cannot call it current; a later paint supersedes the hold.
-      throw error;
+      reject(error);
     }
-    return Promise.resolve(painted).then(async (proof) => {
-      resolve(proof);
-      await ready;
+    return ready.finally(() => {
       if (activePresentation === pending) activePresentation = null;
     });
   }
 
-  const removeNode = (node) =>
-    removeConversationNode(node, inlineView.reaction.closeReactionMode);
-
-  const paintAcknowledgments = clocked(document.body, (...args) =>
-    holdScrollPosition(() => paintAcknowledgmentsNow(...args), panelIsOpen),
-  );
+  const paintAcknowledgments = (...args) =>
+    holdScrollPosition(() => paintAcknowledgmentsNow(...args), panelIsOpen);
 
   function setUnavailable(phase) {
     paintCurrent.stop();
-    waitingNote.textContent =
+    const note =
       phase === "offline"
         ? "Current threads are unavailable while the server is offline."
         : "Loading current threads…";
-    setChildren(threadsBox, [waitingNote], removeNode);
+    const prepared = renderThreadListUnavailable(note, listView);
     setThreadCount(null);
     paintNarrowing([], []);
     const painted = anchorPaint.paint({
@@ -106,6 +99,7 @@ export function createConversationPresentation({
     paintAcknowledgments();
     onConversationChanged();
     pageGeometry.pageShifted();
+    return prepared;
   }
 
   function renderCurrent() {
@@ -129,13 +123,16 @@ export function createConversationPresentation({
 
   // Each clock tick reads the current semantic root, never a retained presentation
   // input that could omit later local gestures or a newer accepted reading.
-  const paintCurrent = clocked(document.body, renderCurrent);
+  const paintCurrent = clocked(document.body, () =>
+    activePresentation
+      ? renderCurrent()
+      : present(readApplication().effective.conversation, renderCurrent),
+  );
 
   function apply(snapshot) {
     return present(snapshot.effective.conversation, () => {
       if (snapshot.phase !== "ready") {
-        setUnavailable(snapshot.phase);
-        return undefined;
+        return setUnavailable(snapshot.phase);
       }
       return paintCurrent();
     });

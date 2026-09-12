@@ -4627,14 +4627,17 @@ customElements.define("lf-trial", class extends HTMLElement {
 def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     browser, serve, tmp_path, monkeypatch
 ):
-    """Bug-back for the settlement reading. The bare family first
+    """Bug-back for the settlement reading, in both directions. The bare family first
     proves the gate accepts a holder that brings nothing of its own — the layer's
     default hide is the whole of its disappearance. Then the one generic hide rule is
     stripped from the vendored theme, standing in for whatever re-shows a retired
     slot (a later layer's rule outranking the default, a module re-showing what it
     folded): the words stay on screen where the reader can select what no comment
-    can anchor to, and the gate must say so. The failure renders perfectly, which
-    is why it is put back deliberately."""
+    can anchor to, and the gate must say so. Then the theme goes back and the
+    vendored module marks every trial after the controller publishes: on the undecided
+    spare that is a settlement the log never decided, silencing words the reader can
+    still see, and the gate must say that too. Both failures render perfectly, which
+    is why each is put back deliberately."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
 
@@ -4666,6 +4669,64 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     assert any(
         "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
         in failure
+        for failure in failures
+    ), failures
+
+    vendored.write_text(css)
+    module = serve.page_dir / "widgets" / "lf-trial.js"
+    module.write_text(
+        """\
+import {once, widgetController} from "/runtime/widget-api.js";
+customElements.define("lf-trial", class extends HTMLElement {
+  #controller;
+  #presented;
+  #stop;
+  connectedCallback() {
+    this.#controller ??= widgetController(this);
+    if (!once(this)) {
+      this.#subscribe();
+      return;
+    }
+    this.#subscribe();
+  }
+  disconnectedCallback() {
+    this.#stop?.();
+    this.#stop = undefined;
+    this.#presented?.disconnect();
+    this.#presented = undefined;
+  }
+  #subscribe() {
+    this.#stop ??= this.#controller.subscribe(reading => this.#markAfterPresentation(reading));
+    this.#markAfterPresentation(this.#controller.read());
+  }
+  #markAfterPresentation(reading) {
+    if (!reading.state) return;
+    if (document.body.dataset.lfPresented === "1") {
+      this.setAttribute("data-lf-state", "shelve");
+      return;
+    }
+    this.#presented ??= new MutationObserver(() => {
+      if (document.body.dataset.lfPresented !== "1") return;
+      this.#presented.disconnect();
+      this.#presented = undefined;
+      if (this.isConnected) this.setAttribute("data-lf-state", "shelve");
+    });
+    this.#presented.observe(document.body, {
+      attributes: true, attributeFilter: ["data-lf-presented"],
+    });
+  }
+});
+"""
+    )
+    stamp_page(
+        serve.page_dir,
+        (serve.page_dir / "index.html").read_text(),
+        "capture the false settlement mark",
+    )
+    failures = render_gate_model.render_version(browser, live_url(url))
+    assert any(
+        "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
+        "records no decision" in failure
         for failure in failures
     ), failures
 

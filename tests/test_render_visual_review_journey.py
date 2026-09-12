@@ -9,9 +9,13 @@ from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
 from leaf import media as media_model
 from playwright.sync_api import expect
-from render_support import leaf_page, open_page, sending, stamp_page, told
+from render_support import PAGE_FIXTURES, leaf_page, open_page, sending, stamp_page, told
 
 pytestmark = pytest.mark.nightly
+
+VISUAL_REVIEW_GALLERY = next(
+    path for path in PAGE_FIXTURES if path.stem == "visual-review-gallery"
+)
 
 
 def target_document(title, body):
@@ -37,6 +41,134 @@ def target_document(title, body):
         f"<header><strong>Northstar releases</strong><span>Acme team</span></header>{body}",
         head=style,
     )
+
+
+def test_visual_inspection_chains_document_scroll_and_expands_without_losing_place(
+    browser, serve
+):
+    """The evidence stage is a nested inspector, while the dialog is a boundary."""
+    url = serve(VISUAL_REVIEW_GALLERY)
+    stamp_page(
+        serve.page_dir,
+        leaf_page(
+            "visual inspection in flow",
+            """<h1>Review the package change</h1>
+<p style="min-height: 28rem">The review follows this context.</p>
+<section><lf-visual-review id="visual-review-run" source="gallery-visual-run"></lf-visual-review></section>
+<p style="min-height: 40rem">The decision record continues after the evidence.</p>""",
+        ),
+        "put visual inspection in document flow",
+    )
+    page, errors = open_page(browser, url)
+    page.set_viewport_size({"width": 1000, "height": 700})
+    widget = page.locator("#visual-review-run")
+    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
+    widget.scroll_into_view_if_needed()
+    host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    widget.get_by_role("button", name="Full frame").click()
+    widget.get_by_role("button", name="100%").click()
+    page.wait_for_function(
+        "node => node.scrollHeight > node.clientHeight", arg=host.element_handle()
+    )
+    point = host.evaluate(
+        "node => { const r = node.getBoundingClientRect();"
+        " return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }"
+    )
+    page.mouse.move(point["x"], point["y"])
+    document_start = page.evaluate("document.scrollingElement.scrollTop")
+    host.evaluate("node => { node.scrollTop = node.scrollHeight; }")
+    assert host.evaluate("node => getComputedStyle(node).overscrollBehaviorY") == "auto"
+    assert host.evaluate(
+        "node => getComputedStyle(node.closest('.lf-pane-body')).overscrollBehaviorY"
+    ) == "auto"
+
+    page.evaluate("top => { document.scrollingElement.scrollTop = top; }", document_start)
+    host.evaluate("node => { node.scrollTop = 0; }")
+    page.mouse.move(0, 0)
+    page.mouse.move(point["x"], point["y"])
+    page.mouse.wheel(0, 320)
+    page.wait_for_function("node => node.scrollTop > 0", arg=host.element_handle())
+    assert page.evaluate("document.scrollingElement.scrollTop") == document_start
+
+    widget.locator(".lf-vr-case-select").select_option("keep-mobile-destinations")
+    host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    widget.get_by_role("button", name="Fit").click()
+    page.wait_for_function(
+        "node => node.scrollHeight <= node.clientHeight + 1", arg=host.element_handle()
+    )
+    point = host.evaluate(
+        "node => { const r = node.getBoundingClientRect();"
+        " return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }"
+    )
+    page.mouse.move(point["x"], point["y"])
+    document_without_overflow = page.evaluate("document.scrollingElement.scrollTop")
+    page.mouse.wheel(0, 240)
+    page.wait_for_function(
+        "start => document.scrollingElement.scrollTop > start",
+        arg=document_without_overflow,
+    )
+
+    widget.get_by_role("button", name="Overlay").click()
+    widget.get_by_role("button", name="100%").click()
+    expand = widget.get_by_role("button", name="Expand inspection")
+    expand.focus()
+    page.evaluate("document.scrollingElement.scrollTop = 200")
+    page_scroll = page.evaluate("document.scrollingElement.scrollTop")
+    assert page_scroll > 100
+    expand.press("Enter")
+    dialog = widget.get_by_role("dialog", name="Expanded visual evidence")
+    expect(dialog).to_be_visible()
+    expect(dialog.get_by_role("button", name="Overlay")).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(dialog.get_by_role("button", name="100%")).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(widget.locator(".lf-vr-case-select")).to_have_value(
+        "keep-mobile-destinations"
+    )
+    page.keyboard.press("Tab")
+    expect(dialog.get_by_role("button", name="Previous")).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(widget.locator(".lf-vr-case-select")).to_have_value(
+        "check-desktop-navigation"
+    )
+    page.keyboard.press("ArrowUp")
+    expect(widget.locator(".lf-vr-case-select")).to_have_value(
+        "keep-mobile-destinations"
+    )
+    verdict = dialog.get_by_role("button", name="Looks right")
+    verdict.scroll_into_view_if_needed()
+    with sending(page, "a verdict from expanded inspection"):
+        verdict.click()
+    expect(
+        widget.locator('[data-lf-datum="keep-mobile-destinations"]')
+    ).to_have_attribute("data-disposition", "looks-right")
+
+    page.keyboard.press("Escape")
+    expect(dialog).to_be_hidden()
+    expect(expand).to_be_focused()
+    page.wait_for_function(
+        "top => document.scrollingElement.scrollTop === top", arg=page_scroll
+    )
+
+    expand.press("Enter")
+    expect(dialog).to_be_visible()
+    page.evaluate("document.documentElement.classList.add('lf-copy')")
+    expect(dialog).to_be_hidden()
+    expect(widget.locator(":scope > .lf-workspace-content > .lf-vr-partition")).to_have_count(
+        1
+    )
+    page.evaluate("document.documentElement.classList.remove('lf-copy')")
+    expand.focus()
+    expand.press("Enter")
+    expect(dialog).to_be_visible()
+    page.evaluate("dispatchEvent(new Event('beforeprint'))")
+    expect(dialog).to_be_hidden()
+    expect(widget).to_have_attribute("data-inspection-mode", "overlay")
+    expect(widget).to_have_attribute("data-inspection-scale", "actual")
+    assert errors == []
+    page.close()
 
 
 def test_an_authenticated_navigation_journey_becomes_credential_free_review_evidence(

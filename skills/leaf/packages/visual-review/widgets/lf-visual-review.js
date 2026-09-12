@@ -9,6 +9,7 @@ import {
   arrangeReadingElement,
   commands,
   compoundReadingRegionId,
+  effectiveScroller,
   failSoft,
   fitRootReadingElement,
   layoutChanged,
@@ -101,12 +102,21 @@ customElements.define(
     #caseEntries = new Map();
     #casesBody = null;
     #commands = null;
+    #copyObserver = null;
+    #dialog = null;
+    #dialogBody = null;
     #evidenceHost = null;
+    #expand = null;
+    #expandedOrigin = null;
+    #expandedPlace = null;
     #fitting = null;
     #inspector = null;
     #layoutFrame = null;
     #mode = "compare";
     #onResize = () => this.#scheduleEvidenceLayout();
+    #onBeforePrint = () => {
+      if (this.#dialog?.open) this.#dialog.close();
+    };
     #opacity = 50;
     #progress = null;
     #queue = null;
@@ -134,6 +144,18 @@ customElements.define(
       for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
         this.#sizes.observe(stage);
       window.addEventListener("resize", this.#onResize);
+      window.addEventListener("beforeprint", this.#onBeforePrint);
+      this.#copyObserver = new MutationObserver(() => {
+        if (
+          document.documentElement.classList.contains("lf-copy") &&
+          this.#dialog?.open
+        )
+          this.#dialog.close();
+      });
+      this.#copyObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
       settle(this.#fitting.update());
       this.#threadSurface ??= registerThreadSurface(this, {
         begin: () => {},
@@ -156,6 +178,10 @@ customElements.define(
       this.#sizes?.disconnect();
       this.#sizes = null;
       window.removeEventListener("resize", this.#onResize);
+      window.removeEventListener("beforeprint", this.#onBeforePrint);
+      this.#copyObserver?.disconnect();
+      this.#copyObserver = null;
+      if (this.#dialog?.open) this.#dialog.close();
       if (this.#layoutFrame !== null) cancelAnimationFrame(this.#layoutFrame);
       this.#layoutFrame = null;
       this.#cleanupLayout();
@@ -226,6 +252,7 @@ customElements.define(
         partition.readingArrangement,
         workspace.readingArrangement,
       ];
+      this.#buildExpandedInspection();
       this.#registerCommands();
       this.#paintInspector();
     }
@@ -242,6 +269,9 @@ customElements.define(
       );
       this.#queue = this.#queueHost?.querySelector(".lf-vr-case-select");
       this.#inspector = this.#evidenceHost?.querySelector(".lf-vr-inspector");
+      this.#dialog = this.querySelector(":scope > .lf-vr-expanded");
+      this.#dialogBody = this.#dialog?.querySelector(":scope > .lf-vr-expanded-body");
+      this.#expand = this.#inspector?.querySelector(".lf-vr-expand");
       this.#casesBody = this.#evidenceHost?.querySelector(".lf-vr-cases");
       this.#title = this.querySelector(".lf-vr-title");
       this.#progress = this.querySelector(".lf-vr-progress");
@@ -253,6 +283,9 @@ customElements.define(
         !this.#evidenceHost ||
         !this.#queue ||
         !this.#inspector ||
+        !this.#dialog ||
+        !this.#dialogBody ||
+        !this.#expand ||
         !this.#casesBody ||
         !this.#title ||
         !this.#progress
@@ -293,6 +326,90 @@ customElements.define(
       ];
       this.#registerCommands();
       this.#paintInspector();
+    }
+
+    #buildExpandedInspection() {
+      this.#expand = offer("button", "lf-btn lf-vr-expand", "Expand inspection");
+      this.#expand.type = "button";
+      this.#expand.setAttribute("aria-haspopup", "dialog");
+      this.#expand.setAttribute("aria-expanded", "false");
+      this.#expand.addEventListener("click", () => this.#openExpandedInspection());
+      commands(this.#expand, "On visual evidence", [
+        {
+          id: "visual.expand",
+          keys: PRESS,
+          does: "Expand visual inspection",
+          line: "expand inspection",
+          returnFrame: () => ({
+            active: () => Boolean(this.#dialog?.open),
+            close: () => this.#dialog?.close(),
+            does: "Return to the visual review",
+            line: "return to review",
+          }),
+          run: () => this.#expand.click(),
+        },
+      ]);
+      this.#inspector.append(this.#expand);
+
+      this.#dialog = make("dialog", "lf-vr-expanded lf-ui", null, false);
+      this.#dialog.setAttribute("aria-labelledby", `lf-${this.id}-expanded-title`);
+      const head = make("header", "lf-vr-expanded-head", null, false);
+      const title = make("strong", "lf-vr-expanded-title", "Expanded visual evidence");
+      title.id = `lf-${this.id}-expanded-title`;
+      const close = offer("button", "lf-btn lf-vr-expanded-close", "Close");
+      close.type = "button";
+      close.addEventListener("click", () => this.#dialog.close());
+      head.append(title, close);
+      this.#dialogBody = make("div", "lf-vr-expanded-body", null, false);
+      this.#dialog.append(head, this.#dialogBody);
+      this.#dialog.addEventListener("close", () => this.#closeExpandedInspection());
+      this.append(this.#dialog);
+    }
+
+    #openExpandedInspection() {
+      if (this.#dialog.open) return;
+      if (!this.#caseEntries.has(this.#selected)) return;
+      this.#expandedOrigin = document.activeElement;
+      const workspaceContent = this.querySelector(":scope > .lf-workspace-content");
+      const scroller = effectiveScroller(this);
+      this.#expandedPlace = {
+        scroller,
+        scrollTop: scroller.scrollTop,
+        workspaceContent,
+        minimumHeight: workspaceContent.style.minHeight,
+      };
+      workspaceContent.style.minHeight = `${this.#partition.getBoundingClientRect().height}px`;
+      this.#dialogBody.append(this.#partition);
+      this.dataset.inspectionExpanded = "true";
+      this.#expand.setAttribute("aria-expanded", "true");
+      this.#dialog.showModal();
+      this.#dialog
+        .querySelector(".lf-vr-expanded-close")
+        .focus({ preventScroll: true });
+      this.#scheduleEvidenceLayout();
+    }
+
+    #closeExpandedInspection() {
+      const place = this.#expandedPlace;
+      place?.workspaceContent.append(this.#partition);
+      if (place) {
+        place.workspaceContent.style.minHeight = place.minimumHeight;
+        place.scroller.scrollTop = place.scrollTop;
+        requestAnimationFrame(() => {
+          place.scroller.scrollTop = place.scrollTop;
+          requestAnimationFrame(() => {
+            place.scroller.scrollTop = place.scrollTop;
+          });
+        });
+      }
+      this.#expandedPlace = null;
+      delete this.dataset.inspectionExpanded;
+      this.#expand.setAttribute("aria-expanded", "false");
+      const origin = this.#expandedOrigin;
+      this.#expandedOrigin = null;
+      if (origin?.isConnected) origin.focus({ preventScroll: true });
+      this.#scheduleEvidenceLayout();
+      layoutChanged(this);
     }
 
     #buildInspector() {
@@ -500,7 +617,7 @@ customElements.define(
         ? [activeFocus.height, activeFocus.height]
         : heights;
       const stageWidth = entry.shotHost.clientWidth;
-      const bounded = this.dataset.lfReadingPosture === "bounded";
+      const bounded = this.#dialog?.open || this.dataset.lfReadingPosture === "bounded";
       // Flow layout follows the widget's own width, so scrolling cannot make a later
       // paint-only inspection control resize the evidence and move the document.
       const stageHeight = bounded
@@ -583,7 +700,7 @@ customElements.define(
 
     #registerCommands() {
       if (this.#commands) return;
-      this.#commands = commands(this, "In a visual review", [
+      this.#commands = commands(this.#partition, "In a visual review", [
         {
           id: "visual.next-case",
           keys: ["ArrowDown"],

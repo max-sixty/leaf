@@ -13,8 +13,6 @@ when `/leaf` is invoked on a widget to build or a look to change.
 | Package                             | Included in                        |
 | ----------------------------------- | ---------------------------------- |
 | a package selected with `--package` | pages that select its name or path |
-| the project's `.leaf/`              | pages initialized from the project |
-| the user's `~/.config/leaf/`        | pages initialized for that user    |
 | Leaf's bundled default package      | every page                         |
 
 Presentation used by only one page stays in that version's `<style>`. Everything
@@ -43,9 +41,10 @@ leaf package check packages/callout
 leaf page init --package packages/callout PAGE
 ```
 
-An explicit directory keeps a contribution separately owned and selectable. `.leaf`
-is the project package and `~/.config/leaf` is the user package. Inside a repository
-dedicated to one package, use `.` as the package path.
+Every package beyond the bundled default is selected explicitly. A directory such
+as `.leaf/` or `~/.config/leaf/` is an ordinary package path; select it with
+`--package ./.leaf` or `--package '~/.config/leaf'`. Inside a repository dedicated
+to one package, use `.` as the package path.
 
 `leaf package install SOURCE` checks that directory and copies it into
 `~/.local/state/leaf/packages/`, where `--package NAME` reaches it by its directory
@@ -136,7 +135,7 @@ the audiences in the vendored page, and `leaf page guidance PAGE AUDIENCE` compo
 three sources. The page author reads the `author` audience when the list includes it.
 
 Composition order is kernel, bundled default package, selected packages in command
-order, user package, then project package. Later packages win collisions. `page init`
+order. Later packages win collisions. `page init`
 records package selections under `$layer.packages`; a plain re-init resolves them again
 in the same order. `page init --no-packages PAGE` clears the explicit list.
 

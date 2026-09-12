@@ -16,6 +16,7 @@ from interact_support import (
     COMMAND_SUBJECTS,
     COMMENT,
     PAGE,
+    PAGE_PACKAGES,
     PILOT_PURGE,
     REJECT,
     RESOLVE,
@@ -70,6 +71,7 @@ from leaf.registry import layer as registry_layer
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
+from page_fixtures import package_selection_args
 
 
 def test_only_declared_generated_children_add_mapping_keys_to_liveness():
@@ -444,7 +446,15 @@ def test_init_refuses_to_retire_a_logged_host_request_verb(page_dir):
         )
     )
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
@@ -528,7 +538,15 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
         json.dumps({"$reactions": {"tokens": {"shorten": None}}})
     )
     monkeypatch.chdir(page_dir.parent)
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert result.exit_code != 0
     assert "no longer speaks" in result.output and "`shorten`" in result.output
 
@@ -597,7 +615,15 @@ def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
         )
     )
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
@@ -636,7 +662,15 @@ def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
         json.dumps({"lf-board": registry["lf-board"]})
     )
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
@@ -691,7 +725,15 @@ def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
     overlay.mkdir()
     (overlay / "registry.json").write_text(json.dumps(overlay_entries))
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
@@ -739,7 +781,15 @@ def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_di
         json.dumps({"lf-options": registry["lf-options"]})
     )
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
 
     assert result.exit_code == 0, result.output
     assert [
@@ -777,7 +827,15 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
@@ -813,7 +871,15 @@ def test_init_refuses_to_orphan_a_logged_visual_anchor(page_dir):
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-diagram": diagram}))
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
@@ -867,7 +933,7 @@ def test_report_validation_and_append_cannot_straddle_revendoring(
 
     def revendoring():
         try:
-            vendoring_model.cmd_init(page_dir)
+            vendoring_model.cmd_init(page_dir, selected=(*PAGE_PACKAGES, "./.leaf"))
             outcomes.append("revendored")
         except BaseException as error:  # noqa: BLE001 - carried to the assertion
             errors.append(error)
@@ -990,7 +1056,7 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
     overlay.mkdir(parents=True)
     local = element_declaration("lf-local-thread")
     (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
-    vendoring_model.cmd_init(page_dir)
+    vendoring_model.cmd_init(page_dir, selected=(*PAGE_PACKAGES, "./.leaf"))
     publish(page_dir)
     events_model.append_event(
         page_dir,
@@ -1033,7 +1099,15 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-option": option}))
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
 
     assert result.exit_code != 0
     assert "thread markup contract" in result.output
@@ -3033,7 +3107,15 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({section: {}}))
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert result.exit_code == 0, result.output
     merged = json.loads((page_dir / "registry.json").read_text())[section]
     shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())[section]
@@ -3051,7 +3133,15 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
         )
     )
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert result.exit_code == 0, result.output
     merged = json.loads((page_dir / "registry.json").read_text())["$events"]["handling"]
     shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())[
@@ -3083,7 +3173,15 @@ def test_init_refuses_handling_that_a_batch_could_not_carry(
         json.dumps({"$events": {"handling": handling}})
     )
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert result.exit_code != 0
     assert (
         "$events.handling must map declared kinds to one non-empty sentence"
@@ -3103,7 +3201,15 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"$tones": {"names": names}}))
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert result.exit_code != 0
     assert "$tones.names must be a unique list of strings" in result.output
 
@@ -3118,14 +3224,30 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     (overlay / "registry.json").write_text(
         json.dumps({"$keys": {"x-wide": "wider, in this project", "x-nope": "?"}})
     )
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert result.exit_code != 0
     assert "unadmitted ['x-nope']" in result.output
 
     (overlay / "registry.json").write_text(
         json.dumps({"$keys": {"x-wide": "wider, in this project"}})
     )
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert result.exit_code == 0, result.output
     keys = json.loads((page_dir / "registry.json").read_text())["$keys"]
     assert keys["x-wide"] == "wider, in this project"
@@ -3139,13 +3261,29 @@ def test_event_kinds_are_the_kernel_contract_not_a_layer_extension(page_dir, tmp
     registry["$events"]["kinds"]["signal"] = registry["$events"]["kinds"]["error"]
     (overlay / "registry.json").write_text(json.dumps(registry))
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
 
     assert result.exit_code != 0
     assert "$events.kinds is Leaf's fixed transport contract" in result.output
 
     (overlay / "registry.json").write_text(json.dumps({"$events": {"kinds": None}}))
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert result.exit_code != 0
     assert "$events.kinds is Leaf's fixed transport contract" in result.output
 
@@ -3738,7 +3876,15 @@ def test_init_refuses_to_drop_the_contract_of_a_version_response(page_dir):
         json.dumps({"lf-options": registry["lf-options"]})
     )
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output

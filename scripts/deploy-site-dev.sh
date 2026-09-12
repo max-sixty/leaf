@@ -63,8 +63,8 @@ LEAF_SITE_RELEASE="$release" uv run --project "$repo_root" \
 )
 
 deadline=$((SECONDS + 900))
-until LEAF_SITE_ORIGIN="$origin" uv run --project "$repo_root" \
-  "$repo_root/scripts/verify-site.py" "$release"; do
+until uv run --project "$repo_root" \
+  "$repo_root/scripts/verify_site.py" "$origin" --release "$release"; do
   ((SECONDS < deadline)) || exit 1
   sleep 10
 done

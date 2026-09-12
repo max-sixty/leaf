@@ -199,6 +199,7 @@ def cmd_reply(
     initiates: bool = False,
     skip_if_settled: bool = False,
     only_if_unclaimed: bool = False,
+    failure: str | None = None,
     identity: dict | None = None,
     validate_source: bool = False,
 ) -> dict | None:
@@ -208,7 +209,8 @@ def cmd_reply(
     address may differ from ``to`` when a widget gesture belongs to a frozen
     conversation. One unambiguous delivered reply supplies both values. ``initiates``
     explicitly posts when the conversation currently owes no reply. Durable hosts may
-    make an already-settled retry a no-op.
+    make an already-settled retry a no-op. ``failure`` records a host-owned failure
+    code alongside its presentation text; ordinary agent answers omit it.
     """
     body = read_text_arg(page_dir, text)
     posting_identity = message_identity() if identity is None else identity
@@ -408,6 +410,8 @@ def cmd_reply(
             event["markup"] = markup
         if attempt is not None:
             event["attempt"] = attempt
+        if failure is not None:
+            event["failure"] = failure
         if moving:
             event["revision"] = revision
             event["anchor"] = anchor

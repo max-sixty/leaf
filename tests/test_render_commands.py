@@ -21,6 +21,7 @@ from render_support import (
     BADGE_CHROME,
     CARRIED_PAGE,
     EXAMPLE_MEDIA,
+    EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
     PAINTED_IN_SILENCE_PAGE,
@@ -979,7 +980,7 @@ def test_render_reads_a_reply_widgets_own_chrome_and_not_the_panel_around_it(
         )
     )
 
-    url = serve(REPLY_HOST_PAGE)
+    url = serve(REPLY_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     events_model.append_event(
         serve.page_dir,
         {

@@ -63,11 +63,13 @@ validates and activates it before posting, so an edit and its answer cross one c
 boundary.
 
 When the change leaves the same subject at a new passage, move the open thread onto
-that result in the same reply. Use the same target forms as `leaf comment`; for a
-diagram, prefer its declared stable visual part:
+that result in the same reply. If the edit also removes the old target, name the
+replacement's section; a quote can narrow that section, and a diagram should use its
+declared stable visual part. A bare quote cannot license removing its old target in the
+same edit, so move the thread with it first:
 
 ```bash
-leaf reply <page> --quote "<new passage>" --text "Updated this and moved the thread to the result."
+leaf reply <page> --section <element-id> --quote "<new passage>" --text "Updated this and moved the thread to the result."
 leaf reply <page> --section <element-id> --text "Updated this and moved the thread here."
 leaf reply <page> --section <diagram-id> --part node:<source-id> --text "Updated this node and moved the thread here."
 ```

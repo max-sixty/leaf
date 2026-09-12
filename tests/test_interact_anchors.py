@@ -266,10 +266,8 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             "Should this move onto the diagram?",
         ).output
     )
-    v2 = v1.replace("The retry starts here.", "The prose no longer names the retry.")
-    (page_dir / ".fixture-versions" / "v2.html").write_text(v2)
-    revised = stamp(page_dir, 2, "moved the retry into the diagram")
-    assert revised.exit_code == 0, revised.output
+    v2 = v1.replace('<p id="old-wording">The retry starts here.</p>', "")
+    (page_dir / "index.html").write_text(v2)
 
     moved = CliRunner().invoke(
         cli_model.cli,
@@ -310,9 +308,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     assert transcript.exit_code == 0, transcript.output
     assert "> § flow · node:A" in transcript.output
 
-    v3 = v2.replace('<p id="old-wording">The prose no longer names the retry.</p>', "")
-    (page_dir / ".fixture-versions" / "v3.html").write_text(v3)
-    checked = check(page_dir, 3)
+    checked = CliRunner().invoke(cli_model.cli, ["version", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
 
 

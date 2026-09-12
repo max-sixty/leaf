@@ -367,14 +367,21 @@ def cmd_reply(
                 and (page_dir / "index.html").read_bytes()
                 == revision_path(page_dir, active).read_bytes()
             )
-            if detach:
+            if detach or section:
                 source_events = [
                     *events,
                     {
                         "kind": "reply",
-                        "id": "prospective-detachment",
+                        "id": "prospective-anchor-transition",
                         "parent": to,
-                        "anchor": None,
+                        "anchor": (
+                            None
+                            if detach
+                            else {
+                                "section": section,
+                                **({"visual": part} if part else {}),
+                            }
+                        ),
                     },
                 ]
             if source_matches_active:

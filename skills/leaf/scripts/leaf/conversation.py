@@ -12,7 +12,6 @@ from leaf.event_log import read_events
 from leaf.files import (
     latest_published,
     require_revision,
-    revision_path,
     version_revisions,
 )
 from leaf.host import message_identity
@@ -71,10 +70,10 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
     if revision <= root["revision"]:
         return True
     registry = require_registry(page_dir)
-    html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-    page = page_reading(html, [], registry, revision)
-    projection, parser, spk = page.projection, page.parser, page.spoken
-    awaiting = page_awaiting_values(html, parser, projection, spk, registry)
+    document = parse_revision(page_dir, revision)
+    page = page_reading(document, [], registry, revision)
+    projection, parser, spk = page.projection, page.document, page.spoken
+    awaiting = page_awaiting_values(document, projection, spk, registry)
     target = root["anchor"]["section"]
     if awaiting.get(target, False):
         return True
@@ -88,15 +87,12 @@ def _version_response_unanswered(page_dir: Path, events: list, root: dict) -> bo
         return True
 
     original_revision = root["revision"]
-    original_html = revision_path(page_dir, original_revision).read_text(
-        encoding="utf-8"
-    )
-    original_page = page_reading(original_html, [], registry, original_revision)
+    original_document = parse_revision(page_dir, original_revision)
+    original_page = page_reading(original_document, [], registry, original_revision)
     original_projection = original_page.projection
-    original = original_page.parser
+    original = original_page.document
     original_spk = original_page.spoken
     original_awaiting = page_awaiting_values(
-        original_html,
         original,
         original_projection,
         original_spk,
@@ -123,21 +119,21 @@ def _current_anchor(
     revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
-    html = revision_path(page_dir, revision).read_text(encoding="utf-8")
+    document = parse_revision(page_dir, revision)
     registry = require_registry(page_dir)
-    page = page_reading(html, events, registry, revision)
+    page = page_reading(document, events, registry, revision)
     decided = retirement_outcomes(page.projection.actions, registry)
     edited = rewritten_bodies(page.projection.actions)
     try:
         anchor = capture_anchor(
-            html,
+            document,
             registry,
             quote,
             section,
             decided,
             edited,
             part,
-            additions=generated_children(page.projection.desired, page.parser.ids),
+            additions=generated_children(page.projection.desired, page.document.ids),
         )
     except ValueError as err:
         sys.exit(f"can't anchor in revision r{revision}: {err}")

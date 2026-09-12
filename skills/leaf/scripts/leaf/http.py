@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from . import presence as presence_model
-from .data import DataError, read_data_fragment
+from .data import DataError, data_fragment, read_data_fragment
 from .data_contracts import valid_snapshot_id
 from .event_endpoint import accept_event, event_rejection
 from .event_log import read_events
@@ -48,7 +48,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .structure import FRAME_ANCESTORS_CSP, PAGE_CSP, parse_structure
+from .structure import FRAME_ANCESTORS_CSP, PAGE_CSP, SourceDocument
 
 # How often an open news stream re-reads the page, and how long it may go without a
 # word before saying it is still there. The look is a re-stat rather than an in-process
@@ -242,45 +242,27 @@ def scope_page_urls(value, page_root: str):
     return scoped
 
 
-def source_offset(source: str, position: tuple[int, int]) -> int:
-    """The character index one parsed element's start tag begins at."""
-    line, column = position
-    return sum(len(part) + 1 for part in source.split("\n")[: line - 1]) + column
+def head_open_end_offset(document: SourceDocument) -> int:
+    """Locate the first byte inside head, before authored executable content."""
+    if document.head_open_end is None:
+        raise ValueError("document has no explicit <head>")
+    return document.head_open_end
 
 
-def _declared_policy(parsed) -> dict:
-    """The one Content-Security-Policy declaration a Leaf document carries."""
-    return next(
-        meta
-        for meta in parsed.http_equivs
-        if meta["equiv"].lower() == "content-security-policy"
+def _identity_head(revision: int, version: int | None) -> str:
+    return f'<meta name="lf-revision" data-lf-runtime content="{revision}">' + (
+        f'<meta name="lf-version" data-lf-runtime content="{version}">'
+        if version is not None
+        else ""
     )
 
 
-def head_policy_offset(source: str) -> int:
-    """Locate the document's CSP declaration, which stands inside head by rule.
-
-    A page may place its runtime module beside main, so the runtime boundary is not
-    a head position. Head metadata is admitted only inside head, and every document
-    declares exactly one policy there, so this is where added metadata belongs.
-    """
-    return source_offset(source, _declared_policy(parse_structure(source))["position"])
-
-
-def canonical_script_offset(source: str, page_root: str = "") -> int:
-    """Locate the one authored module script that enters Leaf's runtime."""
-    parsed = parse_structure(source)
-    entries = {"/leaf.js", f"{page_root.rstrip('/')}/leaf.js"}
-    scripts = [
-        script
-        for script in parsed.external_scripts
-        if script["attrs"].get("type") == "module"
-        and script["attrs"].get("src") in entries
-        and len(script["attrs"]) == 2
-    ]
-    if len(scripts) != 1:
-        raise ValueError("document has no canonical script")
-    return source_offset(source, scripts[0]["position"])
+def _runtime_assets(asset_root: str = "") -> tuple[str, str]:
+    root = asset_root.rstrip("/")
+    return (
+        f'<link rel="stylesheet" href="{root}/theme.css" data-lf-runtime>',
+        f'<script type="module" src="{root}/leaf.js" data-lf-runtime></script>',
+    )
 
 
 def script_hash(body: str) -> str:
@@ -290,14 +272,12 @@ def script_hash(body: str) -> str:
 
 
 def runtime_document(source: str, revision: int, version: int | None = None) -> bytes:
-    """Inject immutable document identity, including non-HTTP delivery surfaces."""
-    offset = canonical_script_offset(source)
-    markers = f'<meta name="lf-revision" data-lf-runtime content="{revision}">' + (
-        f'<meta name="lf-version" data-lf-runtime content="{version}">'
-        if version is not None
-        else ""
-    )
-    return (source[:offset] + markers + source[offset:]).encode()
+    """Give a clean authored document its runtime head and immutable identity."""
+    document = SourceDocument(source)
+    offset = head_open_end_offset(document)
+    theme_head, entry_head = _runtime_assets()
+    runtime = _identity_head(revision, version) + theme_head + entry_head
+    return (source[:offset] + runtime + source[offset:]).encode()
 
 
 def supervised_document(
@@ -311,12 +291,13 @@ def supervised_document(
     release_id: str | None = None,
     page_root: str = "",
     asset_root: str | None = None,
+    before_runtime: str = "",
 ) -> bytes:
     """Supervise HTTP startup before the module graph or stylesheet can load.
 
-    The authored source keeps its canonical script. The served document receives
-    the current layer CSP, the exact bootstrap hash, and the server incarnation
-    probe, so historical sources inherit the current delivery boundary.
+    The served document receives the runtime assets, current layer CSP, exact
+    bootstrap hash, and server incarnation probe, so historical sources inherit
+    the current delivery boundary without carrying delivery markup themselves.
 
     It also names the page it belongs to. A page answers at three addresses — the
     live root, each stamped version, and each immutable revision — and every one
@@ -324,19 +305,16 @@ def supervised_document(
     all of them. The href is relative to the delivery, which has no origin to
     know: it resolves wherever the page directory is mounted.
     """
-    source = runtime_document(source, revision, version).decode()
-    # The MCP complete-page transport scopes root routes under its bearer path. Do
-    # that before hashing: CSP authorizes the bytes the browser receives, not the
-    # unscoped immutable source. `_send` applies the same idempotent rewrite later.
+    # Scope authored routes before hashing: CSP authorizes the bytes the browser
+    # receives, including rewritten imports inside authored module blocks.
     source = scope_document_routes(
         source.encode(), page_root, asset_root=asset_root
     ).decode()
+    parsed = SourceDocument(source)
+    offset = head_open_end_offset(parsed)
     bootstrap = scope_script_routes(
         bootstrap.encode(), page_root, asset_root=asset_root
     ).decode()
-    parsed = parse_structure(source)
-    policy = _declared_policy(parsed)
-    policy_offset = source_offset(source, policy["position"])
     hashes = [script_hash(bootstrap)]
     hashes.extend(script_hash(script["body"]) for script in parsed.inline_scripts)
     csp = PAGE_CSP + "; script-src 'self' " + " ".join(dict.fromkeys(hashes))
@@ -350,17 +328,26 @@ def supervised_document(
         if release_id is not None
         else ""
     )
-    supervised = (
-        f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
-        f'<script data-lf-runtime data-lf-server="{server_id}" data-lf-layer="{layer_id}"{release}{public_root} data-lf-entry="/leaf.js" '
-        f'data-lf-theme="/theme.css" data-lf-probe="/registry.json">{bootstrap}</script>'
-        f'<link rel="canonical" href="{html.escape(page_root, quote=True)}/" data-lf-runtime>'
+    assets = asset_root if asset_root is not None else page_root
+    theme_head, entry_head = _runtime_assets(assets)
+    asset_path = assets.rstrip("/")
+    bootstrap_head = (
+        f'<script data-lf-runtime data-lf-server="{server_id}" '
+        f'data-lf-layer="{layer_id}"{release}{public_root} '
+        f'data-lf-entry="{asset_path}/leaf.js" '
+        f'data-lf-theme="{asset_path}/theme.css" '
+        f'data-lf-probe="{asset_path}/registry.json">{bootstrap}</script>'
     )
-    return (
-        source[:policy_offset]
-        + supervised
-        + source[policy_offset + len(policy["raw"]) :]
-    ).encode()
+    supervised = (
+        _identity_head(revision, version)
+        + f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
+        + bootstrap_head
+        + theme_head
+        + before_runtime
+        + entry_head
+        + f'<link rel="canonical" href="{html.escape(page_root, quote=True)}/" data-lf-runtime>'
+    )
+    return (source[:offset] + supervised + source[offset:]).encode()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -370,7 +357,7 @@ class Handler(BaseHTTPRequestHandler):
     # Set by `authorized` when the key arrived in the query, cleared by the one
     # writer that spends it.
     set_cookie = False
-    preview_source = None
+    page_snapshot = None
     # Empty on the ordinary one-page server. The MCP delivery server sets this to
     # an unguessable `/p/<capability>` prefix and rewrites only Leaf-owned routes.
     page_root = ""
@@ -386,7 +373,7 @@ class Handler(BaseHTTPRequestHandler):
     def _state_service(self) -> PageStateService:
         return PageStateService(
             self.page_dir,
-            preview_source=self.preview_source,
+            page_snapshot=self.page_snapshot,
             layer_identity=self.layer_identity,
             preview=self.preview,
             publication=self.publication,
@@ -447,6 +434,15 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("key is required")
         if snapshot is not None and not valid_snapshot_id(snapshot):
             raise ValueError("snapshot must be a positive decimal revision")
+        if self.page_snapshot is not None:
+            return data_fragment(
+                self.page_snapshot.data,
+                self.page_snapshot.registry,
+                data_revision=data_revision,
+                source=source,
+                key=key,
+                snapshot_id=snapshot,
+            )
         with PageTransaction(self.page_dir):
             return read_data_fragment(
                 self.page_dir,
@@ -497,21 +493,22 @@ class Handler(BaseHTTPRequestHandler):
         try:
             while not self.server.stopping:
                 now = time.monotonic()
-                files = served_reading.page_reading(self.page_dir)
-                # Presence is re-read on its own clock, and again whenever the files
-                # move. The tab is about to ask, and the answer it gets is built from
-                # fresh presence, so what this stream remembers saying has to be too:
-                # said with a stale presence, a presence that then moved back before
-                # the next look would leave the tab holding a reading this stream
-                # never disagreed with, and never spoke again.
-                if files != files_said or now - looked >= PRESENCE_S:
-                    presence = presence_model.presence_reading(self.page_dir)
-                    looked = now
-                reading = f"{files}.{presence}"
+                if self.page_snapshot is not None:
+                    reading = self.page_snapshot.reading
+                    files = reading
+                    presence = ""
+                else:
+                    files = served_reading.page_reading(self.page_dir)
+                    # Presence is re-read on its own clock, and again whenever the files
+                    # move. The state answer and this token must describe the same view.
+                    if files != files_said or now - looked >= PRESENCE_S:
+                        presence = presence_model.presence_reading(self.page_dir)
+                        looked = now
+                    reading = f"{files}.{presence}"
                 # Before the word goes out, so a listener that has heard the first
                 # one is a browser the page already counts as holding it open.
                 if (
-                    self.preview_source is None
+                    self.page_snapshot is None
                     and time.time() - getattr(cls, "viewed_at", 0) > 30
                 ):
                     cls.viewed_at = time.time()
@@ -736,11 +733,10 @@ class Handler(BaseHTTPRequestHandler):
                 pass  # the peer left mid-answer; nobody to tell
 
     def _serve_root(self) -> None:
-        if self.preview_source is not None:
-            events = read_events(self.page_dir)
-            revision = self.preview_source["active"]["revision"]
-            source = self.preview_source["data"].decode("utf-8")
-            version = self.preview_source["active"]["version"]
+        if self.page_snapshot is not None:
+            revision = self.page_snapshot.active["revision"]
+            source = self.page_snapshot.document.html
+            version = self.page_snapshot.active["version"]
         else:
             with PageTransaction(self.page_dir) as page:
                 activate_source(self.page_dir, page.events)
@@ -765,41 +761,76 @@ class Handler(BaseHTTPRequestHandler):
                 bootstrap=self.bootstrap,
                 release_id=self.release,
                 page_root=self.page_root,
+                before_runtime=self._document_head(),
             )
         except ValueError as error:
             self._json({"error": str(error)}, 500)
             return
         self._send(200, "text/html; charset=utf-8", projected)
 
+    def _document_head(self) -> str:
+        """Transport-specific delivery metadata inserted before the runtime entry."""
+        return ""
+
     def _serve_page_path(self, path: str) -> bool:
         if path.startswith("/versions/"):
             version = version_num(Path(path).name)
-            events = read_events(self.page_dir)
+            events = (
+                list(self.page_snapshot.events)
+                if self.page_snapshot is not None
+                else read_events(self.page_dir)
+            )
             mapping = version_revisions(events)
-            if version not in published_versions(self.page_dir, events):
+            published = (
+                {item["version"] for item in self.page_snapshot.versions}
+                if self.page_snapshot is not None
+                else set(published_versions(self.page_dir, events))
+            )
+            if version not in published:
                 self._json(
                     {"error": "not stamped yet; run `leaf version stamp` first"},
                     404,
                 )
                 return True
-            source = revision_path(self.page_dir, mapping[version]).read_text(
-                encoding="utf-8"
+            source = (
+                self.page_snapshot.documents[mapping[version]].html
+                if self.page_snapshot is not None
+                else revision_path(self.page_dir, mapping[version]).read_text(
+                    encoding="utf-8"
+                )
             )
             self._send_document(source, mapping[version], version)
             return True
         if path.startswith("/revisions/"):
             name = Path(path).name
             revision = revision_num(name)
-            if (
-                revision not in list_revisions(self.page_dir)
-                or revision_path(self.page_dir, revision).name != name
-            ):
+            revisions = (
+                set(self.page_snapshot.documents)
+                if self.page_snapshot is not None
+                else set(list_revisions(self.page_dir))
+            )
+            expected_name = (
+                self.page_snapshot.revision_names.get(revision)
+                if self.page_snapshot is not None
+                else revision_path(self.page_dir, revision).name
+            )
+            if revision not in revisions or expected_name != name:
                 self._json({"error": "unknown revision"}, 404)
                 return True
-            source = revision_path(self.page_dir, revision).read_text(encoding="utf-8")
-            self._send_document(
-                source, revision, stamped_version(read_events(self.page_dir), revision)
+            source = (
+                self.page_snapshot.documents[revision].html
+                if self.page_snapshot is not None
+                else revision_path(self.page_dir, revision).read_text(encoding="utf-8")
             )
+            events = (
+                list(self.page_snapshot.events)
+                if self.page_snapshot is not None
+                else read_events(self.page_dir)
+            )
+            self._send_document(source, revision, stamped_version(events, revision))
+            return True
+        if path == "/registry.json" and self.page_snapshot is not None:
+            self._json(self.page_snapshot.registry)
             return True
         file = self.page_dir / path.lstrip("/")
         # The allowlist rejects traversal spellings; containment is the second
@@ -880,7 +911,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         # Preview requests have passed authentication and body preparation. An event
         # refusal can therefore name its attempt; media uses the route's generic shape.
-        if self.preview_source is not None:
+        if self.page_snapshot is not None:
             self._refuse("the preview server is read-only", 403)
             return
         current_layer = self.layer
@@ -923,14 +954,16 @@ class Handler(BaseHTTPRequestHandler):
 def handler_for(
     page_dir: Path,
     token: str,
-    preview_source=None,
+    page_snapshot=None,
     protocol_version="HTTP/1.0",
     publication=None,
 ):
     """A request handler bound to one page, publication view, and key. The key has no
     default: every server over a page directory is reachable by whatever reached the
     machine, so there is no construction that should quietly go without one."""
-    identity = layer_metadata(page_dir)
+    identity = (
+        page_snapshot.layer if page_snapshot is not None else layer_metadata(page_dir)
+    )
     return type(
         "PageHandler",
         (Handler,),
@@ -941,7 +974,7 @@ def handler_for(
             "bootstrap": (page_dir / "runtime" / "bootstrap.js").read_text(
                 encoding="utf-8"
             ),
-            "preview_source": preview_source,
+            "page_snapshot": page_snapshot,
             "protocol_version": protocol_version,
             "layer": identity["generation"],
             "layer_identity": identity,

@@ -15,7 +15,7 @@ from leaf.events import (
 from leaf.passages import EMPTY, collapse, enclosing_of, spoken
 from leaf.registry.contract import state_specs
 from leaf.registry.state import retirement_slots
-from leaf.structure import StructParser, parse_structure
+from leaf.structure import SourceDocument
 from leaf.thread_context import (
     ThreadStructure,
     thread_roots,
@@ -150,7 +150,7 @@ def enclosing_slot(rec: dict, registry: dict):
     return None
 
 
-def retirement_holders(parser: StructParser, registry: dict) -> list:
+def retirement_holders(parser: SourceDocument, registry: dict) -> list:
     """Every widget the page carries that a decision can settle, and what each
     outcome would retire: {"id", "tag", "retires": {outcome → ids},
     "withdrawn_as"}. An id belongs to a slot when the slot stands anywhere
@@ -315,11 +315,10 @@ class StateProjection(NamedTuple):
 class PageReading(NamedTuple):
     """One page document and the durable state folded against that exact source."""
 
-    html: str
+    document: SourceDocument
     revision: int
     events: list
     registry: dict
-    parser: StructParser
     spoken: dict
     projection: StateProjection
 
@@ -432,7 +431,7 @@ def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
     spk = {}
     for event in events:
         if markup := event.get("markup"):
-            spk.update(spoken(markup, registry))
+            spk.update(spoken(SourceDocument(markup), registry))
     by_widget = thread_widgets(structure, roots)
     return FrozenThreadReading(
         structure,
@@ -501,23 +500,23 @@ def folded_facet(e: dict, spec: dict):
     return value
 
 
-def page_reading(html: str, events: list, registry: dict, revision: int) -> PageReading:
+def page_reading(
+    document: SourceDocument, events: list, registry: dict, revision: int
+) -> PageReading:
     """Read one page's markup and log window through one construction.
 
     Document inspection and the passage readings used by `leaf comment` and
     `version check` share declarations, floors, and the log window. The parser
     and spoken reading travel with the projection for callers that need its
     authored construction."""
-    parser = parse_structure(html)
-    spk = spoken(html, registry)
+    spk = spoken(document, registry)
     return PageReading(
-        html,
+        document,
         revision,
         events,
         registry,
-        parser,
         spk,
-        state_projection(events, parser.by_id, spk, registry, revision),
+        state_projection(events, document.by_id, spk, registry, revision),
     )
 
 

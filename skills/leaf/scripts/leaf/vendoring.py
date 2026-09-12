@@ -20,7 +20,6 @@ from .files import (
     latest_revision,
     read_json,
     replace_files,
-    revision_path,
     write_json,
 )
 from .layer import (
@@ -49,6 +48,7 @@ from .schema import (
     STATUS_FILE,
 )
 from .service import PageTransaction, claim_path
+from .structure import parse_revision
 from .validation.compatibility import vocabulary_gaps
 from .work import widget_work_without_targets
 
@@ -232,11 +232,10 @@ def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) 
     revision = latest_revision(page_dir)
     if revision is None:
         return
-    html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-    page = page_reading(html, events, incoming, revision)
+    document = parse_revision(page_dir, revision)
+    page = page_reading(document, events, incoming, revision)
     untargeted = widget_work_without_targets(
-        html,
-        page.parser,
+        document,
         page.projection,
         events,
         read_json(page_dir / STATUS_FILE) or {},

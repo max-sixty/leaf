@@ -1,5 +1,6 @@
-"""Structural readings of authored HTML."""
+"""One parsed source document and its structural readings."""
 
+import hashlib
 import re
 from pathlib import Path
 
@@ -79,12 +80,11 @@ OVERFLOW_PROPS = ("width", "min-width")
 # would silently declare nothing in the browser, so `version check` owns this
 # vocabulary the way the registry owns lf-* elements.
 LF_META = {"lf-review": frozenset({"sign-off"})}
-# The one CSP every page declares. The server adds hashes for the runtime bootstrap
-# and authored module blocks to this policy; the source declaration deliberately has
-# none, so opening unserved source never grants inline code authority. 'self' is the
-# immutable page layer whole; base-uri and form-action need their own directives
-# because default-src governs only fetches. data: admits the images `version export`
-# inlines, and the theme arrives inline in a <style> on export.
+# The one CSP delivery gives every page. The server adds hashes for the runtime
+# bootstrap and authored module blocks. 'self' is the immutable page layer whole;
+# base-uri and form-action need their own directives because default-src governs only
+# fetches. data: admits the images `version export` inlines, and the theme arrives
+# inline in a <style> on export.
 PAGE_CSP = (
     "default-src 'self'; base-uri 'none'; form-action 'none'; "
     "img-src 'self' data:; style-src 'self' 'unsafe-inline'"
@@ -93,14 +93,13 @@ PAGE_CSP = (
 # separate header policy; the capability-scoped MCP transport is deliberately frameable.
 FRAME_ANCESTORS_CSP = "frame-ancestors 'none'"
 # Non-painting document structure that may stand outside the authored main. Head
-# metadata is allowed only while the parser is actually inside head; the canonical
-# module is also allowed beside main because shipped pages use both placements.
+# metadata is allowed only while the parser is actually inside head.
 DOCUMENT_WRAPPERS = {"html", "head", "body", "main"}
 HEAD_METADATA_TAGS = {"base", "link", "meta", "script", "style", "title"}
 SCRIPT_URL_ATTRIBUTES = {"action", "formaction", "href", "src", "xlink:href"}
 
 
-class StructParser:
+class SourceDocument:
     """One browser-compatible structural reading of authored HTML.
 
     TurboHTML owns HTML recovery and source locations. This class retains Leaf's
@@ -112,7 +111,10 @@ class StructParser:
     reconstructing it.
     """
 
-    def __init__(self):
+    def __init__(self, source: str):
+        self.html = source
+        self.data = source.encode("utf-8")
+        self.digest = f"sha256:{hashlib.sha256(self.data).hexdigest()}"
         self.errors = []
         self.unclosed = []  # source elements whose required end tag is absent
         self.all_ids = []
@@ -143,6 +145,7 @@ class StructParser:
         # stand outside it. Body lines come from source tokens because recovery erases a
         # duplicate <body>; main placement comes from the recovered tree.
         self.body_lines = []
+        self.head_lines = []
         self.head_elements = []  # (line, direct child of authored html)
         self.main_elements = []  # (line, direct child of authored body)
         self.outside_main = []  # paintable content with no main ancestor
@@ -178,16 +181,12 @@ class StructParser:
         # tree, with no reconstructed HTML or parent objects.
         self.content = []
         self.nodes = []
-        self.document = None
-        self._source = ""
+        self.tree = None
+        self._source = source
         self._line_offsets = [0]
         self._first_body_position = None
-        self._closed = False
-
-    def feed(self, data):
-        if self._closed:
-            raise ValueError("cannot feed a closed structural parser")
-        self._source += data
+        self.head_open_end = None
+        self._finish()
 
     @staticmethod
     def _attrs(element) -> dict:
@@ -230,13 +229,25 @@ class StructParser:
         self._first_body_position = (
             (body_starts[0].line, body_starts[0].col) if body_starts else None
         )
+        head_starts = [
+            token
+            for token in tokens
+            if token.type is turbohtml.TokenType.START_TAG and token.tag == "head"
+        ]
+        self.head_lines = [token.line for token in head_starts]
+        self.head_open_end = (
+            self._source_index(head_starts[0].line, head_starts[0].col)
+            + len(head_starts[0].source)
+            if head_starts
+            else None
+        )
         starts = {
             (token.line, token.col): token
             for token in tokens
             if token.type is turbohtml.TokenType.START_TAG
         }
         recognized_ends = set()
-        for element in self.document.descendants:
+        for element in self.tree.descendants:
             if not isinstance(element, turbohtml.Element):
                 continue
             location = element.source_location
@@ -266,7 +277,7 @@ class StructParser:
 
         duplicates = {}
         start_tokens = list(starts.values())
-        for error in self.document.errors:
+        for error in self.tree.errors:
             if error.code == "duplicate-attribute":
                 error_index = self._source_index(error.line, error.col)
                 token = next(
@@ -647,18 +658,13 @@ class StructParser:
         elif element.tag == "title":
             self.title += element.text
 
-    def close(self):
-        if self._closed:
-            return
-        self._closed = True
+    def _finish(self):
         self._line_offsets.extend(
             match.end() for match in re.finditer(r"\r\n?|\n", self._source)
         )
-        self.document = turbohtml.parse(
-            self._source, scripting=True, source_locations=True
-        )
+        self.tree = turbohtml.parse(self._source, scripting=True, source_locations=True)
         self._source_errors()
-        for child in self.document.children:
+        for child in self.tree.children:
             if isinstance(child, turbohtml.Element):
                 self._visit(child, self.content)
 
@@ -714,25 +720,16 @@ def links_with_rel(links: list[dict], rel: str) -> list[dict]:
     ]
 
 
-def parse_structure(markup: str) -> StructParser:
-    """One structural reading of a document or fragment — fed and closed, so
-    every reader gets the flushed parse rather than each restating the ritual."""
-    parser = StructParser()
-    parser.feed(markup)
-    parser.close()
-    return parser
+_revisions = {}  # revision file -> (its stamp, the parsed source document)
 
 
-_revisions = {}  # revision file -> (its stamp, the structural reading of it)
-
-
-def parse_revision(page_dir: Path, revision: int) -> StructParser:
-    """One cached structural reading of an immutable working revision."""
+def parse_revision(page_dir: Path, revision: int) -> SourceDocument:
+    """One cached source document for an immutable working revision."""
     path = revision_path(page_dir, revision)
     stamp = file_stamp(path)
     if stamp and (held := _revisions.get(path)) and held[0] == stamp:
         return held[1]
-    parser = parse_structure(path.read_text(encoding="utf-8"))
+    parser = SourceDocument(path.read_text(encoding="utf-8"))
     if stamp:
         _revisions[path] = (stamp, parser)
     return parser

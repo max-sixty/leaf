@@ -16,7 +16,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from example_data import regression_sources
-from leaf.structure import parse_structure
+from leaf.structure import SourceDocument
 
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 CORPUS = EXAMPLES_DIR / "corpus.html"
@@ -64,9 +64,6 @@ HEAD = """\
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Leaf example corpus</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -176,7 +173,7 @@ def build() -> str:
         text = source.read_text(encoding="utf-8")
         scan = _Scan()
         scan.feed(text)
-        parsed = parse_structure(text)
+        parsed = SourceDocument(text)
         if parsed.css.strip():
             authored_assets.append(
                 f"<!-- {source.name} authored styles -->\n<style>{parsed.css}</style>"

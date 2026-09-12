@@ -206,9 +206,6 @@ PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <title>t</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>
@@ -454,9 +451,7 @@ def live_versions(d):
 
 
 def fragment_errors(html, registry):
-    parser = structure_model.StructParser()
-    parser.feed(html)
-    parser.close()
+    parser = structure_model.SourceDocument(html)
     return validation_model.fragment_errors(parser, registry)
 
 
@@ -756,9 +751,7 @@ def logged(page_dir, *events):
         events_model.append_event(page_dir, event)
     return event_folds_model.build_threads(
         events_model.read_events(page_dir),
-        passages_model.enclosing_ids(
-            files_model.revision_path(page_dir, 1).read_text(encoding="utf-8")
-        ),
+        passages_model.enclosing_ids(structure_model.parse_revision(page_dir, 1)),
     )
 
 

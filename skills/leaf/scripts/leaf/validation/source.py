@@ -8,7 +8,7 @@ from leaf.data_contracts import data_binding_errors, measurement_lag
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry
 from leaf.schema import VENDORED_FILES
-from leaf.structure import LF_META, PAGE_CSP, links_with_rel, parse_structure
+from leaf.structure import LF_META, SourceDocument, links_with_rel
 from leaf.styles import (
     _column_width,
     _overwide_elements,
@@ -50,9 +50,7 @@ from leaf.validation.source_history import (
 class SourceCheck(NamedTuple):
     """One complete reading of the exact source bytes."""
 
-    data: bytes
-    html: str
-    parser: object
+    document: SourceDocument
     registry: dict | None
     projection: object
     spoken: dict
@@ -87,28 +85,10 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
     errors.extend(structure_errors(parser))
     errors.extend(page_boundary_errors(parser))
 
-    external_scripts = parser.external_scripts
-    if len(external_scripts) != 1:
+    for script in parser.external_scripts:
         errors.append(
-            "expected exactly one external <script src> tag for /leaf.js, found "
-            f"{len(external_scripts)}"
-            + (
-                f": {[script['attrs']['src'] for script in external_scripts]}"
-                if external_scripts
-                else ""
-            )
-        )
-    elif external_scripts[0]["attrs"] != {"src": "/leaf.js", "type": "module"}:
-        errors.append(
-            'the external runtime script must be exactly <script type="module" '
-            f'src="/leaf.js">, found attributes {external_scripts[0]["attrs"]}'
-        )
-    elif (
-        external_scripts[0]["parent"] != "head" or not external_scripts[0]["early_head"]
-    ):
-        errors.append(
-            "the /leaf.js module must be in <head> before <body> can paint; "
-            "its <head> must be the document's direct, initial head"
+            f"<script src> (line {script['line']}) belongs to delivery; "
+            "authored behavior must be an inline module"
         )
 
     for script in parser.inline_scripts:
@@ -125,19 +105,10 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
         )
 
     stylesheets = links_with_rel(parser.links, "stylesheet")
-    if len(stylesheets) != 1 or stylesheets[0]["attrs"] != {
-        "rel": "stylesheet",
-        "href": "/theme.css",
-    }:
+    if stylesheets:
         errors.append(
-            "the page must link exactly one stylesheet, always-applicable and exactly "
-            '<link rel="stylesheet" href="/theme.css">, found '
-            f"{[asset['attrs'] for asset in stylesheets]}"
-        )
-    elif stylesheets[0]["parent"] != "head" or not stylesheets[0]["early_head"]:
-        errors.append(
-            "the /theme.css stylesheet must be in <head> before <body> can paint; "
-            "its <head> must be the document's direct, initial head"
+            "external stylesheets belong to delivery; put page-specific rules "
+            f"in <style>, found {[asset['attrs'] for asset in stylesheets]}"
         )
 
     for link in links_with_rel(parser.links, "canonical"):
@@ -148,16 +119,15 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
             "the address is delivery's."
         )
 
-    declared_csp = [
-        meta["content"]
+    declared_policies = [
+        meta
         for meta in parser.http_equivs
         if meta["equiv"].lower() == "content-security-policy"
     ]
-    if declared_csp != [PAGE_CSP]:
+    for policy in declared_policies:
         errors.append(
-            "the page must declare the layer's one CSP, "
-            f'<meta http-equiv="Content-Security-Policy" content="{PAGE_CSP}">'
-            + (f"; found {declared_csp}" if declared_csp else "")
+            f"<meta http-equiv=Content-Security-Policy> (line {policy['line']}) "
+            "belongs to delivery"
         )
 
     for meta in parser.named_metas:
@@ -284,49 +254,47 @@ def check_source(
     """Check ``index.html`` against the last activated revision."""
     data, source_error = _source_bytes(page_dir)
     if source_error:
-        return SourceCheck(
-            data, "", parse_structure(""), None, None, {}, 0, [source_error], [], 0
-        )
+        return SourceCheck(SourceDocument(""), None, None, {}, 0, [source_error], [], 0)
     html = data.decode("utf-8")
-    parser = parse_structure(html)
-    errors = _document_errors(page_dir, parser)
+    document = SourceDocument(html)
+    errors = _document_errors(page_dir, document)
     try:
         registry = load_registry(page_dir)
     except RegistryError as error:
         registry = None
         errors.append(str(error))
     revision = revision_reading(page_dir, data, events, registry)
-    stored_data, registry_errors = _registry_errors(page_dir, events, parser, registry)
+    stored_data, registry_errors = _registry_errors(
+        page_dir, events, document, registry
+    )
     errors.extend(registry_errors)
 
     source_history_errors, dropped_advice = continuity_errors(
-        events, parser, registry, revision
+        events, document, registry, revision
     )
     errors.extend(source_history_errors)
 
-    transition = transition_reading(html, events, parser, registry, revision)
+    transition = transition_reading(document, events, registry, revision)
     errors.extend(
-        transition_errors(parser, registry, revision, transition, allow_transition)
+        transition_errors(document, registry, revision, transition, allow_transition)
     )
 
-    taken = sorted(parser.ids & thread_structure(events).ids)
+    taken = sorted(document.ids & thread_structure(events).ids)
     if taken:
         errors.append(f"ids already taken by widget markup in a reply: {taken}")
-    errors.extend(media_errors(parser, page_dir))
+    errors.extend(media_errors(document, page_dir))
 
-    column, presentation_errors = _presentation_errors(page_dir, parser)
+    column, presentation_errors = _presentation_errors(page_dir, document)
     errors.extend(presentation_errors)
     advice = _source_advice(
-        parser,
+        document,
         registry,
         stored_data,
         revision,
         dropped_advice,
     )
     return SourceCheck(
-        data,
-        html,
-        parser,
+        document,
         registry,
         transition.projection,
         transition.words,

@@ -31,7 +31,7 @@ from leaf import hosting as hosting_model
 from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
-from leaf.structure import parse_structure
+from leaf.structure import SourceDocument
 from PIL import Image
 from playwright.sync_api import expect
 
@@ -102,7 +102,7 @@ def framed_root_examples():
     """
     framed = []
     for page in authored_examples():
-        parsed = parse_structure(page.read_text(encoding="utf-8"))
+        parsed = SourceDocument(page.read_text(encoding="utf-8"))
         main = next(node for node in parsed.nodes if node["tag"] == "main")
         children = [
             child
@@ -207,7 +207,7 @@ def test_product_pages_vendor_the_composed_theme(site):
         target = site_build.product_page(site, page.name)
         published = (target / "index.html").read_text()
         source_markup = page.read_text()
-        assert source_markup.count('href="/theme.css"') == 1, page.name
+        assert 'href="/theme.css"' not in source_markup, page.name
         assert published == source_markup, page.name
         for theme in theme_halves:
             assert theme.read_text().rstrip() in (target / "theme.css").read_text(), (
@@ -582,7 +582,7 @@ def test_a_replaced_ephemeral_server_reloads_the_active_tab(served_example, brow
         with page.expect_navigation(wait_until="load", timeout=10_000):
             page.evaluate(
                 """async () => {
-                  const script = document.querySelector("script[data-lf-runtime]");
+                  const script = document.querySelector("script[data-lf-server]");
                   const url = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
                   const client = await import(url.href);
                   client.observeSession(new Response(null, {headers: {
@@ -668,7 +668,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
         )
         leader.evaluate(
             """async server => {
-              const script = document.querySelector("script[data-lf-runtime]");
+              const script = document.querySelector("script[data-lf-server]");
               const url = new URL("runtime/layer-client.js", new URL(script.dataset.lfEntry, location.origin));
               const client = await import(url.href);
               client.observeSession(new Response(null, {headers: {
@@ -712,7 +712,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
             assert page.title() == expected_title.group(1).strip(), name
             expect(page.locator("h1")).to_have_text(expected_h1.group(1).strip())
             expect(page.locator(".lf-chrome")).to_have_count(1)
-            expect(page.locator("script[data-lf-runtime]")).to_have_count(1)
+            expect(page.locator("script[data-lf-server]")).to_have_count(1)
             expect(page.locator('link[rel="stylesheet"]')).to_have_count(1)
             expect(page.locator("main > .sitenote")).to_have_count(0)
             if "<lf-toc" in source:
@@ -799,15 +799,16 @@ def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
     shutil.copytree(DOCS, staged_docs)
     tour = staged_docs / "index.html"
     tour.write_text(
-        tour.read_text().replace('<script type="module" src="/leaf.js"></script>', "")
+        tour.read_text().replace(
+            "</head>", '<script src="https://evil.example/x.js"></script></head>'
+        )
     )
     monkeypatch.setattr(site_build, "DOCS", staged_docs)
 
     with pytest.raises(SystemExit) as stopped:
         site_build.build(tmp_path / "invalid-site", verify_links=False)
-    assert (
-        "expected exactly one external <script src> tag for /leaf.js, found 0"
-        in str(stopped.value)
+    assert "<script src>" in str(stopped.value) and "belongs to delivery" in str(
+        stopped.value
     )
 
 
@@ -1754,7 +1755,8 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
         conversations = [
             thread
             for thread in build_threads(
-                events, enclosing_ids(source.read_text(encoding="utf-8"))
+                events,
+                enclosing_ids(SourceDocument(source.read_text(encoding="utf-8"))),
             ).values()
             if not bare_reaction(thread)
         ]

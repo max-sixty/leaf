@@ -16,6 +16,7 @@ import pytest
 from leaf.codex import _queues as codex_queues
 from leaf.event_log import append_event, read_events
 from leaf.hosting import server_at
+from leaf.http import supervised_document
 
 ROOT = Path(__file__).parent.parent
 _spec = importlib.util.spec_from_file_location(
@@ -108,8 +109,6 @@ PAGE_SOURCE = """<!doctype html>
     <meta charset="utf-8" />
     <title>Choose the next fix</title>
     <meta name="description" content="Pick one." />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'" />
-    <script type="module" src="/leaf.js"></script>
   </head>
   <body>
     <main><h1>Choose</h1></main>
@@ -128,8 +127,7 @@ PAGE_SOURCE = """<!doctype html>
 def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
     """An unfurler reads absolute URLs, and reads them from inside the head.
 
-    The canonical link is not here: every Leaf document names its own page root,
-    published or not, so a publication only adds what needs the site's origin.
+    Leaf owns the canonical address; publication adds what needs the site's origin.
     """
     page = {
         "kind": kind,
@@ -137,11 +135,19 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
         "description": "Pick one.",
         "image": "/media/card.png",
     }
-    served = website_server.with_site_head(
-        PAGE_SOURCE.encode(), page_root, page
+    addition = website_server.site_head(page_root, page)
+    served = supervised_document(
+        PAGE_SOURCE,
+        1,
+        1,
+        server_id="server",
+        layer_id="layer",
+        bootstrap="",
+        page_root=page_root,
+        before_runtime=addition,
     ).decode()
     head = served[: served.index("</head>")]
-    assert 'rel="canonical"' not in head
+    assert f'<link rel="canonical" href="{page_root}/" data-lf-runtime>' in head
     assert f'<meta property="og:url" content="{url}" data-lf-runtime>' in head
     assert (
         '<meta property="og:image" content="https://leaf.page/media/card.png"'
@@ -158,6 +164,9 @@ def test_a_published_document_names_its_page_to_a_crawler(page_root, kind, url):
     # The sitenote is website chrome for the examples, and rides the runtime
     # boundary rather than the head the metadata went into.
     assert ("sitenote.js" in served) is (kind == "example")
+    runtime = f'src="{page_root}/leaf.js"' if page_root else 'src="/leaf.js"'
+    assert head.index("theme.css") < head.index('property="og:type"')
+    assert head.index('property="og:type"') < head.index(runtime)
 
 
 def test_agent_logs_are_structured_and_content_free(capsys):
@@ -179,24 +188,6 @@ def test_agent_logs_keep_every_event_in_a_batched_turn_searchable():
     assert website_server.agent_event_fields(("event-1", "event-2")) == {
         "eventIds": ("event-1", "event-2")
     }
-
-
-def test_the_website_label_follows_the_script_contract_not_its_formatting():
-    document = (
-        b'<!doctype html><html><head><meta http-equiv="Content-Security-Policy" '
-        b'content="default-src \'self\'"><script\n type="module" '
-        b'src="/leaf.js"></script></head><body></body></html>'
-    )
-    page = {
-        "kind": "example",
-        "title": "Decision",
-        "description": "Pick one.",
-        "image": "/media/card.png",
-    }
-    injected = website_server.with_site_head(document, "/examples/decision", page)
-    assert injected.index(b"/examples/decision/sitenote.js") < injected.index(
-        b'src="/leaf.js"'
-    )
 
 
 @pytest.mark.parametrize(

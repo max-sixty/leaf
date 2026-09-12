@@ -52,8 +52,9 @@ other role.
 
 ## Document scaffold
 
-Write a complete HTML document. The head contains exactly one `/theme.css` link
-and one external `/leaf.js` module. Page-specific JavaScript uses inline module
+Write a complete HTML document. The authored head names and describes the page;
+Leaf adds the CSP, identity, theme, runtime, and canonical address when it delivers
+the document. Put page-specific CSS in `<style>` and JavaScript in inline module
 blocks. Every `lf-*` element has an explicit end tag.
 
 The title and description are what the page says it is anywhere outside itself: a
@@ -68,9 +69,6 @@ stands alone, since whoever reads it there has none of the page around it.
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>…</title>
   <meta name="description" content="…">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-  <link rel="stylesheet" href="/theme.css">
-  <script type="module" src="/leaf.js"></script>
 </head>
 <body>
   <main>…</main>
@@ -141,14 +139,19 @@ its exact contents into the served policy. Standard browser APIs are available; 
 that integrates with Leaf may import the public `/runtime/widget-api.js` module and
 listen to public widget events such as `lf-playground-change`.
 
+Content-only revisions activate within the open document so reading position and Leaf
+chrome stay in place. When the authored module source changes, the live page reloads:
+arbitrary page code has no teardown contract, and new markup must never run against a
+previous revision's behavior.
+
 Page modules follow the behavior-module contract in `references/packages.md`. In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection, thread quoting, and export.
 
 Use a package when behavior, styling, or vocabulary is reused across pages. A one-page
-explorer or playground keeps its code in the page. The one external script element
-remains `/leaf.js`; import any vendored dependencies from an inline module. Leaf
-refuses classic scripts, event-handler attributes, and `javascript:` URLs so every
+explorer or playground keeps its code in the page. Import any vendored dependencies
+from an inline module. Leaf refuses external and classic scripts, external
+stylesheets, event-handler attributes, and `javascript:` URLs so every authored
 executable source remains an explicit module block.
 
 Typed data and media remain inert inputs. Read them through their Leaf/browser APIs;

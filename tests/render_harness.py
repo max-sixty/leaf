@@ -31,7 +31,6 @@ import itertools
 import json
 import math
 import os
-import re
 import shutil
 import time
 from contextlib import contextmanager
@@ -41,9 +40,8 @@ from urllib.parse import urlsplit
 
 import pytest
 from click.testing import CliRunner
-from example_data import data_operations, example_versions, regression_sources
+from example_data import regression_sources
 from leaf import cli as cli_model
-from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import host as host_model
@@ -53,6 +51,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import structure as structure_model
 from leaf.render_gate import scheme as render_gate_model
+from page_fixtures import package_selection_args, prepare_page, read_fixture
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
@@ -78,12 +77,6 @@ PAGE_FIXTURES = (*EXAMPLES, *regression_sources(), *DEVELOPER_PAGES)
 # exactly as `leaf page media` names it in a real page directory. examples/CLAUDE.md
 # lists every publisher that has to lay this beside the markup, this one among them.
 EXAMPLE_MEDIA = ROOT / "examples" / "media"
-# One media reference as it stands in a message's Markdown, read with the layer's own
-# naming rather than a second spelling of it: the digest is what tells a real reference
-# from the word "/media/" in a sentence.
-MEDIA_REFERENCE = re.compile(
-    rf"/{schema_model.MEDIA_DIR}/{schema_model.DIR_FILES[schema_model.MEDIA_DIR]}"
-)
 
 
 def leaf_page(title: str, body: str, *, head: str = "") -> str:
@@ -94,9 +87,7 @@ def leaf_page(title: str, body: str, *, head: str = "") -> str:
 <head>
 <meta charset="utf-8">
 <title>{title}</title>
-<meta http-equiv="Content-Security-Policy" content="{structure_model.PAGE_CSP}">
-<link rel="stylesheet" href="/theme.css">
-{extra_head}<script type="module" src="/leaf.js"></script>
+{extra_head}
 </head>
 <body>
 <main>{body}</main>
@@ -449,10 +440,15 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(module)
         example = source if isinstance(source, Path) else None
-        selected_packages = EXAMPLE_PACKAGES if packages is None else packages
-        selection_args = [
-            arg for name in selected_packages for arg in ("--package", name)
-        ]
+        fixture = read_fixture(example) if example else None
+        selected_packages = (
+            fixture.packages
+            if fixture is not None and packages is None
+            else EXAMPLE_PACKAGES
+            if packages is None
+            else packages
+        )
+        selection_args = package_selection_args(selected_packages)
         d = tmp_path / f"page{len(servers)}"
 
         def initialize(target):
@@ -471,109 +467,53 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 else "examples-" + ("-".join(selected_packages) or "no-packages")
             )
             initialized_page(template_name, d, initialize)
-        # An example is every authored version it ships, oldest first; markup is one.
-        authored = (
-            [version.read_text() for version in example_versions(example)]
-            if example
-            else [source]
-        )
-        html = authored[-1]
-        (d / "index.html").write_text(html)
-        seed = example.with_suffix(".jsonl") if example else None
-        references = set()
-        for markup in authored:
-            parsed = structure_model.StructParser()
-            parsed.feed(markup)
-            parsed.close()
-            references |= parsed.media_refs
-        # A message names its image in Markdown rather than in an attribute, so the
-        # parsed reading that answers for markup cannot see it and a seeded pasted
-        # screenshot arrived at a page whose media directory had never heard of it.
-        # A reader is handed the uploads their log references, so the fixture lays
-        # those in too. The name is content-addressed, which is what keeps this a
-        # reading rather than a text scan: `/media/` standing in prose matches only
-        # where the author wrote a real digest, and the file guard below answers for
-        # the rest. Laid in whether or not this call seeds the log, as the example's
-        # data is: `seed_log=False` is how a caller appends those same events itself,
-        # and media the page never shows costs it nothing.
-        if seed and seed.exists():
-            references |= set(MEDIA_REFERENCE.findall(seed.read_text(encoding="utf-8")))
-        if example:
-            for operation in data_operations(example):
-                if operation["kind"] == "set":
-                    references |= set(
-                        MEDIA_REFERENCE.findall(json.dumps(operation["value"]))
-                    )
-        for reference in references:
-            fixture_media = EXAMPLE_MEDIA / reference.removeprefix("/media/")
-            if fixture_media.is_file():
-                (d / "media").mkdir(exist_ok=True)
-                shutil.copy2(fixture_media, d / "media" / fixture_media.name)
+        if fixture:
+
+            def run_leaf(*args, input_text=None):
+                result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+                assert result.exit_code == 0, result.output
+
+            prepare_page(
+                d,
+                fixture,
+                run_leaf,
+                initialize=False,
+                seed_log=seed_log,
+                final_status=None,
+                current_note="t",
+                earlier_note="t",
+            )
+        else:
+            html = source
+            (d / "index.html").write_text(html)
+            references = structure_model.SourceDocument(html).media_refs
+            for reference in references:
+                fixture_media = EXAMPLE_MEDIA / reference.removeprefix("/media/")
+                if fixture_media.is_file():
+                    (d / "media").mkdir(exist_ok=True)
+                    shutil.copy2(fixture_media, d / "media" / fixture_media.name)
         for name, data in (media or {}).items():
             path = d / name.lstrip("/")
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
         for event in events:
             events_model.append_event(d, event)
-        if example:
-            for operation in data_operations(example):
-                if operation["kind"] == "set":
-                    data_model.cmd_data_set(
-                        d,
-                        operation["source"],
-                        operation["value"],
-                        operation["capture_label"],
-                    )
-                else:
-                    data_model.cmd_data_capture(
-                        d,
-                        operation["source"],
-                        operation["input_file"],
-                        operation["lines"],
-                        operation["label"],
-                        operation["format"],
-                    )
-        (d / ".fixture-versions").mkdir(exist_ok=True)
-        seeded = bool(seed_log and seed and seed.exists())
-        for number, markup in enumerate(authored, start=1):
-            (d / "index.html").write_text(markup)
+        if fixture is None:
+            (d / ".fixture-versions").mkdir(exist_ok=True)
             activated = revisioning_model.activate_source(
                 d, events_model.read_events(d)
             )
-            assert activated.error is None and activated.revision == number, (
-                activated.error
-            )
-            (d / ".fixture-versions" / f"v{number}.html").write_text(markup)
+            assert activated.error is None and activated.revision == 1, activated.error
+            (d / ".fixture-versions" / "v1.html").write_text(source)
             events_model.append_event(
                 d,
                 {
                     "kind": "note",
                     "author": "claude",
-                    "version": number,
-                    "revision": number,
+                    "version": 1,
+                    "revision": 1,
                     "text": "t",
                 },
-            )
-            # After the first note and before any later one, so v1's announcement
-            # stays the log's first line and a revised example reads in the order it
-            # happened, which is preview.py's ordering. (The site build writes the
-            # seed alone and announces its versions elsewhere, so it has no note to
-            # come after.) Split on the writer's own separator, never splitlines(),
-            # whose wider class reads a U+2028 inside a comment's text as a break.
-            if number == 1 and seeded:
-                for line in seed.read_text(encoding="utf-8").split("\n"):
-                    if line.strip():
-                        events_model.append_event(d, json.loads(line))
-        if seeded:
-            # A seed is history rather than news, so the page opens acknowledged
-            # through it — the state every other publisher of a seeded example
-            # serves. Left at nought the banner tells the reader their own comment
-            # is queued for somebody, which is an arrival regression this corpus
-            # would have manufactured for itself. Read back for the seq rather than
-            # counted, because a seq is what the log's reader assigns and an append
-            # hands back no such number.
-            files_model.write_json(
-                d / "cursor.json", {"seq": events_model.read_events(d)[-1]["seq"]}
             )
         for i in range(comments):
             events_model.append_event(
@@ -610,7 +550,8 @@ def serve(tmp_path, monkeypatch, initialized_page):
         # The key rides in the URL exactly as it does in a handover, so the first
         # navigation of each browser context earns the cookie the rest of the
         # page's own fetches go out under.
-        return f"{server.origin}/versions/v{len(authored)}.html?t={TOKEN}"
+        version = len(fixture.versions) if fixture else 1
+        return f"{server.origin}/versions/v{version}.html?t={TOKEN}"
 
     servers = []
     yield go

@@ -11,7 +11,10 @@ import { registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
 import { settle, settling } from "./widget-upgrade.js";
 import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
-import { rememberAuthoredParents } from "./projection/authored.js";
+import {
+  captureAuthoredFacets,
+  rememberAuthoredParents,
+} from "./projection/authored.js";
 import {
   opaquePassageParts,
   opaquePassageRoots,
@@ -109,6 +112,23 @@ export async function importWidgets(scope) {
   );
 }
 
+export async function installDocument(
+  scope,
+  { source = ["page", null], mount = () => {}, watchLinks = false } = {},
+) {
+  rememberPassageParts(scope, source);
+  rememberAuthoredParents(scope);
+  markDeclared(scope, MARKED_IN_PAGE);
+  if (watchLinks) watchExternalLinks(scope);
+  const settlingFrom = settling.length;
+  await importWidgets(scope);
+  mount();
+  settle(dress(scope));
+  await Promise.allSettled(settling.slice(settlingFrom));
+  reachScrollers(scope);
+  captureAuthoredFacets(scope);
+}
+
 export async function upgradeWidgets({ buildReactionBar }) {
   const response = await fetch("/registry.json");
   if (!response.ok)
@@ -129,17 +149,6 @@ export async function upgradeWidgets({ buildReactionBar }) {
     throw new Error("leaf: registry lacks $events, $languages, $tones or $reactions");
   revealLayer();
   buildReactionBar();
-  rememberPassageParts();
-  rememberAuthoredParents();
-  markDeclared(document.body, MARKED_IN_PAGE);
-  watchExternalLinks(document.body);
-  await importWidgets(document);
-  settle(dress(document.body));
-  // Importing defined the elements and ran their connectedCallbacks; async ones
-  // registered their work via settle(). Wait it out so geometry is final.
-  await Promise.allSettled(settling);
-  // After the wait, because the box a widget scrolls is a box its module built: run this
-  // with the rest of the upgrade and a diff's pre and a code block's are half there.
-  reachScrollers(document.body);
+  await installDocument(document.body, { watchLinks: true });
   return true;
 }

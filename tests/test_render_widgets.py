@@ -4915,7 +4915,7 @@ def test_the_rail_survives_every_script_being_removed(browser, serve, tmp_path):
     page, _ = open_page(browser, serve(SUGGESTION_PAGE))
     page.evaluate("() => document.querySelectorAll('script').forEach(s => s.remove())")
     baked = page.evaluate("() => document.documentElement.outerHTML").replace(
-        '<link rel="stylesheet" href="/theme.css">',
+        '<link rel="stylesheet" href="/theme.css" data-lf-runtime="">',
         "<style>" + (serve.page_dir / "theme.css").read_text() + "</style>",
     )
     page.close()

@@ -6385,9 +6385,8 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
 def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, serve):
     """Approval is a button action; a dead sequence destination cannot turn into it."""
     html = NOTED_PAGE.replace(
-        '<script type="module" src="/leaf.js"></script>',
-        '<meta name="lf-review" content="sign-off">\n'
-        '<script type="module" src="/leaf.js"></script>',
+        "</head>",
+        '<meta name="lf-review" content="sign-off">\n</head>',
     )
     page, errors = open_page(browser, serve(html))
     approve = page.locator(".lf-signoff")

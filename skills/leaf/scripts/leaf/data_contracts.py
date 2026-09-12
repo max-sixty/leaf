@@ -9,7 +9,7 @@ from referencing.exceptions import Unresolvable
 from .files import list_revisions, revision_path
 from .registry.contract import aware_instant, json_validator
 from .schema import DATA_SOURCE_NAME
-from .structure import parse_structure
+from .structure import SourceDocument
 
 
 class DataError(click.ClickException):
@@ -134,12 +134,12 @@ def page_data_documents(
     documents = []
     for revision in list_revisions(page_dir):
         html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-        documents.append((parse_structure(html).lf_elements, f"revision r{revision}"))
+        documents.append((SourceDocument(html).lf_elements, f"revision r{revision}"))
     for event in events:
         if markup := event.get("markup"):
             documents.append(
                 (
-                    parse_structure(markup).lf_elements,
+                    SourceDocument(markup).lf_elements,
                     f"event {event['id']!r} markup",
                 )
             )
@@ -158,7 +158,7 @@ def working_data_documents(
     if authored is None:
         source = page_dir / "index.html"
         if source.exists():
-            authored = parse_structure(source.read_text(encoding="utf-8")).lf_elements
+            authored = SourceDocument(source.read_text(encoding="utf-8")).lf_elements
     if authored is not None:
         documents.append((authored, "index.html"))
     documents.extend(incoming or [])

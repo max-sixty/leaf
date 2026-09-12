@@ -32,8 +32,8 @@ def _stamp_reading(events: list, activation):
     registry = checked.registry
     if registry is None:
         sys.exit("refusing to stamp index.html: the page has no registry.json")
-    page = page_reading(checked.html, events, registry, revision)
-    return checked, registry, page.projection, page.parser, page.spoken
+    page = page_reading(checked.document, events, registry, revision)
+    return checked, registry, page.projection, page.document, page.spoken
 
 
 def _completed_work(
@@ -69,8 +69,7 @@ def _completed_work(
             + ", ".join(repr(widget) for widget in not_later)
         )
     untargeted = widget_work_without_targets(
-        checked.html,
-        parser,
+        checked.document,
         projection,
         events,
         page.status,

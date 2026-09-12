@@ -13,6 +13,7 @@ from ..passages import active_enclosing
 from ..presence import presence_with_activity
 from ..registry.contract import RegistryError
 from ..registry.storage import layer_metadata, load_registry
+from ..structure import SourceDocument
 from .browser import project_browser_state
 
 
@@ -55,17 +56,28 @@ def full_state(
     source_error: str | None = None,
     view_revision: int | None = None,
     active_override: dict | None = None,
-    source_overrides: dict[int, str] | None = None,
+    documents_override: dict[int, SourceDocument] | None = None,
+    registry_override: dict | None = None,
+    data_override: dict | None = None,
+    versions_override: list[dict] | tuple[dict, ...] | None = None,
     stored_status: dict | None = None,
+    presence_override: dict | None = None,
+    live_stream_override: dict | None = None,
+    now_override: str | None = None,
+    taken_override: float | None = None,
 ) -> dict:
     if active_override is not None:
         active = active_override
     else:
         active = active_descriptor(page_dir, events)
-    present, live_stream = presence_with_activity(
-        page_dir, events, stored_status=stored_status
-    )
-    now = now_iso()
+    if presence_override is None:
+        present, live_stream = presence_with_activity(
+            page_dir, events, stored_status=stored_status
+        )
+    else:
+        present = presence_override
+        live_stream = live_stream_override
+    now = now_override or now_iso()
     browser = project_browser_state(
         page_dir,
         events,
@@ -73,7 +85,8 @@ def full_state(
         active,
         present,
         now,
-        source_overrides=source_overrides,
+        documents_override=documents_override,
+        registry_override=registry_override,
         live_stream=live_stream,
     )
     activity = project_activity(
@@ -84,10 +97,13 @@ def full_state(
         browser,
         live_stream,
     )
-    try:
-        registry = load_registry(page_dir)
-    except RegistryError:
-        registry = None
+    if registry_override is not None:
+        registry = registry_override
+    else:
+        try:
+            registry = load_registry(page_dir)
+        except RegistryError:
+            registry = None
     identity = layer_metadata(page_dir) if layer_identity is None else layer_identity
     return {
         "layer": identity,
@@ -106,11 +122,17 @@ def full_state(
         # order they land. The wall clock rather than a counter: a counter starts over
         # with the server, and a tab open across that restart would refuse every
         # answer until the count caught up.
-        "taken": time.time(),
+        "taken": time.time() if taken_override is None else taken_override,
         "active": active,
-        "versions": version_descriptors(page_dir, events),
+        "versions": (
+            list(versions_override)
+            if versions_override is not None
+            else version_descriptors(page_dir, events)
+        ),
         "source_error": source_error,
-        "data": browser_data(page_dir, registry),
+        "data": data_override
+        if data_override is not None
+        else browser_data(page_dir, registry),
         **present,
         "activity": activity,
         "browser": browser,

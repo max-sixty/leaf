@@ -130,9 +130,6 @@ def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Migration plan</title>
 <meta name="lf-review" content="sign-off">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
 </head>
 <body>
 <main>

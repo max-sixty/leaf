@@ -18,12 +18,15 @@ from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
+from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf.render_gate import browser as browser_model
+from leaf.render_gate.preview import preview_server
+from leaf.structure import SourceDocument
 from playwright.sync_api import expect
 from render_support import (
     CUT_BOXES_PAGE,
@@ -753,7 +756,7 @@ def test_preview_watches_runtime_and_source_without_losing_reader_state(
         refused_generation = json.loads((directory / "registry.json").read_text())[
             "$layer"
         ]["generation"]
-        expect(page.locator("script[data-lf-runtime]")).to_have_attribute(
+        expect(page.locator("script[data-lf-server]")).to_have_attribute(
             "data-lf-layer", refused_generation, timeout=30000
         )
     expect(
@@ -1147,11 +1150,43 @@ def test_a_broken_probe_module_stops_export_with_a_named_error(browser, serve):
     root_url = url.replace("/versions/v1.html", "/")
     with pytest.raises(
         SystemExit,
-        match=r"v1\.html could not load its browser probe module",
+        match=r"v1\.html could not read its browser state or probe module",
     ):
         exporting_model.export_page(
             primed(browser, break_probe), root_url, serve.page_dir, "v1.html"
         )
+
+
+def test_export_waits_for_the_snapshot_the_browser_can_receive(
+    browser, serve, monkeypatch
+):
+    """Later file writes cannot move readiness beyond a frozen preview."""
+    serve(REPORT_PAGE)
+    revision = files_model.latest_revision(serve.page_dir)
+    assert revision is not None
+    document = SourceDocument(
+        files_model.revision_path(serve.page_dir, revision).read_text(encoding="utf-8")
+    )
+    monkeypatch.setattr(render_checks_model, "SERVED_TIMEOUT_MS", 1_000)
+
+    with preview_server(serve.page_dir, document, revision, version=1) as url:
+        events_model.append_event(
+            serve.page_dir,
+            {
+                "kind": "report",
+                "author": "agent",
+                "revision": revision,
+                "text": "Arrived after the preview snapshot.",
+            },
+        )
+        data_path = serve.page_dir / "data.json"
+        later_data = json.loads(data_path.read_text(encoding="utf-8"))
+        later_data["revision"] += 1
+        data_path.write_text(json.dumps(later_data), encoding="utf-8")
+
+        exported = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
+
+    assert "The feeders" in exported
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])

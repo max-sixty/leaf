@@ -13,7 +13,6 @@ from leaf.asks import (
 from leaf.data import read_data
 from leaf.event_meaning import direct_dependencies
 from leaf.events import build_threads
-from leaf.files import revision_path
 from leaf.passages import enclosing_ids
 from leaf.projection import frozen_thread_reading, page_reading
 from leaf.registry.contract import (
@@ -380,9 +379,9 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         return None
 
     if page_rec:
-        html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-        page = page_reading(html, events, registry, revision)
-        projection, parser, spk = page.projection, page.parser, page.spoken
+        document = parse_revision(page_dir, revision)
+        page = page_reading(document, events, registry, revision)
+        projection, parser, spk = page.projection, page.document, page.spoken
         byid = parser.by_id
         current = parser.by_id[event["widget"]]
         # This door asks whether the request is answered, not whether it is the
@@ -390,8 +389,7 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         # takes it off their list without answering it, and refusing their pick
         # over their own remark would refuse them the answer they were asked for.
         awaiting_values = page_awaiting_values(
-            html,
-            parser,
+            document,
             projection,
             spk,
             registry,
@@ -409,8 +407,9 @@ def action_contract_error(page_dir: Path, event: dict, events: list, registry: d
         # and its actions read the whole conversation window.
         projection, byid = thread_projection, thread_by_id
         current = byid[event["widget"]]
-        page_html = revision_path(page_dir, revision).read_text(encoding="utf-8")
-        threads = build_threads(events, enclosing_ids(page_html))
+        threads = build_threads(
+            events, enclosing_ids(parse_revision(page_dir, revision))
+        )
         settled = {root for root, value in threads.items() if value["resolved"]}
         _, awaiting_values = thread_ask_projection(
             events,

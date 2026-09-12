@@ -463,8 +463,7 @@ def page_ask_projection(
 
 
 def page_awaiting_values(
-    html,
-    parser,
+    document,
     projection,
     spk,
     registry: dict,
@@ -472,12 +471,12 @@ def page_awaiting_values(
 ) -> dict:
     """Each current page ask's declaration-driven awaiting value."""
     passages = page_passages(
-        html, registry, retirement_outcomes(projection.actions, registry)
+        document, registry, retirement_outcomes(projection.actions, registry)
     )
     return page_ask_projection(
-        parser,
+        document,
         projection,
-        parser.by_id,
+        document.by_id,
         spk,
         registry,
         set(passages.retired) | set(passages.gone),

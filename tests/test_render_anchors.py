@@ -14,6 +14,7 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -364,7 +365,10 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
 
     for index, (selector, quote, section) in enumerate(cases, 1):
         expected_anchor = anchor_capture_model.capture_anchor(
-            FENCED_CAPTURE_PAGE, registry, quote, section
+            structure_model.SourceDocument(FENCED_CAPTURE_PAGE),
+            registry,
+            quote,
+            section,
         )
         selected = page.evaluate(
             """([selector, quote]) => {
@@ -452,7 +456,9 @@ def test_quotes_cross_preserving_containers_and_remain_attached(
     page, errors = open_page(browser, url)
     quote = "Release context. Which plan should lead?"
     registry = json.loads((serve.page_dir / "registry.json").read_text())
-    expected = anchor_capture_model.capture_anchor(markup, registry, quote, "review")
+    expected = anchor_capture_model.capture_anchor(
+        structure_model.SourceDocument(markup), registry, quote, "review"
+    )
     page.evaluate(
         """() => {
           const start = document.querySelector('#context').firstChild;

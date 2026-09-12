@@ -127,22 +127,31 @@ def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries(
         "lf-piece": {"x-upgrade": True, "x-verbatim": True},
     }
     plain = passages_model.page_passages(
-        '<lf-shell id="shell"><p>set<em>up</em></p>'
-        "<lf-piece>child words</lf-piece><p>after</p></lf-shell>",
+        structure_model.SourceDocument(
+            '<lf-shell id="shell"><p>set<em>up</em></p>'
+            "<lf-piece>child words</lf-piece><p>after</p></lf-shell>"
+        ),
         registry,
     ).verbatim[("page", None, 0)]
     wrapped = passages_model.page_passages(
-        '<lf-shell id="shell"><p><span>set</span>up</p>'
-        "<lf-piece>different child rendering</lf-piece><p>after</p></lf-shell>",
+        structure_model.SourceDocument(
+            '<lf-shell id="shell"><p><span>set</span>up</p>'
+            "<lf-piece>different child rendering</lf-piece><p>after</p></lf-shell>"
+        ),
         registry,
     ).verbatim[("page", None, 0)]
     separated = passages_model.page_passages(
-        '<lf-shell id="shell"><p>set up</p>'
-        "<lf-piece>child words</lf-piece><p>after</p></lf-shell>",
+        structure_model.SourceDocument(
+            '<lf-shell id="shell"><p>set up</p>'
+            "<lf-piece>child words</lf-piece><p>after</p></lf-shell>"
+        ),
         registry,
     ).verbatim[("page", None, 0)]
     non_js_whitespace = passages_model.page_passages(
-        '<lf-shell id="shell">\u0085edge\u0085</lf-shell>', registry
+        structure_model.SourceDocument(
+            '<lf-shell id="shell">\u0085edge\u0085</lf-shell>'
+        ),
+        registry,
     ).verbatim[("page", None, 0)]
 
     assert (
@@ -164,38 +173,38 @@ def test_file_readings_follow_browser_tree_recovery():
         '<tr><td>Cell</table><p id="tail">Tail</main>'
     )
 
-    parsed = structure_model.parse_structure(html)
+    parsed = structure_model.SourceDocument(html)
     [main] = parsed.content
     assert [node["tag"] for node in main["content"]] == ["p", "table", "p"]
     assert [node["tag"] for node in main["content"][1]["content"]] == ["tr"]
 
-    passages = passages_model.page_passages(html)
+    passages = passages_model.page_passages(parsed)
     assert passages.text == "Lead Cell Tail"
     assert passages.enclosing["lead"] == ("page", "lead")
     assert passages.enclosing["grid"] == ("page", "grid")
 
 
 def test_structural_errors_distinguish_recovery_from_ambiguous_source():
-    optional = structure_model.parse_structure("<main><p>First<div>Second</div></main>")
+    optional = structure_model.SourceDocument("<main><p>First<div>Second</div></main>")
     assert optional.errors == [] and optional.unclosed == []
 
-    unclosed = structure_model.parse_structure("<main><section>Text</main>")
+    unclosed = structure_model.SourceDocument("<main><section>Text</main>")
     assert unclosed.unclosed == [("section", 1)]
 
-    caption = structure_model.parse_structure(
+    caption = structure_model.SourceDocument(
         "<main><table><caption>Title<tbody><tr><td>Cell</table></main>"
     )
     assert caption.unclosed == []
 
-    svg = structure_model.parse_structure(
+    svg = structure_model.SourceDocument(
         '<main><svg id="plot"><circle cx="5" cy="5" r="4"/></main>'
     )
     assert svg.unclosed == [("svg", 1)]
 
-    stray = structure_model.parse_structure("<main><div>Text</span></div></main>")
+    stray = structure_model.SourceDocument("<main><div>Text</span></div></main>")
     assert stray.errors == ["stray </span> at line 1 with no matching open tag"]
 
-    duplicate_body = structure_model.parse_structure(
+    duplicate_body = structure_model.SourceDocument(
         "<body><main>Text</main></body><body></body>"
     )
     assert duplicate_body.body_lines == [1, 1]
@@ -487,18 +496,18 @@ def test_version_descriptors_scan_the_revision_directory_once(tmp_path, monkeypa
     assert scans == 1
 
 
-def test_check_requires_the_layers_one_csp(page_dir):
-    """The vendoring promise — an approved page can't change under its user and
-    can't phone home — is enforced by the browser only if the page declares the
-    layer's CSP, so the gate requires it the way it requires the one script."""
+def test_check_leaves_the_layers_policy_to_delivery(page_dir):
+    """The served boundary owns policy, so source cannot compete with it."""
     version = page_dir / ".fixture-versions" / "v1.html"
-    stripped = re.sub(
-        r'<meta http-equiv="Content-Security-Policy"[^>]*>\n', "", version.read_text()
+    authored = version.read_text().replace(
+        "</head>",
+        '<meta http-equiv="Content-Security-Policy" content="default-src *">\n</head>',
     )
-    version.write_text(stripped)
+    version.write_text(authored)
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "the layer's one CSP" in result.output
+    assert "Content-Security-Policy" in result.output
+    assert "belongs to delivery" in result.output
 
 
 def test_check_refuses_markup_the_browser_never_renders(page_dir):
@@ -909,7 +918,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     used = {}
     for path in (Path(__file__).parent.parent / "examples").glob("*.html"):
-        for rec in structure_model.parse_structure(path.read_text()).lf_elements:
+        for rec in structure_model.SourceDocument(path.read_text()).lf_elements:
             for attr, value in rec["attrs"].items():
                 used.setdefault(rec["tag"], {}).setdefault(attr, set()).add(value)
     # An example pins a snapshot by writing the data revision a capture retained, and
@@ -1467,74 +1476,30 @@ def test_reply_refuses_a_suggestion(page_dir):
     assert "frozen in the log" in result.output
 
 
-def test_check_rejects_wrong_scaffold(page_dir):
-    html = PAGE.replace('<script type="module" src="/leaf.js"></script>', "").replace(
-        '<link rel="stylesheet" href="/theme.css">', ""
-    )
-    (page_dir / ".fixture-versions" / "v1.html").write_text(html)
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "exactly one external <script src> tag for /leaf.js" in result.output
-    assert "exactly one stylesheet" in result.output
-
-
 @pytest.mark.parametrize(
-    "html",
+    "asset, expected",
     [
-        PAGE.replace('<script type="module" src="/leaf.js"></script>', "").replace(
-            "</main>",
-            '</main>\n<script type="module" src="/leaf.js"></script>',
-        ),
-        PAGE.replace('<link rel="stylesheet" href="/theme.css">', "").replace(
-            "<main>", '<main>\n<link rel="stylesheet" href="/theme.css">'
-        ),
-        PAGE.replace('<link rel="stylesheet" href="/theme.css">', "")
-        .replace('<script type="module" src="/leaf.js"></script>', "")
-        .replace(
-            "</main>",
-            """</main>
-<head>
-<link rel="stylesheet" href="/theme.css">
-<script type="module" src="/leaf.js"></script>
-</head>""",
-        ),
-    ],
-    ids=["module-after-main", "stylesheet-inside-main", "assets-in-late-head"],
-)
-def test_check_requires_presentation_assets_in_head(page_dir, html):
-    """The gate must exist before the browser can paint the body it withholds."""
-    (page_dir / ".fixture-versions" / "v1.html").write_text(html)
-
-    result = check(page_dir)
-
-    assert result.exit_code == 1
-    assert "must be in <head> before <body>" in result.output
-
-
-@pytest.mark.parametrize(
-    "asset, changed",
-    [
-        (
-            '<link rel="stylesheet" href="/theme.css">',
-            '<link rel="stylesheet" href="/theme.css" media="print">',
-        ),
         (
             '<script type="module" src="/leaf.js"></script>',
-            '<script type="module" src="/leaf.js" async></script>',
+            "<script src>",
+        ),
+        (
+            '<link rel="stylesheet" href="/theme.css" media="print">',
+            "external stylesheets",
         ),
     ],
-    ids=["print-only-theme", "noncanonical-module"],
+    ids=["runtime-module", "theme"],
 )
-def test_check_requires_always_applicable_canonical_assets(page_dir, asset, changed):
-    """An asset whose URL is right but applicability differs is not the boundary."""
+def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
     (page_dir / ".fixture-versions" / "v1.html").write_text(
-        PAGE.replace(asset, changed)
+        PAGE.replace("</head>", f"{asset}\n</head>")
     )
 
     result = check(page_dir)
 
     assert result.exit_code == 1
-    assert "exactly" in result.output
+    assert expected in result.output
+    assert "delivery" in result.output
 
 
 def test_check_rejects_inline_importance_over_the_presentation_boundary(page_dir):
@@ -1585,6 +1550,28 @@ def test_check_requires_main_to_be_a_direct_body_child(page_dir):
 
     assert result.exit_code == 1
     assert "one <main> directly under <body>" in result.output
+
+
+def test_check_requires_an_explicit_head_for_delivery(page_dir):
+    """Delivery has one validated insertion point for its generated head."""
+    source = PAGE.replace("<head>", "").replace("</head>", "")
+    (page_dir / ".fixture-versions" / "v1.html").write_text(source)
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "one explicit <head> directly under <html>" in result.output
+
+
+def test_check_rejects_an_extra_head_that_html_recovery_ignores(page_dir):
+    """The source contract counts tags the recovered browser tree discards."""
+    source = PAGE.replace("</html>", "<head></head></html>")
+    (page_dir / ".fixture-versions" / "v1.html").write_text(source)
+
+    result = check(page_dir)
+
+    assert result.exit_code == 1
+    assert "found 2 head tags" in result.output
 
 
 @pytest.mark.parametrize(

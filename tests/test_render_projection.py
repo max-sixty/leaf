@@ -16,6 +16,7 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
+from leaf import structure as structure_model
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.validation import compatibility as validation_model
@@ -1268,6 +1269,31 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     with sending(page, "the comment on the live draft"):
         page.locator(".lf-general button").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
+    assert errors == []
+    page.close()
+
+
+def test_a_live_revision_with_new_authored_code_reloads_the_document(browser, serve):
+    """A module revision gets a fresh realm instead of inheriting old behavior."""
+    first = LIVE_V1.replace(
+        "</head>",
+        '<script type="module">globalThis.__authoredRevision = "one";</script></head>',
+    )
+    second = LIVE_V2.replace(
+        "</head>",
+        '<script type="module">globalThis.__authoredRevision = "two";</script></head>',
+    )
+    page, errors = open_page(browser, live_url(serve(first)))
+    page.wait_for_function("() => globalThis.__authoredRevision === 'one'")
+    page.evaluate("globalThis.__oldDocument = true")
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+
+    expect(page).to_have_title("Live second")
+    page.wait_for_function("() => globalThis.__authoredRevision === 'two'")
+    assert page.evaluate("globalThis.__oldDocument") is None
+    assert "/versions/" not in page.url
     assert errors == []
     page.close()
 
@@ -2713,14 +2739,16 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     reordered = reordered.replace(
         "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
     )
-    with preview_server(d, reordered.encode(), 4) as preview_url:
+    with preview_server(d, structure_model.SourceDocument(reordered), 4) as preview_url:
         failures = render_gate_model.render_version(browser, preview_url)
     assert len(failures) == 1 and "id=work" in failures[0], failures
 
     # v4 asserts the other option and re-authors the card into Doing: both
     # widgets changed since v3 and replay overrides both — the author must hear.
     contradicted = REPLAYED_PAGE.replace('id="opt-stage"', 'id="opt-stage" chosen')
-    with preview_server(d, contradicted.encode(), 4) as preview_url:
+    with preview_server(
+        d, structure_model.SourceDocument(contradicted), 4
+    ) as preview_url:
         failures = render_gate_model.render_version(browser, preview_url)
     assert len(failures) == 2, failures
     assert any("id=approach" in f and "opt-stage" in f for f in failures), failures
@@ -2833,7 +2861,9 @@ customElements.define("lf-pair", class extends HTMLElement {
     )
     # The same older facet really is contradicted when its own record changes.
     with preview_server(
-        d, current.replace('first="a"', 'first="b"').encode(), 3
+        d,
+        structure_model.SourceDocument(current.replace('first="a"', 'first="b"')),
+        3,
     ) as preview_url:
         failures = render_gate_model.render_version(browser, preview_url)
     assert len(failures) == 1 and "id=pair" in failures[0], failures

@@ -27,9 +27,9 @@ def activate_source(
         return Activation(active, "; ".join(checked.errors), False, checked)
     if (
         active is not None
-        and revision_path(page_dir, active).read_bytes() == checked.data
+        and revision_path(page_dir, active).read_bytes() == checked.document.data
     ):
         return Activation(active, None, False, checked)
     revision = (active or 0) + 1
-    write_revision(page_dir, revision, checked.data)
+    write_revision(page_dir, revision, checked.document.data)
     return Activation(revision, None, True, checked)

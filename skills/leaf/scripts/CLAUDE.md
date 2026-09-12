@@ -16,6 +16,8 @@ The main owners are:
 - `agent_state`: the agent-facing folded page-state and exact-conversation readings;
 - `delivery`: the host-neutral immutable delivery envelope and delivery lookup;
 - `document_reading`: the shared document, projection, and decision reading;
+- `page_snapshot`: the transaction-consistent document, state, data, registry,
+  presence, and change reading served by one browser preview;
 - `construction`: effective document content with source, state, and data origins;
 - `transcript`: raw-event selection and the human-facing Markdown export;
 - `event_log`: append-only JSONL storage, locking, and attempt identity;

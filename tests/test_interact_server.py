@@ -44,6 +44,7 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import leases as leases_model
 from leaf import media as media_model
+from leaf import page_snapshot as page_snapshot_model
 from leaf import presence as presence_model
 from leaf import projection as projection_model
 from leaf import publishing as publishing_model
@@ -52,11 +53,13 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import service as service_model
+from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as served_browser
 from leaf.served_state import document as served_document
 from leaf.served_state import page as served_page
+from leaf.served_state import service as served_service
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
@@ -70,7 +73,7 @@ def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page
         layer="superseded-layer",
     )
 
-    assert status == 200
+    assert status == 200, body
     assert json.loads(body) == {"layer": current}
     assert event_model.read_events(page_dir) == before
 
@@ -621,9 +624,8 @@ def test_server_round_trip(server, page_dir):
         source.read_text()
         .replace("</section>", registry["lf-board"]["x-example"] + "\n</section>")
         .replace(
-            '<script type="module" src="/leaf.js"></script>',
-            '<style>.probe::before { content: "</head>"; }</style>\n'
-            '<script type="module" src="/leaf.js"></script>',
+            "</head>",
+            '<style>.probe::before { content: "</head>"; }</style>\n</head>',
         )
     )
     # A valid save is live immediately, while no public stamp exists yet.
@@ -656,18 +658,11 @@ def test_server_round_trip(server, page_dir):
     assert marker in body
     assert b"base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;" in body
     assert (
-        body.index(b"</style>")
-        < body.index(marker)
-        < body.index(b'<script type="module" src="/leaf.js"></script>')
+        body.index(marker)
+        < body.index(b'<script type="module" src="/leaf.js" data-lf-runtime></script>')
+        < body.index(b"</style>")
     )
-    # A historical revision may predate the current canonical policy. The HTTP
-    # projection applies today's boundary instead of preserving the stale meta tag.
-    revision = files_model.revision_path(page_dir, 2)
-    legacy = revision.read_bytes().replace(
-        b"base-uri 'none'; form-action 'none'; ", b""
-    )
-    revision = revision.rename(revision.with_name(files_model.revision_name(2, legacy)))
-    revision.write_bytes(legacy)
+    # Historical source remains delivery-free; today's boundary is applied when read.
     with urllib.request.urlopen(f"{server}/versions/v1.html?t={TOKEN}") as response:
         pinned = response.read()
         assert response.status == 200
@@ -723,7 +718,7 @@ def test_server_round_trip(server, page_dir):
             }
         ).encode(),
     )
-    assert status == 200
+    assert status == 200, body
     posted = event_model.read_events(page_dir)[-1]
     assert posted["author"] == "user" and posted["id"] != "c9"
     assert "agent" not in posted and "session" not in posted
@@ -1006,15 +1001,14 @@ def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_
         assert b'data-lf-entry="/leaf.js"' in body, address
 
 
-def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
+def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     server, page_dir
 ):
-    """A Unicode separator before an indented script must not shift its marker."""
+    """A Unicode separator and indented close must not shift head insertion."""
     # Keep the separator escaped so normalization cannot silently weaken the fixture.
-    script = '<script type="module" src="/leaf.js"></script>'
     source = PAGE.replace(
         "<title>t</title>", "<title>Backfill plan\u2028Q3</title>"
-    ).replace(script, "  " + script)
+    ).replace("</head>", "  </head>")
     (page_dir / ".fixture-versions" / "v1.html").write_text(source, encoding="utf-8")
     assert check(page_dir).exit_code == 0
     publish(page_dir)
@@ -1026,10 +1020,11 @@ def test_the_live_root_places_its_marker_by_the_parsers_own_line_break(
         '<meta name="lf-version" data-lf-runtime content="1">'
     )
     assert body.count(marker) == 1
-    assert "  " + marker + script in body
+    assert "<head>" + marker in body
+    assert "Backfill plan\u2028Q3" in body
     assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.
-    assert '<link rel="stylesheet" href="/theme.css">' in body
+    assert '<link rel="stylesheet" href="/theme.css" data-lf-runtime>' in body
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
@@ -1385,7 +1380,10 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         .replace('id="other-option"', 'id="flag-first"')
         .replace('id="moved-option"', 'id="other-option"')
     )
-    documents = {1: old_page, 2: new_page}
+    documents = {
+        1: structure_model.SourceDocument(old_page),
+        2: structure_model.SourceDocument(new_page),
+    }
     versions = page_dir / ".fixture-versions"
     versions.joinpath("v1.html").write_text(old_page)
     publish(page_dir, 1)
@@ -3382,17 +3380,17 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     attempt = "attempt-for-the-door-x"
     comment = {"kind": "comment", "revision": 1, "text": "hello", "attempt": attempt}
     active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    snapshot = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        structure_model.parse_revision(page_dir, active["revision"]),
+        active,
+    )
     preview = hosting_model.LeafHTTPServer(
         ("127.0.0.1", 0),
         http_model.handler_for(
             page_dir,
             TOKEN,
-            preview_source={
-                "data": files_model.revision_path(
-                    page_dir, active["revision"]
-                ).read_bytes(),
-                "active": active,
-            },
+            page_snapshot=snapshot,
         ),
     )
     thread = threading.Thread(target=preview.serve_forever, daemon=True)
@@ -3528,6 +3526,102 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     assert [
         e for e in event_model.read_events(page_dir) if e["kind"] == "comment"
     ] == []
+
+
+def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
+    """A browser check cannot combine state written after its candidate was frozen."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "files": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "key": {"type": "string"},
+                        "patch": {"type": "string"},
+                    },
+                    "required": ["key", "patch"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["files"],
+        "additionalProperties": False,
+    }
+    declare_data_input(page_dir, "patches", schema, contract="patch-list")
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["$data"]["contracts"]["patch-list"]["fragments"] = {
+        "items": "files",
+        "key": "key",
+        "value": "patch",
+    }
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    data_model.cmd_data_set(
+        page_dir, "patches", {"files": [{"key": "a.py", "patch": "old"}]}
+    )
+    publish(page_dir)
+    events = event_model.read_events(page_dir)
+    active = files_model.active_descriptor(page_dir, events)
+    snapshot = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        structure_model.parse_revision(page_dir, active["revision"]),
+        active,
+    )
+    projection = served_service.PageStateService(
+        page_dir, page_snapshot=snapshot
+    ).page_state()
+
+    event_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": active["revision"],
+            "text": "Arrived after the browser check began",
+        },
+    )
+    data_model.cmd_data_set(
+        page_dir, "patches", {"files": [{"key": "a.py", "patch": "new"}]}
+    )
+    (page_dir / "index.html").write_text(
+        (page_dir / "index.html").read_text().replace("<h1>A</h1>", "<h1>B</h1>")
+    )
+    publish(page_dir)
+
+    after = served_service.PageStateService(
+        page_dir, page_snapshot=snapshot
+    ).page_state()
+    assert after["active"] == projection["active"]
+    assert after["events"] == projection["events"]
+    assert after["data"] == projection["data"]
+
+    with hosting_model.TemporaryPageServer(
+        page_dir,
+        token=TOKEN,
+        handler_options={"page_snapshot": snapshot},
+    ) as server:
+        status, state = fetch(f"{server.origin}/api/state")
+        assert status == 200
+        assert json.loads(state)["reading"] == snapshot.reading
+        assert fetch(f"{server.origin}/")[0] == 200
+        assert fetch(f"{server.origin}{snapshot.versions[0]['url']}")[0] == 200
+        revision_url = "/revisions/" + snapshot.revision_names[active["revision"]]
+        assert fetch(f"{server.origin}{revision_url}")[0] == 200
+        assert (
+            json.loads(fetch(f"{server.origin}/registry.json")[1]) == snapshot.registry
+        )
+        status, fragment = fetch(
+            f"{server.origin}/api/data?data_revision=1&source=patches&key=a.py"
+        )
+        assert status == 200
+        assert json.loads(fragment)["value"] == "old"
+
+        stream = http.client.HTTPConnection("127.0.0.1", server.port, timeout=5)
+        stream.request("GET", f"/api/news?t={TOKEN}")
+        response = stream.getresponse()
+        assert response.readline().decode().strip() == f"data: {snapshot.reading}"
+        stream.close()
 
 
 def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):

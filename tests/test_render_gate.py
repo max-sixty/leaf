@@ -146,6 +146,26 @@ def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
     }
 
 
+def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
+    source = leaf_page(
+        "pre-upgrade structure",
+        "<h1>Held before Leaf starts</h1>",
+    )
+    page = browser.new_page()
+    page.route(
+        "**/theme.css",
+        lambda route: (time.sleep(0.1), route.fulfill(body="main { display: none; }")),
+    )
+    try:
+        findings = render_gate_scheme.start_with_pre_upgrade_proof(
+            page, serve(source, packages=())
+        )
+    finally:
+        page.close()
+
+    assert findings == ["authored main has no measurable pre-upgrade layout"]
+
+
 def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):
     """Pane bounds are real scroll bounds, so content past a pane's first fold remains
     reachable without being exempted from the ordinary geometry checks."""

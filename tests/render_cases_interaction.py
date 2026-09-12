@@ -814,10 +814,10 @@ LIVE_V2 = (
         ),
     )
     .replace(
-        '<script type="module" src="/leaf.js"></script>',
+        "</head>",
         '<meta name="lf-review" content="sign-off">\n'
         "<style>#live-reading { --live-cut: 2; }</style>\n"
-        '<script type="module" src="/leaf.js"></script>',
+        "</head>",
     )
 )
 LIVE_V3 = (

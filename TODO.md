@@ -77,6 +77,11 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Find a specific first task for the public home page.** The current page starts
+  with the comment-and-revise loop: a visitor asks Leaf guide to edit their private copy.
+  Replace that interim prompt only after testing a task a new visitor would actually
+  bring; avoid canned choices that manufacture work for the guide.
+
 - **Decide whether visual review needs expanded inspection.** Compare an embedded review
   with the same run as a bounded root review. Add expansion only if focused workspaces do
   not cover the real tasks, and keep it package-owned until a second interactive object

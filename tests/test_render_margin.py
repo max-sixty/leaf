@@ -4771,6 +4771,25 @@ def test_a_shared_passage_steps_between_single_conversation_cards(browser, serve
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("1 of 2")
     previous = preview.get_by_role("button", name="Previous conversation")
     next_conversation = preview.get_by_role("button", name="Next conversation")
+    controls = preview.evaluate(
+        """preview => Object.fromEntries(
+          ['.lf-margin-preview-nav', '.lf-resolve', '.lf-margin-preview-close'].map(
+            selector => {
+              const box = preview.querySelector(selector).getBoundingClientRect();
+              return [selector, {left: box.left, right: box.right,
+                middle: box.top + box.height / 2}];
+            }
+          )
+        )"""
+    )
+    middles = [box["middle"] for box in controls.values()]
+    assert max(middles) - min(middles) <= 2, controls
+    assert (
+        controls[".lf-margin-preview-nav"]["right"] < controls[".lf-resolve"]["left"]
+    ), controls
+    assert (
+        controls[".lf-resolve"]["right"] < controls[".lf-margin-preview-close"]["left"]
+    ), controls
     expect(previous).to_be_disabled()
     expect(next_conversation).to_be_enabled()
     disabled_style = previous.evaluate(

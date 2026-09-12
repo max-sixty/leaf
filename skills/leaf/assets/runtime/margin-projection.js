@@ -316,7 +316,6 @@ export function createMarginProjection({
   previewClose.type = "button";
   previewClose.setAttribute("aria-label", "Dismiss conversation view");
   previewClose.title = "Dismiss conversation view (Esc)";
-  previewHead.append(previewTitle, previewClose);
   const previewNav = el("div", "lf-margin-preview-nav");
   const previewPosition = el("span", "lf-margin-preview-position");
   const previewPrevious = offer(
@@ -331,8 +330,9 @@ export function createMarginProjection({
   previewNext.setAttribute("aria-label", "Next conversation");
   previewNext.title = "Next conversation";
   previewNav.append(previewPosition, previewPrevious, previewNext);
+  previewHead.append(previewTitle, previewNav, previewClose);
   const previewList = el("div", "lf-margin-preview-list");
-  preview.append(previewHead, previewNav, previewList);
+  preview.append(previewHead, previewList);
   let threadTransitionEpoch = 0;
   let threadTransitionMotions = [];
 
@@ -1037,11 +1037,10 @@ export function createMarginProjection({
   function acknowledgmentFace(receipt) {
     const age = ago(receipt.ts);
     if (receipt.phase === "active") {
+      const state = receipt.quiet ? `Was active ${age}` : "Active";
       return {
         kind: "activity",
-        text: ["Active", receipt.detail, receipt.quiet ? "quiet" : null]
-          .filter(Boolean)
-          .join(" · "),
+        text: [state, receipt.detail].filter(Boolean).join(" · "),
         context: [age && `Checked in ${age}`, receipt.detail]
           .filter(Boolean)
           .join(" · "),

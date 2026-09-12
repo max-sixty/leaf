@@ -1476,7 +1476,7 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
    subject. A message carries it in the metadata row it already owns. Frozen widgets and
    claims with no source message keep this full-width fallback; page targets present the
    same projection through their existing margin entry. The state stays on one line,
-   with ellipsis and the full text on hover; the age and silence word keep their room.
+   with ellipsis and the full text on hover; a past-active state carries its own age.
    A phase change is a change of words and semantic
    color, with no motion: the line answers a question the reader already asked, and a
    tint that replays is a flash.
@@ -1490,8 +1490,6 @@ ol.steps > li::before { content: counter(step); position: absolute; left: 0;
 .lf-receipt-state { flex: 1; min-width: 0; overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis; }
 .lf-receipt.is-active .lf-receipt-state { color: var(--ok-ink); }
-.lf-receipt .lf-receipt-quiet { flex: none; color: var(--warn-ink);
-  background: var(--warn-tint); border-radius: 3px; padding: 0 4px; white-space: nowrap; }
 .lf-receipt time { color: var(--muted-2); white-space: nowrap; }
 .lf-receipt.lf-message-receipt { display: inline-flex; flex: 1 1 auto; align-items: baseline;
   width: auto; min-width: 0; margin: 0; padding: 0; clear: none; grid-column: auto;

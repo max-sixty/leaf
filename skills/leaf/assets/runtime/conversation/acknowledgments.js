@@ -13,8 +13,9 @@
    applications, and in their place, so an unchanged phase is not re-announced: a node
    taken out of the document and put back replays every animation it wears and
    re-announces its live region. A phase change updates words and semantic color with no
-   motion. Its live state span changes only with semantic phase or detail; the separate
-   age clock may repaint on a heartbeat without entering the live region. A newly
+   motion. Its live state span changes only with semantic phase, detail, or the age
+   carried by a past-active state; the separate age clock may repaint on a heartbeat
+   without entering the live region. A newly
    constructed margin card uses the same writer on its detached subtree before display. */
 import { ago } from "../presence.js";
 import { el } from "../widget-elements.js";
@@ -24,8 +25,10 @@ import { elementById, inChrome, pageQueryAll } from "../passages.js";
 import { threadList } from "./state.js";
 
 const phaseText = (receipt) => {
-  if (receipt.phase === "active")
-    return receipt.detail ? `● Active — ${receipt.detail}` : "● Active";
+  if (receipt.phase === "active") {
+    const phase = receipt.quiet ? `● Was active ${ago(receipt.ts)}` : "● Active";
+    return receipt.detail ? `${phase} — ${receipt.detail}` : phase;
+  }
   if (receipt.phase === "queued") return "✓ Queued";
   if (receipt.phase === "picked_up")
     return receipt.dropped ? "○ Picked up · turn ended" : "✓ Picked up";
@@ -79,17 +82,11 @@ function paintReceipt(host, receipt, before, wanted, metadata = false) {
   line.dataset.lfPhase = receipt.phase;
   line.toggleAttribute("data-lf-dropped", Boolean(receipt.dropped));
 
-  let quiet = line.querySelector(":scope > .lf-receipt-quiet");
-  const isQuiet = receipt.phase === "active" && receipt.quiet;
-  if (isQuiet && !quiet) {
-    quiet = el("span", "lf-receipt-quiet", "quiet");
-    line.insertBefore(quiet, line.querySelector(":scope > time"));
-  } else if (!isQuiet) quiet?.remove();
-
   const time = line.querySelector(":scope > time");
   if (time) {
     const age = ago(receipt.ts);
-    if (time.textContent !== age) time.textContent = age;
+    const shownAge = receipt.phase === "active" && receipt.quiet ? "" : age;
+    if (time.textContent !== shownAge) time.textContent = shownAge;
   }
 }
 

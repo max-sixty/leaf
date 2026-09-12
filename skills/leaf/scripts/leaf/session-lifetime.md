@@ -149,10 +149,12 @@ the same delivery for a later turn instead of using page input as steering. Its
 subscription spans the active turn, the queued turn's opening, and that turn's
 terminal notification, recording both `opened` and the exact turn close. A host
 that owns a starting connection closes only the matching Leaf claim turn on its
-terminal notification. It never converts the assistant final message into a Leaf
-reply or receipt. This is another carrier over the same delivery, page claim,
-event log, and activity projection, not another conversation store or response
-policy.
+terminal notification. When that directly started delivery has exactly one plain
+reply, the connection streams the assistant final message into that thread and
+commits the completed message through the ordinary reply operation. Every other
+response shape remains explicit. This is another carrier over the same delivery,
+page claim, event log, and activity projection, not another conversation store or
+response policy.
 
 `server start` spawns the service into a session of its own and hands back the
 URL that process printed and the lifetime it recorded, so a killed carrier costs

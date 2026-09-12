@@ -11,7 +11,9 @@
  *
  * Three voices, because the page already has three kinds of words and the norms
  * turn on telling them apart. What the page *says* is set in a text serif: prose
- * a user reads closely and points at. What the page *labels* — an eyebrow, a
+ * a user reads closely and points at. Dense working surfaces such as tables
+ * use the sans too: their words are compared across rows rather than read in sequence.
+ * What the page *labels* — an eyebrow, a
  * column heading, a chip, the headings across a table, a metric's caption — is
  * apparatus, set in the UI sans at small sizes with tracking, so it reads as
  * machinery around the argument rather than as part of it. What it *shows* is mono:
@@ -842,7 +844,7 @@ img, svg, video { max-width: 100%; height: auto; }
  * lf-board already make, and the reason not to write a print rule undoing this
  * one. */
 table { display: block; overflow-x: auto; border-collapse: collapse;
-        font-size: var(--t-5); margin: 18px 0; font-variant-numeric: tabular-nums; }
+        font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
 caption { text-align: left; font-size: var(--t-6); color: var(--muted);
           margin-bottom: 6px; }
 th, td { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--rule);
@@ -855,11 +857,11 @@ tr > :last-child { padding-right: 0; }
 /* Which kind of header a th is, asked of the author's own word for it rather
    than of where it sits: a header row written without a <thead> is still column
    headings, and `scope="row"` is what a row's name needs said anyway. Each rule
-   says which kind it is for, so neither resets the other — a row's name is the
-   page's words in the page's face, and shouting it in 11.5px small caps is what
-   one rule for both did. */
-th:not([scope="row"]) { font-size: var(--t-6); text-transform: uppercase;
-     letter-spacing: .06em; color: var(--muted); font-weight: 600;
+   says which kind it is for, so neither resets the other — a row's name shares its
+   values' working face and size, while the
+   column headings are quieter. Both keep the author's capitalization. */
+th:not([scope="row"]) { font-size: 13px;
+     color: var(--muted); font-weight: 600;
      border-bottom-color: var(--border-2); }
 th[scope="row"] { font-weight: 600; }
 details { background: var(--field); border: 1px solid var(--rule);

@@ -7,3 +7,7 @@ export const applicationState = createSemanticApplication();
 export const readApplication = applicationState.read;
 export const projectView = applicationState.projectView;
 export const selectWidgets = applicationState.selectWidgets;
+export const watchSemantic = (callback) =>
+  applicationState
+    .select((root) => root.semanticEpoch)
+    .subscribe(() => callback(readApplication()));

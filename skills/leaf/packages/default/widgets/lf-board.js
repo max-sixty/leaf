@@ -22,19 +22,17 @@
  * twice. */
 import Sortable from "/vendor/sortable.esm.js";
 import {
-  actionAvailable,
   once,
   offer,
   quoted,
   says,
-  sendAction,
   notice,
   announce,
   commands,
   labelOf,
   measure,
   saying,
-  watchActions,
+  widgetController,
   dragging,
   motion,
   scrollerFor,
@@ -48,6 +46,7 @@ customElements.define(
   "lf-board",
   class extends HTMLElement {
     #grabbed = null; // {card, grip, from, index} — the origin, for cancel and no-op drops
+    #controller = widgetController(this);
     #superseded = null; // a grab folded into a pointer drag of the same card (see onStart)
     #rows = new WeakMap(); // grip → its declared rows, for the grab announcement
     #namesObserver = null;
@@ -58,7 +57,7 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) {
         if (!quoted(this)) {
-          this.#stopActions ??= watchActions(this, null, this.#paintAvailability);
+          this.#stopActions ??= this.#controller.subscribe(this.#paintAvailability);
           for (const col of this.querySelectorAll(":scope > lf-column"))
             this.#sortable(col);
         }
@@ -91,7 +90,7 @@ customElements.define(
       });
       for (const col of this.querySelectorAll(":scope > lf-column"))
         this.#sortable(col);
-      this.#stopActions ??= watchActions(this, null, this.#paintAvailability);
+      this.#stopActions ??= this.#controller.subscribe(this.#paintAvailability);
       this.#observeMotion();
       this.#names();
       // Grip names come from where their cards sit, so column child-list mutations
@@ -188,7 +187,7 @@ customElements.define(
     }
 
     #paintAvailability = () => {
-      const available = actionAvailable(this, "move");
+      const available = this.#available();
       for (const sortable of this.#sortables) sortable.option("disabled", !available);
       for (const grip of this.querySelectorAll(
         ":scope > lf-column > lf-card > .lf-grip",
@@ -201,6 +200,10 @@ customElements.define(
       ))
         button.disabled = !available;
     };
+
+    #available() {
+      return Boolean(this.#controller.read().actions.move?.available);
+    }
 
     #observeNames() {
       if (
@@ -240,9 +243,7 @@ customElements.define(
         line: "grab the card",
         // .lf-dragging without a grab is a live pointer drag — one gesture at a time.
         when: () =>
-          actionAvailable(this, "move") &&
-          !held() &&
-          !this.classList.contains("lf-dragging"),
+          this.#available() && !held() && !this.classList.contains("lf-dragging"),
         run: () => this.#grab(card, grip),
       };
       // The tooltip names the keys the row binds rather than a letter typed beside it: the
@@ -330,7 +331,7 @@ customElements.define(
           `Move ${this.#title(card)} to ${column.getAttribute("label")}`,
         );
         button.addEventListener("click", () => {
-          if (!actionAvailable(this, "move")) return;
+          if (!this.#available()) return;
           const from = card.parentElement;
           if (from === column) return;
           this.#place(
@@ -347,7 +348,7 @@ customElements.define(
     }
 
     #grab(card, grip) {
-      if (!actionAvailable(this, "move")) return;
+      if (!this.#available()) return;
       const from = card.parentElement;
       const cards = this.#cards(from);
       const index = cards.indexOf(card);
@@ -457,11 +458,24 @@ customElements.define(
     // layer from the declared record plus its outbox, never from this gesture's DOM
     // snapshot: that snapshot may be another queued move the server also refused.
     #send(card, from, to) {
-      sendAction(this, "move", {
-        card: card.id,
-        to: to.id,
-        index: this.#cards(to).indexOf(card),
-      }).then((ok) => {
+      const sent = this.#controller.dispatch({
+        kind: "action",
+        verb: "move",
+        detail: {
+          card: card.id,
+          to: to.id,
+          index: this.#cards(to).indexOf(card),
+        },
+      });
+      // A pointer drag can outlive the reading that enabled it. If admission has
+      // already closed by drop time, there is no optimistic publication to repaint
+      // the board, so put the moved native node back from the controller's current
+      // semantic state immediately.
+      if (!sent) {
+        this.renderState(this.#controller.read().state);
+        return;
+      }
+      sent.delivery.then((ok) => {
         if (ok)
           notice(
             `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute(
@@ -473,7 +487,7 @@ customElements.define(
 
     #sortable(col) {
       const sortable = new Sortable(col, {
-        disabled: !actionAvailable(this, "move"),
+        disabled: !this.#available(),
         group: `board-${this.id}`, // per board: two boards on a page don't cross-drag
         draggable: "lf-card",
         handle: ".lf-grip",

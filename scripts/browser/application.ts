@@ -65,6 +65,19 @@ export interface SemanticDocument {
     }
   >;
   authored: AuthoredMap;
+  descriptors: ReadonlyMap<string, WidgetDescriptor>;
+}
+
+export interface WidgetDescriptor {
+  id: string;
+  tag: string;
+  document: { kind: "page"; revision: number } | { kind: "thread" };
+  declaration: Record<string, unknown>;
+  parent: { id: string; tag: string } | null;
+  ancestors: readonly { id: string; tag: string }[];
+  quoted: boolean;
+  bindings: Readonly<Record<string, string | null>>;
+  offers: readonly { tag: string; attribute: string; verb: string }[];
 }
 
 export interface AuthoritativeState {
@@ -78,11 +91,24 @@ export interface AuthoritativeState {
       string,
       {
         basis: { revision: number; through_seq: number };
-        document: { projection: WireProjection };
+        document: {
+          projection: WireProjection;
+          asks?: {
+            awaiting?: Record<string, boolean>;
+            unanswered_awaiting?: Record<string, boolean>;
+          };
+          requests?: { seat: { widget: string }; phase: string }[];
+        };
+        undo?: { event: Event }[];
         coverage: object[];
       }
     >;
-    conversation: { threads: Thread[]; projection: WireProjection };
+    conversation: {
+      threads: Thread[];
+      projection: WireProjection;
+      asks?: { awaiting?: Record<string, boolean> };
+      requests?: { seat: { widget: string }; phase: string }[];
+    };
     receipts: Event[];
   };
   activity: unknown;
@@ -123,15 +149,189 @@ function normalizedProjection(
   return { entries, actionIds, reportIds, desiredIds, coverage: view?.coverage ?? [] };
 }
 
+const emptyLifecycle = (descriptor: WidgetDescriptor) => ({
+  seat: { document: descriptor.document, widget: descriptor.id },
+  attempts: [],
+  latest: null,
+  phase: "ready",
+});
+
+// The selected server view already bounds page history to the captured revision and
+// conversation history to its frozen document. Widget ids are unique across both, so
+// filtering again by the event's authored revision would incorrectly discard carried
+// decisions from an earlier revision.
+const appliesTo = (descriptor: WidgetDescriptor, event: Event) =>
+  event.widget === descriptor.id;
+
+function awaitingValue(
+  root: ReturnType<ReturnType<typeof createSemanticApplication>["read"]>,
+  descriptor: WidgetDescriptor,
+) {
+  const page = root.effective.lifecycle.page;
+  const conversation = root.effective.lifecycle.conversation;
+  return Boolean(
+    page?.asks?.unanswered_awaiting?.[descriptor.id] ??
+      conversation?.asks?.awaiting?.[descriptor.id],
+  );
+}
+
+function requirementMatches(
+  root: ReturnType<ReturnType<typeof createSemanticApplication>["read"]>,
+  descriptor: WidgetDescriptor,
+  requirement: { target: "self" | "owner"; awaiting: boolean },
+) {
+  if (requirement.target === "self")
+    return awaitingValue(root, descriptor) === requirement.awaiting;
+  const declaredOwners = (descriptor.declaration["x-owners"] ?? []) as string[];
+  let child: WidgetDescriptor | undefined = descriptor;
+  const visited = new Set([descriptor.id]);
+  while (child) {
+    const positioned = [...root.effective.projection.desired.values()].find(
+      ({ unit, spec }) => unit === child?.id && spec.record?.kind === "position",
+    );
+    const parentId = positioned
+      ? positioned.e.detail[positioned.spec.record.value]
+      : child.parent?.id;
+    if (typeof parentId !== "string" || visited.has(parentId)) return false;
+    visited.add(parentId);
+    const parent = root.document.descriptors.get(parentId) as
+      | WidgetDescriptor
+      | undefined;
+    if (!parent) return false;
+    if (declaredOwners.includes(parent.tag))
+      return awaitingValue(root, parent) === requirement.awaiting;
+    child = parent;
+  }
+  return false;
+}
+
+function widgetReading(
+  root: ReturnType<ReturnType<typeof createSemanticApplication>["read"]>,
+  descriptor: WidgetDescriptor,
+) {
+  const registered = root.document.descriptors.get(descriptor.id);
+  const current = root.effective.widgets.get(descriptor.id);
+  const declaration = descriptor.declaration;
+  const actionSpecs = (declaration["x-state"] ?? {}) as Record<
+    string,
+    ActionSpec & {
+      requires?: { target: "self" | "owner"; awaiting: boolean };
+    }
+  >;
+  const projection = root.effective.projection;
+  const classified = [...projection.classified.values()]
+    .filter(
+      ({ e, terminal }) =>
+        !terminal && e.kind === "action" && appliesTo(descriptor, e),
+    )
+    .sort((left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0));
+  const desired = [...projection.actions.values()].filter(({ e }) =>
+    appliesTo(descriptor, e),
+  );
+  const pending = root.unresolved.filter((entry) => appliesTo(descriptor, entry.event));
+  const durableUndo = root.effective.lifecycle.undo
+    .map((candidate: { event: Event }) => candidate.event)
+    .filter(
+      (event: Event) =>
+        event.kind === "action" &&
+        appliesTo(descriptor, event) &&
+        !projection.pendingWithdrawals.has(event.id),
+    );
+  const localUndo = desired
+    .map(({ e }) => e)
+    .filter((event) => String(event.id).startsWith(PENDING));
+  const actions = Object.fromEntries(
+    Object.entries(actionSpecs).map(([verb, spec]) => [
+      verb,
+      {
+        available:
+          JSON.stringify(registered) === JSON.stringify(descriptor) &&
+          root.phase !== "waiting" &&
+          !descriptor.quoted &&
+          (!spec.requires || requirementMatches(root, descriptor, spec.requires)),
+        history: classified.filter(({ e }) => e.action === verb).map(({ e }) => e),
+        standing: desired
+          .filter(({ e }) => e.action === verb)
+          .map(({ e, unit, value }) => ({ event: e, unit, value })),
+        undo: [...localUndo, ...durableUndo].filter((event) => event.action === verb),
+      },
+    ]),
+  );
+
+  const request = (declaration["x-request"] ?? null) as
+    | { verbs?: Record<string, unknown> }
+    | null;
+  const projectedRequest = pending.find((entry) => entry.event.kind === "request")
+    ?.event;
+  const lifecycles =
+    descriptor.document.kind === "thread"
+      ? root.effective.lifecycle.conversation.requests
+      : root.effective.lifecycle.page.requests;
+  const lifecycle = projectedRequest
+    ? {
+        seat: { document: descriptor.document, widget: descriptor.id },
+        attempts: [{ request: projectedRequest, receipt: null }],
+        latest: { request: projectedRequest, receipt: null },
+        phase: "pending",
+      }
+    : (lifecycles?.find((item) => item.seat.widget === descriptor.id) ??
+      emptyLifecycle(descriptor));
+  const offered = new Set(descriptor.offers.map(({ verb }) => verb));
+  const requests = Object.fromEntries(
+    Object.keys(request?.verbs ?? {}).map((verb) => [
+      verb,
+      {
+        available:
+          JSON.stringify(registered) === JSON.stringify(descriptor) &&
+          root.phase !== "waiting" &&
+          !descriptor.quoted &&
+          offered.has(verb) &&
+          lifecycle.phase === "ready",
+      },
+    ]),
+  );
+  const provenanceEntries = (current?.entries ?? []) as unknown as {
+    e: Event;
+    spec: ActionSpec;
+    unit: string;
+    value: unknown;
+  }[];
+  const provenance = Object.fromEntries(
+    provenanceEntries.map(({ e, spec, unit, value }) => [
+      `${spec.facet}:${unit}`,
+      { event: e, unit, value },
+    ]),
+  );
+  return {
+    state: current?.state ?? {},
+    provenance,
+    actions,
+    requests,
+    request: lifecycle,
+    delivery: pending.map((entry) => ({
+      attempt: entry.event.attempt,
+      kind: entry.event.kind,
+      verb: entry.event.action,
+      answered: entry.answered,
+      rejected: entry.rejected,
+    })),
+  };
+}
+
 export function createSemanticApplication() {
   const initial = {
-    document: { revision: null, registry: {}, authored: new Map() } as SemanticDocument,
+    document: {
+      revision: null,
+      registry: {},
+      authored: new Map(),
+      descriptors: new Map(),
+    } as SemanticDocument,
     authoritative: null as AuthoritativeState | null,
     unresolved: [] as Event[],
     phase: "waiting",
     data: { revision: -1, sources: {} },
     effective: derive(
-      { revision: null, registry: {}, authored: new Map() },
+      { revision: null, registry: {}, authored: new Map(), descriptors: new Map() },
       null,
       [],
       "waiting",
@@ -182,6 +382,7 @@ export function createSemanticApplication() {
             pendingSettlements(unresolved, receipts),
           )
         : [];
+    const active = state?.browser.views[String(document.revision)];
     return {
       projection,
       widgets: foldWidgetStates(document.authored, projection),
@@ -190,6 +391,17 @@ export function createSemanticApplication() {
       pendingRequests: pendingRequests(unresolved, receipts),
       delivery: unresolvedAttempts(unresolved),
       activity: state?.activity ?? null,
+      lifecycle: {
+        page: {
+          asks: active?.document.asks ?? {},
+          requests: active?.document.requests ?? [],
+        },
+        conversation: {
+          asks: state?.browser.conversation.asks ?? {},
+          requests: state?.browser.conversation.requests ?? [],
+        },
+        undo: active?.undo ?? [],
+      },
     };
   }
 
@@ -263,6 +475,18 @@ export function createSemanticApplication() {
         )
         .read();
     },
+    selectWidget(descriptor: WidgetDescriptor) {
+      let prior: ReturnType<typeof widgetReading> | undefined;
+      let priorSignature: string | undefined;
+      return publisher.select((root) => {
+        const reading = widgetReading(root, descriptor);
+        const readingSignature = semanticSignature(reading);
+        if (readingSignature === priorSignature && prior) return prior;
+        prior = reading;
+        priorSignature = readingSignature;
+        return reading;
+      });
+    },
     entry,
     identify(revision: number | null) {
       return publish({ document: { ...publisher.read().document, revision } });
@@ -276,12 +500,28 @@ export function createSemanticApplication() {
         },
       });
     },
+    captureDescriptors(values: ReadonlyMap<string, WidgetDescriptor>) {
+      return publish({
+        document: {
+          ...publisher.read().document,
+          descriptors: new Map([
+            ...publisher.read().document.descriptors,
+            ...structuredClone(values),
+          ]),
+        },
+      });
+    },
     forgetAuthored(owners: Set<string>) {
       return publish({
         document: {
           ...publisher.read().document,
           authored: new Map(
             [...publisher.read().document.authored].filter(([id]) => !owners.has(id)),
+          ),
+          descriptors: new Map(
+            [...publisher.read().document.descriptors].filter(
+              ([id]) => !owners.has(id),
+            ),
           ),
         },
       });

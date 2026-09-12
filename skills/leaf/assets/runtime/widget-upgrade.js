@@ -2,7 +2,7 @@
 
    A module defines its custom element once and makes `connectedCallback` safe to run
    after reconnection, using `once(el)` for generated chrome so reconnecting does not
-   duplicate it. An upgrade whose work is async registers its promise with `settle`, so
+   duplicate it. A controller whose work is async registers its presentation, so
    the runtime can hold the view restore and first anchor pass until the page's
    geometry has settled; a failed upgrade becomes a visible error box (`failSoft`)
    rather than a blank page. */
@@ -46,6 +46,8 @@ export function failSoft(el, err, source) {
 // until the page's geometry has settled. Rejections are the widget's own
 // fail-soft path; settling ignores them.
 export const settling = [];
-export function settle(promise) {
+export function registerPresentation(promise) {
+  if (!promise?.then) throw new TypeError("Widget presentation must be a promise");
   settling.push(promise);
+  return promise;
 }

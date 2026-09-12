@@ -332,7 +332,7 @@ import {
   fitRootReadingElement,
   once,
   registerReadingElement,
-  settle,
+  widgetController,
 } from '/runtime/widget-api.js';
 
 customElements.define('lf-studio', class extends HTMLElement {
@@ -350,7 +350,7 @@ customElements.define('lf-studio', class extends HTMLElement {
       readingArrangement: this.readingArrangement,
       minimumSize: () => ({width: 200, height: 200}),
     });
-    settle(this.fitting.update());
+    widgetController(this).present(this.fitting.update());
   }
 
   disconnectedCallback() {
@@ -914,7 +914,7 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
     ) == ["first-change", "second-change", "third-change"]
     page.locator("#first-change").evaluate(
         "el => { const parent = el.parentNode; const next = el.nextSibling;"
-        "        el.remove(); document.dispatchEvent(new Event('lf-actions'));"
+        "        el.remove();"
         "        parent.insertBefore(el, next); }"
     )
     assert page.locator(".lf-sug-actions").evaluate_all(
@@ -926,8 +926,14 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
     ], "reconnecting the first suggestion moved its controls after later source rows"
     first_accept = page.locator("[data-lf-for='first-change'] .lf-sug-accept")
     first_accept.evaluate(
-        "control => { control.setAttribute('aria-disabled', 'true');"
-        "  document.dispatchEvent(new Event('lf-actions')); }"
+        """control => {
+          control.setAttribute('aria-disabled', 'true');
+          const widget = document.getElementById('first-change');
+          const parent = widget.parentNode;
+          const next = widget.nextSibling;
+          widget.remove();
+          parent.insertBefore(widget, next);
+        }"""
     )
     expect(first_accept).to_have_attribute("aria-disabled", "false")
     page.locator("[data-lf-for='first-change'] .lf-sug-accept").focus()
@@ -974,8 +980,13 @@ def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
         cdp = context.new_cdp_session(page)
         page.evaluate(
             """async () => {
+              const registry = new URL(
+                document.querySelector('script[data-lf-runtime]').dataset.lfProbe,
+                location.href,
+              );
               window.__lfSortablePrototype =
-                (await import('/vendor/sortable.esm.js')).default.prototype;
+                (await import(new URL('vendor/sortable.esm.js', registry).href))
+                  .default.prototype;
             }"""
         )
 
@@ -1050,135 +1061,44 @@ def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
         context.close()
 
 
-def test_live_widget_watchers_release_and_reconnect(browser, serve):
-    """Live widget feeds release detached owners and call them after reconnection."""
+def test_live_widget_subscription_releases_and_reconnects(browser, serve):
+    """A detached widget ignores semantic news and catches up when reconnected."""
     source = leaf_page(
         "widget watcher lifecycle",
         """
 <section id="watched">
-  <p><lf-suggestion id="watched-suggestion"><lf-old>old</lf-old><lf-new>new</lf-new></lf-suggestion></p>
   <lf-draft id="watched-draft"><pre>Draft words.</pre></lf-draft>
-  <lf-roster id="watched-roster">
-    <lf-agent id="watched-agent" state="working"><strong>worker</strong> Working.</lf-agent>
-  </lf-roster>
-  <lf-record id="watched-record"></lf-record>
 </section>
 """,
     )
-    context = browser.new_context(viewport={"width": 1000, "height": 800})
-    context.add_init_script(
-        """(() => {
-          const add = EventTarget.prototype.addEventListener;
-          const remove = EventTarget.prototype.removeEventListener;
-          const watched = new Set(['lf-actions', 'lf-drafts']);
-          const wrappers = new Map();
-          window.__lfWatchers = {
-            added: Object.create(null),
-            removed: Object.create(null),
-            calls: Object.create(null),
-          };
-          for (const type of watched) {
-            window.__lfWatchers.added[type] = 0;
-            window.__lfWatchers.removed[type] = 0;
-            window.__lfWatchers.calls[type] = 0;
-          }
-          EventTarget.prototype.addEventListener = function(type, listener, options) {
-            if (this !== document || !watched.has(type) || typeof listener !== 'function')
-              return add.call(this, type, listener, options);
-            const wrapped = function(...args) {
-              window.__lfWatchers.calls[type]++;
-              return listener.apply(this, args);
-            };
-            let byType = wrappers.get(type);
-            if (!byType) wrappers.set(type, byType = new Map());
-            byType.set(listener, wrapped);
-            window.__lfWatchers.added[type]++;
-            return add.call(this, type, wrapped, options);
-          };
-          EventTarget.prototype.removeEventListener = function(type, listener, options) {
-            if (this !== document || !watched.has(type) || typeof listener !== 'function')
-              return remove.call(this, type, listener, options);
-            const wrapped = wrappers.get(type)?.get(listener) ?? listener;
-            window.__lfWatchers.removed[type]++;
-            return remove.call(this, type, wrapped, options);
-          };
-        })()"""
+    page, errors = open_page(browser, serve(source))
+    before = page.locator("#watched").evaluate("section => section.innerHTML")
+    page.evaluate(
+        """() => {
+          window.__lfWatchedSection = document.querySelector('#watched');
+          window.__lfWatchedSection.remove();
+        }"""
     )
-    try:
-        page, errors = open_page(browser, serve(source), context=context)
-        initial = page.evaluate("() => structuredClone(window.__lfWatchers)")
-        initial_actions = (
-            initial["added"]["lf-actions"] - initial["removed"]["lf-actions"]
-        )
-        initial_drafts = initial["added"]["lf-drafts"] - initial["removed"]["lf-drafts"]
-        assert initial_actions >= 4
-        assert initial_drafts >= 1
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "watched-draft",
+            "action": "edit",
+            "detail": {"text": "Reconnected words."},
+        },
+    )
+    told(page)
+    assert page.evaluate("window.__lfWatchedSection.innerHTML") == before
 
-        page.evaluate(
-            """() => {
-              window.__lfWatchedSection = document.querySelector('#watched');
-              window.__lfWatchedSection.remove();
-            }"""
-        )
-        released = page.evaluate("() => structuredClone(window.__lfWatchers)")
-        released_actions = (
-            released["added"]["lf-actions"] - released["removed"]["lf-actions"]
-        )
-        released_drafts = (
-            released["added"]["lf-drafts"] - released["removed"]["lf-drafts"]
-        )
-        assert released_actions == initial_actions - 4
-        assert released_drafts == initial_drafts - 1
-        released_calls = page.evaluate(
-            """() => {
-              const before = structuredClone(window.__lfWatchers.calls);
-              document.dispatchEvent(new Event('lf-actions'));
-              document.dispatchEvent(new CustomEvent('lf-drafts', {
-                detail: {ctx: 'edit:watched-draft', value: null},
-              }));
-              return {
-                actions: window.__lfWatchers.calls['lf-actions'] - before['lf-actions'],
-                drafts: window.__lfWatchers.calls['lf-drafts'] - before['lf-drafts'],
-              };
-            }"""
-        )
-        assert released_calls == {
-            "actions": released_actions,
-            "drafts": released_drafts,
-        }
-
-        page.evaluate(
-            "() => document.querySelector('main').append(window.__lfWatchedSection)"
-        )
-        restored = page.evaluate("() => structuredClone(window.__lfWatchers)")
-        restored_actions = (
-            restored["added"]["lf-actions"] - restored["removed"]["lf-actions"]
-        )
-        restored_drafts = (
-            restored["added"]["lf-drafts"] - restored["removed"]["lf-drafts"]
-        )
-        assert restored_actions == initial_actions
-        assert restored_drafts == initial_drafts
-        restored_calls = page.evaluate(
-            """() => {
-              const before = structuredClone(window.__lfWatchers.calls);
-              document.dispatchEvent(new Event('lf-actions'));
-              document.dispatchEvent(new CustomEvent('lf-drafts', {
-                detail: {ctx: 'edit:watched-draft', value: null},
-              }));
-              return {
-                actions: window.__lfWatchers.calls['lf-actions'] - before['lf-actions'],
-                drafts: window.__lfWatchers.calls['lf-drafts'] - before['lf-drafts'],
-              };
-            }"""
-        )
-        assert restored_calls == {
-            "actions": restored_actions,
-            "drafts": restored_drafts,
-        }
-        assert errors == []
-    finally:
-        context.close()
+    page.evaluate("document.querySelector('main').append(window.__lfWatchedSection)")
+    expect(page.locator("#watched-draft .lf-draft-history > summary")).to_have_text(
+        "Changes · 1 edit"
+    )
+    assert errors == []
+    page.close()
 
 
 def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
@@ -4088,10 +4008,11 @@ def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
 
 
 def test_an_unchanged_swipe_projection_repaints_nothing(browser, serve):
-    """The broad action heartbeat is not a reason to restate a settled deck."""
+    """Reapplying the controller's standing state does not restate a settled deck."""
     page, errors = open_page(browser, serve(SWIPE_PAGE))
     mutations = page.locator("#session-triage").evaluate(
-        """deck => {
+        """async deck => {
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const observer = new MutationObserver(() => {});
           observer.observe(deck, {
             subtree: true,
@@ -4099,7 +4020,7 @@ def test_an_unchanged_swipe_projection_repaints_nothing(browser, serve):
             characterData: true,
             attributes: true,
           });
-          document.dispatchEvent(new Event('lf-actions'));
+          deck.renderState(widgetController(deck).read().state);
           const records = observer.takeRecords().map(record => ({
             kind: record.type,
             attribute: record.attributeName,
@@ -4739,9 +4660,9 @@ def test_swipe_deck_reloads_replays_and_undoes_absolute_placement(browser, serve
     expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
     assert page.evaluate(
         """async () => {
-          const {standingState} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const deck = document.getElementById('session-triage');
-          const {state} = standingState().find(({widget}) => widget === deck);
+          const {state} = widgetController(deck).read();
           window.swipeCards = [...deck.querySelectorAll('lf-swipe-card')];
           deck.renderState(state);
           deck.renderState(state);
@@ -5236,10 +5157,16 @@ def test_the_rail_survives_every_script_being_removed(browser, serve, tmp_path):
     whose positioned ancestor is exactly what a placement done in script would have
     had to correct for — and could not, with no script left to run."""
     page, _ = open_page(browser, serve(SUGGESTION_PAGE))
-    page.evaluate("() => document.querySelectorAll('script').forEach(s => s.remove())")
-    baked = page.evaluate("() => document.documentElement.outerHTML").replace(
-        '<link rel="stylesheet" href="/theme.css" data-lf-runtime="">',
-        "<style>" + (serve.page_dir / "theme.css").read_text() + "</style>",
+    baked = page.evaluate(
+        """theme => {
+          const style = document.createElement('style');
+          style.textContent = theme;
+          document.querySelector('link[data-lf-runtime][rel="stylesheet"]')
+            .replaceWith(style);
+          document.querySelectorAll('script').forEach(script => script.remove());
+          return document.documentElement.outerHTML;
+        }""",
+        (serve.page_dir / "theme.css").read_text(),
     )
     page.close()
 

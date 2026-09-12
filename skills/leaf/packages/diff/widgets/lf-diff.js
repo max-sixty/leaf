@@ -3,7 +3,6 @@
  * same rendered lines support selection anchors and script-free export. */
 import {
   DISCLOSE,
-  actionAvailable,
   announce,
   beginWalk,
   dataBody,
@@ -21,12 +20,9 @@ import {
   registerThreadSurface,
   relabel,
   scrollBehavior,
-  sendAction,
-  settle,
   shadowStage,
-  standingState,
   notice,
-  watchActions,
+  widgetController,
   watchData,
 } from "/runtime/widget-api.js";
 // Pierre's renderer is by far the largest thing a Leaf page can pull, and only a diff
@@ -284,7 +280,7 @@ function diffTools(host, reviewing) {
   const next = reviewing
     ? offer("button", "lf-btn lf-diff-next", "Next unreviewed")
     : null;
-  next?.addEventListener("click", () => settle(host.nextUnreviewed()));
+  next?.addEventListener("click", () => host.present(host.nextUnreviewed()));
   const wrap = wrapSwitch();
   tools.append(label, progress, wrap.node);
   if (next) tools.append(next);
@@ -430,8 +426,10 @@ function fragmentError(details, error) {
 customElements.define(
   "lf-diff",
   class extends HTMLElement {
+    controller = widgetController(this);
+
     connectedCallback() {
-      this.stopActions ??= watchActions(this, null, this.paintReviewAvailability);
+      this.stopActions ??= this.controller.subscribe(this.paintReviewAvailability);
       if (!this.threadSurface)
         this.threadSurface = registerThreadSurface(this, {
           begin: () => this.beginThreadSurface(),
@@ -466,7 +464,7 @@ customElements.define(
               does: "Go to the next hunk",
               line: "next hunk",
               when: () => this.hasHunks(),
-              run: () => settle(this.stepHunk(false)),
+              run: () => this.present(this.stepHunk(false)),
             },
             {
               id: "diff.previous-hunk",
@@ -474,7 +472,7 @@ customElements.define(
               does: "Go to the previous hunk",
               line: "previous hunk",
               when: () => this.hasHunks(),
-              run: () => settle(this.stepHunk(true)),
+              run: () => this.present(this.stepHunk(true)),
             },
             {
               id: "diff.next-file",
@@ -546,7 +544,7 @@ customElements.define(
               does: "Open the next unreviewed matching file",
               line: "next unreviewed file",
               when: () => this.nextReviewEntry() !== null,
-              run: () => settle(this.nextUnreviewed()),
+              run: () => this.present(this.nextUnreviewed()),
             },
           ],
           () => Boolean(this.fileEntries?.length),
@@ -557,7 +555,7 @@ customElements.define(
         if (this.classList.contains("lf-rendered")) return;
         if (this.inlineSource === undefined)
           this.inlineSource = dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
-        settle(this.render(this.inlineSource));
+        this.present(this.render(this.inlineSource));
         return;
       }
       let first = true;
@@ -574,7 +572,7 @@ customElements.define(
           if (this.boundRendering === rendering) this.boundRendering = null;
         });
         if (first) {
-          settle(rendering);
+          this.present(rendering);
           first = false;
         }
         return rendering;
@@ -752,7 +750,7 @@ customElements.define(
         details.addEventListener("toggle", () => {
           if (!details.open) return;
           entry.failed = false;
-          settle(this.loadManifestEntry(entry));
+          this.present(this.loadManifestEntry(entry));
         });
         entries.push(entry);
       }
@@ -1098,12 +1096,14 @@ customElements.define(
       }
       if (!this.reviewing()) return;
       entry.review = reviewButton(entry, (target, reviewed) => {
-        if (!actionAvailable(this, "review")) return;
+        if (!this.controller.read().actions.review.available) return;
         this.setReviewed(target, reviewed);
-        sendAction(this, "review", {
-          file: target.record.path,
-          reviewed,
-        }).then((ok) => {
+        const sent = this.controller.dispatch({
+          kind: "action",
+          verb: "review",
+          detail: { file: target.record.path, reviewed },
+        });
+        sent?.delivery.then((ok) => {
           if (ok)
             notice(
               `${reviewed ? "Reviewed" : "Reopened"} ${target.record.path} — sent`,
@@ -1156,7 +1156,7 @@ customElements.define(
     }
 
     paintReviewAvailability = () => {
-      const available = actionAvailable(this, "review");
+      const available = this.controller.read().actions.review?.available ?? false;
       for (const entry of this.fileEntries ?? [])
         if (
           entry.review instanceof HTMLButtonElement &&
@@ -1182,8 +1182,11 @@ customElements.define(
     }
 
     refreshReviewedState() {
-      const current = standingState().find(({ widget }) => widget === this);
-      if (current) this.renderState(current.state);
+      this.renderState(this.controller.read().state);
+    }
+
+    present(promise) {
+      return this.controller.present(promise);
     }
 
     filterFiles(query) {
@@ -1416,12 +1419,11 @@ customElements.define(
     }
 
     renderState(state) {
+      const reviewed = state?.review?.units ?? {};
       for (const entry of this.fileEntries ?? [])
-        this.setReviewed(
-          entry,
-          state.review.units[entry.record.path]?.detail.reviewed ?? false,
-          { repaint: false },
-        );
+        this.setReviewed(entry, reviewed[entry.record.path]?.detail.reviewed ?? false, {
+          repaint: false,
+        });
       this.refreshDiffTools();
     }
   },

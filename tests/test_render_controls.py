@@ -2036,11 +2036,11 @@ def test_a_seat_conversation_leaves_the_pick_it_is_about_live(browser, serve):
     list — the banner stops counting it — but answers nothing, so the press that would
     answer it is still live. This is the browser half of the split, and the half the
     reader meets first: the POST door only sees a hand-posted event, while here
-    `actionAvailable` paints the control and `sendAction` guards the press, and the
-    module has already painted the answer by the time either runs. Reading the reader's
-    list at this door therefore does not refuse the press so much as swallow it — the
-    widget flips, nothing is logged, no notice fires, and the next poll puts it back with
-    nothing anywhere saying why.
+    the controller reading paints the control and its dispatcher guards the press, and
+    the module has already painted the answer by the time either runs. Reading the
+    reader's list at this door therefore does not refuse the press so much as swallow
+    it — the widget flips, nothing is logged, no notice fires, and the next poll puts it
+    back with nothing anywhere saying why.
 
     The subject is the project widget SEATED_ASK_ENTRY declares rather than an entry out
     of the default package, because the pair the split needs — a visible ask and a seat
@@ -4153,34 +4153,42 @@ def test_a_stale_package_widget_uses_recursive_parent_eligibility(
     )
     (overlay / "widgets" / "lf-quota.js").write_text(
         """\
-import { actionAvailable, offer, once, sendAction } from "/runtime/widget-api.js";
+import { offer, once, widgetController } from "/runtime/widget-api.js";
 
 const detail = (quota, delta) => ({
   slots: String(Number(quota.getAttribute("slots")) + delta),
 });
 
 const paint = quota => {
+  const reading = quota.controller.read();
   for (const [name, delta] of [["decrease", -1], ["increase", 1]])
     quota.querySelector(`[data-lf-quota="${name}"]`)?.setAttribute(
       "aria-disabled",
-      String(!actionAvailable(quota, name)),
+      String(!reading.actions[name].available),
     );
 };
 
 async function change(quota, delta) {
   const action = delta > 0 ? "increase" : "decrease";
   const next = detail(quota, delta);
-  if (!actionAvailable(quota, action)) return;
+  if (!quota.controller.read().actions[action].available) return;
   const previous = quota.getAttribute("slots");
   quota.setAttribute("slots", next.slots);
   paint(quota);
-  if (!await sendAction(quota, action, next)) quota.setAttribute("slots", previous);
+  const sent = quota.controller.dispatch({
+    kind: "action", verb: action, detail: next,
+  });
+  if (!sent || !await sent.delivery) quota.setAttribute("slots", previous);
   paint(quota);
 }
 
 customElements.define("lf-quota", class extends HTMLElement {
   connectedCallback() {
-    if (!once(this)) return;
+    this.controller ??= widgetController(this);
+    if (!once(this)) {
+      this.stopReading ??= this.controller.subscribe(() => paint(this));
+      return;
+    }
     const decrease = offer("button", "lf-btn", "Decrease");
     decrease.dataset.lfQuota = "decrease";
     decrease.addEventListener("click", () => void change(this, -1));
@@ -4188,9 +4196,12 @@ customElements.define("lf-quota", class extends HTMLElement {
     increase.dataset.lfQuota = "increase";
     increase.addEventListener("click", () => void change(this, 1));
     this.append(decrease, increase);
-    document.addEventListener("lf-actions", () => paint(this));
-    paint(this);
+    this.stopReading ??= this.controller.subscribe(() => paint(this));
     document.getElementById("destination")?.append(this);
+  }
+  disconnectedCallback() {
+    this.stopReading?.();
+    this.stopReading = null;
   }
   renderState(state) {
     const { to, index } = state.placement.detail;

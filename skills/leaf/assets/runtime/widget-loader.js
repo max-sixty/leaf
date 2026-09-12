@@ -9,12 +9,13 @@ import {
 import { reachScrollers } from "./reach.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
-import { settle, settling } from "./widget-upgrade.js";
+import { registerPresentation, settling } from "./widget-upgrade.js";
 import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
 import {
   captureAuthoredFacets,
   rememberAuthoredParents,
 } from "./projection/authored.js";
+import { captureWidgetDescriptors } from "./widget-descriptors.js";
 import {
   opaquePassageParts,
   opaquePassageRoots,
@@ -124,12 +125,13 @@ export async function installDocument(
 ) {
   rememberPassageParts(scope, source);
   rememberAuthoredParents(scope);
+  captureWidgetDescriptors(scope);
   markDeclared(scope, MARKED_IN_PAGE);
   if (watchLinks) watchExternalLinks(scope);
   const settlingFrom = settling.length;
   await importWidgets(scope);
   mount();
-  settle(dress(scope));
+  registerPresentation(dress(scope));
   await Promise.allSettled(settling.slice(settlingFrom));
   reachScrollers(scope);
   captureAuthoredFacets(scope);

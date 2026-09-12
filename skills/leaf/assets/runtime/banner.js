@@ -17,6 +17,7 @@ import { COVERING } from "./chrome-layout.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 import { repaint } from "./repaint.js";
 import { announce, notice } from "./notifications.js";
+import { watchProjection } from "./projection-watch.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
@@ -463,7 +464,7 @@ function arrangeBannerControls() {
 // The banner's row, mounted once the version chooser and the trays exist: the invariant
 // middle first, then the edge families around it (arrangeBannerControls).
 export function mountBanner({ approveVersion, paintApproval }) {
-  document.addEventListener("lf-actions", paintApproval);
+  watchProjection(document.body, paintApproval);
   for (const control of [asksBtn, othersBtn]) showNews(control, false);
   // Seed the invariant middle once; arrangeBannerControls puts the two edge families
   // around it and later preserves any registry-declared controls added among these three.

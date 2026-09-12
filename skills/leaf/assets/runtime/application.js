@@ -4,7 +4,7 @@
    mounts the application before widget upgrade; exported functions are stable closures
    for the public widget API and fail clearly if invoked before that boundary. */
 import { runtime } from "./context.js";
-import { readApplication } from "./semantic-state.js";
+import { applicationState, readApplication } from "./semantic-state.js";
 import { newAttempt } from "./drafts.js";
 import { saidNow } from "./presence.js";
 import { announce, notice } from "./notifications.js";
@@ -21,7 +21,6 @@ import { createDelivery } from "./delivery.js";
 import {
   createProjectionPresentation,
   shallowSigs as projectionShallowSigs,
-  standingState as projectionStandingState,
 } from "./projection/presentation.js";
 import { currentProjection, projectionDeferred } from "./projection/state.js";
 import { createProjectionCommands } from "./projection/commands.js";
@@ -34,7 +33,6 @@ import {
   registerThreadSurface as registerSurface,
   renderSurfaces,
 } from "./conversation/surfaces.js";
-import { createRequests } from "./requests.js";
 import { createStateApplication } from "./state-application.js";
 import { beginRead as beginStateRead, createStateFeed } from "./state-feed.js";
 import { createProjectionUpdates } from "./updates.js";
@@ -109,7 +107,6 @@ export function mountApplication(dependencies) {
     onDeferredReady: () => {
       if (!retryProjection()) return;
       if (releasePending()) paintKeys();
-      document.dispatchEvent(new Event("lf-actions"));
     },
     onDomIntroduced: () => {
       invalidateDom();
@@ -131,17 +128,16 @@ export function mountApplication(dependencies) {
       "conversation preparation",
     );
 
-  function post(event) {
+  function startPost(event) {
     const entry = ledger.enqueue(event);
     if (!entry) {
       notice(`Couldn't send — attempt ${event.attempt} is already in use`);
-      return Promise.resolve(null);
+      return null;
     }
-    let staged = false;
     let presentationError = null;
     try {
       pendingTraffic(readApplication().effective.delivery);
-      staged = projection.stageOptimistic(entry);
+      projection.stageOptimistic(entry);
       // Desired state changes at enqueue even where the widget has already painted the
       // same value. Conversation gestures are folded in this call stack before transport.
       projection.present(readApplication());
@@ -153,8 +149,6 @@ export function mountApplication(dependencies) {
       presentationError = error;
     } finally {
       try {
-        if (staged || event.kind === "done" || event.kind === "request")
-          document.dispatchEvent(new Event("lf-actions"));
         if (entry.message) announce("Message sent");
         paintKeys();
       } catch (error) {
@@ -174,6 +168,52 @@ export function mountApplication(dependencies) {
     return entry.answer;
   }
 
+  const post = (event) => startPost(event) ?? Promise.resolve(null);
+
+  function dispatchWidget(descriptor, command) {
+    const reading = applicationState.selectWidget(descriptor).read();
+    if (command.kind === "undo") {
+      const candidate = Object.values(reading.actions)
+        .flatMap(({ undo }) => undo)
+        .find(
+          (event) => event.attempt === command.target || event.id === command.target,
+        );
+      if (!candidate) return null;
+      runtime.undoing = true;
+      paintKeys();
+      const answer = startPost({ kind: "undo", undoes: candidate.id });
+      if (!answer) {
+        runtime.undoing = false;
+        paintKeys();
+        return null;
+      }
+      return answer
+        .then((accepted) => {
+          if (accepted) notice("Took back your last change — sent");
+          return accepted;
+        })
+        .finally(() => {
+          runtime.undoing = false;
+          paintKeys();
+        });
+    }
+    const entry =
+      command.kind === "action"
+        ? reading.actions[command.verb]
+        : command.kind === "request"
+          ? reading.requests[command.verb]
+          : null;
+    if (!entry?.available) return null;
+    return startPost({
+      kind: command.kind,
+      revision: runtime.currentRevision,
+      widget: descriptor.id,
+      action: command.verb,
+      detail: structuredClone(command.detail ?? {}),
+      ...(command.attempt && { attempt: command.attempt }),
+    });
+  }
+
   const projectionCommands = createProjectionCommands({
     post,
     stateApplying,
@@ -183,7 +223,6 @@ export function mountApplication(dependencies) {
     projectionCommitted: projection.projectionCommitted,
     coordinateProjectionCommitted: projection.coordinateProjectionCommitted,
   });
-  const requests = createRequests({ post, pendingRequests });
 
   const createComment = (event) =>
     post({ kind: "comment", revision: runtime.currentRevision, ...event });
@@ -322,7 +361,6 @@ export function mountApplication(dependencies) {
     queuedInvalidation = false;
     if (retryProjection()) {
       if (releasePending()) paintKeys();
-      document.dispatchEvent(new Event("lf-actions"));
       return;
     }
     await invalidateDom();
@@ -359,7 +397,6 @@ export function mountApplication(dependencies) {
           .runSerialized(() => {
             if (!releasePending()) return;
             paintKeys();
-            document.dispatchEvent(new Event("lf-actions"));
           })
           .catch((error) =>
             console.error("leaf: accepted event reconciliation", error),
@@ -367,10 +404,6 @@ export function mountApplication(dependencies) {
         return;
       }
       paintKeys();
-      // An accepted response's state application owns the semantic repaint once its
-      // awaited presentation commits. A definitive refusal has no state application,
-      // so its completed local reconciliation emits the change here.
-      document.dispatchEvent(new Event("lf-actions"));
     },
     reportApplicationError: (error) =>
       console.error("leaf: rejected event reconciliation", error),
@@ -405,7 +438,6 @@ export function mountApplication(dependencies) {
   application = {
     ...projectionCommands,
     ...projectionUpdates,
-    ...requests,
     ...engagement,
     approvalBlockingAsks,
     beginRead: beginStateRead,
@@ -414,6 +446,7 @@ export function mountApplication(dependencies) {
     createPageComment: createComment,
     createReply,
     currentProjection,
+    dispatchWidget,
     hasPending,
     invalidateDom,
     landInConversation: dependencies.landInConversation,
@@ -432,28 +465,23 @@ export function mountApplication(dependencies) {
     refreshConversation,
     refreshNarrowing: conversation.refreshNarrowing,
     registerThreadSurface,
-    requestAvailable: requests.requestAvailable,
     resetAuthoredPage: projection.resetAuthoredPage,
     setResolved,
     shallowSigs: projectionShallowSigs,
-    standingState: projectionStandingState,
     startFeed: feed.startFeed,
-    watchRequestLifecycle: requests.watchRequestLifecycle,
     watchAsks,
     wireInput: dependencies.wireInput,
   };
   return application;
 }
 
-export const actionAvailable = (...args) => app().actionAvailable(...args);
-export const actionSequence = (...args) => app().actionSequence(...args);
-export const actionStands = (...args) => app().actionStands(...args);
 export const approvalBlockingAsks = (...args) => app().approvalBlockingAsks(...args);
 export const beginRead = (...args) => app().beginRead(...args);
 export const conversationBox = (...args) => app().conversationBox(...args);
 export const createComment = (...args) => app().createComment(...args);
 export const createReply = (...args) => app().createReply(...args);
 export const currentProjectionReading = (...args) => app().currentProjection(...args);
+export const dispatchWidget = (...args) => app().dispatchWidget(...args);
 export const hasPending = (...args) => app().hasPending(...args);
 export const invalidateDom = (...args) => app().invalidateDom(...args);
 export const landInConversation = (...args) => app().landInConversation(...args);
@@ -469,20 +497,11 @@ export const readAndApply = (...args) => app().readAndApply(...args);
 export const receiveState = (...args) => app().receiveState(...args);
 export const refreshConversation = (...args) => app().refreshConversation(...args);
 export const registerThreadSurface = (...args) => app().registerThreadSurface(...args);
-export const requestAvailable = (...args) => app().requestAvailable(...args);
-export const sendAction = (...args) => app().sendAction(...args);
-export const sendRequest = (...args) => app().sendRequest(...args);
 export const shallowSigs = (...args) => app().shallowSigs(...args);
 export const startFeed = (...args) => app().startFeed(...args);
-export const standingState = (...args) => app().standingState(...args);
 export const unaccountedGesture = (...args) => app().unaccountedGesture(...args);
 export const undoable = (...args) => app().undoable(...args);
-export const undoableAction = (...args) => app().undoableAction(...args);
 export const undoLast = (...args) => app().undoLast(...args);
-export const withdraw = (...args) => app().withdraw(...args);
-export const withdrawableAction = (...args) => app().withdrawableAction(...args);
-export const watchActions = (...args) => app().watchActions(...args);
 export const watchAsks = (...args) => app().watchAsks(...args);
-export const watchRequestLifecycle = (...args) => app().watchRequestLifecycle(...args);
 export const watchUpdates = (...args) => app().watchUpdates(...args);
 export const wireInput = (...args) => app().wireInput(...args);

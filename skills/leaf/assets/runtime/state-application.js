@@ -149,7 +149,6 @@ export function createStateApplication({
       } finally {
         stateApplying = false;
         paintKeys();
-        document.dispatchEvent(new Event("lf-actions"));
       }
     });
   }

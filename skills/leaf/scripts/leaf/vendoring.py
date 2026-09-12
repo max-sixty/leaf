@@ -34,6 +34,8 @@ from .layer import (
 from .leases import lock_is_held, transition_lock
 from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_reading
+from .registry.contract import read_registry_declarations
+from .registry.page import compose_page_registry
 from .schema import (
     CURSOR_FILE,
     DATA_FILE,
@@ -48,8 +50,8 @@ from .schema import (
     STATUS_FILE,
 )
 from .service import PageTransaction, claim_path
-from .structure import parse_revision
-from .validation.compatibility import vocabulary_gaps
+from .structure import SourceDocument, parse_revision
+from .validation.compatibility import candidate_vocabulary_gaps
 from .work import widget_work_without_targets
 
 
@@ -159,12 +161,22 @@ def _refuse_input_destination_overlap(roots: list[Path], page_target: Path) -> N
 def _refuse_vocabulary_drift(
     page_dir: Path, events: list[dict], incoming: dict
 ) -> None:
-    # Re-vendoring is the one moment a page's vocabulary changes hands, so it is
-    # where drift has to be caught: a tag or verb the new layer omits, or a
-    # detail schema that no longer accepts an old payload, makes a recorded
-    # action foreign on the first reload — the lost-decision bug reintroduced
-    # through vocabulary drift instead of version-scoping.
-    gaps = vocabulary_gaps(page_dir, events, incoming)
+    revision = latest_revision(page_dir)
+    if revision is None:
+        return
+    try:
+        document = SourceDocument((page_dir / "index.html").read_text(encoding="utf-8"))
+    except (FileNotFoundError, UnicodeDecodeError):
+        # An unreadable candidate cannot activate, but re-vendoring must still
+        # preserve the active page until the source is repaired.
+        document = parse_revision(page_dir, revision)
+    gaps = candidate_vocabulary_gaps(
+        page_dir,
+        events,
+        document,
+        incoming,
+        revision,
+    )
     if gaps:
         sys.exit(
             "this page's log holds vocabulary the incoming layer no longer speaks:\n"
@@ -256,6 +268,26 @@ def _validate_page_transition(
     _refuse_vocabulary_drift(page_dir, events, incoming)
     _refuse_data_contract_drift(page_dir, events, incoming)
     _refuse_untargeted_work(page_dir, events, incoming)
+
+
+def _effective_registry(page_dir: Path, composition: LayerComposition) -> dict:
+    """Compose authored declarations over the prospective vendored layer."""
+    source = page_dir / "page" / "registry.json"
+    declarations = read_registry_declarations(source) or {}
+    widget_paths = {
+        *(f"widgets/{name}" for name in composition.directory_files["widgets"]),
+        *(
+            path.relative_to(page_dir).as_posix()
+            for path in (page_dir / "page" / "widgets").glob("lf-*.js")
+            if path.is_file()
+        ),
+    }
+    return compose_page_registry(
+        composition.registry,
+        declarations,
+        widget_paths,
+        source=source,
+    ).registry
 
 
 def _stamp_layer(
@@ -442,7 +474,9 @@ def _vendor_page(
     # A bad late package must not leave the registry newer than the theme or its
     # modules.
     composition = compose_layer(roots)
-    _validate_page_transition(page_dir, events, composition.registry)
+    _validate_page_transition(
+        page_dir, events, _effective_registry(page_dir, composition)
+    )
     layer = _stamp_layer(composition, selected)
     directories = _checked_destinations(page_dir, layer)
     _commit_layer(page_dir, fresh=fresh, layer=layer, directories=directories)

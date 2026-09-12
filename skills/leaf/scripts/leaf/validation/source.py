@@ -18,6 +18,7 @@ from leaf.styles import (
     root_tokens,
 )
 from leaf.thread_context import thread_structure
+from leaf.validation.compatibility import candidate_vocabulary_gaps
 from leaf.validation.instances import (
     addressable_instance_errors,
     ask_surface_errors,
@@ -289,6 +290,16 @@ def check_source(
         events, document, registry, revision
     )
     errors.extend(source_history_errors)
+    if registry is not None and revision.predecessor:
+        errors.extend(
+            candidate_vocabulary_gaps(
+                page_dir,
+                events,
+                document,
+                registry,
+                revision.predecessor,
+            )
+        )
 
     transition = transition_reading(document, events, registry, revision)
     errors.extend(

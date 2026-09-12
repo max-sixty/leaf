@@ -6,6 +6,12 @@ remain in git history.
 
 ## Now
 
+- **Make Leaf a complete playground builder.** Follow the
+  [playground capability plan](notes/playground-capability-plan.md) to unify custom
+  state with controls and output, restore discovery and task-shaped recipes, improve
+  Targeting, add representative website examples, and preserve interaction in an
+  explicit offline export.
+
 - **Make the page instance a complete authored artifact.** Follow the
   [page-instance boundary specification](notes/page-instance-boundary.md) to capture
   page-owned dependencies and declarations, separate design intent from source

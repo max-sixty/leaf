@@ -41,6 +41,7 @@ from leaf import packages as packages_model
 from leaf import schema as schema_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import reactions as registry_reactions
+from leaf.registry import storage as registry_storage
 
 EXPECTED_PAGE_STATE_FILES = (
     "events.jsonl",
@@ -931,6 +932,39 @@ def test_init_vendors_the_layer(page_dir):
         "revision": 0,
         "sources": {},
     }
+
+
+def test_init_and_revendoring_preserve_the_page_owned_contribution(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    page = tmp_path / "authored-page"
+    authored = page / "page"
+    (authored / "widgets").mkdir(parents=True)
+    files = {
+        "registry.json": json.dumps(
+            {"lf-local": element_declaration("lf-local", upgrade=True)}
+        ),
+        "widgets/lf-local.js": "export function upgrade() {}\n",
+        "controller.js": "export const mode = 'authored';\n",
+        "theme.css": ".authored { color: rebeccapurple; }\n",
+        "config.json": '{"title": "Authored configuration"}\n',
+    }
+    for name, content in files.items():
+        (authored / name).write_text(content)
+    runner = CliRunner()
+
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    generation = registry_storage.layer_generation(page)
+    revendored = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+
+    assert revendored.exit_code == 0, revendored.output
+    assert registry_storage.layer_generation(page) != generation
+    assert {name: (authored / name).read_text() for name in files} == files
+    assert "lf-local" not in registry_storage.load_registry(page)
+    composed = registry_storage.read_page_registry(page)
+    assert composed.widget_sources["lf-local"] == "page/widgets/lf-local.js"
 
 
 def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypatch):

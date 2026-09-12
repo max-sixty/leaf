@@ -34,6 +34,29 @@ def load_registry(page_dir: Path):
     return read_registry(page_dir / "registry.json")
 
 
+def read_page_registry(page_dir: Path):
+    """Read the mutable candidate's vocabulary and widget provenance.
+
+    Revision capture uses ``compose_page_registry`` directly with its captured
+    declarations and file inventory. This filesystem reading is for callers
+    examining the authored candidate, never an already activated revision.
+    """
+    from .page import compose_page_registry
+
+    layer = load_registry(page_dir)
+    if layer is None:
+        return None
+    source = page_dir / "page" / "registry.json"
+    declarations = read_registry_declarations(source) or {}
+    widget_paths = {
+        path.relative_to(page_dir).as_posix()
+        for directory in (page_dir / "widgets", page_dir / "page" / "widgets")
+        for path in directory.glob("lf-*.js")
+        if path.is_file()
+    }
+    return compose_page_registry(layer, declarations, widget_paths, source=source)
+
+
 def layer_metadata(page_dir: Path) -> dict:
     """The identity recorded by this page's complete vendored layer."""
     path = page_dir / "registry.json"

@@ -1530,7 +1530,7 @@ export function createVersionController({
     const inset = Number.parseFloat(getComputedStyle(box).scrollPaddingTop) || 0;
     const landmarkTop = (top, block, blockTop = top) =>
       block?.matches(HEADING) ? top + Math.max(0, inset - blockTop) : top;
-    const view = { y: box.scrollTop };
+    const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
     for (const [block, rect] of blocksOnScreen(region, blocks)) {
       const section = closestAcross(block, "[id]");
       if (!view.section && section) {
@@ -1590,6 +1590,14 @@ export function createVersionController({
   // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and
   // animating from the replacement's raw position is worse than the jump it replaces.
   // Moving to a mark the reader asked for is the other case, and says so.
+  const hasLandmark = (reading) => Boolean(reading?.quote || reading?.section);
+  const rawOffsetFits = (reading, scroller) =>
+    reading.scroller !== undefined && reading.scroller === scrollerIdentity(scroller);
+  function scrollerIdentity(scroller) {
+    if (scroller === pageScroller) return "$page";
+    return readingRegions().find(({ body }) => body === scroller)?.id;
+  }
+
   function restoreRegion(view, region = null) {
     if (!view) return;
     const box = region ? effectiveScroller(region) : pageScroller;
@@ -1624,10 +1632,21 @@ export function createVersionController({
       regions.get(view.activeRegion) ??
       containingReadingRegionFor(focused()) ??
       readingRegionFor(readingBlock());
+    if (active) reveal(active.host);
     const restored = new Set();
-    if (active && view.regions?.[active.id]) {
-      restoreRegion(view.regions[active.id], regions.get(active.id));
-      restored.add(effectiveScroller(regions.get(active.id)));
+    const activeReading = active && view.regions?.[active.id];
+    const activeScroller = active && effectiveScroller(regions.get(active.id));
+    // An empty flow region has only the page scroller's raw offset. Let the containing
+    // page landmark restore that shared box instead; a raw offset belongs only to the
+    // same semantic scrollport that supplied it.
+    if (
+      activeReading &&
+      (hasLandmark(activeReading) ||
+        (rawOffsetFits(activeReading, activeScroller) &&
+          activeScroller !== pageScroller))
+    ) {
+      restoreRegion(activeReading, regions.get(active.id));
+      restored.add(activeScroller);
     } else {
       restoreRegion(view);
       restored.add(pageScroller);
@@ -1637,6 +1656,7 @@ export function createVersionController({
       if (!region) continue;
       const box = effectiveScroller(region);
       if (restored.has(box)) continue;
+      if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
       restoreRegion(reading, region);
       restored.add(box);
     }
@@ -1701,6 +1721,7 @@ export function createVersionController({
       const reading = regionViews.get(region.id);
       const box = effectiveScroller(region);
       if (!reading || restored.has(box)) continue;
+      if (!hasLandmark(reading) && !rawOffsetFits(reading, box)) continue;
       restoreRegion(reading, region);
       restored.add(box);
     }

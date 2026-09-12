@@ -1277,6 +1277,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     column-gap: 8px; align-items: stretch; margin-bottom: 8px; }
   .lf-thread-head > .lf-quote { margin: 0; }
   .lf-thread-head > .lf-resolve { grid-column: 2; }
+  /* The run heading already names a comment made on the heading itself, so that card
+     has no quote of its own. Its settlement action still belongs before the message
+     controls, but it does not earn an empty header row: float it into the opening
+     message, where the words wrap clear of the complete hit target at either pointer
+     floor. A quoted target keeps the two-column header above. */
+  :is(.lf-thread, .lf-going) > .lf-thread-head:not(:has(> .lf-quote)) {
+    float: inline-end; display: block;
+    margin: 0; margin-block-start: 2px; margin-inline-start: 8px; }
   .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
   .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: passage-focus;
     outline-offset: 2px; }

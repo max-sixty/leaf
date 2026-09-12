@@ -65,6 +65,7 @@ import {
   syncForwardedMarginEntryState,
   syncMarginEntryCount,
   syncMarginAgentPhase,
+  syncMarginEntrySelection,
   watchMarginContributions,
 } from "./margin-entries.js";
 import { mapButton } from "./page-map-dialog.js";
@@ -2848,8 +2849,8 @@ export function createMarginProjection({
       if (control?.isConnected) selected.add(control);
     }
     for (const control of selectedReadingCarriers)
-      if (!selected.has(control)) control.removeAttribute("data-lf-target-selected");
-    for (const control of selected) control.setAttribute("data-lf-target-selected", "");
+      if (!selected.has(control)) syncMarginEntrySelection(control, false);
+    for (const control of selected) syncMarginEntrySelection(control, true);
     selectedReadingCarriers = selected;
   }
 

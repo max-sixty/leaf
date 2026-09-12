@@ -7,6 +7,7 @@ import {
   offer,
   relabel,
   syncMarginAgentPhase,
+  syncMarginEntrySelection,
 } from "/runtime/widget-api.js";
 
 const GROUPS = [
@@ -162,7 +163,7 @@ function specimenNode(specimen, groupIndex, specimenIndex) {
       target: { kind: "widget", id: key },
       phase: specimen.agentPhase,
     });
-  if (specimen.selected) control.setAttribute("data-lf-target-selected", "");
+  syncMarginEntrySelection(control, specimen.selected ?? false);
   if (control instanceof HTMLButtonElement) control.disabled = true;
   if (behavior !== "status") control.setAttribute("aria-disabled", "true");
 

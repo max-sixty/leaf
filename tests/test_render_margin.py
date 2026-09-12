@@ -1690,8 +1690,8 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     page, errors = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, setMarginEntryState, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+          const {offer, marginEntry, setMarginEntryState, syncMarginEntrySelection,
+            registerMarginContribution} = await import('/runtime/widget-api.js');
           const control = marginEntry(offer('button', ''), {
             key: 'inspect', icon: 'question', label: 'Inspect source',
             context: 'Patch ready',
@@ -1702,6 +1702,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
           control.setAttribute('aria-expanded', 'true');
           control.setAttribute('aria-haspopup', 'dialog');
           control.setAttribute('aria-pressed', 'true');
+          syncMarginEntrySelection(control, true);
           control.onclick = () => window.lfCanonicalPresses += 1;
           window.lfCanonicalPresses = 0;
           window.lfCanonicalMarginEntry = {
@@ -1714,6 +1715,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
               control.setAttribute('aria-expanded', 'false');
               control.setAttribute('aria-haspopup', 'menu');
               control.removeAttribute('aria-pressed');
+              syncMarginEntrySelection(control, false);
               this.registration.update({immediate: true});
             }
           };
@@ -1736,6 +1738,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
           pressed: button.getAttribute('aria-pressed'),
           popup: button.getAttribute('aria-haspopup'),
           controls: button.getAttribute('aria-controls'),
+          selected: button.hasAttribute('data-lf-target-selected'),
         })"""
     ) == {
         "behavior": "disclosure",
@@ -1748,6 +1751,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
         "pressed": "true",
         "popup": "dialog",
         "controls": "how-cap",
+        "selected": True,
     }
 
     proxy.evaluate("button => button.dataset.stableProof = 'same-proxy'")
@@ -1760,6 +1764,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     expect(proxy).to_have_attribute("aria-expanded", "false")
     expect(proxy).to_have_attribute("aria-haspopup", "menu")
     expect(proxy).not_to_have_attribute("aria-pressed", re.compile(".+"))
+    expect(proxy).not_to_have_attribute("data-lf-target-selected", re.compile(".*"))
 
     page.evaluate(
         """() => {

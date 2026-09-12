@@ -101,6 +101,8 @@ export interface AuthoritativeState {
         };
         undo?: { event: Event }[];
         coverage: object[];
+        updates?: object[];
+        published_at?: string | null;
       }
     >;
     conversation: {
@@ -421,6 +423,13 @@ export function createSemanticApplication({
       projection,
       widgets: foldWidgetStates(document.authored, projection),
       conversation: { all: threads, listed: threads.filter(conversational) },
+      // These are semantic inputs to package rendering, not transport metadata.
+      // A worker row with no report dates its claim from the active revision, while
+      // report-backed rows render the accepted update sequence. Keep both inside the
+      // publication signature so their public watchers cannot miss a state read whose
+      // projection and widget facets happen to be unchanged.
+      updates: active?.updates ?? [],
+      publishedAt: active?.published_at ?? null,
       pendingApprovals: pendingApprovals(unresolved, receipts),
       pendingRequests: pendingRequests(unresolved, receipts),
       delivery: unresolvedAttempts(unresolved),

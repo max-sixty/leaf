@@ -359,7 +359,7 @@ test("accepted reading order includes non-event activity and independent source 
   assert.equal(app.read().data.sources.input.value, 5);
 });
 
-test("semantic epochs include active lifecycle changes but not browser metadata", () => {
+test("semantic epochs include visible revision facts but not transport metadata", () => {
   const app = setup();
   const lifecycle = state(2);
   lifecycle.browser.views[1].document.requests = [
@@ -372,9 +372,31 @@ test("semantic epochs include active lifecycle changes but not browser metadata"
   app.adopt(lifecycle);
   assert.ok(app.read().semanticEpoch > before);
 
+  const beforeRevisionFacts = app.read().semanticEpoch;
+  const revisionFacts = structuredClone(lifecycle);
+  revisionFacts.taken = 3;
+  revisionFacts.browser.views[1].published_at = "2026-09-12T10:00:00-07:00";
+  revisionFacts.browser.views[1].updates = [
+    {
+      id: "report-1",
+      target: { kind: "widget", id: "choice" },
+      source: "report",
+      action: "state",
+      detail: { state: "working" },
+      text: "working",
+      ts: "2026-09-12T09:00:00-07:00",
+      disposition: "effective",
+      seq: 1,
+    },
+  ];
+  app.adopt(revisionFacts);
+  assert.ok(app.read().semanticEpoch > beforeRevisionFacts);
+  assert.equal(app.read().effective.publishedAt, revisionFacts.browser.views[1].published_at);
+  assert.deepEqual(app.read().effective.updates, revisionFacts.browser.views[1].updates);
+
   const stable = app.read().semanticEpoch;
-  const metadata = structuredClone(lifecycle);
-  metadata.taken = 3;
+  const metadata = structuredClone(revisionFacts);
+  metadata.taken = 4;
   metadata.browser.basis.through_seq = 7;
   metadata.browser.views[1].basis.through_seq = 7;
   app.adopt(metadata);

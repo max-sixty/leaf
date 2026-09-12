@@ -57,6 +57,7 @@ from leaf import data as data_model
 from leaf import event_endpoint as event_endpoint_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
+from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import media as media_model
 from leaf import passages as passages_model
@@ -405,8 +406,8 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
     assert "decide" in result.output
 
 
-def test_init_refuses_to_retire_a_logged_host_request_verb(page_dir):
-    """A recorded request must remain interpretable for the life of the log."""
+def test_init_refuses_to_retire_a_frozen_thread_host_request_verb(page_dir):
+    """A request from frozen markup remains part of every candidate document."""
     operation = (
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
@@ -416,11 +417,18 @@ def test_init_refuses_to_retire_a_logged_host_request_verb(page_dir):
         '<lf-operation verb="restart"><strong>Restart</strong></lf-operation>'
         "</lf-operations></lf-ask></lf-task></lf-command>"
     )
-    version = page_dir / ".fixture-versions" / "v1.html"
-    version.write_text(
-        version.read_text().replace("</section>", operation + "</section>")
-    )
     publish(page_dir)
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "Restart?"},
+    )
+    conversation_model.cmd_reply(
+        page_dir,
+        "c1",
+        "Use this operation.",
+        operation,
+        for_event="c1",
+    )
     append_command(
         page_dir,
         {
@@ -454,10 +462,10 @@ def test_init_refuses_to_retire_a_logged_host_request_verb(page_dir):
 
 
 @pytest.mark.parametrize("receipt_requests", [["missing"], ["request-1", "request-1"]])
-def test_init_refuses_a_receipt_without_one_prior_unsettled_request(
+def test_init_does_not_revalidate_a_written_receipt_lifecycle(
     page_dir, receipt_requests
 ):
-    """Re-vendoring rejects orphan and duplicate terminal outcomes in log order."""
+    """Receipt integrity is enforced at append, not by candidate validation."""
     operation = (
         '<lf-command id="hub"><lf-task id="goal" status="blocked">'
         "<strong>Goal</strong>"
@@ -504,8 +512,7 @@ def test_init_refuses_a_receipt_without_one_prior_unsettled_request(
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
-    assert result.exit_code != 0
-    assert "receipt contract" in result.output, result.output
+    assert result.exit_code == 0, result.output
 
 
 def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
@@ -535,12 +542,10 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
     assert "no longer speaks" in result.output and "`shorten`" in result.output
 
 
-def test_init_refuses_a_logged_event_field_the_incoming_layer_no_longer_speaks(
+def test_init_does_not_revalidate_a_historical_event_record_schema(
     page_dir,
 ):
-    """An older or custom layer may have added a field without adding a kind.
-    The vocabulary stamp promises both, so retaining the kind alone cannot make
-    the recorded field meaningful to the incoming runtime."""
+    """Event shape is enforced at append, not by candidate validation."""
     publish(page_dir)
     events_model.append_event(
         page_dir,
@@ -556,9 +561,7 @@ def test_init_refuses_a_logged_event_field_the_incoming_layer_no_longer_speaks(
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
-    assert result.exit_code != 0
-    assert "no longer speaks" in result.output
-    assert "comment" in result.output and "mood" in result.output
+    assert result.exit_code == 0, result.output
 
 
 def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
@@ -697,7 +700,6 @@ def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
 
     assert result.exit_code != 0
     assert "no longer speaks" in result.output
-    assert "action contract" in result.output
 
 
 def test_init_does_not_rejudge_logged_actions_by_new_current_eligibility(page_dir):
@@ -1147,6 +1149,229 @@ def test_page_registry_reads_candidate_changes_without_mutating_the_layer(page_d
     assert second.registry["lf-local"] == declaration
     assert first.registry["lf-local"]["description"] != declaration["description"]
     assert "lf-local" not in registry_storage.load_registry(page_dir)
+
+
+def _stateful_page_declaration(page_dir, tag="lf-local"):
+    declaration = element_declaration(tag, upgrade=True)
+    widgets = page_dir / "page" / "widgets"
+    widgets.mkdir(exist_ok=True)
+    (widgets / f"{tag}.js").write_text("export function upgrade() {}\n")
+    declaration["properties"].update(
+        {
+            "restated": {"type": "boolean"},
+            "value": {"type": "string"},
+        }
+    )
+    state = {
+        "detail": {
+            "type": "object",
+            "properties": {"value": {"type": "string"}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        "facet": "value",
+        "unit": "widget",
+        "record": {"kind": "value", "attr": "value", "value": "value"},
+    }
+    declaration["x-state"] = {"first": deepcopy(state), "second": deepcopy(state)}
+    return declaration
+
+
+def test_candidate_vocabulary_keeps_every_page_action_an_undo_can_expose(page_dir):
+    """A superseded action can become the winner again if the later action is undone."""
+    from leaf.projection import page_reading
+    from leaf.revision_artifact import read_artifact
+
+    authored = page_dir / "page" / "registry.json"
+    declaration = _stateful_page_declaration(page_dir)
+    authored.write_text(json.dumps({"lf-local": declaration}))
+    source = PAGE.replace(
+        "</section>",
+        '<lf-local id="local-choice" value="author">Local</lf-local></section>',
+    )
+    fixture_version_path(page_dir, 1).write_text(source)
+    publish(page_dir)
+    revision = files_model.latest_revision(page_dir)
+    first = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": revision,
+            "widget": "local-choice",
+            "action": "first",
+            "detail": {"value": "first"},
+        },
+    )
+    second = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": revision,
+            "widget": "local-choice",
+            "action": "second",
+            "detail": {"value": "second"},
+        },
+    )
+    events = events_model.read_events(page_dir)
+    historical = read_artifact(page_dir, revision)
+    after_undo = [
+        *events,
+        {
+            "kind": "undo",
+            "id": "undo-second",
+            "author": "user",
+            "undoes": second["id"],
+        },
+    ]
+    projected = page_reading(
+        structure_model.SourceDocument(source),
+        after_undo,
+        historical.registry,
+        revision,
+    )
+    assert next(iter(projected.projection.desired.values()))[0]["id"] == first["id"]
+
+    del declaration["x-state"]["first"]
+    authored.write_text(json.dumps({"lf-local": declaration}))
+    refused = revisioning_model.activate_source(page_dir, events)
+
+    assert refused.error and "does not declare action verb 'first'" in refused.error
+    assert refused.revision == revision and not refused.created
+
+
+def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(page_dir):
+    """A retracted action on a removed sender is interpreted only in its old revision."""
+    from leaf.projection import page_reading
+    from leaf.revision_artifact import read_artifact
+
+    authored = page_dir / "page" / "registry.json"
+    declaration = _stateful_page_declaration(page_dir)
+    authored.write_text(json.dumps({"lf-local": declaration}))
+    original = PAGE.replace(
+        "</section>",
+        '<lf-local id="local-choice" value="author">Local</lf-local></section>',
+    )
+    fixture_version_path(page_dir, 1).write_text(original)
+    publish(page_dir)
+    first_revision = files_model.latest_revision(page_dir)
+    action = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": first_revision,
+            "widget": "local-choice",
+            "action": "first",
+            "detail": {"value": "reader"},
+        },
+    )
+    restated = original.replace('value="author"', 'value="author-next" restated')
+    (page_dir / "index.html").write_text(restated)
+    second = revisioning_model.activate_source(
+        page_dir, events_model.read_events(page_dir), allow_transition=True
+    )
+    assert second.error is None and second.created
+    events_model.append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "claude",
+            "version": 2,
+            "revision": second.revision,
+            "text": "Retract the local choice.",
+            "restated": ["local-choice"],
+        },
+    )
+
+    authored.write_text("{}")
+    (page_dir / "index.html").write_text(PAGE)
+    events = events_model.read_events(page_dir)
+    activated = revisioning_model.activate_source(page_dir, events)
+
+    assert activated.error is None and activated.created
+    revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert revendored.exit_code == 0, revendored.output
+    historical = page_reading(
+        structure_model.SourceDocument(original),
+        events,
+        read_artifact(page_dir, first_revision).registry,
+        first_revision,
+    )
+    assert (
+        historical.projection.desired["local-choice", "local-choice", "value"][0]["id"]
+        == action["id"]
+    )
+
+
+def test_revendoring_checks_the_effective_page_owned_vocabulary(page_dir):
+    """An unchanged page declaration remains part of the candidate after re-vendoring."""
+    authored = page_dir / "page" / "registry.json"
+    declaration = _stateful_page_declaration(page_dir)
+    authored.write_text(json.dumps({"lf-local": declaration}))
+    fixture_version_path(page_dir, 1).write_text(
+        PAGE.replace(
+            "</section>",
+            '<lf-local id="local-choice" value="author">Local</lf-local></section>',
+        )
+    )
+    publish(page_dir)
+    append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": files_model.latest_revision(page_dir),
+            "widget": "local-choice",
+            "action": "first",
+            "detail": {"value": "reader"},
+        },
+    )
+
+    revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+
+    assert revendored.exit_code == 0, revendored.output
+
+
+def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_dir):
+    """A thread widget keeps the contract under which its reader command was admitted."""
+    authored = page_dir / "page" / "registry.json"
+    declaration = _stateful_page_declaration(page_dir, "lf-thread-local")
+    authored.write_text(json.dumps({"lf-thread-local": declaration}))
+    publish(page_dir)
+    revision = files_model.latest_revision(page_dir)
+    events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "Choose."},
+    )
+    conversation_model.cmd_reply(
+        page_dir,
+        "c1",
+        "Use this control.",
+        '<lf-thread-local id="thread-choice" value="author">Local</lf-thread-local>',
+        for_event="c1",
+    )
+    append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": revision,
+            "widget": "thread-choice",
+            "action": "first",
+            "detail": {"value": "reader"},
+        },
+    )
+    del declaration["x-state"]["first"]
+    authored.write_text(json.dumps({"lf-thread-local": declaration}))
+
+    refused = revisioning_model.activate_source(
+        page_dir, events_model.read_events(page_dir)
+    )
+
+    assert refused.error and "does not declare action verb 'first'" in refused.error
+    assert refused.revision == revision and not refused.created
 
 
 @pytest.mark.parametrize(
@@ -4119,7 +4344,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     from copy import deepcopy
 
     from leaf.files import latest_revision
-    from leaf.validation.compatibility import vocabulary_gaps
+    from leaf.validation.compatibility import candidate_vocabulary_gaps
 
     registry = json.loads((page_dir / "registry.json").read_text())
     choose = registry["lf-options"]["x-state"]["choose"]
@@ -4169,7 +4394,10 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     status, body = fetch(f"{server}/api/event", data=json.dumps(empty).encode())
     assert status == 400, body
     assert "identity fields are invalid" in json.loads(body)["error"]
-    assert vocabulary_gaps(page_dir, events, registry) == []
+    document = structure_model.SourceDocument(source)
+    assert (
+        candidate_vocabulary_gaps(page_dir, events, document, registry, revision) == []
+    )
     facet = deepcopy(registry)
     facet["lf-options"]["x-state"]["choose"]["facet"] = "other"
     references = deepcopy(registry)
@@ -4178,7 +4406,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     answer["lf-options"]["x-awaits"]["answers"] = ["answer"]
     for incoming in (facet, references, answer):
         assert "changes admitted meaning" in "\n".join(
-            vocabulary_gaps(page_dir, events, incoming)
+            candidate_vocabulary_gaps(page_dir, events, document, incoming, revision)
         )
 
 
@@ -4189,7 +4417,7 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
     from leaf.asks import answered_ask
     from leaf.files import latest_revision
     from leaf.projection import page_reading
-    from leaf.validation.compatibility import vocabulary_gaps
+    from leaf.validation.compatibility import candidate_vocabulary_gaps
 
     registry = json.loads((page_dir / "registry.json").read_text())
     registry.update(
@@ -4241,9 +4469,12 @@ def test_revendoring_preserves_an_admitted_completion_condition(page_dir):
 
     assert answered(registry)
     assert not answered(incoming)
-    assert vocabulary_gaps(page_dir, events, registry) == []
+    document = structure_model.SourceDocument(source)
+    assert (
+        candidate_vocabulary_gaps(page_dir, events, document, registry, revision) == []
+    )
     assert "changes its admitted completion condition" in "\n".join(
-        vocabulary_gaps(page_dir, events, incoming)
+        candidate_vocabulary_gaps(page_dir, events, document, incoming, revision)
     )
 
 

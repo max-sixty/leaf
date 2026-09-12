@@ -69,13 +69,27 @@ def admit_widget_event(page_dir, event: dict, events: list, registry: dict) -> d
 
 
 def stored_meaning_error(
-    event: dict, page, thread, registry: dict, prior_registry: dict
+    event: dict,
+    page,
+    thread,
+    registry: dict,
+    recorded_registry: dict,
+    *,
+    recorded_page,
 ) -> str | None:
-    """Reject a layer that would reinterpret the meaning of an admitted event."""
-    record = page.by_id.get(event["widget"])
-    document = {"kind": "page", "revision": event["revision"]}
-    if record is None:
-        record = thread.by_id[event["widget"]]
+    """Reject a candidate that would reinterpret one admitted command.
+
+    The recorded side comes from the immutable artifact named by the event. The
+    candidate side comes from the document being checked, except that thread widgets
+    live in their frozen markup for the page's whole lifetime.
+    """
+    scope = event["meaning"]["document"]["kind"]
+    if scope == "page":
+        record = page.by_id[event["widget"]]
+        recorded = recorded_page.by_id[event["widget"]]
+        document = {"kind": "page", "revision": event["revision"]}
+    else:
+        record = recorded = thread.by_id[event["widget"]]
         document = {"kind": "thread"}
     entry = registry[record["tag"]]
     expected = (
@@ -87,12 +101,17 @@ def stored_meaning_error(
         return f"{event['kind']} {event['id']} changes admitted meaning from {event['meaning']!r} to {expected!r}"
     if event["kind"] in {"action", "report"}:
         channel = "x-state" if event["kind"] == "action" else "x-report"
-        before = prior_registry[record["tag"]][channel][event["action"]]
+        before = recorded_registry[recorded["tag"]][channel][event["action"]]
         after = entry[channel][event["action"]]
-        for field, label in (
+        fields = [
             ("record", "record form"),
             ("completion", "completion condition"),
-        ):
+        ]
+        if event["kind"] == "action":
+            fields.append(("creates", "creates declaration"))
+        else:
+            fields.append(("update", "update field"))
+        for field, label in fields:
             if before.get(field) != after.get(field):
                 return f"{event['kind']} {event['id']} changes its admitted {label}"
     return None

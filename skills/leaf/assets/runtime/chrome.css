@@ -239,16 +239,25 @@
 .lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
 }
-/* Pickup colors the carrier's glyph; active work colors its interior. The ordinary
-   contour continues to communicate the entry's behavior. */
-.lf-margin-entry[data-lf-agent-phase="picked_up"]
+/* Ownership colors the carrier's glyph; active work also colors its interior. The
+   ordinary contour continues to communicate the entry's behavior. */
+.lf-margin-entry:is(
+  [data-lf-agent-phase="picked_up"],
+  [data-lf-agent-phase="active"]
+)
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
-.lf-margin-entry[data-lf-agent-phase="picked_up"][data-lf-tone="positive"] {
+.lf-margin-entry:is(
+  [data-lf-agent-phase="picked_up"],
+  [data-lf-agent-phase="active"]
+)[data-lf-tone="positive"] {
   border-color: var(--ok-ink);
 }
-.lf-margin-entry[data-lf-agent-phase="picked_up"][data-lf-tone="negative"] {
+.lf-margin-entry:is(
+  [data-lf-agent-phase="picked_up"],
+  [data-lf-agent-phase="active"]
+)[data-lf-tone="negative"] {
   border-color: var(--danger-ink);
 }
 .lf-margin-entry[data-lf-agent-phase="active"] {
@@ -1720,7 +1729,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
     color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
-  .lf-page-map-action[data-lf-agent-phase="picked_up"] > .lf-margin-kind {
+  .lf-page-map-action:is(
+    [data-lf-agent-phase="picked_up"],
+    [data-lf-agent-phase="active"]
+  ) > .lf-margin-kind {
     color: var(--ok-ink);
   }
   .lf-page-map-action[data-lf-agent-phase="active"] {

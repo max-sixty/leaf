@@ -350,15 +350,14 @@ def test_an_aimed_comment_keeps_its_place_with_the_asks_tray_open(browser, serve
 @pytest.mark.parametrize(
     "width,panel_open", [(1440, False), (1440, True), (390, False)]
 )
-def test_a_growing_comment_keeps_its_words_and_its_paragraph_clear(
+def test_a_growing_comment_starts_clear_then_uses_the_viewport(
     browser, serve, width, panel_open
 ):
-    """A short selected phrase does not reserve the rest of its paragraph for chrome.
+    """The compact field avoids its target; its draft then gets the available viewport.
 
-    The field starts compact, then native field sizing uses the room available beside
-    the whole paragraph or above/below it. Its trailing actions stay with the last line,
-    and its corners keep the first and last line readable after the one-line capsule
-    grows into an editor.
+    A growing field may overlay page content instead of becoming a small scroller. Its
+    trailing actions stay with the last line, and its corners keep the first and last
+    line readable after the one-line capsule grows into an editor.
     """
     page, errors = open_page(
         browser,
@@ -395,6 +394,13 @@ def test_a_growing_comment_keeps_its_words_and_its_paragraph_clear(
     expect(field).to_be_visible()
     field.click()
     compact = field.bounding_box()
+    clear = """() => {
+          const target = document.getElementById('passage').getBoundingClientRect();
+          const field = document.querySelector('.lf-fab-input').getBoundingClientRect();
+          return field.right <= target.left || field.left >= target.right
+            || field.bottom <= target.top || field.top >= target.bottom;
+        }"""
+    assert page.evaluate(clear)
     field.fill("test\n")
     actions = page.evaluate(
         """() => {
@@ -415,13 +421,6 @@ def test_a_growing_comment_keeps_its_words_and_its_paragraph_clear(
     )
     field.fill(content)
     expect(field).to_have_value(content)
-    clear = """() => {
-          const target = document.getElementById('passage').getBoundingClientRect();
-          const field = document.querySelector('.lf-fab-input').getBoundingClientRect();
-          return field.right <= target.left || field.left >= target.right
-            || field.bottom <= target.top || field.top >= target.bottom;
-        }"""
-    page.wait_for_function(clear)
     expanded = field.bounding_box()
     assert expanded["width"] > compact["width"]
     assert expanded["height"] > compact["height"] * 5
@@ -438,7 +437,6 @@ def test_a_growing_comment_keeps_its_words_and_its_paragraph_clear(
     page.mouse.move(8, 450)
     page.mouse.wheel(0, 300)
     page.wait_for_function("() => scrollY >= 300")
-    page.wait_for_function(clear)
     expect(field).to_have_value(content)
     field.fill("Brief")
     expect(field).to_have_value("Brief")
@@ -703,6 +701,63 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
         abs(returned["y"] - returned_target["y"] - compact["y"] + compact_target["y"])
         <= 1
     )
+    assert errors == []
+    page.close()
+
+
+def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
+    browser, serve
+):
+    """A target occupying the lane does not reduce its editor to one line."""
+    page, errors = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A section target",
+                '<section id="target" style="min-height: 150vh">'
+                "<h2>The section begins at the top of the reading band</h2>"
+                "<p>Its content continues past the bottom of the viewport.</p>"
+                '<div style="height: 480px"></div></section>',
+            )
+        ),
+    )
+    resized(page, 511, 320)
+    target = page.locator("#target")
+    target.click(modifiers=["Alt"], position={"x": 200, "y": 25})
+    field = open_compact_comment(page)
+    bar = page.locator(".lf-fab-bar")
+    assert bar.get_attribute("data-lf-placement") in {"top-end", "bottom-end"}
+
+    field.fill("\n".join(f"Line {n}: keep the draft visible." for n in range(3)))
+    page.wait_for_function(
+        """() => {
+          const field = document.querySelector('.lf-fab-input');
+          return field.clientHeight === field.scrollHeight && field.clientHeight > 100;
+        }"""
+    )
+
+    field.fill("\n".join(f"Line {n}: keep the draft reachable." for n in range(40)))
+    page.wait_for_function(
+        """() => {
+          const field = document.querySelector('.lf-fab-input');
+          return field.scrollHeight > field.clientHeight;
+        }"""
+    )
+    banner = page.locator(".lf-banner").bounding_box()
+    box = bar.bounding_box()
+    ceiling = max(48, banner["y"] + banner["height"] + 6)
+    assert box["y"] >= ceiling and box["y"] + box["height"] <= 312, box
+
+    field.evaluate("node => { node.scrollTop = 0; }")
+    field.click(position={"x": 20, "y": 20})
+    field_scroll = field.evaluate("node => node.scrollTop")
+    page_scroll = page.evaluate("scrollY")
+    page.mouse.wheel(0, 180)
+    page.wait_for_function(
+        "before => document.querySelector('.lf-fab-input').scrollTop > before",
+        arg=field_scroll,
+    )
+    assert page.evaluate("scrollY") == page_scroll
     assert errors == []
     page.close()
 

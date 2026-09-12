@@ -349,11 +349,11 @@ def cmd_reply(
                 "comment, so its anchor cannot be changed"
             )
         current_thread = (
-            build_threads(events, active_enclosing(page_dir))[root_id]
-            if relocating
+            build_threads(events, active_enclosing(page_dir)).get(root_id)
+            if detach
             else None
         )
-        if detach and current_thread["anchor"] is None:
+        if detach and (current_thread is None or current_thread["anchor"] is None):
             sys.exit(f"conversation {root_id!r} has no current anchor to detach")
         reply_revision = None
         prospective_page = None
@@ -382,7 +382,7 @@ def cmd_reply(
             else:
                 from leaf.validation.source import check_source
 
-                checked = check_source(page_dir, source_events)
+                checked = check_source(page_dir, source_events, allow_transition=False)
                 if checked.errors:
                     operation = "reply" if validate_source else "detach"
                     sys.exit(
@@ -413,9 +413,9 @@ def cmd_reply(
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
         if not source_matches_active:
-            from leaf.revisioning import activate_source
+            from leaf.revisioning import activate_checked_source
 
-            activation = activate_source(page_dir, source_events)
+            activation = activate_checked_source(page_dir, checked)
             if activation.error:
                 operation = "reply" if validate_source else "detach"
                 sys.exit(

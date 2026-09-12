@@ -441,6 +441,58 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
     assert "--detach cannot be combined" in mixed.output
 
 
+def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir):
+    published(page_dir)
+    root = events_model.append_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "token": "shorten",
+            "anchor": {"section": "flow"},
+        },
+    )
+    events_model.append_event(
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": root["id"]},
+    )
+
+    detached = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--detach",
+            "--text",
+            "There is no current subject to detach.",
+        ],
+    )
+    assert detached.exit_code != 0
+    assert "has no current anchor to detach" in detached.output
+
+    moved = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "reply",
+            "--json",
+            str(page_dir),
+            "--to",
+            root["id"],
+            "--initiates",
+            "--section",
+            "plan",
+            "--text",
+            "Move the withdrawn mark's conversation here.",
+        ],
+    )
+    assert moved.exit_code == 0, moved.output
+    assert json.loads(moved.output)["anchor"] == {"section": "plan"}
+
+
 def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     """A hold's exact-section anchor is part of the command request's meaning, not
     merely the thread's placement, so a later reply cannot silently retarget it."""

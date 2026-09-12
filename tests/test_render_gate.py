@@ -3,12 +3,15 @@
 import itertools
 import json
 import re
+import threading
 import time
 from urllib.parse import urlsplit
 
 import pytest
 from interact_support import append_command
 from leaf import event_log as events_model
+from leaf import hosting as hosting_model
+from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf.render_gate import readings as render_gate_readings
@@ -54,6 +57,7 @@ from render_support import (
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
     TINTED_LINE_PAGE,
+    TOKEN,
     TYPED_PARTS_PAGE,
     UNANSWERED_CODE_PAGE,
     UNMARKABLE_PAGE,
@@ -235,6 +239,48 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
     assert holding, "the page asked for no theme stylesheet, so nothing was held"
     assert str(stopped.value) == (
         "the document never reached its theme stylesheet; still requesting /theme.css"
+    )
+
+
+def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
+    browser, serve
+):
+    """Past the release the entry is the page's own request. What the wait above
+    leaves out is the hold, not the file — and a load event still waiting on an entry
+    the server accepted and then dropped is exactly the ending this reading exists to
+    name, so the release has to hand the entry back to the page."""
+    served = serve(leaf_page("dropped entry", "<h1>Dropped</h1>"), packages=())
+    asked = threading.Event()
+
+    class Drops(http_model.handler_for(serve.page_dir, TOKEN)):
+        """Answers everything but the Leaf entry, which it accepts and drops."""
+
+        def do_GET(self):
+            if self.path.startswith("/leaf.js"):
+                asked.set()
+                time.sleep(300)  # longer than any patience the gate could have
+                return
+            super().do_GET()
+
+    httpd = hosting_model.LeafHTTPServer(("127.0.0.1", 0), Drops)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    dropped = (
+        urlsplit(served)
+        ._replace(netloc=f"127.0.0.1:{httpd.server_address[1]}")
+        .geturl()
+    )
+    page = browser.new_page()
+    page.set_default_timeout(5_000)
+    try:
+        with pytest.raises(RuntimeError) as stopped:
+            render_gate_scheme.start_with_pre_upgrade_proof(page, dropped)
+    finally:
+        page.close()
+        httpd.shutdown()
+
+    assert asked.is_set(), "the browser never asked for the entry, so nothing dropped"
+    assert str(stopped.value) == (
+        "the document never reached load; still requesting /leaf.js"
     )
 
 

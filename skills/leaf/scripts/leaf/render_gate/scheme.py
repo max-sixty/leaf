@@ -141,10 +141,13 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
         try:
             return wait()
         except PlaywrightTimeout:
-            # Minus the entry this function is holding itself: it is open because the
-            # gate chose to hold it, and naming it as something the page is still
-            # asking for points a reader at the hold rather than at the page.
-            waiting = open_requests - {route.request for route in held}
+            # Minus the entry this function is holding itself, while it is still
+            # holding it: it is open because the gate chose to hold it, and naming it
+            # as something the page is still asking for points a reader at the hold
+            # rather than at the page. Past the release it is the page's own request
+            # like any other, and the load wait below is where it would stall.
+            mine = set() if released else {route.request for route in held}
+            waiting = open_requests - mine
             asking = sorted({urlsplit(request.url).path for request in waiting})
             raise RuntimeError(
                 f"the document never reached {arrival}"

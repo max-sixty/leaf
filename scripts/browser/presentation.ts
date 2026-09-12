@@ -3,7 +3,8 @@
  * The semantic owner supplies an opaque document token and monotonically increasing
  * epoch. This coordinator opens the epoch before publication, lets synchronous
  * renderers replace inherited work, and seals membership after that publication
- * checkpoint. It retains renderer instances, promises, and commit proof; none of those
+ * checkpoint. Replacing a required renderer reopens mechanical completion for the same
+ * epoch. It retains renderer instances, promises, and commit proof; none of those
  * mechanical values enter the semantic snapshot.
  */
 
@@ -219,7 +220,8 @@ export function createPresentationCoordinator<
   function joinsCurrentBarrier(
     record: RegionRecord<DocumentToken, Region, Renderer, Value, Proof>,
   ) {
-    if (!barrier || barrier.completed) return false;
+    if (!barrier) return false;
+    if (barrier.completed) return barrier.members.has(record.region);
     if (!barrier.sealed) return true;
     const standing = barrier.members.get(record.region);
     if (standing !== undefined) return true;
@@ -285,13 +287,15 @@ export function createPresentationCoordinator<
     };
     rendererGenerations.set(region, record.rendererGeneration);
     regions.set(region, record);
-    if (joinsCurrentBarrier(record))
+    if (joinsCurrentBarrier(record)) {
+      barrier.completed = false;
       barrier.members.set(region, {
         record,
         ticket: null,
         commit: null,
         retired: false,
       });
+    }
 
     const present = async (
       value: Value,
@@ -310,8 +314,10 @@ export function createPresentationCoordinator<
       };
       record.ticket = ticket;
       record.commit = null;
-      const member = barrier?.members.get(region);
-      if (member?.record === record) {
+      const presentingBarrier = barrier;
+      const member = presentingBarrier?.members.get(region);
+      if (presentingBarrier && member?.record === record) {
+        presentingBarrier.completed = false;
         member.ticket = ticket;
         member.commit = null;
         member.retired = false;
@@ -386,7 +392,10 @@ export function createPresentationCoordinator<
     validEpoch(targetSemanticEpoch);
     if (document === null || !Object.is(targetDocument, document))
       return Promise.resolve("superseded");
-    if (presentedEpoch >= targetSemanticEpoch) return Promise.resolve("presented");
+    const repairingCurrentEpoch =
+      targetSemanticEpoch === semanticEpoch && barrier !== null && !barrier.completed;
+    if (presentedEpoch >= targetSemanticEpoch && !repairingCurrentEpoch)
+      return Promise.resolve("presented");
     return new Promise((resolve) => {
       waiters.push({
         document: targetDocument,

@@ -102,6 +102,60 @@ test("a replacement renderer must complete in place of the retired instance", as
   );
 });
 
+test("an equal-value replacement repairs an already presented epoch", async () => {
+  const { coordinator } = setup();
+  const document = {};
+  const oldRenderer = {};
+  const publication = coordinator.begin(document, 0);
+  const oldHandle = coordinator.attach("widget", oldRenderer);
+  await oldHandle.present("same", "old proof");
+  coordinator.seal(publication);
+  assert.equal(await coordinator.whenPresented(document, 0), "presented");
+
+  oldHandle.disconnect();
+  const obsoleteWork = deferred();
+  const obsoletePresentation = oldHandle.present("same", obsoleteWork.promise);
+  const newRenderer = {};
+  const replacement = coordinator.attach("widget", newRenderer);
+  const replacementWork = deferred();
+  const replacementPresentation = replacement.present("same", replacementWork.promise);
+  const readiness = coordinator.whenPresented(document, 0);
+  let ready = false;
+  void readiness.then(() => {
+    ready = true;
+  });
+  await Promise.resolve();
+  assert.equal(ready, false);
+  assert.deepEqual(coordinator.read().pending, ["widget"]);
+
+  obsoleteWork.resolve("obsolete proof");
+  await obsoletePresentation;
+  assert.equal(ready, false);
+  assert.equal(coordinator.committed("widget", oldRenderer, "same"), null);
+
+  replacementWork.resolve("replacement proof");
+  await replacementPresentation;
+  assert.equal(await readiness, "presented");
+  assert.equal(coordinator.read().presentedEpoch, 0);
+  assert.equal(
+    coordinator.committed("widget", newRenderer, "same")?.proof,
+    "replacement proof",
+  );
+});
+
+test("begin reuses the active publication when the semantic epoch is unchanged", async () => {
+  const { coordinator } = setup();
+  const document = {};
+  const publication = coordinator.begin(document, 0);
+  const handle = coordinator.attach("widget", {});
+  await handle.present("value", "proof");
+  coordinator.seal(publication);
+
+  assert.equal(coordinator.begin(document, 0), publication);
+  assert.equal(await coordinator.whenPresented(document, 0), "presented");
+  assert.deepEqual(coordinator.read().pending, []);
+});
+
 test("an asynchronous descendant joins a sealed barrier under its pending parent", async () => {
   const { coordinator } = setup();
   const document = {};

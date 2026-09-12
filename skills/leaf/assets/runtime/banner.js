@@ -167,6 +167,7 @@ const showStatus = (kind, tone, summary, explanation) => {
   // Leave a selected explanation intact across unchanged polls.
   if (statusDetail.textContent !== explanation) statusDetail.textContent = explanation;
   statusButton.title = explanation;
+  statusText.title = explanation;
   paintTab();
   const changed = saidKind !== undefined && saidKind !== kind;
   saidKind = kind;

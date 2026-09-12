@@ -215,6 +215,7 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
             "this private copy. Install Leaf"
         )
         expect(status.locator("a")).to_have_attribute("href", "/#install")
+        expect(status).to_have_attribute("title", status.text_content())
         expect(page.locator(".lf-banner .lf-dot")).to_have_class(
             re.compile(r"^lf-dot\s*$")
         )

@@ -3674,26 +3674,22 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
                 "name": "Hero cards",
                 "scope": "class",
                 "className": "landing-card",
-                "selector": {
-                    "authoredId": "hero",
-                    "path": [{"tag": "section", "index": 0}],
-                    "label": "<section#hero>",
-                    "text": "Build the next release Keep the request path visible.",
-                },
+                "reference": {"kind": "id", "id": "hero"},
+                "label": "<section#hero>",
+                "text": "Build the next release Keep the request path visible.",
             },
             {
                 "key": "target-2",
                 "name": "Evidence heading",
                 "scope": "element",
                 "className": None,
-                "selector": {
-                    "path": [
-                        {"tag": "section", "index": 1},
-                        {"tag": "h3", "index": 0},
-                    ],
-                    "label": "<h3.section-title>",
-                    "text": "Inspect the evidence",
+                "reference": {
+                    "kind": "structure",
+                    "anchor": "evidence",
+                    "path": [{"tree": "light", "tag": "h3"}],
                 },
+                "label": "<h3.section-title>",
+                "text": "Inspect the evidence",
             },
         ],
         "changes": [
@@ -3730,6 +3726,106 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     workbench.get_by_role("button", name="Revert draft").click()
     assert page.locator("#hero").evaluate("element => element.style.padding") == "24px"
     expect(workbench.locator(".lf-targeting-change")).to_have_count(2)
+    assert errors == []
+    page.close()
+
+
+def test_targeting_controller_keeps_unresolved_targets_visible_and_blocks_submit(
+    browser, serve
+):
+    authored = leaf_page(
+        "target lifecycle",
+        """
+<lf-ask id="target-lifecycle-ask">
+  <h2>What should change?</h2>
+  <lf-targeting id="target-lifecycle">
+    <lf-target-preview id="target-lifecycle-preview">
+      <article><div><span><button type="button">Keep this card identifiable</button></span></div></article>
+    </lf-target-preview>
+  </lf-targeting>
+</lf-ask>
+""",
+    )
+    page, errors = open_page(browser, serve(authored, packages=("targeting",)))
+    workbench = page.locator("#target-lifecycle")
+    target = workbench.locator("article")
+    focused = target.get_by_role("button", name="Keep this card identifiable")
+
+    armed = workbench.evaluate(
+        """element => {
+          element.arm();
+          const armed = element.currentDraft().armed;
+          element.disarm();
+          const disarmed = element.currentDraft().armed;
+          element.arm();
+          return {armed, disarmed, rearmed: element.currentDraft().armed};
+        }"""
+    )
+    assert armed == {"armed": True, "disarmed": False, "rearmed": True}
+
+    focused.focus()
+    page.keyboard.press("Enter")
+    candidates = workbench.locator(".lf-targeting-candidate-choice")
+    expect(candidates).to_have_count(5)
+    candidates.filter(has_text="<article>").click()
+    workbench.get_by_role("button", name="Add style").click()
+    submit = workbench.get_by_role("button", name="Submit changes")
+    card = workbench.locator('[data-target-key="target-1"]')
+    expect(card).to_have_attribute("data-lf-target-status", "resolved")
+    expect(submit).to_be_enabled()
+
+    draft = workbench.evaluate("element => element.currentDraft()")
+    assert draft["armed"] is False
+    assert draft["dirty"] is True
+    assert draft["resolutions"] == {"target-1": "resolved"}
+    assert draft["configuration"]["targets"][0]["reference"] == {
+        "kind": "structure",
+        "path": [{"tree": "light", "tag": "article"}],
+    }
+
+    workbench.locator("lf-target-preview").evaluate(
+        """preview => {
+          const inserted = document.createElement('article');
+          inserted.dataset.insertedTarget = '';
+          preview.prepend(inserted);
+        }"""
+    )
+    expect(card).to_have_attribute("data-lf-target-status", "ambiguous")
+    expect(card).to_contain_text("Ambiguous target")
+    expect(card).to_be_visible()
+    expect(submit).to_be_disabled()
+    assert workbench.evaluate("element => element.currentDraft().resolutions") == {
+        "target-1": "ambiguous"
+    }
+
+    workbench.locator("[data-inserted-target]").evaluate("element => element.remove()")
+    expect(card).to_have_attribute("data-lf-target-status", "resolved")
+    expect(submit).to_be_enabled()
+
+    target.evaluate("element => element.remove()")
+    expect(card).to_have_attribute("data-lf-target-status", "detached")
+    expect(card).to_contain_text("Detached target")
+    expect(card).to_be_visible()
+    expect(submit).to_be_disabled()
+    assert workbench.evaluate("element => element.currentDraft().resolutions") == {
+        "target-1": "detached"
+    }
+
+    reset = workbench.evaluate(
+        """element => {
+          element.arm();
+          element.reset();
+          return element.currentDraft();
+        }"""
+    )
+    assert reset == {
+        "armed": False,
+        "dirty": False,
+        "configuration": {"targets": [], "changes": []},
+        "resolutions": {},
+    }
+    expect(workbench.locator(".lf-targeting-target")).to_have_count(0)
+    expect(workbench.locator(".lf-targeting-change")).to_have_count(0)
     assert errors == []
     page.close()
 

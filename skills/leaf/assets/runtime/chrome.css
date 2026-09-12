@@ -1798,8 +1798,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      regions it crosses, so their last lines never end underneath it. Overflow remains a
      backstop for a window too narrow to hold even the short line. */
   :is(.lf-shortcut-bar, .lf-bottom-status) {
-    color: var(--muted); font-size: var(--t-6); padding: 5px 10px;
-    border: 1px solid var(--rule); border-radius: var(--r); background: var(--card); }
+    color: var(--muted); font-size: var(--t-6); padding: 5px 10px; }
   .lf-shortcut-bar { position: fixed; left: calc(18px + var(--lf-safe-left));
     bottom: calc(14px + var(--lf-safe-bottom)); z-index: 8940; pointer-events: none;
     display: flex; gap: 12px; align-items: baseline;
@@ -1812,6 +1811,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-bottom-status { position: fixed;
     right: calc(18px + var(--lf-safe-right) + var(--lf-shortcut-bar-right, 0px));
     bottom: calc(14px + var(--lf-safe-bottom));
+    border: 1px solid var(--rule); border-radius: var(--r); background: var(--card);
     /* Passive feedback remains visible above a covering auxiliary surface. */
     z-index: 9030; pointer-events: none;
     max-width: calc(100vw - var(--lf-shortcut-bar-right, 0px) - 36px
@@ -1869,10 +1869,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-shortcut-more:hover { color: var(--ink-2); }
   /* Inside, because the line clips: the button pulls itself out of the row by 3px so
      its own padding does not grow the line, and a ring drawn a further pixel out lands
-     past the line's padding box, which overflow: hidden cuts. A control packed into
-     a list states its own inset (theme.css, --here-ring) — the joined option group does
-     the same — and here the line's own border is what stands
-     the whole thing off the page. */
+     past the line's box, which overflow: hidden cuts. A control packed into a list states
+     its own inset (theme.css, --here-ring) — the joined option group does the same. */
   .lf-shortcut-more:is(:focus-visible, .lf-focus-visible) { outline: var(--here-ring); --lf-here-ring: key-more;
     outline-offset: calc(-1 * var(--here-ring-w)); }
   /* Design mode: the reader is commenting on the layer rather than the page, and for

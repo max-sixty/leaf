@@ -11,6 +11,7 @@ and requests another reading at its next deadline; it does not run a second fold
 | --- | --- | --- | --- |
 | work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
+| live Codex reply: session, turn, exact response address, item, text, and completion state | optional `stream.reply` in `status.json` | the App Server connection bound to a delivery with one plain reply | the completed message becomes a durable reply, another operation settles it, or the stream fails or disconnects |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` or `leaf ack` process, held open for its life | process exit |
 | acknowledgement cursor | `cursor.json` | `leaf ack`, after the complete batch reached its durable consumer | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
@@ -67,9 +68,11 @@ that turn's ending and the next one's opening, surfaces unacknowledged user
 events at the next prompt, and releases the session's page claims when it exits.
 Its unanswered-work guard reads `activity.obligations`, the same settled
 interaction projection the browser reads; it does not reconstruct conversations
-itself. An App Server turn's final assistant message is transcript output, not
-settlement evidence. The turn records the explicit Leaf reply, version, or request
-receipt before Stop can consider that obligation answered.
+itself. An App Server turn bound to one plain reply may finish that exact response
+with its completed final-answer item; the hook lets the provider turn close, and
+the observer commits the same text through the canonical reply writer when the
+terminal notification arrives. Every other turn records its explicit Leaf reply,
+version, or request receipt before Stop can consider the obligation answered.
 When the prompt hook opens a turn, it records a new `opened` transition for its
 acknowledged, unanswered moves. A plugin-free embedded host records the same
 transition from the queued turn's App Server `turn/started` notification. A

@@ -20,6 +20,7 @@ from xml.etree import ElementTree
 
 from websockets.sync.client import connect, unix_connect
 
+from .conversation import cmd_reply
 from .delivery import batch_data, delivery_path, freeze_delivery
 from .event_log import flocked, read_cursor
 from .files import read_json, write_json
@@ -30,6 +31,7 @@ from .service import (
     PageTransaction,
     owned_pages,
     restore_page_claim,
+    stream_reply_attempt,
     take_page_claim,
     unacknowledged,
 )
@@ -58,6 +60,26 @@ class PreparedDelivery:
 
     prompt: str
     payload: dict
+
+
+def stream_reply_target(payload: dict) -> dict | None:
+    """Return the one plain reply address a provider message may answer."""
+    responses = [
+        (batch["page"], obligation["response"])
+        for batch in payload["batches"]
+        for event in batch["events"]
+        if (obligation := event.get("obligation")) is not None
+    ]
+    if len(responses) != 1:
+        return None
+    [(page, response)] = responses
+    if response["kind"] != "reply":
+        return None
+    return {
+        "page": page,
+        "reply_to": response["to"],
+        "responds": response["for"],
+    }
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -190,6 +212,7 @@ class AppServerEvents:
         if method == "turn/completed":
             turn = params["turn"]
             completed = turn["id"]
+            final = self.final_text(turn)
             if self.turn_id == completed:
                 self.turn_id = None
                 self.details.clear()
@@ -197,6 +220,7 @@ class AppServerEvents:
             return {
                 "turn": completed,
                 "completed": turn.get("status", "completed"),
+                "text": final,
             }
         if turn_id is None:
             return None
@@ -313,6 +337,19 @@ class AppServerEvents:
         ]
         return unknown[-1] if unknown else ""
 
+    def final_text(self, turn: dict) -> str:
+        """Return only completed final-answer content suitable for publication."""
+        items = [
+            item for item in turn.get("items", []) if item.get("type") == "agentMessage"
+        ]
+        for item in items:
+            self._record_message(item)
+        return "\n\n".join(
+            item.get("text", "")
+            for item in items
+            if item.get("phase") == "final_answer" and item.get("text")
+        )
+
     def _message_update(self, item_id: str, *, complete: bool) -> dict:
         return {
             "item": item_id,
@@ -381,6 +418,92 @@ class AppServerEvents:
         return None
 
 
+class AppServerReplyStream:
+    """Project and commit one App Server final answer as its Leaf reply."""
+
+    def __init__(
+        self,
+        session_id: str,
+        turn_id: str,
+        target: dict,
+    ):
+        self.session_id = session_id
+        self.turn_id = turn_id
+        self.target = dict(target)
+        self.text = ""
+        self.last_update = 0.0
+        _set_stream_reply(session_id, turn_id, self.target, None, "", "active")
+
+    def update(self, update: dict | None) -> None:
+        """Publish a final-answer item update, throttling only partial deltas."""
+        message = update.get("message") if update is not None else None
+        if message is None or message["phase"] != "final_answer":
+            return
+        self.text = message["text"]
+        now = time.monotonic()
+        if not message["complete"] and now - self.last_update < STREAM_UPDATE_INTERVAL:
+            return
+        _set_stream_reply(
+            self.session_id,
+            self.turn_id,
+            self.target,
+            message["item"],
+            self.text,
+            "active",
+            settles=message["complete"] and bool(self.text),
+        )
+        self.last_update = now
+
+    def restore(self, text: str) -> None:
+        """Restore a still-running final answer after reconnecting."""
+        self.text = text
+        _set_stream_reply(
+            self.session_id,
+            self.turn_id,
+            self.target,
+            None,
+            text,
+            "active",
+        )
+
+    def finish(self, state: str, text: str = "") -> BaseException | None:
+        """Commit completed text, returning a rejection after making it visible."""
+        final = text or self.text
+        if state == "completed" and final:
+            try:
+                _commit_stream_reply(
+                    self.session_id,
+                    self.turn_id,
+                    self.target,
+                    final,
+                )
+            except (OSError, RuntimeError, SystemExit, ValueError) as error:
+                _set_stream_reply_state(
+                    self.session_id,
+                    self.turn_id,
+                    {**self.target, "text": final},
+                    "failed",
+                )
+                return error
+            return None
+        _set_stream_reply_state(
+            self.session_id,
+            self.turn_id,
+            {**self.target, "text": final},
+            state if state != "completed" else "partial",
+        )
+        return None
+
+    def disconnect(self) -> None:
+        """Keep partial text visible but mark its provider connection lost."""
+        _set_stream_reply_state(
+            self.session_id,
+            self.turn_id,
+            {**self.target, "text": self.text},
+            "disconnected",
+        )
+
+
 def project_app_server_activity(
     events: AppServerEvents,
     message: dict,
@@ -426,6 +549,7 @@ class AppServerClient:
         self.started = False
         self.request_id = 2
         self.requests: queue.Queue[tuple[dict, queue.Queue]] = queue.Queue()
+        self.bindings: dict[str, AppServerReplyStream] = {}
         self.ready: queue.Queue[BaseException | None] = queue.Queue(maxsize=1)
         self.thread = threading.Thread(
             target=self._run,
@@ -451,6 +575,8 @@ class AppServerClient:
             self.socket.close()
         self.thread.join(timeout=3)
         _clear_stream_activity(self.thread_id)
+        for stream in self.bindings.values():
+            stream.disconnect()
 
     def start_delivery(self, payload: dict) -> dict | None:
         """Open an idle turn; leave active tasks to the durable queue."""
@@ -466,7 +592,14 @@ class AppServerClient:
             raise RuntimeError(str(error)) from error
         return result
 
-    def _send(self, socket, method: str, request_id: int, params: dict) -> dict:
+    def _send(
+        self,
+        socket,
+        method: str,
+        request_id: int,
+        params: dict,
+        pending: list[dict] | None = None,
+    ) -> dict:
         socket.send(json.dumps({"method": method, "id": request_id, "params": params}))
         while not self.stop_event.is_set():
             raw = socket.recv(timeout=START_TIMEOUT)
@@ -475,7 +608,10 @@ class AppServerClient:
                 if error := message.get("error"):
                     raise RuntimeError(error.get("message") or str(error))
                 return message.get("result") or {}
-            self._read(message)
+            if pending is None:
+                self._read(message)
+            else:
+                pending.append(message)
         raise RuntimeError("Codex App Server client stopped")
 
     def _connect(self) -> None:
@@ -501,6 +637,7 @@ class AppServerClient:
                 {"threadId": self.thread_id, "excludeTurns": False},
             )
             resumed = result.get("thread", {})
+            self._restore_bindings(resumed)
             if resumed.get("status", {}).get("type") == "active":
                 active = next(
                     (
@@ -538,6 +675,7 @@ class AppServerClient:
         if self.events.turn_id is not None:
             answer.put((None, None))
             return
+        pending: list[dict] = []
         try:
             result = self._send(
                 socket,
@@ -552,18 +690,55 @@ class AppServerClient:
                     },
                     "turnTrigger": "leaf",
                 },
+                pending,
             )
-            self.request_id += 1
-            turn = result.get("turn") or {}
-            turn_id = turn.get("id")
-            if not turn_id:
-                raise RuntimeError("Codex App Server returned no turn id")
-            if any(item.get("type") == "userMessage" for item in turn.get("items", [])):
-                answer.put((None, None))
-                return
-            answer.put(({"turn": turn_id}, None))
         except RuntimeError:
             answer.put((None, None))
+            return
+        self.request_id += 1
+        turn = result.get("turn") or {}
+        turn_id = turn.get("id")
+        if not turn_id:
+            raise RuntimeError("Codex App Server returned no turn id")
+        if any(item.get("type") == "userMessage" for item in turn.get("items", [])):
+            for message in pending:
+                self._read(message)
+            answer.put((None, None))
+            return
+        accept_codex_delivery(self.thread_id, turn=turn_id)
+        if target := stream_reply_target(payload):
+            self._bind(turn_id, target)
+        for message in pending:
+            self._read(message)
+        answer.put(({"turn": turn_id}, None))
+
+    def _bind(self, turn_id: str, target: dict) -> None:
+        self.bindings[turn_id] = AppServerReplyStream(self.thread_id, turn_id, target)
+
+    def _restore_bindings(self, thread: dict) -> None:
+        turns = {turn["id"]: turn for turn in thread.get("turns", [])}
+        for turn_id, stream in list(self.bindings.items()):
+            turn = turns.get(turn_id)
+            if turn is None:
+                stream.disconnect()
+                continue
+            if turn.get("status") == "inProgress":
+                stream.restore(self.events.final_text(turn))
+            else:
+                error = self._finish_binding(
+                    turn_id,
+                    turn.get("status", "failed"),
+                    self.events.final_text(turn),
+                )
+                _close_stream_turn(self.thread_id, turn_id)
+                if self.events.turn_id == turn_id:
+                    self.events.turn_id = None
+                if error is not None:
+                    print(
+                        f"Codex final reply rejected: {error}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
 
     def _read(self, message: dict) -> None:
         update = self.events.read(message)
@@ -580,8 +755,25 @@ class AppServerClient:
             _set_stream_activity,
             _clear_stream_activity,
         )
-        if update.get("completed"):
+        if stream := self.bindings.get(turn_id):
+            stream.update(update)
+        if completed := update.get("completed"):
+            error = self._finish_binding(turn_id, completed, update.get("text", ""))
             _close_stream_turn(self.thread_id, turn_id)
+            if error is not None:
+                print(
+                    f"Codex final reply rejected: {error}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+
+    def _finish_binding(
+        self, turn_id: str, state: str, text: str
+    ) -> BaseException | None:
+        stream = self.bindings.pop(turn_id, None)
+        if stream is None:
+            return None
+        return stream.finish(state, text)
 
     def _run(self) -> None:
         failures = 0
@@ -594,6 +786,8 @@ class AppServerClient:
             except Exception as error:  # noqa: BLE001
                 self.available.clear()
                 _clear_stream_activity(self.thread_id)
+                for stream in self.bindings.values():
+                    stream.disconnect()
                 while True:
                     try:
                         _, answer = self.requests.get_nowait()
@@ -947,6 +1141,90 @@ def _clear_stream_activity(session_id: str, turn_id: str | None = None) -> None:
     with _locked_codex_pages(session_id) as pages:
         for page in pages:
             page.clear_stream_activity(session_id, turn_id)
+
+
+def _set_stream_reply(
+    session_id: str,
+    turn_id: str,
+    target: dict,
+    item_id: str | None,
+    text: str,
+    state: str,
+    *,
+    settles: bool = False,
+) -> None:
+    try:
+        with PageTransaction(Path(target["page"])) as page:
+            claim = page.active_claim
+            if (
+                claim is None
+                or claim["id"] != session_id
+                or claim.get("turn") != turn_id
+                or claim.get("turn_closed") is not None
+            ):
+                return
+            page.set_stream_reply(
+                session_id,
+                turn_id,
+                target["reply_to"],
+                target["responds"],
+                item_id,
+                text,
+                state,
+                settles=settles,
+            )
+    except FileNotFoundError:
+        pass
+
+
+def _set_stream_reply_state(
+    session_id: str, turn_id: str, target: dict, state: str
+) -> None:
+    _set_stream_reply(
+        session_id,
+        turn_id,
+        target,
+        None,
+        target.get("text", ""),
+        state,
+    )
+
+
+def _commit_stream_reply(
+    session_id: str,
+    turn_id: str,
+    target: dict,
+    text: str,
+) -> dict | None:
+    """Commit one completed provider message through Leaf's reply contract."""
+    page_dir = Path(target["page"])
+    try:
+        with PageTransaction(page_dir) as page:
+            claim = page.active_claim
+            if (
+                claim is None
+                or claim["id"] != session_id
+                or claim.get("turn") != turn_id
+                or claim.get("turn_closed") is not None
+            ):
+                return None
+            identity = {"agent": claim["agent"], "session": session_id}
+        accepted = cmd_reply(
+            page_dir,
+            target["reply_to"],
+            text,
+            "",
+            for_event=target["responds"],
+            attempt=stream_reply_attempt(turn_id),
+            skip_if_settled=True,
+            identity=identity,
+            validate_source=True,
+        )
+        with PageTransaction(page_dir) as page:
+            page.clear_stream_reply(session_id, turn_id)
+        return accepted
+    except FileNotFoundError:
+        return None
 
 
 def _open_stream_turn(session_id: str, turn_id: str) -> None:

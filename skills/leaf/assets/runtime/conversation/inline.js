@@ -29,11 +29,11 @@ function paintConversationBody(body, message) {
     body.append(el("span", "lf-drawing-reference", "Drawing comment"));
 }
 
-// What a painted body was made from: the prose revision, and whether the Markdown
+// What a painted body was made from: the event and prose revisions, and whether the Markdown
 // renderer had arrived when it was painted. A message the reader sends paints in their
 // gesture, before the lazy import it needs has necessarily landed.
 const inlineRevision = (message) =>
-  `${message.edited?.id ?? ""}:${message.stream_state ? message.text : ""}:${markdownReady() ? "md" : "raw"}`;
+  `${message.id}:${message.edited?.id ?? ""}:${message.stream_state ? message.text : ""}:${markdownReady() ? "md" : "raw"}`;
 
 function conversationMessageNode(thread, message, commands) {
   // By its event, or — while the log is still answering for words the reader just sent —

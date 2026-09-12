@@ -63,10 +63,13 @@ unrelated page input into that turn. A delivery can span pages and conversations
 neither case changes its shape or response rules.
 
 The Leaf-started turn, its `functionCallOutput`, and Codex's response remain in the
-Codex transcript. The assistant's normal final message is transcript output only.
-It is never copied into a Leaf conversation and never settles a Leaf obligation;
-the task records each required `reply`, `resolve` on the revised page, or
-`receipt` explicitly.
+Codex transcript. When an inline structured `leaf_delivery` has exactly one
+response obligation and that response is a plain reply, write the reply as the
+normal final message. Leaf streams that message into the addressed thread and
+commits its completed text through the same reply contract as `leaf reply`; do not
+run a reply command for that response. The committed reply retains the thread's
+standing anchor. Deliveries with any other number or kind of response use their
+explicit `reply`, `resolve`, or `receipt` operations.
 Keep the CLI open because it is still the interactive client for approvals and
 user input.
 

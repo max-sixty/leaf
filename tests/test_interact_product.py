@@ -495,8 +495,8 @@ def test_every_default_widget_stands_in_the_feature_gallery():
     )
 
 
-def test_the_feature_gallery_eyebrows_use_literal_code_names():
-    """Every feature-eyebrow entry is a code name, never descriptive prose."""
+def test_the_feature_gallery_eyebrows_index_literal_code_names():
+    """Every showcased element is indexed by a code name, never descriptive prose."""
     authored = FEATURE_GALLERY.read_text(encoding="utf-8")
     gallery_registry = json.loads(
         (schema_model.BUNDLED_PACKAGES / "gallery" / "registry.json").read_text(
@@ -519,9 +519,18 @@ def test_the_feature_gallery_eyebrows_use_literal_code_names():
     assert all(len(eyebrow) == len(set(eyebrow)) for eyebrow in eyebrow_entries), (
         "a feature eyebrow repeats a code name"
     )
-    assert apparatus.isdisjoint(entries), (
-        f"feature eyebrows expose gallery apparatus: {', '.join(sorted(apparatus & set(entries)))}"
+    indexed = set(entries)
+    assert apparatus.isdisjoint(indexed), (
+        f"feature eyebrows expose gallery apparatus: {', '.join(sorted(apparatus & indexed))}"
     )
+    # scripts/corpus.py strips the contents sidebar when it composes the tab, so
+    # lf-toc is page chrome rather than a specimen a section demonstrates.
+    sections = re.sub(
+        r'<aside class="sidebar".*?</aside>', "", authored, flags=re.DOTALL
+    )
+    tags = set(re.findall(r"<(lf-[a-z0-9-]+)[\s>]", sections)) - apparatus
+    assert tags
+    assert tags <= indexed, f"feature eyebrows omit {', '.join(sorted(tags - indexed))}"
 
 
 def test_shipped_widget_purposes_live_in_their_descriptions():

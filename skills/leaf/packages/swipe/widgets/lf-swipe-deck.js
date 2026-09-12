@@ -16,7 +16,6 @@
  * echo so the real card can occupy its recorded destination immediately; `motion` makes
  * that echo still under reduced motion and during initial state projection. */
 import {
-  actionAvailable,
   dragging,
   commands,
   layoutChanged,
@@ -25,10 +24,7 @@ import {
   offer,
   paintKeys,
   quoted,
-  sendAction,
-  watchActions,
-  withdraw,
-  withdrawableAction,
+  widgetController,
   worksInside,
 } from "/runtime/widget-api.js";
 
@@ -50,6 +46,7 @@ customElements.define(
     #painted = null;
     #keysAvailable = null;
     #stop = null;
+    #controller = null;
 
     connectedCallback() {
       if (once(this)) {
@@ -59,7 +56,8 @@ customElements.define(
         if (!exhibit) this.#wire();
       }
       if (!this.#interactive) return;
-      this.#stop ??= watchActions(this, null, this.#render);
+      this.#controller ??= widgetController(this);
+      this.#stop ??= this.#controller.subscribe(this.#render);
     }
 
     disconnectedCallback() {
@@ -173,7 +171,7 @@ customElements.define(
 
     #canSwipe() {
       const action = this.#action();
-      return action !== null && actionAvailable(this, action);
+      return Boolean(action && this.#controller.read().actions[action]?.available);
     }
 
     #action() {
@@ -186,7 +184,9 @@ customElements.define(
       if (!this.#interactive) return;
       const active = this.#active();
       const action = this.#action();
-      const available = Boolean(active && action && actionAvailable(this, action));
+      const available = Boolean(
+        active && action && this.#controller.read().actions[action]?.available,
+      );
       const unseen = this.#cards(this.#pile("unseen"));
       const classified =
         this.#cards(this.#pile("pass")).length + this.#cards(this.#pile("keep")).length;
@@ -240,9 +240,10 @@ customElements.define(
     };
 
     #returnable(card) {
-      const finish = withdrawableAction(this, "finish", card.id);
-      if (finish) return finish;
-      return withdrawableAction(this, "swipe", card.id);
+      const { actions } = this.#controller.read();
+      return ["finish", "swipe"]
+        .flatMap((action) => actions[action]?.undo ?? [])
+        .find((event) => event.detail?.card === card.id);
     }
 
     #returnControl(card) {
@@ -259,7 +260,12 @@ customElements.define(
         this.#render();
         let returned = false;
         try {
-          returned = Boolean(await withdraw(event, { allowPending: true }));
+          returned = Boolean(
+            await this.#controller.dispatch({
+              kind: "undo",
+              target: event.attempt ?? event.id,
+            })?.delivery,
+          );
         } finally {
           this.#returning.delete(card.id);
           if (this.isConnected) this.#render();
@@ -286,7 +292,7 @@ customElements.define(
 
     #swipe(verdict, direction) {
       const action = this.#action();
-      if (!action || !actionAvailable(this, action)) return;
+      if (!action || !this.#controller.read().actions[action]?.available) return;
       const card = this.#active();
       const destination = this.#pile(verdict);
       if (!card || !destination) return;
@@ -307,7 +313,8 @@ customElements.define(
       const next = this.#active();
       if (focusWasCard && next) next.focus({ preventScroll: true });
       else if (focusWasInside && !next) this.#progress.focus({ preventScroll: true });
-      void sendAction(this, action, detail);
+      void this.#controller.dispatch({ kind: "action", verb: action, detail })
+        ?.delivery;
     }
 
     #exit(card, direction) {

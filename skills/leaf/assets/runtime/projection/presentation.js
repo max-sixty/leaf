@@ -7,10 +7,10 @@
    proof, release decisions, authored-page reset, and drag deferral observer. It adapts
    one complete publisher snapshot; only DOM signature/read adapters remain direct
    exports. */
-import { authoredStates, domFacet } from "./authored.js";
+import { authoredStates } from "./authored.js";
 import { projectionOrigins } from "./model.js";
 import { currentProjection, setProjectionDeferred } from "./state.js";
-import { applicationState, selectWidgets } from "../semantic-state.js";
+import { applicationState } from "../semantic-state.js";
 import { stateSpecs } from "../registry.js";
 import { runtime } from "../context.js";
 import {
@@ -340,17 +340,4 @@ export function shallowSigs(root) {
     );
   }
   return sigs;
-}
-
-export function standingState(eventIds = null) {
-  return [...selectWidgets(eventIds)].map(([id, { state, specs }]) => ({
-    get widget() {
-      return elementById(id);
-    },
-    state,
-    read: () =>
-      [...specs]
-        .filter(([, spec]) => spec.record?.kind === "body")
-        .map(([facet, spec]) => [facet, domFacet(elementById(id), spec.record)]),
-  }));
 }

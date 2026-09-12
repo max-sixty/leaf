@@ -618,11 +618,11 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
             layer_registry={"lf-settled-link": settled, "lf-shadow-link": shadow},
             layer_widgets={
                 "lf-settled-link.js": """
-import {once, settle} from '/runtime/widget-api.js';
+import {once, widgetController} from '/runtime/widget-api.js';
 customElements.define('lf-settled-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    settle(new Promise(resolve => setTimeout(() => {
+    widgetController(this).present(new Promise(resolve => setTimeout(() => {
       const link = document.createElement('a');
       link.id = 'settled-link';
       link.href = 'https://example.com/settled';
@@ -1175,7 +1175,11 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
         assert suggestion_accept.evaluate(
             """button => {
               const glyph = button.firstElementChild;
-              document.dispatchEvent(new Event('lf-actions'));
+              const widget = document.getElementById('sug');
+              const parent = widget.parentNode;
+              const next = widget.nextSibling;
+              widget.remove();
+              parent.insertBefore(widget, next);
               return button.firstElementChild === glyph;
             }"""
         ), "an unchanged availability paint rebuilt the suggestion control"
@@ -4315,12 +4319,13 @@ def test_an_export_carries_runtime_data_as_a_labelled_snapshot(
         module.read_text()
         .replace(
             "import {offer, projectData, watchData}",
-            "import {offer, projectData, settle, watchData}",
+            "import {offer, projectData, watchData, widgetController}",
         )
         .replace(
             "  connectedCallback() {",
             "  connectedCallback() {\n"
-            "    settle(new Promise(resolve => setTimeout(resolve, 750)));",
+            "    widgetController(this).present("
+            "new Promise(resolve => setTimeout(resolve, 750)));",
         )
     )
     native_page_state = http_model.Handler.page_state

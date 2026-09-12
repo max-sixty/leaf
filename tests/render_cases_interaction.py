@@ -1532,21 +1532,36 @@ SEATED_ASK_ENTRY = {
 # the answer is already on the page, so a refusal is not a refusal the reader can see —
 # the control flips, nothing is logged, and the next poll puts it back saying nothing.
 SEATED_ASK_MODULE = """\
-import { conversationBox, offer, once, sendAction } from "/runtime/widget-api.js";
+import { conversationBox, offer, once, widgetController } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-verdict",
   class extends HTMLElement {
+    #controller;
+    #stop = null;
+
     connectedCallback() {
-      if (!once(this)) return;
+      this.#controller ??= widgetController(this);
+      if (!once(this)) {
+        this.#stop ??= this.#controller.subscribe(({state}) => this.renderState(state));
+        return;
+      }
       this.press = offer("button", "lf-settle", "Accept");
       this.press.onclick = () => {
         this.settled();
-        sendAction(this, "settle", { answer: "yes" });
+        this.#controller.dispatch({
+          kind: "action", verb: "settle", detail: {answer: "yes"},
+        });
       };
       this.append(this.press);
       const seat = conversationBox(this, "Say something about this");
       if (seat) this.append(seat);
+      this.#stop ??= this.#controller.subscribe(({state}) => this.renderState(state));
+    }
+
+    disconnectedCallback() {
+      this.#stop?.();
+      this.#stop = null;
     }
 
     settled() {

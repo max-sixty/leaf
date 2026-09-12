@@ -21,6 +21,7 @@ import { el } from "../widget-elements.js";
 import { isReaction } from "./model.js";
 import { tokenEntry } from "../registry.js";
 import { rememberAuthoredParents } from "../projection/authored.js";
+import { captureWidgetDescriptors } from "../widget-descriptors.js";
 import {
   markDeclared,
   MARKED_ANYWHERE,
@@ -112,13 +113,14 @@ function buildMsgBody(m) {
       const authored = document.createElement("template");
       authored.innerHTML = m.markup;
       rememberAuthoredParents(authored.content);
+      captureWidgetDescriptors(authored.content, { kind: "thread" });
       rememberPassageParts(authored.content, ["event", m.id]);
       body.append(authored.content);
     }
     markDeclared(body, MARKED_ANYWHERE);
     renderSaid(body);
     renderQuiet(body);
-    // Not settle()d: that queue holds the page's geometry still for the first anchor
+    // Not registered as widget presentation: that queue holds page geometry for the first anchor
     // pass, and a message colors in the panel, where no anchor is captured and nothing
     // waits. Each block already fails soft to its own plain source.
     highlightBlocks(body);

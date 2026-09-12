@@ -98,8 +98,6 @@
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import {
-  actionAvailable,
-  actionStands,
   beginWalk,
   conversationInput,
   focused,
@@ -113,10 +111,9 @@ import {
   reachedForWords,
   relabel,
   selectableOffer,
-  sendAction,
   notice,
-  watchActions,
   walkRows,
+  widgetController,
   worksInside,
   wrote,
 } from "/runtime/widget-api.js";
@@ -142,7 +139,7 @@ customElements.define(
   "lf-options",
   class extends HTMLElement {
     connectedCallback() {
-      this.#stop ??= watchActions(this, null, this.#paintAvailability);
+      this.#stop ??= this.#controller.subscribe(this.#paintAvailability);
       if (!once(this)) {
         this.#addition?.connect();
         this.#settled?.connect();
@@ -160,11 +157,11 @@ customElements.define(
         if (choosable || option.hasAttribute("chosen")) this.#mark(option, choosable);
       this.#addition = new OptionAddition(this, {
         offered: choosable && !inChrome(this),
-        available: () => actionAvailable(this, "choose"),
+        available: () => this.#available("choose"),
         commit: (detail, attempt) => {
-          if (!actionAvailable(this, "choose")) return null;
+          if (!this.#available("choose")) return null;
           this.#applyChoice(detail);
-          return sendAction(this, "choose", detail, { attempt });
+          return this.#dispatch("choose", detail, attempt)?.delivery ?? null;
         },
       });
       this.#addition.connect();
@@ -191,7 +188,7 @@ customElements.define(
         // the column beside it, so a press on either is aimed at this option after all.
         const inner = worksInside(e.target, option);
         if (inner && !inner.matches(".lf-pick, .lf-key-badge")) return;
-        if (!actionAvailable(this, "choose")) return;
+        if (!this.#available("choose")) return;
         const was = this.#picked();
         // Toggling is one gesture both ways, so a reader who picked by mistake needn't
         // pick something else to get out of it. Without `multiple` the set the toggle
@@ -207,17 +204,33 @@ customElements.define(
           : next.has(option)
             ? `Chose “${name}”`
             : `Dropped “${name}”`;
-        sendAction(this, "choose", this.#addition.detailFor(next)).then((ok) => {
-          if (ok) notice(`${said} — sent`);
-        });
+        this.#dispatch("choose", this.#addition.detailFor(next))?.delivery.then(
+          (ok) => {
+            if (ok) notice(`${said} — sent`);
+          },
+        );
       });
     }
 
     #addition = null;
+    #controller = widgetController(this);
     #settled = null;
     #done = null; // the thread multi-question's submit; null everywhere else
     #answering = null; // the answer in flight, so a second press joins it
     #stop = null;
+
+    #available(verb) {
+      return Boolean(this.#controller.read().actions[verb]?.available);
+    }
+
+    #dispatch(verb, detail, attempt) {
+      return this.#controller.dispatch({
+        kind: "action",
+        verb,
+        detail,
+        ...(attempt && { attempt }),
+      });
+    }
 
     #options() {
       return this.querySelectorAll(":scope > lf-option");
@@ -263,14 +276,21 @@ customElements.define(
     // while the first is in the wire.
     #answer() {
       if (this.#answering) return this.#answering;
-      if (!actionAvailable(this, "answer")) return Promise.resolve(false);
+      if (!this.#available("answer")) return Promise.resolve(false);
       this.#answered(true);
-      const sent = sendAction(this, "answer", {}).then((accepted) => {
+      const dispatched = this.#dispatch("answer", {});
+      if (!dispatched) return Promise.resolve(false);
+      const sent = dispatched.delivery.then((accepted) => {
         this.#sending(null);
         if (!accepted) return false; // reconciliation restored the prior state
         // Usually replay has painted the accepted answer already. Repeat the absolute
         // paint for a partial render, but never over a same-read undo of this action.
-        if (actionStands(accepted)) this.#answered(true);
+        if (
+          this.#controller
+            .read()
+            .actions.answer.standing.some(({ event }) => event.id === accepted.id)
+        )
+          this.#answered(true);
         notice("Marked answered — sent");
         return true;
       });
@@ -298,14 +318,14 @@ customElements.define(
     }
 
     #paintAvailability = () => {
-      const available = actionAvailable(this, "choose");
+      const available = this.#available("choose");
       for (const mark of this.#marks()) {
         mark.setAttribute("aria-disabled", String(!available));
         mark.tabIndex = available ? 0 : -1;
       }
       this.#addition?.refresh();
       if (this.#done) {
-        const answerAvailable = actionAvailable(this, "answer");
+        const answerAvailable = this.#available("answer");
         this.#done.setAttribute("aria-disabled", String(!answerAvailable));
         this.#done.tabIndex = answerAvailable ? 0 : -1;
       }

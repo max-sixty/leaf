@@ -126,7 +126,7 @@ def declared_action_error(
             "declaration creates no children"
         )
     # The exhibit rule at the door, not only in the shipped runtime's
-    # sendAction: an exhibited widget is a mention, and the log outranks the
+    # browser controller: an exhibited widget is a mention, and the log outranks the
     # document — an action taken here would replay as a decision the reader
     # made on quoted material. Any sender the key admits reaches this door.
     if quoted_in(rec, registry):

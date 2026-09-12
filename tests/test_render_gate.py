@@ -3100,7 +3100,8 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
 
     A widget an agent sent in a reply is folded by a projection of its own
     (`frozen_thread_reading`) and replayed into a tree the panel built, and the
-    probe reads `standingState`, which returns early when nothing is standing. No
+    probe reads the validation state adapter, which returns early when nothing is
+    standing. No
     page the gate was ever run over held an action at all, so it was reporting
     clean on an empty list. The population is therefore asserted before the gate
     is asked anything.
@@ -3170,7 +3171,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     page, errors = open_page(browser, url)
     resized(page, 1280, 900)
     standing = page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).standingState()"
+        "async () => (await window.__lfRuntimeImport('/runtime/validation.js')).validationWidgetStates()"
         ".flatMap(({widget, state}) => Object.values(state).map(facet => [widget.id, facet.action]))"
     )
     assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (

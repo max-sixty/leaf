@@ -8,7 +8,6 @@
  * submitted as one recordless action, so replay, refusal, and undo use Leaf's ordinary
  * projection instead of a widget-owned event history. */
 import {
-  actionAvailable,
   commands,
   failSoft,
   layoutChanged,
@@ -16,10 +15,9 @@ import {
   offer,
   once,
   paintKeys,
-  projectionChanged,
   quoted,
   says,
-  sendAction,
+  widgetController,
 } from "/runtime/widget-api.js";
 
 const STYLE_PROPERTIES = [
@@ -46,6 +44,7 @@ function option(value, label) {
 customElements.define(
   "lf-targeting",
   class extends HTMLElement {
+    #controller = widgetController(this);
     #preview = null;
     #editor = null;
     #arm = null;
@@ -75,10 +74,14 @@ customElements.define(
     #restoredStyles = new Map();
     #interactive = false;
     #ready = false;
+    #resumeProjection = null;
+    #stop = null;
 
     connectedCallback() {
       if (!once(this)) {
         if (this.#interactive) this.#applyPreview();
+        if (this.#interactive)
+          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         return;
       }
       try {
@@ -92,6 +95,8 @@ customElements.define(
         this.classList.toggle("lf-targeting-quoted", !this.#interactive);
         if (this.#interactive) this.#build();
         this.#ready = true;
+        if (this.#interactive)
+          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         this.#render();
       } catch (error) {
         this.#restorePreview();
@@ -100,6 +105,10 @@ customElements.define(
     }
 
     disconnectedCallback() {
+      this.#stop?.();
+      this.#stop = null;
+      this.#resumeProjection?.();
+      this.#resumeProjection = null;
       this.#disarm();
       this.#restorePreview();
     }
@@ -482,9 +491,20 @@ customElements.define(
     }
 
     #changed() {
-      this.#dirty = true;
+      this.#beginDraft();
       this.#render();
       paintKeys();
+    }
+
+    #beginDraft() {
+      this.#dirty = true;
+      this.#resumeProjection ??= this.#controller.defer();
+    }
+
+    #finishDraft() {
+      this.#dirty = false;
+      this.#resumeProjection?.();
+      this.#resumeProjection = null;
     }
 
     #render() {
@@ -526,7 +546,7 @@ customElements.define(
             const targetOption = select.querySelector(`option[value="${target.key}"]`);
             if (targetOption) targetOption.textContent = value;
           }
-          this.#dirty = true;
+          this.#beginDraft();
           this.#paintAvailability();
         });
         name.addEventListener("change", () => {
@@ -700,7 +720,7 @@ customElements.define(
         !this.#sending &&
         this.#configuration.targets.length > 0 &&
         this.#configuration.changes.length > 0 &&
-        actionAvailable(this, "submit")
+        (this.#controller.read().actions.submit?.available ?? false)
       );
     }
 
@@ -713,9 +733,8 @@ customElements.define(
 
     #revertDraft() {
       this.#configuration = copy(this.#projected);
-      this.#dirty = false;
+      this.#finishDraft();
       this.#render();
-      projectionChanged();
       notice("Draft reverted");
     }
 
@@ -723,13 +742,17 @@ customElements.define(
       if (!this.#canSubmit()) return;
       const detail = copy(this.#configuration);
       this.#sending = true;
-      this.#dirty = false;
+      this.#finishDraft();
       this.#submit.setAttribute("aria-busy", "true");
       this.#paintAvailability();
       try {
-        const accepted = await sendAction(this, "submit", detail);
+        const accepted = await this.#controller.dispatch({
+          kind: "action",
+          verb: "submit",
+          detail,
+        })?.delivery;
         if (accepted) notice("Targeted changes submitted");
-        else this.#dirty = true;
+        else this.#beginDraft();
       } finally {
         this.#sending = false;
         this.#submit.removeAttribute("aria-busy");
@@ -747,7 +770,7 @@ customElements.define(
         0,
         ...this.#configuration.changes.map((change) => Number(change.id.slice(7))),
       );
-      this.#dirty = false;
+      this.#finishDraft();
       this.#render();
     }
 

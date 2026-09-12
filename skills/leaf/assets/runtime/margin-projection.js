@@ -68,6 +68,7 @@ import {
   watchMarginContributions,
 } from "./margin-entries.js";
 import { mapButton } from "./page-map-dialog.js";
+import { watchProjection } from "./projection-watch.js";
 import { documentPoint, shownBox, shownParts } from "./geometry.js";
 import { focusDestination } from "./focus.js";
 import { el, keeps, keepsHidden, offer } from "./widget-elements.js";
@@ -2814,10 +2815,8 @@ export function createMarginProjection({
     return null;
   }
 
-  // The row's acknowledgment face is read out of the state projection, so it follows the
-  // applied log on `lf-actions` rather than the receipt paint: every path that reconciles
-  // a complete state dispatches that once it has reconciled, and both of the paths that
-  // paint receipts sit inside one. A repaint driven from the paint instead ran inside the
+  // The row's acknowledgment face is read out of the published state projection rather
+  // than the receipt paint. A repaint driven from the paint instead ran inside the
   // panel render the application performs *before* reconciliation, which is early enough
   // to read a candidate the same read is about to reject — and it ran inside a dispatch,
   // where the fault that candidate throws is reported as an uncaught page error rather
@@ -2891,7 +2890,7 @@ export function createMarginProjection({
         syncReadingRelation(reading, reading.lfChoice);
       paintKeys();
     });
-    document.addEventListener("lf-actions", renderMargin);
+    watchProjection(document.body, renderMargin);
     document.addEventListener("lf-answered", renderMargin);
     document.addEventListener("lf-comparison", renderMargin);
     document.addEventListener("lf-margin-layout", () => {

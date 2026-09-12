@@ -5,7 +5,7 @@ import {
   fitRootReadingElement,
   once,
   registerReadingElement,
-  settle,
+  widgetController,
 } from "/runtime/widget-api.js";
 
 const direct = (owner, tag) =>
@@ -77,7 +77,7 @@ customElements.define(
         readingArrangement: this.#readingArrangement,
         minimumSize: () => minimumSize(this, this.#content),
       });
-      settle(this.#fitting.update());
+      widgetController(this).present(this.#fitting.update());
     }
 
     disconnectedCallback() {

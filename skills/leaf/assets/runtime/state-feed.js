@@ -117,7 +117,6 @@ export function createStateFeed({
     if (stateApplying()) return;
     if (retried) {
       if (releasePending()) paintKeys();
-      document.dispatchEvent(new Event("lf-actions"));
       await notifyDataSubscribers();
     }
     if (stateApplying()) return;

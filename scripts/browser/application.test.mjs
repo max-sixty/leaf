@@ -3,6 +3,17 @@ import test from "node:test";
 import { createSemanticApplication } from "./application.ts";
 
 const spec = { unit: "widget", facet: "decision" };
+const descriptor = {
+  id: "choice",
+  tag: "lf-choice",
+  document: { kind: "page", revision: 1 },
+  declaration: { "x-state": { accept: spec, reject: spec } },
+  parent: null,
+  ancestors: [],
+  quoted: false,
+  bindings: {},
+  offers: [],
+};
 const empty = () => ({ entries: [], actions: [], reports: [], desired: [] });
 const coordinate = ["choice", "choice", "decision"];
 const action = (attempt, action = "accept") => ({
@@ -63,6 +74,7 @@ const setup = () => {
     ]),
     { "lf-choice": { "x-state": { accept: spec, reject: spec } } },
   );
+  app.captureDescriptors(new Map([[descriptor.id, descriptor]]));
   app.adopt(state(1));
   return app;
 };
@@ -95,6 +107,156 @@ test("one synchronous immutable reading combines authored, accepted, and later p
   assert.equal(decision(app), "accept");
 });
 
+test("one widget selection publishes optimistic state and delivery without writable access", () => {
+  const app = setup();
+  const selected = app.selectWidget(descriptor);
+  const seen = [];
+  const stop = selected.subscribe((reading) => seen.push(reading));
+  assert.equal(selected.read().actions.accept.available, true);
+  app.enqueue(action("first"), "now");
+  assert.equal(selected.read().state.decision.action, "accept");
+  assert.deepEqual(selected.read().delivery, [
+    {
+      attempt: "first",
+      kind: "action",
+      verb: "accept",
+      answered: false,
+      rejected: false,
+    },
+  ]);
+  assert.equal(seen.at(-1).actions.accept.standing[0].event.attempt, "first");
+  assert.throws(() => {
+    selected.read().actions.accept.available = false;
+  }, TypeError);
+  const beforeUnrelated = seen.length;
+  app.captureDescriptors(
+    new Map([
+      [
+        "other",
+        {
+          ...descriptor,
+          id: "other",
+          tag: "lf-other",
+          declaration: {},
+        },
+      ],
+    ]),
+  );
+  assert.equal(seen.length, beforeUnrelated);
+  app.reject("first");
+  assert.equal(selected.read().state.decision.action, null);
+  stop();
+});
+
+test("an owner requirement follows publisher-projected position with authored fallback", () => {
+  const app = setup();
+  const oldOwner = {
+    ...descriptor,
+    id: "old-column",
+    tag: "lf-column",
+    declaration: {},
+  };
+  const newOwner = { ...oldOwner, id: "new-column" };
+  const child = {
+    ...descriptor,
+    id: "card",
+    tag: "lf-card",
+    parent: { id: oldOwner.id, tag: oldOwner.tag },
+    ancestors: [{ id: oldOwner.id, tag: oldOwner.tag }],
+    declaration: {
+      "x-owners": ["lf-column"],
+      "x-state": {
+        choose: {
+          ...spec,
+          requires: { target: "owner", awaiting: true },
+        },
+      },
+    },
+  };
+  app.captureDescriptors(
+    new Map([
+      [oldOwner.id, oldOwner],
+      [newOwner.id, newOwner],
+      [child.id, child],
+    ]),
+  );
+  const moved = {
+    ...action("move", "move"),
+    id: "e-move",
+    seq: 1,
+    widget: child.id,
+    detail: { parent: newOwner.id },
+  };
+  const position = {
+    unit: "widget",
+    facet: "position",
+    record: { kind: "position", value: "parent" },
+  };
+  const read = state(2, [moved]);
+  read.browser.views[1].document.asks = {
+    unanswered_awaiting: { [oldOwner.id]: false, [newOwner.id]: true },
+  };
+  read.browser.views[1].document.projection = {
+    entries: [
+      {
+        event: moved,
+        coordinate: [child.id, child.id, position.facet],
+        spec: position,
+        scope: "page",
+        value: newOwner.id,
+      },
+    ],
+    actions: [moved.id],
+    reports: [],
+    desired: [moved.id],
+  };
+  app.adopt(read);
+  assert.equal(app.selectWidget(child).read().actions.choose.available, true);
+});
+
+test("widget undo candidates name only exact currently standing attempts", () => {
+  const app = setup();
+  const selected = app.selectWidget(descriptor);
+  const pending = app.enqueue(action("first"), "now");
+  assert.equal(selected.read().actions.accept.undo[0].attempt, "first");
+  assert.equal(selected.read().actions.accept.undo[0].id, pending.localId);
+  app.enqueue({ kind: "undo", undoes: pending.localId, attempt: "undo" }, "now");
+  assert.deepEqual(selected.read().actions.accept.undo, []);
+});
+
+test("widget action history excludes terminal coverage records", () => {
+  const app = setup();
+  const terminal = { ...action("old"), id: "e-old", seq: 1 };
+  const read = state(2);
+  read.browser.views[1].coverage = [{ event: terminal, coordinate: null }];
+  app.adopt(read);
+  assert.deepEqual(app.selectWidget(descriptor).read().actions.accept.history, []);
+});
+
+test("the selected revision keeps carried action history from earlier revisions", () => {
+  const app = setup();
+  const current = {
+    ...descriptor,
+    document: { kind: "page", revision: 2 },
+  };
+  app.identify(2);
+  app.captureDescriptors(new Map([[current.id, current]]));
+  const carried = { ...action("old"), id: "e-old", seq: 1, revision: 1 };
+  const read = state(2, [carried]);
+  read.active.revision = 2;
+  read.browser.views[2] = read.browser.views[1];
+  read.browser.views[2].basis.revision = 2;
+  delete read.browser.views[1];
+  app.adopt(read);
+  assert.deepEqual(
+    app
+      .selectWidget(current)
+      .read()
+      .actions.accept.history.map(({ id }) => id),
+    ["e-old"],
+  );
+});
+
 test("accepted reading order includes non-event activity and independent source revisions", () => {
   const app = setup();
   const newer = { ...state(3), activity: { phase: "agent", held: true } };
@@ -107,6 +269,28 @@ test("accepted reading order includes non-event activity and independent source 
   assert.equal(app.acceptData({ revision: 1, sources: {} }), false);
   assert.ok(app.read().semanticEpoch > before);
   assert.equal(app.read().data.sources.input.value, 5);
+});
+
+test("semantic epochs include active lifecycle changes but not browser metadata", () => {
+  const app = setup();
+  const lifecycle = state(2);
+  lifecycle.browser.views[1].document.requests = [
+    {
+      seat: { document: { kind: "page", revision: 1 }, widget: "choice" },
+      phase: "failed",
+    },
+  ];
+  const before = app.read().semanticEpoch;
+  app.adopt(lifecycle);
+  assert.ok(app.read().semanticEpoch > before);
+
+  const stable = app.read().semanticEpoch;
+  const metadata = structuredClone(lifecycle);
+  metadata.taken = 3;
+  metadata.browser.basis.through_seq = 7;
+  metadata.browser.views[1].basis.through_seq = 7;
+  app.adopt(metadata);
+  assert.equal(app.read().semanticEpoch, stable);
 });
 
 test("historical view projection uses the publisher's captured document contract", () => {

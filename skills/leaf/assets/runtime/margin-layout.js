@@ -186,7 +186,7 @@ export function unregisterMarginRow(row) {
     observer?.disconnect();
     observer = null;
     observedColumn = null;
-    for (const el of document.querySelectorAll("[data-lf-wide][data-lf-yield]"))
+    for (const el of document.querySelectorAll("[data-lf-space][data-lf-yield]"))
       el.removeAttribute("data-lf-yield");
   }
   scheduleMarginLayout();
@@ -361,7 +361,7 @@ export function layoutMarginRows() {
     bands.push({ top, bottom: top + rect.height });
   }
 
-  const wide = [...document.querySelectorAll("[data-lf-wide]")].map((el) => {
+  const wide = [...document.querySelectorAll("[data-lf-space]")].map((el) => {
     const box = el.getBoundingClientRect();
     return {
       el,

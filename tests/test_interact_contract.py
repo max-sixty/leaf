@@ -1636,20 +1636,16 @@ def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
     assert "restated" in result.output
 
 
-def test_the_registry_door_refuses_a_drawing_that_says_an_attribute(page_dir):
-    """The theme lays a drawing's box out as a row so the drawing keeps the column's
-    axis, and a word the layer writes into that element is an item in the row: it stands
-    beside the drawing and takes it off the axis by half its own width. That renders as a
-    picture placed slightly wrong, which no other reading of the page has any way to
-    notice — so the two declarations are refused together, at the door where the widget
-    is described rather than on the page where it is drawn."""
+def test_space_capacity_is_independent_of_the_widgets_internal_layout(page_dir):
+    """A capacity declaration says how much room core grants. It does not constrain the
+    package's internal layout, including whether the widget also renders an attribute."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-diagram"]["properties"]["caption"] = {"type": "string"}
-    registry["lf-diagram"]["x-says"] = {"caption": "before"}
+    registry["lf-board"]["properties"]["caption"] = {"type": "string"}
+    registry["lf-board"]["x-says"] = {"caption": "before"}
+    registry["lf-board"]["x-space"] = "available"
     (page_dir / "registry.json").write_text(json.dumps(registry))
     result = check(page_dir)
-    assert result.exit_code != 0
-    assert "x-wide: drawing" in result.output and "caption" in result.output
+    assert result.exit_code == 0, result.output
 
 
 def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
@@ -3116,19 +3112,19 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(
-        json.dumps({"$keys": {"x-wide": "wider, in this project", "x-nope": "?"}})
+        json.dumps({"$keys": {"x-space": "wider, in this project", "x-nope": "?"}})
     )
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code != 0
     assert "unadmitted ['x-nope']" in result.output
 
     (overlay / "registry.json").write_text(
-        json.dumps({"$keys": {"x-wide": "wider, in this project"}})
+        json.dumps({"$keys": {"x-space": "wider, in this project"}})
     )
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code == 0, result.output
     keys = json.loads((page_dir / "registry.json").read_text())["$keys"]
-    assert keys["x-wide"] == "wider, in this project"
+    assert keys["x-space"] == "wider, in this project"
     assert keys["x-says"]  # the rest of the shipped members stand
 
 

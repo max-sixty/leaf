@@ -1,8 +1,8 @@
 /* The diagram package's presentation. Everything here was in the default package's
  * theme until the diagram renderer left every page carrying a large bundle most never
  * draw with. What moved is the tag's own rules; the declaration-driven half — the
- * `[data-lf-wide="drawing"]` box a drawing stands in — stayed there, because a second
- * drawing widget from a third package reads it too. */
+ * shared allocation stays in core; this package owns the source-sized drawing's
+ * alignment and scrolling inside it. */
 
 /* Pre-upgrade presentation, so a page degrades readably: the same shape the default
  * package states for its own upgraded widgets, restated here for this tag. The
@@ -20,6 +20,20 @@ lf-diagram { --lf-diagram-paper: var(--paper); --lf-diagram-ink: var(--ink);
              line-height: var(--code-line); font-variant-ligatures: none;
              color: var(--code-muted); overflow-x: auto; }
 lf-diagram.lf-rendered { font: inherit; color: inherit; overflow: visible; }
+/* The drawing keeps its natural size. Flexible spacers spend the allocation on each
+ * side so a drawing that fits remains on the prose axis; when it does not fit they give
+ * way before the drawing and this box scrolls. This arrangement belongs to the diagram,
+ * independently of the `available` capacity it requests from core. */
+lf-diagram[data-lf-space="available"] {
+  --lf-natural-inline-size: 1;
+  display: flex; justify-content: safe center; overflow-x: auto;
+}
+lf-diagram[data-lf-space="available"]::before,
+lf-diagram[data-lf-space="available"]::after { content: ""; flex: 0 1 auto; }
+lf-diagram[data-lf-space="available"]::before { width: calc(2 * var(--lf-grow-l)); }
+lf-diagram[data-lf-space="available"]::after { width: calc(2 * var(--lf-grow-r)); }
+lf-diagram[data-lf-space="available"] > * { flex: none; }
+lf-diagram[data-lf-space="available"] > .lf-error { flex: auto; min-width: 0; }
 /* The authored body, before the module replaces it. Nothing here says white-space: the
    body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
    that dresses a <pre> as evidence the page is showing — a box, a rule, a mono face, an
@@ -34,7 +48,7 @@ lf-diagram:not(.lf-rendered) > pre {
  * scrolls in its own box, the same answer a wide table gets, instead of painting over
  * the margin. max-width: none escapes the page-wide svg rule in the kernel theme, which
  * would scale it right back down. Where the runtime has marked the element wide, the
- * kernel's `[data-lf-wide="drawing"]` rule owns the box; these two are for the diagram
+ * package's `[data-lf-space="available"]` rule owns the box; these two are for the diagram
  * standing where nothing marks it — a thread's message — and agree with it.
  * Paper cannot scroll, so print restores the fit: width and viewBox stay in the markup,
  * and max-width alone scales the drawing whole. */

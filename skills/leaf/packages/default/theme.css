@@ -1829,7 +1829,7 @@ lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre
    authored source, which is evidence and reads at the column's width from the column's
    own left edge. Both halves of the drawing rule are wrong for it — the room, since
    there is no drawing to be around, and the row, whose whole job is placing one. The
-   rule is written against the `x-wide: drawing` declaration rather than against a tag,
+   rule is written against the `x-space: available` declaration rather than against a tag,
    so it stays here where every page reads it while the one drawing widget shipped today
    travels in the `diagram` package. The runtime marks the element before any module
    imports, so this is not a corner: the renderer is fetched lazily, so every diagram
@@ -1839,7 +1839,7 @@ lf-tree:not(.lf-rendered) > pre, lf-code:not(.lf-rendered) > pre, lf-draft > pre
    word for a module having replaced its body, so this is the sentence theme.css's
    `.lf-error` rule makes about a failure, said where the word for the other half
    lives. */
-[data-lf-wide="drawing"]:not(.lf-rendered) { --lf-room: 0px; display: block; }
+[data-lf-space="available"]:not(.lf-rendered) { --lf-room: 0px; display: block; }
 
 /* A chart's colors are all here, and none of them are in its module. Plot leaves every
  * mark `currentColor` unless a color channel says otherwise, and lf-chart never passes

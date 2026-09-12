@@ -1730,12 +1730,49 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     page.close()
 
 
+def test_available_space_uses_the_free_side_of_a_margin_resident(browser, serve):
+    """A resident removes only the side it occupies. The other side receives the
+    allocation that symmetry would otherwise strand, so an available surface reaches
+    the shell edge while remaining clear of the resident."""
+    source = DIAGRAM_AND_RAIL_PAGE.replace(
+        '<h1 id="t">Sessions</h1>',
+        '<aside class="sidebar"><lf-toc id="space-toc"></lf-toc></aside>'
+        '<h1 id="t">Sessions</h1>',
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1726, 900)
+    at = page.evaluate("""() => {
+      const main = document.querySelector('main');
+      const ms = getComputedStyle(main), mb = main.getBoundingClientRect();
+      const box = document.getElementById('flow').getBoundingClientRect();
+      const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
+      const body = document.body.getBoundingClientRect();
+      return {
+        box: {left: box.left, right: box.right, width: box.width},
+        column: {
+          left: mb.left + parseFloat(ms.paddingLeft),
+          right: mb.right - parseFloat(ms.paddingRight),
+        },
+        sidebar: {left: sidebar.left, right: sidebar.right},
+        roomRight: body.right - parseFloat(getComputedStyle(document.body).paddingRight),
+        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    }""")
+    assert at["box"]["left"] >= at["sidebar"]["right"] - 1, at
+    assert at["box"]["right"] >= at["roomRight"] - 1, at
+    assert at["box"]["width"] > 1080, at
+    assert at["column"]["left"] == at["box"]["left"], at
+    assert at["sideways"] == 0, at
+    assert errors == []
+    page.close()
+
+
 def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     browser, serve
 ):
     """A board's columns are as wide as what they hold and prose is set to a measure, so
     a page carrying both used to be a cramped board or a page widened past its own
-    measure for one exhibit. x-wide is which of the two a widget is, and the theme spends
+    measure for one exhibit. x-space declares the capacity a widget needs, and the theme spends
     the room the layout measured — so the exhibit grows, the prose does not move, and the
     axis they share is what keeps a page that mixes widths reading as one design.
 
@@ -2350,7 +2387,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     420px panel, and the explanation would be the half of it the panel could show.
 
     The mark that would do that is the one deliberately left out of the message render
-    (x-wide, the half of markDeclared the page keeps to itself). Nothing about a message
+    (x-space, the half of markDeclared the page keeps to itself). Nothing about a message
     says so, which is why this asks: the widget is in the panel, and the panel's width is
     what bounds it."""
     url = serve(REPLY_HOST_PAGE)
@@ -2387,7 +2424,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
         const holder = el.closest('.lf-msg-body');
         const a = el.getBoundingClientRect(), b = holder.getBoundingClientRect();
         return { widget: a.width, message: b.width, past: a.right - b.right,
-                 marked: el.hasAttribute('data-lf-wide') };
+                 marked: el.hasAttribute('data-lf-space') };
     }""")
     assert not fit["marked"], (
         "a widget in a thread was handed the page's room; the panel is not the page"

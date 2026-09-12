@@ -107,6 +107,8 @@ body:has(> main > .sitenote) > main {
     gap: 24px;
     margin-bottom: 4px;
     padding-bottom: 4px;
+    font-size: var(--t-6);
+    line-height: 1.3;
   }
 
   main > :only-child > header > .sitenote p.sitenote-nav {

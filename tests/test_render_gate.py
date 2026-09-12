@@ -793,7 +793,6 @@ def test_an_ordinary_error_survives_an_incomplete_resize_confirmation(browser, s
         if number < 4:  # every page in the first complete attempt
             resize_notice_after_last_probe(page)
         else:  # every confirming page
-            page.set_default_timeout(500)
             page.route("**/_leaf/render-checks/index.js", lambda route: route.abort())
         pages.append(page)
 

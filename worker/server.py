@@ -111,14 +111,21 @@ the Leaf page is the user interface."""
 
 
 def log_agent(event: str, **fields) -> None:
-    """Emit one content-free structured boundary reading to Worker observability."""
-    print(
-        json.dumps(
-            {"component": "leaf-agent", "event": event, **fields},
-            separators=(",", ":"),
-        ),
-        flush=True,
+    """Emit content-free boundary readings searchable by each accepted event."""
+    event_ids = fields.pop("eventIds", None)
+    readings = (
+        ({**fields, "eventId": event_id} for event_id in event_ids)
+        if event_ids is not None
+        else (fields,)
     )
+    for reading in readings:
+        print(
+            json.dumps(
+                {"component": "leaf-agent", "event": event, **reading},
+                separators=(",", ":"),
+            ),
+            flush=True,
+        )
 
 
 def agent_event_fields(event_ids: tuple[str, ...]) -> dict:
@@ -267,6 +274,12 @@ class WebsiteCodexHost:
     def _prewarm(self) -> None:
         started = time.monotonic()
         log_agent("app_server_prewarm_started")
+        leaf_cli = threading.Thread(
+            target=self._warm_leaf_cli,
+            name="leaf-cli-prewarm",
+            daemon=True,
+        )
+        leaf_cli.start()
         try:
             with self.lock:
                 self._ensure_server()
@@ -279,6 +292,31 @@ class WebsiteCodexHost:
             return
         log_agent(
             "app_server_prewarm_completed",
+            durationMs=round((time.monotonic() - started) * 1000),
+        )
+
+    def _warm_leaf_cli(self) -> None:
+        """Populate the runtime file cache before Codex needs its first Leaf command."""
+        started = time.monotonic()
+        log_agent("leaf_cli_prewarm_started")
+        try:
+            subprocess.run(
+                [LEAF_COMMAND, "--version"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=True,
+                timeout=20,
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            log_agent(
+                "leaf_cli_prewarm_failed",
+                durationMs=round((time.monotonic() - started) * 1000),
+                error=type(error).__name__,
+            )
+            return
+        log_agent(
+            "leaf_cli_prewarm_completed",
             durationMs=round((time.monotonic() - started) * 1000),
         )
 

@@ -188,13 +188,15 @@ startup failure appends a short failure reply through the same event log. The ac
 event and active turn are not yet mirrored into Durable Object storage, and no alarm
 recovers work that exceeds the Worker's 30-second `waitUntil` window.
 Container startup warms App Server and the Leaf CLI entrypoint concurrently, reducing
-cold runtime-filesystem work before a model command. A directly started delivery with
-one plain reply streams the App Server final-answer item into its addressed thread and
-commits that same completed text through the canonical reply writer. A queued
-delivery and each reply in a multi-response delivery uses the private
-capability-authenticated `$LEAF_REPLY` adapter already running in the container.
-Both routes retain source validation and publication; `$LEAF` remains the interface
-for delivery reads, resolves, and receipts.
+cold runtime-filesystem work before a model command. Each App Server turn is bound to
+one immutable delivery id: the direct request carries it as `clientUserMessageId`, and
+a queued turn carries it in the exact `leaf-delivery` pointer. A bound delivery with one
+plain reply streams the final-answer item into its addressed thread and commits that
+same completed text through the canonical reply writer, even if its turn closes or the
+next turn opens first. Each reply in a multi-response delivery uses the private
+capability-authenticated `$LEAF_REPLY` adapter already running in the container. Both
+routes retain source validation and publication; `$LEAF` remains the interface for
+delivery reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
 The bound final-answer message, an explicit `leaf reply`, a page revision closed with
 `leaf resolve`, or a `leaf receipt` settles accepted input.

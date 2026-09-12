@@ -33,6 +33,7 @@ from leaf.codex import (
     _set_stream_activity,
     abandon_codex_delivery,
     accept_codex_delivery,
+    app_server_delivery_id,
     open_queued_codex_delivery,
     prepare_codex_delivery,
     project_app_server_activity,
@@ -88,15 +89,18 @@ CODEX_INSTRUCTIONS = """You are Leaf guide for one public leaf.page session. The
 page directory in your working directory is the complete scope of this task.
 
 Reader input arrives inline as a structured `leaf_delivery` tool output or as a
-`leaf-delivery` pointer. An inline delivery with exactly one response whose kind is
-`reply` uses your normal final message as that Leaf reply. The host streams and commits
-it, so never run `$LEAF_REPLY` for that response.
+`leaf-delivery` pointer. For a pointer, first run `$LEAF delivery read ID` with its exact
+id. Use exactly one response path for the delivery:
 
-For a pointer, first run `$LEAF delivery read ID` with its exact id. Pointer deliveries
-and inline deliveries with several replies use `$LEAF_REPLY EVENT_ID "..."` once per
-reply obligation. The explicit command may add the current `--quote`, `--section`, or
-`--section ... --part ...` target when an edit moved the thread. A version response
-edits the page and ends with
+- With exactly one response whose kind is `reply`, your normal final message is the
+  only reply operation. The host binds, streams, and commits it. Do not run
+  `$LEAF_REPLY`, including after editing or publishing; retain the thread's standing
+  anchor.
+- With several replies, use `$LEAF_REPLY EVENT_ID "..."` once per reply obligation.
+  The explicit command may add the current `--quote`, `--section`, or
+  `--section ... --part ...` target when an edit moved the thread.
+
+A version response edits the page and ends with
 `$LEAF resolve . --to RESPONSE_CONVERSATION`; a request ends with `$LEAF receipt`.
 
 Both input forms produce the same immutable envelope. Process every delivered event and
@@ -481,12 +485,13 @@ class WebsiteCodexHost:
         leaf_turn: str | None,
         event_ids: tuple[str, ...],
         reply_target: dict | None = None,
+        queued_delivery_id: str | None = None,
         initial_messages: tuple[dict, ...] = (),
     ) -> None:
         """Project notifications and account for the turn's terminal outcome."""
         events = AppServerEvents(thread_id)
         events.turn_id = turn_id
-        awaiting_queued_start = turn_id is None
+        awaiting_queued_start = queued_delivery_id is not None
         last_stream_update = 0.0
         reply_stream = None
         terminal: dict
@@ -517,10 +522,10 @@ class WebsiteCodexHost:
                         continue
                     buffered = False
                 if awaiting_queued_start:
-                    if message.get("method") != "turn/started":
-                        continue
                     update = events.read(message)
                     if update is None:
+                        continue
+                    if app_server_delivery_id(message) != queued_delivery_id:
                         continue
                     turn_id = update["turn"]
                     leaf_turn = open_queued_codex_delivery(
@@ -530,6 +535,12 @@ class WebsiteCodexHost:
                         turn_id,
                     )
                     awaiting_queued_start = False
+                    log_agent(
+                        "turn_delivery_bound",
+                        **event_fields,
+                        turnId=turn_id,
+                        deliveryId=queued_delivery_id,
+                    )
                     if reply_target is not None:
                         reply_stream = AppServerReplyStream(
                             thread_id,
@@ -677,7 +688,7 @@ class WebsiteCodexHost:
         thread_id: str,
         process: subprocess.Popen,
         pending: list[dict] | None = None,
-    ) -> tuple[Path, str, str, str, tuple[str, ...], dict | None]:
+    ) -> tuple[Path, str, str, str, tuple[str, ...], dict | None, None]:
         started = time.monotonic()
         with PageTransaction(page_dir) as page:
             if page.status["state"] == "idle":
@@ -699,6 +710,7 @@ class WebsiteCodexHost:
                 "turn/start",
                 {
                     "threadId": thread_id,
+                    "clientUserMessageId": prepared.payload["id"],
                     "input": [],
                     "toolOutput": {
                         "name": "leaf_delivery",
@@ -731,6 +743,7 @@ class WebsiteCodexHost:
             delivery["turn"],
             event_ids,
             stream_reply_target(prepared.payload),
+            None,
         )
 
     def _start_thread(
@@ -740,7 +753,7 @@ class WebsiteCodexHost:
 
         def attach(
             socket, result: dict, pending: list[dict]
-        ) -> tuple[Path, str, str, str, tuple[str, ...], dict | None]:
+        ) -> tuple[Path, str, str, str, tuple[str, ...], dict | None, None]:
             thread_id = result["thread"]["id"]
             return self._start_turn(socket, page_dir, thread_id, process, pending)
 
@@ -778,7 +791,9 @@ class WebsiteCodexHost:
 
         def attach(
             socket, result: dict, pending: list[dict]
-        ) -> tuple[Path, str, str, str, tuple[str, ...], dict | None] | None:
+        ) -> (
+            tuple[Path, str, str, str, tuple[str, ...], dict | None, str | None] | None
+        ):
             nonlocal resumed
             resumed = True
             status = result["thread"]["status"]["type"]
@@ -816,7 +831,8 @@ class WebsiteCodexHost:
                 None,
                 None,
                 delivery["events"],
-                None,
+                stream_reply_target(prepared.payload),
+                prepared.payload["id"],
             )
 
         try:
@@ -917,9 +933,9 @@ class WebsiteCodexHost:
                 and reply.get("responds") == event_id
                 and any(
                     obligation["event"] == event_id
-                    for obligation in full_state(
-                        page_dir, page.events
-                    )["activity"]["obligations"]
+                    for obligation in full_state(page_dir, page.events)["activity"][
+                        "obligations"
+                    ]
                 )
             )
 

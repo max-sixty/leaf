@@ -21,7 +21,7 @@ from xml.etree import ElementTree
 from websockets.sync.client import connect, unix_connect
 
 from .conversation import cmd_reply
-from .delivery import batch_data, delivery_path, freeze_delivery
+from .delivery import DELIVERY_FORMAT, batch_data, delivery_path, freeze_delivery
 from .event_log import flocked, read_cursor
 from .files import read_json, write_json
 from .host import host_identity, state_home
@@ -80,6 +80,73 @@ def stream_reply_target(payload: dict) -> dict | None:
         "reply_to": response["to"],
         "responds": response["for"],
     }
+
+
+def app_server_delivery_id(message: dict) -> str | None:
+    """Read the exact Leaf delivery identity carried by one provider notification."""
+    method = message.get("method")
+    params = message.get("params") or {}
+    if method == "turn/started":
+        items = params.get("turn", {}).get("items", [])
+    elif method in {"item/started", "item/completed"}:
+        items = [params.get("item") or {}]
+    else:
+        return None
+
+    found = set()
+    for item in items:
+        if (
+            item.get("type") == "functionCallOutput"
+            and item.get("name") == "leaf_delivery"
+            and isinstance(item.get("output"), str)
+        ):
+            try:
+                payload = json.loads(item["output"])
+            except json.JSONDecodeError:
+                continue
+            if (
+                isinstance(payload, dict)
+                and payload.get("format") == DELIVERY_FORMAT
+                and isinstance(payload.get("id"), str)
+            ):
+                found.add(payload["id"])
+            continue
+        if item.get("type") != "userMessage":
+            continue
+        for content in item.get("content", []):
+            if content.get("type") != "text":
+                continue
+            lines = content.get("text", "").strip().splitlines()
+            if len(lines) != 3 or lines[0] != "```xml" or lines[2] != "```":
+                continue
+            try:
+                pointer = ElementTree.fromstring(lines[1])
+            except ElementTree.ParseError:
+                continue
+            if (
+                pointer.tag == "leaf-delivery"
+                and set(pointer.attrib) == {"id", "operation"}
+                and pointer.attrib["operation"] == "delivery read"
+            ):
+                found.add(pointer.attrib["id"])
+    return next(iter(found)) if len(found) == 1 else None
+
+
+def delivery_stream_reply_target(session_id: str, delivery_id: str) -> dict | None:
+    """Resolve one task-owned delivery identity to its plain reply address."""
+    path = queue_path(session_id, delivery_id)
+    records = (path, path.parent / "history" / path.name)
+    if not any(
+        (recorded := read_json(record)) is not None
+        and recorded.get("format") == QUEUE_FORMAT
+        for record in records
+    ):
+        return None
+    try:
+        payload = read_json(delivery_path(delivery_id))
+    except ValueError:
+        return None
+    return stream_reply_target(payload) if payload is not None else None
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -191,6 +258,19 @@ class AppServerEvents:
         self.message_order: list[str] = []
         self.item_started_at: dict[str, int] = {}
 
+    def restore_turn(self, turn: dict) -> str:
+        """Replace transient message state with one resumed provider turn."""
+        self.turn_id = turn["id"]
+        self.details.clear()
+        self.text.clear()
+        self.message_phases.clear()
+        self.message_order.clear()
+        self.item_started_at.clear()
+        for item in turn.get("items", []):
+            if item.get("type") == "agentMessage":
+                self._record_message(item)
+        return self.final_text(turn)
+
     def read(self, message: dict) -> dict | None:
         """Return one transient activity or turn-completion update."""
         method = message.get("method")
@@ -200,12 +280,7 @@ class AppServerEvents:
             return None
 
         if method == "turn/started":
-            self.turn_id = params["turn"]["id"]
-            self.details.clear()
-            self.text.clear()
-            self.message_phases.clear()
-            self.message_order.clear()
-            self.item_started_at.clear()
+            self.restore_turn(params["turn"])
             return {"turn": self.turn_id, "activity": "Starting"}
 
         turn_id = params.get("turnId") or self.turn_id
@@ -342,8 +417,6 @@ class AppServerEvents:
         items = [
             item for item in turn.get("items", []) if item.get("type") == "agentMessage"
         ]
-        for item in items:
-            self._record_message(item)
         return "\n\n".join(
             item.get("text", "")
             for item in items
@@ -683,6 +756,7 @@ class AppServerClient:
                 self.request_id,
                 {
                     "threadId": self.thread_id,
+                    "clientUserMessageId": payload["id"],
                     "input": [],
                     "toolOutput": {
                         "name": "leaf_delivery",
@@ -717,6 +791,18 @@ class AppServerClient:
 
     def _restore_bindings(self, thread: dict) -> None:
         turns = {turn["id"]: turn for turn in thread.get("turns", [])}
+        active_turn = next(
+            (
+                turn
+                for turn in reversed(list(turns.values()))
+                if turn.get("status") == "inProgress"
+            ),
+            None,
+        )
+        self.events = AppServerEvents(self.thread_id)
+        if active_turn is not None:
+            self.events.restore_turn(active_turn)
+        known_turns = set(self.bindings)
         for turn_id, stream in list(self.bindings.items()):
             turn = turns.get(turn_id)
             if turn is None:
@@ -739,6 +825,42 @@ class AppServerClient:
                         file=sys.stderr,
                         flush=True,
                     )
+        for turn in turns.values():
+            if turn["id"] not in known_turns:
+                self._restore_delivery_binding(turn)
+
+    def _restore_delivery_binding(self, turn: dict) -> None:
+        """Recover a provider turn from the immutable delivery it carries."""
+        turn_id = turn["id"]
+        if turn_id in self.bindings:
+            return
+        delivery_id = app_server_delivery_id(
+            {"method": "turn/started", "params": {"turn": turn}}
+        )
+        if delivery_id is None:
+            return
+        target = delivery_stream_reply_target(self.thread_id, delivery_id)
+        if target is None:
+            return
+        status = turn.get("status", "failed")
+        if status == "inProgress":
+            _open_stream_turn(self.thread_id, turn_id)
+            self._bind(turn_id, target)
+            self.bindings[turn_id].restore(self.events.final_text(turn))
+        elif status == "completed":
+            self._bind(turn_id, target)
+            error = self._finish_binding(
+                turn_id,
+                status,
+                self.events.final_text(turn),
+            )
+            _close_stream_turn(self.thread_id, turn_id)
+            if error is not None:
+                print(
+                    f"Codex final reply rejected: {error}",
+                    file=sys.stderr,
+                    flush=True,
+                )
 
     def _read(self, message: dict) -> None:
         update = self.events.read(message)
@@ -747,6 +869,11 @@ class AppServerClient:
         turn_id = update["turn"]
         if message.get("method") == "turn/started":
             _open_stream_turn(self.thread_id, turn_id)
+        delivery_id = app_server_delivery_id(message)
+        if delivery_id is not None and turn_id not in self.bindings:
+            target = delivery_stream_reply_target(self.thread_id, delivery_id)
+            if target is not None:
+                self._bind(turn_id, target)
         self.last_activity_update = project_app_server_activity(
             self.events,
             message,
@@ -1201,12 +1328,7 @@ def _commit_stream_reply(
     try:
         with PageTransaction(page_dir) as page:
             claim = page.active_claim
-            if (
-                claim is None
-                or claim["id"] != session_id
-                or claim.get("turn") != turn_id
-                or claim.get("turn_closed") is not None
-            ):
+            if claim is None or claim["id"] != session_id:
                 return None
             identity = {"agent": claim["agent"], "session": session_id}
         accepted = cmd_reply(

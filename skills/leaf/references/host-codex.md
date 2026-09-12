@@ -62,14 +62,17 @@ already active, Leaf queues the same immutable delivery rather than steering
 unrelated page input into that turn. A delivery can span pages and conversations;
 neither case changes its shape or response rules.
 
-The Leaf-started turn, its `functionCallOutput`, and Codex's response remain in the
-Codex transcript. When an inline structured `leaf_delivery` has exactly one
-response obligation and that response is a plain reply, write the reply as the
-normal final message. Leaf streams that message into the addressed thread and
-commits its completed text through the same reply contract as `leaf reply`; do not
+The delivery, its provider turn, and each response obligation have stable identities.
+A directly started turn records the delivery id as its client message id; a queued turn
+is bound only when its exact `leaf-delivery` pointer appears in that turn. When the
+bound delivery has exactly one response obligation and it is a plain reply, write the
+reply as the normal final message. Leaf streams that message into the addressed thread
+and commits its completed text through the same reply contract as `leaf reply`; do not
 run a reply command for that response. The committed reply retains the thread's
-standing anchor. Deliveries with any other number or kind of response use their
-explicit `reply`, `resolve`, or `receipt` operations.
+standing anchor. Its immutable delivery address remains authoritative if the turn
+closes, the observer reconnects, or a later turn starts; current-turn identity governs
+only live activity and provisional text. Deliveries with any other number or kind of
+response use their explicit `reply`, `resolve`, or `receipt` operations.
 Keep the CLI open because it is still the interactive client for approvals and
 user input.
 

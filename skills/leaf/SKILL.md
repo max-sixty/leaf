@@ -14,9 +14,9 @@ messages, `references/conversation-threads.md`. Process every batch and every
 event. Each event's `obligation.response`, when present, names the Leaf operation
 it required when captured: a reply, a page revision closed with `leaf resolve`,
 or `leaf receipt`. Recheck current page or conversation state before writing
-because a later event may already have settled it. The Codex host contract names
-the one directly started App Server delivery whose final message supplies its plain
-reply; every other response uses the explicit Leaf command. Do not initialize or
+because a later event may already have settled it. The Codex host contract uses an App
+Server turn's final message as the response when its bound delivery has exactly one
+plain reply; every other response uses the explicit Leaf command. Do not initialize or
 hand the page over again in response to an existing delivery.
 
 Otherwise, present the session's subject as a live HTML page. The user comments

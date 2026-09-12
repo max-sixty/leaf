@@ -1033,6 +1033,90 @@ def test_declared_work_is_not_suppressed_by_an_older_stream_floor(claimed):
     lease.close()
 
 
+def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
+    pointer = codex_model._prompt("delivery-42")
+    payload = {
+        "format": delivery_model.DELIVERY_FORMAT,
+        "id": "delivery-43",
+        "batches": [],
+    }
+
+    assert (
+        codex_model.app_server_delivery_id(
+            {
+                "method": "turn/started",
+                "params": {
+                    "turn": {
+                        "items": [
+                            {
+                                "type": "userMessage",
+                                "content": [{"type": "text", "text": pointer}],
+                            }
+                        ]
+                    }
+                },
+            }
+        )
+        == "delivery-42"
+    )
+    assert (
+        codex_model.app_server_delivery_id(
+            {
+                "method": "turn/started",
+                "params": {
+                    "turn": {
+                        "items": [
+                            {
+                                "type": "functionCallOutput",
+                                "name": "leaf_delivery",
+                                "output": json.dumps(payload),
+                            }
+                        ]
+                    }
+                },
+            }
+        )
+        == "delivery-43"
+    )
+    assert (
+        codex_model.app_server_delivery_id(
+            {
+                "method": "item/started",
+                "params": {
+                    "item": {
+                        "type": "userMessage",
+                        "content": [{"type": "text", "text": pointer}],
+                    }
+                },
+            }
+        )
+        == "delivery-42"
+    )
+    assert (
+        codex_model.app_server_delivery_id(
+            {
+                "method": "turn/started",
+                "params": {
+                    "turn": {
+                        "items": [
+                            {
+                                "type": "userMessage",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": pointer + "\nPlease do this.",
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                },
+            }
+        )
+        is None
+    )
+
+
 def test_app_server_events_report_semantic_codex_progress():
     events = codex_model.AppServerEvents("codex-thread")
 
@@ -1555,6 +1639,171 @@ def test_leaf_started_app_server_turn_streams_and_commits_its_final_reply(
     assert thread["msgs"][-1]["id"] == replies[0]["id"]
 
 
+def test_a_queued_app_server_turn_uses_its_delivery_id_for_the_final_reply(page_dir):
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Answer this next"},
+    )
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir,
+        {"id": "codex-thread", "host": "codex", "agent": "Codex"},
+        {"pid": os.getpid()},
+    )
+    client = codex_model.AppServerClient("ws://127.0.0.1:1", "codex-thread")
+    pointer = {
+        "id": "queued-input",
+        "type": "userMessage",
+        "content": [{"type": "text", "text": prepared.prompt}],
+    }
+
+    client._read(
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {
+                    "id": "queued-turn",
+                    "status": "inProgress",
+                    "items": [pointer],
+                },
+            },
+        }
+    )
+    assert set(client.bindings) == {"queued-turn"}
+    client._read(
+        {
+            "method": "turn/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {
+                    "id": "queued-turn",
+                    "status": "completed",
+                    "items": [
+                        {
+                            "id": "answer",
+                            "type": "agentMessage",
+                            "phase": "final_answer",
+                            "text": "The queued reply",
+                        }
+                    ],
+                },
+            },
+        }
+    )
+
+    replies = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply"
+    ]
+    assert [(reply["responds"], reply["text"]) for reply in replies] == [
+        (comment["id"], "The queued reply")
+    ]
+
+
+def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Answer during reconnect"},
+    )
+    prepared = codex_model.prepare_codex_delivery(
+        page_dir,
+        {"id": "codex-thread", "host": "codex", "agent": "Codex"},
+        {"pid": os.getpid()},
+    )
+    client = codex_model.AppServerClient("ws://127.0.0.1:1", "codex-thread")
+
+    client._restore_bindings(
+        {
+            "turns": [
+                {
+                    "id": "completed-while-disconnected",
+                    "status": "completed",
+                    "items": [
+                        {
+                            "id": "delivery",
+                            "type": "functionCallOutput",
+                            "name": "leaf_delivery",
+                            "output": json.dumps(prepared.payload),
+                        },
+                        {
+                            "id": "answer",
+                            "type": "agentMessage",
+                            "phase": "final_answer",
+                            "text": "Recovered reply",
+                        },
+                    ],
+                },
+                {
+                    "id": "current-turn",
+                    "status": "inProgress",
+                    "items": [
+                        {
+                            "id": "current-answer",
+                            "type": "agentMessage",
+                            "phase": "final_answer",
+                            "text": "Current",
+                        }
+                    ],
+                },
+            ]
+        }
+    )
+
+    replies = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply"
+    ]
+    assert [(reply["responds"], reply["text"]) for reply in replies] == [
+        (comment["id"], "Recovered reply")
+    ]
+    assert client.bindings == {}
+    update = client.events.read(
+        {
+            "method": "item/agentMessage/delta",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "current-turn",
+                "itemId": "current-answer",
+                "delta": " answer",
+            },
+        }
+    )
+    assert update["message"]["text"] == "Current answer"
+
+
+def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
+    comment = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Answer the first turn"},
+    )
+    record_claim(page_dir, id="codex-thread", host="codex", agent="Codex")
+    target = {
+        "page": str(page_dir),
+        "reply_to": comment["id"],
+        "responds": comment["id"],
+    }
+    with service_model.PageTransaction(page_dir) as page:
+        page.open_turn("codex-thread", "turn-1")
+    stream = codex_model.AppServerReplyStream("codex-thread", "turn-1", target)
+    with service_model.PageTransaction(page_dir) as page:
+        page.close_turn("codex-thread", "turn-1")
+        page.open_turn("codex-thread", "turn-2")
+
+    assert stream.finish("completed", "First turn reply") is None
+
+    replies = [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply"
+    ]
+    assert [(reply["responds"], reply["text"]) for reply in replies] == [
+        (comment["id"], "First turn reply")
+    ]
+    assert service_model.page_claim(page_dir)["turn"] == "turn-2"
+
+
 def test_an_explicit_reply_wins_without_duplicating_the_streamed_final(page_dir):
     comment = events_model.append_event(
         page_dir,
@@ -1593,7 +1842,9 @@ def test_an_explicit_reply_wins_without_duplicating_the_streamed_final(page_dir)
         is None
     )
     replies = [
-        event for event in events_model.read_events(page_dir) if event["kind"] == "reply"
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "reply"
     ]
     assert [reply["text"] for reply in replies] == ["Anchored answer"]
     assert "reply" not in (

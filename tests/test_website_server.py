@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 from leaf.codex import _queues as codex_queues
+from leaf.codex import _prompt as delivery_prompt
 from leaf.event_log import append_event, read_events
 from leaf.hosting import server_at
 from leaf.http import supervised_document
@@ -353,12 +354,17 @@ def test_the_website_host_delivers_into_the_existing_codex_thread(
     if status == "active":
         assert queued == [("codex", "hosted-thread", "delivery-pointer", host.endpoint)]
         assert accepted == [(("hosted-thread",), {"phase": "queued"})]
-        assert follows[0][-1] is None
+        assert follows[0][-1] == "delivery-1"
+        assert follows[0][-2] == {
+            "page": str(page_dir),
+            "reply_to": "reader-event",
+            "responds": "reader-event",
+        }
     else:
         assert queued == []
 
 
-def test_a_second_website_comment_is_observed_from_queue_to_terminal_turn(page_dir):
+def test_a_queued_website_reply_binds_only_to_its_delivery_turn(page_dir):
     identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
     append_event(
         page_dir,
@@ -370,32 +376,68 @@ def test_a_second_website_comment_is_observed_from_queue_to_terminal_turn(page_d
         page_dir,
         {"kind": "comment", "author": "user", "text": "second while active"},
     )
-    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    prepared = website_server.prepare_codex_delivery(
+        page_dir, identity, {"pid": os.getpid()}
+    )
     [queued] = website_server.accept_codex_delivery("hosted-thread", phase="queued")
+
+    def queued_turn(turn_id, delivery_id):
+        return {
+            "method": "turn/started",
+            "params": {
+                "threadId": "hosted-thread",
+                "turn": {
+                    "id": turn_id,
+                    "status": "inProgress",
+                    "items": [
+                        {
+                            "id": f"message-{turn_id}",
+                            "type": "userMessage",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": delivery_prompt(delivery_id),
+                                }
+                            ],
+                        }
+                    ],
+                },
+            },
+        }
 
     class Socket:
         def __init__(self):
             self.messages = iter(
                 [
+                    queued_turn("other-turn", "another-delivery"),
                     {
                         "method": "turn/completed",
                         "params": {
                             "threadId": "hosted-thread",
-                            "turn": {"id": "first-turn", "status": "completed"},
+                            "turn": {
+                                "id": "other-turn",
+                                "status": "completed",
+                                "items": [],
+                            },
                         },
                     },
-                    {
-                        "method": "turn/started",
-                        "params": {
-                            "threadId": "hosted-thread",
-                            "turn": {"id": "queued-turn", "status": "inProgress"},
-                        },
-                    },
+                    queued_turn("queued-turn", prepared.payload["id"]),
                     {
                         "method": "turn/completed",
                         "params": {
                             "threadId": "hosted-thread",
-                            "turn": {"id": "queued-turn", "status": "completed"},
+                            "turn": {
+                                "id": "queued-turn",
+                                "status": "completed",
+                                "items": [
+                                    {
+                                        "id": "answer",
+                                        "type": "agentMessage",
+                                        "phase": "final_answer",
+                                        "text": "The queued answer",
+                                    }
+                                ],
+                            },
                         },
                     },
                 ]
@@ -416,6 +458,8 @@ def test_a_second_website_comment_is_observed_from_queue_to_terminal_turn(page_d
         None,
         None,
         queued["events"],
+        website_server.stream_reply_target(prepared.payload),
+        prepared.payload["id"],
     )
 
     pickups = [
@@ -426,6 +470,10 @@ def test_a_second_website_comment_is_observed_from_queue_to_terminal_turn(page_d
     assert [(event["phase"], event["turn"]) for event in pickups] == [
         ("queued", None),
         ("opened", "queued-turn"),
+    ]
+    replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    assert [(reply["responds"], reply["text"]) for reply in replies] == [
+        (second["id"], "The queued answer")
     ]
     claim = website_server.page_claim(page_dir)
     assert claim["turn"] == "queued-turn"
@@ -504,6 +552,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
             "turn/start",
             {
                 "threadId": "hosted-thread",
+                "clientUserMessageId": "delivery-1",
                 "input": [],
                 "toolOutput": {
                     "name": "leaf_delivery",
@@ -721,9 +770,10 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "structured `leaf_delivery` tool output" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF delivery read ID" in website_server.CODEX_INSTRUCTIONS
     assert '$LEAF_REPLY EVENT_ID "..."' in website_server.CODEX_INSTRUCTIONS
-    assert "never run `$LEAF_REPLY` for that response" in (
+    assert "your normal final message is the\n  only reply operation" in (
         website_server.CODEX_INSTRUCTIONS
     )
+    assert "Do not run\n  `$LEAF_REPLY`" in website_server.CODEX_INSTRUCTIONS
     assert "no separate `leaf publish` command" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF version check" not in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF status" not in website_server.CODEX_INSTRUCTIONS
@@ -731,8 +781,11 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
         "$LEAF resolve . --to RESPONSE_CONVERSATION"
         in website_server.CODEX_INSTRUCTIONS
     )
-    assert "normal final message" in website_server.CODEX_INSTRUCTIONS
-    assert "Pointer deliveries\nand inline deliveries" in website_server.CODEX_INSTRUCTIONS
+    assert "normal final" in website_server.CODEX_INSTRUCTIONS
+    assert "Use exactly one response path" in website_server.CODEX_INSTRUCTIONS
+    assert (
+        "The host binds, streams, and commits it" in website_server.CODEX_INSTRUCTIONS
+    )
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -1643,9 +1696,7 @@ def test_a_claimed_website_turn_replies_through_the_running_adapter(page_dir):
         "reply_to": comment["id"],
         "responds": comment["id"],
     }
-    website_server.AppServerReplyStream(
-        "hosted-thread", delivery["turn"], target
-    )
+    website_server.AppServerReplyStream("hosted-thread", delivery["turn"], target)
     host = website_server.WebsiteCodexHost("codex")
 
     assert host.final_message_owns_reply(page_dir, comment["id"])

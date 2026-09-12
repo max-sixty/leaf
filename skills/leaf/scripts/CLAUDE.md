@@ -103,9 +103,10 @@ declarations without a widget-name list.
 
 Within `registry/`, `contract` owns shared schema helpers and layer readings,
 `layer`, `widgets`, and `state` own their complete vocabulary contracts,
-`validation` composes those gates, `storage` owns the vendored-file cache and
-page lookup, and `reactions` owns reaction descriptions. Import the owner
-directly; the package initializer is only a marker.
+`validation` composes those gates, `page` composes page-owned declarations and
+records declaration and widget provenance, `storage` owns the vendored-file
+cache and page lookup, and `reactions` owns reaction descriptions. Import the
+owner directly; the package initializer is only a marker.
 
 Within `served_state/`, `wire` serializes one declared fold, `conversation` and
 `document` own their scoped browser readings, `browser` assembles the requested

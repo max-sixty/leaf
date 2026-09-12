@@ -12,6 +12,7 @@ from render_support import (
     holding,
     live_url,
     open_page,
+    panel_settled,
     round_trip,
     stamp_page,
     told,
@@ -788,9 +789,12 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
             '/runtime/semantic-state.js'
           );
           const held = () => {
-            let release;
-            const promise = new Promise(resolve => { release = resolve; });
-            return {promise, release};
+            let release, reject;
+            const promise = new Promise((resolve, fail) => {
+              release = resolve;
+              reject = fail;
+            });
+            return {promise, release, reject};
           };
           window.pagePreparation = held();
           window.threadPreparation = held();
@@ -853,5 +857,147 @@ def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, se
     )
     page.evaluate("pagePreparation.release('page')")
     page.wait_for_function("allReady", timeout=3000)
+
+    # A descendant owns its own fail-soft result. Its failure reports once and settles,
+    # while the parent list, count, and narrowing keep the same candidate reading.
+    page.evaluate(
+        """() => {
+          window.failedThreadPreparation = (() => {
+            let reject;
+            const promise = new Promise((_resolve, fail) => { reject = fail; });
+            return {promise, reject};
+          })();
+          window.__heldLocalPresentations.set(
+            'thread-failing', failedThreadPreparation.promise
+          );
+        }"""
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "failing-widget-question",
+            "author": "user",
+            "revision": 1,
+            "text": "Show another frozen widget.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "revision": 1,
+            "parent": "failing-widget-question",
+            "text": "This widget fails its preparation.",
+            "markup": '<lf-local id="thread-failing" choice="idle"></lf-local>',
+        },
+    )
+    page.wait_for_function(
+        """() => document.querySelector('#thread-failing') &&
+          readLeafPresentation().pending.includes('conversation') &&
+          readLeafPresentation().pending.includes(
+            'widget:thread-failing:preparation'
+          )""",
+        timeout=5000,
+    )
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
+    page.evaluate(
+        "conversationReady = false; "
+        "whenLeafRegionsPresented(['conversation'], () => true)"
+        ".then(() => { conversationReady = true; }); "
+        "failedThreadPreparation.reject(new Error('frozen descendant failure')); true"
+    )
+    page.wait_for_function("conversationReady", timeout=3000)
+    expect(page.locator("#thread-failing")).to_have_count(1)
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (2)")
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
+    assert errors == ["leaf: Presentation failed: frozen descendant failure"]
+    page.close()
+
+
+def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
+    """The existing conversation ticket includes Lit ordering without replacing a card."""
+    url = serve(LIVE_V1)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "standing-thread",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this draft and its exact card.",
+        },
+    )
+    page, errors = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    reply = page.locator('.lf-thread[data-id="standing-thread"] textarea')
+    reply.fill("half a thought")
+    reply.evaluate("input => input.setSelectionRange(4, 4)")
+    held_events = []
+    page.route("**/api/event", lambda route: held_events.append(route))
+    page.evaluate(
+        """async () => {
+          const application = await window.__lfRuntimeImport('/runtime/application.js');
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          const list = document.querySelector('lf-thread-list');
+          const schedule = list.scheduleUpdate.bind(list);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          let armed = true;
+          list.scheduleUpdate = () => {
+            if (!armed) return schedule();
+            armed = false;
+            return held.then(schedule);
+          };
+          window.releaseThreadList = release;
+          window.readLeafPresentation = presentation.readApplicationPresentation;
+          window.standingThread = document.querySelector(
+            '.lf-thread[data-id="standing-thread"]'
+          );
+          application.createComment({
+            attempt: 'held-thread-list',
+            text: 'A second thread arrives.',
+          });
+        }"""
+    )
+    page.wait_for_function(
+        "readLeafPresentation().pending.includes('conversation')", timeout=3000
+    )
+    pending_card = page.locator('.lf-thread[data-attempt="held-thread-list"]')
+    expect(pending_card).to_have_count(0)
+    assert page.evaluate(
+        """() => {
+          const current = document.querySelector(
+            '.lf-thread[data-id="standing-thread"]'
+          );
+          const input = current.querySelector('textarea');
+          return current === standingThread && document.activeElement === input &&
+            input.value === 'half a thought' && input.selectionStart === 4;
+        }"""
+    )
+
+    page.evaluate("releaseThreadList()")
+    page.wait_for_function(
+        "!readLeafPresentation().pending.includes('conversation')", timeout=3000
+    )
+    expect(pending_card).to_have_count(1)
+    assert page.evaluate(
+        """() => {
+          const current = document.querySelector(
+            '.lf-thread[data-id="standing-thread"]'
+          );
+          const input = current.querySelector('textarea');
+          return current === standingThread && document.activeElement === input &&
+            input.value === 'half a thought' && input.selectionStart === 4;
+        }"""
+    )
+    held_events[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     assert errors == []
     page.close()

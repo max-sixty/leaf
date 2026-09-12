@@ -879,6 +879,176 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     page.close()
 
 
+def test_a_failed_thread_list_update_retains_one_committed_reading(browser, serve):
+    """A Lit fault cannot mix a candidate card with its count or narrowing."""
+    url = serve(LONG_PAGE, comments=2)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": roots[0]},
+    )
+    root = roots[1]
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator('[data-filter-value="resolved"]').click()
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
+        "Showing 1 of 2"
+    )
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    page.evaluate(
+        """async (id) => {
+          const application = await window.__lfRuntimeImport('/runtime/application.js');
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          const list = document.querySelector('lf-thread-list');
+          const render = list.render.bind(list);
+          let armed = true;
+          list.render = () => {
+            if (armed) {
+              armed = false;
+              window.threadListFailed = true;
+              throw new Error('injected thread-list failure');
+            }
+            return render();
+          };
+          window.threadListApplication = application;
+          window.threadListPresentation = presentation;
+          window.committedThread = document.querySelector(
+            `.lf-thread[data-id="${id}"]`
+          );
+        }""",
+        root,
+    )
+    held_events = []
+    page.route("**/api/event", lambda route: held_events.append(route))
+    page.evaluate(
+        'id => document.querySelector(`.lf-thread[data-id="${id}"] .lf-resolve`)'
+        ".click()",
+        root,
+    )
+    page.wait_for_function(
+        "() => threadListFailed && "
+        "!threadListPresentation.readApplicationPresentation().pending.length",
+        timeout=5000,
+    )
+
+    retained = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(retained).to_have_count(1)
+    expect(retained).to_be_hidden()
+    expect(retained.locator("textarea")).to_have_count(1)
+    assert page.evaluate(
+        'id => document.querySelector(`.lf-thread[data-id="${id}"]`) '
+        "=== committedThread",
+        root,
+    )
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
+        "Showing 1 of 2"
+    )
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
+    assert errors == ["leaf: Presentation failed: injected thread-list failure"]
+
+    page.evaluate("threadListApplication.refreshConversation()")
+    expect(retained).to_be_visible()
+    expect(retained).to_have_attribute("data-resolved", "true")
+    expect(retained.locator("textarea")).to_have_count(0)
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
+        "Showing 2 of 2"
+    )
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
+    assert page.evaluate(
+        'id => document.querySelector(`.lf-thread[data-id="${id}"]`) '
+        "!== committedThread",
+        root,
+    )
+    assert errors == ["leaf: Presentation failed: injected thread-list failure"]
+    held_events[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    assert errors == ["leaf: Presentation failed: injected thread-list failure"]
+    page.close()
+
+
+def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):
+    """A system-row age is presented mechanically without advancing semantic time."""
+    url = serve(LONG_PAGE, comments=1)
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "done",
+            "author": "user",
+            "revision": 1,
+            "version": 1,
+            "text": "Looks good",
+        },
+    )
+    page, errors = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    system = page.locator(".lf-threads > .lf-system")
+    expect(system).to_have_text("✓ Approved just now")
+    before = page.evaluate(
+        """async () => {
+          const list = document.querySelector('lf-thread-list');
+          const schedule = list.scheduleUpdate.bind(list);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          let armed = true;
+          list.scheduleUpdate = () => {
+            if (!armed) return schedule();
+            armed = false;
+            return held.then(schedule);
+          };
+          window.releaseConversationClock = release;
+          window.conversationPresence = await window.__lfRuntimeImport(
+            '/runtime/presence.js'
+          );
+          window.conversationPresentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          return conversationPresentation.readApplicationPresentation();
+        }"""
+    )
+    held = page.evaluate(
+        """() => {
+          conversationPresence.observeServerNow(
+            new Date(Date.now() + 60_000).toISOString()
+          );
+          window.conversationClockTick = conversationPresence.tickClock(() => {});
+          window.conversationClockReady = false;
+          conversationPresentation.whenApplicationPresented().then(() => {
+            window.conversationClockReady = true;
+          });
+          const reading = conversationPresentation.readApplicationPresentation();
+          return {
+            pending: reading.pending,
+            semanticEpoch: reading.semanticEpoch,
+            presentedEpoch: reading.presentedEpoch,
+            ready: conversationClockReady,
+          };
+        }"""
+    )
+    assert "conversation" in held["pending"]
+    assert held["semanticEpoch"] == before["semanticEpoch"]
+    assert held["presentedEpoch"] == before["presentedEpoch"]
+    assert held["ready"] is False
+
+    page.evaluate("releaseConversationClock()")
+    page.wait_for_function("conversationClockReady", timeout=3000)
+    page.evaluate("conversationClockTick")
+    expect(system).to_have_text("✓ Approved 1m ago")
+    after = page.evaluate("conversationPresentation.readApplicationPresentation()")
+    assert after["semanticEpoch"] == before["semanticEpoch"]
+    assert after["presentedEpoch"] == before["presentedEpoch"]
+    assert errors == []
+    page.close()
+
+
 def test_the_panel_reads_the_conversation_in_the_pages_own_order(browser, serve):
     """The list is the page's order, not the log's. A reader walking a long
     conversation walks it the way they walk the prose it is about, and every other

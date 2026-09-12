@@ -719,6 +719,15 @@ animation can expose the behavior.
 
 ## Working on the runtime
 
+`scripts/browser/build.mjs` owns the compiled TypeScript foundation in
+`vendor/browser-runtime.js` and its adjacent manifest, licenses, and embedded-source
+map. The manifest names its inputs, exports, and output hashes; `scripts/CLAUDE.md`
+owns the contributor build and check commands. The internal bundle contains Lit and
+Signals once, with no external imports or runtime compiler. Content modules import
+only `runtime/widget-api.js`. The publisher accepts caller-derived snapshots and
+exposes read-only selectors; it does not own Leaf's semantic folds or application
+lifecycle. Regenerate this output through its owning script, never by editing it.
+
 Run `node --check` on the module, formatting, and a focused real-browser test while
 iterating. A module that reads another owner as it evaluates parses and lints clean and
 fails only in the browser, as `Cannot access X before initialization` at boot; the

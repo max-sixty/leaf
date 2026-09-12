@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Run the suite where CI runs it. Everything else here is macOS, and what the two
+# Reproduce a Linux CI failure locally. Everything else here is macOS, and what the two
 # platforms disagree about is exactly what a browser test measures: how wide a system
 # font sets a word, and whether a scrollbar takes a gutter out of the window. Nine tests
 # failed on the runner from the day CI landed and none of them could be reproduced.
 #
-#   scripts/linux-suite.sh
+#   scripts/linux-suite.sh tests
 #   scripts/linux-suite.sh tests/test_render_controls.py -k banner
 #   scripts/linux-suite.sh tests -m nightly
 #
@@ -34,9 +34,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 git_common_dir="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)"
 
-# The default reproduces CI's everyday job. Pass a nightly failure's file, node id, or
-# marker selection to reproduce the same surface.
-if [ $# -eq 0 ]; then set -- tests; fi
+# This is a platform-specific diagnostic, not the normal local gate; that remains
+# `uv run pytest tests` on the host. Require an explicit selection so invoking this
+# diagnostic by accident does not start the whole Linux suite.
+if [ $# -eq 0 ]; then
+  echo "usage: scripts/linux-suite.sh <pytest arguments>" >&2
+  exit 2
+fi
 
 # Separate tags and caches per build, so switching between them neither rebuilds the
 # other nor runs one image's browser against the other's libraries.
@@ -54,10 +58,15 @@ docker build "${build[@]}" -t "$tag" -f "$HERE/linux-suite.Dockerfile" "$HERE"
 
 # --shm-size, because Chrome's default 64MB there is where a tab dies mid-suite.
 # Python's bytecode cache stays container-local so concurrent host and Linux runs never
-# rewrite the same pytest assertion cache. The named volumes hold uv's packages and
-# Playwright's browser; later containers resolve against those warm caches.
+# rewrite the same pytest assertion cache. The named volumes hold uv's packages, managed
+# Python, and Playwright's browser; later containers resolve against those warm caches.
+# uv otherwise installs Python under the container's ephemeral /root/.local and downloads
+# the same interpreter again on every invocation. The cache and environment are separate
+# volumes, so copying is the only available link mode.
 exec docker run --rm "${run[@]}" --shm-size=2g --workdir "$ROOT" \
   -e PYTHONPYCACHEPREFIX=/tmp/pycache \
+  -e UV_LINK_MODE=copy \
+  -e UV_PYTHON_INSTALL_DIR=/root/.cache/uv/python \
   -v "$ROOT:$ROOT" -v "$git_common_dir:$git_common_dir:ro" \
   --mount "type=volume,dst=$ROOT/.venv,volume-nocopy" \
   -v "$tag-uv:/root/.cache/uv" \

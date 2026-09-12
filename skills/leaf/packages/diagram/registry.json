@@ -22,7 +22,7 @@
     "x-visual": {
       "parts": "parts"
     },
-    "x-wide": "drawing",
+    "x-space": "available",
     "x-example": "<lf-diagram id=\"checkout-flow\" parts=\"node:Cart node:Pay node:Receipt\"><pre>\nflowchart LR\n  Cart([Cart]) --> Pay{Paid?}\n  Pay --> Receipt[(Receipt)]\n  classDef done fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)\n  class Receipt done\n</pre></lf-diagram>"
   }
 }

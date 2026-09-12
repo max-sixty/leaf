@@ -84,10 +84,12 @@ delivery receipt.
 Acknowledgement is transport receipt, not semantic settlement. Record every
 still-current obligation with the Leaf operation its `response` names, then
 re-enter the host's wait loop: `waiting` after every obligation has been answered
-and the reader owns the next move, `working` while you continue. For an App Server
-turn bound to a delivery with exactly one plain reply, `host-codex.md` makes the
-normal assistant final message that operation. A premature `waiting` declaration
-cannot override an opened, unsettled interaction in canonical activity.
+and the reader owns the next move, `working` while you continue. For a directly
+started App Server turn with exactly one plain reply, `host-codex.md` makes the normal
+assistant final message that operation. A queued Codex pointer uses the explicit
+operation because its durable local delivery may have no App Server binding. A
+premature `waiting` declaration cannot override an opened, unsettled interaction in
+canonical activity.
 `page state` lists every standing reaction under `reactions`; a package-supplied
 `means` appears when present. Resolve a page reaction once the live revision has
 acted on it.

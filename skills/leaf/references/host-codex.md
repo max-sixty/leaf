@@ -63,16 +63,21 @@ unrelated page input into that turn. A delivery can span pages and conversations
 neither case changes its shape or response rules.
 
 The delivery, its provider turn, and each response obligation have stable identities.
-A directly started turn records the delivery id as its client message id; a queued turn
-is bound only when its exact `leaf-delivery` pointer appears in that turn. When the
-bound delivery has exactly one response obligation and it is a plain reply, write the
-reply as the normal final message. Leaf streams that message into the addressed thread
-and commits its completed text through the same reply contract as `leaf reply`; do not
-run a reply command for that response. The committed reply retains the thread's
-standing anchor. Its immutable delivery address remains authoritative if the turn
-closes, the observer reconnects, or a later turn starts; current-turn identity governs
-only live activity and provisional text. Deliveries with any other number or kind of
-response use their explicit `reply`, `resolve`, or `receipt` operations.
+A directly started turn records the delivery id as its client message id. When that
+`leaf_delivery` has exactly one plain reply obligation, write the reply as the normal
+final message. Leaf streams that message into the addressed thread and commits its
+completed text through the same reply contract as `leaf reply`; do not run a reply
+command for that response. The committed reply retains the thread's standing anchor.
+
+A `leaf-delivery` pointer may arrive through Codex's durable local queue with no App
+Server observer left to bind or stream its turn. Reading the immutable envelope does not
+change that. Follow the UI-first work claim in `conversation-loop.md`, then use the
+explicit `reply`, `resolve`, or `receipt` operation for every obligation, including one
+plain reply. A live observer may also recognize the exact pointer, but its final-message
+commit skips an obligation the explicit operation already settled. The immutable
+delivery address remains authoritative if the turn closes, the observer reconnects, or
+a later turn starts; current-turn identity governs only live activity and provisional
+text.
 Keep the CLI open because it is still the interactive client for approvals and
 user input.
 
@@ -123,8 +128,9 @@ reopens it.
 
 The queued message is a `leaf-delivery` XML element shown as one line in a code
 block. It names the canonical `delivery read` operation and an immutable delivery
-`id`; run `leaf delivery read <id>` and process its `batches`. Do not wait or acknowledge: the
-adapter owns both. The same delivery id may return after an uncertain queue
+`id`; run `leaf delivery read <id>`, claim the first subject you start, and process its
+`batches` with explicit Leaf operations. Do not wait or acknowledge: the adapter owns
+both. The same delivery id may return after an uncertain queue
 response, so treat a page-and-sequence pair already handled in this task as a
 retry. Queue acceptance records **Queued** activity.
 

@@ -1137,7 +1137,7 @@ STANDING_ACTIONS = [
                 {
                     "key": "target-1",
                     "name": "Release card",
-                    "scope": "instance",
+                    "scope": "element",
                     "className": None,
                     "selector": {
                         "authoredId": "ab-release-card",

@@ -3764,7 +3764,7 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
             {
                 "key": "target-2",
                 "name": "Evidence heading",
-                "scope": "instance",
+                "scope": "element",
                 "className": None,
                 "selector": {
                     "path": [

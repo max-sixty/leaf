@@ -167,7 +167,7 @@
             <h3><code>x-ask-surface</code></h3>
             <div class="reference-copy">
               <p>
-                What x-ask-surface declares: an instance is the complete reading and
+                What x-ask-surface declares: a Leaf element is the complete reading and
                 arrival region for exactly one non-quoted nested local Ask declared by
                 x-awaits or x-request.ask.
               </p>
@@ -227,12 +227,12 @@
                   log do not substitute for that version. A widget inside a thread
                   presents an Ask like one on the page, with one bound set by frozen
                   thread markup: the thread's own reply box is already that seat, so
-                  only an action can answer it there. <code>when</code> selects Ask
-                  instances, <code>answers</code> names exactly the x-state verbs that
-                  settle one, <code>rollup</code> carries the logical OR of descendant
-                  Asks, <code>until</code> can require a distinct completion verb for a
-                  matching thread Ask, and <code>all</code> names a blanket answer
-                  offered by the banner.
+                  only an action can answer it there. <code>when</code> selects Leaf
+                  elements that originate Asks, <code>answers</code> names exactly the
+                  x-state verbs that settle one, <code>rollup</code> carries the logical
+                  OR of descendant Asks, <code>until</code> can require a distinct
+                  completion verb for a matching thread Ask, and <code>all</code> names
+                  a blanket answer offered by the banner.
                 </p>
               </details>
             </div>
@@ -255,9 +255,10 @@
             <h3><code>x-conversation</code></h3>
             <div class="reference-copy">
               <p>
-                The module places a conversationBox in each page instance matching
-                authored, static <code>when</code> attributes (an attribute written by
-                an x-state or x-report value record cannot drive this predicate).
+                The module places a conversationBox in each matching Leaf element,
+                selected by authored, static <code>when</code> attributes (an attribute
+                written by an x-state or x-report value record cannot drive this
+                predicate).
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-conversation contract">
@@ -421,13 +422,13 @@
           <section class="reference-entry" id="x-owners">
             <h3><code>x-owners</code></h3>
             <div class="reference-copy">
-              <p>The element declarations that may directly own an instance.</p>
+              <p>The element declarations that may directly own a Leaf element.</p>
               <details class="reference-more">
                 <summary aria-label="Full x-owners contract">Full contract</summary>
                 <p>
-                  Read from an owner, this defines which direct child instances are its
-                  members rather than nested elements it merely contains; a gesture the
-                  owner takes on its whole box stops at those members.
+                  Read from an owner, this defines which direct child Leaf elements are
+                  its members rather than nested elements it merely contains; a gesture
+                  the owner takes on its whole box stops at those members.
                 </p>
               </details>
             </div>
@@ -533,12 +534,12 @@
                   acceptance hands the turn to the host, pending and completed leave the
                   reader's list, and failure returns it. <code>region: true</code> says
                   the holder supplies the commands but not its own question title, so
-                  every instance stands inside an x-ask-surface whose leading direct
-                  heading owns the reading and arrival. A page holder has one lifecycle
-                  per revision; a holder in frozen thread markup has one for that
-                  document's whole lifetime. Pending excludes another request, failure
-                  reopens it, and success completes it. Each request is durable and not
-                  undoable because the host may already have acted.
+                  every matching Leaf element stands inside an x-ask-surface whose
+                  leading direct heading owns the reading and arrival. A page holder has
+                  one lifecycle per revision; a holder in frozen thread markup has one
+                  for that document's whole lifetime. Pending excludes another request,
+                  failure reopens it, and success completes it. Each request is durable
+                  and not undoable because the host may already have acted.
                   <code>leaf receipt</code> appends exactly one linked
                   <code>succeeded</code> or <code>failed</code> outcome, and
                   <code>watchRequestLifecycle</code> supplies the holder's
@@ -562,9 +563,9 @@
                 <p>
                   Each member names a direct child element declaration, and
                   <code>one-each</code> names that member's required string-enum
-                  attribute. An instance must contain exactly one such member for every
-                  enum value, so a package can declare fixed semantic slots without
-                  teaching Leaf its tags or roles. The owner uses
+                  attribute. A compound owner must contain exactly one such member for
+                  every enum value, so a package can declare fixed semantic slots
+                  without teaching Leaf its tags or roles. The owner uses
                   <code>x-content: members</code>, and the member names the owner in
                   <code>x-owners</code>.
                 </p>
@@ -813,7 +814,7 @@
             <h3><code>x-withdrawn-as</code></h3>
             <div class="reference-copy">
               <p>
-                On a holder with retirable slots: the outcome an undecided instance
+                On a holder with retirable slots: the outcome an undecided Leaf element
                 stands as when a later version takes it back unanswered — a withdrawn
                 suggestion leaves the page where a <code>reject</code> would — which is
                 what lets that version drop the ids inside the slots the outcome
@@ -861,7 +862,7 @@
               <details class="reference-more">
                 <summary aria-label="Full x-work contract">Full contract</summary>
                 <p>
-                  An optional <code>when</code> narrows the instances that may admit
+                  An optional <code>when</code> narrows the Leaf elements that may admit
                   work under their replayed attributes. Once admitted, a page-widget
                   claim appears at the page edge through its target margin entry even if
                   a later layer changes x-work. The declaration is permission for

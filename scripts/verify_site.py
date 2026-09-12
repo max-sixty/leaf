@@ -158,25 +158,6 @@ TURN_PRESENTATION = 120_000
 # unheld, listening, stalled or closed is not going to answer, so its wait ends at
 # `TURN_PATIENCE` rather than running out the limit.
 ANSWERING = frozenset({"queued", "handling", "working"})
-# The container's own settlement for a turn that ended without generating a reply,
-# mirroring `worker/server.py`'s `GENERATION_FAILURE_REPLY`. Reaching it is the
-# deployment working: the container noticed a turn that never completed, closed it,
-# and answered the reader's standing ask rather than leaving it open. What it says
-# about the release is only that this one generation did not happen, so the gate does
-# what the text itself asks for and sends one more message. A deployment that cannot
-# run a hosted turn settles the same way twice; a model-side failure does not.
-GENERATION_FAILURE_REPLY = (
-    "I couldn’t generate a reply just now. Please send a new message to try again."
-)
-MISSING_REPLY = (
-    "I finished without posting a reply. Please send a new message to try again."
-)
-RATE_LIMIT_REPLY = (
-    "This public demo is busy right now. Please wait a minute, then send a new message."
-)
-HOST_FAILURE_REPLIES = frozenset(
-    {GENERATION_FAILURE_REPLY, MISSING_REPLY, RATE_LIMIT_REPLY}
-)
 TURN_ASKS = 2
 
 
@@ -643,26 +624,19 @@ def agent_profile(profile: AgentProfile) -> dict:
     }
 
 
-def generation_failed(replies: list[dict]) -> bool:
+def startup_failed(replies: list[dict]) -> bool:
     """Whether the container settled this ask by reporting a turn that never ran."""
-    return any(reply["text"].strip() == GENERATION_FAILURE_REPLY for reply in replies)
+    return any(reply.get("failure") == "startup_failed" for reply in replies)
 
 
 def turn_failed(replies: list[dict]) -> bool:
     """Whether the host closed the turn with one of its failure receipts."""
-    return any(reply["text"].strip() in HOST_FAILURE_REPLIES for reply in replies)
+    return any("failure" in reply for reply in replies)
 
 
 def deployment_answer(replies: list[dict]) -> dict | None:
     """Return a real agent reply rather than a host-generated failure receipt."""
-    return next(
-        (
-            reply
-            for reply in replies
-            if reply["text"].strip() not in HOST_FAILURE_REPLIES
-        ),
-        None,
-    )
+    return next((reply for reply in replies if "failure" not in reply), None)
 
 
 def start_direct_agent(context, url: str, comment: dict) -> None:
@@ -819,13 +793,9 @@ def ask_until_answered(
 ) -> AgentAsks:
     """Ask the deployed agent for `heading` until it answers or stops answering.
 
-    One outcome is asked again rather than reported. When the container settles an ask
-    with `GENERATION_FAILURE_REPLY`, the deployment has answered for itself correctly —
-    it caught a turn that never completed and told the reader to send a new message —
-    so this sends it, because a release that cannot run a hosted turn settles the same
-    way twice while a model-side failure does not. Every other ending is reported on
-    the first ask: a turn that completes without an agent-authored reply is the
-    deployed agent breaking its own contract.
+    A Worker startup failure is retried once while the pass has enough time for a
+    healthy turn. Rate limits and turns that stop without answering fail the pass
+    on the first ask. The reply's failure code owns this decision, not its wording.
     """
     published = None
     asks = 0
@@ -869,7 +839,7 @@ def ask_until_answered(
         # than opening a turn it cannot wait for.
         if answer is not None or not (
             asks < TURN_ASKS
-            and generation_failed(replies)
+            and startup_failed(replies)
             and deadline - time.monotonic() >= TURN_PATIENCE
         ):
             return AgentAsks(
@@ -880,8 +850,8 @@ def ask_until_answered(
             )
         if report:
             print(
-                f"↻ {url} settled its ask with the container's generation failure; "
-                "sending the new message that reply asks for"
+                f"↻ {url} settled its ask with a startup failure; "
+                "sending one new message"
             )
 
 

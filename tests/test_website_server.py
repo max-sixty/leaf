@@ -97,17 +97,11 @@ class FakeCodexHost:
     def response_authorized(self, authorization: str | None) -> bool:
         return authorization == "Bearer adapter-secret"
 
-    def fallback_reply(self, page_dir: Path, event_id: str, text: str) -> dict | None:
-        return website_server.cmd_reply(
-            page_dir,
-            event_id,
-            text,
-            "",
-            for_event=event_id,
-            attempt=website_server.agent_attempt(event_id),
-            skip_if_settled=True,
-            only_if_unclaimed=True,
-            identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
+    def fallback_reply(
+        self, page_dir: Path, event_id: str, text: str, failure: str
+    ) -> dict | None:
+        return website_server.WebsiteCodexHost("codex").fallback_reply(
+            page_dir, event_id, text, failure
         )
 
     def respond(self, page_dir: Path, event_id: str, text: str, **target) -> dict:
@@ -1794,7 +1788,7 @@ def test_a_host_fallback_does_not_answer_input_an_agent_turn_already_claimed(
     reply = website_server.cmd_reply(
         page_dir,
         comment["id"],
-        website_server.GENERATION_FAILURE_REPLY,
+        "The host could not start this task.",
         "",
         for_event=comment["id"],
         attempt=website_server.agent_attempt(comment["id"]),
@@ -1858,7 +1852,8 @@ def test_a_host_fallback_survives_an_invalid_candidate_source(page_dir):
     reply = website_server.WebsiteCodexHost("codex").fallback_reply(
         page_dir,
         comment["id"],
-        website_server.GENERATION_FAILURE_REPLY,
+        "The host could not start this task.",
+        "startup_failed",
     )
 
     assert reply is not None
@@ -1913,7 +1908,8 @@ def test_a_fallback_waits_for_external_turn_acceptance_to_be_recorded(
             host.fallback_reply,
             page_dir,
             comment["id"],
-            website_server.GENERATION_FAILURE_REPLY,
+            "The host could not start this task.",
+            "startup_failed",
         )
 
         assert fallback_waiting.wait(timeout=2)
@@ -2077,12 +2073,38 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             )
         ]
 
+        for failure_fields in ({}, {"failure": "unknown"}, {"failure": None}):
+            with pytest.raises(urllib.error.HTTPError) as invalid:
+                post(
+                    f"{root}/examples/decision/_leaf/agent/reply",
+                    {"event": comment["id"], "text": "Failure", **failure_fields},
+                )
+            assert invalid.value.code == 400
+        with pytest.raises(urllib.error.HTTPError) as forged:
+            post(
+                f"{root}/examples/decision/api/event",
+                {
+                    "kind": "reply",
+                    "parent": comment["id"],
+                    "revision": revision,
+                    "text": "Forged host failure",
+                    "failure": "startup_failed",
+                    "attempt": "forged-host-failure",
+                },
+                {"Leaf-Layer": state["layer"]["generation"]},
+            )
+        assert forged.value.code == 400
+
         monkeypatch.setenv("LEAF_AGENT", "Leaf guide")
         monkeypatch.setenv("LEAF_SESSION_ID", "leaf-website-agent")
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         appended, _ = post(
             f"{root}/examples/decision/_leaf/agent/reply",
-            {"event": comment["id"], "text": "This is the agent's answer."},
+            {
+                "event": comment["id"],
+                "text": "This is a host failure.",
+                "failure": "startup_failed",
+            },
         )
         reply = read_events(published)[-1]
         assert appended == {"status": "appended", "event": reply["id"]}
@@ -2093,15 +2115,27 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "session": "leaf-website-agent",
             "parent": comment["id"],
             "responds": comment["id"],
-            "text": "This is the agent's answer.",
+            "text": "This is a host failure.",
+            "failure": "startup_failed",
             "attempt": f"website-agent-{comment['id']}",
             "id": reply["id"],
             "ts": reply["ts"],
             "seq": reply["seq"],
         }
+        served, _ = get(f"{root}/examples/decision/api/state")
+        failures = [
+            event for event in json.loads(served)["events"] if "failure" in event
+        ]
+        assert [event["id"] for event in failures] == [reply["id"]]
+        assert verify_site.startup_failed(failures)
+        assert verify_site.deployment_answer(failures) is None
         repeated, _ = post(
             f"{root}/examples/decision/_leaf/agent/reply",
-            {"event": comment["id"], "text": "This is the agent's answer."},
+            {
+                "event": comment["id"],
+                "text": "This is a host failure.",
+                "failure": "startup_failed",
+            },
         )
         assert repeated == appended
         assert (
@@ -2308,7 +2342,7 @@ def test_an_agent_reply_is_dropped_when_a_newer_reader_turn_overtakes_it(
 
         answer, _ = post(
             f"{root}/_leaf/agent/reply",
-            {"event": first["id"], "text": "Now stale"},
+            {"event": first["id"], "text": "Now stale", "failure": "rate_limited"},
         )
 
         assert answer == {"status": "settled"}
@@ -2495,55 +2529,28 @@ def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
     assert not verify_site.still_answering({}, "comment-id")
 
 
-def test_the_deploy_gate_reads_an_explicit_container_failure_reply(page_dir):
+@pytest.mark.parametrize("failure", ["startup_failed", "rate_limited"])
+def test_the_deploy_gate_reads_a_durable_host_failure(page_dir, failure):
+    from leaf.event_contracts import event_record_error
+    from leaf.registry.storage import load_registry
+
     host = website_server.WebsiteCodexHost("codex")
-    identity = {"id": "hosted-thread", "host": "codex", "agent": "Leaf guide"}
     comment = append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
-    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
-    [delivery] = website_server.accept_codex_delivery("hosted-thread")
-    host._finish_turn(
-        page_dir,
-        "hosted-thread",
-        delivery["turn"],
-        {"id": "app-server-turn", "status": "failed", "error": {"message": "stream"}},
+    reply = host.fallback_reply(
+        page_dir, comment["id"], "New failure wording.", failure
     )
-    website_server.cmd_reply(
-        page_dir,
-        comment["id"],
-        website_server.GENERATION_FAILURE_REPLY,
-        "",
-        for_event=comment["id"],
-        identity={"agent": "Leaf guide", "session": "leaf-website-agent"},
-    )
-
-    def replies_to(event: dict) -> list[dict]:
-        state = website_server.full_state(page_dir, read_events(page_dir))
-        return [
-            logged
-            for logged in state["events"]
-            if logged.get("kind") == "reply" and logged.get("parent") == event["id"]
-        ]
-
-    assert verify_site.generation_failed(replies_to(comment))
-
-    # A completed provider turn posts nothing on its own.
-    again = append_event(
-        page_dir,
-        {"kind": "comment", "author": "user", "text": "edit the page again"},
-    )
-    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
-    [second] = website_server.accept_codex_delivery("hosted-thread")
-    host._finish_turn(
-        page_dir,
-        "hosted-thread",
-        second["turn"],
-        {"id": "app-server-turn", "status": "completed", "error": None},
-    )
-    assert replies_to(again) == []
-    assert not verify_site.generation_failed(replies_to(again))
+    state = website_server.full_state(page_dir, read_events(page_dir))
+    replies = [event for event in state["events"] if event["kind"] == "reply"]
+    assert [event["id"] for event in replies] == [reply["id"]]
+    contract = load_registry(page_dir)["$events"]["kinds"]["reply"]
+    assert event_record_error(contract, replies[0]) is None
+    assert verify_site.turn_failed(replies)
+    assert verify_site.startup_failed(replies) == (failure == "startup_failed")
+    assert verify_site.deployment_answer(replies) is None
+    assert not state["activity"]["obligations"]
 
 
 class _Read:
@@ -2594,14 +2601,10 @@ class _StateReads:
 
 
 class _FailedFirstTurn:
-    """A deployed page whose first turn stops without generating a reply.
+    """A deployed page whose first startup fails and whose second ask succeeds."""
 
-    The container settles that turn's standing ask itself, and the second turn does
-    the work: this is the shape `publish-site` hit, answered the way the settlement
-    text asks for.
-    """
-
-    def __init__(self, heading: str):
+    def __init__(self, heading: str, failure: str = "startup_failed"):
+        self.failure = failure
         self.heading = heading
         self.request = self
         self.comments: list[dict] = []
@@ -2673,7 +2676,8 @@ class _FailedFirstTurn:
             {
                 "kind": "reply",
                 "parent": "comment-1",
-                "text": website_server.GENERATION_FAILURE_REPLY,
+                "text": "The host could not start this task.",
+                "failure": self.failure,
             },
         ]
         if len(self.comments) < 2:
@@ -2692,16 +2696,11 @@ class _FailedFirstTurn:
         }
 
 
-def test_the_deploy_gate_sends_the_new_message_the_container_asks_for():
-    """A turn that never generated a reply is asked again, not reported.
-
-    `publish-site` went red on a deployment whose own container had caught the failed
-    turn and said what to do about it. The pass now does that, and the second ask has
-    to be its own event: an ask that reused the first attempt would be answered with
-    the first comment, and the gate would wait out a turn nobody started.
-    """
+@pytest.mark.parametrize("failure", ["startup_failed", "rate_limited"])
+def test_the_deploy_gate_retries_only_startup_failures(failure):
+    """A startup retry gets a fresh attempt; a rate limit ends the pass immediately."""
     heading = "Deployment abcd1234 verified"
-    context = _FailedFirstTurn(heading)
+    context = _FailedFirstTurn(heading, failure)
     asked = verify_site.ask_until_answered(
         context,
         context,
@@ -2712,6 +2711,11 @@ def test_the_deploy_gate_sends_the_new_message_the_container_asks_for():
         heading,
         {"active": {"revision": 1, "url": "revisions/1.html"}},
     )
+    if failure == "rate_limited":
+        assert asked.asks == 1
+        assert asked.turn.answer is None
+        assert len(context.comments) == 1
+        return
     assert asked.asks == 2
     assert asked.turn.answer["text"] == "deployment verified"
     assert asked.turn.published["revision"] == 2
@@ -2721,24 +2725,20 @@ def test_the_deploy_gate_sends_the_new_message_the_container_asks_for():
     assert second["revision"] == 1
 
 
-def test_the_deploy_gate_accepts_any_reply_except_a_generation_failure():
-    exact = {"text": "deployment verified"}
-    assert verify_site.deployment_answer([exact]) is exact
-    verbose = {
-        "text": (
-            "Updated the heading and published revision 2. "
-            "Reply confirmation: ‘deployment verified’."
-        )
-    }
-    assert verify_site.deployment_answer([verbose]) is verbose
-    assert (
-        verify_site.deployment_answer([{"text": verify_site.GENERATION_FAILURE_REPLY}])
-        is None
-    )
-    assert verify_site.deployment_answer([{"text": verify_site.MISSING_REPLY}]) is None
-    assert (
-        verify_site.deployment_answer([{"text": verify_site.RATE_LIMIT_REPLY}]) is None
-    )
+def test_the_deploy_gate_reads_outcomes_independently_of_reply_wording():
+    for text in (
+        "deployment verified",
+        "I couldn’t generate a reply just now. Please send a new message to try again.",
+        "I finished without posting a reply. Please send a new message to try again.",
+        "This public demo is busy right now. Please wait a minute, then send a new message.",
+    ):
+        answer = {"text": text}
+        assert verify_site.deployment_answer([answer]) is answer
+        assert not verify_site.turn_failed([answer])
+        for failure in ("startup_failed", "rate_limited"):
+            receipt = {"text": text, "failure": failure}
+            assert verify_site.deployment_answer([receipt]) is None
+            assert verify_site.turn_failed([receipt])
 
 
 def test_startup_line_distinguishes_an_unobserved_state_request():
@@ -2793,15 +2793,11 @@ def test_startup_line_distinguishes_an_unobserved_first_paint():
 
 
 @pytest.mark.parametrize(
-    "failure_reply",
-    [
-        verify_site.GENERATION_FAILURE_REPLY,
-        verify_site.MISSING_REPLY,
-        verify_site.RATE_LIMIT_REPLY,
-    ],
+    "failure",
+    ["startup_failed", "rate_limited"],
 )
 def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
-    failure_reply,
+    failure,
 ):
     """A host failure receipt is terminal, so the wait ends where it lands.
 
@@ -2821,7 +2817,8 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
             {
                 "kind": "reply",
                 "parent": "comment-id",
-                "text": failure_reply,
+                "text": "A newly worded host failure.",
+                "failure": failure,
             }
         ],
     }

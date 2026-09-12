@@ -35,6 +35,8 @@
    a script-free copy cannot rerun the packing pass, so its serialized `lf-withheld`
    reading remains withheld. Changing that behavior belongs to the live and copied layouts
    together, not to this export override. */
+import { setRuntimeRootStyle } from "./root-state.js";
+
 const rows = new Map();
 // The horizontal space a row was last docked against. A dock holds while that space and
 // the row itself do. The shell's presentation carry is the exception: its moving column
@@ -314,7 +316,7 @@ export function layoutMarginRows() {
     reserveRail();
     if (claim > claimedRail) {
       claimedRail = claim;
-      document.documentElement.style.setProperty("--rail", `${claimedRail}px`);
+      setRuntimeRootStyle(document.documentElement, "--rail", `${claimedRail}px`);
     }
   }
   const inMargin = [];

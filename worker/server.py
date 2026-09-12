@@ -79,12 +79,6 @@ CODEX_LOG = RUNTIME_DIRECTORY / "leaf-website-codex.log"
 AGENT_REPLY_COMMAND = str(Path(__file__).with_name("reply.py"))
 CODEX_ENDPOINT = f"unix://{CODEX_SOCKET}"
 LEAF_COMMAND = str(Path(sys.executable).with_name("leaf"))
-GENERATION_FAILURE_REPLY = (
-    "I couldn’t generate a reply just now. Please send a new message to try again."
-)
-MISSING_REPLY = (
-    "I finished without posting a reply. Please send a new message to try again."
-)
 CODEX_INSTRUCTIONS = """You are Leaf guide for one public leaf.page session. The
 page directory in your working directory is the complete scope of this task.
 
@@ -905,7 +899,9 @@ class WebsiteCodexHost:
         )
         return thread_id
 
-    def fallback_reply(self, page_dir: Path, event_id: str, text: str) -> dict | None:
+    def fallback_reply(
+        self, page_dir: Path, event_id: str, text: str, failure: str
+    ) -> dict | None:
         """Settle unclaimed input without racing a turn that is starting."""
         with self.lock:
             accepted = cmd_reply(
@@ -917,6 +913,7 @@ class WebsiteCodexHost:
                 attempt=agent_attempt(event_id),
                 skip_if_settled=True,
                 only_if_unclaimed=True,
+                failure=failure,
                 identity={"agent": WEBSITE_AGENT, "session": WEBSITE_AGENT_SESSION},
             )
             claim = page_claim(page_dir)
@@ -996,6 +993,19 @@ def _agent_event(posted: dict, *, with_text: bool) -> tuple[str, str | None]:
     if not isinstance(text, str) or not text.strip():
         raise ValueError("agent reply text must be non-empty")
     return event_id, text
+
+
+def _agent_failure(posted: dict) -> tuple[str, str, str]:
+    """Validate a Worker failure before admitting its host-authored reply."""
+    if set(posted) != {"event", "text", "failure"}:
+        raise ValueError("agent failure requires event, text, and failure")
+    failure = posted["failure"]
+    if failure not in ("startup_failed", "rate_limited"):
+        raise ValueError("agent failure must be startup_failed or rate_limited")
+    event_id, text = _agent_event(
+        {"event": posted["event"], "text": posted["text"]}, with_text=True
+    )
+    return event_id, text, failure
 
 
 def _agent_response(posted: dict) -> tuple[str, str, dict[str, str]]:
@@ -1110,11 +1120,10 @@ class WebsitePageHandler(Handler):
             if path == AGENT_RESPOND_PATH:
                 event_id, text, target = _agent_response(self.posted)
                 helper_timing = _agent_response_timing(self.headers)
+            elif path == AGENT_REPLY_PATH:
+                event_id, text, failure = _agent_failure(self.posted)
             else:
-                event_id, text = _agent_event(
-                    self.posted,
-                    with_text=path == AGENT_REPLY_PATH,
-                )
+                event_id, text = _agent_event(self.posted, with_text=False)
         except ValueError as error:
             self._json({"error": str(error)}, 400)
             return
@@ -1146,7 +1155,9 @@ class WebsitePageHandler(Handler):
             return
 
         try:
-            accepted = self.agent_host.fallback_reply(self.page_dir, event_id, text)
+            accepted = self.agent_host.fallback_reply(
+                self.page_dir, event_id, text, failure
+            )
         except SystemExit as error:
             self._json({"error": str(error)}, 400)
             return

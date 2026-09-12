@@ -467,6 +467,7 @@ async function runAgentTask(
     askContainer(env, params, "reply", {
       event: params.eventId,
       text: RATE_LIMIT_REPLY,
+      failure: "rate_limited",
     }),
   );
 }
@@ -493,6 +494,7 @@ async function dispatchAgentTask(
         askContainer(env, params, "reply", {
           event: params.eventId,
           text: GENERATION_FAILURE_REPLY,
+          failure: "startup_failed",
         }),
       );
     } catch (fallbackError) {

@@ -102,6 +102,10 @@ always hands the thread back to the agent, so it needs no parallel declaration.
 An agent reply records the delivery event it answers as `responds`; a proactive
 `--initiates` reply records `initiates: true`. Settlement consumes this durable
 scope rather than log order, so answering older work cannot erase newer reader input.
+A host that settles an ask because it cannot start work records `failure`, a nonempty
+host-owned code, on its reply. The code is independent of the presentation `text`;
+ordinary agent answers omit it. Only the host reply writer can supply this field,
+and browser commands cannot write it.
 When a reply carries a widget with a local `x-awaits` or `x-request.ask`
 request, the widget's standing projection or lifecycle declares the request
 instead; the CLI refuses a parallel `--awaits` flag on that markup.

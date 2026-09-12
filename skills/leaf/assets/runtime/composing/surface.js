@@ -95,6 +95,7 @@ export function createResponseSurface({
   panelCovers,
   markAt,
   scrollToElement,
+  scrollRevealedElement,
   visualActionAnchor,
   hideComposer,
   openComposer,
@@ -737,9 +738,9 @@ export function createResponseSurface({
   // reader" the same way or they are not twins. An unclipped box alone is the box the item
   // would have: an item scrolled out of a board's sideways scroller still reports one
   // inside the window, so a gate reading that called it showing and opened the box on
-  // something off screen, which the unconditional travel it replaced never did. Any part
-  // showing is enough, which is also what keeps a box taller than the window from jumping
-  // to its top under a reader halfway down it.
+  // something off screen, which the unconditional travel it replaced never did. A clipped
+  // part is enough to offer a target, but not enough to place a response box against; the
+  // nearest reveal brings the rest in without moving an item already wholly in view.
   //
   // A collapsed ancestor zeroes its descendants' boxes, so a thing inside a shut
   // disclosure is never showing and takes the travel, `reveal` with it. Standing on the
@@ -755,11 +756,17 @@ export function createResponseSurface({
   function bringForward(addressable) {
     if (!addressable) return;
     const seen = shownRect(addressable, new Map());
-    if (!seen || seen.bottom <= BANNER_CLEAR) scrollToElement(addressable, "instant");
+    if (!seen || seen.bottom <= BANNER_CLEAR) {
+      scrollToElement(addressable, "instant");
+      return;
+    }
+    // A clipped sliver can be enough to offer a viewport-local hint, but not enough to
+    // place a response box against. `nearest` reveals it while leaving a target already
+    // in front of the reader exactly where it is.
+    scrollRevealedElement(addressable, "instant", "nearest");
   }
 
   function commentOnAddressable(addressable) {
-    bringForward(addressable);
     commentOnTarget({ anchor: { section: addressable.id }, element: addressable });
   }
 
@@ -767,9 +774,10 @@ export function createResponseSurface({
   // authored anchor; this command owns the one transition from that target into Comment.
   // Focusing the field drops any older browser selection, and an unsent draft follows the
   // deliberate move. A visual proxy supplies its origin so Escape can return to it.
-  function commentOnTarget({ anchor }, { origin = null } = {}) {
+  function commentOnTarget({ anchor, element = null }, { origin = null } = {}) {
     clearTimeout(selectionUpdate);
     selectionUpdate = null;
+    bringForward(element);
     targetActivation = true;
     const selection = getSelection();
     if (selection?.rangeCount) selection.removeAllRanges();

@@ -202,7 +202,6 @@
   </head>
   <body>
     <main>
-      <p class="eyebrow">core developer playground</p>
       <h1 id="bg-title">Leaf core product gallery</h1>
       <p class="lede" id="bg-lede">
         Try Leaf chrome and the default package on one synthetic page. Optional widgets
@@ -212,16 +211,17 @@
         <lf-toc id="bg-contents" max-level="2"></lf-toc>
       </aside>
       <p id="bg-start">
-        Use the contents spine or Page Map to find a feature; each eyebrow lists its
-        element names. Leaf puts circular controls and status indicators at page edges.
-        Hover over one for its label, or Tab into a group and use ← / → and Enter. Press
+        Use the contents spine or Page Map to find a feature. A feature eyebrow lists
+        the literal <code>lf-*</code> code names for what that section demonstrates. On
+        a desktop, hover the compact spine or press <kbd>g</kbd> to reveal its labels
+        over the settled page; wide boards keep the same allocation while the map is
+        open. Leaf puts circular controls and status indicators at page edges. Hover
+        over one for its label, or Tab into a group and use ← / → and Enter. Press
         <kbd>a</kbd> to move through Asks. Changes persist on reload.
       </p>
 
       <section id="bg-core-surfaces">
-        <p class="eyebrow bg-feature-elements">
-          Leaf chrome · lf-toc · lf-ask · lf-options · lf-option
-        </p>
+        <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
         <h2>
           <strong>Asks</strong
           ><span class="bg-feature-detail">: decisions and answers</span>
@@ -327,9 +327,6 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-conversations">
-        <p class="eyebrow bg-feature-elements">
-          Thread control · inline thread · Threads panel
-        </p>
         <h2>
           <strong>Threads</strong
           ><span class="bg-feature-detail">: anchored conversations</span>
@@ -369,7 +366,6 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-reactions">
-        <p class="eyebrow bg-feature-elements">Reaction controls · reaction picker</p>
         <h2>
           <strong>Reactions</strong
           ><span class="bg-feature-detail">: short verdicts on a passage</span>
@@ -401,26 +397,26 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-margin-controls">
-        <p class="eyebrow bg-feature-elements">
-          lf-margin-entry-gallery · Action control · Disclosure control · Status
-          indicator · Agent ownership · lf-suggestion
-        </p>
+        <p class="eyebrow bg-feature-elements">lf-margin-entry</p>
         <h2>
           <strong>Margin entries</strong
           ><span class="bg-feature-detail"
-            >: every rank, tone, and ownership stage</span
+            >: every rank, tone, ownership, and selection state</span
           >
         </h2>
         <p id="bg-margin-controls-guide">
-          <strong>Everything visible at once.</strong> The first row holds every rank,
-          behavior, and tone. The second compares agent ownership: whether the agent has
-          the item. No ownership treatment means not held; pickup uses a green icon; a
-          green interior means working. Ownership decorates the item's existing control.
-          The Activity dot remains only when there is no other control to carry that
-          treatment. These inert specimens use the same constructors and stylesheet as
-          the live controls and status indicators. Reload to see the one-time pulse as
-          Working arrives. A control dims only while its reader action is waiting for
-          the log to confirm it.
+          <strong>Everything visible at once.</strong> A margin entry is runtime-owned
+          chrome whose shared code name is <code>lf-margin-entry</code>, rather than an
+          authored element type. The first row holds every rank, behavior, and tone. The
+          second compares agent ownership: whether the agent has the item. No ownership
+          treatment means not held; pickup uses a green icon; working keeps the green
+          icon and adds a green interior. Ownership decorates the item's existing
+          control. The Activity dot remains only when there is no other control to carry
+          that treatment. The third row compares the neutral and accent borders that say
+          whether the control's page reading is selected. These inert specimens use the
+          same constructors and stylesheet as the live controls and status indicators.
+          Reload to see the one-time pulse as Working arrives. A control dims only while
+          its reader action is waiting for the log to confirm it.
         </p>
         <lf-margin-entry-gallery
           id="bg-margin-controls-specimens"
@@ -489,16 +485,12 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-reader-workflows">
-        <p class="eyebrow bg-feature-elements">
-          Approve version · Design mode · Draw mode · Kept draft
-        </p>
         <h2>
           <strong>Reader workflows</strong
           ><span class="bg-feature-detail">: approval and interface comments</span>
         </h2>
 
         <section id="bg-signoff">
-          <p class="eyebrow bg-feature-elements">Approve version · Undo</p>
           <h3>
             <strong>Sign-off</strong
             ><span class="bg-feature-detail">: approve a version</span>
@@ -512,7 +504,6 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </section>
 
         <section id="bg-design-comments">
-          <p class="eyebrow bg-feature-elements">Design mode · interface comment</p>
           <h3>
             <strong>Design mode</strong
             ><span class="bg-feature-detail">: comment on the interface</span>
@@ -525,7 +516,6 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </section>
 
         <section id="bg-drawing-comments">
-          <p class="eyebrow bg-feature-elements">Draw mode · drawing comment</p>
           <h3>
             <strong>Draw mode</strong
             ><span class="bg-feature-detail">: point with a freehand mark</span>
@@ -539,7 +529,6 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
         </section>
 
         <section id="bg-kept-draft">
-          <p class="eyebrow bg-feature-elements">Kept draft · go-to destination</p>
           <h3>
             <strong>Kept draft</strong
             ><span class="bg-feature-detail"
@@ -614,7 +603,6 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
       </section>
 
       <section id="bg-default-presentation">
-        <p class="eyebrow bg-feature-elements">Default package</p>
         <h2>
           <strong>Evidence widgets</strong
           ><span class="bg-feature-detail">: charts and structured views</span>
@@ -878,8 +866,8 @@ gallery/
         data-interaction-viewport="2"
       >
         <p class="eyebrow bg-feature-elements">
-          Core · lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board ·
-          lf-column · lf-card · Thread control · Threads panel
+          lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board · lf-column ·
+          lf-card
         </p>
         <h2 id="bg-interactions-title">
           <strong>Interactions</strong
@@ -1115,7 +1103,6 @@ switch --readers checkout-api,orders-api</code></pre>
       </section>
 
       <section id="bg-version-changes">
-        <p class="eyebrow bg-feature-elements">Versions menu · Change control</p>
         <h2>
           <strong>Version changes</strong
           ><span class="bg-feature-detail">: comparison evidence</span>
@@ -1128,9 +1115,7 @@ switch --readers checkout-api,orders-api</code></pre>
       </section>
 
       <section id="bg-delivery">
-        <p class="eyebrow bg-feature-elements">
-          lf-board · lf-column · lf-card · delivery indicators · continuation fade
-        </p>
+        <p class="eyebrow bg-feature-elements">lf-board · lf-column · lf-card</p>
         <h2>
           <strong>Board</strong> and <strong>delivery state</strong
           ><span class="bg-feature-detail">: work and handoff state</span>

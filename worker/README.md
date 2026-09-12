@@ -184,8 +184,13 @@ initiating App Server connection projects the turn's native activity notificatio
 through Leaf. For queued input it stays subscribed through the active turn, records the
 queued turn opening, and observes that turn to its terminal state. The container's
 pickup is idempotent, so a repeated dispatch does not start the work twice. A task
-startup failure appends a short failure reply through the same event log. The accepted
-event and active turn are not yet mirrored into Durable Object storage, and no alarm
+startup failure appends a short failure reply through the same event log. The Worker
+sends `{event, text, failure}` to `/_leaf/agent/reply`: `failure` is `startup_failed`
+or `rate_limited`, validated by the adapter and persisted on the canonical reply.
+The deployment verifier retries `startup_failed` once and fails immediately on
+`rate_limited`; ordinary agent answers omit `failure`. Reply wording is presentation.
+The accepted event and active turn are not yet mirrored into Durable Object storage,
+and no alarm
 recovers work that exceeds the Worker's 30-second `waitUntil` window.
 Container startup warms App Server and the Leaf CLI entrypoint concurrently, reducing
 cold runtime-filesystem work before a model command. Each App Server turn is bound to
@@ -196,11 +201,12 @@ same completed text through the canonical reply writer, even if its turn closes 
 next turn opens first. Each reply in a multi-response delivery uses the private
 capability-authenticated `$LEAF_REPLY` adapter already running in the container. Both
 routes retain source validation and publication; `$LEAF` remains the interface for
-delivery reads, resolves, and receipts.
+delivery claims and reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
 The bound final-answer message, an explicit `leaf reply`, a page revision closed with
 `leaf resolve`, or a `leaf receipt` settles accepted input.
-A failed or interrupted turn still gets a deterministic failure reply from the host.
+A failed, interrupted, or completed-but-unanswered provider turn closes its active
+claim turn without inventing a reply; its reader obligation remains unanswered.
 
 The container pins the Codex version its App Server protocol was tested against and
 runs `gpt-5.6-luna` at low reasoning effort. The per-reader Cloudflare Container is the

@@ -30,6 +30,7 @@ from render_support import (
     DIAGRAM_ROOM,
     DRAWING_PLACEMENT,
     DRAWN_PAST_A_RAIL_PAGE,
+    EXAMPLE_PACKAGES,
     EXAMPLES,
     FRAMED_SCROLLER_PAGE,
     FRAMED_WIDE_PAGE,
@@ -1730,12 +1731,163 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     page.close()
 
 
+def test_available_space_uses_the_free_side_of_a_margin_resident(browser, serve):
+    """A resident removes only the side it occupies. The other side receives the
+    allocation that symmetry would otherwise strand, so an available surface reaches
+    the shell edge while remaining clear of the resident."""
+    source = leaf_page(
+        "available beside a contents spine",
+        """
+<aside class="sidebar"><lf-toc id="space-toc"></lf-toc></aside>
+<h1 id="t">Sessions</h1>
+<h2 id="before">Before</h2><p>The drawing follows.</p>
+<lf-diagram id="flow"><pre>
+graph LR
+  R[request] --> C{cookie valid?}
+  C -->|yes| S[read session from Redis]
+  S -->|hit| H[handle]
+  S -->|miss/outage| F[verify signed fallback]
+  F --> H
+  C -->|no| L[login]
+</pre></lf-diagram>
+<h2 id="after">After</h2><p>The drawing precedes this section.</p>
+""",
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1726, 900)
+    at = page.evaluate("""() => {
+      const main = document.querySelector('main');
+      const ms = getComputedStyle(main), mb = main.getBoundingClientRect();
+      const box = document.getElementById('flow').getBoundingClientRect();
+      const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
+      const toc = document.querySelector('lf-toc').getBoundingClientRect();
+      const body = document.body.getBoundingClientRect();
+      return {
+        box: {left: box.left, right: box.right, width: box.width},
+        column: {
+          left: mb.left + parseFloat(ms.paddingLeft),
+          right: mb.right - parseFloat(ms.paddingRight),
+        },
+        sidebar: {left: sidebar.left, right: sidebar.right},
+        toc: {left: toc.left, right: toc.right, width: toc.width},
+        stripRight: (() => {
+          const probe = document.createElement('i');
+          probe.style.cssText = 'position:fixed;visibility:hidden;width:var(--strip-r)';
+          main.append(probe);
+          const width = probe.getBoundingClientRect().width;
+          probe.remove();
+          return width;
+        })(),
+        roomRight: body.right - parseFloat(getComputedStyle(document.body).paddingRight),
+        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    }""")
+    assert at["box"]["left"] >= at["toc"]["right"] + 15, at
+    assert at["box"]["left"] < at["sidebar"]["left"] - 1, at
+    assert abs(at["box"]["right"] - (at["roomRight"] - at["stripRight"] - 24)) <= 1, at
+    assert at["box"]["width"] > 1080, at
+    assert at["box"]["left"] < at["column"]["left"] - 300, at
+    assert at["sideways"] == 0, at
+
+    assert errors == []
+    page.close()
+
+
+def test_available_space_is_a_generic_package_capacity(browser, serve):
+    """An available surface with no sidebar receives the page room even when it is
+    ordinary compound markup. Diagram's source-sized layout must not be the mechanism
+    that grants the shared capacity. An ordinary prose-adjacent sidebar then withholds
+    its whole side, unlike the contents spine that declares its shell-edge occupancy."""
+    entry = {
+        "description": "A project package's compound review surface.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-space": "available",
+        "x-upgrade": False,
+        "x-example": '<lf-roomy id="roomy"><section>One</section></lf-roomy>',
+    }
+    source = leaf_page(
+        "Available package surface",
+        """
+<style>
+lf-roomy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
+</style>
+<h1 id="t">Available package surface</h1>
+<lf-roomy id="roomy"><section>One</section><section>Two</section></lf-roomy>
+""",
+    )
+    page, errors = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
+    resized(page, 1726, 900)
+    at = page.locator("#roomy").evaluate("""el => {
+      const box = el.getBoundingClientRect();
+      const children = [...el.children].map(node => node.getBoundingClientRect().width);
+      return {
+        left: box.left, right: box.right, width: box.width, children,
+        room: (() => {
+          const probe = document.createElement('i');
+          probe.style.cssText = 'position:fixed;visibility:hidden;width:var(--lf-room)';
+          el.append(probe);
+          const width = probe.getBoundingClientRect().width;
+          probe.remove();
+          return width;
+        })(),
+        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    }""")
+    assert abs(at["width"] - at["room"]) <= 1, at
+    assert at["width"] > 1600, at
+    assert abs(at["children"][0] - at["children"][1]) <= 1, at
+    assert at["children"][0] > 750, at
+    assert at["sideways"] == 0, at
+    assert errors == []
+    page.close()
+
+    source = leaf_page(
+        "Available package surface with ordinary sidebar",
+        """
+<style>
+lf-roomy { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+lf-roomy > section { min-height: 300px; border: 1px solid currentColor; }
+</style>
+<aside class="sidebar">
+  <p>Reference</p><p>Supporting information</p><p>Helpful link</p>
+  <p>Further notes</p><p>Useful actions</p>
+</aside>
+<h1 id="t">Available package surface</h1>
+<lf-roomy id="roomy"><section>One</section><section>Two</section></lf-roomy>
+""",
+    )
+    page, errors = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
+    resized(page, 1726, 900)
+    at = page.evaluate("""() => {
+      const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
+      const surface = document.querySelector('lf-roomy').getBoundingClientRect();
+      return {
+        sidebar: {left: sidebar.left, right: sidebar.right,
+                  top: sidebar.top, bottom: sidebar.bottom},
+        surface: {left: surface.left, right: surface.right,
+                  top: surface.top, bottom: surface.bottom, width: surface.width},
+        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    }""")
+    assert at["surface"]["top"] < at["sidebar"]["bottom"], at
+    assert at["surface"]["left"] >= at["sidebar"]["right"] + 23, at
+    assert at["surface"]["width"] > 1080, at
+    assert at["sideways"] == 0, at
+    assert errors == []
+    page.close()
+
+
 def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     browser, serve
 ):
     """A board's columns are as wide as what they hold and prose is set to a measure, so
     a page carrying both used to be a cramped board or a page widened past its own
-    measure for one exhibit. x-wide is which of the two a widget is, and the theme spends
+    measure for one exhibit. x-space declares the capacity a widget needs, and the theme spends
     the room the layout measured — so the exhibit grows, the prose does not move, and the
     axis they share is what keeps a page that mixes widths reading as one design.
 
@@ -2019,7 +2171,7 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
         route.fulfill(status=204)
 
     page.route("**/margin-width", answer_after_the_handover)
-    page.goto(serve(LATE_MARGIN_PAGE))
+    page.goto(serve(LATE_MARGIN_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")))
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
 
     at_stamp = page.evaluate("() => window.__handover")
@@ -2107,6 +2259,9 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
             assert b["right"] <= at["pageRight"] + 1, (
                 f"at {width}px the {name} board is past the page's box as well"
             )
+            assert b["left"] >= at["pageLeft"] + at["pageGutter"] - 1, (
+                f"at {width}px the {name} board is past the page's own gutter"
+            )
         assert at["sideways"] == 0, f"at {width}px the page scrolls sideways"
         assert (
             at["plan"]["width"] >= at["column"]["right"] - at["column"]["left"] - 1
@@ -2128,6 +2283,36 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
         "a board with no row anywhere near it is held to the column's right edge: a "
         "row claims the margin at its own height, not down the whole page"
     )
+    assert errors == []
+    page.close()
+
+
+def test_a_compact_spine_and_right_rail_leave_the_middle_room(browser, serve):
+    """A right-side action withholds only the right growth from a surface level with
+    it. The compact contents spine occupies the shell edge, so the empty band between
+    it and prose remains available on the left."""
+    source = RAIL_BAND_PAGE.replace(
+        '<h1 id="t">Release</h1>',
+        '<aside class="sidebar"><lf-toc id="rail-toc"></lf-toc></aside>'
+        '<h1 id="t">Release</h1><h2 id="change">Change</h2>',
+    )
+    page, errors = open_page(browser, serve(source))
+    resized(page, 1726, 900)
+    margins_laid_out(page)
+    at = page.evaluate(RAIL_BANDS)
+    plan = at["plan"]
+    hanging = [row for row in at["rows"] if not row["docked"]]
+    assert page.locator("#plan").get_attribute("data-lf-yield") == "r"
+    assert hanging and any(
+        plan["top"] < row["bottom"] and plan["bottom"] > row["top"] for row in hanging
+    ), at
+    assert plan["right"] <= at["column"]["right"] + 1, at
+    assert plan["left"] < at["column"]["left"] - 300, at
+    for row in hanging:
+        across = plan["left"] < row["right"] and plan["right"] > row["left"]
+        down = plan["top"] < row["bottom"] and plan["bottom"] > row["top"]
+        assert not (across and down), at
+    assert at["sideways"] == 0
     assert errors == []
     page.close()
 
@@ -2350,7 +2535,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     420px panel, and the explanation would be the half of it the panel could show.
 
     The mark that would do that is the one deliberately left out of the message render
-    (x-wide, the half of markDeclared the page keeps to itself). Nothing about a message
+    (x-space, the half of markDeclared the page keeps to itself). Nothing about a message
     says so, which is why this asks: the widget is in the panel, and the panel's width is
     what bounds it."""
     url = serve(REPLY_HOST_PAGE)
@@ -2387,7 +2572,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
         const holder = el.closest('.lf-msg-body');
         const a = el.getBoundingClientRect(), b = holder.getBoundingClientRect();
         return { widget: a.width, message: b.width, past: a.right - b.right,
-                 marked: el.hasAttribute('data-lf-wide') };
+                 marked: el.hasAttribute('data-lf-space') };
     }""")
     assert not fit["marked"], (
         "a widget in a thread was handed the page's room; the panel is not the page"
@@ -2499,7 +2684,12 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     answers to the room and never to its content (contain: inline-size, theme.css),
     and the row keeps its reservation inside the width it states (box-sizing:
     border-box, packages/default/theme.css)."""
-    page, errors = open_page(browser, serve(FRAMED_WIDE_PAGE))
+    source = FRAMED_WIDE_PAGE.replace(
+        '<h1 id="t">Framed</h1>',
+        '<aside class="sidebar"><lf-toc id="frame-toc"></lf-toc></aside>'
+        '<h1 id="t">Framed</h1>',
+    )
+    page, errors = open_page(browser, serve(source))
     boxes = page.evaluate("""() => {
         const box = (sel) => {
             const r = document.querySelector(sel).getBoundingClientRect();
@@ -2885,6 +3075,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
       const ms = getComputedStyle(main), ss = getComputedStyle(sidebar);
       const mb = main.getBoundingClientRect(), sb = sidebar.getBoundingClientRect();
       const eb = exhibit.getBoundingClientRect();
+      const toc = document.querySelector('lf-toc').getBoundingClientRect();
+      const nav = document.querySelector('lf-toc .lf-toc-nav').getBoundingClientRect();
       const marginClusters = [...document.querySelectorAll('.lf-margin-cluster')]
         .filter(node => node.checkVisibility());
       const marginRight = Math.max(0,
@@ -2903,11 +3095,17 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         strip, rail: measure('var(--strip-r)'), pageWidth: measure('100cqi'),
         float: ss.float, position: ss.position,
         sidebar: {left: sb.left, right: sb.right, top: sb.top, width: sb.width},
+        toc: {left: toc.left, right: toc.right, width: toc.width},
+        nav: {left: nav.left, right: nav.right, width: nav.width},
         column: {
           left: mb.left + parseFloat(ms.paddingLeft),
           right: mb.right - parseFloat(ms.paddingRight),
         },
         marginCount: marginClusters.length, marginRight,
+        document: {
+          width: document.documentElement.scrollWidth,
+          height: document.documentElement.scrollHeight,
+        },
         viewportWidth: document.documentElement.clientWidth,
         exhibit: {left: eb.left, right: eb.right},
       };
@@ -2920,12 +3118,12 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     resized(page, 1400, 900)
     margins_laid_out(page)
     roomy = page.evaluate(reading)
-    assert roomy["strip"] == 264
+    assert roomy["strip"] == 64
     assert roomy["float"] == "left" and roomy["position"] == "sticky"
     assert roomy["sidebar"]["right"] <= roomy["column"]["left"] - 23, (
         f"the sidebar entered the prose column: {roomy}"
     )
-    assert roomy["sidebar"]["width"] == 240
+    assert roomy["sidebar"]["width"] == 40
     assert (
         abs(
             (roomy["column"]["left"] + roomy["column"]["right"]) / 2
@@ -2937,6 +3135,38 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         f"a wide exhibit painted into the sidebar's standing margin: {roomy}"
     )
     assert page.evaluate(sideways) == 0
+
+    # The real pointer route reveals a translucent map over the settled document. Its
+    # compact reservation and every unrelated box remain fixed under the reader's aim.
+    page.locator("lf-toc").hover()
+    page.wait_for_function(
+        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 1"
+    )
+    expanded = page.evaluate(reading)
+    assert expanded["strip"] == 64 and expanded["sidebar"]["width"] == 40
+    assert expanded["toc"]["width"] == 40
+    assert expanded["nav"]["width"] == 320
+    assert expanded["column"] == roomy["column"]
+    assert expanded["exhibit"] == roomy["exhibit"]
+    assert expanded["document"] == roomy["document"]
+    page.locator("h1").hover()
+    page.wait_for_function(
+        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
+    )
+    page.keyboard.press("g")
+    expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
+    page.wait_for_function(
+        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 1"
+    )
+    revealed_by_keyboard = page.evaluate(reading)
+    assert revealed_by_keyboard["column"] == roomy["column"]
+    assert revealed_by_keyboard["exhibit"] == roomy["exhibit"]
+    assert revealed_by_keyboard["document"] == roomy["document"]
+    page.keyboard.press("Escape")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
+    page.wait_for_function(
+        "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
+    )
 
     # A left auxiliary surface and the page's own left margin are consecutive strips. The fixed
     # ToC follows the shell's left edge instead of remaining behind the Asks sheet.
@@ -2991,7 +3221,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     # one machine's fonts: this runner sets the same control 250px wide, and the 34px
     # difference is width the column has to give up. The window adds back whatever the
     # root scrollport holds outside the container query's own width.
-    exact = roomy["strip"] + 720 + roomy["rail"]
+    exact = max(1152, roomy["strip"] + 720 + roomy["rail"])
     resized(page, math.ceil(exact + roomy["viewportWidth"] - roomy["pageWidth"]), 900)
     margins_laid_out(page)
     tighter = page.evaluate(reading)

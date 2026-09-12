@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from .host import config_home, package_store
+from .host import package_store
 from .locations import located, locations_overlap
 from .schema import (
     ASSETS,
@@ -44,8 +44,8 @@ def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
     """Resolve recorded package selections without changing their order.
 
     A bare name selects an installed or bundled package. Other relative paths
-    are project-relative, like the implicit `.leaf/` package. A `~` path stays
-    portable across the user's machines. Absolute paths are not recorded because
+    are project-relative. A `~` path stays portable across the user's machines.
+    Absolute paths are not recorded because
     `$layer.packages` is part of the page's public vendored registry.
     """
     packages = []
@@ -77,19 +77,9 @@ def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
     return packages
 
 
-def package_roots(selected: tuple[str, ...] = ()) -> list[Path]:
-    """Packages in composition order, from the bundled default to the project."""
-    return [
-        DEFAULT_PACKAGE,
-        *resolve_packages(selected),
-        config_home(),
-        Path.cwd() / ".leaf",
-    ]
-
-
 def layer_inputs(selected: tuple[str, ...] = ()) -> list[Path]:
-    """The kernel followed by every package, in layer precedence order."""
-    return [ASSETS, *package_roots(selected)]
+    """The kernel, bundled default, and explicitly selected packages, in order."""
+    return [ASSETS, DEFAULT_PACKAGE, *resolve_packages(selected)]
 
 
 def checked_inputs(inputs: list[Path]) -> list[Path]:

@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
-from .delivery import batch_data, freeze_delivery
+from .delivery import batch_data, freeze_delivery, read_delivery
 from .files import read_json, write_json
 from .host import host_identity
 from .hosting import start_server
@@ -31,6 +31,8 @@ from .service import (
     unacknowledged,
 )
 from .work import standing_work_claims, work_subject
+
+DELIVERY_CLAIM_DETAIL = "Reading your feedback"
 
 
 def check_local_claim(state: str, detail: str) -> None:
@@ -71,6 +73,75 @@ def cmd_status(
             if previous and previous.get("event"):
                 work["event"] = previous["event"]
         page.set_status(state, detail, work=work)
+
+
+def cmd_delivery_claim(
+    delivery_id: str,
+    detail: str = DELIVERY_CLAIM_DETAIL,
+    event_id: str | None = None,
+) -> str:
+    """Mark one exact, still-outstanding move from a delivery as Active.
+
+    The immutable delivery supplies the page and candidate event identities. The
+    page transaction re-derives its unsettled interactions and writes the claim
+    under the same log lock, so a stale delivery cannot attach work to a newer
+    move merely because both belong to the same thread or widget.
+    """
+    delivery = read_delivery(delivery_id)
+    candidates = []
+    for batch in delivery["batches"]:
+        events = [
+            event
+            for event in batch["events"]
+            if event_id is None or event["id"] == event_id
+        ]
+        if events:
+            candidates.append((Path(batch["page"]), events))
+    if event_id is not None and not candidates:
+        sys.exit(f"event {event_id!r} is not in delivery {delivery_id!r}")
+    if event_id is not None and len({page for page, _events in candidates}) > 1:
+        sys.exit(
+            f"event {event_id!r} occurs on more than one page in delivery "
+            f"{delivery_id!r}"
+        )
+
+    for page_dir, delivered_events in candidates:
+        with PageTransaction(page_dir) as page:
+            activity = full_state(
+                page_dir,
+                page.events,
+                stored_status=page.status,
+            )["activity"]
+            interactions = {
+                item.get("event"): item for item in activity["interactions"]
+            }
+            event = next(
+                (
+                    delivered
+                    for delivered in delivered_events
+                    if delivered["id"] in interactions
+                ),
+                None,
+            )
+            interaction = interactions.get(event["id"]) if event is not None else None
+            if interaction is None:
+                continue
+            target = interaction["target"]
+            handling = {
+                "target": target,
+                "event": event["id"],
+                "after": page.events[-1]["seq"] if page.events else 0,
+            }
+            if target["kind"] == "widget":
+                handling["revision"] = interaction.get("revision")
+            page.set_status("working", detail, handling=handling)
+            return (
+                f"working on {target['kind']} {target['id']} for event "
+                f"{event['id']} — {detail}"
+            )
+
+    selected = f" event {event_id}" if event_id is not None else ""
+    return f"no outstanding reader move{selected} in delivery {delivery_id}"
 
 
 def cmd_idle(page_dir: Path, detail: str, on: str | None) -> None:

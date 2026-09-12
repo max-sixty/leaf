@@ -29,6 +29,7 @@ from interact_support import (
     COMMAND_SUBJECTS,
     HELD_LEASES,
     PAGE,
+    PAGE_PACKAGES,
     PLUGIN_ROOT,
     SKILL_ROOT,
     _status,
@@ -69,6 +70,7 @@ from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.served_state import page as served_page
+from page_fixtures import package_selection_args
 from websockets.sync.server import serve as serve_websocket
 from websockets.sync.server import unix_serve as serve_unix_websocket
 
@@ -135,6 +137,146 @@ print("queued")
     return program, log
 
 
+def freeze_events(page_dir: Path, events: list[dict]) -> dict:
+    """Freeze selected page events through the host-neutral delivery boundary."""
+    with service_model.PageTransaction(page_dir) as transaction:
+        stored = {event["id"]: event for event in transaction.events}
+        batch = delivery_model.batch_data(
+            page_dir, transaction, [stored[event["id"]] for event in events]
+        )
+    return delivery_model.freeze_delivery([batch])
+
+
+def test_delivery_claim_marks_only_a_current_delivered_move_active(page_dir):
+    """The first feedback operation needs no subject reconstruction from the agent.
+
+    The delivery supplies the address, while the locked page reading prevents an old
+    delivery from claiming a newer message in the same conversation.
+    """
+    first = events_model.append_event(
+        page_dir,
+        {"kind": "comment", "id": "first", "author": "user", "text": "Use A."},
+    )
+    first_delivery = freeze_events(page_dir, [first])
+
+    claimed = CliRunner().invoke(
+        cli_model.cli, ["delivery", "claim", first_delivery["id"]]
+    )
+    assert claimed.exit_code == 0, claimed.output
+    assert "working on thread first for event first" in claimed.output
+    status = files_model.read_json(page_dir / "status.json")
+    assert status["detail"] == session_model.DELIVERY_CLAIM_DETAIL
+    assert status["handling"]["target"] == {"kind": "thread", "id": "first"}
+    assert status["handling"]["event"] == first["id"]
+    live = page_state(page_dir)
+    assert "handling" not in live["status"]
+    [receipt] = live["activity"]["interactions"]
+    assert (receipt["event"], receipt["phase"], receipt["detail"]) == (
+        first["id"],
+        "active",
+        session_model.DELIVERY_CLAIM_DETAIL,
+    )
+    assert all(
+        update.get("id") != status["handling"]["id"]
+        for update in state_json(page_dir)["updates"]
+    )
+
+    second = events_model.append_event(
+        page_dir,
+        {
+            "kind": "reply",
+            "id": "correction",
+            "author": "user",
+            "parent": first["id"],
+            "text": "Correction: use B.",
+        },
+    )
+    [receipt] = page_state(page_dir)["activity"]["interactions"]
+    assert (receipt["event"], receipt["phase"], receipt["detail"]) == (
+        second["id"],
+        "sent",
+        None,
+    )
+    stale = CliRunner().invoke(
+        cli_model.cli, ["delivery", "claim", first_delivery["id"]]
+    )
+    assert stale.exit_code == 0, stale.output
+    assert "no outstanding reader move" in stale.output
+    assert files_model.read_json(page_dir / "status.json") == status
+
+    second_delivery = freeze_events(page_dir, [second])
+    retargeted = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "delivery",
+            "claim",
+            second_delivery["id"],
+            "--event",
+            second["id"],
+            "--detail",
+            "Checking the correction",
+        ],
+    )
+    assert retargeted.exit_code == 0, retargeted.output
+    [receipt] = page_state(page_dir)["activity"]["interactions"]
+    assert (receipt["event"], receipt["phase"], receipt["detail"]) == (
+        second["id"],
+        "active",
+        "Checking the correction",
+    )
+
+
+def test_delivery_claim_refuses_an_event_outside_the_delivery(page_dir):
+    comment = events_model.append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "Review this."}
+    )
+    delivery = freeze_events(page_dir, [comment])
+
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["delivery", "claim", delivery["id"], "--event", "another-event"],
+    )
+
+    assert result.exit_code != 0
+    assert "is not in delivery" in result.output
+
+
+def test_delivery_claim_uses_the_projected_widget_receipt(page_dir):
+    version = page_dir / ".fixture-versions" / "v1.html"
+    version.write_text(PAGE.replace("<lf-options>", '<lf-options id="choice">', 1))
+    publish(page_dir)
+    chosen = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"options": ["flag-first"]},
+        },
+    )
+    delivery = freeze_events(page_dir, [chosen])
+
+    result = CliRunner().invoke(cli_model.cli, ["delivery", "claim", delivery["id"]])
+
+    assert result.exit_code == 0, result.output
+    assert f"working on widget choice for event {chosen['id']}" in result.output
+    [receipt] = page_state(page_dir)["activity"]["interactions"]
+    assert (receipt["event"], receipt["target"], receipt["phase"]) == (
+        chosen["id"],
+        {"kind": "widget", "id": "choice"},
+        "active",
+    )
+
+    # A later open-ended subject claim is useful for work that outlives this
+    # delivery, but it is not a second interaction beside the exact Active receipt.
+    continued = _status(page_dir, "working", "Applying the choice", "--on", "choice")
+    assert continued.exit_code == 0, continued.output
+    [receipt] = page_state(page_dir)["activity"]["interactions"]
+    assert (receipt["event"], receipt["phase"]) == (chosen["id"], "active")
+
+
 def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     comment = events_model.append_event(
         page_dir,
@@ -162,7 +304,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     [accepted] = codex_model.accept_codex_delivery("hosted-thread")
 
     assert prompt.prompt.startswith("```xml\n<leaf-delivery ")
-    assert 'operation="delivery read"' in prompt.prompt
+    assert 'operation="delivery claim"' in prompt.prompt
     assert "skill=" not in prompt.prompt
     [batch] = prompt.payload["batches"]
     assert set(batch) == {
@@ -921,6 +1063,50 @@ def test_direct_delivery_is_the_canonical_activity_until_the_reply(claimed, caps
     settled = page_state(claimed)["activity"]
     assert settled["kind"] == "listening"
     assert settled["obligations"] == []
+    lease.close()
+
+
+def test_queued_input_does_not_hide_fresh_work(claimed):
+    serving(claimed, 1)
+    session_model.cmd_status(claimed, "working", "Revising the heading")
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "One more note"}
+    )
+    with service_model.PageTransaction(claimed) as transaction:
+        session_model.record_pickup(transaction, [comment], phase="queued")
+
+    activity = page_state(claimed)["activity"]
+    assert (activity["kind"], activity["detail"]) == (
+        "working",
+        "Revising the heading",
+    )
+    assert activity["counts"]["queued"] == 1
+    assert activity["obligations"][0]["phase"] == "queued"
+
+
+def test_queued_input_does_not_hide_live_codex_activity(claimed):
+    serving(claimed, 1)
+    session_model.cmd_status(claimed, "waiting", "Comment on the page")
+    claim = service_model.page_claim(claimed)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, claim)
+    )
+    assert lease
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.set_stream_activity("s1", "turn-live", "Running the checks")
+
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "One more note"}
+    )
+    with service_model.PageTransaction(claimed) as transaction:
+        session_model.record_pickup(transaction, [comment], phase="queued")
+
+    activity = page_state(claimed)["activity"]
+    assert (activity["kind"], activity["detail"]) == (
+        "working",
+        "Running the checks",
+    )
+    assert activity["counts"]["queued"] == 1
     lease.close()
 
 
@@ -2307,7 +2493,15 @@ def test_revendoring_can_change_x_work_while_the_target_button_holds_a_claim(pag
     layer.mkdir()
     (layer / "registry.json").write_text(json.dumps({"lf-card": card}))
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    result = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
 
     assert result.exit_code == 0, result.output
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -4993,7 +5187,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         for prompt in unique_prompts:
             delivery = ElementTree.fromstring(prompt.splitlines()[1])
             assert delivery.tag == "leaf-delivery"
-            assert delivery.attrib["operation"] == "delivery read"
+            assert delivery.attrib["operation"] == "delivery claim"
             assert set(delivery.attrib) == {"operation", "id"}
             payload_path = codex_model.delivery_path(delivery.attrib["id"])
             assert payload_path.exists()
@@ -7358,7 +7552,15 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
         if path.is_file()
     }
     runner = CliRunner()
-    refused = runner.invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    refused = runner.invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert refused.exit_code == 1
     assert "cannot re-vendor" in refused.output
     assert "server stop" in refused.output
@@ -7373,7 +7575,15 @@ def test_init_requires_explicit_quiescence_before_revendoring_the_contract(
     assert stopped.exit_code == 0, stopped.output
     old_server.wait(timeout=5)
 
-    revendored = runner.invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    revendored = runner.invoke(
+        cli_model.cli,
+        [
+            "page",
+            "init",
+            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            str(page_dir),
+        ],
+    )
     assert revendored.exit_code == 0, revendored.output
     assert b":root { --accent: red; }" in (page_dir / "theme.css").read_bytes()
     owner_id = prior_owner["id"] if prior_owner else "starter"

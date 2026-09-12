@@ -1074,6 +1074,35 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
     context.close()
 
 
+def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
+    """The page and margin projections identify the same selected Ask."""
+    page, errors = open_page(browser, serve(ASK_PAGE))
+    resized(page, 1440, 900)
+
+    page.keyboard.press("a")
+    first = page.locator("#jobs-decision")
+    expect(first).to_be_focused()
+    first_marker = page.locator(
+        '[data-lf-margin-for="jobs-decision"] > .lf-margin-marker'
+    )
+    expect(first).to_have_attribute("data-lf-ask", "1")
+    expect(first_marker).to_have_attribute("data-lf-target-selected", "")
+    assert first_marker.evaluate(
+        "marker => getComputedStyle(marker).borderTopColor"
+    ) == first.evaluate("ask => getComputedStyle(ask).outlineColor")
+    page.keyboard.press("a")
+    expect(page.locator("#bracket-decision")).to_be_focused()
+    expect(first_marker).not_to_have_attribute(
+        "data-lf-target-selected", re.compile(".*")
+    )
+    expect(
+        page.locator('[data-lf-margin-for="bracket-decision"] > .lf-margin-marker')
+    ).to_have_attribute("data-lf-target-selected", "")
+
+    assert errors == []
+    page.close()
+
+
 @pytest.mark.parametrize("width", [1440, 1200, 700, 390])
 def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, width):
     """The developer sampler stays usable after edits, verdicts, and dense overflow."""
@@ -1159,17 +1188,17 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
     page.close()
 
 
-def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
+def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     browser, serve
 ):
-    """The gallery keeps the reader-visible ranks and ownership stages together."""
+    """The gallery keeps every reader-visible margin entry treatment together."""
     page, errors = open_page(browser, live_url(serve(FEATURE_GALLERY)))
     resized(page, 1440, 900)
 
     atlas = page.locator("#bg-margin-controls-specimens")
     expect(atlas).to_be_visible()
     buttons = atlas.locator(".lf-margin-entry")
-    expect(buttons).to_have_count(11)
+    expect(buttons).to_have_count(13)
     records = buttons.evaluate_all(
         """buttons => buttons.map(button => ({
           behavior: button.dataset.lfBehavior,
@@ -1199,7 +1228,7 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
         )
 
     expect(atlas.locator(".margin-entry-gallery-heading")).to_have_text(
-        ["Rank and behavior", "Agent ownership"]
+        ["Rank and behavior", "Agent ownership", "Reader selection"]
     )
 
     not_held = specimen("not held")
@@ -1237,6 +1266,18 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
     expect(
         atlas.locator('[data-margin-entry-specimen="sent"] > .lf-margin-entry')
     ).to_have_attribute("role", "status")
+    not_selected = specimen("not selected")
+    selected = specimen("selected")
+    expect(not_selected).not_to_have_attribute(
+        "data-lf-target-selected", re.compile(".*")
+    )
+    expect(selected).to_have_attribute("data-lf-target-selected", "")
+    expect(selected).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(selected).to_have_css(
+        "border-top-width",
+        not_selected.evaluate("node => getComputedStyle(node).borderTopWidth"),
+    )
+    expect(selected).to_have_css("box-shadow", "none")
     expect(atlas.locator(".margin-entry-gallery-name")).to_have_text(
         [
             "Save",
@@ -1250,8 +1291,16 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
             "Picked up",
             "Working",
             "Activity fallback",
+            "Not selected",
+            "Selected",
         ]
     )
+    expect(working.locator(".lf-margin-entry-icon")).to_have_css(
+        "color", token_colour(page, "--ok-ink")
+    )
+    expect(
+        page.locator("#bg-margin-controls > .eyebrow.bg-feature-elements")
+    ).to_have_text("lf-margin-entry")
 
     assert errors == []
     page.close()
@@ -1435,7 +1484,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
     expect(page.locator("#bg-grammar")).to_have_count(0)
     sections = {
         "bg-margin-controls": (
-            "Margin entries: every rank, tone, and ownership stage",
+            "Margin entries: every rank, tone, ownership, and selection state",
             "#bg-margin-controls-guide",
             "#bg-margin-controls-specimens",
         ),
@@ -1487,7 +1536,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
         for heading in headings
         if "margin entr" in heading.casefold()
     ] == [
-        "Margin entries: every rank, tone, and ownership stage",
+        "Margin entries: every rank, tone, ownership, and selection state",
         "Margin entry lifecycle: act, fail, settle, and hand off",
     ]
     expect(page.locator("#bg-buttons-line #bg-crowded")).to_be_visible()
@@ -1513,9 +1562,6 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
         """headings => headings.map(heading => {
           const detail = heading.querySelector('.bg-feature-detail');
           const names = [...heading.children].filter(child => child.tagName === 'STRONG');
-          const eyebrow = heading.parentElement.querySelector(
-            ':scope > .eyebrow.bg-feature-elements'
-          );
           return {
             label: heading.textContent.trim(),
             detailCount: heading.querySelectorAll('.bg-feature-detail').length,
@@ -1525,7 +1571,6 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
             detailWeight: detail
               ? Number.parseInt(getComputedStyle(detail).fontWeight, 10)
               : null,
-            eyebrow: eyebrow?.textContent.trim() || '',
           };
         })"""
     )
@@ -1539,10 +1584,31 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
             and all(
                 weight > heading["detailWeight"] for weight in heading["nameWeights"]
             )
-            and heading["eyebrow"]
         )
     ]
     assert not unclear, unclear
+
+    indexed_sections = page.locator(".bg-feature-elements").evaluate_all(
+        """eyebrows => eyebrows.map(eyebrow => {
+          const scope = eyebrow.closest('section');
+          if (!scope) return {section: 'page', missing: ['no containing section']};
+          const elements = [...scope.querySelectorAll('*')];
+          for (const template of scope.querySelectorAll('template')) {
+            elements.push(...template.content.querySelectorAll('*'));
+          }
+          const present = new Set(elements.flatMap(element => [
+            element.localName,
+            ...element.classList,
+          ]));
+          const listed = eyebrow.textContent.split('·').map(entry => entry.trim());
+          return {
+            section: scope.id,
+            missing: listed.filter(identifier => !present.has(identifier)),
+          };
+        })"""
+    )
+    misplaced = [entry for entry in indexed_sections if entry["missing"]]
+    assert not misplaced, misplaced
 
     button_sample = '[data-lf-margin-for="bg-crowded"]'
     examples = {
@@ -1647,8 +1713,8 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     page, errors = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
-          const {offer, marginEntry, setMarginEntryState, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+          const {offer, marginEntry, setMarginEntryState, syncMarginEntrySelection,
+            registerMarginContribution} = await import('/runtime/widget-api.js');
           const control = marginEntry(offer('button', ''), {
             key: 'inspect', icon: 'question', label: 'Inspect source',
             context: 'Patch ready',
@@ -1659,6 +1725,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
           control.setAttribute('aria-expanded', 'true');
           control.setAttribute('aria-haspopup', 'dialog');
           control.setAttribute('aria-pressed', 'true');
+          syncMarginEntrySelection(control, true);
           control.onclick = () => window.lfCanonicalPresses += 1;
           window.lfCanonicalPresses = 0;
           window.lfCanonicalMarginEntry = {
@@ -1671,6 +1738,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
               control.setAttribute('aria-expanded', 'false');
               control.setAttribute('aria-haspopup', 'menu');
               control.removeAttribute('aria-pressed');
+              syncMarginEntrySelection(control, false);
               this.registration.update({immediate: true});
             }
           };
@@ -1693,6 +1761,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
           pressed: button.getAttribute('aria-pressed'),
           popup: button.getAttribute('aria-haspopup'),
           controls: button.getAttribute('aria-controls'),
+          selected: button.hasAttribute('data-lf-target-selected'),
         })"""
     ) == {
         "behavior": "disclosure",
@@ -1705,6 +1774,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
         "pressed": "true",
         "popup": "dialog",
         "controls": "how-cap",
+        "selected": True,
     }
 
     proxy.evaluate("button => button.dataset.stableProof = 'same-proxy'")
@@ -1717,6 +1787,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     expect(proxy).to_have_attribute("aria-expanded", "false")
     expect(proxy).to_have_attribute("aria-haspopup", "menu")
     expect(proxy).not_to_have_attribute("aria-pressed", re.compile(".+"))
+    expect(proxy).not_to_have_attribute("data-lf-target-selected", re.compile(".*"))
 
     page.evaluate(
         """() => {
@@ -2372,6 +2443,17 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     assert {reading["icon"] for reading in picked_up} == {
         token_colour(page, "--ok-ink")
     }
+    page.evaluate("() => window.setToneAgentPhase('active')")
+    active = [button.evaluate(read) for button in buttons]
+    assert [reading["shell"][1] for reading in active] == [
+        ordinary[0]["shell"][1],
+        token_colour(page, "--ok-ink"),
+        token_colour(page, "--danger-ink"),
+    ]
+    assert {reading["icon"] for reading in active} == {token_colour(page, "--ok-ink")}
+    assert {reading["shell"][2] for reading in active} == {
+        token_colour(page, "--ok-wash")
+    }
     page.evaluate("() => window.setToneAgentPhase(null)")
 
     hovered = []
@@ -2849,7 +2931,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     assert working == {
         **initial,
         "background": colors["--ok-wash"],
-    }, "work did not color only the Thread control interior green"
+        "icon": colors["--ok-ink"],
+    }, "work did not keep the Thread icon green with its green interior"
     expect(marker).to_have_attribute("data-identity-probe", "retained")
     expect(marker.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "comment"
@@ -2917,6 +3000,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(active.locator(".lf-margin-kind")).to_have_attribute(
         "data-lf-icon", "comment"
     )
+    expect(active.locator(".lf-margin-kind")).to_have_css("color", colors["--ok-ink"])
     expect(active).to_have_css("background-color", colors["--ok-wash"])
     picked_up_row = dialog.locator('[data-lf-agent-phase="picked_up"]')
     expect(picked_up_row).to_have_count(1)
@@ -4007,6 +4091,10 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     )
     expect(receipt).to_have_count(1)
     assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
+    reaction = receipt.get_by_role("button", name="keep reaction actions", exact=True)
+    reaction.click()
+    expect(reaction).to_have_attribute("aria-expanded", "true")
+    expect(reaction).to_have_css("border-top-color", token_colour(page, "--accent"))
     assert errors == []
     page.close()
 
@@ -4543,6 +4631,8 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(
     ), geometry
     assert 319 <= geometry["cardWidth"] <= 460, geometry
     expect(thread.locator(".lf-conversation-thread")).to_be_focused()
+    expect(marker).to_have_attribute("data-lf-target-selected", "")
+    expect(marker).to_have_css("border-top-color", token_colour(page, "--accent"))
     expect(reply).to_be_hidden()
     thread.get_by_role("button", name="Reply", exact=True).click()
     expect(reply).to_be_focused()

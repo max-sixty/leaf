@@ -1162,6 +1162,7 @@ describe("website page agent", () => {
     expect(await containerFetch.mock.calls[1][0].json()).toEqual({
       event: eventId,
       text: "This public demo is busy right now. Please wait a minute, then send a new message.",
+      failure: "rate_limited",
     });
   });
 
@@ -1205,6 +1206,7 @@ describe("website page agent", () => {
     expect(await containerFetch.mock.calls[2][0].json()).toEqual({
       event: eventId,
       text: "I couldn’t generate a reply just now. Please send a new message to try again.",
+      failure: "startup_failed",
     });
   });
 });

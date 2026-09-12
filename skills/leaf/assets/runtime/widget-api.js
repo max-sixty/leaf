@@ -31,6 +31,7 @@ export {
   marginEntry,
   setMarginEntryState,
   syncMarginAgentPhase,
+  syncMarginEntrySelection,
   registerMarginContribution,
 } from "./margin-entries.js";
 export { loadMarkdown, renderMarkdown } from "./markdown.js";

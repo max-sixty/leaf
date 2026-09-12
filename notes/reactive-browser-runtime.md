@@ -1,6 +1,6 @@
 # Reactive browser runtime
 
-Status: proposed
+Status: implementation in progress; see the [joint checkpoint](reactive-page-runtime-progress.md).
 
 ## Outcome
 

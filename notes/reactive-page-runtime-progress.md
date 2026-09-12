@@ -15,6 +15,8 @@ The implementation remains local on `reactive-page-runtime`; it is not ready to 
   rewrites imports and URLs without changing prose or duplicating page-module execution.
 - Live shells and website bundles publish revision-specific resources. Static export
   inlines captured styles and media, including images added in conversation afterward.
+- MCP full-page routes and inert snapshots read captured revisions even when candidate
+  files are invalid. Snapshot styles retain separate stylesheet and media boundaries.
 - A locked contributor build supplies Lit, Signals, and TypeScript output as committed
   self-contained assets. Authors and plugin users need no Node build.
 
@@ -25,11 +27,20 @@ templates. Its root must hold accepted truth, authored inputs, unresolved gestur
 and complete effective projections. Presentation failure must not roll accepted truth
 back. Pending delivery and DOM commit proofs remain mechanical state, not another fold.
 
-The publisher implementation is isolated in its worktree, not integrated. Eight Node
+The publisher implementation is isolated at commit `1079ef0c` in its worktree, not
+integrated. Eight Node
 build/domain tests and two focused browser cases passed, but broader outbox/startup
 tests have failures, including an unanswered-resolution regression and assertions for
 the superseded accepted-state rollback contract. Resume from that agent's checkpoint;
 do not cherry-pick it as a verified slice.
+
+Its observed outbox failures are `test_z_waits_for_an_unanswered_thread_resolution`,
+`test_an_accepted_event_is_not_retried_when_its_state_cannot_render`,
+`test_a_failed_background_read_cannot_aim_undo_at_its_partial_history`,
+`test_a_failed_candidate_restores_the_prior_version_approval`, and
+`test_undo_waits_for_the_candidate_view_to_commit_or_roll_back`. Review each against
+the intended contract; do not blanket-update rollback assertions. Startup coverage is
+incomplete. The worktree is clean and all work is committed.
 
 The broader Lit conversion, public read/command/presentation API, semantic/presentation
 tickets, and offline interactive export remain unfinished. Do not describe the program
@@ -54,6 +65,10 @@ cases. Run the final everyday suite after all slices are integrated.
 
 The website bundler slice passed 61 worker tests, typecheck, five immutable-shell tests,
 three site tests, and a complete site build/bundle. Local pre-commit passes.
+The MCP slice passed 29 of 30 cases before the final media-path fixture correction;
+the remaining complete-interface browser case then passed on the integrated tree.
+The final focused export run passed all five cases, including both conversation-media
+states, captured historical CSS, corpus, and visual-review gallery.
 
 One render-gate failure was reproduced at clean base `214588e3`: the `new-widget`
 parameter of `test_render_accepts_actions_made_after_the_authored_change` lacked its

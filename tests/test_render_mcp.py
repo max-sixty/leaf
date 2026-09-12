@@ -303,7 +303,8 @@ def test_process_page_route_runs_the_complete_leaf_interface(browser, page_dir):
         page.locator("#late").wait_for()
         page.wait_for_function("() => document.querySelector('#late').naturalWidth > 0")
         assert page.locator("#late").get_attribute("src") == (
-            f"{root}/media/051bee487bfb5d13.png"
+            f"{root}/revisions/{revision_path(page_dir, 3).stem}"
+            "/media/051bee487bfb5d13.png"
         )
         assert all(
             resource.startswith(f"{pages.origin}{root}/")

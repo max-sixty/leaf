@@ -93,12 +93,12 @@ model activity, first native model message, and turn completion. Item records ca
 the App Server timestamp, item type, duration, and command outcome where available;
 they never carry item content. Leaf's record omits message text, prompts, source IP
 keys, cookies, and private session ids. Cloudflare wraps it in invocation metadata.
-The `agent_response_started` and `agent_response_completed` records isolate Leaf's
-validation, publication, and event append from the surrounding model command.
-The `agent_response_helper_arrived` record carries the small command-line client's
-main-entry and request timestamps. Together with the App Server command timestamp and
-this server-arrival record, they separate shell/interpreter bootstrap, in-process
-preparation, and request transit to Leaf.
+The `turn_reply_first_text_published` record marks the first non-empty final-answer
+text written into the addressed thread, which is the user-visible response milestone;
+`turn_stream_completed` and `turn_reply_commit_failed` distinguish provider completion
+from Leaf's durable validation and append. `turn_stream_reconnect_failed` records each
+failed recovery attempt, and `turn_stream_reconnected` records recovery of the dropped
+App Server subscription.
 The trusted outbound handler adds a content-free record when Codex falls back from its
 WebSocket probe to the supported HTTP transport, then model request, response-header,
 first-byte, first-output, and completion records. Those records carry Codex's thread
@@ -153,8 +153,10 @@ API or `wrangler tail`.
 Workers Observability is the operational log store. Request-path records carry the
 canonical `eventId`; Worker-side records also carry the public `reference` and `route`.
 The public reference finds every request from one reader session, and the event id
-follows one request across the Worker and Container datasets. `turn_start_completed`
-adds the Codex `turnId`; model records carry that turn id. Analytics Engine holds
+follows one request across the Worker and Container datasets. `turn_start_acknowledged`
+records the RPC result and its Codex `turnId`; `turn_delivery_bound` records the later
+provider item that proves which delivery the turn consumed. Model records carry that
+turn id. Analytics Engine holds
 aggregate product events rather than a second debugging log. Live incidents use
 `wrangler tail`; historical incidents use the REST API or Cloudflare's Observability
 query builder.
@@ -174,15 +176,16 @@ no second scheduler between the request and its already-selected reader containe
 dispatch reserves source capacity, then asks that container to create or resume one
 Codex App Server task rooted at the actual page directory and deliver the event through
 Leaf's immutable delivery envelope, passed
-inline as structured `leaf_delivery` when the task is idle or queued by its immutable
-`leaf-delivery` id while a turn is active. The website-specific App Server starts
+inline as structured `leaf_delivery` when the task is idle. While a turn is active,
+Leaf retains that immutable delivery locally and starts it directly after the current
+turn completes. The website-specific App Server starts
 without the authoring plugin: its compact developer
 instructions and the ready `$LEAF` CLI are the complete interface, so skill discovery
 cannot turn a small reader response into a full authoring workflow. The hosted task can
 revise `index.html`, validate it, append thread replies, and leave the page waiting. The
 initiating App Server connection projects the turn's native activity notifications back
-through Leaf. For queued input it stays subscribed through the active turn, records the
-queued turn opening, and observes that turn to its terminal state. The container's
+through Leaf. For deferred input it stays subscribed through the active turn, starts
+and records the delivery turn opening, and observes that turn to its terminal state. The container's
 pickup is idempotent, so a repeated dispatch does not start the work twice. A task
 startup failure appends a short failure reply through the same event log. The Worker
 sends `{event, text, failure}` to `/_leaf/agent/reply`: `failure` is `startup_failed`
@@ -194,17 +197,19 @@ and no alarm
 recovers work that exceeds the Worker's 30-second `waitUntil` window.
 Container startup warms App Server and the Leaf CLI entrypoint concurrently, reducing
 cold runtime-filesystem work before a model command. Each App Server turn is bound to
-one immutable delivery id: the direct request carries it as `clientUserMessageId`, and
-a queued turn carries it in the exact `leaf-delivery` pointer. A bound delivery with one
+one immutable delivery id carried by the direct request as `clientUserMessageId`. A
+bound delivery with one
 plain reply streams the final-answer item into its addressed thread and commits that
-same completed text through the canonical reply writer, even if its turn closes or the
-next turn opens first. Each reply in a multi-response delivery uses the private
-capability-authenticated `$LEAF_REPLY` adapter already running in the container. Both
-routes retain source validation and publication; `$LEAF` remains the interface for
-delivery claims and reads, resolves, and receipts.
+same completed text through the canonical reply writer, even if its subscription drops,
+its turn closes, or the next turn opens first. The App Server adapter presents ordered
+input in delivery slices containing at most one plain reply; a later plain reply remains
+pending for the next turn. Version and receipt obligations may share that turn and
+remain explicit `$LEAF resolve` and `$LEAF receipt` operations. There is no second
+website reply endpoint or helper. `$LEAF` remains the interface for delivery claims and
+reads, resolves, and receipts.
 Once App Server reports a terminal turn, the container closes that exact Leaf turn.
-The bound final-answer message, an explicit `leaf reply`, a page revision closed with
-`leaf resolve`, or a `leaf receipt` settles accepted input.
+The bound final-answer message, a page revision closed with `leaf resolve`, or a `leaf
+receipt` settles accepted input.
 A failed, interrupted, or completed-but-unanswered provider turn closes its active
 claim turn without inventing a reply; its reader obligation remains unanswered.
 

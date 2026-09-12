@@ -74,7 +74,7 @@ def test_a_durable_reply_repaints_an_empty_stream_placeholder(browser, serve, re
     )
     assert lease
     request.addfinalizer(lease.close)
-    attempt = service_model.stream_reply_attempt("leaf-turn")
+    attempt = service_model.delivery_reply_attempt("delivery-1")
     with service_model.PageTransaction(serve.page_dir) as transaction:
         transaction.set_status("waiting", "Reader feedback")
         transaction.set_stream_reply(
@@ -82,6 +82,7 @@ def test_a_durable_reply_repaints_an_empty_stream_placeholder(browser, serve, re
             "leaf-turn",
             root,
             root,
+            attempt,
             None,
             "",
             "active",

@@ -8,12 +8,13 @@
 
 const NOTE = `
   <p>
-    <strong>Leaf example.</strong> Try the controls in a private browser copy.
+    <strong>An example of a Leaf page.</strong> Try its controls in a private,
+    temporary copy for this browser.
   </p>
   <p class="sitenote-nav">
-    <a href="/">About</a> ·
-    <a href="/examples/">Examples</a> ·
-    <a href="/#install">Install</a>
+    <a href="/">What leaf is</a> ·
+    <a href="/examples/">The other examples</a> ·
+    <a href="/#install">Install leaf</a>
   </p>
 `;
 

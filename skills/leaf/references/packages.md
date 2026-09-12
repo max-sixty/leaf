@@ -243,7 +243,11 @@ of available page width and height, window resize, and descendant layout changes
 caller supplies the complete minimum as `{width, height}` and keeps the composition's
 policy: the default workspace derives one recursively from equal partitions, while an
 asymmetric package root may read its own grid tracks. The returned `update()` promise
-joins initial settlement; `cleanup()` retires its observers and listeners.
+joins initial settlement; `cleanup()` retires its observers and listeners. Leaf reads
+the minimum synchronously with the root held at the width and bounded posture under
+decision, while its current document height remains fixed. Live boxes therefore describe
+the candidate arrangement rather than whichever posture is currently drawn, and taking
+the reading neither paints an intermediate layout nor moves a reader in document flow.
 
 `registerReadingRegion({id, host, body})` binds identity separately from the current
 scroller, while `registerReadingArrangement({owner, content, regions})` returns

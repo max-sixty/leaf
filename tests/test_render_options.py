@@ -369,6 +369,103 @@ def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve
     page.close()
 
 
+def test_option_controls_hold_presentation_without_replacing_authored_nodes(
+    browser, serve
+):
+    """A choice presents through its child Lit control and retains authored nodes."""
+    page, errors = open_page(browser, live_url(serve(SETTLED_PAGE)))
+    page.locator("#transport .lf-settled").click()
+    group = page.locator("#transport")
+    strict = page.locator("#opt-strict")
+    mark = strict.locator(":scope > .lf-pick")
+    expect(mark).to_be_visible()
+    page.evaluate(
+        """async holder => {
+          const option = holder.querySelector('#opt-strict');
+          const control = option.querySelector(':scope > lf-option-control');
+          window.optionGroup = holder;
+          window.authoredOption = option;
+          window.authoredTitle = option.querySelector(':scope > strong');
+          window.authoredWords = [...option.childNodes].find(
+            node => node.nodeType === Node.TEXT_NODE && node.data.trim()
+          );
+          window.optionControl = control;
+          window.optionIdentityHeld = () =>
+            document.querySelector('#transport') === optionGroup &&
+            optionGroup.querySelector('#opt-strict') === authoredOption &&
+            authoredOption.querySelector(':scope > strong') === authoredTitle &&
+            [...authoredOption.childNodes].includes(authoredWords) &&
+            authoredOption.querySelector(':scope > lf-option-control') === optionControl;
+
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          window.releaseOptionControl = release;
+          const schedule = control.scheduleUpdate.bind(control);
+          control.scheduleUpdate = async () => {
+            control.scheduleUpdate = schedule;
+            await held;
+            return schedule();
+          };
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          window.whenOptionsPresented = presentation.whenApplicationPresented;
+          window.readOptionsPresentation = presentation.readApplicationPresentation;
+        }""",
+        group.element_handle(),
+    )
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    strict.click()
+    holding(page, held, 1, "the choice whose generated control update is held")
+    page.evaluate(
+        "() => { optionsPresentationReady = false; "
+        "void whenOptionsPresented().then(() => { "
+        "optionsPresentationReady = true; }); }"
+    )
+    assert page.evaluate("optionsPresentationReady") is False
+    assert "widget:transport:render" in page.evaluate(
+        "readOptionsPresentation().pending"
+    )
+    assert page.evaluate("optionIdentityHeld()") is True
+
+    page.evaluate("releaseOptionControl()")
+    page.wait_for_function("optionsPresentationReady")
+    expect(strict).to_have_attribute("chosen", "")
+
+    attempt = held[0].request.post_data_json["attempt"]
+    held[0].fulfill(
+        status=200,
+        json={
+            "ok": False,
+            "attempt": attempt,
+            "error": "refused before append",
+            "final": True,
+        },
+    )
+    page.unroute("**/api/event")
+    expect(page.locator("#opt-lax")).to_have_attribute("chosen", "")
+    assert page.evaluate("optionIdentityHeld()") is True
+
+    group.evaluate(
+        """holder => {
+          const parent = holder.parentNode;
+          const next = holder.nextSibling;
+          holder.remove();
+          parent.insertBefore(holder, next);
+          window.reconnectedOptionsReady = false;
+          void whenOptionsPresented().then(() => {
+            reconnectedOptionsReady = true;
+          });
+        }"""
+    )
+    page.wait_for_function("reconnectedOptionsReady")
+    assert page.evaluate("optionIdentityHeld()") is True
+    assert errors == []
+    page.close()
+
+
 def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_field(
     browser, serve
 ):

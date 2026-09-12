@@ -8,6 +8,8 @@ import {
   applicationState,
   readApplication,
   setPresentationFailureReporter,
+  whenApplicationRegionsPresented,
+  whenWidgetsPresented,
 } from "./semantic-state.js";
 import { newAttempt } from "./drafts.js";
 import { saidNow } from "./presence.js";
@@ -73,10 +75,44 @@ export function mountApplication(dependencies) {
   const approvalBlockingAsks = () => readApprovalBlockingAsks(pendingRequests());
   const watchAsks = (owner, callback) => observeAsks(owner, pendingRequests, callback);
 
-  const releasePending = () => {
-    const released = projection.releasableEntries(ledger.snapshot());
+  const releasableActions = () =>
+    ledger
+      .snapshot()
+      .filter(
+        (entry) =>
+          entry.answered &&
+          entry.event.kind === "action" &&
+          (entry.rejected || (entry.presented && entry.readEvent)),
+      );
+
+  const releasePending = async () => {
+    const candidates = releasableActions();
+    if (!candidates.length) return false;
+    const attempts = new Set(candidates.map((entry) => entry.event.attempt));
+    const stillCurrent = () =>
+      releasableActions().some((entry) => attempts.has(entry.event.attempt));
+    await Promise.all([
+      whenWidgetsPresented([...new Set(candidates.map((entry) => entry.event.widget))]),
+      whenApplicationRegionsPresented(
+        ["projection:chrome", "conversation"],
+        stillCurrent,
+      ),
+    ]);
+    // Waiting can cross a newer publication. Retire only the candidates selected
+    // before the wait and only if their semantic settlement still permits release.
+    const released = releasableActions().filter((entry) =>
+      attempts.has(entry.event.attempt),
+    );
+    // Widget updates and the conversation/projection owners have now committed this
+    // surviving semantic reading. Paint its command surface while the same pending
+    // records still stand; removing an accounted record is then a semantic no-op.
+    if (released.length) paintKeys();
     for (const entry of released) ledger.remove(entry);
     return released.length > 0;
+  };
+
+  const releasePendingSafely = (context) => {
+    void releasePending().catch((error) => console.error(`leaf: ${context}`, error));
   };
 
   let invalidating = false;
@@ -111,7 +147,7 @@ export function mountApplication(dependencies) {
   const projection = createProjectionPresentation({
     onDeferredReady: () => {
       if (!retryProjection()) return;
-      if (releasePending()) paintKeys();
+      releasePendingSafely("deferred pending release");
     },
     onDomIntroduced: () => {
       invalidateDom();
@@ -339,11 +375,13 @@ export function mountApplication(dependencies) {
   });
 
   const applyConversation = () => conversation.apply(readApplication());
-  const presentProjection = () => projection.present(readApplication());
+  const prepareProjection = () => projection.prepare(readApplication());
+  const presentProjection = (prepared) =>
+    projection.present(readApplication(), prepared);
   const accountPending = (receipts) => {
     const removed = ledger.account(receipts);
-    const released = releasePending();
-    if (removed || released) paintKeys();
+    if (removed) paintKeys();
+    releasePendingSafely("receipt presentation");
   };
 
   stateApplication = createStateApplication({
@@ -358,6 +396,7 @@ export function mountApplication(dependencies) {
     stateSignoff: dependencies.state.stateSignoff,
     renderOthers: dependencies.state.renderOthers,
     applyConversation,
+    prepareProjection,
     presentProjection,
     accountPending,
     panelIsOpen: dependencies.panelIsOpen,
@@ -368,7 +407,7 @@ export function mountApplication(dependencies) {
     if (!queuedInvalidation || stateApplying()) return;
     queuedInvalidation = false;
     if (retryProjection()) {
-      if (releasePending()) paintKeys();
+      releasePendingSafely("queued pending release");
       return;
     }
     await invalidateDom();
@@ -393,22 +432,15 @@ export function mountApplication(dependencies) {
       stateApplication.runSerialized(async () => {
         projection.present(readApplication());
         const prepared = conversation.apply(readApplication());
-        releasePending();
+        releasePendingSafely("rejected event presentation");
         await prepared;
       }),
     settlementChanged: (_entry, accepted) => {
       if (accepted) {
         // A poll can account for the attempt before delivery marks its entry answered.
-        // Retry release after that candidate has committed and ledger.accept has run;
-        // this is the point undo and other semantic readers may observe the entry leave.
-        void stateApplication
-          .runSerialized(() => {
-            if (!releasePending()) return;
-            paintKeys();
-          })
-          .catch((error) =>
-            console.error("leaf: accepted event reconciliation", error),
-          );
+        // Retry after ledger.accept; release itself waits for every owning presentation
+        // region before undo and other semantic readers may observe the entry leave.
+        releasePendingSafely("accepted event reconciliation");
         return;
       }
       paintKeys();
@@ -426,7 +458,7 @@ export function mountApplication(dependencies) {
     stateApplying,
     releasePending,
     renderConversation: applyConversation,
-    panelIsOpen: dependencies.panelIsOpen,
+    presentProjection,
     receiveState,
   });
 

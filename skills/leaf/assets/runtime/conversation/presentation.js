@@ -2,8 +2,8 @@
 
    This owner receives records and narrow view capabilities. It never reads delivery,
    assembles protocol events, or imports state application. It reads the published fold
-   for every textual/geometry view; the returned promise only represents frozen
-   widget preparation in the retained panel list. */
+   for every textual/geometry view. Its presentation ticket commits the conversation
+   surfaces together with preparation for frozen widgets newly joined to the panel. */
 import { clocked } from "../presence.js";
 import { setChildren } from "../dom-children.js";
 import { el } from "../widget-elements.js";
@@ -15,6 +15,7 @@ import { threadsBox } from "./panel-elements.js";
 import { paintAcknowledgmentsNow } from "./acknowledgments.js";
 import { paintNarrowing, revealThread } from "./narrowing.js";
 import { removeConversationNode } from "./reaction-strips.js";
+import { attachApplicationPresentation, readApplication } from "../semantic-state.js";
 
 const waitingNote = el("div", "lf-empty", "Loading current threads…");
 
@@ -44,6 +45,38 @@ export function createConversationPresentation({
   renderMargin,
   renderSurfaces,
 }) {
+  let presentationHandle = null;
+  let activePresentation = null;
+  const presentation = () => {
+    presentationHandle ??= attachApplicationPresentation("conversation", document);
+    return presentationHandle;
+  };
+
+  function present(value, paint) {
+    let resolve;
+    const completion = new Promise((done) => {
+      resolve = done;
+    });
+    const pending = { resolve };
+    const prior = activePresentation;
+    activePresentation = pending;
+    const ready = presentation().present(value, completion);
+    prior?.resolve();
+    let painted;
+    try {
+      painted = paint();
+    } catch (error) {
+      // The retained prior conversation is the fallback. Leave this attempt pending
+      // so readiness cannot call it current; a later paint supersedes the hold.
+      throw error;
+    }
+    return Promise.resolve(painted).then(async (proof) => {
+      resolve(proof);
+      await ready;
+      if (activePresentation === pending) activePresentation = null;
+    });
+  }
+
   const removeNode = (node) =>
     removeConversationNode(node, inlineView.reaction.closeReactionMode);
 
@@ -98,23 +131,27 @@ export function createConversationPresentation({
   // input that could omit later local gestures or a newer accepted reading.
   const paintCurrent = clocked(document.body, renderCurrent);
 
-  function apply({ phase }) {
-    if (phase !== "ready") {
-      setUnavailable(phase);
-      return undefined;
-    }
-    return paintCurrent();
+  function apply(snapshot) {
+    return present(snapshot.effective.conversation, () => {
+      if (snapshot.phase !== "ready") {
+        setUnavailable(snapshot.phase);
+        return undefined;
+      }
+      return paintCurrent();
+    });
   }
 
   function repaintCurrent() {
-    return paintCurrent();
+    return present(readApplication().effective.conversation, () => paintCurrent());
   }
 
   function refreshNarrowing() {
-    const threads = conversationState().all;
-    const prepared = renderThreads(threads, listView);
-    paintAcknowledgments();
-    return prepared;
+    return present(readApplication().effective.conversation, () => {
+      const threads = conversationState().all;
+      const prepared = renderThreads(threads, listView);
+      paintAcknowledgments();
+      return prepared;
+    });
   }
 
   function mount() {

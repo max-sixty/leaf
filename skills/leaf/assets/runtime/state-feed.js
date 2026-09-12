@@ -103,7 +103,7 @@ export function createStateFeed({
   stateApplying,
   releasePending,
   renderConversation,
-  panelIsOpen,
+  presentProjection,
   receiveState,
   prepareActivation,
   notifyDataSubscribers,
@@ -117,7 +117,7 @@ export function createStateFeed({
     const retried = projectionDeferred() && retryProjection();
     if (stateApplying()) return;
     if (retried) {
-      if (releasePending()) paintKeys();
+      await releasePending();
       await notifyDataSubscribers();
     }
     if (stateApplying()) return;
@@ -131,7 +131,8 @@ export function createStateFeed({
     readAnswered = false;
     if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
     renderStatus(null);
-    if (panelIsOpen()) renderConversation();
+    presentProjection();
+    await renderConversation();
     await tick();
   }
 

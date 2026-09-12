@@ -2,6 +2,7 @@
 
 import json
 
+from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_support import (
     LIVE_READING,
@@ -59,6 +60,8 @@ customElements.define("lf-local", class extends LitElement {
       this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
       this.requestUpdate();
     });
+    const held = globalThis.__heldLocalPresentations?.get(this.id);
+    if (held) this.controller.present(held);
   }
 
   disconnectedCallback() {
@@ -465,6 +468,9 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
           );
           window.pageLocal = document.querySelector('#page-local');
           window.whenLeafPresented = presentation.whenApplicationPresented;
+          window.whenLeafRegionsPresented =
+            presentation.whenApplicationRegionsPresented;
+          window.readLeafApplication = presentation.readApplication;
           window.readLeafPresentation = presentation.readApplicationPresentation;
           window.heldPreparation = () => {
             let release;
@@ -508,10 +514,27 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     page.route("**/api/event", lambda route: held_events.append(route))
     page.evaluate("window.pageLocal = document.querySelector('#page-local')")
     before = int(page.locator("#page-local").get_attribute("data-readings"))
-    page.evaluate("window.resumeLocal = pageLocal.controller.defer(); true")
+    page.evaluate(
+        "document.body.classList.add('lf-dragging'); "
+        "window.resumeLocal = pageLocal.controller.defer(); true"
+    )
     page.locator("#page-local").get_by_role("button", name="Choose").click()
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     assert page.evaluate("Number(pageLocal.dataset.readings)") == before
+    assert page.evaluate("readLeafPresentation().pending") == [
+        "widget:page-local:render",
+        "projection:chrome",
+    ]
+    page.evaluate(
+        "projectionReady = false; "
+        "whenLeafRegionsPresented(['projection:chrome'], () => true)"
+        ".then(() => { projectionReady = true; }); "
+        "document.body.classList.remove('lf-dragging'); true"
+    )
+    page.wait_for_function("projectionReady", timeout=3000)
+    assert page.evaluate("readLeafPresentation().pending") == [
+        "widget:page-local:render"
+    ]
     attempt = held_events[0].request.post_data_json["attempt"]
     held_events[0].fulfill(
         status=200,
@@ -521,6 +544,11 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
             "error": "refused before append",
             "final": True,
         },
+    )
+    page.wait_for_function(
+        "attempt => readLeafApplication().unresolved.some("
+        "entry => entry.event.attempt === attempt && entry.answered)",
+        arg=attempt,
     )
     expect(page.locator("#page-local")).to_have_attribute("data-delivery", "refused")
     assert page.evaluate("Number(pageLocal.dataset.readings)") == before
@@ -536,6 +564,12 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     )
     assert resumed == [before + 1, before + 1]
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
+    expect(page.locator("#page-local")).to_have_attribute("data-delivery", "refused")
+    page.wait_for_function(
+        "attempt => !readLeafApplication().unresolved.some("
+        "entry => entry.event.attempt === attempt)",
+        arg=attempt,
+    )
     page.wait_for_function("presentationReady", timeout=3000)
     page.unroute("**/api/event")
 
@@ -580,4 +614,98 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     )
     page.wait_for_function("readLeafPresentation().pending.length === 0", timeout=3000)
     assert errors == ["leaf: Presentation failed: deliberate render failure"]
+    page.close()
+
+
+def test_conversation_presentation_waits_for_its_frozen_widgets_only(browser, serve):
+    """The conversation parent absorbs descendants without joining unrelated page work."""
+    source = LIVE_V1.replace(
+        '<h1 id="live-title">Live first</h1>',
+        '<h1 id="live-title">Live first</h1>'
+        '<lf-local id="page-local" choice="idle"></lf-local>',
+    )
+    page, errors = open_page(
+        browser,
+        live_url(
+            serve(
+                source,
+                page_files={
+                    "registry.json": json.dumps(PAGE_DECLARATION),
+                    "widgets/lf-local.js": PAGE_WIDGET,
+                },
+            )
+        ),
+    )
+    page.evaluate(
+        """async () => {
+          const presentation = await window.__lfRuntimeImport(
+            '/runtime/semantic-state.js'
+          );
+          const held = () => {
+            let release;
+            const promise = new Promise(resolve => { release = resolve; });
+            return {promise, release};
+          };
+          window.pagePreparation = held();
+          window.threadPreparation = held();
+          window.__heldLocalPresentations = new Map([
+            ['thread-local', threadPreparation.promise],
+          ]);
+          document.querySelector('#page-local').controller.present(
+            pagePreparation.promise
+          );
+          window.whenLeafPresented = presentation.whenApplicationPresented;
+          window.whenLeafRegionsPresented =
+            presentation.whenApplicationRegionsPresented;
+          window.readLeafPresentation = presentation.readApplicationPresentation;
+        }"""
+    )
+
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "frozen-widget-question",
+            "author": "user",
+            "revision": 1,
+            "text": "Show the frozen widget.",
+        },
+    )
+    events_model.append_event(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "claude",
+            "revision": 1,
+            "parent": "frozen-widget-question",
+            "text": "This widget prepares inside the conversation.",
+            "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
+        },
+    )
+    page.wait_for_function(
+        """() => {
+          const pending = readLeafPresentation().pending;
+          return document.querySelector('#thread-local') &&
+            pending.includes('conversation') &&
+            pending.includes('widget:thread-local:preparation') &&
+            pending.includes('widget:page-local:preparation');
+        }""",
+        timeout=5000,
+    )
+    page.evaluate(
+        "conversationReady = false; allReady = false; "
+        "whenLeafRegionsPresented(['conversation'], () => true)"
+        ".then(() => { conversationReady = true; }); "
+        "whenLeafPresented().then(() => { allReady = true; }); true"
+    )
+    assert page.evaluate("conversationReady") is False
+    page.evaluate("threadPreparation.release('thread')")
+    page.wait_for_function("conversationReady", timeout=3000)
+    assert page.evaluate("allReady") is False
+    assert "widget:page-local:preparation" in page.evaluate(
+        "readLeafPresentation().pending"
+    )
+    page.evaluate("pagePreparation.release('page')")
+    page.wait_for_function("allReady", timeout=3000)
+    assert errors == []
     page.close()

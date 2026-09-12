@@ -2655,11 +2655,11 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
 
 
 def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, serve):
-    """A deferred accepted action remains in the ledger while a later candidate waits.
+    """A deferred action waits for both its widget and the projection chrome ticket.
 
-    Ending the deferral and emitting the package wake during that wait may project only
-    after the candidate application finishes. Otherwise its coordinate can look committed
-    before the accepted semantic root is available and release the action too early.
+    Ending the deferral during a newer fallible state application may project only
+    after that candidate finishes. Otherwise the older action could leave the ledger
+    before every visible consumer has committed one coherent semantic reading.
     """
     page, errors = open_page(browser, _serve_preparing_thread(serve))
     prior_reading = page.locator("body").get_attribute("data-lf-reading")
@@ -2670,9 +2670,19 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
         "reading => document.body.dataset.lfReading !== reading", arg=prior_reading
     )
     accepted_reading = page.locator("body").get_attribute("data-lf-reading")
+    page.wait_for_function(
+        "async () => (await window.__lfRuntimeImport("
+        "'/runtime/semantic-state.js')).readApplicationPresentation()"
+        ".pending.includes('projection:chrome')"
+    )
     assert page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).hasPending()"
-    ), "the deferred accepted action left before its coordinate committed"
+    ), "the action left before projection chrome committed its surviving reading"
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
+    expect(
+        page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
+    ).to_have_attribute("aria-disabled", "false")
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -2744,6 +2754,10 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
         timeout=1_000,
     )
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    expect(
+        page.locator("[data-lf-for='sug-refill'] [data-lf-margin-entry-key='undo']")
+    ).to_have_attribute("aria-disabled", "false")
     assert errors == [
         "leaf: State presentation failed: injected wake candidate fault",
         "leaf: read failed: injected wake candidate fault",

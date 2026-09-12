@@ -215,6 +215,14 @@ def test_product_pages_vendor_the_composed_theme(site):
             )
 
 
+def test_published_examples_vendor_the_site_context_theme(site):
+    """The note's page-scoped style ships with every page the site adds it to."""
+    context_theme = (DOCS / "package" / "theme.css").read_text().rstrip()
+    for source in site_build.published_page_sources():
+        theme = site / "examples" / source.stem / "theme.css"
+        assert context_theme in theme.read_text(), source
+
+
 def test_product_pages_are_published_as_complete_page_records(site):
     sources = pages_under(DOCS)
     assert {source.name for source in sources} == set(site_build.PRODUCT_ROUTES)

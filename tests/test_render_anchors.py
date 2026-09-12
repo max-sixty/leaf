@@ -236,7 +236,7 @@ def test_a_region_leaving_the_viewport_keeps_its_focused_comment(browser, serve)
     resized(page, 700, 850)
     page.evaluate("""() => {
         const range = document.createRange();
-        range.selectNodeContents(document.querySelector('#lp-k-done'));
+        range.selectNodeContents(document.querySelector('#lp-k-checks'));
         getSelection().removeAllRanges();
         getSelection().addRange(range);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
@@ -254,18 +254,16 @@ def test_a_region_leaving_the_viewport_keeps_its_focused_comment(browser, serve)
     # Native End on macOS scrolls the page even from its textarea. A smooth scroll can
     # cross this narrow band in one frame or several; put that actual geometry on screen
     # directly so the test cannot miss the point where the region no longer fits a field.
-    page.locator("#lp-overview").evaluate(
+    page.locator("#lp-release").evaluate(
         "region => window.scrollTo(0, scrollY + region.getBoundingClientRect().bottom - 20)"
     )
     page.evaluate(RENDERED)
-    assert page.locator("#lp-overview").evaluate(
+    assert page.locator("#lp-release").evaluate(
         "region => Math.abs(region.getBoundingClientRect().bottom - 20) < 1"
     )
     expect(field).to_be_visible()
     expect(field).to_be_focused()
-    expect(field).to_have_attribute(
-        "aria-label", "Comment on “17 of 18 checks complete”"
-    )
+    expect(field).to_have_attribute("aria-label", "Comment on “4 of 5 checks passing”")
     page.keyboard.type(" What must Finance decide?")
     expect(field).to_have_value(draft + " What must Finance decide?")
     assert errors == []

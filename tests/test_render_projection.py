@@ -6787,8 +6787,7 @@ def test_command_hub_stops_listening_after_live_version_replacement(browser, ser
     url = serve(COMMAND_HUB_EXAMPLE)
     page, errors = open_page(browser, live_url(url))
     page.evaluate("window.__retiredCommand = document.querySelector('#hub-plan')")
-    (serve.page_dir / ".fixture-versions" / "v2.html").write_text(COMMAND_HUB_PAGE)
-    stamp_version_file(serve.page_dir, 2, "same plan")
+    stamp_page(serve.page_dir, COMMAND_HUB_PAGE, "same plan")
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
     page.evaluate(

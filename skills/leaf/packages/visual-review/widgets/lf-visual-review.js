@@ -115,7 +115,7 @@ customElements.define(
     #mode = "compare";
     #onResize = () => this.#scheduleEvidenceLayout();
     #onBeforePrint = () => {
-      if (this.#dialog?.open) this.#dialog.close();
+      this.#returnExpandedInspection();
     };
     #opacity = 50;
     #progress = null;
@@ -150,7 +150,7 @@ customElements.define(
           document.documentElement.classList.contains("lf-copy") &&
           this.#dialog?.open
         )
-          this.#dialog.close();
+          this.#returnExpandedInspection();
       });
       this.#copyObserver.observe(document.documentElement, {
         attributes: true,
@@ -390,18 +390,22 @@ customElements.define(
     }
 
     #closeExpandedInspection() {
+      this.#returnExpandedInspection();
+    }
+
+    #returnExpandedInspection() {
       const place = this.#expandedPlace;
-      place?.workspaceContent.append(this.#partition);
-      if (place) {
-        place.workspaceContent.style.minHeight = place.minimumHeight;
+      if (!place) return;
+      if (this.#dialog.open) this.#dialog.close();
+      place.workspaceContent.append(this.#partition);
+      place.workspaceContent.style.minHeight = place.minimumHeight;
+      place.scroller.scrollTop = place.scrollTop;
+      requestAnimationFrame(() => {
         place.scroller.scrollTop = place.scrollTop;
         requestAnimationFrame(() => {
           place.scroller.scrollTop = place.scrollTop;
-          requestAnimationFrame(() => {
-            place.scroller.scrollTop = place.scrollTop;
-          });
         });
-      }
+      });
       this.#expandedPlace = null;
       delete this.dataset.inspectionExpanded;
       this.#expand.setAttribute("aria-expanded", "false");

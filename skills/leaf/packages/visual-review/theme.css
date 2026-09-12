@@ -165,7 +165,12 @@ lf-visual-review > .lf-reading-after {
 .lf-vr-expanded-body {
   height: 100%;
   min-height: 0;
+  overflow: auto;
   padding: var(--sp-3);
+}
+
+lf-visual-review[data-inspection-expanded="true"] .lf-vr-expand {
+  display: none;
 }
 
 .lf-vr-expanded-body > .lf-vr-partition,
@@ -639,6 +644,11 @@ lf-visual-review[data-lf-reading-posture="bounded"] .lf-vr-shot-host {
 }
 
 @container (max-width: 28rem) {
+  .lf-vr-expanded-body > .lf-vr-partition,
+  .lf-vr-expanded-body > .lf-vr-partition > .lf-partition-content {
+    height: auto;
+  }
+
   .lf-vr-partition > .lf-partition-content {
     display: block;
   }

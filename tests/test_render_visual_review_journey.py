@@ -1,6 +1,7 @@
 """Authenticated website-journey proof for the visual-review package."""
 
 import shutil
+import subprocess
 
 import pytest
 from leaf import data as data_model
@@ -51,7 +52,7 @@ def target_document(title, body):
 
 
 def test_visual_inspection_chains_document_scroll_and_expands_without_losing_place(
-    browser, serve
+    browser, serve, tmp_path
 ):
     """The evidence stage is a nested inspector, while the dialog is a boundary."""
     url = serve(VISUAL_REVIEW_GALLERY)
@@ -130,6 +131,7 @@ def test_visual_inspection_chains_document_scroll_and_expands_without_losing_pla
     expand.press("Enter")
     dialog = widget.get_by_role("dialog", name="Expanded visual evidence")
     expect(dialog).to_be_visible()
+    expect(dialog.get_by_role("button", name="Expand inspection")).to_be_hidden()
     expect(dialog.get_by_role("button", name="Overlay")).to_have_attribute(
         "aria-pressed", "true"
     )
@@ -164,6 +166,33 @@ def test_visual_inspection_chains_document_scroll_and_expands_without_losing_pla
         "top => document.scrollingElement.scrollTop === top", arg=page_scroll
     )
 
+    page.set_viewport_size({"width": 390, "height": 844})
+    widget.locator(".lf-vr-case-select").select_option("open-mobile-package-catalog")
+    expand.press("Enter")
+    expect(dialog).to_be_visible()
+    dialog_body = dialog.locator(".lf-vr-expanded-body")
+    page.wait_for_function(
+        "node => node.scrollHeight > node.clientHeight",
+        arg=dialog_body.element_handle(),
+    )
+    body_point = dialog_body.evaluate(
+        "node => { const r = node.getBoundingClientRect();"
+        " return {x: r.left + r.width / 2, y: r.bottom - 24}; }"
+    )
+    page.mouse.move(body_point["x"], body_point["y"])
+    page.mouse.wheel(0, 500)
+    page.wait_for_function(
+        "node => node.scrollTop > 0", arg=dialog_body.element_handle()
+    )
+    base_link = dialog.get_by_role("link", name="Open base")
+    base_link.scroll_into_view_if_needed()
+    expect(base_link).to_be_visible()
+    with page.expect_popup() as popup_info:
+        base_link.click()
+    popup_info.value.close()
+    page.keyboard.press("Escape")
+    expect(expand).to_be_focused()
+
     expand.press("Enter")
     expect(dialog).to_be_visible()
     page.evaluate("document.documentElement.classList.add('lf-copy')")
@@ -175,8 +204,21 @@ def test_visual_inspection_chains_document_scroll_and_expands_without_losing_pla
     expand.focus()
     expand.press("Enter")
     expect(dialog).to_be_visible()
-    page.evaluate("dispatchEvent(new Event('beforeprint'))")
+    pdf_path = tmp_path / "expanded-visual-review.pdf"
+    page.pdf(path=pdf_path, print_background=True)
     expect(dialog).to_be_hidden()
+    pdf_text = subprocess.run(
+        ["pdftotext", pdf_path, "-"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    for title in (
+        "Optional packages get focused destinations",
+        "All mobile destinations remain reachable",
+        "Desktop navigation is unchanged",
+    ):
+        assert title in pdf_text
     expect(widget).to_have_attribute("data-inspection-mode", "overlay")
     expect(widget).to_have_attribute("data-inspection-scale", "actual")
     assert errors == []

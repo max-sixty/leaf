@@ -39,9 +39,12 @@ Stamping accepts only widget ids with standing work. `status --on` refuses a
 widget with neither an unsettled action receipt nor an active `x-work` seat; use
 the page-wide detail when neither admits a local claim.
 
-Delivery already advances each included reader move to **Picked up** and the page
-to **handling** when it enters this turn. A `working` declaration adds useful
-page-wide detail; `--on` strengthens one receipt to **Active**. Do not write
+An inline delivery advances each included reader move to **Picked up** and the page
+to **handling** when it enters this turn. A queued Codex pointer remains **Queued**;
+reading its envelope does not prove an App Server turn opened it. For that pointer,
+make the first page command a useful `working` declaration, with `--on` for the
+conversation or widget you start on. For either carrier, `--on` strengthens one receipt
+to **Active**. Do not write
 `waiting` merely to end the delivery step. Write it after replies, revisions, or
 receipts have settled what this turn took in; until then the canonical activity
 fold continues to report the stronger exact handling evidence.

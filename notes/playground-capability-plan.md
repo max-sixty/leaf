@@ -6,11 +6,14 @@ package, then owns its particular artifact, state model, controls, output, and
 page-specific JavaScript. It does not become a package merely because it is interactive.
 
 This plan closes the useful gaps left by the retired standalone playground skill without
-rebuilding a second, weaker page system inside Leaf. It builds on the
-[page-instance boundary](page-instance-boundary.md), especially page-owned dependency
-capture, page-owned declarations, and interactive export, and on the
-[reactive browser runtime](reactive-browser-runtime.md) for the one public behavior API,
-semantic publisher, rendering lifecycle, and presentation barrier.
+rebuilding a second, weaker page system inside Leaf. It uses Leaf's existing
+[page-owned behavior and declarations](../skills/leaf/references/page-authoring.md#page-behavior),
+[captured revision](../skills/leaf/scripts/leaf/page-storage.md),
+[public widget behavior](../skills/leaf/references/packages.md#a-widget), and
+[static and interactive exports](../skills/leaf/references/serving-pages.md#exported-files).
+Those contracts supply the one semantic publisher, stable Targeting references, rendering
+lifecycle, and presentation barrier; this plan owns only the Playground capability built
+with them.
 
 ## Ownership
 
@@ -46,10 +49,10 @@ draft or reader-session state; only `Submit` enters the reactive semantic publis
 Leaf's shared event path.
 
 The final action keeps the existing `values` plus `instruction` shape; `values` becomes
-the aggregate configuration rather than renaming the action contract. Once page-owned
-declarations from #2 of the boundary plan exist, the page instance declares the exact
-schema for its task-specific values and Leaf admits them through the normal event path.
-The package must not replace precise page schemas with an unvalidated arbitrary object.
+the aggregate configuration rather than renaming the action contract. The page instance
+declares the exact schema for its task-specific values in `page/registry.json`, and Leaf
+admits them through the normal event path. The package must not replace precise page
+schemas with an unvalidated arbitrary object.
 
 Simple scalar playgrounds keep the declarative path. They should not need a page module
 or registration call.
@@ -123,22 +126,17 @@ recreating the retired templates.
 
 ## Targeting
 
-### #7 — Reusable identity mechanics, page-chosen editor semantics
+### #7 — Compose reusable identity with page-chosen editor semantics
 
-Improve the Targeting package without turning its first editor policy into a core Leaf
-constraint:
+The Targeting package already supplies the composed candidate walk, stable id and
+structural references, multiple named selections with their resolution states, and a
+public controller for arm, disarm, reset, and current draft state. A playground composes
+that capability instead of rebuilding target identity or resolution.
 
-- offer meaningful semantic ancestors and allow the page to mark preferred boundaries;
-- keep several named selections visually distinct across later intercepts;
-- let one change reference several targets with explicit roles;
-- expose a public controller for arm, disarm, reset, and current draft state;
-- support deterministic live edits appropriate to the page, including per-side box
-  values where CSS editing is intended; and
-- keep long selections usable through persistent highlights and compactable cards.
-
-Core Leaf supplies the stable identities and resolution behavior defined by the boundary
-plan. Labels, colors, and prose are presentation, never identity. The page instance or a
-reusable controller selects semantic boundaries, editable properties, and value grammar.
+Core Leaf owns identity and resolution. Labels, colors, and prose are presentation,
+never identity. The page instance or a reusable controller still chooses semantic
+boundaries, editable properties, value grammar, and the live edit appropriate to the
+artifact.
 
 ## Website examples
 
@@ -156,15 +154,16 @@ The examples catalog should prove the general model, not only list the package.
    replica does not satisfy this example.
 
 The catalog and package page link these as examples of one Playground package applied to
-different page instances. At least one example also composes Targeting after #7 lands.
+different page instances. At least one example also composes the shipped Targeting
+capability.
 
 ## #5 — Interactive standalone delivery
 
-Keep today's static export as a readable, script-free record. Add an explicit
-interactive export after the boundary plan captures the complete revision graph. The
-interactive form preserves local controls, presets, custom gestures, derived output,
-reset, and copy. It removes host chrome and networking and disables submission with an
-honest “no agent or server is available” state.
+Use the static export for a readable, script-free record and the explicit interactive
+export when the artifact needs local controls, presets, custom gestures, derived output,
+reset, or copy. The interactive form runs the captured revision without host chrome or
+networking and disables submission with an honest “no agent or server is available”
+state.
 
 The Playground package contains no export-only parallel runtime. It operates against the
 same offline mode and captured dependencies as every other interactive page.
@@ -180,7 +179,7 @@ a browser journey that:
   action after each relevant transition;
 - uses the real gesture rather than injecting the expected state;
 - checks wide, narrow, and short viewports; and
-- exercises both static and interactive exports when the latter exists.
+- exercises both static and interactive exports.
 
 For an A/B example, the test proves both candidates received the same input snapshot and
 that copying candidate-specific configuration changes only the intended difference.
@@ -189,16 +188,14 @@ that copying candidate-specific configuration changes only the intended differen
 
 1. Land #3, the #4 recipes, and the stronger #8 author checklist. Repair the notification
    example by making pressure a normal scalar control in its one existing configuration.
-2. After boundary #1 and #2 and the reactive runtime's public behavior contract, add the
+2. Use page-owned declarations and the public widget behavior contract to add the
    aggregate configuration and instruction-provider contracts, then build the structured
-   data explorer (#2 and #6). Reuse the joint runtime validation fixture rather than
-   creating a second integration shape.
+   data explorer (#2 and #6). Reuse the existing page/runtime validation fixture rather
+   than creating a second integration shape.
 3. Build the real-artifact A/B example and extract only the comparison mechanics it and
    an existing example actually share (#6).
-4. Implement the Targeting changes against core identity (#7), then compose it into a
-   playground example.
-5. Add interactive export on the boundary plan's captured revision graph and the
-   reactive runtime's shared offline mode (#5).
+4. Compose the shipped Targeting capability into a playground example (#7), and verify
+   every worked example through both existing export modes (#5).
 
 Each slice updates package declarations, guidance, generated references, website copy,
 and browser tests together. Future-tense rules move from this note into the owning

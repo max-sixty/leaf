@@ -3,7 +3,7 @@
 import json
 
 from playwright.sync_api import expect
-from render_support import LIVE_V1, live_url, open_page, told
+from render_support import LIVE_V1, live_url, open_page
 
 PAGE_MODULE = """\
 import { label } from "./helper.js";
@@ -52,7 +52,6 @@ def test_page_module_dependencies_activate_and_remain_historical(browser, serve)
     first_document = page.evaluate("performance.timeOrigin")
 
     (serve.page_dir / "page" / "helper.js").write_text('export const label = "second";')
-    told(page)
 
     expect(page.locator("html")).to_have_attribute("data-page-module", "second")
     assert page.evaluate("performance.timeOrigin") != first_document

@@ -156,7 +156,7 @@ def test_margin_layout_batches_the_composed_page_without_refolding_controls(
     }
     reading = page.evaluate(
         """async () => {
-          const {layoutMarginRows} = await import('/runtime/margin-layout.js');
+          const {layoutMarginRows} = await window.__lfRuntimeImport('/runtime/margin-layout.js');
           const rows = [...document.querySelectorAll('.lf-margin-cluster')];
           const boxes = () => rows.map(row => {
             const {x, y, width, height} = row.getBoundingClientRect();
@@ -602,7 +602,7 @@ def test_an_unchanged_heartbeat_re_marks_no_docked_row(browser, serve):
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           controls.append(marginEntry(offer('button', ''), {
             key: 'act', icon: 'dot', label: 'Act on the target', rank: 'primary'}));
@@ -669,7 +669,7 @@ def test_an_option_proxy_writes_no_relation_its_source_has_no_writer_for(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           controls.append(
             marginEntry(offer('button', ''), {
@@ -767,7 +767,7 @@ def test_a_docked_cluster_keeps_later_margin_entries_beside_their_targets(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           for (const [id, count] of [['first', 8], ['second', 1]]) {
             const controls = document.createElement('span');
             for (let i = 0; i < count; i++) controls.append(
@@ -814,7 +814,7 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           for (const id of ['first', 'second']) {
             registerMarginContribution({key: id, target: document.getElementById(id),
               controls: marginEntry(offer('button', ''), {
@@ -1179,7 +1179,7 @@ def test_the_feature_gallery_displays_margin_entry_ranks_and_agent_ownership(
     )
     grammar = page.evaluate(
         """async () => {
-          const {MARGIN_ENTRY_SCHEMA} = await import('/runtime/widget-api.js');
+          const {MARGIN_ENTRY_SCHEMA} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return MARGIN_ENTRY_SCHEMA;
         }"""
     )
@@ -1582,7 +1582,7 @@ def test_margin_registration_rejects_ambiguous_margin_entry_identity(browser, se
     message = page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           for (const label of ['First', 'Second'])
             controls.append(marginEntry(offer('button', ''), {
@@ -1615,7 +1615,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, setMarginEntryState, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const control = marginEntry(offer('button', ''), {
             key: 'inspect', icon: 'question', label: 'Inspect source',
             context: 'Patch ready',
@@ -2079,7 +2079,7 @@ def test_tab_into_a_margin_entry_cluster_replaces_ellipsis_with_all_margin_entri
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           registerMarginContribution({key: 'extra', target: document.querySelector('#sug-refill'),
             controls: marginEntry(offer('button', ''), {
               key: 'details', icon: 'comment', label: 'Details',
@@ -2259,7 +2259,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, setMarginEntryState, syncMarginAgentPhase} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('div');
           controls.className = 'lf-ui';
           for (const tone of ['neutral', 'positive', 'negative']) {
@@ -2895,7 +2895,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     # primary must retain ownership, and its own accessible description survives it.
     page.evaluate("""async () => {
       const {offer, marginEntry, registerMarginContribution} =
-        await import('/runtime/widget-api.js');
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
       const controls = document.createElement('span');
       const edit = marginEntry(offer('button', ''), {
         key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
@@ -2926,8 +2926,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     # A contributor can forward a control whose ownership was already painted.
     # Use the same canonical receipt to exercise its real secondary option proxy.
     page.evaluate("""async () => {
-      const {syncMarginAgentPhase} = await import('/runtime/widget-api.js');
-      const {runtime} = await import('/runtime/context.js');
+      const {syncMarginAgentPhase} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
       const receipt = runtime.activity.interactions.find(item => item.phase === 'active');
       syncMarginAgentPhase(window.agentCancel, receipt);
     }""")
@@ -2939,7 +2939,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(proxy).to_have_attribute("aria-description", f"Working · {detail}")
     assert ownership_text_mutations(proxy) == []
     page.evaluate("""async () => {
-      const {syncMarginAgentPhase} = await import('/runtime/widget-api.js');
+      const {syncMarginAgentPhase} = await window.__lfRuntimeImport('/runtime/widget-api.js');
       syncMarginAgentPhase(window.agentCancel, null);
       window.agentContribution.unregister();
     }""")
@@ -3315,7 +3315,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const control = marginEntry(offer('button', ''), {
             key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
           });
@@ -3395,7 +3395,7 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           const primary = marginEntry(offer('button', ''), {
             key: 'act', glyph: 'A', label: 'Act', behavior: 'action'
@@ -3498,7 +3498,7 @@ def test_margin_entry_order_budget_and_spilled_actions_are_stable_at_both_widths
     page.evaluate(
         """async () => {
           const {offer, marginEntry, setMarginEntryState, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           window.marginEntryFixtures = [];
           for (const [index, id] of ['first', 'second'].entries()) {
             const target = document.getElementById(id);
@@ -3625,7 +3625,7 @@ def test_a_reading_marker_counts_toward_the_expanded_margin_entry_budget(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           for (let index = 0; index < 6; index += 1)
             controls.append(marginEntry(offer('button', ''), {
@@ -3660,7 +3660,7 @@ def test_a_spilled_thread_opens_the_full_conversation_without_a_hidden_anchor(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const controls = document.createElement('span');
           for (let i = 0; i < 5; i++) controls.append(marginEntry(offer('button', ''), {
             key: `detail-${i}`, icon: 'dot', label: `Detail ${i}`, rank: 'secondary'
@@ -3850,7 +3850,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     page.evaluate(
         """async () => {
           const {offer, marginEntry, registerMarginContribution} =
-            await import('/runtime/widget-api.js');
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
           const primary = marginEntry(offer('button', ''), {
             key: 'act', glyph: 'A', label: 'Act', behavior: 'action'
           });
@@ -3984,7 +3984,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
     readings = page.evaluate(
         """async () => {
               const { marginEntry, registerMarginContribution } =
-                await import('/runtime/widget-api.js');
+                await window.__lfRuntimeImport('/runtime/widget-api.js');
           const makeRecord = label => {
             const shell = document.createElement('div');
             const root = shell.attachShadow({mode: 'open'});
@@ -4121,7 +4121,7 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     page.evaluate(
         """async () => {
               const {marginEntry, registerMarginContribution} =
-                await import('/runtime/widget-api.js');
+                await window.__lfRuntimeImport('/runtime/widget-api.js');
           const status = marginEntry(document.createElement('span'), {
             key: 'shape-status', icon: 'pickup', label: 'Picked up', behavior: 'status'
           });

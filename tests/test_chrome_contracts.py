@@ -309,7 +309,7 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
                 page.get_by_role("button", name="Close threads", exact=True).click()
             panel_settled(page, open=panel_open)
         page.evaluate("""async () => {
-          const {notice} = await import('/runtime/notifications.js');
+          const {notice} = await window.__lfRuntimeImport('/runtime/notifications.js');
           notice('Update recorded');
         }""")
         expect(notice).to_be_visible()

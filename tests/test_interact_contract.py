@@ -1127,7 +1127,6 @@ def test_page_registry_rejects_invalid_authored_contracts(
     page_dir, declarations, message
 ):
     authored = page_dir / "page"
-    authored.mkdir()
     (authored / "registry.json").write_text(declarations)
 
     with pytest.raises(registry_contract.RegistryError, match=message):
@@ -1136,7 +1135,6 @@ def test_page_registry_rejects_invalid_authored_contracts(
 
 def test_page_registry_reads_candidate_changes_without_mutating_the_layer(page_dir):
     authored = page_dir / "page"
-    authored.mkdir()
     source = authored / "registry.json"
     declaration = element_declaration("lf-local")
     source.write_text(json.dumps({"lf-local": declaration}))
@@ -2408,7 +2406,7 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
     task.setdefault("required", []).append("owner")
     task["x-report"]["owner"] = owner
     registry["lf-tasks"]["x-example"] = re.sub(
-        r"<lf-task(?![^>]*\bowner=)",
+        r"<lf-task\b(?![^>]*\bowner=)",
         '<lf-task owner="test"',
         registry["lf-tasks"]["x-example"],
     )
@@ -3340,7 +3338,8 @@ def test_activation_rechecks_changed_css_while_the_document_stays_identical(page
     widened = activate(wider_column)
     assert widened.error is None
     assert widened.check.column == 960
-    assert not widened.created
+    assert widened.created
+    assert widened.revision == initial.revision + 1
 
     broken = activate(wider_column + " .broken { color red }")
     assert "theme.css syntax error" in broken.error

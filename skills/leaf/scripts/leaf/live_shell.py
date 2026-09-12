@@ -1,4 +1,11 @@
-"""Materialize the immutable HTTP half of a live Leaf page."""
+"""Materialize the immutable HTTP half of a live Leaf page.
+
+Every document selects its captured registry, bootstrap, layer, and authored
+resources. Revision resource trees share the same logical URLs as HTTP delivery,
+including widget aliases resolved through implementation provenance. Mutable
+candidate inputs never participate in publishing. Content-addressed media also
+keeps its page-root address for conversation markup and website metadata.
+"""
 
 from pathlib import Path
 
@@ -8,7 +15,6 @@ from .files import (
     list_revisions,
     published_versions,
     revision_path,
-    stamped_version,
     version_revisions,
 )
 from .http import (
@@ -16,8 +22,9 @@ from .http import (
     scope_stylesheet_routes,
     supervised_document,
 )
-from .registry.storage import layer_metadata
-from .schema import BROWSER_DIRS, MEDIA_DIR, SERVED_PATH, VENDORED_FILES
+from .revision_artifact import read_artifact
+from .revision_delivery import deliver_document, deliver_resource
+from .schema import MEDIA_DIR, SERVED_PATH
 
 
 def write_live_shell(
@@ -41,8 +48,6 @@ def write_live_shell(
         raise ValueError(f"{page_dir} has no active revision")
     versions = version_revisions(events)
     reverse_versions = {revision: version for version, revision in versions.items()}
-    identity = layer_metadata(page_dir)
-    bootstrap = (page_dir / "runtime" / "bootstrap.js").read_text(encoding="utf-8")
 
     def write(relative: Path, body: bytes) -> None:
         target = destination / relative
@@ -51,44 +56,54 @@ def write_live_shell(
             raise ValueError(f"live shell path already exists: {target}")
         target.write_bytes(body)
 
-    def document(revision: int, version: int | None) -> bytes:
-        source = revision_path(page_dir, revision).read_text(encoding="utf-8")
-        return supervised_document(
-            source,
+    documents = {}
+    for revision in list_revisions(page_dir):
+        artifact = read_artifact(page_dir, revision)
+        relative_root = Path("revisions") / revision_path(page_dir, revision).stem
+        root = asset_root if asset_root is not None else page_root
+        revision_root = root.rstrip("/") + "/" + relative_root.as_posix()
+        version = reverse_versions.get(revision)
+        documents[revision] = supervised_document(
+            deliver_document(artifact.html.decode("utf-8"), revision_root),
             revision,
             version,
             server_id=server_id,
-            layer_id=identity["generation"],
-            bootstrap=bootstrap,
+            layer_id=artifact.registry["$layer"]["generation"],
+            bootstrap=artifact.resources["/runtime/bootstrap.js"].data.decode("utf-8"),
             release_id=release_id,
             page_root=page_root,
-            asset_root=asset_root,
+            asset_root=revision_root,
             before_runtime=before_runtime,
         )
+        aliases = {
+            f"/widgets/{tag}.js": implementation["path"]
+            for tag, implementation in artifact.implementations.items()
+        }
+        for logical in sorted(artifact.resources.keys() | aliases.keys()):
+            source = aliases.get(logical, logical)
+            resource = artifact.resources[source]
+            body = deliver_resource(resource, source, revision_root)
+            if not source.startswith("/page/"):
+                if resource.mime == "text/css":
+                    body = scope_stylesheet_routes(
+                        body, page_root, asset_root=revision_root
+                    )
+                elif resource.mime == "application/javascript":
+                    body = scope_script_routes(
+                        body, page_root, asset_root=revision_root
+                    )
+            write(relative_root / logical.lstrip("/"), body)
 
-    write(Path("index.html"), document(active, stamped_version(events, active)))
+    write(Path("index.html"), documents[active])
     for version in published_versions(page_dir, events):
-        write(
-            Path("versions") / f"v{version}.html", document(versions[version], version)
-        )
+        write(Path("versions") / f"v{version}.html", documents[versions[version]])
     for revision in list_revisions(page_dir):
         write(
             Path("revisions") / revision_path(page_dir, revision).name,
-            document(revision, reverse_versions.get(revision)),
+            documents[revision],
         )
 
-    for name in (*VENDORED_FILES, *BROWSER_DIRS, MEDIA_DIR):
-        source = page_dir / name
-        files = [source] if source.is_file() else sorted(source.rglob("*"))
-        for file in files:
-            if not file.is_file():
-                continue
-            relative = file.relative_to(page_dir)
-            if not SERVED_PATH.fullmatch(f"/{relative.as_posix()}"):
-                continue
-            body = file.read_bytes()
-            if file.suffix == ".css":
-                body = scope_stylesheet_routes(body, page_root, asset_root=asset_root)
-            elif file.suffix == ".js":
-                body = scope_script_routes(body, page_root, asset_root=asset_root)
-            write(relative, body)
+    for file in sorted((page_dir / MEDIA_DIR).rglob("*")):
+        relative = file.relative_to(page_dir)
+        if file.is_file() and SERVED_PATH.fullmatch(f"/{relative.as_posix()}"):
+            write(relative, file.read_bytes())

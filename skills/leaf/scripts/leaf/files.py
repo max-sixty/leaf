@@ -112,12 +112,19 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
     Page transactions serialize order assignment. Refusing an existing target
     keeps a revision immutable even if a caller is accidentally repeated.
     """
-    from leaf.registry.storage import load_registry
+    from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import capture_artifact, write_artifact
     from leaf.structure import SourceDocument
 
+    candidate = read_page_registry(page_dir)
+    if candidate is None:
+        sys.exit(f"no registry.json in {page_dir}; run `leaf page init` first")
     artifact = capture_artifact(
-        page_dir, SourceDocument(data.decode("utf-8")), load_registry(page_dir) or {}
+        page_dir,
+        SourceDocument(data.decode("utf-8")),
+        candidate.registry,
+        declaration_sources=candidate.declaration_sources,
+        widget_sources=candidate.widget_sources,
     )
     return write_artifact(page_dir, revision, artifact)
 

@@ -114,8 +114,20 @@ def layer_generation(page_dir: Path) -> str:
 
 
 def require_registry(page_dir: Path) -> dict:
-    """The vendored vocabulary, for a command that has nothing to do without one."""
-    registry = load_registry(page_dir)
+    """The active revision's vocabulary, or the candidate before first activation."""
+    registry = active_registry(page_dir)
     if registry is None:
         sys.exit(f"no registry.json in {page_dir}; run `leaf page init` first")
     return registry
+
+
+def active_registry(page_dir: Path) -> dict | None:
+    """Read semantic commands against the same declarations as the live document."""
+    from leaf.files import latest_revision
+    from leaf.revision_artifact import read_artifact
+
+    revision = latest_revision(page_dir)
+    if revision is not None:
+        return read_artifact(page_dir, revision).registry
+    candidate = read_page_registry(page_dir)
+    return candidate.registry if candidate is not None else None

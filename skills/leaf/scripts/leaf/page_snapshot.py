@@ -15,7 +15,7 @@ from .files import (
     version_descriptors,
 )
 from .presence import other_leaves, presence_fingerprint, presence_with_activity
-from .registry.storage import layer_metadata, read_page_registry
+from .registry.storage import read_page_registry
 from .revision_artifact import (
     RevisionArtifact,
     artifact_name,
@@ -50,32 +50,41 @@ class PageSnapshot:
 
 
 def capture_page_snapshot(
-    page_dir: Path, document: SourceDocument, active: dict
+    page_dir: Path,
+    document: SourceDocument,
+    active: dict,
+    *,
+    artifact: RevisionArtifact | None = None,
 ) -> PageSnapshot:
     """Freeze a candidate and every page authority it is projected against."""
+    if artifact is not None and artifact.html != document.data:
+        raise ValueError("preview artifact does not contain the checked document")
     with PageTransaction(page_dir) as page:
         events = tuple(copy.deepcopy(page.events))
         snapshot_active = copy.deepcopy(active)
-        page_registry = read_page_registry(page_dir)
-        if page_registry is None:
-            raise ValueError(
-                f"no registry.json in {page_dir}; run `leaf page init` first"
-            )
-        registry = copy.deepcopy(page_registry.registry)
-        layer = copy.deepcopy(layer_metadata(page_dir))
         data = read_data(page_dir)
         versions = tuple(copy.deepcopy(version_descriptors(page_dir, list(events))))
         revisions = list_revisions(page_dir)
         artifacts = {
             revision: read_artifact(page_dir, revision) for revision in revisions
         }
-        artifacts[active["revision"]] = capture_artifact(
-            page_dir,
-            document,
-            registry,
-            declaration_sources=page_registry.declaration_sources,
-            widget_sources=page_registry.widget_sources,
-        )
+        selected = artifact or artifacts.get(active["revision"])
+        if selected is None or selected.html != document.data:
+            page_registry = read_page_registry(page_dir)
+            if page_registry is None:
+                raise ValueError(
+                    f"no registry.json in {page_dir}; run `leaf page init` first"
+                )
+            selected = capture_artifact(
+                page_dir,
+                document,
+                page_registry.registry,
+                declaration_sources=page_registry.declaration_sources,
+                widget_sources=page_registry.widget_sources,
+            )
+        artifacts[active["revision"]] = selected
+        registry = copy.deepcopy(selected.registry)
+        layer = copy.deepcopy(registry["$layer"])
         documents = {
             revision: SourceDocument(artifact.html.decode("utf-8"))
             for revision, artifact in artifacts.items()

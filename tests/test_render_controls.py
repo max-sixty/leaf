@@ -1388,7 +1388,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
 def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     """The JS motion contract follows a live media preference, like the CSS does."""
     page, errors = open_page(browser, serve(LONG_PAGE))
-    reading = """() => import('/runtime/motion.js').then(
+    reading = """() => window.__lfRuntimeImport('/runtime/motion.js').then(
       motion => ({reduced: motion.reducedMotion(), scroll: motion.scrollBehavior()}))"""
     assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
 

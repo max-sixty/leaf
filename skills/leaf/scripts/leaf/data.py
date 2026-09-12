@@ -16,7 +16,7 @@ from .data_contracts import (
 from .event_log import now_iso
 from .files import write_json
 from .registry.contract import is_aware_datetime
-from .registry.storage import require_registry
+from .registry.storage import read_page_registry
 from .schema import DATA_CONTRACT_NAME, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
 
@@ -600,7 +600,7 @@ def _write_source(
     except (TypeError, ValueError) as error:
         raise DataError(f"source {source!r} value is not JSON: {error}") from error
     with PageTransaction(page_dir) as page:
-        registry = require_registry(page_dir)
+        registry = read_page_registry(page_dir).registry
         if re.fullmatch(DATA_SOURCE_NAME, source) is None:
             raise DataError(f"invalid source name {source!r}")
         bindings, binding_errors = working_data_bindings(
@@ -722,7 +722,7 @@ def cmd_data_clear(page_dir: Path, source: str) -> None:
         if source not in stored["sources"]:
             click.echo(f"data source {source!r} is already clear")
             return
-        registry = require_registry(page_dir)
+        registry = read_page_registry(page_dir).registry
         referenced = working_data_snapshot_references(page_dir, registry, page.events)
         standing = stored["sources"][source]
         retained = {

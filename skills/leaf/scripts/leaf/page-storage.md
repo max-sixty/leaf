@@ -1,7 +1,8 @@
 # Page storage
 
 A page directory holds:
-    index.html            mutable author source. The agent writes only this file.
+    index.html            mutable author document. The agent writes this and page/
+                         candidate inputs; Leaf owns the rest of the directory.
                          The server validates it before activation and never serves
                          it directly. An invalid save creates no revision, leaves the
                          previous valid revision live, and exposes the diagnostic in

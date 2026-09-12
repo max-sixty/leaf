@@ -72,6 +72,14 @@ def _call(page, name: str, args: tuple) -> dict:
                 "prepare_standalone_probes must run before file navigation"
             )
         route = STANDALONE_FILE_ROUTE
+    else:
+        route = page.evaluate(
+            """route => {
+          const entry = document.querySelector('script[data-lf-entry]')?.dataset.lfEntry;
+          return entry ? new URL(route.slice(1), new URL(entry, location.href)).href : route;
+        }""",
+            route,
+        )
     return {
         "route": route,
         "name": name,

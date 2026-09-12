@@ -560,7 +560,7 @@ PAGE_STATE_FILES = (
     PREVIEW_FILE,
 )
 PAGE_OWNED_FILES = ("index.html", *VENDORED_FILES, *PAGE_STATE_FILES)
-PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR)
+PAGE_OWNED_DIRS = ("revisions", *PACKAGE_DIRS, MEDIA_DIR, "page")
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side guidance stays vendored but is read
 # only through the CLI.

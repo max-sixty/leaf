@@ -3122,7 +3122,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(
     panel_settled(page)
     parts = page.evaluate(
         """async () => {
-             const { shownParts } = await import('/runtime/widget-api.js');
+             const { shownParts } = await window.__lfRuntimeImport('/runtime/widget-api.js');
              const el = document.getElementById('tv-decision');
              return { boxless: el.getBoundingClientRect().height === 0,
                       display: getComputedStyle(el).display,

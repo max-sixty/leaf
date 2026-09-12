@@ -672,7 +672,7 @@ def test_widget_api_selects_helpers_from_their_runtime_owners(browser, serve):
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     exports = page.evaluate(
         """async () => {
-          const api = await import('/runtime/widget-api.js');
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const entry = await import('/leaf.js');
           const names = [
             'clearDraft',
@@ -717,7 +717,7 @@ def test_reading_regions_share_posture_allocation_and_transition_boundaries(
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     readings = page.evaluate(
         """async () => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const main = document.querySelector('main');
           const outer = document.createElement('section');
           outer.id = 'outer-reading-arrangement';
@@ -888,7 +888,7 @@ def test_arrangement_admission_precedes_dom_construction_and_owns_one_layout(
     page, errors = open_page(browser, serve(SHORT_SUGGESTION))
     result = page.evaluate(
         """async () => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const main = document.querySelector('main');
           const owner = document.createElement('section');
           owner.className = 'authored-owner';
@@ -997,7 +997,7 @@ def test_registry_state_index_refreshes_with_the_loaded_generation(browser, serv
             recordedWidgetSelector,
             registry,
             stateSpecs,
-          } = await import('/runtime/registry.js');
+          } = await window.__lfRuntimeImport('/runtime/registry.js');
           const before = stateSpecs();
           const generation = registry.$layer.generation;
           Object.assign(registry, {
@@ -1060,7 +1060,7 @@ def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
     expect(page.locator("main")).to_be_visible()
     tab_store = page.evaluate(
         """async () => {
-          const { tabStore } = await import('/runtime/widget-api.js');
+          const { tabStore } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return {
             read: tabStore.read('refused'),
             wrote: tabStore.set('refused', '1'),
@@ -2192,7 +2192,7 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     assert (
         page.evaluate(
             """async () => {
-          const { stateSpecs } = await import('/runtime/registry.js');
+          const { stateSpecs } = await window.__lfRuntimeImport('/runtime/registry.js');
           try {
             stateSpecs();
           } catch (error) {
@@ -2287,7 +2287,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     # with declares a vocabulary many times the size of what it just loaded.
     declared = page.evaluate(
         """async () => {
-          const { tagsDeclaring } = await import('/runtime/registry.js');
+          const { tagsDeclaring } = await window.__lfRuntimeImport('/runtime/registry.js');
           return tagsDeclaring((entry) => entry['x-upgrade']).length;
         }"""
     )
@@ -2875,7 +2875,7 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {clocked, clockValue} = await import('/runtime/presence.js');
+          const {clocked, clockValue} = await window.__lfRuntimeImport('/runtime/presence.js');
           window.probeVersion = 0;
           window.probePaints = 0;
           const paint = clocked(document.body, () => {
@@ -2990,7 +2990,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page, errors = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { commands } = await import('/runtime/widget-api.js');
+          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
           commands(document.body, 'On a draft',
                [{ id: 'test.project-widget', keys: ['F2'],
                   does: 'a project widget using the same heading' }]);
@@ -3872,7 +3872,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_reader_saw(
     url = data_projection_page(serve)
     page, errors = open_page(browser, url)
 
-    readings = page.evaluate("""() => import('/runtime/widget-api.js').then(leaf => {
+    readings = page.evaluate("""() => window.__lfRuntimeImport('/runtime/widget-api.js').then(leaf => {
       const lede = document.querySelector('#lede');
       const datum = document.querySelector('[data-lf-datum="api"]');
       return {
@@ -4188,7 +4188,7 @@ def test_a_declared_external_projection_must_receive_its_snapshot(browser, serve
     page, errors = open_page(browser, data_projection_page(serve))
     failure = page.evaluate(
         """async () => {
-          const {projectData} = await import('/runtime/widget-api.js');
+          const {projectData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           try {
             projectData(
               document.querySelector('#deployments'), [], row => row.key,
@@ -4630,7 +4630,7 @@ def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serv
     page.evaluate(
         """async () => {
           await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-          const {watchData} = await import('/runtime/widget-api.js');
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           window.idleDeliveries = 0;
           window.stopIdleData = watchData(document.querySelector('lf-feed'), 'rows', () => {
             window.idleDeliveries++;
@@ -4665,7 +4665,7 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
     page, errors = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
-          const {watchData} = await import('/runtime/widget-api.js');
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const widget = document.querySelector('lf-feed');
           let currentRevision = null;
           const stopCurrent = watchData(widget, 'rows', snapshot => {
@@ -4741,8 +4741,8 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
     expect(page.locator("#frozen code")).to_have_text('route = "old"')
     result = page.evaluate(
         """async () => {
-          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
-          const {runtime} = await import('/runtime/context.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
           const source = document.querySelector('#live');
           const mounted = source.cloneNode(false);
           mounted.id = 'mounted-source';
@@ -4813,9 +4813,9 @@ def test_a_superseded_async_data_render_cannot_stamp_the_newer_revision(browser,
     page, errors = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
-          const {watchData} = await import('/runtime/widget-api.js');
-          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
-          const {runtime} = await import('/runtime/context.js');
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
           const widget = document.querySelector('lf-feed');
           const releases = new Map();
           const stop = watchData(widget, 'rows', snapshot => {
@@ -4871,7 +4871,7 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     page, errors = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {clocked, clockValue} = await import('/runtime/widget-api.js');
+          const {clocked, clockValue} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           window.clockVersion = 0;
           for (const stage of ['read', 'paint', 'async']) {
             const paint = clocked(document.body, () => {
@@ -4921,9 +4921,9 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     page, errors = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
-          const {watchData} = await import('/runtime/widget-api.js');
-          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
-          const {runtime} = await import('/runtime/context.js');
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
           const widget = document.querySelector('lf-feed');
           const before = document.body.getAttribute('data-lf-data-revision');
           let mountDeliveries = 0;
@@ -4973,9 +4973,9 @@ def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
     page, errors = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
-          const {watchData} = await import('/runtime/widget-api.js');
-          const {acceptData, notifyDataSubscribers} = await import('/runtime/data.js');
-          const {runtime} = await import('/runtime/context.js');
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
           let release;
           let calls = 0;
           const stop = watchData(document.querySelector('lf-feed'), 'rows', () => {
@@ -5091,7 +5091,7 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
         "**/leaf.js",
         lambda route: route.fulfill(
             content_type="text/javascript",
-            body="await import('/runtime/widget-api.js');\n"
+            body="await window.__lfRuntimeImport('/runtime/widget-api.js');\n"
             "window.apiImportedBeforeBoot = true;\n"
             "await import('/leaf-boot.js');",
         ),

@@ -3,7 +3,13 @@
 import base64
 import re
 import sys
+from collections.abc import Callable
+from html import escape
 from pathlib import Path
+from urllib.parse import urldefrag, urljoin, urlsplit
+
+import tinycss2
+import turbohtml
 
 from leaf.event_log import read_events
 from leaf.files import (
@@ -25,66 +31,229 @@ from leaf.render_gate.browser import (
     launch_browser,
 )
 from leaf.render_gate.preview import preview_server
-from leaf.schema import DIR_FILES, MEDIA_DIR, MEDIA_TYPES
+from leaf.revision_artifact import RESOURCE_TYPES, Resource
+from leaf.schema import DIR_FILES, MEDIA_DIR
 from leaf.structure import UTF8_BOM, SourceDocument
 
-_MEDIA_URL = re.compile(rf"url\((/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]})\)")
+ResourceReader = Callable[[str], Resource]
 
 
-def _inline_media(text: str, page_dir: Path, refs: set[str]) -> str:
-    """Replace declared page-media references in one serialized payload."""
-    for src in sorted(refs):
-        file = page_dir / src.lstrip("/")
-        data = base64.b64encode(file.read_bytes()).decode()
-        uri = f"data:{MEDIA_TYPES[file.suffix]};base64,{data}"
-        text = text.replace(f'="{src}"', f'="{uri}"').replace(
-            f"url({src})", f"url({uri})"
-        )
-    return text
+def _file_reader(page_dir: Path) -> ResourceReader:
+    def read(url: str) -> Resource:
+        parsed = urlsplit(url)
+        path = (page_dir / parsed.path.lstrip("/")).resolve()
+        if (
+            parsed.scheme
+            or parsed.netloc
+            or not path.is_relative_to(page_dir.resolve())
+        ):
+            raise ValueError(f"export resource is outside the page: {url}")
+        return Resource(path.read_bytes(), RESOURCE_TYPES[path.suffix])
+
+    return read
 
 
-def inline_css_assets(css: str, page_dir: Path) -> str:
-    """Make page-local CSS independent of Leaf's media endpoint."""
-    refs = set(_MEDIA_URL.findall(css))
-    return _inline_media(css, page_dir, refs)
+def _data_url(resource: Resource) -> str:
+    return f"data:{resource.mime};base64,{base64.b64encode(resource.data).decode()}"
 
 
-def inline_assets(html: str, page_dir: Path) -> str:
-    """Fold the served assets into the markup. The theme's link becomes the stylesheet
-    itself, the runtime's sheets the bake linked become theirs, and each image becomes
-    its own bytes, which is everything the document still reaches the server for: the
-    widget modules were imports rather than elements, and a `lf-ref`'s link was always
-    somewhere else."""
-    theme = (page_dir / "theme.css").read_text(encoding="utf-8")
-    html, n = re.subn(
-        r'<link[^>]+href="/theme\.css"[^>]*>',
-        lambda _: f"<style>{theme}</style>",
-        html,
-        count=1,
-    )
-    if not n:
-        sys.exit(
-            "the rendered page carried no /theme.css link — it would open unstyled"
-        )
+class _AssetInliner:
+    """Embed a resource graph using its delivered URLs and MIME types.
 
-    def runtime_sheet(match):
-        path = page_dir / match.group(1).lstrip("/")
-        return f'<style data-lf-runtime="1">{path.read_text(encoding="utf-8")}</style>'
+    Imports remain CSS imports with embedded stylesheet URLs: their namespaces,
+    cascade layers, supports clauses, and media conditions retain browser semantics.
+    Each imported sheet resolves its own URLs before it is embedded. A cyclic import
+    becomes an empty sheet, matching the browser's cycle suppression.
+    """
 
-    html = re.sub(
-        r'<link[^>]+href="(/runtime/[a-z0-9/.-]+\.css)"[^>]*>', runtime_sheet, html
-    )
-    # References from the parsed reading, never a scan of the text: a path standing
-    # in prose is the reader's words — the lesson `media_refs` itself carries — and
-    # a text scan crashed the export on a documented path no file answers. The
-    # attribute harvest is media_refs; a page <style>'s url(/media/…) is the one
-    # reference an attribute harvest can't see, so it is read from the parsed css.
-    # The substitution then rewrites only the two serialized forms a reference
-    # takes (`="…"`, `url(…)`); prose quoting the exact string of a path the page
-    # also really uses is the residual, and it is the author quoting live markup.
-    parsed = SourceDocument(html)
-    css_refs = set(_MEDIA_URL.findall(parsed.css))
-    return _inline_media(html, page_dir, set(parsed.media_refs) | css_refs)
+    def __init__(self, read: ResourceReader):
+        self.read = read
+        self.resources: dict[str, Resource] = {}
+
+    def resource(self, url: str) -> Resource:
+        if url not in self.resources:
+            self.resources[url] = self.read(url)
+        return self.resources[url]
+
+    def url(self, reference: str, base: str, ancestors: tuple[str, ...]) -> str:
+        if reference.startswith(("#", "data:")):
+            return reference
+        url, fragment = urldefrag(urljoin(base, reference))
+        resource = self.resource(url)
+        if resource.mime == "text/css":
+            css = (
+                ""
+                if url in ancestors
+                else self.css(resource.data.decode("utf-8"), url, (*ancestors, url))
+            )
+            resource = Resource(css.encode("utf-8"), "text/css")
+        return _data_url(resource) + (f"#{fragment}" if fragment else "")
+
+    def css(self, css: str, base: str, ancestors: tuple[str, ...] = ()) -> str:
+        def rewrite(tokens):
+            import_url = False
+            for token in tokens:
+                if token.type in {"whitespace", "comment"}:
+                    continue
+                if token.type == "at-keyword" and token.lower_value == "import":
+                    import_url = True
+                    continue
+                if import_url and token.type == "string":
+                    value = self.url(token.value, base, ancestors)
+                    if value != token.value:
+                        token.value = value
+                        token.representation = f'"{value}"'
+                elif token.type == "url":
+                    value = self.url(token.value, base, ancestors)
+                    if value != token.value:
+                        token.value = value
+                        token.representation = f'url("{value}")'
+                elif token.type == "function" and token.lower_name == "url":
+                    args = [
+                        arg
+                        for arg in token.arguments
+                        if arg.type not in {"whitespace", "comment"}
+                    ]
+                    if len(args) == 1 and args[0].type == "string":
+                        value = self.url(args[0].value, base, ancestors)
+                        if value != args[0].value:
+                            token.arguments = tinycss2.parse_component_value_list(
+                                f'"{value}"'
+                            )
+                else:
+                    for name in ("content", "arguments"):
+                        if (children := getattr(token, name, None)) is not None:
+                            rewrite(children)
+                import_url = False
+
+        tokens = tinycss2.parse_component_value_list(css)
+        rewrite(tokens)
+        return tinycss2.serialize(tokens)
+
+
+def inline_css_assets(
+    css: str,
+    page_dir: Path | None = None,
+    *,
+    read_resource: ResourceReader | None = None,
+    document_url: str = "/index.html",
+) -> str:
+    """Embed CSS dependencies from one page directory or exact revision reader."""
+    if read_resource is None:
+        assert page_dir is not None
+        read_resource = _file_reader(page_dir)
+    return _AssetInliner(read_resource).css(css, document_url)
+
+
+def _embedded_policy(policy: str) -> str:
+    """Permit embedded asset bytes without relaxing navigation or script policy."""
+    directives = {
+        parts[0]: parts[1:]
+        for directive in policy.split(";")
+        if (parts := directive.split())
+    }
+    for name in ("style-src", "style-src-elem", "font-src", "media-src"):
+        fallback = "style-src" if name == "style-src-elem" else "default-src"
+        sources = directives.setdefault(name, list(directives.get(fallback, [])))
+        if "data:" not in sources:
+            sources.append("data:")
+    return "; ".join(" ".join([name, *sources]) for name, sources in directives.items())
+
+
+def inline_assets(
+    html: str,
+    page_dir: Path | None = None,
+    *,
+    read_resource: ResourceReader | None = None,
+    document_url: str = "/index.html",
+) -> str:
+    """Embed styles and media without changing prose or serialized shadow roots.
+
+    Resource readers own the authority boundary. Export supplies its immutable HTTP
+    namespace; a non-browser projection can supply the artifact's captured resources.
+    HTML source locations keep unrelated markup, including foreign SVG, byte-for-byte.
+    """
+    if read_resource is None:
+        assert page_dir is not None
+        read_resource = _file_reader(page_dir)
+    assets = _AssetInliner(read_resource)
+    roots = [turbohtml.parse(html, source_locations=True)]
+    edits = []
+    for root in roots:
+        for element in root.find_all(True):
+            if element.shadow_root is not None:
+                roots.append(element.shadow_root)
+            location = element.source_location
+            if location is None:
+                continue
+            attrs = element.attrs
+            if element.tag == "link" and "stylesheet" in attrs.get("rel", []):
+                url = urljoin(document_url, attrs["href"])
+                resource = assets.resource(url)
+                if resource.mime != "text/css":
+                    raise ValueError(
+                        f"export stylesheet has MIME {resource.mime}: {url}"
+                    )
+                css = assets.css(resource.data.decode("utf-8"), url, (url,))
+                css = re.sub(r"</style", r"<\\/style", css, flags=re.IGNORECASE)
+                kept = {
+                    key: value
+                    for key, value in attrs.items()
+                    if key in {"media", "title", "data-lf-runtime", "disabled"}
+                }
+                style_attrs = "".join(
+                    f' {key}="{escape(value, quote=True)}"'
+                    for key, value in kept.items()
+                )
+                edits.append(
+                    (
+                        location.start_tag.start_offset,
+                        location.start_tag.end_offset,
+                        f"<style{style_attrs}>{css}</style>",
+                    )
+                )
+                continue
+            if element.tag == "style" and location.end_tag is not None:
+                start, end = (
+                    location.start_tag.end_offset,
+                    location.end_tag.start_offset,
+                )
+                edits.append((start, end, assets.css(html[start:end], document_url)))
+            for name, value in attrs.items():
+                if name == "style":
+                    replacement = assets.css(value, document_url)
+                elif (
+                    name in {"src", "poster"}
+                    and element.tag not in {"script", "iframe"}
+                ) or (
+                    name in {"href", "xlink:href"}
+                    and (
+                        element.tag in {"image", "use"}
+                        or element.tag == "link"
+                        and "icon" in attrs.get("rel", [])
+                    )
+                ):
+                    replacement = assets.url(value, document_url, ())
+                elif (
+                    element.tag == "meta"
+                    and name == "content"
+                    and attrs.get("http-equiv", "").lower() == "content-security-policy"
+                ):
+                    replacement = _embedded_policy(value)
+                else:
+                    continue
+                if replacement != value:
+                    span = location.attrs[name.lower()]
+                    edits.append(
+                        (
+                            span.start_offset,
+                            span.end_offset,
+                            f'{name}="{escape(replacement, quote=True)}"',
+                        )
+                    )
+    for start, end, replacement in sorted(edits, reverse=True):
+        html = html[:start] + replacement + html[end:]
+    return html
 
 
 def export_page(browser, url: str, page_dir: Path, name: str) -> str:
@@ -134,6 +303,10 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
                     throw new Error(`state returned ${response.status}`);
                   const state = await response.json();
                   return {
+                    pageRoot: root.href,
+                    theme: document.querySelector(
+                      'link[rel="stylesheet"][data-lf-runtime]'
+                    ).href,
                     dataRevision: state.data.revision,
                     replayedEvents: state.events.filter(
                       event => event.kind === 'action' || event.kind === 'report'
@@ -157,7 +330,50 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
                   await Promise.all(pending);
                 }"""
             )
-            return UTF8_BOM + inline_assets(evaluate_probe(page, "bake"), page_dir)
+            asset_root = readiness["theme"].removesuffix("theme.css")
+            origin = urlsplit(asset_root)
+            page_root = urlsplit(readiness["pageRoot"]).path
+
+            def read_resource(resource_url: str) -> Resource:
+                parsed = urlsplit(resource_url)
+                if (parsed.scheme, parsed.netloc) != (origin.scheme, origin.netloc):
+                    raise ValueError(
+                        f"export resource is outside the page: {resource_url}"
+                    )
+                path = parsed.path
+                logical = path.removeprefix(page_root).lstrip("/")
+                message_media = re.fullmatch(
+                    rf"{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}", logical
+                )
+                if not path.startswith(origin.path):
+                    # Runtime-produced markup (including the bake's adopted sheets)
+                    # can still name logical page routes. Read those only through
+                    # the document's captured namespace, never the mutable alias.
+                    # Media added by later conversation events is page-owned and
+                    # content-addressed, not an input of the authored revision.
+                    resource_url = urljoin(
+                        readiness["pageRoot"] if message_media else asset_root,
+                        logical,
+                    )
+                if not message_media and not urlsplit(resource_url).path.startswith(
+                    origin.path
+                ):
+                    raise ValueError(
+                        f"export resource escapes its revision: {resource_url}"
+                    )
+                response = page.request.get(resource_url, max_redirects=0)
+                if not response.ok:
+                    raise ValueError(
+                        f"export resource returned {response.status}: {resource_url}"
+                    )
+                mime = response.headers["content-type"].split(";", 1)[0].strip()
+                return Resource(response.body(), mime)
+
+            return UTF8_BOM + inline_assets(
+                evaluate_probe(page, "bake"),
+                read_resource=read_resource,
+                document_url=urljoin(asset_root, "index.html"),
+            )
         except PlaywrightTimeout:
             sys.exit(
                 f"{name} never finished applying its live state in "
@@ -170,6 +386,8 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
                 f"({str(error).strip().splitlines()[0]}), so Leaf could not make a "
                 "trustworthy copy."
             )
+        except ValueError as error:
+            sys.exit(f"{name} could not embed its captured assets: {error}")
     finally:
         page.close()
 

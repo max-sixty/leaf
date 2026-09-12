@@ -1277,7 +1277,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     # offer stands unseen until some view of this thread is next built and reads it.
     standing = page.evaluate(
         """async (ctx) => {
-          const api = await import('/runtime/widget-api.js');
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return api.loadDraft(ctx);
         }""",
         f"reply:{root['id']}",
@@ -2747,7 +2747,7 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
     aligned, by_sentence, inline = page.evaluate(
         """async (pairs) => {
           const {alignInlineText, alignText, sentenceUnits} =
-            await import('/runtime/text-alignment.js');
+            await window.__lfRuntimeImport('/runtime/text-alignment.js');
           return [
             pairs.map(([before, after]) => alignText(before, after)),
             pairs.map(([before, after]) => alignText(before, after, sentenceUnits)),
@@ -2778,7 +2778,7 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
 
     local = page.evaluate(
         """async () => {
-          const {alignInlineText} = await import('/runtime/text-alignment.js');
+          const {alignInlineText} = await window.__lfRuntimeImport('/runtime/text-alignment.js');
           return alignInlineText(
             'Each section names a feature and provides a live example.',
             'Each section names a feature and provides a live example, including focused replays of its motion.'
@@ -2867,7 +2867,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
 
     sequence = page.evaluate(
         """async () => {
-          const {actionSequence} = await import('/runtime/widget-api.js');
+          const {actionSequence} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const widget = document.getElementById('draft-ops');
           const first = actionSequence(widget, 'edit');
           first[0].detail.text = 'A widget must not mutate the runtime log.';
@@ -2916,7 +2916,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "Changes · 1 edit"
     )
     old_sequence = old.evaluate(
-        """async () => (await import('/runtime/widget-api.js'))
+        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
           .actionSequence(document.getElementById('draft-ops'), 'edit')
           .map(event => event.revision)"""
     )
@@ -2929,7 +2929,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "Changes · 2 edits"
     )
     latest_sequence = latest.evaluate(
-        """async () => (await import('/runtime/widget-api.js'))
+        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
           .actionSequence(document.getElementById('draft-ops'), 'edit')
           .map(event => event.revision)"""
     )

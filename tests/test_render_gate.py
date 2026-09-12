@@ -3170,7 +3170,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
     page, errors = open_page(browser, url)
     resized(page, 1280, 900)
     standing = page.evaluate(
-        "async () => (await import('/runtime/widget-api.js')).standingState()"
+        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).standingState()"
         ".flatMap(({widget, state}) => Object.values(state).map(facet => [widget.id, facet.action]))"
     )
     assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (

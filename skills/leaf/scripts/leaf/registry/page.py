@@ -49,7 +49,8 @@ def compose_page_registry(
     # page registries. Import it after those owners have finished initializing.
     from leaf.validation.compatibility import validate_registry_examples
 
-    validate_registry_examples(registry, source)
+    if page_declarations:
+        validate_registry_examples(registry, source)
     declaration_sources = {}
     widget_sources = {}
     available = set(widget_paths)

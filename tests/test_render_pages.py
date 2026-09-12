@@ -437,7 +437,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         # standing winner has to appear for the gate to reapply it at all. Read once:
         # the fold is the whole log's, not one widget's.
         standing = page.evaluate(
-            "async () => (await import('/runtime/widget-api.js')).standingState().map((s) => s.widget.id)"
+            "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).standingState().map((s) => s.widget.id)"
         )
         for wid in decided_here:
             decided.append(wid)
@@ -708,7 +708,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         )
     assert (
         page.evaluate(
-            "async () => (await import('/runtime/widget-api.js')).agentName()"
+            "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).agentName()"
         )
         == "Claude"
     )

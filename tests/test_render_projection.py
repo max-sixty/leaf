@@ -2879,7 +2879,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     told(page)
 
     updates = page.evaluate(
-        "async () => (await import('/runtime/widget-api.js')).updateSequence()"
+        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).updateSequence()"
     )
     by_source = {update["source"]: update for update in updates}
     assert set(by_source) == {"claim", "report"}
@@ -2916,7 +2916,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     assert by_source["report"]["session"] == by_source["claim"]["session"]
     targeted = page.evaluate(
         """async () => {
-            const feed = await import('/runtime/widget-api.js');
+            const feed = await window.__lfRuntimeImport('/runtime/widget-api.js');
             return {
                 widget: feed.updateSequence(document.querySelector('#ag-wren')),
                 thread: feed.updateSequence({kind: 'thread', id: 'ag-wren'}),
@@ -2949,7 +2949,7 @@ def test_claims_and_reports_share_one_canonical_update_feed(
     wait_for_revision(page, 2)
 
     updates = page.evaluate(
-        "async () => (await import('/runtime/widget-api.js')).updateSequence()"
+        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).updateSequence()"
     )
     by_source = {update["source"]: update for update in updates}
     assert by_source["claim"]["disposition"] == "settled"
@@ -3446,7 +3446,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         assert sent.exit_code == 0, sent.output
 
     page, errors = open_page(browser, url)
-    standing = page.evaluate("""async () => (await import('/runtime/widget-api.js')).standingState()
+    standing = page.evaluate("""async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).standingState()
         .flatMap(({widget, state}) => Object.entries(state).flatMap(([facet, value]) =>
           (value.units ? Object.values(value.units) : [value]).filter(({action}) => action)
             .map(({action}) => [widget.id, widget.localName, facet, action])))""")
@@ -3556,7 +3556,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     expect(page.locator("#tally-seen")).to_have_attribute("count", "5")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     standing = page.evaluate(
-        """async () => (await import('/runtime/widget-api.js')).standingState()
+        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).standingState()
           .filter(state => state.widget?.id === 'tally-fitted')
           .map(({state}) => state.count.value)"""
     )
@@ -3582,8 +3582,8 @@ def test_state_origin_readings_compose_on_one_target(browser, serve):
     origins = page.evaluate(
         """async () => {
           const [{projectionOrigins}, {authoredStates}] = await Promise.all([
-            import('/runtime/projection/model.js'),
-            import('/runtime/projection/authored.js'),
+            window.__lfRuntimeImport('/runtime/projection/model.js'),
+            window.__lfRuntimeImport('/runtime/projection/authored.js'),
           ]);
           const entry = (id, kind, facet) => ({
             unit: 't-parser',
@@ -3738,7 +3738,7 @@ customElements.define("lf-piece", class extends HTMLElement {
     expect(page.locator("#zone-b > #piece")).to_have_count(1)
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     standing = page.evaluate(
-        """async () => (await import('/runtime/widget-api.js')).standingState()
+        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).standingState()
           .filter(({widget}) => ['owner', 'piece'].includes(widget.id))
           .map(({widget, state}) => [widget.id, (state.placement.units?.piece ?? state.placement).action])"""
     )
@@ -4152,7 +4152,7 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
     signatures = page.evaluate("""async () => {
-        const { shallowSigs } = await import("/runtime/widget-api.js");
+        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/widget-api.js");
         const widget = document.getElementById("sug-refill");
         const read = () => shallowSigs(document.body).get(widget.id);
         const decided = read();
@@ -4169,7 +4169,7 @@ def test_replay_signatures_distinguish_widget_state_from_runtime_paint(browser, 
         "widget-owned data-lf-state disappeared with the runtime's private attributes"
     )
     positions = page.evaluate("""async () => {
-        const { shallowSigs } = await import("/runtime/widget-api.js");
+        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/widget-api.js");
         const root = document.createElement("div");
         root.id = "signature-root";
         root.innerHTML = '<i></i><div id="first"><b id="nested"></b></div>' +
@@ -5785,7 +5785,7 @@ def test_command_hub_request_projects_before_waiting_for_one_linked_host_receipt
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/5")
     available = operations.evaluate(
         """async holder => {
-          const leaf = await import('/runtime/widget-api.js');
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return [
             leaf.requestAvailable(holder, 'restart'),
             leaf.requestAvailable(holder, 'land')

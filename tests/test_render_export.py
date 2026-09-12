@@ -21,6 +21,7 @@ from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
+from leaf import media as media_model
 from leaf import render_checks as render_checks_model
 from leaf import server as server_model
 from leaf import service as service_model
@@ -1211,6 +1212,103 @@ def test_an_export_keeps_utf8_when_root_serialization_expands(browser, serve, tm
     page.close()
 
 
+def test_a_historical_export_embeds_its_captured_css_graph(browser, serve, tmp_path):
+    """Nested imports and images come from the drawn revision, not mutable files."""
+    icon = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" fill="navy"/></svg>'
+    source = leaf_page(
+        "Captured appearance",
+        """
+<h1 id="title">Captured appearance</h1>
+<figure id="badge"><img src="/page/icon.svg" alt="Captured badge" width="24" height="24"></figure>
+<p id="inline" style="background-image: url('/page/icon.svg')">Inline asset</p>
+<pre id="quoted"><code>url('/page/icon.svg')</code></pre>
+""",
+        head='<link rel="stylesheet" href="/page/styles/main.css">',
+    )
+    url = serve(
+        source,
+        page_files={
+            "icon.svg": icon,
+            "styles/main.css": """
+@import "./nested/palette.css" layer(captured) supports(display: grid) screen;
+#title { color: var(--export-tone) !important; }
+""",
+            "styles/nested/palette.css": """
+@import "../main.css";
+body { --export-tone: rgb(12, 34, 56); }
+#badge { background-image: url('../../icon.svg'); }
+""",
+        },
+    )
+    # Replacing, not writing through the initialized fixture's immutable hardlinks.
+    files_model.replace_files(
+        [
+            (
+                serve.page_dir / "theme.css",
+                b":root { --mutable-theme-only: 1; }",
+                False,
+            ),
+            (
+                serve.page_dir / "runtime/chrome.css",
+                b":root { --mutable-chrome-only: 1; }",
+                False,
+            ),
+            (
+                serve.page_dir / "page/styles/nested/palette.css",
+                b"body { --export-tone: red; }",
+                False,
+            ),
+            (
+                serve.page_dir / "page/icon.svg",
+                icon.replace('"24"', '"48"').encode(),
+                False,
+            ),
+        ]
+    )
+    exported = exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
+    assert "--mutable-theme-only" not in exported
+    assert "--mutable-chrome-only" not in exported
+    out = tmp_path / "captured.html"
+    out.write_text(exported, encoding="utf-8")
+    page = browser.new_page()
+    errors = watched(page)
+    requests = []
+    page.on("request", lambda request: requests.append(request.url))
+    try:
+        page.goto(out.as_uri(), wait_until="load")
+        expect(page.locator("#title")).to_have_css("color", "rgb(12, 34, 56)")
+        expect(page.get_by_role("img", name="Captured badge")).to_have_js_property(
+            "naturalWidth", 24
+        )
+        expect(page.locator("#quoted")).to_have_text("url('/page/icon.svg')")
+        for selector in ("#badge", "#inline"):
+            assert (
+                page.locator(selector)
+                .evaluate("el => getComputedStyle(el).backgroundImage")
+                .startswith('url("data:image/svg+xml;base64,')
+            )
+        assert requests == [out.as_uri()]
+        assert errors == []
+    finally:
+        page.close()
+
+
+def test_export_refuses_a_rendered_asset_outside_the_page(browser, serve):
+    source = leaf_page(
+        "External rendered image",
+        '<h1>External rendered image</h1><img id="external" alt="External evidence">',
+        head="""<script type="module">
+document.querySelector('#external').src = 'https://outside.invalid/evidence.svg';
+</script>""",
+    )
+    url = serve(source)
+    with pytest.raises(
+        SystemExit,
+        match="could not embed its captured assets: export resource is outside the page",
+    ):
+        exporting_model.export_page(browser, url, serve.page_dir, "v1.html")
+
+
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_an_exported_scroll_cue_follows_its_native_scroller(
     direction, browser, serve, tmp_path
@@ -1442,13 +1540,20 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         '@@ -1 +1 @@\n-return "old"\n+return "new"\n',
     )
+    image = tmp_path / "evidence.svg"
+    image.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24">'
+        '<rect width="24" height="24" fill="navy"/></svg>'
+    )
+    _, image_url = media_model.cmd_media(serve.page_dir, [image])[0]
     root = events_model.append_event(
         serve.page_dir,
         {
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": "Keep this check beside the changed line.",
+            "text": "Keep this check beside the changed line.\n\n"
+            f"![Review evidence]({image_url})",
             "anchor": {
                 "section": "patch",
                 "datum": '["app.py","new",1]',
@@ -1490,6 +1595,9 @@ def test_inline_threads_keep_their_words_without_live_controls_in_static_media(
         thread.locator("summary").click()
     expect(thread.locator(".lf-conversation-body")).to_be_visible()
     expect(thread).to_contain_text("Keep this check beside the changed line.")
+    expect(thread.get_by_role("img", name="Review evidence")).to_have_js_property(
+        "naturalWidth", 24
+    )
     if resolved:
         thread.locator("summary").click()
         expect(thread.locator(".lf-conversation-body")).to_be_hidden()

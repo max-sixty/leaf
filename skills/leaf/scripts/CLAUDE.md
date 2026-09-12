@@ -11,6 +11,7 @@ domain modules.
 The main owners are:
 
 - `files` and `revisioning`: atomic page files and immutable revisions;
+- `revision_artifact` and `revision_delivery`: captured revision inputs and their delivery URLs;
 - `locations`: filesystem path identity, containment, and overlap;
 - `page`: vendored page guidance;
 - `agent_state`: the agent-facing folded page-state and exact-conversation readings;

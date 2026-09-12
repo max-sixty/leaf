@@ -46,7 +46,9 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: worker/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            worker/package-lock.json
 
       # The runner supplies installed Chrome for the two launcher tests. The rest of
       # the browser suite uses the headless shell matching the locked Playwright.
@@ -55,6 +57,12 @@ jobs:
 
       - name: 🧪 Core and browser-smoke tests
         run: uv run pytest tests -v --junitxml=.tmp/test-results/everyday.xml
+
+      - name: Install browser-build dependencies
+        run: npm ci
+
+      - name: Check committed browser framework
+        run: npm run check:browser && npm run test:browser
 
       - name: Install website dependencies
         run: npm ci

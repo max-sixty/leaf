@@ -61,6 +61,7 @@ EXPECTED_PAGE_DIRECTORIES = (
     "vendor",
     "guidance",
     "media",
+    "page",
 )
 
 

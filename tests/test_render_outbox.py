@@ -350,7 +350,7 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
     page, errors = open_page(browser, serve(BOARD_PAGE))
     outcome = page.evaluate(
         """async () => {
-          const {sendAction} = await import('/runtime/widget-api.js');
+          const {sendAction} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const board = document.querySelector('#sprint');
           const attempt = 'one-attempt-two-actions';
           const first = sendAction(
@@ -884,7 +884,7 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void import('/runtime/widget-api.js').then(({sendAction}) => {
+            """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({sendAction}) => {
               const widget = document.querySelector('#sprint');
               const detail = {card: 'card-baffle', to: 'col-todo', index: 2};
               document.getElementById(detail.to).append(document.getElementById(detail.card));
@@ -998,7 +998,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
 
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void import('/runtime/widget-api.js').then(({sendAction}) => {
+            """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({sendAction}) => {
               const widget = document.querySelector('#outer');
               const detail = {card: 'outer-card', to: 'outer-done', index: 0};
               document.getElementById(detail.to).append(document.getElementById(detail.card));
@@ -1007,7 +1007,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
         )
     page.wait_for_timeout(0)
     page.evaluate(
-        """() => { void import('/runtime/widget-api.js').then(({sendAction}) => {
+        """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({sendAction}) => {
           const widget = document.querySelector('#inner');
           const detail = {card: 'inner-card', to: 'inner-done', index: 0};
           document.getElementById(detail.to).append(document.getElementById(detail.card));
@@ -2707,7 +2707,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     )
     accepted_reading = page.locator("body").get_attribute("data-lf-reading")
     assert page.evaluate(
-        "async () => (await import('/runtime/application.js')).hasPending()"
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).hasPending()"
     ), "the deferred accepted action left before its coordinate committed"
 
     page.locator(".lf-threads-toggle").click()
@@ -2751,7 +2751,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     )
     page.title()  # cross the observer and state-feed microtask checkpoints
     assert page.evaluate(
-        "async () => (await import('/runtime/application.js')).hasPending()"
+        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).hasPending()"
     ), "an external wake released pending state from the uncommitted candidate"
     expect(page.locator("body")).to_have_attribute("data-lf-reading", accepted_reading)
 
@@ -2776,7 +2776,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
 
     expect(page.locator("body")).to_have_attribute("data-lf-reading", accepted_reading)
     page.wait_for_function(
-        "async () => !(await import('/runtime/application.js')).hasPending()",
+        "async () => !(await window.__lfRuntimeImport('/runtime/application.js')).hasPending()",
         timeout=1_000,
     )
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")

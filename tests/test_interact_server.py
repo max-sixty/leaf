@@ -1026,7 +1026,11 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     assert "Backfill plan\u2028Q3" in body
     assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.
-    assert '<link rel="stylesheet" href="/theme.css" data-lf-runtime>' in body
+    artifact_root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
+    assert (
+        f'<link rel="stylesheet" href="{artifact_root}/theme.css" data-lf-runtime>'
+        in body
+    )
 
 
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
@@ -2301,13 +2305,10 @@ def test_server_refuses_a_thread_request_that_swaps_typed_page_subjects(
         ),
     ],
 )
-def test_server_answers_a_broken_registry_instead_of_dropping_the_request(
+def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broken(
     server, page_dir, corrupt, message
 ):
-    """A registry that stopped being a vocabulary refuses like everything else on this
-    path. It exited the process instead, which is the one refusal a reader cannot read:
-    the handler died mid-request and the click came back a dead socket, saying nothing
-    about the page, the action, or what to do next."""
+    """A corrupt candidate cannot take away the active revision's event vocabulary."""
     publish(page_dir)
     registry = json.loads((page_dir / "registry.json").read_text())
     (page_dir / "registry.json").write_text(corrupt(registry))
@@ -2325,11 +2326,11 @@ def test_server_answers_a_broken_registry_instead_of_dropping_the_request(
         ).encode(),
     )
     assert status == 400, body
-    assert message in json.loads(body)["error"]
+    assert "unknown action widget" in json.loads(body)["error"]
     assert not [e for e in event_model.read_events(page_dir) if e["kind"] == "action"]
-    # The refusal cost the request and nothing else: the server is still serving, so a
-    # page whose stamp fell behind still reads even where it can no longer be acted on.
-    assert fetch(f"{server}/api/state")[0] == 200
+    status, state = fetch(f"{server}/api/state")
+    assert status == 200
+    assert message in json.loads(state)["source_error"]
 
 
 def test_server_resolves_actions_from_claude_thread_widgets(server, page_dir):
@@ -2765,7 +2766,7 @@ def test_server_checks_recursive_parent_prerequisite_under_append_lock(
     ] == ["choose", "increase", "choose", "decrease", "move", "increase"]
 
 
-def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
+def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring(
     server, page_dir
 ):
     """An open old tab may outlive the custom layer that upgraded its widget."""
@@ -2824,8 +2825,10 @@ def test_server_rejects_an_action_from_a_widget_removed_by_revendoring(
         ).encode(),
     )
 
-    assert status == 400
-    assert "no longer declares" in json.loads(body)["error"]
+    assert status == 200, body
+    event = json.loads(body)["state"]["events"][-1]
+    assert event["widget"] == "local-draft"
+    assert event["detail"] == {"text": "New words."}
 
 
 def test_concurrent_posts_never_tear_the_log(server, page_dir):
@@ -3704,6 +3707,44 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         response = stream.getresponse()
         assert response.readline().decode().strip() == f"data: {snapshot.reading}"
         stream.close()
+
+
+def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
+    from leaf.validation.source import check_source
+
+    source = PAGE.replace(
+        "</head>", '<script type="module" src="./page/app.js"></script></head>'
+    )
+    (page_dir / "index.html").write_text(source)
+    module = page_dir / "page" / "app.js"
+    module.write_text('document.title = "Checked";')
+    checked = check_source(page_dir, event_model.read_events(page_dir))
+    assert checked.errors == []
+    module.write_text('document.title = "Changed after checking";')
+    revision = (files_model.latest_revision(page_dir) or 0) + 1
+    snapshot = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        checked.document,
+        {"revision": revision, "version": None, "url": "/"},
+        artifact=checked.artifact,
+    )
+    with hosting_model.TemporaryPageServer(
+        page_dir, token=TOKEN, handler_options={"page_snapshot": snapshot}
+    ) as preview:
+        root = "/revisions/" + snapshot.revision_names[revision].removesuffix(".html")
+        status, document = fetch(preview.origin + "/")
+        assert status == 200
+        assert f'src="{root}/page/app.js"'.encode() in document
+        assert (
+            fetch(preview.origin + root + "/page/app.js")[1]
+            == b'document.title = "Checked";'
+        )
+        for path in (
+            "/revisions/no-such-resource",
+            root + "/missing.js",
+            "/revisions/r999-deadbeefdeadbeef.html",
+        ):
+            assert fetch(preview.origin + path)[0] == 404
 
 
 def test_the_key_arrives_in_the_query_and_stays_in_the_cookie(server, page_dir):

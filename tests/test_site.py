@@ -1057,7 +1057,7 @@ def test_the_interaction_gallery_drives_real_widgets(serve, browser):
         expect(viewport.locator("option")).to_have_text(["1×", "2×", "4×"])
         assert gallery.evaluate(
             """async gallery => {
-                const { pageWords, says } = await import('/runtime/passages.js');
+                const { pageWords, says } = await window.__lfRuntimeImport('/runtime/passages.js');
                 const toggle = gallery.querySelector('[data-interaction-toggle]');
                 const status = gallery.querySelector('[data-interaction-status]');
                 return !pageWords(toggle.firstChild)
@@ -1268,7 +1268,7 @@ def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
         assert (
             page.evaluate(
                 """async () => {
-                const {focusDestination} = await import('/runtime/focus.js');
+                const {focusDestination} = await window.__lfRuntimeImport('/runtime/focus.js');
                 document.querySelector('[data-interaction-toggle]').click();
                 focusDestination(document.querySelector('#bg-interactions-title'));
                 return document.activeElement?.id;
@@ -1489,7 +1489,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         contained = next(frame for frame in page.frames if frame.parent_frame)
         assert contained.evaluate(
             """async () => {
-                const {LIVE_ROOT, PAGE_SCOPE} = await import('/runtime/storage.js');
+                const {LIVE_ROOT, PAGE_SCOPE} = await window.__lfRuntimeImport('/runtime/storage.js');
                 return {liveRoot: LIVE_ROOT, pageScope: PAGE_SCOPE};
             }"""
         ) == {"liveRoot": False, "pageScope": "srcdoc"}

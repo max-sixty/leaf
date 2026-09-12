@@ -163,6 +163,7 @@ import {
   stopGlide,
 } from "./runtime/navigation.js";
 import { focusDestination, letGo } from "./runtime/focus.js";
+import { setRuntimeRootAttribute } from "./runtime/root-state.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
@@ -304,6 +305,10 @@ const version = createVersionController({
   readableDestination: anchorTravel.readableDestination,
   scrollToElement: anchorTravel.scrollToElement,
 });
+// Body is the stable programmatic destination when the reader lets go of a control.
+// Register the stop after version.js snapshots source attributes, so later authored
+// revisions do not mistake it for source state and remove it.
+setRuntimeRootAttribute(document.body, "tabindex", "-1");
 
 const inputs = createCompositionInputs({
   uploadMedia,

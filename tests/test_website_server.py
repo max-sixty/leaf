@@ -859,6 +859,8 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "Do not run\n  `$LEAF_REPLY`" in website_server.CODEX_INSTRUCTIONS
     assert "no separate `leaf publish` command" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF page state ." in website_server.CODEX_INSTRUCTIONS
+    assert "board card placement" in website_server.CODEX_INSTRUCTIONS
+    assert "draft body edits" in website_server.CODEX_INSTRUCTIONS
     assert "correct any `source.error`" in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF version check" not in website_server.CODEX_INSTRUCTIONS
     assert "$LEAF status" not in website_server.CODEX_INSTRUCTIONS
@@ -2324,6 +2326,71 @@ def test_a_page_action_starts_once_and_settles_without_a_reply(
         httpd.server_close()
         thread.join(timeout=2)
         host.close()
+
+
+@pytest.mark.parametrize(
+    ("initial_markup", "settled_markup", "widget", "action", "detail"),
+    (
+        pytest.param(
+            '<lf-board id="tasks"><lf-column id="todo" label="Todo">'
+            '<lf-card id="first"><strong>First</strong></lf-card></lf-column>'
+            '<lf-column id="done" label="Done"></lf-column></lf-board>',
+            '<lf-board id="tasks"><lf-column id="todo" label="Todo"></lf-column>'
+            '<lf-column id="done" label="Done"><lf-card id="first">'
+            "<strong>First</strong></lf-card></lf-column></lf-board>",
+            "tasks",
+            "move",
+            {"card": "first", "to": "done", "index": 0},
+            id="board-move",
+        ),
+        pytest.param(
+            '<lf-draft id="summary"><pre>First draft.</pre></lf-draft>',
+            '<lf-draft id="summary"><pre>Reader draft.</pre></lf-draft>',
+            "summary",
+            "edit",
+            {"text": "Reader draft."},
+            id="draft-edit",
+        ),
+    ),
+)
+def test_a_completed_page_action_settles_after_its_markup_is_in_source(
+    page_dir, initial_markup, settled_markup, widget, action, detail
+):
+    """The hosted guide closes each declared markup action by authoring its projection."""
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace("<h2>Plan</h2>", f"<h2>Plan</h2>{initial_markup}")
+    )
+    with website_server.PageTransaction(page_dir) as page:
+        activation = website_server.activate_source(page_dir, page.events)
+        page.append_event(
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": activation.revision,
+                "widget": widget,
+                "action": action,
+                "detail": detail,
+            },
+            load_registry(page_dir),
+        )
+
+    identity = {"id": "action-thread", "host": "codex", "agent": "Leaf guide"}
+    website_server.prepare_codex_delivery(page_dir, identity, {"pid": os.getpid()})
+    [delivery] = website_server.accept_codex_delivery("action-thread")
+    source.write_text(source.read_text().replace(initial_markup, settled_markup))
+
+    host = website_server.WebsiteCodexHost("codex")
+    host._finish_turn(
+        page_dir,
+        "action-thread",
+        delivery["turn"],
+        {"id": "action-turn", "status": "completed", "error": None},
+    )
+
+    state = website_server.full_state(page_dir, read_events(page_dir))
+    assert state["activity"]["interactions"] == []
+    assert not any(item["kind"] == "comment" for item in state["events"])
 
 
 @pytest.mark.parametrize("failure", ["startup", "turn", "publication", "omission"])

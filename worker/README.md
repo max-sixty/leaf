@@ -180,10 +180,12 @@ inline as structured `leaf_delivery` when the task is idle or queued by its immu
 without the authoring plugin: its compact developer
 instructions and the ready `$LEAF` CLI are the complete interface, so skill discovery
 cannot turn a small reader response into a full authoring workflow. The hosted task can
-revise `index.html`, validate it, append thread replies, and leave the page waiting. The
-initiating App Server connection projects the turn's native activity notifications back
-through Leaf. For queued input it stays subscribed through the active turn, records the
-queued turn opening, and observes that turn to its terminal state. The container's
+revise `index.html`, validate it, append thread replies, and leave the page waiting. It
+copies every standing markup action into source, including option state, board placement,
+and draft bodies, before its turn closes. The initiating App Server connection projects
+the turn's native activity notifications back through Leaf. For queued input it stays
+subscribed through the active turn, records the queued turn opening, and observes that
+turn to its terminal state. The container's
 pickup is idempotent, so a repeated dispatch does not start the work twice. Page actions
 reach the agent even when they require no conversational reply. The accepted
 event and active turn are not yet mirrored into Durable Object storage, and no alarm

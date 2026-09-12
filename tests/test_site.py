@@ -256,6 +256,15 @@ def test_the_homepage_shows_the_example_selected_by_the_reader(hosted, browser):
         addition.get_by_role("button", name="Add option").click()
         expect(page.locator("#try-empty")).to_be_visible()
         expect(page.locator("#try-result > article:visible")).to_have_count(0)
+        added = page.locator("#first-task-choice > lf-option[chosen]")
+        added_id = added.get_attribute("id")
+        page.locator("#try-result").evaluate(
+            "(node, id) => node.insertAdjacentHTML('beforeend', "
+            '`<article id="${id}-example"><h3>Added task</h3></article>`)',
+            added_id,
+        )
+        expect(page.locator(f"#{added_id}-example")).to_be_visible()
+        expect(page.locator("#try-empty")).to_be_hidden()
 
         cases = (
             ("Make a decision", "try-decision-example"),

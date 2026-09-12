@@ -102,7 +102,7 @@ const containedBy = (root, node) => {
 export function createDataProjection({ invalidateDom }) {
   let dataPaintQueued = false;
   const changedRoots = new Set();
-  function projectionChanged(root) {
+  function applyProjection(root) {
     changedRoots.add(root);
     if (dataPaintQueued) return;
     dataPaintQueued = true;
@@ -261,7 +261,7 @@ export function createDataProjection({ invalidateDom }) {
         if (child.nodeType !== Node.ELEMENT_NODE) child.remove();
       setChildren(root, wanted);
     }
-    projectionChanged(root);
+    applyProjection(root);
     return wanted;
   }
 

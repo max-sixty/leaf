@@ -314,10 +314,11 @@ Startup order is load-bearing:
 2. Begin the first state read without applying its answer.
 3. Restore the reader's arrangement from storage, and let focus go to the page.
 4. Fetch and validate the registry.
-5. Index passage fences and authored parent identities before upgrade changes the DOM.
+5. Index passage fences, authored parent identities, and each widget's immutable
+   descriptor before upgrade changes the DOM.
 6. Import the modules declared by `x-upgrade` for the tags this document
    contains, and no others.
-7. Wait for module settlement, then run the shared dressing passes.
+7. Wait for controller-registered presentation, then run the shared dressing passes.
 8. Capture authored record facets from the upgraded, authored state.
 9. Settle optional runtime-owned page interface that composes those widgets.
 10. Mark `body` `data-lf-upgraded="1"`.
@@ -343,8 +344,8 @@ source-dependent space when that data arrives; stable geometry for that content 
 an authored reserve or a fixed rendering posture. Fixed status and unanchored discussion
 chrome remain usable while a live page waits.
 An optional page-interface failure reports itself without withholding presentation.
-Modules must consult `actionAvailable` or `requestAvailable` before optimistic mutation
-as well as before sending; their common send doors repeat the check. Selecting a passage
+Modules read command availability from `widgetController(owner).read()` before
+optimistic mutation; `dispatch()` re-reads the publisher and repeats the check. Selecting a passage
 does not raise the anchored composer until the passage has survived the first projection.
 
 `presentPage` owns the one transition from arrival to stateful interaction. Motion
@@ -373,7 +374,7 @@ what each current widget node has rendered. Python derives the durable side (bel
 declare `requires`, a prerequisite over the standing Ask projection that
 `x-awaits` defines. Its target is the sender or its
 declared parent, and `awaiting` states whether that Ask must be open or closed.
-`actionAvailable` paints and guards the action, `sendAction` checks at the common
+The controller's action entry paints and guards the action, `dispatch()` checks at the common
 browser door, and POST evaluates the same declaration from the authoritative log
 under the append lock. No eligibility cache sits beside the ordinary Ask and state
 projections. `x-awaits.answers` says which actions actually close the Ask;
@@ -686,9 +687,9 @@ been removed. `render-checks/init.js` installs the pre-navigation window-error c
 | `replayOverrides` | the log, not conflicting authored markup, determines projected state |
 | `relativeReplays` | rendering each complete widget state twice changes nothing |
 
-`standingState` and `shallowSigs` are exported by their projection owner through the
-widget API for these gates. Keep their
-readings aligned with the runtime's projection and authored-state definitions.
+`validationWidgetStates` is an internal publisher-backed validation adapter;
+`shallowSigs` is the DOM signature helper. Keep their readings aligned with the
+runtime's projection and authored-state definitions.
 Do not create a test-only interpretation of a widget's state.
 
 The static check and browser gate cover different boundaries. Static validation

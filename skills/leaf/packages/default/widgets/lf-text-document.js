@@ -1,7 +1,7 @@
 import {
   failSoft,
   projectData,
-  settle,
+  widgetController,
   synNodes,
   syntax,
   watchData,
@@ -16,7 +16,7 @@ customElements.define(
       this.stopWatching = watchData(this, "document", (snapshot) => {
         const rendering = this.render(snapshot);
         if (first) {
-          settle(rendering);
+          widgetController(this).present(rendering);
           first = false;
         }
         return rendering;

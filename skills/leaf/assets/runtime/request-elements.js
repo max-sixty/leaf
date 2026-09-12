@@ -4,17 +4,13 @@
 import { keys as commands } from "./keyboard/scopes.js";
 import { offer, quoted } from "./widget-elements.js";
 import { once } from "./widget-upgrade.js";
+import { widgetController } from "./widget-controller.js";
 
 const title = (option) =>
   option.querySelector(":scope > strong")?.textContent.trim() ||
   option.getAttribute("verb").replaceAll("-", " ");
 
-export function createDefineRequestElement({
-  requestAvailable,
-  sendRequest,
-  watchRequestLifecycle,
-}) {
-  return function defineRequestElement(
+export function defineRequestElement(
     tagName,
     {
       itemTag,
@@ -35,7 +31,8 @@ export function createDefineRequestElement({
       for (const option of children(holder)) {
         const verb = option.getAttribute("verb");
         const control = option.querySelector(":scope > .lf-request-press");
-        const available = !locked && requestAvailable(holder, verb);
+        const available =
+          !locked && (holder._controller.read().requests[verb]?.available ?? false);
         option.toggleAttribute("data-lf-requested", request?.action === verb);
         control.setAttribute("aria-disabled", String(!available));
         control.tabIndex = available ? 0 : -1;
@@ -60,6 +57,7 @@ export function createDefineRequestElement({
             if (!once(this)) return;
             this._requestWired = true;
             if (quoted(this)) return;
+            this._controller = widgetController(this);
             for (const option of children(this)) {
               const control = offer("button", "lf-btn lf-request-press", controlText);
               const label = title(option);
@@ -69,12 +67,16 @@ export function createDefineRequestElement({
                 if (
                   this._sendingRequest ||
                   this._requestLifecycle.phase !== "ready" ||
-                  !requestAvailable(this, verb)
+                  !this._controller.read().requests[verb]?.available
                 )
                   return;
                 this._sendingRequest = true;
                 paint(this, this._requestLifecycle);
-                const accepted = await sendRequest(this, verb, detail(this));
+                const accepted = await this._controller.dispatch({
+                  kind: "request",
+                  verb,
+                  detail: detail(this),
+                })?.delivery;
                 this._sendingRequest = false;
                 if (!accepted) paint(this, this._requestLifecycle);
               };
@@ -112,9 +114,10 @@ export function createDefineRequestElement({
             this.append(status);
           }
           if (quoted(this)) return;
+          this._controller ??= widgetController(this);
           if (!this._stopRequestWatch)
-            this._stopRequestWatch = watchRequestLifecycle(this, (lifecycle) =>
-              paint(this, lifecycle),
+            this._stopRequestWatch = this._controller.subscribe((reading) =>
+              paint(this, reading.request),
             );
         }
 
@@ -124,5 +127,4 @@ export function createDefineRequestElement({
         }
       },
     );
-  };
 }

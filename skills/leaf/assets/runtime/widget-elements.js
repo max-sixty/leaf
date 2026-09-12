@@ -81,7 +81,7 @@ export function el(tag, cls, text) {
 // just can't see in.
 export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 
-// A render bound to the `lf-actions` heartbeat runs every two seconds on a page nobody
+// A render bound to semantic publication can run on a page nobody
 // has touched, so a write that restates what the node already says restates it at that
 // rate: the mutation stream a screen reader rebuilds its buffer from, a fresh dirty box
 // for whatever reads next, and — for the attributes the document's disclosure watch
@@ -119,11 +119,6 @@ export const dragging = (el, on) => {
 export const LAYOUT = "lf-layout";
 export const layoutChanged = (el) =>
   el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
-
-// A widget may temporarily decline renderState while the reader owns a local edit.
-// When that edit closes, the state feed retries the deferred authoritative projection.
-export const projectionChanged = () =>
-  document.dispatchEvent(new Event("lf-projection"));
 
 // A number a widget can only read off a box the browser has laid out. Three ship: the
 // room a pick mark's word will need, the room a card keeps clear of its grip, the width

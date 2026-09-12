@@ -15,7 +15,6 @@
  * The last projection signature distinguishes those cases without making the DOM or a
  * second event history authoritative. */
 import {
-  actionAvailable,
   arrangeReadingElement,
   commands,
   compoundReadingRegionId,
@@ -31,8 +30,8 @@ import {
   registerReadingElement,
   reserve,
   says,
-  sendAction,
   tabStore,
+  widgetController,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
 
@@ -49,6 +48,7 @@ const sameKeys = (left, right) =>
 customElements.define(
   "lf-playground",
   class extends HTMLElement {
+    #controller = widgetController(this);
     #controls = [];
     #controlByName = new Map();
     #presetSettings = new Map();
@@ -65,16 +65,21 @@ customElements.define(
     #ready = false;
     #interactive = false;
     #readingArrangements = [];
+    #stop = null;
 
     connectedCallback() {
       if (!once(this)) {
         if (this.#interactive && this.#ready) this.#registerLayout();
+        if (this.#interactive)
+          this.#stop ??= this.#controller.subscribe(this.#paintAvailability);
         this.#paintAvailability();
         return;
       }
       try {
         this.#build();
         this.#ready = true;
+        if (this.#interactive)
+          this.#stop ??= this.#controller.subscribe(this.#paintAvailability);
       } catch (error) {
         this.#cleanupLayout();
         failSoft(this, error);
@@ -82,6 +87,8 @@ customElements.define(
     }
 
     disconnectedCallback() {
+      this.#stop?.();
+      this.#stop = null;
       this.#cleanupLayout();
     }
 
@@ -473,7 +480,7 @@ customElements.define(
             decision: () => this.#submit.textContent,
             does: () => this.#submit.textContent,
             line: () => this.#submit.textContent.toLowerCase(),
-            when: () => actionAvailable(this, "choose"),
+            when: () => this.#available(),
             run: () => this.#submit.click(),
           },
           {
@@ -609,15 +616,16 @@ customElements.define(
     }
 
     async #choose() {
-      if (this.#choosing || !actionAvailable(this, "choose")) return;
+      if (this.#choosing || !this.#available()) return;
       this.#choosing = true;
       this.#paintAvailability();
       this.#submit.setAttribute("aria-busy", "true");
       try {
-        const event = await sendAction(this, "choose", {
-          values: this.values,
-          instruction: this.#instruction(),
-        });
+        const event = await this.#controller.dispatch({
+          kind: "action",
+          verb: "choose",
+          detail: { values: this.values, instruction: this.#instruction() },
+        })?.delivery;
         if (event) notice("Playground settings sent");
       } finally {
         this.#choosing = false;
@@ -628,8 +636,12 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      this.#submit.disabled = this.#choosing || !actionAvailable(this, "choose");
+      this.#submit.disabled = this.#choosing || !this.#available();
       paintKeys();
+    }
+
+    #available() {
+      return this.#controller.read().actions.choose?.available ?? false;
     }
 
     renderState(state) {

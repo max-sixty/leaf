@@ -9,9 +9,9 @@
 import { computed, signal } from "@preact/signals-core";
 
 export type Immutable<T> =
-  T extends Map<infer K, infer V>
+  T extends ReadonlyMap<infer K, infer V>
     ? ReadonlyMap<Immutable<K>, Immutable<V>>
-    : T extends Set<infer V>
+    : T extends ReadonlySet<infer V>
       ? ReadonlySet<Immutable<V>>
       : T extends object
         ? { readonly [K in keyof T]: Immutable<T[K]> }

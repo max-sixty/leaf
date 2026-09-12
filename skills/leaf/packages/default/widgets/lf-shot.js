@@ -29,7 +29,7 @@ import {
   registerMarginContribution,
   scopedMediaUrl,
   selectableOffer,
-  settle,
+  widgetController,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -138,7 +138,7 @@ customElements.define(
       paint();
       this.append(box, this.#button);
       this.#offer();
-      settle(this.register(shots));
+      widgetController(this).present(this.register(shots));
     }
 
     disconnectedCallback() {

@@ -186,8 +186,8 @@ offline fallback, is safe for recorded interaction. Authored content is already 
 Leaf disables its arrival transitions and withholds dialogs, popovers, and durable widget
 actions before that stamp. Package styles need no arrival guard. A declared `x-shadow`
 widget gets the same transition and top-layer protection when it builds its root with
-`shadowStage`. A module must guard every optimistic mutation with `actionAvailable` or
-`requestAvailable`; the send door repeats the same check. Leaf's own anchored composer
+`shadowStage`. A module must guard every optimistic mutation with the matching command
+entry in `widgetController(owner).read()`; `dispatch()` repeats the same check. Leaf's own anchored composer
 uses the same stamp before it can capture or post a passage coordinate.
 
 ## A widget
@@ -287,21 +287,39 @@ only that public helper surface, and does not reach into the runtime's private o
 query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
 `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
 generated images or links. It uses the page's public root across ordinary, MCP, and
-published pages while the source retains its canonical path. What the module owes:
-a total, idempotent `renderState(state)`; `sendAction` for recorded user state, with a
+published pages while the source retains its canonical path.
+
+`widgetController(owner)` is the one semantic interface. Leaf captures the owner's id,
+tag, document, revision-bound declaration, authored ownership and exhibit fences,
+request bindings, and direct offers before upgrade; callers supply no options. Author
+changes to those facts fail closed, while Leaf's own physical reparenting does not alter
+the descriptor. `read()` returns an immutable `{state, provenance, actions, requests,
+request, delivery}` snapshot. Each command entry carries its availability and exact
+history or Undo candidates. `subscribe(callback)` invokes immediately from the same
+publisher, returns cleanup, and should be stopped on disconnect; reconnecting subscribes
+again. `dispatch({kind: "action" | "request", verb, detail, attempt?})` and
+`dispatch({kind: "undo", target})` synchronously return `null` when the newest reading
+refuses the command, otherwise `{reading, delivery}`. The returned reading already holds
+the optimistic semantic result; delivery later yields the admitted event or null and a
+refusal restores authoritative state. Undo targets only a stable `id` or `attempt` from
+the current command entry's candidates. The server remains final admission for every
+command.
+
+What the module owes:
+a total, idempotent `renderState(state)`; `widgetController(owner).dispatch()` for recorded user state, with a
 detail matching the declared browser schema; `says()` over `textContent`; `offer()` and
 `relabel()` on anything injected, with its room reserved from inside `measure` and
-`layoutChanged` called after a view swap; box-derived apparatus takes its first visible
+`layoutChanged` called after a view swap; asynchronous visible preparation is registered
+through `controller.present(promise)`; box-derived apparatus takes its first visible
 reading synchronously from `PRESENTATION` and observes later changes through the normal
 layout signals (each helper's header under `runtime/` says why); `keeps(node, name,
-value)` for any name or state a render on the `lf-actions`
-heartbeat writes, handed the boolean or count raw, since an unconditional
-`setAttribute` restates itself every two seconds on a page nobody has touched and
+value)` for any name or state a reactive render writes, handed the boolean or count raw,
+since an unconditional `setAttribute` restates itself on every publication and
 `toggleAttribute` already keeps the rule for flags; `once()` in a `connectedCallback` that is safe to run after reconnection, and
 hoisted chrome removed in `disconnectedCallback` when the owner disconnects;
 `commands()` at upgrade — through `DISCLOSE(el)` over anything that folds, the runtime
-owning those commands — `quoted()` before wiring input, `actionAvailable()` for an
-x-state verb with `requires`, and durable state in attributes because export drops the
+owning those commands — `quoted()` before wiring input, controller command availability
+for an x-state verb with `requires`, and durable state in attributes because export drops the
 scripts.
 `renderState` receives every declared facet, including the initial values an undo
 returns to. Widget facets are `{action, value, detail}`: `action` is null for authored
@@ -311,9 +329,9 @@ Non-widget facets contain `units`, keyed by unit id, and position facets also co
 `value`, a map from container id to the complete ordered ids it holds. Missing
 recordless units are undecided. Render the final composition and keep independent
 nested widgets mounted; never recreate the owner to restore an initial state.
-`false` is the only return value state projection interprets: return it while a live
-edit prevents rendering. After the edit closes, call `projectionChanged()` so the state
-feed retries the deferred authoritative projection after the gesture has finished
+`false` is the only return value state projection interprets. A live editor instead calls
+`controller.defer()` before it begins and invokes the returned one-shot resume after it
+closes; resume reconciles the newest publisher reading after the gesture has finished
 staging its local action.
 Projection ignores every other return value. A renderer may return the `Animation` for
 its production transition so an interaction-gallery scenario can join that motion to
@@ -418,8 +436,8 @@ controls or availability change, keep the row fields computed and call `paintKey
 every command projection then updates together. A package that needs the page-wide open
 Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)`
 immediately, invokes it again after a complete Ask projection reconciles, binds the
-subscription lifetime to `owner`, and returns an explicit cleanup function. Packages do
-not listen to Leaf's internal `lf-actions` invalidation event.
+subscription lifetime to `owner`, and returns an explicit cleanup function. Package
+semantic behavior subscribes only through its controller.
 
 `x-visual` exposes stable Comment targets on a rendered picture. The value `whole` uses
 the widget's authored id and the widget itself as the visual surface, so aim and marks
@@ -523,7 +541,8 @@ The module imports `defineRequestElement` from `/runtime/widget-api.js` for the 
 request-row shape. The package supplies its control, command, and status words while the
 shared element wires each offered child into the server-projected request seat, registers
 its answer, and paints its lifecycle. A package that needs another control shape uses
-`requestAvailable`, `sendRequest`, and `watchRequestLifecycle` directly. A failed receipt
+the same widget controller: request entries carry availability, `request` carries the
+seat lifecycle, and `dispatch({kind: "request", verb, detail})` sends it. A failed receipt
 makes the seat ready again; a successful receipt completes it. A page holder gets a new
 seat in a new authored revision, while a holder in frozen thread markup keeps one seat
 for that document's whole lifetime. Requests are not replayable state and are not
@@ -723,7 +742,7 @@ and line range. It runs immediately and again when that source revision changes.
 Return the cleanup function from the element's disconnect path. The callback must
 state the whole rendering and remain idempotent.
 
-Time readings made synchronously in `watchData`, `watchActions`, `watchUpdates`, and
+Time readings made synchronously in controller, `watchData`, `watchUpdates`, and
 `watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`
 and `quietSince` refresh the callback only when their result changes. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the

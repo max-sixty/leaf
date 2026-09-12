@@ -355,13 +355,13 @@ export function sendMessage(ctx, owns, send) {
 }
 
 // A draft written in another view, routed to whatever is showing it here. The document is
-// the bus, as it is for replayed actions (watchActions), and that is what supplies the
+// semantic publication, as it is for replayed actions, and that is what supplies the
 // index this needs — from a draft's context to the box on screen — without a map of our
 // own to hold in step with the panel: a box that has left the document takes its view off
 // with it (mirrorDraft). The callback takes the store's vocabulary: active words and
 // their optional submission payload, or null and no payload for settlement.
 //
-// It does not run on subscribe, which is where this parts company with watchActions. The
+// It does not run on subscribe, which is where this parts company with controller state. The
 // draft a box opens with and the news that another tab changed one are different facts,
 // and the boxes answer them differently: a draft editor opens on recovery at load and
 // stays shut for a keystroke made elsewhere, because news arriving has no gesture behind

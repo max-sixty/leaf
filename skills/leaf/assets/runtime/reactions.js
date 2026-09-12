@@ -51,6 +51,7 @@ import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./conversation/messages.js";
 import { iconElement } from "./icons.js";
 import { paintReactionStanding } from "./reaction-standing.js";
+import { watchProjection } from "./projection-watch.js";
 
 // Standing tokens wear their emoji wherever they stand, and `aria-pressed` is the whole
 // of what a palette chip adds — the fill it reads carries the same fact for the eye.
@@ -528,7 +529,7 @@ export function createReactionController({
     document.addEventListener("lf-margin-entry-options-closed", () => {
       if (reactArmed && reactSurface === marginSurface) setReact(false);
     });
-    document.addEventListener("lf-actions", () => {
+    watchProjection(document.body, () => {
       if (
         reactArmed &&
         reactSurface === marginSurface &&

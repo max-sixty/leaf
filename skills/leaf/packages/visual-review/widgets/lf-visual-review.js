@@ -5,7 +5,6 @@
 import "/widgets/lf-shot.js";
 
 import {
-  actionAvailable,
   arrangeReadingElement,
   commands,
   compoundReadingRegionId,
@@ -22,10 +21,7 @@ import {
   registerThreadSurface,
   relabel,
   scopedMediaUrl,
-  sendAction,
-  settle,
-  standingState,
-  watchActions,
+  widgetController,
   watchData,
 } from "/runtime/widget-api.js";
 
@@ -97,6 +93,7 @@ function orderChildren(parent, children) {
 customElements.define(
   "lf-visual-review",
   class extends HTMLElement {
+    #controller = widgetController(this);
     #arrangements = [];
     #caseEntries = new Map();
     #casesBody = null;
@@ -134,13 +131,15 @@ customElements.define(
       for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
         this.#sizes.observe(stage);
       window.addEventListener("resize", this.#onResize);
-      settle(this.#fitting.update());
+      this.#controller.present(this.#fitting.update());
       this.#threadSurface ??= registerThreadSurface(this, {
         begin: () => {},
         outletFor: (entry) => this.#threadOutlet(entry),
         end: () => {},
       });
-      this.stopActions ??= watchActions(this, null, () => this.#paintAvailability());
+      this.stopActions ??= this.#controller.subscribe(() =>
+        this.#paintAvailability(),
+      );
       this.stopWatching ??= watchData(this, "run", (snapshot) => this.#show(snapshot));
     }
 
@@ -627,7 +626,7 @@ customElements.define(
         this.#select(this.#selected);
         this.#paintInspector();
         this.#renderStandingState();
-        settle(this.#fitting?.update());
+        this.#controller.present(this.#fitting?.update());
       } catch (error) {
         failSoft(this, error);
       }
@@ -918,16 +917,19 @@ customElements.define(
     }
 
     async #review(id, disposition) {
-      if (!actionAvailable(this, "review")) return;
+      if (!this.#controller.read().actions.review.available) return;
       this.#setDisposition(id, disposition);
-      const accepted = await sendAction(this, "review", { case: id, disposition });
+      const accepted = await this.#controller.dispatch({
+        kind: "action",
+        verb: "review",
+        detail: { case: id, disposition },
+      })?.delivery;
       if (accepted) notice(`${DISPOSITION[disposition]} — sent`);
       else this.#renderStandingState();
     }
 
     #renderStandingState() {
-      const current = standingState().find(({ widget }) => widget === this);
-      this.renderState(current?.state);
+      this.renderState(this.#controller.read().state);
     }
 
     #setDisposition(id, disposition) {
@@ -957,7 +959,7 @@ customElements.define(
     }
 
     #paintAvailability() {
-      const available = actionAvailable(this, "review");
+      const available = this.#controller.read().actions.review?.available ?? false;
       for (const button of this.querySelectorAll(".lf-vr-disposition"))
         button.disabled = !available;
       paintKeys();

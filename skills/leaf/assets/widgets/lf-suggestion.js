@@ -17,8 +17,6 @@
  * target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
 import {
-  actionAvailable,
-  actionStands,
   alignText,
   announce,
   commands,
@@ -34,13 +32,10 @@ import {
   renderRetired,
   registerMarginContribution,
   says,
-  sendAction,
   shownParts,
   textNodesUnder,
   notice,
-  undoableAction,
-  watchActions,
-  withdraw,
+  widgetController,
 } from "/runtime/widget-api.js";
 
 const WORDS = { accept: "Accept", reject: "Reject" };
@@ -136,14 +131,15 @@ customElements.define(
     #undo = null;
     #undoing = false;
     #margin = null;
-    #stopActions = null;
+    #stopReading = null;
+    #controller = null;
 
     connectedCallback() {
       // Re-connection — a card dragged to another column, a replay moving one — must
       // restore this target's contribution to the shared margin entry cluster.
       if (!once(this)) {
         this.#offer();
-        this.#watchActions();
+        this.#watchReading();
         return;
       }
       // Presentation, not input, so an exhibited pending change gets it too:
@@ -154,6 +150,7 @@ customElements.define(
       // exhibit shows what a pending change looks like, so it keeps the marks
       // the theme draws and never grows controls to decide it with.
       if (quoted(this)) return;
+      this.#controller = widgetController(this);
       // The runtime says it just opened this element's containers (reveal): the row
       // may be waiting on geometry the target only now has, and the caller is about
       // to focus it, so the layout question is answered now rather than at the
@@ -167,12 +164,13 @@ customElements.define(
       this.#reject = this.#button("reject");
       this.#renderControls();
       this.#offer();
-      this.#watchActions();
+      this.#watchReading();
     }
 
-    #watchActions() {
+    #watchReading() {
       if (quoted(this) || !this.#row) return;
-      this.#stopActions ??= watchActions(this, null, () => {
+      this.#controller ??= widgetController(this);
+      this.#stopReading ??= this.#controller.subscribe(() => {
         if (!this.dataset.lfState) {
           this.#paintAvailability();
           return;
@@ -183,8 +181,8 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      this.#stopActions?.();
-      this.#stopActions = null;
+      this.#stopReading?.();
+      this.#stopReading = null;
       this.#margin?.unregister();
       this.#margin = null;
       emphasized.delete(this);
@@ -216,7 +214,7 @@ customElements.define(
               ? "busy"
               : "idle",
         items: () =>
-          this.dataset.lfState && !undoableAction(this, this.dataset.lfState)
+          this.dataset.lfState && !this.#undoable(this.dataset.lfState)
             ? []
             : [
                 {
@@ -277,7 +275,9 @@ customElements.define(
     #paintAvailability = () => {
       for (const btn of [this.#accept, this.#reject]) {
         const available =
-          !this.#staging && !this.#deciding && actionAvailable(this, verb(btn));
+          !this.#staging &&
+          !this.#deciding &&
+          this.#controller.read().actions[verb(btn)]?.available;
         const disabled = String(!available);
         if (btn.getAttribute("aria-disabled") !== disabled)
           btn.setAttribute("aria-disabled", disabled);
@@ -322,7 +322,7 @@ customElements.define(
         );
         delete this.#row.dataset.lfMarginReceipt;
         this.#replaceControls(
-          ...(pending || undoableAction(this, outcome) ? [this.#undo] : []),
+          ...(pending || this.#undoable(outcome) ? [this.#undo] : []),
         );
         return;
       }
@@ -440,7 +440,8 @@ customElements.define(
     // controls, so the reader returns to a pending suggestion with Failed, Retry, Cancel.
     #decide(outcome) {
       if (this.dataset.lfState) return Promise.resolve(true);
-      if (!actionAvailable(this, outcome)) return Promise.resolve(false);
+      if (!this.#controller.read().actions[outcome]?.available)
+        return Promise.resolve(false);
       if (this.#staging || this.#deciding)
         return this.#deciding ?? Promise.resolve(false);
       // Read before deciding: deciding retires a slot, a retired slot leaves the page's
@@ -465,7 +466,13 @@ customElements.define(
       // gesture the durable id Undo must name.
       this.#staging = true;
       this.#settle(outcome);
-      const sent = sendAction(this, outcome, detail).then((accepted) => {
+      const sent = (
+        this.#controller.dispatch({
+          kind: "action",
+          verb: outcome,
+          detail,
+        })?.delivery ?? Promise.resolve(null)
+      ).then((accepted) => {
         this.#deciding = null;
         this.removeAttribute("aria-busy");
         if (!accepted) {
@@ -480,7 +487,7 @@ customElements.define(
         // Usually the accepted state has already replayed this decision. Paint is
         // still owed if another part of that state failed to render, but not if the
         // same event list also carried a later undo: authored state then stands.
-        if (actionStands(accepted)) {
+        if (this.#acceptedStillStands(accepted)) {
           if (this.dataset.lfState === outcome) {
             this.#renderControls(label);
             this.#margin?.update();
@@ -499,6 +506,18 @@ customElements.define(
       this.#inFlight(sent, label);
       this.#staging = false;
       return sent;
+    }
+
+    #acceptedStillStands(event) {
+      return Object.values(this.#controller.read().actions).some(({ standing }) =>
+        standing.some((winner) => winner.event.id === event.id),
+      );
+    }
+
+    #undoable(outcome) {
+      return this.#controller
+        .read()
+        .actions[outcome]?.undo.find((event) => event.action === outcome);
     }
 
     // The field refuses a second press while the first is unresolved. A pending result
@@ -537,7 +556,7 @@ customElements.define(
         notice("Wait for the current change to finish before undoing");
         return;
       }
-      const event = undoableAction(this, outcome);
+      const event = this.#undoable(outcome);
       if (!event) {
         notice("This outcome is no longer available to undo");
         return;
@@ -547,7 +566,13 @@ customElements.define(
       this.#renderControls();
       this.#margin?.update();
       try {
-        if (!(await withdraw(event))) this.#failed = { undo: true };
+        if (
+          !(await this.#controller.dispatch({
+            kind: "undo",
+            target: event.attempt ?? event.id,
+          })?.delivery)
+        )
+          this.#failed = { undo: true };
       } finally {
         this.#undoing = false;
         if (this.isConnected) {

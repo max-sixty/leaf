@@ -37,7 +37,7 @@
      while its canonical request lifecycle is `ready`. Pending and completed requests
      are the host's turn; a failed receipt returns the holder to the reader without a
      package-maintained pending flag.
-   - `standingState` exposes replay winners to the render gate without naming a widget,
+   - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
      does and the poll replays it the same way, so the premise that every `renderState`
      is absolute binds it too.

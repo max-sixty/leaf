@@ -142,6 +142,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "../presentation.js";
 import { scrollBehavior } from "../motion.js";
 import { ASK_CONTROL, askActionLayer } from "./view-elements.js";
 import { availableCommandRoutes } from "../keyboard/dispatch.js";
+import { watchProjection } from "../projection-watch.js";
 
 // Contextual actions for the Ask the reader is standing in. These share the binding-badge face
 // but not the g sequence's lifecycle: the ask view paints them whenever its semantic
@@ -1141,13 +1142,14 @@ export function createAskView({
     refreshConversation();
   };
   let mounted = false;
+  let stopActionChanges = null;
   const actionsChanged = () => queueMicrotask(() => mounted && syncAsks());
   const pageScrolled = () => reachableActionRoutes().length && repaint();
 
   function mount() {
     if (mounted) return;
     mounted = true;
-    document.addEventListener("lf-actions", actionsChanged);
+    stopActionChanges = watchProjection(document.body, actionsChanged);
     document.addEventListener("lf-answered", answered);
     addEventListener("scroll", pageScrolled, { capture: true, passive: true });
     addEventListener("resize", repaint);
@@ -1156,7 +1158,8 @@ export function createAskView({
   function destroy() {
     if (mounted) {
       mounted = false;
-      document.removeEventListener("lf-actions", actionsChanged);
+      stopActionChanges?.();
+      stopActionChanges = null;
       document.removeEventListener("lf-answered", answered);
       globalThis.removeEventListener("scroll", pageScrolled, { capture: true });
       globalThis.removeEventListener("resize", repaint);

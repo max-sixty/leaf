@@ -332,7 +332,7 @@ import {
   fitRootReadingElement,
   once,
   registerReadingElement,
-  settle,
+  widgetController,
 } from '/runtime/widget-api.js';
 
 customElements.define('lf-studio', class extends HTMLElement {
@@ -350,7 +350,7 @@ customElements.define('lf-studio', class extends HTMLElement {
       readingArrangement: this.readingArrangement,
       minimumSize: () => ({width: 200, height: 200}),
     });
-    settle(this.fitting.update());
+    widgetController(this).present(this.fitting.update());
   }
 
   disconnectedCallback() {

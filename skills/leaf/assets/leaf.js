@@ -103,6 +103,7 @@ import { createAuxiliaryChromeNavigation } from "./runtime/auxiliary-chrome.js";
 import { createAuxiliaryModality } from "./runtime/auxiliary-modality.js";
 import { restoreReaderView } from "./runtime/restore-state.js";
 import { readerStore } from "./runtime/storage.js";
+import { watchProjection } from "./runtime/projection-watch.js";
 import { createVersionController, versionBtn, versionMenu } from "./runtime/version.js";
 import {
   banner,
@@ -827,7 +828,7 @@ async function syncInteractionGallery() {
     reportPageError(`interaction gallery failed to start: ${error?.message ?? error}`);
   }
 }
-document.addEventListener("lf-actions", () => void syncInteractionGallery());
+watchProjection(document.body, () => void syncInteractionGallery());
 document.addEventListener(PAGE_INTERFACE, (event) =>
   event.detail.pending.push(syncInteractionGallery()),
 );
@@ -859,7 +860,7 @@ function presentPage() {
   trays.restoreTray();
   showNews(othersBtn, leavesOffered());
   paintKeys();
-  document.dispatchEvent(new Event("lf-actions"));
+  void syncInteractionGallery();
   paintVersionApproval();
   repaint();
   layoutMarginRows();

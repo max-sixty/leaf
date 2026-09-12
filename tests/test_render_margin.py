@@ -4841,6 +4841,15 @@ def test_the_shipped_long_thread_uses_the_margin_clear_of_its_controls(browser, 
     assert geometry["titleLeft"] == pytest.approx(geometry["cardLeft"] + 13, abs=0.5)
     assert not geometry["panelOpen"], geometry
 
+    words = thread.locator(".lf-conversation-body").first
+    words_box = words.bounding_box()
+    page.mouse.move(words_box["x"] + 1, words_box["y"] + 10)
+    page.mouse.down()
+    page.mouse.move(words_box["x"] + 180, words_box["y"] + 10, steps=10)
+    page.mouse.up()
+    selected = page.evaluate("getSelection().toString()")
+    assert len(selected) > 10 and selected in words.inner_text(), selected
+
     thread.get_by_role("button", name="Reply", exact=True).click()
     send = preview.get_by_role("button", name="Send")
     send.focus()

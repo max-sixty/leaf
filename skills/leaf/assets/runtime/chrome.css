@@ -1132,7 +1132,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      property bounds the accident and cannot answer for the deliberate drag; a range
      whose focus has left the document is a question for whatever reads the selection
      into a quote, not for what the layer paints. */
-  :is(.lf-quote, .lf-msg-body) { user-select: text; -webkit-user-select: text; }
+  :is(.lf-quote, .lf-msg-body, .lf-conversation-body) { user-select: text; -webkit-user-select: text; }
   /* Search and filter disclosure share one toolbar. A nondefault view keeps its
      criteria and result count visible even while the filter choices are folded. */
   .lf-find { display: flex; gap: 8px; align-items: center; padding: 12px 16px; }

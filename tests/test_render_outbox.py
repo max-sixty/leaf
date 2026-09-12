@@ -78,7 +78,7 @@ def test_a_revision_chip_waits_for_the_pending_message_before_navigating(
         expect(page).to_have_title("Live first")
         assert len(held) == 1
     finally:
-        held[0].continue_()
+        held.pop(0).continue_()
 
     wait_for_revision(page, 2)
     expect(page.locator(".lf-thread-panel")).to_contain_text(

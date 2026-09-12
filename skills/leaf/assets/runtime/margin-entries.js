@@ -13,7 +13,9 @@
    otherwise orders controls and keeps an active contribution open rather than becoming a
    product-facing visual taxonomy.
    A disclosure's visible label ends in an ellipsis because it opens context; action and
-   status labels do not.
+   status labels do not. Every axis has a default, so an option outside this grammar is
+   refused rather than ignored: a caller stating a rank under a name this module does not
+   know would otherwise get the default and no word about it.
 
    Ordering follows interaction state, then rank, contribution key, and control key. Failed,
    busy, and engaged contributions precede idle ones; completion and escape controls
@@ -59,6 +61,19 @@ const TONES = new Set(MARGIN_ENTRY_SCHEMA.tones);
 const BEHAVIORS = new Set(MARGIN_ENTRY_SCHEMA.behaviors);
 const STATES = new Set(MARGIN_ENTRY_SCHEMA.states);
 const RANKS = new Set(MARGIN_ENTRY_SCHEMA.ranks);
+const MARGIN_ENTRY_OPTIONS = new Set([
+  "behavior",
+  "context",
+  "glyph",
+  "icon",
+  "key",
+  "label",
+  "rank",
+  "state",
+  "tone",
+  "writesRelation",
+  "writesSeat",
+]);
 const STATE_PRIORITY = new Map([
   ["failed", 0],
   ["busy", 1],
@@ -283,9 +298,8 @@ export function syncForwardedMarginEntryState(projection, source) {
   }
 }
 
-export function marginEntry(
-  control,
-  {
+export function marginEntry(control, options) {
+  const {
     glyph = null,
     icon = null,
     key,
@@ -297,8 +311,16 @@ export function marginEntry(
     state = "idle",
     writesRelation = true,
     writesSeat = true,
-  },
-) {
+  } = options;
+  // Every axis has a default, so an option this grammar does not know is silently
+  // nothing: the control keeps the default for the axis the caller meant to state.
+  // That is how a rename of this vocabulary reaches a call site — the old name goes
+  // on being accepted and the stated rank stops arriving. Name it here instead.
+  const unknown = Object.keys(options).filter(
+    (option) => !MARGIN_ENTRY_OPTIONS.has(option),
+  );
+  if (unknown.length)
+    throw new TypeError(`Unknown margin entry option: ${unknown.sort().join(", ")}`);
   if (!(control instanceof Element))
     throw new TypeError("A margin entry needs an Element control");
   if (!String(key ?? "").trim()) throw new TypeError("A margin entry needs a key");

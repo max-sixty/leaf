@@ -172,25 +172,6 @@ export function createStateFeed({
   }
 
   function startFeed(present, initialRead = beginRead()) {
-    // A package-owned surface may hold replay while it is open. Its completion is a
-    // projection invalidation, so retry the already applied reading immediately instead
-    // of waiting for the clock's deferred-work heartbeat. The event is intentionally
-    // generic: the state feed does not know which widget held the projection.
-    let projectionQueued = false;
-    const retryProjection = () => {
-      if (projectionQueued) return;
-      projectionQueued = true;
-      // A close can precede the gesture's pending ledger entry in the same call stack.
-      // Let that producer finish before replaying the resulting composition.
-      queueMicrotask(() => {
-        projectionQueued = false;
-        if (!projectionDeferred()) return;
-        void tick().catch((error) =>
-          reportPageError(`tick failed: ${error?.message ?? error}`),
-        );
-      });
-    };
-    document.addEventListener("lf-projection", retryProjection);
     // Presentation waits on the first read, but not on the container: the wait ends at
     // `PRESENTATION_WAIT_MS` whether or not an answer has come, and nothing is aborted
     // when it does. The request keeps its own, far longer bound and stays in flight, so a

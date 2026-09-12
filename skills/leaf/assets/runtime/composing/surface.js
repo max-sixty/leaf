@@ -87,7 +87,7 @@ import { allThreads } from "../conversation/state.js";
 
 import { readingRegionFor, shownRegionBounds } from "../reading-regions.js";
 
-export const BANNER_CLEAR = 48;
+const BANNER_CLEAR = 48;
 let floatingUiModule = null;
 const floatingUi = () => (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 

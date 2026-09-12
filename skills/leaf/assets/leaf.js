@@ -136,7 +136,6 @@ import {
   declareLeavesKeys,
 } from "./runtime/live-leaves.js";
 import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
-import { replaceClaimState } from "./runtime/updates.js";
 import {
   createGoToSequence,
   goToHintLayer,
@@ -390,7 +389,6 @@ app = mountApplication({
     prepareActivation: (state) => version.prepareActivation(state),
     acceptData,
     notifyDataSubscribers,
-    replaceClaimState,
     isSignoffDeclared,
     paintApproval: paintVersionApproval,
     renderStatus,

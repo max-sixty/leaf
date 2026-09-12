@@ -90,7 +90,7 @@ import { panel } from "./conversation/panel-elements.js";
 import { blockAt, closestAcross, elementById, inChrome, says } from "./passages.js";
 import { addressableSays, addressableWord, visualAt } from "./anchor-resolution.js";
 import { paintTrace } from "./target-paint.js";
-import { agentWorkPhase, updateSequence, workClaimState } from "./updates.js";
+import { agentWorkPhase, updateSequence } from "./updates.js";
 import { threadList } from "./conversation/state.js";
 import { threadKey } from "./conversation/model.js";
 
@@ -1206,7 +1206,7 @@ export function createMarginProjection({
       });
     });
 
-    if (workClaimState().claimsHeld)
+    if (runtime.activity?.held)
       for (const update of updateSequence()) {
         if (update.source !== "claim" || update.disposition !== "effective") continue;
         if (update.revision > runtime.currentRevision) continue;

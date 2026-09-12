@@ -1587,7 +1587,7 @@ def test_a_visual_proxy_keeps_focus_when_a_provider_changes_its_label(browser, s
           const diagram = document.querySelector('#flow');
           const current = diagram.visualParts.get('node:S');
           diagram.visualParts.set('node:S', { ...current, label: 'Begin request' });
-          document.dispatchEvent(new CustomEvent('lf-projection'));
+          diagram.visualPartRegistration.update();
         }"""
     )
 
@@ -1621,7 +1621,7 @@ diff --git a/value.txt b/value.txt
     )
     page, errors = open_page(browser, serve(page_markup))
     page.evaluate(
-        """() => {
+        """async () => {
           const root = document.querySelector('#patch').shadowRoot;
           for (const id of ['shadow-first', 'shadow-second']) {
             const picture = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1629,7 +1629,10 @@ diff --git a/value.txt b/value.txt
             picture.setAttribute('viewBox', '0 0 20 20');
             root.append(picture);
           }
-          document.dispatchEvent(new CustomEvent('lf-projection'));
+          const { layoutChanged } = await window.__lfRuntimeImport(
+            '/runtime/widget-api.js'
+          );
+          layoutChanged(document.querySelector('#patch'));
         }"""
     )
     controls = page.locator(".lf-visual-action")
@@ -1639,7 +1642,14 @@ diff --git a/value.txt b/value.txt
     second.focus()
     expect(second).to_be_focused()
 
-    page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-projection'))")
+    page.evaluate(
+        """async () => {
+          const { layoutChanged } = await window.__lfRuntimeImport(
+            '/runtime/widget-api.js'
+          );
+          layoutChanged(document.querySelector('#patch'));
+        }"""
+    )
     expect(second).to_be_focused()
     assert errors == []
     page.close()

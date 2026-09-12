@@ -54,29 +54,13 @@
    worker update is not timeless; its authored assertion is as old as its revision.
 
    createProjectionUpdates binds semantic subscriptions to one presentation owner's
-   commit proof. Raw update, publication, claim, and history readings do not depend on
-   that proof and remain direct exports. */
+   commit proof. Raw update, claim, and history readings do not depend on that proof and
+   remain direct exports. */
 import { watchProjection } from "./projection-watch.js";
 import { currentProjection } from "./projection/state.js";
 
 import { runtime } from "./context.js";
 import { closestAcross } from "./passages.js";
-
-let claimState = Object.freeze({
-  sources: Object.freeze([]),
-  held: false,
-});
-export function replaceClaimState(next) {
-  const prior = claimState;
-  claimState = Object.freeze({
-    sources: Object.freeze(structuredClone(next.sources)),
-    held: next.held,
-  });
-  return () => (claimState = prior);
-}
-export const workClaimState = () => ({
-  claimsHeld: claimState.held,
-});
 
 // The canonical receipt owns attendance; visual consumers share its current phase.
 export function agentWorkPhase(receipt) {
@@ -112,7 +96,7 @@ export const updateSequence = (target = null) => {
     .map((update) => structuredClone(update));
 };
 
-export const publishedAt = () => runtime.view?.published_at ?? null;
+const publishedAt = () => runtime.view?.published_at ?? null;
 export const saidAt = (el) =>
   closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head > time")
     ?.dateTime || publishedAt();
@@ -124,10 +108,7 @@ export const watchHistory = (owner, callback) =>
     callback(runtime.events.map((event) => structuredClone(event))),
   );
 
-export function createProjectionUpdates({
-  projectionCommitted,
-  coordinateProjectionCommitted,
-}) {
+export function createProjectionUpdates({ coordinateProjectionCommitted }) {
   function reportsCommitted(projection, target) {
     const key = targetKey(updateTarget(target));
     const coordinates = new Map();

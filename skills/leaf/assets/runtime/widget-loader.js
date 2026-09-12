@@ -129,7 +129,7 @@ export async function importWidgets(scope) {
   );
 }
 
-export async function installDocument(
+async function installDocument(
   scope,
   { source = ["page", null], mount = () => {}, watchLinks = false } = {},
 ) {

@@ -2717,13 +2717,8 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
         held_states.pop(0).fulfill(json=candidate)
     holding(page, preparations, 1, "candidate wake preparation")
 
-    page.evaluate(
-        """() => {
-          document.body.classList.remove('lf-dragging');
-          document.dispatchEvent(new Event('lf-projection'));
-        }"""
-    )
-    page.title()  # cross the observer and state-feed microtask checkpoints
+    page.evaluate("() => document.body.classList.remove('lf-dragging')")
+    page.title()  # cross the drag observer and projection retry checkpoints
     assert page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/application.js')).hasPending()"
     ), "an external wake released pending state from the uncommitted candidate"

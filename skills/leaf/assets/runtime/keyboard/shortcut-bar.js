@@ -79,19 +79,19 @@ import { walkPosition } from "../walk-position.js";
 export const shortcutBarEl = el("div", "lf-ui lf-shortcut-bar");
 shortcutBarEl.id = "lf-shortcut-bar";
 export const bottomStatusEl = el("div", "lf-ui lf-bottom-status");
-export const walkPositionEl = el("span", "lf-walk-position");
+const walkPositionEl = el("span", "lf-walk-position");
 walkPositionEl.hidden = true;
 walkPositionEl.setAttribute("aria-hidden", "true");
 const goToStatusEl = el("span", "lf-go-to-status");
 goToStatusEl.hidden = true;
 goToStatusEl.setAttribute("aria-hidden", "true");
 bottomStatusEl.append(goToStatusEl, walkPositionEl, noticeEl);
-export const shortcutBarMore = el("button", "lf-shortcut-more");
+const shortcutBarMore = el("button", "lf-shortcut-more");
 shortcutBarMore.type = "button";
 shortcutBarMore.title = "More keyboard shortcuts";
 shortcutBarMore.setAttribute("aria-label", "? more");
-export const shortcutBarMoreKey = document.createElement("kbd");
-export const shortcutBarMoreText = el("span", "", "more");
+const shortcutBarMoreKey = document.createElement("kbd");
+const shortcutBarMoreText = el("span", "", "more");
 shortcutBarMore.append(shortcutBarMoreKey, shortcutBarMoreText);
 
 const boxesOf = (nodes) =>

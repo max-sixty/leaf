@@ -24,7 +24,7 @@ import { registry } from "./registry.js";
 import { targetElement, targetParts } from "./resolved-target.js";
 import { el, offer, reveal } from "./widget-elements.js";
 
-export const NOTE = "lf-mark-note";
+const NOTE = "lf-mark-note";
 const SEAT = "lf-reacts";
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 
@@ -395,7 +395,6 @@ export function createAnchorControls({
   function mount() {
     if (mounted) return;
     mounted = true;
-    document.addEventListener("lf-projection", queueInvalidation);
     document.addEventListener("lf-layout", onLayoutInvalidated);
     document.addEventListener("pointerdown", onOutsideReaction, { capture: true });
     messageReferenceRoot.addEventListener("click", onMessageReference);
@@ -403,7 +402,6 @@ export function createAnchorControls({
 
   function destroy() {
     if (mounted) {
-      document.removeEventListener("lf-projection", queueInvalidation);
       document.removeEventListener("lf-layout", onLayoutInvalidated);
       document.removeEventListener("pointerdown", onOutsideReaction, { capture: true });
       messageReferenceRoot.removeEventListener("click", onMessageReference);

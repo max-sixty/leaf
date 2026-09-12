@@ -311,6 +311,7 @@ const inputs = createCompositionInputs({
 });
 
 app = mountApplication({
+  reportPageError,
   createEngagement,
   targetChooserOpen: () => targets.targetChooserOpen(),
   pageComposerDrawing: () => panelComposer.pageComposerDrawing(),

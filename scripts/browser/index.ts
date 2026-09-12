@@ -2,6 +2,7 @@
 export { LitElement, html } from "lit";
 export { createApplicationPublisher } from "./snapshot.js";
 export { createSemanticApplication } from "./application.js";
+export { createPresentationCoordinator } from "./presentation.js";
 export type {
   ApplicationSnapshot,
   Immutable,

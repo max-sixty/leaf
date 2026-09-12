@@ -318,7 +318,18 @@ function widgetReading(
   };
 }
 
-export function createSemanticApplication() {
+interface SemanticPresentationPublication {
+  readonly semanticEpoch: number;
+}
+
+interface PresentationLifecycle {
+  begin(semanticEpoch: number): SemanticPresentationPublication;
+  seal(publication: SemanticPresentationPublication): unknown;
+}
+
+export function createSemanticApplication({
+  presentation,
+}: { presentation?: PresentationLifecycle } = {}) {
   const initial = {
     document: {
       revision: null,
@@ -341,6 +352,10 @@ export function createSemanticApplication() {
   const publisher = createApplicationPublisher(initial);
   let order = 0;
   let signature = semanticSignature([initial.effective, initial.data, initial.phase]);
+  let publicationDepth = 0;
+  let activePresentation: SemanticPresentationPublication | null = null;
+
+  if (presentation) presentation.seal(presentation.begin(initial.semanticEpoch));
 
   function derive(
     document: SemanticDocument,
@@ -428,7 +443,21 @@ export function createSemanticApplication() {
           next.document.revision !== prior.document.revision,
       );
     signature = nextSignature;
-    return publisher.publish(next);
+    if (presentation) activePresentation = presentation.begin(next.semanticEpoch);
+    publicationDepth += 1;
+    try {
+      return publisher.publish(next);
+    } finally {
+      publicationDepth -= 1;
+      // Signals subscribers run synchronously. A subscriber may publish again in the
+      // same stack, so only the outermost return seals the newest barrier opened by
+      // that stack; sealing the older publication cannot acknowledge its replacement.
+      if (presentation && publicationDepth === 0 && activePresentation) {
+        const current = activePresentation;
+        activePresentation = null;
+        presentation.seal(current);
+      }
+    }
   }
 
   const entry = (attempt: string) =>

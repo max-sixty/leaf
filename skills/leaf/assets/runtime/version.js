@@ -131,6 +131,7 @@ import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
 import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import {
+  containingReadingRegionFor,
   effectiveScroller,
   readingPosture,
   readingRegionFor,
@@ -1567,7 +1568,8 @@ export function createVersionController({
   function restoreView(view) {
     setLanded((view.ask && document.getElementById(view.ask)) || null);
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
-    const active = readingRegionFor(focused()) ?? readingRegionFor(readingBlock());
+    const active =
+      containingReadingRegionFor(focused()) ?? readingRegionFor(readingBlock());
     const restored = new Set();
     if (active && view.regions?.[active.id]) {
       restoreRegion(view.regions[active.id], regions.get(active.id));
@@ -1595,7 +1597,7 @@ export function createVersionController({
   let lastReadingRegionId = null;
 
   const activeReadingRegion = (candidates = readingRegions()) => {
-    const focusedRegion = readingRegionFor(focused());
+    const focusedRegion = containingReadingRegionFor(focused());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
     const recent = candidates.find(({ id }) => id === lastReadingRegionId);

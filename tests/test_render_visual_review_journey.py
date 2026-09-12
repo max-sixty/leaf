@@ -13,8 +13,10 @@ from render_support import (
     leaf_page,
     open_page,
     resized,
+    ring_faults,
     sending,
     stamp_page,
+    standing_ring,
     told,
 )
 
@@ -65,25 +67,16 @@ def comment_on_target(page, target):
     page.keyboard.type(code)
 
 
-def assert_keyboard_focus(control):
+def assert_keyboard_focus(page, control):
     """The focused destination declares a visible treatment and is not covered."""
     expect(control).to_be_focused()
     focus = control.evaluate(
         """node => {
           const box = node.getBoundingClientRect();
-          const ring = [node, ...function* () {
-            for (let parent = node.parentElement; parent; parent = parent.parentElement)
-              yield parent;
-          }()].some(candidate => {
-            const style = getComputedStyle(candidate);
-            return (style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0)
-              || style.boxShadow !== 'none';
-          });
           const hit = document.elementFromPoint(
             box.left + box.width / 2, box.top + box.height / 2);
           return {
             focusVisible: node.matches(':focus-visible'),
-            ring,
             unobscured: Boolean(hit && (hit === node || node.contains(hit))),
             inViewport: box.top >= 0 && box.left >= 0
               && box.bottom <= innerHeight && box.right <= innerWidth,
@@ -92,10 +85,14 @@ def assert_keyboard_focus(control):
     )
     assert focus == {
         "focusVisible": True,
-        "ring": True,
         "unobscured": True,
         "inViewport": True,
     }, f"the keyboard destination has no visible, reachable focus treatment: {focus}"
+    ring = standing_ring(page)
+    assert ring, "the focused destination paints no keyboard ring"
+    assert not (faults := ring_faults([ring], "the focused destination")), "\n".join(
+        faults
+    )
 
 
 def target_document(title, body):
@@ -308,28 +305,28 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     details = first.locator(".lf-vr-details")
     details_summary = first.locator(".lf-vr-details-summary")
     go_to(reader, details_summary, "Fold")
-    assert_keyboard_focus(details_summary)
+    assert_keyboard_focus(reader, details_summary)
     expect(details).to_have_attribute("open", "")
     reader.keyboard.press("Enter")
     expect(details).not_to_have_attribute("open", "")
     overlay = widget.get_by_role("button", name="Overlay")
     go_to(reader, overlay)
-    assert_keyboard_focus(overlay)
+    assert_keyboard_focus(reader, overlay)
     expect(widget).to_have_attribute("data-inspection-mode", "overlay")
     compare = widget.get_by_role("button", name="Compare")
     go_to(reader, compare)
-    assert_keyboard_focus(compare)
+    assert_keyboard_focus(reader, compare)
     expect(widget).to_have_attribute("data-inspection-mode", "compare")
     reader.keyboard.press("ArrowDown")
     expect(widget.get_by_role("combobox", name="Selected visual case")).to_have_value(
         "follow-release-link"
     )
-    assert_keyboard_focus(compare)
+    assert_keyboard_focus(reader, compare)
     reader.keyboard.press("ArrowUp")
     expect(widget.get_by_role("combobox", name="Selected visual case")).to_have_value(
         "open-release-list"
     )
-    assert_keyboard_focus(compare)
+    assert_keyboard_focus(reader, compare)
     first_stage = first.locator(".lf-vr-shot-host")
     assert first_stage.evaluate("node => node.scrollHeight > node.clientHeight")
     reader.keyboard.press("d")
@@ -344,20 +341,21 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     first_looks_right = first.get_by_role("button", name="Looks right")
     with sending(reader, "the intended authenticated-navigation change"):
         go_to(reader, first_looks_right)
-    assert_keyboard_focus(first_looks_right)
+    assert_keyboard_focus(reader, first_looks_right)
     reader.keyboard.press("ArrowDown")
     expect(widget.get_by_role("combobox", name="Selected visual case")).to_have_value(
         "follow-release-link"
     )
+    expect(second).to_have_attribute("aria-label", "Visual review case 2 of 2")
     second_looks_right = second.get_by_role("button", name="Looks right")
-    assert_keyboard_focus(second_looks_right)
+    assert_keyboard_focus(reader, second_looks_right)
     assert second.locator("lf-shot img").evaluate_all(
         "images => images.every(image => image.complete && image.naturalWidth > 0)"
     )
     second_needs_work = second.get_by_role("button", name="Needs work")
     with sending(reader, "the missing return route"):
         go_to(reader, second_needs_work)
-    assert_keyboard_focus(second_needs_work)
+    assert_keyboard_focus(reader, second_needs_work)
 
     comment_on_target(reader, second)
     field = reader.locator(".lf-fab-input")
@@ -366,7 +364,25 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     resized(reader, 390, 760)
     expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
     expect(field).to_have_value("Restore Back to releases")
-    assert_keyboard_focus(field)
+    assert_keyboard_focus(reader, field)
+    field.evaluate("node => node.setSelectionRange(8, 12, 'backward')")
+    shifted = record | {
+        "cases": [
+            record["cases"][0],
+            record["cases"][1]
+            | {
+                "result": "The candidate detail page drops Back to releases and leaves the reader without a return route after checking the expanded audit context."
+            },
+        ]
+    }
+    data_model.cmd_data_set(review_dir, "journey-run", shifted)
+    told(reader)
+    expect(second.locator(".lf-vr-result")).to_contain_text("without a return route")
+    expect(field).to_have_value("Restore Back to releases")
+    assert_keyboard_focus(reader, field)
+    assert field.evaluate(
+        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+    ) == [8, 12, "backward"]
     reader.keyboard.press("Escape")
     expect(field).to_be_hidden()
     assert reader.evaluate("() => document.activeElement === document.body")
@@ -382,12 +398,12 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     reader.keyboard.press("Shift+d")
     expect(field).to_be_focused()
     expect(field).to_have_value("Restore Back to releases")
-    assert_keyboard_focus(field)
+    assert_keyboard_focus(reader, field)
 
     resized(reader, 1366, 768)
     expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
     expect(field).to_have_value("Restore Back to releases")
-    assert_keyboard_focus(field)
+    assert_keyboard_focus(reader, field)
     reader.keyboard.press("Escape")
     expect(field).to_be_hidden()
     assert reader.evaluate("() => document.activeElement === document.body")
@@ -434,12 +450,12 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     reader.keyboard.press("Escape")
     assert reader.evaluate("() => document.activeElement === document.body")
     go_to(reader, compare)
-    assert_keyboard_focus(compare)
-    corrected = record | {
+    assert_keyboard_focus(reader, compare)
+    corrected = shifted | {
         "candidate": {"revision": "northstar-18", "url": corrected_candidate},
         "cases": [
-            record["cases"][0],
-            record["cases"][1]
+            shifted["cases"][0],
+            shifted["cases"][1]
             | {
                 "result": "The candidate detail page keeps Back to releases beside the expanded audit line.",
                 "after": media["candidate-detail-corrected"],
@@ -448,7 +464,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     }
     data_model.cmd_data_set(review_dir, "journey-run", corrected)
     told(reader)
-    assert_keyboard_focus(compare)
+    assert_keyboard_focus(reader, compare)
     expect(second).to_have_attribute("data-disposition", "needs-work")
     expect(second.locator(".lf-vr-result")).to_contain_text("keeps Back to releases")
     expect(second.locator("lf-shot")).to_have_attribute(
@@ -460,7 +476,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     with sending(reader, "the corrected navigation disposition"):
         go_to(reader, second_looks_right)
     expect(second).to_have_attribute("data-disposition", "looks-right")
-    assert_keyboard_focus(second_looks_right)
+    assert_keyboard_focus(reader, second_looks_right)
     reader.keyboard.press("g")
     reader.keyboard.press("Shift+t")
     threads = reader.get_by_role("dialog")

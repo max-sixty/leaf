@@ -10,7 +10,7 @@
     },
     "footer.site-footer": {
       "description": "The product site's quiet route and license colophon.",
-      "example": "<footer class=\"site-footer\" id=\"colophon\"><p><a href=\"/\">Tour</a> · <a href=\"/examples/\">Examples</a></p></footer>"
+      "example": "<footer class=\"site-footer\" id=\"colophon\"><p><a href=\"/\">Home</a> · <a href=\"/examples/\">Examples</a></p></footer>"
     }
   }
 }

@@ -239,16 +239,25 @@
 .lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
 }
-/* Pickup colors the carrier's glyph; active work colors its interior. The ordinary
-   contour continues to communicate the entry's behavior. */
-.lf-margin-entry[data-lf-agent-phase="picked_up"]
+/* Ownership colors the carrier's glyph; active work also colors its interior. The
+   ordinary contour continues to communicate the entry's behavior. */
+.lf-margin-entry:is(
+  [data-lf-agent-phase="picked_up"],
+  [data-lf-agent-phase="active"]
+)
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--ok-ink);
 }
-.lf-margin-entry[data-lf-agent-phase="picked_up"][data-lf-tone="positive"] {
+.lf-margin-entry:is(
+  [data-lf-agent-phase="picked_up"],
+  [data-lf-agent-phase="active"]
+)[data-lf-tone="positive"] {
   border-color: var(--ok-ink);
 }
-.lf-margin-entry[data-lf-agent-phase="picked_up"][data-lf-tone="negative"] {
+.lf-margin-entry:is(
+  [data-lf-agent-phase="picked_up"],
+  [data-lf-agent-phase="active"]
+)[data-lf-tone="negative"] {
   border-color: var(--danger-ink);
 }
 .lf-margin-entry[data-lf-agent-phase="active"] {
@@ -1589,11 +1598,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-fab-bar .lf-composer-media { display: flex; gap: 6px; flex: none;
     max-width: 148px; padding: 0; overflow-x: auto; }
   .lf-fab-bar .lf-composer-media-open { width: 42px; height: 34px; }
-  .lf-suggest-label { font-size: var(--t-6); letter-spacing: .05em; text-transform: uppercase; color: var(--ok-ink); margin: 4px 0 2px; }
+  .lf-suggest-label { color: var(--muted-2); }
   /* A suggestion renders verbatim — its characters are what the next version
      carries (see msgNode) — so this is where they keep their own line breaks. */
-  .lf-msg-body.lf-suggest-body { background: var(--add-tint); padding: 4px 8px;
-    border-radius: 6px; white-space: pre-wrap; }
+  .lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
   .lf-live { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .lf-command-reference { position: fixed; z-index: 9300; top: 50%; left: 50%; transform: translate(-50%, -50%);
     width: min(520px, calc(100vw - 32px - var(--lf-safe-left) - var(--lf-safe-right)));
@@ -1720,7 +1728,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px;
     align-items: baseline; border: 0; border-radius: var(--r); background: transparent;
     color: inherit; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
-  .lf-page-map-action[data-lf-agent-phase="picked_up"] > .lf-margin-kind {
+  .lf-page-map-action:is(
+    [data-lf-agent-phase="picked_up"],
+    [data-lf-agent-phase="active"]
+  ) > .lf-margin-kind {
     color: var(--ok-ink);
   }
   .lf-page-map-action[data-lf-agent-phase="active"] {

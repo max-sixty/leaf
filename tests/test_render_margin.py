@@ -1295,6 +1295,12 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
             "Selected",
         ]
     )
+    expect(working.locator(".lf-margin-entry-icon")).to_have_css(
+        "color", token_colour(page, "--ok-ink")
+    )
+    expect(
+        page.locator("#bg-margin-controls > .eyebrow.bg-feature-elements")
+    ).to_have_text("lf-margin-entry")
 
     assert errors == []
     page.close()
@@ -1556,9 +1562,6 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
         """headings => headings.map(heading => {
           const detail = heading.querySelector('.bg-feature-detail');
           const names = [...heading.children].filter(child => child.tagName === 'STRONG');
-          const eyebrow = heading.parentElement.querySelector(
-            ':scope > .eyebrow.bg-feature-elements'
-          );
           return {
             label: heading.textContent.trim(),
             detailCount: heading.querySelectorAll('.bg-feature-detail').length,
@@ -1568,7 +1571,6 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
             detailWeight: detail
               ? Number.parseInt(getComputedStyle(detail).fontWeight, 10)
               : null,
-            eyebrow: eyebrow?.textContent.trim() || '',
           };
         })"""
     )
@@ -1582,10 +1584,31 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
             and all(
                 weight > heading["detailWeight"] for weight in heading["nameWeights"]
             )
-            and heading["eyebrow"]
         )
     ]
     assert not unclear, unclear
+
+    indexed_sections = page.locator(".bg-feature-elements").evaluate_all(
+        """eyebrows => eyebrows.map(eyebrow => {
+          const scope = eyebrow.closest('section');
+          if (!scope) return {section: 'page', missing: ['no containing section']};
+          const elements = [...scope.querySelectorAll('*')];
+          for (const template of scope.querySelectorAll('template')) {
+            elements.push(...template.content.querySelectorAll('*'));
+          }
+          const present = new Set(elements.flatMap(element => [
+            element.localName,
+            ...element.classList,
+          ]));
+          const listed = eyebrow.textContent.split('·').map(entry => entry.trim());
+          return {
+            section: scope.id,
+            missing: listed.filter(identifier => !present.has(identifier)),
+          };
+        })"""
+    )
+    misplaced = [entry for entry in indexed_sections if entry["missing"]]
+    assert not misplaced, misplaced
 
     button_sample = '[data-lf-margin-for="bg-crowded"]'
     examples = {
@@ -2420,6 +2443,17 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     assert {reading["icon"] for reading in picked_up} == {
         token_colour(page, "--ok-ink")
     }
+    page.evaluate("() => window.setToneAgentPhase('active')")
+    active = [button.evaluate(read) for button in buttons]
+    assert [reading["shell"][1] for reading in active] == [
+        ordinary[0]["shell"][1],
+        token_colour(page, "--ok-ink"),
+        token_colour(page, "--danger-ink"),
+    ]
+    assert {reading["icon"] for reading in active} == {token_colour(page, "--ok-ink")}
+    assert {reading["shell"][2] for reading in active} == {
+        token_colour(page, "--ok-wash")
+    }
     page.evaluate("() => window.setToneAgentPhase(null)")
 
     hovered = []
@@ -2897,7 +2931,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     assert working == {
         **initial,
         "background": colors["--ok-wash"],
-    }, "work did not color only the Thread control interior green"
+        "icon": colors["--ok-ink"],
+    }, "work did not keep the Thread icon green with its green interior"
     expect(marker).to_have_attribute("data-identity-probe", "retained")
     expect(marker.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "comment"
@@ -2965,6 +3000,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(active.locator(".lf-margin-kind")).to_have_attribute(
         "data-lf-icon", "comment"
     )
+    expect(active.locator(".lf-margin-kind")).to_have_css("color", colors["--ok-ink"])
     expect(active).to_have_css("background-color", colors["--ok-wash"])
     picked_up_row = dialog.locator('[data-lf-agent-phase="picked_up"]')
     expect(picked_up_row).to_have_count(1)

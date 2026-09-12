@@ -66,7 +66,11 @@ def canonical_acknowledgments(
         for update in canonical_updates(None, claims, threads, events)
         if update["disposition"] == "effective"
     }
+    interaction_claims = {
+        claim["event"]: claim for claim in claims if claim.get("scope") == "interaction"
+    }
     used_claims = set()
+    used_targets = set()
 
     def receipt(
         source: dict,
@@ -75,7 +79,9 @@ def canonical_acknowledgments(
         *,
         requires_response: bool,
     ) -> dict:
-        claim = effective_claims.get((target["kind"], target["id"]))
+        claim = interaction_claims.get(source["id"]) or effective_claims.get(
+            (target["kind"], target["id"])
+        )
         delivery = deliveries.get(source["id"], {})
         opened = delivery.get("opened")
         queued = delivery.get("queued")
@@ -83,12 +89,19 @@ def canonical_acknowledgments(
             (entry["seq"] for entry in (opened, queued) if entry),
             default=source["seq"],
         )
-        claim_matches = claim and (
-            target["kind"] == "widget" or claim.get("event") == source["id"]
+        claim_matches = (
+            claim
+            and claim["target"] == target
+            and (
+                claim.get("scope") == "interaction"
+                or target["kind"] == "widget"
+                or claim.get("event") == source["id"]
+            )
         )
         if claim_matches and claim["log_floor"] >= delivery_seq:
             phase, evidence = "active", claim
             used_claims.add(claim["id"])
+            used_targets.add((target["kind"], target["id"]))
         elif opened:
             phase, evidence = "picked_up", opened
         elif queued:
@@ -256,9 +269,9 @@ def canonical_acknowledgments(
     # gesture to grow from. This preserves the useful part of `status --on`
     # without inventing pickup evidence.
     for claim in effective_claims.values():
-        if claim["id"] in used_claims:
-            continue
         target = claim["target"]
+        if claim["id"] in used_claims or (target["kind"], target["id"]) in used_targets:
+            continue
         acknowledgments.append(
             {
                 "id": f"claim:{claim['id']}",

@@ -232,8 +232,8 @@ export function msgNode(m) {
   const when = el("time", "", ago(m.ts));
   when.dateTime = m.ts;
   head.append(el("b", "", m.author === "claude" ? m.agent || "Agent" : "You"), when);
+  if (m.suggestion) head.append(el("span", "lf-suggest-label", "Suggestion"));
   div.append(head);
-  if (m.suggestion) div.append(el("div", "lf-suggest-label", "suggested replacement"));
   div.append(msgBody(m));
   syncEdited(head, m);
   syncStreamState(div, head, m);

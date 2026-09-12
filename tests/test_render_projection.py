@@ -1339,6 +1339,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         "node => node.scrollWidth <= node.clientWidth"
     )
     resized(page, 560, 720)
+    expect(widget).to_have_attribute("data-lf-reading-posture", "flow")
     assert page.evaluate(
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
@@ -1347,6 +1348,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         "() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
     resized(page, 1366, 768)
+    expect(widget).to_have_attribute("data-lf-reading-posture", "bounded")
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
     shot_host.evaluate("node => node.style.height = '120px'")

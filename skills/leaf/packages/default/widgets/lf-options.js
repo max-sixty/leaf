@@ -139,7 +139,17 @@ customElements.define(
   "lf-options",
   class extends HTMLElement {
     connectedCallback() {
-      this.#stop ??= this.#controller.subscribe(this.#paintAvailability);
+      // An exhibited or purely structural group has no semantic identity: it renders
+      // the authored alternatives, but owns no selection and therefore has no captured
+      // widget descriptor. Only a live or settled decision enters the controller path.
+      const exhibited = quoted(this);
+      if (
+        !exhibited &&
+        (this.hasAttribute("choose") || this.hasAttribute("settled"))
+      ) {
+        this.#controller ??= widgetController(this);
+        this.#stop ??= this.#controller.subscribe(this.#paintAvailability);
+      }
       if (!once(this)) {
         this.#addition?.connect();
         this.#settled?.connect();
@@ -149,7 +159,7 @@ customElements.define(
       // Quoted material is exhibited, not offered, so a specimen renders exactly like a
       // group that was never choosable: it shows what a decision looks like without
       // taking one.
-      const choosable = this.hasAttribute("choose") && !quoted(this);
+      const choosable = this.hasAttribute("choose") && !exhibited;
       for (const option of this.#options()) this.#reference(option);
       // Without `choose` there is nothing to press: the mark still reports the
       // document's state, as a span.
@@ -213,18 +223,18 @@ customElements.define(
     }
 
     #addition = null;
-    #controller = widgetController(this);
+    #controller = null;
     #settled = null;
     #done = null; // the thread multi-question's submit; null everywhere else
     #answering = null; // the answer in flight, so a second press joins it
     #stop = null;
 
     #available(verb) {
-      return Boolean(this.#controller.read().actions[verb]?.available);
+      return Boolean(this.#controller?.read().actions[verb]?.available);
     }
 
     #dispatch(verb, detail, attempt) {
-      return this.#controller.dispatch({
+      return this.#controller?.dispatch({
         kind: "action",
         verb,
         detail,

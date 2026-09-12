@@ -174,13 +174,13 @@ export function createPageMapDialog({
     button.dataset.lfTone = record.tone;
     button.dataset.lfRank = record.rank;
     button.dataset.lfState = record.state;
+    syncForwardedMarginEntryState(button, control);
     syncDialogFace(button, {
       ...(record.icon ? { icon: record.icon } : { glyph: record.glyph }),
       label: record.label,
       visibleLabel: visibleMarginEntryLabel(record),
       context: record.context,
     });
-    syncForwardedMarginEntryState(button, control);
   }
 
   function makeSheetAction(key) {

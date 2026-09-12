@@ -15,10 +15,6 @@ lf-margin-entry-gallery {
   border-block-start: 1px solid var(--rule);
 }
 
-.margin-entry-gallery-group:last-child {
-  border-block-end: 1px solid var(--rule);
-}
-
 .margin-entry-gallery-heading {
   color: var(--ink);
   font: 650 var(--t-5)/1.3 var(--sans);
@@ -95,6 +91,7 @@ lf-margin-entry-gallery
   gap: var(--sp-3);
   align-items: start;
   padding-block: var(--sp-3);
+  border-block-start: 1px solid var(--rule);
   border-block-end: 1px solid var(--rule);
 }
 

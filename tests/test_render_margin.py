@@ -1218,14 +1218,32 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
         ("rank", "ranks"),
     ):
         assert {record[record_axis] for record in records} == set(grammar[grammar_axis])
-    assert set(
-        buttons.evaluate_all("rows => rows.map(row => getComputedStyle(row).cursor)")
-    ) == {"default", "pointer"}
 
     def specimen(name):
         return atlas.locator(
             f'[data-margin-entry-specimen="{name}"] > .lf-margin-entry'
         )
+
+    for name in ("label + context", "hover or focus", "open"):
+        expect(specimen(name)).to_have_css("cursor", "pointer")
+    for name in (
+        "save",
+        "cancel",
+        "accept",
+        "reject",
+        "thread",
+        "more",
+        "sent",
+        "glyph face",
+        "count badge",
+        "not held",
+        "picked up",
+        "working",
+        "activity fallback",
+        "resting",
+        "selected",
+    ):
+        expect(specimen(name)).to_have_css("cursor", "default")
 
     expect(atlas.locator(".margin-entry-gallery-heading")).to_have_text(
         [
@@ -1359,7 +1377,9 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
-    map_projection = dialog.get_by_role("button", name="Inspect projection", exact=True)
+    map_projection = dialog.get_by_role(
+        "button", name="Inspect projection, Compact face · full row", exact=True
+    )
     expect(map_projection).to_be_visible()
     expect(map_projection.locator(".lf-page-map-action-label-word")).to_have_text(
         "Inspect projection…"
@@ -1800,7 +1820,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
-    proxy = dialog.get_by_role("button", name="Inspect source", exact=True)
+    proxy = dialog.get_by_role("button", name="Inspect source, Patch ready", exact=True)
     expect(proxy).to_be_visible()
     assert proxy.evaluate(
         """button => ({

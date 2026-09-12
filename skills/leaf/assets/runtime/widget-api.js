@@ -95,6 +95,11 @@ export {
   scrollBehavior,
 } from "./motion.js";
 export { PRESENTATION, quietWord } from "./presentation.js";
+export {
+  captureTargetReference,
+  resolveTargetReference,
+  targetCandidates,
+} from "./target-references.js";
 export { projectData } from "./application.js";
 export { tabStore } from "./storage.js";
 export {

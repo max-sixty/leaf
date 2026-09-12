@@ -432,11 +432,12 @@ customElements.define(
       const gap = 8;
       const frameBorder = 2;
       const labelHeight = 24;
-      const sideScale = Math.min(
-        (stageWidth - gap - 2 * frameBorder) / (2 * width),
+      const sideWidthScale = (stageWidth - gap - 2 * frameBorder) / (2 * width);
+      const sideContainScale = Math.min(
+        sideWidthScale,
         (stageHeight - labelHeight) / Math.max(...heights),
       );
-      const stackScale = Math.min(
+      const stackContainScale = Math.min(
         (stageWidth - frameBorder) / width,
         (stageHeight - 2 * labelHeight - gap) / (heights[0] + heights[1]),
       );
@@ -444,30 +445,21 @@ customElements.define(
       // manage. Wide captures stack so their scan lines remain readable in the scrolling
       // stage; other pairs take the arrangement with the larger common scale.
       const wideCapture = width / Math.max(...heights) >= 1.5;
-      const compareLayout = wideCapture || stackScale >= sideScale ? "stack" : "side";
+      const compareLayout =
+        wideCapture || stackContainScale >= sideContainScale ? "stack" : "side";
       const fitScale =
         this.#mode === "compare"
           ? compareLayout === "stack"
-            ? stackScale
-            : sideScale
+            ? (stageWidth - frameBorder) / width
+            : sideWidthScale
           : Math.min(
               (stageWidth - frameBorder) / width,
               stageHeight / Math.max(...heights),
             );
-      // A stacked comparison is a vertical reading surface: fit each capture to the
-      // available width and let the bounded stage scroll through the pair. Containing
-      // both frames in the stage makes shallow captures unreadably small even when the
-      // workspace has ample horizontal room.
-      const stackFitScale = (stageWidth - frameBorder) / width;
-      const scale =
-        this.#scale === "actual"
-          ? 1
-          : Math.min(
-              1,
-              this.#mode === "compare" && compareLayout === "stack"
-                ? stackFitScale
-                : fitScale,
-            );
+      // A comparison is a reading surface: fit the pair to its available width and let
+      // the bounded stage scroll through its height. Containing both frames vertically
+      // made tall mobile captures unreadably small even when both fit side by side.
+      const scale = this.#scale === "actual" ? 1 : Math.min(1, fitScale);
       this.dataset.compareLayout = compareLayout;
       const beforeLabel = frames[0].querySelector(".lf-vr-frame-label");
       if (beforeLabel)

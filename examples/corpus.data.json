@@ -121,83 +121,82 @@
   },
   "gallery-latency": 184,
   "gallery-visual-run": {
-    "title": "Run status in the release list",
-    "observedAt": "2026-09-10T13:30:00-07:00",
+    "title": "Optional packages move to focused pages",
+    "observedAt": "2026-09-11T18:30:00-07:00",
     "base": {
-      "revision": "console-3.1",
+      "revision": "19f3ba5f",
       "url": "https://base.preview.example/"
     },
     "candidate": {
-      "revision": "console-3.2",
+      "revision": "e2481629",
       "url": "https://candidate.preview.example/"
     },
     "cases": [
       {
-        "id": "open-run-list",
-        "title": "Run status is visible in the list",
-        "path": "/runs",
-        "action": "Open the release run list.",
-        "result": "Each row gains a labeled status without hiding its trigger or start time.",
+        "id": "open-mobile-package-catalog",
+        "title": "Optional packages get focused destinations",
+        "path": "/packages/",
+        "action": "At 390 px, compare the first task section on each Packages page.",
+        "result": "The candidate replaces the general package tutorial opening with one-column links to focused package pages.",
         "classification": "changed",
         "capture": {
           "browser": "Chromium",
-          "browserVersion": "142.0.0",
+          "browserVersion": "151.0.7922.34",
           "viewport": {
-            "width": 900,
-            "height": 373
+            "width": 390,
+            "height": 844
           },
           "deviceScaleFactor": 2,
           "colorScheme": "light",
           "locale": "en-US",
           "timezone": "America/Los_Angeles"
         },
-        "before": "/media/051bee487bfb5d13.png",
-        "after": "/media/a99a1b63048502d0.png"
+        "before": "/media/2e67d22047659af6.png",
+        "after": "/media/0150b6de0768161e.png"
       },
       {
-        "id": "scan-failures",
-        "title": "Failures remain distinct from completed runs",
-        "path": "/runs?status=failed",
-        "action": "Scan the recent rows for failures.",
-        "result": "Failed and passed rows keep separate words and tints.",
+        "id": "keep-mobile-destinations",
+        "title": "All mobile destinations remain reachable",
+        "path": "/packages/",
+        "action": "Read every destination in the wrapped mobile site navigation.",
+        "result": "Seeded regression for review: the candidate drops the GitHub destination.",
         "classification": "changed",
         "capture": {
           "browser": "Chromium",
-          "browserVersion": "142.0.0",
+          "browserVersion": "151.0.7922.34",
           "viewport": {
-            "width": 900,
-            "height": 373
+            "width": 390,
+            "height": 300
           },
           "deviceScaleFactor": 2,
           "colorScheme": "light",
           "locale": "en-US",
           "timezone": "America/Los_Angeles"
         },
-        "before": "/media/051bee487bfb5d13.png",
-        "after": "/media/a99a1b63048502d0.png",
-        "traceUrl": "https://trace.preview.example/run-list#failures"
+        "before": "/media/3cf0e3efe80c6b01.png",
+        "after": "/media/4f465a0582ab00fe.png"
       },
       {
-        "id": "check-row-order",
-        "title": "The run order is unchanged",
-        "path": "/runs",
-        "action": "Read the run numbers and start times from top to bottom.",
-        "result": "The same runs remain in the same order after the status column is added.",
+        "id": "check-desktop-navigation",
+        "title": "Desktop navigation is unchanged",
+        "path": "/packages/",
+        "action": "Compare the desktop header and the opening package claim.",
+        "result": "The same destinations and introduction remain in the same positions above the changed catalog.",
         "classification": "clean",
         "capture": {
           "browser": "Chromium",
-          "browserVersion": "142.0.0",
+          "browserVersion": "151.0.7922.34",
           "viewport": {
-            "width": 900,
-            "height": 373
+            "width": 1280,
+            "height": 300
           },
           "deviceScaleFactor": 2,
           "colorScheme": "light",
           "locale": "en-US",
           "timezone": "America/Los_Angeles"
         },
-        "before": "/media/051bee487bfb5d13.png",
-        "after": "/media/a99a1b63048502d0.png"
+        "before": "/media/986f35fe9f8e3a0a.png",
+        "after": "/media/a003412d813309b9.png"
       }
     ]
   }

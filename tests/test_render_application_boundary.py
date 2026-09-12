@@ -944,7 +944,7 @@ def test_conversation_readiness_waits_for_the_keyed_thread_list(browser, serve):
           const presentation = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js'
           );
-          const list = document.querySelector('lf-thread-list');
+          const list = document.querySelector('leaf-thread-list');
           const schedule = list.scheduleUpdate.bind(list);
           let release;
           const held = new Promise(resolve => { release = resolve; });

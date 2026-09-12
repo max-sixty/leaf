@@ -68,6 +68,7 @@ import { focusedThreadOf } from "./runtime/conversation/focus.js";
 import { mountThreadList } from "./runtime/conversation/thread-list.js";
 import { wireThreadCards } from "./runtime/conversation/thread-card.js";
 import {
+  retainNarrowing,
   revealThread,
   wireNarrowing,
   widen,
@@ -352,6 +353,7 @@ app = mountApplication({
   panelCovers: () => layout.panelCovers(),
   onConversationChanged: repaint,
   retainPanelLanding: (source) => retainPanelLanding(source, panelIsOpen),
+  retainThreadNarrowing: () => retainNarrowing(app.refreshNarrowing),
   retainConversationFocus: () => retainConversationFocus(panelIsOpen),
   revealReplyEditor: (input, behavior) =>
     revealConversation(

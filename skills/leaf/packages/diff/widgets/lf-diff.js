@@ -558,7 +558,6 @@ customElements.define(
         this.present(this.render(this.inlineSource));
         return;
       }
-      let first = true;
       this.stopWatching = watchData(this, "document", (snapshot) => {
         const source = snapshot?.value ?? null;
         const stamp = snapshot
@@ -571,10 +570,6 @@ customElements.define(
         rendering.finally(() => {
           if (this.boundRendering === rendering) this.boundRendering = null;
         });
-        if (first) {
-          this.present(rendering);
-          first = false;
-        }
         return rendering;
       });
     }

@@ -460,3 +460,32 @@ test("scoped readiness does not wait for an unrelated deferred region", async ()
   releasePage();
   await pagePresentation;
 });
+
+test("a domain-scoped wait retires when its value is superseded in the same epoch", async () => {
+  const document = {};
+  const coordinator = createPresentationCoordinator({ reportFailure: assert.fail });
+  const current = { document, semanticEpoch: 0 };
+  const publication = coordinator.begin(document, 0);
+  const data = coordinator.attach("data:feed:rows", {});
+  let releaseOlder;
+  const older = data.present(
+    1,
+    new Promise((resolve) => {
+      releaseOlder = resolve;
+    }),
+  );
+  coordinator.seal(publication);
+
+  let wanted = true;
+  const readiness = coordinator.whenCurrentRegionsPresented(
+    () => (wanted ? current : null),
+    ["data:feed:rows"],
+  );
+  wanted = false;
+  const newer = data.present(2, undefined);
+
+  assert.equal(await readiness, "superseded");
+  await newer;
+  releaseOlder();
+  await older;
+});

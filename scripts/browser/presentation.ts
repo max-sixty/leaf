@@ -116,6 +116,7 @@ interface Waiter<DocumentToken extends object> {
 
 interface RegionWaiter<DocumentToken extends object, Region> extends Waiter<DocumentToken> {
   readonly regions: ReadonlySet<Region>;
+  readonly cancelled?: () => boolean;
 }
 
 export function createPresentationCoordinator<
@@ -155,6 +156,7 @@ export function createPresentationCoordinator<
   }
 
   function regionOutcome(waiter: RegionWaiter<DocumentToken, Region>) {
+    if (waiter.cancelled?.()) return "superseded";
     if (document === null || !Object.is(waiter.document, document))
       return "superseded";
     if (semanticEpoch > waiter.semanticEpoch) return "superseded";
@@ -337,6 +339,9 @@ export function createPresentationCoordinator<
         member.commit = null;
         member.retired = false;
       }
+      // Replacing a region can also invalidate a domain-scoped wait whose semantic
+      // publication is unchanged, such as an older external-data revision.
+      resolveRegionWaiters();
       try {
         const proof = await completion;
         finish(ticket, "committed", proof);
@@ -464,14 +469,26 @@ export function createPresentationCoordinator<
   }
 
   async function whenCurrentRegionsPresented(
-    current: () => PresentationPublication<DocumentToken>,
+    current: () => PresentationPublication<DocumentToken> | null,
     regions: readonly Region[],
   ): Promise<PresentationOutcome> {
     const wanted = [...new Set(regions)];
     for (;;) {
       const target = current();
-      await whenRegionsPresented(target.document, target.semanticEpoch, wanted);
+      if (target === null) return "superseded";
+      await new Promise<PresentationOutcome>((resolve) => {
+        const waiter = {
+          ...target,
+          regions: new Set(wanted),
+          cancelled: () => current() === null,
+          resolve,
+        };
+        const outcome = regionOutcome(waiter);
+        if (outcome) resolve(outcome);
+        else regionWaiters.push(waiter);
+      });
       const latest = current();
+      if (latest === null) return "superseded";
       const outcome = regionOutcome({
         ...latest,
         regions: new Set(wanted),

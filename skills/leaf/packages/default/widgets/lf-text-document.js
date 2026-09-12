@@ -1,7 +1,6 @@
 import {
   failSoft,
   projectData,
-  widgetController,
   synNodes,
   syntax,
   watchData,
@@ -12,15 +11,9 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       if (this.stopWatching) return;
-      let first = true;
-      this.stopWatching = watchData(this, "document", (snapshot) => {
-        const rendering = this.render(snapshot);
-        if (first) {
-          widgetController(this).present(rendering);
-          first = false;
-        }
-        return rendering;
-      });
+      this.stopWatching = watchData(this, "document", (snapshot) =>
+        this.render(snapshot),
+      );
     }
 
     disconnectedCallback() {

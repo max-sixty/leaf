@@ -4572,9 +4572,8 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     )
     page.evaluate(
         """async () => {
-          const pending = [];
-          document.dispatchEvent(new CustomEvent('lf-data', {detail: {pending}}));
-          await Promise.allSettled(pending);
+          const {notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          await notifyDataSubscribers();
         }"""
     )
     assert details.evaluate("element => element === window.__lfDiffDetails")

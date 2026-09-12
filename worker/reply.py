@@ -4,6 +4,7 @@
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -54,23 +55,28 @@ def response_payload(arguments: list[str]) -> dict[str, str]:
 
 
 def main() -> None:
+    entered_at_ms = time.time_ns() // 1_000_000
     payload = response_payload(sys.argv[1:])
     route = published_route(Path.cwd())
     token_path = Path(os.environ["LEAF_REPLY_TOKEN"])
     token = token_path.read_text(encoding="utf-8")
+    request_at_ms = time.time_ns() // 1_000_000
     request = urllib.request.Request(
         f"http://127.0.0.1:8080{route}/_leaf/agent/respond",
         data=json.dumps(payload).encode(),
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
+            "Leaf-Agent-Helper-Entered-At-Ms": str(entered_at_ms),
+            "Leaf-Agent-Helper-Request-At-Ms": str(request_at_ms),
         },
     )
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
-            print(response.read().decode())
+            body = response.read().decode()
     except urllib.error.HTTPError as error:
         fail(error.read().decode())
+    print(body)
 
 
 if __name__ == "__main__":

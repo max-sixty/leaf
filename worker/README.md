@@ -95,6 +95,10 @@ they never carry item content. Leaf's record omits message text, prompts, source
 keys, cookies, and private session ids. Cloudflare wraps it in invocation metadata.
 The `agent_response_started` and `agent_response_completed` records isolate Leaf's
 validation, publication, and event append from the surrounding model command.
+The `agent_response_helper_arrived` record carries the small command-line client's
+main-entry and request timestamps. Together with the App Server command timestamp and
+this server-arrival record, they separate shell/interpreter bootstrap, in-process
+preparation, and request transit to Leaf.
 The trusted outbound handler adds a content-free record when Codex falls back from its
 WebSocket probe to the supported HTTP transport, then model request, response-header,
 first-byte, first-output, and completion records. Those records carry Codex's thread

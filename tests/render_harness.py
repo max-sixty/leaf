@@ -585,8 +585,9 @@ def post_event(page, url, **kwargs):
 # inside the thing under test; that watcher was a second representation of the outbox's
 # lifecycle, and it needed a protocol of its own to keep step — a post a reload killed
 # that no event reported, a waiter woken before the listeners that counted, a body read
-# with no deadline. The runtime already states readiness for this reader (`lfUpgraded`,
-# `lfApplied`, `lfPresented`); delivery is one more fact it states rather than one the
+# with no deadline. The runtime already states arrival for this reader (`lfUpgraded`,
+# `lfApplied`, `lfPresented`) and current readiness through its coordinator; delivery is
+# one more fact it states rather than one the
 # harness infers, and nothing is injected to obtain it.
 class Traffic:
     """One page's trips to the server, as the runtime counts them.
@@ -960,24 +961,31 @@ def held_stale(context):
     return stale
 
 
-# The page's three readiness facts: `lf-upgraded` is the document's — widgets upgraded
-# and the anchor pass run — `lf-applied` is the log's, written at the end of every replay
-# pass, and `lf-presented` says the authoritative projection or offline fallback has been
-# released to the reader. The first read starts beside widget startup, but its answer stays
-# unapplied until the document earns its upgrade stamp. Either half may finish first.
+# The page's arrival facts plus its current presentation reading. `lf-upgraded` is the
+# document's — widgets upgraded and the anchor pass run — `lf-applied` is the log's,
+# written at the end of every replay pass, and `lf-presented` says the initial
+# authoritative projection or offline fallback was released to the reader. That last
+# attribute is monotonic, so the coordinator must also say the current semantic epoch is
+# presented before a test can interact with or inspect the page.
 #
-# One predicate, because it was spelled out in eleven places and only the one that
-# noticed ever grew the second half. `open_page` took it when a loaded Linux runner
-# dropped three keypresses into pages with nothing yet to answer them; every navigation a
-# test makes for itself kept waiting on the document alone. What that leaves out is not a nicety of
-# the log: the version chooser and the live-pages button are drawn from a read's answer
-# and Threads has no count until one lands, so a page at the document's stamp is a page
-# whose banner the reader would not recognize.
-BOTH_STAMPS = (
-    "() => document.body.dataset.lfUpgraded === '1'"
-    " && document.body.dataset.lfApplied !== undefined"
-    " && document.body.dataset.lfPresented === '1'"
-)
+# Keep one predicate for `open_page` and the navigations tests perform directly. The
+# version chooser, live-pages button, and thread count are drawn from the application
+# reading, so a document-only wait can return a page whose banner the reader would not
+# recognize. The coordinator check also prevents the monotonic arrival attributes from
+# authorizing interaction during a later repaint.
+BOTH_STAMPS = """async () => {
+  if (
+    document.body.dataset.lfUpgraded !== '1' ||
+    document.body.dataset.lfApplied === undefined ||
+    document.body.dataset.lfPresented !== '1'
+  ) return false;
+  const entry = document.querySelector('script[data-lf-entry]')?.dataset.lfEntry;
+  if (!entry) return false;
+  const runtime = await import(
+    new URL('runtime/validation.js', new URL(entry, location.href)).href
+  );
+  return runtime.validationPresentationReady();
+}"""
 STORED_DRAFT_TEXT = """ctx => {
   try {
     const record = JSON.parse(localStorage.getItem('lf-draft:' + ctx));
@@ -1044,14 +1052,12 @@ def restarting(page, errors):
 
     End the block on the assertion that proves the restart landed — the new heading, the
     new layer, the replacement server's answer — since that is what puts the interrupted
-    fetches behind the discard. The presented stamp waited for here is a settle rather
-    than that proof: a page that never reloaded still carries it.
+    fetches behind the discard. Current coordinator readiness waited for here is a settle
+    rather than that proof: a page that never reloaded may still become ready again.
     """
     mark = len(errors)
     yield
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=30000
-    )
+    page.wait_for_function(BOTH_STAMPS, timeout=30000)
     del errors[mark:]
 
 
@@ -1182,13 +1188,13 @@ def open_page(
     because the URL a handover carries already has a query holding the page's key: a
     test appending its own `?pin` overwrote that key and got a page that never loaded.
 
-    `upgraded` takes the page's three readiness facts for having finished, `BOTH_STAMPS`
-    above saying what each answers. Twenty-two tests stood on the first pair the day it
-    was written here, and a dockerised Linux runner had named three.
+    `upgraded` waits for the page's arrival facts and the coordinator's current
+    presentation reading, with `BOTH_STAMPS` above saying what each answers.
 
     Navigation waits for `load`, so the stylesheet and media that determine layout have
     arrived. Network silence is not a readiness fact; the stamps state that the document
-    and its log finished applying.
+    and its log finished applying, and the coordinator states that their current
+    presentation work has settled.
 
     `color_scheme` sets the medium before page modules evaluate. A supplied context owns
     its own medium instead, just as it owns the rest of its browser state.

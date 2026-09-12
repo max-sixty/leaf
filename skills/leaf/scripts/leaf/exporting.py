@@ -330,6 +330,10 @@ def export_page(browser, url: str, page_dir: Path, name: str) -> str:
                   await Promise.all(pending);
                 }"""
             )
+            # Materializing a live fragment can mount required descendants or overlap a
+            # newer semantic publication. Re-read the coordinator immediately before
+            # baking rather than treating the initial arrival latch as permanent.
+            wait_for_probe(page, "currentPresented")
             asset_root = readiness["theme"].removesuffix("theme.css")
             origin = urlsplit(asset_root)
             page_root = urlsplit(readiness["pageRoot"]).path

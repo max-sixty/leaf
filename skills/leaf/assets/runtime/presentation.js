@@ -16,10 +16,11 @@
      offline authored fallback, has crossed the semantic-interaction boundary.
 
    Do not merge these stamps. A document can finish upgrading while its first state read
-   is pending, or the answer can wait unapplied while upgrades finish. A projection can
-   commit while finite reconciliation animations are still settling. Any consumer that
-   reads final boxes waits for upgraded, applied, presented, and no finite animation
-   reported by `moving`.
+   is pending, or the answer can wait unapplied while upgrades finish. A later semantic
+   publication or same-epoch renderer replacement leaves `data-lf-presented` set while
+   the presentation coordinator reopens. Any consumer that reads current final boxes
+   waits for upgraded, applied, the initial presented milestone, the coordinator's
+   current reading, and no finite animation reported by `moving`.
 
    If registry declarations and the log contain enough information to implement a
    behavior, the layer implements it once. Current examples are:

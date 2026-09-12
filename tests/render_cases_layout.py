@@ -163,7 +163,7 @@ def arrival_findings(browser, url):
             # the former design-decision example, and buys this nothing.
             page.goto(url, wait_until="load")
             render_checks_model.wait_for_probe(page, "upgraded")
-            render_checks_model.wait_for_probe(page, "presented")
+            render_checks_model.wait_for_probe(page, "currentPresented")
         except PlaywrightTimeout:
             return [
                 "[arrivals] the page never came up unarranged, so nothing could be "
@@ -179,7 +179,7 @@ def arrival_findings(browser, url):
             try:
                 page.reload(wait_until="load")
                 render_checks_model.wait_for_probe(page, "upgraded")
-                render_checks_model.wait_for_probe(page, "presented")
+                render_checks_model.wait_for_probe(page, "currentPresented")
             except PlaywrightTimeout:
                 found.append(
                     f"[{restore_case['name']}] the page never finished coming up — "

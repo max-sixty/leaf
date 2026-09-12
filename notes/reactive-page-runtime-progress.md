@@ -56,8 +56,9 @@ kernel. Publication opens before the Signals root changes and seals after synchr
 subscribers have registered their work. Current readiness revalidates newer epochs and
 same-epoch renderer replacement; scoped waits do not inherit unrelated deferred work.
 The monotonic `data-lf-presented` mark remains only the initial presentation milestone.
-Conversation/projection chrome and the render/export readiness probes are the remaining
-legacy readiness consumers.
+Render checks, the browser harness, and export now revalidate the active document's
+current coordinator reading after that milestone. Conversation/projection chrome are the
+remaining legacy readiness consumers.
 
 ## Integrated design intent
 
@@ -124,7 +125,7 @@ error.
 
 ## Remaining implementation
 
-Finish the conversation/projection queues and current render/export readiness probe.
+Finish the conversation/projection queues.
 Continue converting generated regions to Lit by ownership boundary, beginning with the
 shared options controls. Add offline interactive export without weakening script-free
 static export, then dissolve this checkpoint plus both plan notes into their owning
@@ -164,6 +165,9 @@ tests. A combined current-branch run of application-boundary, target-reference, 
 and the package-init render regression passes all 104 cases; eight focused semantic
 reference contract cases and the quoted settled-options journey also pass. The external
 data slice separately passes 13 startup/provenance cases and touched-file pre-commit.
+The current-readiness probe slice passes the 32 browser domain/build tests, causal
+same-epoch replacement/failure and late-export browser cases, nine neighboring harness
+journeys, and touched-file pre-commit.
 
 The website bundler slice passed 61 worker tests, typecheck, five immutable-shell tests,
 three site tests, and a complete site build/bundle. Local pre-commit passes.

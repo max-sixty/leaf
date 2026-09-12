@@ -26,11 +26,14 @@ export const attachApplicationPresentation = (region, renderer) =>
   presentation.attach(region, renderer);
 export const attachWidgetPresentation = (widget, kind, renderer) =>
   presentation.attach(`widget:${widget}:${kind}`, renderer);
+const currentApplicationPresentation = () => ({
+  document: documentToken,
+  semanticEpoch: readApplication().semanticEpoch,
+});
 export const whenApplicationPresented = () =>
-  presentation.whenCurrentPresented(() => ({
-    document: documentToken,
-    semanticEpoch: readApplication().semanticEpoch,
-  }));
+  presentation.whenCurrentPresented(currentApplicationPresentation);
+export const applicationPresented = () =>
+  presentation.currentPresented(currentApplicationPresentation);
 export const whenWidgetsPresented = (widgets) =>
   presentation.whenCurrentRegionsPresented(
     () => ({

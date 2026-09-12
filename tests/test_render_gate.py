@@ -160,6 +160,9 @@ def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
         findings = render_gate_scheme.start_with_pre_upgrade_proof(
             page, serve(source, packages=())
         )
+        # Interception lives with the page; only the initial entry may be held.
+        page.reload()
+        render_checks_model.wait_for_probe(page, "runtimeStarted")
     finally:
         page.close()
 

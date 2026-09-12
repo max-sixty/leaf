@@ -86,10 +86,13 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
     stage = "navigation"
 
     def hold_entry(route):
-        held.append(route)
+        if released:
+            route.continue_()
+        else:
+            held.append(route)
 
-    # A one-shot route disables interception as the entry starts its imports.
-    # Keep it through load: Chromium can strand module requests during that switch.
+    # Keep interception until this page closes. Disabling it at either entry
+    # release or document load can strand static or dynamic widget imports.
     page.route("**/leaf.js", hold_entry)
     try:
         page.goto(url, wait_until="commit")
@@ -126,8 +129,8 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
         if len(held) != 1:
             raise RuntimeError("the browser did not request one canonical Leaf entry")
         stage = "release of the Leaf entry"
-        held[0].continue_()
         released = True
+        held[0].continue_()
         stage = "document load after releasing Leaf"
         page.wait_for_load_state("load")
         return findings
@@ -135,8 +138,8 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
         raise PreUpgradeTimeout(f"the browser timed out waiting for {stage}") from error
     finally:
         if held and not released:
+            released = True
             held[0].continue_()
-        page.unroute("**/leaf.js", hold_entry)
 
 
 def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pages):

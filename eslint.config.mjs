@@ -218,17 +218,14 @@ const runtimeDependency = (file, source) => {
 const exactClosures = new Map(
   Object.entries({
     "projection/model.js": [],
-    "projection/state.js": [],
+    "projection/state.js": ["semantic-state.js"],
     "conversation/model.js": ["anchor-coordinate.js", "conversation/identity.js"],
-    "conversation/state.js": [
-      "anchor-coordinate.js",
-      "conversation/identity.js",
-      "conversation/model.js",
-    ],
+    "conversation/state.js": ["semantic-state.js"],
     "pending/model.js": ["conversation/identity.js"],
-    "pending/state.js": ["conversation/identity.js", "pending/model.js"],
+    "pending/state.js": ["semantic-state.js"],
     "keyboard/dispatch.js": [
       "context.js",
+      "semantic-state.js",
       "focus.js",
       "keyboard/bindings.js",
       "keyboard/register.js",
@@ -649,7 +646,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./anchor-coordinate\\.js$|(?:\\.\\./conversation/|\\./)identity\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./(?:anchor-coordinate|semantic-state)\\.js$|(?:\\.\\./conversation/|\\./)identity\\.js$|\\./model\\.js$)",
               message: "Conversation readings depend only on pure record operations.",
             },
           ],

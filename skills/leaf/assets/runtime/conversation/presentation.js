@@ -1,20 +1,14 @@
 /* Conversation presentation across panel, page seats, widget outlets, and margin.
 
    This owner receives records and narrow view capabilities. It never reads delivery,
-   assembles protocol events, or imports state application. One synchronous fold updates
-   every textual/geometry view immediately; the returned promise only represents frozen
+   assembles protocol events, or imports state application. It reads the published fold
+   for every textual/geometry view; the returned promise only represents frozen
    widget preparation in the retained panel list. */
 import { clocked } from "../presence.js";
 import { setChildren } from "../dom-children.js";
 import { el } from "../widget-elements.js";
 import { elementById, inChrome } from "../passages.js";
-import {
-  pendingReactions,
-  pendingSettlements,
-  unreadMessages,
-} from "../pending/model.js";
-import { foldThreads } from "./model.js";
-import { allThreads, setThreads, threadList } from "./state.js";
+import { allThreads, threadList } from "./state.js";
 import { renderConversations } from "./inline.js";
 import { holdScrollPosition, renderThreads } from "./thread-list.js";
 import { threadsBox } from "./panel-elements.js";
@@ -66,7 +60,6 @@ export function createConversationPresentation({
     setChildren(threadsBox, [waitingNote], removeNode);
     setThreadCount(null);
     paintNarrowing([], []);
-    setThreads([]);
     const painted = anchorPaint.paint({
       threads: [],
       draft: readDraft(),
@@ -102,30 +95,16 @@ export function createConversationPresentation({
     return prepared;
   }
 
-  // The clock replays the canonical installed fold rather than retaining whichever
-  // candidate array first caused a timestamp to paint. A failed state application can
-  // restore that fold after this synchronous pass, and its next tick must age the
-  // restored messages rather than resurrecting the refused candidate.
+  // Each clock tick reads the current semantic root, never a retained presentation
+  // input that could omit later local gestures or a newer accepted reading.
   const paintCurrent = clocked(document.body, renderCurrent);
 
-  function renderKnown(threads) {
-    setThreads(threads);
-    return paintCurrent();
-  }
-
-  function apply({ phase, serverThreads = [], receipts = [], pendingEntries = [] }) {
+  function apply({ phase }) {
     if (phase !== "ready") {
       setUnavailable(phase);
       return undefined;
     }
-    return renderKnown(
-      foldThreads(
-        serverThreads,
-        unreadMessages(pendingEntries, receipts),
-        pendingReactions(pendingEntries, receipts),
-        pendingSettlements(pendingEntries, receipts),
-      ),
-    );
+    return paintCurrent();
   }
 
   function repaintCurrent() {

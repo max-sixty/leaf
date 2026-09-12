@@ -13,6 +13,7 @@ import { stateSpecs } from "../registry.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { authoredFacet, authoredStates, stateCoordinate, unitOf } from "./authored.js";
 import { currentProjection } from "./state.js";
+import { PENDING } from "../conversation/identity.js";
 
 const { registry } = runtime;
 
@@ -51,7 +52,7 @@ function canUndoAction(candidate) {
   const widget = elementById(candidate.event.widget);
   return Boolean(
     widget &&
-    authoredStates.has(widget.id) &&
+    authoredStates().has(widget.id) &&
     (widget.renderState || settlementSlots()[widget.localName]),
   );
 }
@@ -127,7 +128,7 @@ export function createProjectionCommands({ post, stateApplying, unaccountedGestu
       const pending = currentProjection().actions.get(
         stateCoordinate(widget.id, wantedUnit, spec),
       );
-      if (pending && typeof pending.e.id === "symbol") return pending.e;
+      if (pending?.e.id.startsWith(PENDING)) return pending.e;
     }
     const candidate = (runtime.view?.undo ?? []).find(({ event }) => {
       if (

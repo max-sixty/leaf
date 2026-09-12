@@ -6,14 +6,10 @@
    One presentation instance owns the commit maps, optimistic staging, coordinate
    proof, release decisions, authored-page reset, and drag deferral observer. Stateless
    view normalization and DOM signature/read adapters remain direct exports. */
-import { authoredStates, domFacet, stateCoordinate, unitOf } from "./authored.js";
-import {
-  foldProjection,
-  foldedFacet,
-  foldWidgetStates,
-  projectionOrigins,
-} from "./model.js";
-import { currentProjection, installProjection } from "./state.js";
+import { authoredStates, domFacet } from "./authored.js";
+import { foldProjection, foldWidgetStates, projectionOrigins } from "./model.js";
+import { currentProjection, setProjectionDeferred } from "./state.js";
+import { applicationState, readApplication } from "../semantic-state.js";
 import { pendingProjectionEntries } from "../pending/model.js";
 import { stateSpecs } from "../registry.js";
 import { runtime } from "../context.js";
@@ -104,7 +100,7 @@ function paintStateOrigins(projection) {
       new Set(),
     ]),
   );
-  for (const { origin, unit } of projectionOrigins(authoredStates, projection)) {
+  for (const { origin, unit } of projectionOrigins(authoredStates(), projection)) {
     if (origin === "restated") continue;
     const target = elementById(unit);
     if (!target || inChrome(target)) continue;
@@ -171,7 +167,11 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
       if (!entry.answered || entry.event.kind !== "action") return false;
       return entry.rejected
         ? localCoordinateCommitted(projection, entry)
-        : Boolean(entry.readEvent && projectionCommitted(projection, entry.readEvent));
+        : Boolean(
+            entry.presented &&
+            entry.readEvent &&
+            projectionCommitted(projection, entry.readEvent),
+          );
     });
   }
 
@@ -182,41 +182,19 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
   // snapshot; the pure fold derives whichever prior value still stands.
   function stageOptimistic(entry) {
     const e = entry.event;
+    const local = entry.projection;
+    if (!local) return false;
     if (e.kind === "undo") {
-      const target =
-        entry.undoTarget?.projection ?? currentProjection().classified.get(e.undoes);
-      if (!target || target.e.kind !== "action") return false;
-      entry.projection = {
-        kind: "undo",
-        target,
-        targetEntry: entry.undoTarget,
-        coordinate: target.coordinate,
-        localOrder: entry.order,
-      };
-      committedWidgets.delete(target.e.widget);
+      committedWidgets.delete(local.target.e.widget);
       return true;
     }
-    if (e.kind !== "action") return false;
     const widget = elementById(e.widget);
-    const spec = widget && registry[widget.localName]?.["x-state"]?.[e.action];
-    if (!spec) return false;
-    const unit = unitOf(e, spec);
-    if (typeof unit !== "string") return false;
-    const coordinate = stateCoordinate(e.widget, unit, spec);
-    entry.projection = {
-      unit,
-      spec,
-      coordinate,
-      localOrder: entry.order,
-      e: { ...e, id: entry.localId },
-      value: spec.record ? foldedFacet(e, spec.record) : e.action,
-    };
     committedWidgets.delete(e.widget);
-    committedProjection.set(coordinate, {
+    committedProjection.set(local.coordinate, {
       widgetId: e.widget,
       widget,
-      unit: elementById(unit),
-      entry: entry.projection,
+      unit: elementById(local.unit),
+      entry: local,
     });
     return true;
   }
@@ -248,8 +226,8 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
       }
     };
     dropCoordinates(committedProjection);
+    applicationState.forgetAuthored(pageOwners);
     for (const owner of pageOwners) {
-      authoredStates.delete(owner);
       committedWidgets.delete(owner);
     }
     document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
@@ -271,33 +249,30 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
   }
 
   function presentCurrent(input) {
-    const projection = normalize(input);
+    const projection = currentProjection();
     // Before the first state or the offline fallback, authored capture has completed
     // but the application still cannot know whether an action is available. Surface
     // registration may invalidate the DOM in that interval. Publish the desired record
     // for readers, but leave the widget uncommitted so ready/offline presentation must
     // render it instead of treating this provisional authored state as current.
     if (input.phase === "waiting") {
-      installProjection(projection, { deferred: true });
+      setProjectionDeferred(true);
       return projection;
     }
     if (document.querySelector(".lf-dragging")) {
-      installProjection(projection, { deferred: true });
+      setProjectionDeferred(true);
       watchProjectionDrag();
       return projection;
     }
     projectionDragObserver?.disconnect();
     projectionDragObserver = null;
-    installProjection(projection);
+    setProjectionDeferred(false);
     let painted = false;
     const started = new Set(document.getAnimations());
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? [])
         elementById(id)?.setAttribute(PAGE_PAINT_ATTRIBUTE.restated, "1");
-    for (const [widgetId, { state, entries }] of foldWidgetStates(
-      authoredStates,
-      projection,
-    )) {
+    for (const [widgetId, { state, entries }] of readApplication().effective.widgets) {
       const widget = elementById(widgetId);
       if (!widget) continue;
       const key = JSON.stringify(state);
@@ -309,7 +284,7 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
       if (commit?.widget !== widget || commit.key !== key || unitsChanged) {
         try {
           if (widget.renderState?.(state) === false) {
-            installProjection(projection, { deferred: true });
+            setProjectionDeferred(true);
             continue;
           }
           renderSettlement(widget, state);
@@ -319,6 +294,8 @@ export function createProjectionPresentation({ onDeferredReady, onDomIntroduced 
           );
           failSoft(widget, error);
           renderSettlement(widget, state);
+          setProjectionDeferred(true);
+          continue;
         }
         committedWidgets.set(widgetId, { widget, key });
         painted = true;
@@ -424,7 +401,7 @@ export function standingState(eventIds = null) {
             ),
           ),
         };
-  return [...foldWidgetStates(authoredStates, desired)].map(
+  return [...foldWidgetStates(authoredStates(), desired)].map(
     ([id, { state, specs }]) => ({
       get widget() {
         return elementById(id);

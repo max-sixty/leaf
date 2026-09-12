@@ -4,6 +4,7 @@
    mounts the application before widget upgrade; exported functions are stable closures
    for the public widget API and fail clearly if invoked before that boundary. */
 import { runtime } from "./context.js";
+import { readApplication } from "./semantic-state.js";
 import { newAttempt } from "./drafts.js";
 import { saidNow } from "./presence.js";
 import { announce, notice } from "./notifications.js";
@@ -16,11 +17,7 @@ import {
 import { paintKeys } from "./keyboard/scopes.js";
 import { pendingTraffic } from "./traffic.js";
 import { createPendingLedger } from "./pending/state.js";
-import {
-  pendingApprovals as pendingApprovalEvents,
-  pendingRequests as pendingRequestEvents,
-  unresolvedAttempts,
-} from "./pending/model.js";
+import { unresolvedAttempts } from "./pending/model.js";
 import { createDelivery } from "./delivery.js";
 import {
   createProjectionPresentation,
@@ -80,10 +77,8 @@ export function mountApplication(dependencies) {
   });
   const pendingEntries = ledger.snapshot;
   const currentReceipts = () => runtime.browser?.receipts ?? [];
-  const pendingApprovals = () =>
-    pendingApprovalEvents(pendingEntries(), currentReceipts());
-  const pendingRequests = () =>
-    pendingRequestEvents(pendingEntries(), currentReceipts());
+  const pendingApprovals = () => readApplication().effective.pendingApprovals;
+  const pendingRequests = () => readApplication().effective.pendingRequests;
   const openAsks = () => readOpenAsks(pendingRequests());
   const unansweredAsks = () => readUnansweredAsks(pendingRequests());
   const approvalBlockingAsks = () => readApprovalBlockingAsks(pendingRequests());
@@ -333,11 +328,7 @@ export function mountApplication(dependencies) {
     presentProjection,
     accountPending,
     panelIsOpen: dependencies.panelIsOpen,
-    refreshHover: dependencies.anchorPaint.refreshHover,
-    repaint: dependencies.onConversationChanged,
     paintKeys,
-    retainConversationFocus: dependencies.retainConversationFocus,
-    updateFab: dependencies.updateFab,
   });
 
   const flushQueuedInvalidation = async () => {
@@ -352,13 +343,12 @@ export function mountApplication(dependencies) {
   };
   const receiveState = (state) =>
     stateApplication.receiveState(state).finally(async () => {
-      // External wakes that arrived while the candidate was fallible now read either
-      // the adopted state or the complete snapshot rollback restored.
+      // External wakes read the latest semantic root, including local gestures made
+      // while an accepted reading was still preparing its views.
       try {
         await flushQueuedInvalidation();
       } catch (error) {
-        // This retry happens after the state transaction has committed or rolled back.
-        // Its presentation failure must not replace that canonical transaction result.
+        // A retry's presentation failure does not change the accepted reading.
         console.error("leaf: queued projection retry", error);
       }
     });

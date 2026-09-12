@@ -16,6 +16,7 @@
 import { countTraffic } from "./traffic.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
 import { containedPage, runtime } from "./context.js";
+import { applicationState } from "./semantic-state.js";
 import {
   layerHeaders,
   observeSession,
@@ -128,7 +129,7 @@ export function createStateFeed({
   // What the page does with an answer that brought no state.
   async function readNothing() {
     readAnswered = false;
-    if (runtime.statePhase === "waiting") runtime.statePhase = "offline";
+    if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
     renderStatus(null);
     if (panelIsOpen()) renderConversation();
     await tick();

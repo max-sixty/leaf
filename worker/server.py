@@ -976,8 +976,6 @@ def _agent_response_timing(headers) -> dict[str, int]:
         if raw is None or not raw.isascii() or not raw.isdecimal() or len(raw) > 16:
             raise ValueError(f"{header} must be a Unix millisecond timestamp")
         values[field] = int(raw)
-    if values["helperRequestAtMs"] < values["helperEnteredAtMs"]:
-        raise ValueError("agent response helper request precedes its main entry")
     return values
 
 
@@ -1081,10 +1079,6 @@ class WebsitePageHandler(Handler):
             log_agent(
                 "agent_response_helper_arrived",
                 eventId=event_id,
-                durationMs=(
-                    helper_timing["helperRequestAtMs"]
-                    - helper_timing["helperEnteredAtMs"]
-                ),
                 **helper_timing,
             )
             try:

@@ -580,7 +580,7 @@ def test_the_private_reply_client_carries_a_new_thread_target():
     }
 
 
-def test_the_private_reply_client_timing_is_ordered():
+def test_the_private_reply_client_timing_is_numeric():
     assert website_server._agent_response_timing(
         {
             "Leaf-Agent-Helper-Entered-At-Ms": "1789180475000",
@@ -590,11 +590,11 @@ def test_the_private_reply_client_timing_is_ordered():
         "helperEnteredAtMs": 1789180475000,
         "helperRequestAtMs": 1789180475125,
     }
-    with pytest.raises(ValueError, match="precedes"):
+    with pytest.raises(ValueError, match="Unix millisecond"):
         website_server._agent_response_timing(
             {
                 "Leaf-Agent-Helper-Entered-At-Ms": "1789180475000",
-                "Leaf-Agent-Helper-Request-At-Ms": "1789180474999",
+                "Leaf-Agent-Helper-Request-At-Ms": "unknown",
             }
         )
 

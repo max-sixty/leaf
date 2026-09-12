@@ -1,5 +1,5 @@
 /* This module owns registry loading, pre-upgrade passage fences, dynamic widget
- * imports, and initial settlement. */
+ * imports, and initial presentation. */
 import {
   MARKED_IN_PAGE,
   dress,
@@ -9,8 +9,11 @@ import {
 import { reachScrollers } from "./reach.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { loadShadowRules } from "./shadow.js";
-import { registerPresentation, settling } from "./widget-upgrade.js";
 import { revealLayer, sameDelivery, sameLayer } from "./layer-client.js";
+import {
+  attachApplicationPresentation,
+  whenApplicationPresented,
+} from "./semantic-state.js";
 import {
   captureAuthoredFacets,
   rememberAuthoredParents,
@@ -123,18 +126,25 @@ export async function installDocument(
   scope,
   { source = ["page", null], mount = () => {}, watchLinks = false } = {},
 ) {
-  rememberPassageParts(scope, source);
-  rememberAuthoredParents(scope);
-  captureWidgetDescriptors(scope);
-  markDeclared(scope, MARKED_IN_PAGE);
-  if (watchLinks) watchExternalLinks(scope);
-  const settlingFrom = settling.length;
-  await importWidgets(scope);
-  mount();
-  registerPresentation(dress(scope));
-  await Promise.allSettled(settling.slice(settlingFrom));
-  reachScrollers(scope);
-  captureAuthoredFacets(scope);
+  const presentation = attachApplicationPresentation("document:installation", scope);
+  try {
+    rememberPassageParts(scope, source);
+    rememberAuthoredParents(scope);
+    captureWidgetDescriptors(scope);
+    markDeclared(scope, MARKED_IN_PAGE);
+    if (watchLinks) watchExternalLinks(scope);
+    await importWidgets(scope);
+    mount();
+    await presentation.present(scope, dress(scope));
+    await whenApplicationPresented();
+    reachScrollers(scope);
+    captureAuthoredFacets(scope);
+    // Capturing the authored initial condition is a semantic publication. Wait for
+    // subscribers to paint that newest reading before declaring upgrade complete.
+    await whenApplicationPresented();
+  } finally {
+    presentation.disconnect();
+  }
 }
 
 export async function upgradeWidgets({ buildReactionBar }) {

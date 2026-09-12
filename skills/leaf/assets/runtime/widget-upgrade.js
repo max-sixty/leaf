@@ -2,10 +2,8 @@
 
    A module defines its custom element once and makes `connectedCallback` safe to run
    after reconnection, using `once(el)` for generated chrome so reconnecting does not
-   duplicate it. A controller whose work is async registers its presentation, so
-   the runtime can hold the view restore and first anchor pass until the page's
-   geometry has settled; a failed upgrade becomes a visible error box (`failSoft`)
-   rather than a blank page. */
+   duplicate it. A failed upgrade becomes a visible error box (`failSoft`) rather than
+   a blank page; widgetController owns asynchronous presentation. */
 import { PAGE_PAINT_ATTRIBUTE } from "./presentation.js";
 
 // One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
@@ -39,15 +37,4 @@ export function failSoft(el, err, source) {
     box.append(pre);
   }
   el.replaceChildren(box);
-}
-
-// An upgrade whose work is async (lf-diagram's renderer import) registers its
-// promise here, so the runtime can hold the view restore and first anchor pass
-// until the page's geometry has settled. Rejections are the widget's own
-// fail-soft path; settling ignores them.
-export const settling = [];
-export function registerPresentation(promise) {
-  if (!promise?.then) throw new TypeError("Widget presentation must be a promise");
-  settling.push(promise);
-  return promise;
 }

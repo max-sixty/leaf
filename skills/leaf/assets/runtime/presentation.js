@@ -71,6 +71,10 @@
    node from which a draft editor seeds its text. */
 
 import { elementDeclarations, registry, tagsDeclaring } from "./registry.js";
+import {
+  attachApplicationPresentation,
+  whenApplicationPresented,
+} from "./semantic-state.js";
 import { highlightBlocks } from "./syntax.js";
 
 // Attributes the runtime itself may paint onto elements the page owns. This is the
@@ -126,10 +130,22 @@ export const PRESENTATION = "lf-presentation";
 export const PAGE_INTERFACE = "lf-page-interface";
 export async function settlePageInterface() {
   const pending = [];
-  document.dispatchEvent(new CustomEvent(PAGE_INTERFACE, { detail: { pending } }));
-  // Each optional owner reports its own failure. One rejected surface must not keep
-  // every generated control on the page behind the upgrade boundary.
-  await Promise.allSettled(pending);
+  const presentation = attachApplicationPresentation("page-interface", document);
+  const present = (promise) => {
+    if (!promise?.then)
+      throw new TypeError("Page interface presentation must be a promise");
+    pending.push(promise);
+    return promise;
+  };
+  try {
+    document.dispatchEvent(new CustomEvent(PAGE_INTERFACE, { detail: { present } }));
+    // Each optional owner reports its own failure. One rejected surface must not keep
+    // every generated control on the page behind the upgrade boundary.
+    await presentation.present(pending, Promise.allSettled(pending));
+    await whenApplicationPresented();
+  } finally {
+    presentation.disconnect();
+  }
 }
 
 // A word for a reader listening, silent on screen: real text — the one thing every

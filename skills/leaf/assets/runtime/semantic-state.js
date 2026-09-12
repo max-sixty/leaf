@@ -22,6 +22,8 @@ export const applicationState = createSemanticApplication({
 export const readApplication = applicationState.read;
 export const projectView = applicationState.projectView;
 export const selectWidgets = applicationState.selectWidgets;
+export const attachApplicationPresentation = (region, renderer) =>
+  presentation.attach(region, renderer);
 export const attachWidgetPresentation = (widget, kind, renderer) =>
   presentation.attach(`widget:${widget}:${kind}`, renderer);
 export const whenApplicationPresented = () =>
@@ -29,6 +31,17 @@ export const whenApplicationPresented = () =>
     document: documentToken,
     semanticEpoch: readApplication().semanticEpoch,
   }));
+export const whenWidgetsPresented = (widgets) =>
+  presentation.whenCurrentRegionsPresented(
+    () => ({
+      document: documentToken,
+      semanticEpoch: readApplication().semanticEpoch,
+    }),
+    widgets.flatMap((widget) => [
+      `widget:${widget}:render`,
+      `widget:${widget}:preparation`,
+    ]),
+  );
 export const readApplicationPresentation = presentation.read;
 export function setPresentationFailureReporter(report) {
   if (typeof report !== "function")

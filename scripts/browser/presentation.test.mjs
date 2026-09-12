@@ -421,3 +421,42 @@ test("current readiness follows a same-epoch renderer replacement", async () => 
   await replacement;
   assert.equal(await readiness, "presented");
 });
+
+test("scoped readiness does not wait for an unrelated deferred region", async () => {
+  const document = {};
+  const coordinator = createPresentationCoordinator({ reportFailure: assert.fail });
+  const current = { document, semanticEpoch: 0 };
+  const publication = coordinator.begin(document, 0);
+  const page = coordinator.attach("page-widget", {});
+  const thread = coordinator.attach("thread-widget", {});
+  let releasePage;
+  const pagePresentation = page.present(
+    "page",
+    new Promise((resolve) => {
+      releasePage = resolve;
+    }),
+  );
+  let releaseThread;
+  const threadPresentation = thread.present(
+    "thread",
+    new Promise((resolve) => {
+      releaseThread = resolve;
+    }),
+  );
+  coordinator.seal(publication);
+
+  let ready = false;
+  const readiness = coordinator
+    .whenCurrentRegionsPresented(() => current, ["thread-widget"])
+    .then((outcome) => {
+      ready = true;
+      return outcome;
+    });
+  releaseThread();
+  await threadPresentation;
+  assert.equal(await readiness, "presented");
+  assert.equal(ready, true);
+  assert.deepEqual(coordinator.read().pending, ["page-widget"]);
+  releasePage();
+  await pagePresentation;
+});

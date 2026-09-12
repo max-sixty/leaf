@@ -84,7 +84,7 @@ import { runtime } from "../context.js";
 import { ago } from "../presence.js";
 import { setChildren } from "../dom-children.js";
 import { removeConversationNode } from "./reaction-strips.js";
-import { settling } from "../widget-upgrade.js";
+import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { captureAuthoredFacets } from "../projection/authored.js";
 import { reachScrollers } from "../reach.js";
 import { foldOut, hasFolding, isFolding } from "./folding.js";
@@ -484,11 +484,19 @@ function reconcileThreads(all, commands) {
   )
     threadsBox.focus({ preventScroll: true });
   paintHeadRoom(commands.panelIsOpen);
-  // Frozen markup has the same initial-value boundary as a page: connected and
-  // fully upgraded, before its first projection. Async widgets register their work
-  // on connection, so take the settling queue after setChildren above. Later list
-  // reconciles retain the first capture instead of adopting a reader's live value.
-  const prepared = Promise.allSettled(settling).then(() => {
+  // Frozen markup has the same initial-value boundary as a page: connected and fully
+  // presented, before its first projection. Later list reconciles retain the first
+  // capture instead of adopting a reader's live value.
+  const root = readApplication();
+  const uncaptured = [...root.document.descriptors.values()]
+    .filter(
+      (descriptor) =>
+        descriptor.document.kind === "thread" &&
+        !root.document.authored.has(descriptor.id) &&
+        threadsBox.querySelector(`#${CSS.escape(descriptor.id)}`),
+    )
+    .map((descriptor) => descriptor.id);
+  const prepared = whenWidgetsPresented(uncaptured).then(() => {
     captureAuthoredFacets(threadsBox);
     reachScrollers(threadsBox);
   });

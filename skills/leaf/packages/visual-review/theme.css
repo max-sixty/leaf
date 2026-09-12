@@ -116,6 +116,10 @@ lf-visual-review > .lf-reading-after {
   min-width: 0;
 }
 
+.lf-vr-toolbar-slot {
+  padding-block: var(--here-ring-w);
+}
+
 .lf-vr-inspector[hidden] {
   display: none;
 }
@@ -311,7 +315,9 @@ lf-visual-review > .lf-reading-after {
 }
 
 .lf-vr-details[open] {
+  display: grid;
   grid-column: 1 / -1;
+  gap: var(--sp-2);
   width: auto;
 }
 
@@ -327,7 +333,7 @@ lf-visual-review > .lf-reading-after {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   gap: var(--sp-2) var(--sp-4);
-  margin: var(--sp-2) 0 0;
+  margin: 0;
   padding: var(--sp-2);
   border: 1px solid var(--rule);
   border-radius: var(--r);

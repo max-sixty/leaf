@@ -1187,6 +1187,39 @@ def test_a_thread_walk_card_keeps_its_margin_until_its_anchor_leaves(browser, se
     page.close()
 
 
+def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve):
+    """A region's frame names it for reading keys but does not live in its body."""
+    page, errors = open_page(
+        browser,
+        serve(READING_REGIONS_PAGE, anchored=[("left-head", "Left header")]),
+    )
+    resized(page, 1200, 900)
+    page.locator('[data-lf-margin-for="left-head"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible()
+    expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
+    geometry = preview.evaluate(
+        """card => {
+          const box = card.getBoundingClientRect();
+          const pane = document.querySelector('#left-reading .lf-pane-body')
+            .getBoundingClientRect();
+          return {
+            box: box.toJSON(),
+            pane: pane.toJSON(),
+            viewport: {width: innerWidth, height: innerHeight},
+          };
+        }"""
+    )
+    assert geometry["box"]["left"] >= 0, geometry
+    assert geometry["box"]["right"] <= geometry["viewport"]["width"], geometry
+    assert (
+        geometry["box"]["left"] < geometry["pane"]["left"]
+        or geometry["box"]["right"] > geometry["pane"]["right"]
+    ), geometry
+    assert errors == []
+    page.close()
+
+
 def test_opened_tab_replaces_the_native_target_with_one_it_can_control(
     browser, one_reader
 ):

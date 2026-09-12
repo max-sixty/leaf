@@ -156,10 +156,12 @@ const emptyLifecycle = (descriptor: WidgetDescriptor) => ({
   phase: "ready",
 });
 
+// The selected server view already bounds page history to the captured revision and
+// conversation history to its frozen document. Widget ids are unique across both, so
+// filtering again by the event's authored revision would incorrectly discard carried
+// decisions from an earlier revision.
 const appliesTo = (descriptor: WidgetDescriptor, event: Event) =>
-  event.widget === descriptor.id &&
-  (descriptor.document.kind === "thread" ||
-    event.revision === descriptor.document.revision);
+  event.widget === descriptor.id;
 
 function awaitingValue(
   root: ReturnType<ReturnType<typeof createSemanticApplication>["read"]>,

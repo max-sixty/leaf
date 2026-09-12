@@ -852,6 +852,10 @@ customElements.define(
         current.getAttribute("alt") !== alt
       ) {
         const shot = document.createElement("lf-shot");
+        // This generated presentation region has no authored semantic descriptor.
+        // Its nearest authored owner joins every child's distinct preparation to
+        // Leaf's page barrier; several cases may register during this same paint.
+        shot._lfPresentGenerated = (promise) => this.#controller.present(promise);
         shot.id = `lf-${this.id}-${record.id}-comparison`;
         shot.setAttribute("before", before);
         shot.setAttribute("after", after);

@@ -138,7 +138,13 @@ customElements.define(
       paint();
       this.append(box, this.#button);
       this.#offer();
-      widgetController(this).present(this.register(shots));
+      // A visual-review run creates shots after authored descriptor capture. Its
+      // authored controller explicitly owns that generated child's preparation;
+      // standalone authored shots own their presentation themselves.
+      const present =
+        this._lfPresentGenerated ??
+        ((promise) => widgetController(this).present(promise));
+      present(this.register(shots));
     }
 
     disconnectedCallback() {

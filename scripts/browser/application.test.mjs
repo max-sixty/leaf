@@ -233,6 +233,27 @@ test("widget action history excludes terminal coverage records", () => {
   assert.deepEqual(app.selectWidget(descriptor).read().actions.accept.history, []);
 });
 
+test("the selected revision keeps carried action history from earlier revisions", () => {
+  const app = setup();
+  const current = {
+    ...descriptor,
+    document: { kind: "page", revision: 2 },
+  };
+  app.identify(2);
+  app.captureDescriptors(new Map([[current.id, current]]));
+  const carried = { ...action("old"), id: "e-old", seq: 1, revision: 1 };
+  const read = state(2, [carried]);
+  read.active.revision = 2;
+  read.browser.views[2] = read.browser.views[1];
+  read.browser.views[2].basis.revision = 2;
+  delete read.browser.views[1];
+  app.adopt(read);
+  assert.deepEqual(
+    app.selectWidget(current).read().actions.accept.history.map(({ id }) => id),
+    ["e-old"],
+  );
+});
+
 test("accepted reading order includes non-event activity and independent source revisions", () => {
   const app = setup();
   const newer = { ...state(3), activity: { phase: "agent", held: true } };

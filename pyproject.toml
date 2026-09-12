@@ -61,6 +61,7 @@ dev = [
   "pre-commit>=4.6.2",
   # Browser screenshot assertions and scripts/record-demo.py's frames.
   "pillow>=12.1",
+  "pypdf>=6.18.1",
 ]
 
 # The suite is round trips through a real browser rather than computation, so tests

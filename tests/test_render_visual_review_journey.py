@@ -1,7 +1,6 @@
 """Authenticated website-journey proof for the visual-review package."""
 
 import shutil
-import subprocess
 
 import pytest
 from leaf import data as data_model
@@ -10,6 +9,7 @@ from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
 from leaf import media as media_model
 from playwright.sync_api import expect
+from pypdf import PdfReader
 from render_support import (
     PAGE_FIXTURES,
     leaf_page,
@@ -207,12 +207,9 @@ def test_visual_inspection_chains_document_scroll_and_expands_without_losing_pla
     pdf_path = tmp_path / "expanded-visual-review.pdf"
     page.pdf(path=pdf_path, print_background=True)
     expect(dialog).to_be_hidden()
-    pdf_text = subprocess.run(
-        ["pdftotext", pdf_path, "-"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
+    pdf_text = "\n".join(
+        sheet.extract_text() or "" for sheet in PdfReader(pdf_path).pages
+    )
     for title in (
         "Optional packages get focused destinations",
         "All mobile destinations remain reachable",

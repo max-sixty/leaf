@@ -5,12 +5,13 @@
    retains registrations while live documents and widgets reconnect. The margin projection
    consumes that registry to choose and place controls; contributors never place RHS rows.
 
-   Behavior, tone, rank, and interaction state are independent axes. An action performs an
-   immediate effect, a disclosure reveals context, and a status reports a move already
-   made without offering a press. Tone changes the icon color without changing the ring
-   or surface. Busy dims an in-flight press after the shared delay; engaged and failed
-   controls stand beside words that already state their condition. Interaction state
-   otherwise orders controls and keeps an active contribution open rather than becoming a
+   Behavior, tone, rank, and interaction state are independent contributor axes. Reader
+   selection and agent ownership are independent projection-owned axes. An action performs
+   an immediate effect, a disclosure reveals context, and a status reports a move already
+   made without offering a press. Tone changes the icon color without changing the ring or
+   surface. Busy dims an in-flight press after the shared delay; engaged and failed controls
+   stand beside words that already state their condition. Interaction state otherwise
+   orders controls and keeps an active contribution open rather than becoming a
    product-facing visual taxonomy.
    A disclosure's visible label ends in an ellipsis because it opens context; action and
    status labels do not. Every axis has a default, so an option outside this grammar is
@@ -85,6 +86,7 @@ const FORWARDED_ATTRIBUTES = [
   "aria-haspopup",
   "aria-pressed",
   "data-lf-agent-phase",
+  "data-lf-target-selected",
 ];
 
 const changed = () => {
@@ -263,6 +265,11 @@ export function syncMarginAgentPhase(control, receipt) {
       agentDescriptions.delete(control);
     }
   }
+}
+
+export function syncMarginEntrySelection(control, selected) {
+  if (selected) keeps(control, "data-lf-target-selected", "");
+  else control.removeAttribute("data-lf-target-selected");
 }
 
 export function syncForwardedMarginEntryState(projection, source) {

@@ -3093,6 +3093,17 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     [first_comment] = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
     ]
+    with service_model.PageTransaction(d) as transaction:
+        session_model.record_pickup(transaction, [first_comment], phase="queued")
+    told(page)
+    expect(text).to_have_text(
+        re.compile(
+            r"^Claude is working — revising the plan \(.+\)\. "
+            r"1 more update is queued\.$"
+        )
+    )
+    expect(dot).to_have_class(re.compile(r"\bworking\b"))
+
     events_model.append_event(
         d,
         {

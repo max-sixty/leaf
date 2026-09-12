@@ -547,7 +547,9 @@ def test_an_unbound_queued_website_turn_leaves_the_direct_turn_running(page_dir)
     stream = website_server.PageTransaction(page_dir).status["stream"]["activity"]
     assert (stream["turn"], stream["detail"]) == (opened["turn"], "Still working")
     activity = website_server.full_state(page_dir, read_events(page_dir))["activity"]
-    assert activity["kind"] == "handling"
+    assert activity["kind"] == "working"
+    assert activity["counts"]["handling"] == 1
+    assert activity["counts"]["queued"] == 1
     assert [obligation["event"] for obligation in activity["obligations"]] == [
         first["id"],
         second["id"],

@@ -926,6 +926,50 @@ def test_direct_delivery_is_the_canonical_activity_until_the_reply(claimed, caps
     lease.close()
 
 
+def test_queued_input_does_not_hide_fresh_work(claimed):
+    serving(claimed, 1)
+    session_model.cmd_status(claimed, "working", "Revising the heading")
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "One more note"}
+    )
+    with service_model.PageTransaction(claimed) as transaction:
+        session_model.record_pickup(transaction, [comment], phase="queued")
+
+    activity = page_state(claimed)["activity"]
+    assert (activity["kind"], activity["detail"]) == (
+        "working",
+        "Revising the heading",
+    )
+    assert activity["counts"]["queued"] == 1
+    assert activity["obligations"][0]["phase"] == "queued"
+
+
+def test_queued_input_does_not_hide_live_codex_activity(claimed):
+    serving(claimed, 1)
+    session_model.cmd_status(claimed, "waiting", "Comment on the page")
+    claim = service_model.page_claim(claimed)
+    lease = leases_model.take_waiter_lease(
+        leases_model.waiter_lease_path(claimed, claim)
+    )
+    assert lease
+    with service_model.PageTransaction(claimed) as transaction:
+        transaction.set_stream_activity("s1", "turn-live", "Running the checks")
+
+    comment = events_model.append_event(
+        claimed, {"kind": "comment", "author": "user", "text": "One more note"}
+    )
+    with service_model.PageTransaction(claimed) as transaction:
+        session_model.record_pickup(transaction, [comment], phase="queued")
+
+    activity = page_state(claimed)["activity"]
+    assert (activity["kind"], activity["detail"]) == (
+        "working",
+        "Running the checks",
+    )
+    assert activity["counts"]["queued"] == 1
+    lease.close()
+
+
 def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     serving(claimed, 1)
     session_model.cmd_status(claimed, "waiting", "comment on the page")

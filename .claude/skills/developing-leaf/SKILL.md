@@ -55,6 +55,9 @@ recreation is a sketch.
 
 ## Prove and hand off a visible change
 
+Leaf's current product focus is desktop. Use a representative desktop viewport for
+the primary screenshots, preview inspection, and visual review.
+
 Re-vendor before trusting a browser result after a runtime, theme, registry, or
 widget change. An `/ui-sweep` and a look at a composed page are worth the time;
 a green suite does not judge visual quality.
@@ -71,8 +74,8 @@ show the behavior.
 Before presenting a served page or visible runtime change as finished, inspect
 the exact candidate URL. Exercise the same journey in the baseline and candidate,
 matching the URL fragment, viewport, theme, and interaction state, and check both
-browser consoles. Confirm the expected content and review the changed surface at a
-representative viewport. When handing off a live preview, use the exact URL including
+browser consoles. Confirm the expected content and review the changed surface at the
+primary viewport. When handing off a live preview, use the exact URL including
 the semantic block's fragment and keep the process alive. A titled section uses the
 section's stable id, so its eyebrow and heading arrive together. Add an id to the
 tight semantic container when it has none.

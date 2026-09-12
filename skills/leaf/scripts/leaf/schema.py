@@ -485,7 +485,7 @@ EXTENSION_SCHEMA = {
                 },
             ]
         },
-        "x-wide": {"enum": ["box", "drawing"]},
+        "x-space": {"enum": ["wide", "available"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-word": {"enum": ["module"]},
         "x-work": WORK_SCHEMA,

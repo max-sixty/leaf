@@ -119,6 +119,6 @@ leaf resolve <page> --to <thread-id>
 ```
 
 An acknowledged reader message still requires a reply: acknowledgement only
-removes it from future deliveries. For an App Server turn bound to a delivery with
-exactly one plain reply, the normal assistant final message is that reply; every
-other response shape writes the explicit Leaf operation.
+removes it from future deliveries. For a directly started App Server turn with exactly
+one plain reply, the normal assistant final message is that reply. A queued Codex
+pointer and every other response shape write the explicit Leaf operation.

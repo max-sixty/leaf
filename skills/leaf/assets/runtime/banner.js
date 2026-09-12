@@ -388,6 +388,10 @@ function renderStatusNow(state) {
       " ",
       Object.assign(el("span", "lf-age"), { textContent: `(${ago(activity.ts)})` }),
     );
+  if (kind === "working" && activity.counts.queued)
+    line.push(
+      `. ${activity.counts.queued} more update${activity.counts.queued === 1 ? " is" : "s are"} queued.`,
+    );
   showStatus(kind, TONE[kind], ...line);
 }
 

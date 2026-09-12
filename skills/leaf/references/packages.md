@@ -242,7 +242,11 @@ write a behavior module when the element owns another interaction.
 of available page width and height, window resize, and descendant layout changes. The
 caller supplies the complete minimum as `{width, height}` and keeps the composition's
 policy: the default workspace derives one recursively from equal partitions, while an
-asymmetric package root may read its own grid tracks. The returned `update()` promise
+asymmetric package root may read its own grid tracks. That reading is taken with the
+root held at the width a bounded allocation would give it and at the height it already
+occupies, so live boxes a minimum measures describe the posture under decision rather
+than the one currently drawn, and a root in flow does not report the taller furniture of
+the narrower reading measure as its own minimum. The returned `update()` promise
 joins initial settlement; `cleanup()` retires its observers and listeners.
 
 `registerReadingRegion({id, host, body})` binds identity separately from the current

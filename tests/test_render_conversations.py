@@ -2442,8 +2442,14 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         const cs = el => { const c = getComputedStyle(el), out = {};
                            for (const p of c) out[p] = c.getPropertyValue(p); return out; };
         const a = cs(probe), b = cs(plain);
+        const body = document.createElement("div");
+        body.className = "lf-conversation-body";
+        body.textContent = "Authored conversation words";
+        document.getElementById("s").append(body);
         return { scoped: [...scoped], global: [...global_], themed: [...themed],
-                 moved: Object.keys(a).filter(p => a[p] !== b[p]) };
+                 moved: Object.keys(a).filter(p => a[p] !== b[p]),
+                 bodySelection: getComputedStyle(body).userSelect,
+                 plainSelection: getComputedStyle(plain).userSelect };
     }""")
     assert "lf-live" in surface["scoped"] and len(surface["scoped"]) > 20, (
         "the @scope block is missing or nearly empty — the chrome has lost its rules"
@@ -2451,6 +2457,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     assert surface["moved"] == [], (
         f"scoped chrome rules reached an element in the page: {surface['moved']}"
     )
+    # The shared message body gets selectable-island rules only inside chrome.
+    # Its authored copy keeps the document's selection behavior.
+    assert surface["bodySelection"] == surface["plainSelection"]
     # A second document-level face comes from the authored theme, whose shadow slice
     # also supplies the same controls inside declared widget trees. Keep that exception
     # as explicit as the runtime sheet's shared vocabulary below.
@@ -2465,8 +2474,9 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
         # its target press and the response options behind it — wears a document face
         # for the same reason .lf-margin-projection below does.
         "lf-composer",
-        # A conversation keeps the authored theme's shared card and message-header
+        # A conversation keeps the authored theme's shared card and message
         # structure when the margin projects it into the chrome.
+        "lf-conversation-body",
         "lf-conversation-head",
         "lf-conversation-thread",
         "lf-edited",

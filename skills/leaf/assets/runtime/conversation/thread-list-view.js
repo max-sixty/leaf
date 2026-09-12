@@ -9,7 +9,9 @@
 import { LitElement, html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
 
-const TAG = "lf-thread-list";
+// `lf-*` is the page/package widget namespace. This generated runtime owner must not
+// make the thread panel's contents look like authored widget words to render checks.
+const TAG = "leaf-thread-list";
 const EMPTY_MODEL = Object.freeze({ rows: Object.freeze([]) });
 
 const ordinaryElement = (node) =>

@@ -906,7 +906,7 @@ def test_a_failed_thread_list_update_retains_one_committed_reading(browser, serv
           const presentation = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js'
           );
-          const list = document.querySelector('lf-thread-list');
+          const list = document.querySelector('leaf-thread-list');
           const render = list.render.bind(list);
           let armed = true;
           list.render = () => {
@@ -994,7 +994,7 @@ def test_the_conversation_clock_reopens_its_same_epoch_ticket(browser, serve):
     expect(system).to_have_text("✓ Approved just now")
     before = page.evaluate(
         """async () => {
-          const list = document.querySelector('lf-thread-list');
+          const list = document.querySelector('leaf-thread-list');
           const schedule = list.scheduleUpdate.bind(list);
           let release;
           const held = new Promise(resolve => { release = resolve; });

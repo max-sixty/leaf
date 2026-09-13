@@ -696,7 +696,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
     page = open_page(browser, url)
     answer_ready = threading.Event()
     release_answer = threading.Event()
-    reload_answered = threading.Event()
+    reload_committed = threading.Event()
     document_path = urlsplit(url).path
     native_json = http_model.Handler._json
 
@@ -710,22 +710,22 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
             release_answer.wait()
         return native_json(handler, *args, **kwargs)
 
-    def release_at_reload_response(response):
+    def release_after_reload(frame):
         if (
             answer_ready.is_set()
-            and response.request.is_navigation_request()
-            and urlsplit(response.url).path == document_path
+            and frame == page.main_frame
+            and urlsplit(frame.url).path == document_path
         ):
-            reload_answered.set()
+            reload_committed.set()
             release_answer.set()
 
     monkeypatch.setattr(http_model.Handler, "_json", hold_first_event_answer)
-    page.on("response", release_at_reload_response)
+    page.on("framenavigated", release_after_reload)
     try:
         page.locator(".lf-answer-all").first.click()
         assert answer_ready.wait(10), "the first event reached no server answer"
         page.goto(url, wait_until="load")
-        assert reload_answered.is_set(), "the replacement document did not answer"
+        assert reload_committed.is_set(), "the replacement document did not commit"
         page.wait_for_function(BOTH_STAMPS)
     finally:
         release_answer.set()

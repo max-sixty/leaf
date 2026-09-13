@@ -89,7 +89,7 @@ pytestmark = pytest.mark.nightly
 
 def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve):
     example = next(path for path in EXAMPLES if path.stem == "ship-review")
-    page, errors = open_page(browser, serve(example))
+    page = open_page(browser, serve(example))
     summary = page.locator("#off-facts")
     expect(summary).to_be_visible()
     assert (
@@ -120,7 +120,6 @@ def test_ship_review_summary_is_addressable_and_baseline_aligned(browser, serve)
     assert code, "the summary had no target-chooser hint"
     page.keyboard.type(code)
     expect(page.locator(".lf-live")).to_contain_text("Chosen list: Observed")
-    assert errors == []
 
 
 def test_a_shipped_log_replays_its_example_state(browser, serve):
@@ -176,7 +175,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         ]
         assert events, f"{example.stem}: the shipped log is empty"
 
-        page, errors = open_page(browser, url)
+        page = open_page(browser, url)
         logged = events_model.read_events(serve.page_dir)
         previous = set()
         for event in logged:
@@ -455,7 +454,6 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 "nothing the reader did"
             )
             read_as[wid] = page.locator(f"#{wid}").inner_text()
-        assert errors == []
         page.close()
 
         # The single-factor neighbour: the same page under the same log with the
@@ -466,7 +464,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             plain = serve(example, seed_log=False)
             for event in [e for e in events if e["kind"] != "action"]:
                 events_model.append_event(serve.page_dir, event)
-            undecided, errors = open_page(browser, plain)
+            undecided = open_page(browser, plain)
             undecided.locator(".lf-threads-toggle").click()
             for wid in decided_here:
                 shown = undecided.locator(f"#{wid}")
@@ -475,7 +473,6 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     f"{example.stem}: #{wid} reads the same with the log's decision "
                     f"and without it ({read_as[wid]!r}) — the seed proves nothing"
                 )
-            assert errors == []
             undecided.close()
 
     assert drawn, (
@@ -546,7 +543,7 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
                 "text": f"note {i}",
             },
         )
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
     # The runtime's own record of which threads it found a home for.
@@ -569,7 +566,6 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     )
     wanted = re.sub(r"\s", "", "".join(quote for quote, _ in anchors))
     assert painted == wanted, f"anchors in {source.stem} painted text they don't name"
-    assert errors == []
 
 
 def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, serve):
@@ -595,7 +591,7 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
         f"nothing stored to tell copies apart: {anchor}"
     )
 
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     (d / ".fixture-versions" / "v2.html").write_text(TWIN_V2)
     stamp_version_file(d, 2, "a twin")
@@ -605,7 +601,6 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
         "() => [...CSS.highlights.get('lf-mark')][0].startContainer.parentElement.id"
     )
     assert where == "p-original", f"the new copy took the comment ({where})"
-    assert errors == []
 
 
 def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypatch):
@@ -634,7 +629,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
         == 0
     )
     record_claim(d, id="claude")
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     toggle = page.locator(".lf-threads-toggle")
     expect(toggle).to_have_text("Threads (1)")  # counted as open, like any other thread
@@ -654,7 +649,6 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     kinds = [(e["kind"], e.get("author")) for e in events_model.read_events(d)]
     assert ("comment", "claude") in kinds
     assert ("reply", "user") in kinds and ("resolve", "user") in kinds
-    assert errors == []
 
 
 def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, serve):
@@ -676,7 +670,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
             "text": "which host answers?",
         },
     )
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
     (d / ".fixture-versions" / "v2.html").write_text(TWIN_V2)
     stamp_version_file(d, 2, "a twin")
@@ -730,8 +724,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         )
         == "Claude"
     )
-    assert fault.value.text in errors
-    errors.remove(fault.value.text)
+    assert fault.value.text in page.lf_errors
+    page.lf_errors.remove(fault.value.text)
 
     expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_count(0)
     expect(page.locator(".lf-msg.user .lf-msg-body")).to_have_text(
@@ -755,7 +749,6 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     expect(notice_el).to_have_text("Codex replied — open Threads")
     expect(notice_el).to_have_class(re.compile(r"\bshow\b"))
     expect(page.locator(".lf-msg.claude .lf-msg-body")).to_have_text("this one does")
-    assert errors == []
 
 
 @pytest.mark.parametrize("draft", [False, True], ids=["empty", "draft"])
@@ -771,7 +764,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
         layer_registry=SEATED_ASK_LAYER,
         layer_widgets=SEATED_ASK_WIDGETS,
     )
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     seat = page.locator("#proposal > .lf-conversation")
     composer = seat.locator(":scope > .lf-say textarea")
     words = "keep this first message" if draft else ""
@@ -816,8 +809,8 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
                 "text": "candidate root",
             },
         )
-    assert fault.value.text in errors
-    errors.remove(fault.value.text)
+    assert fault.value.text in page.lf_errors
+    page.lf_errors.remove(fault.value.text)
 
     inline = seat.locator(
         f':scope > .lf-conversation-thread[data-thread="{root["id"]}"]'
@@ -840,7 +833,6 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     expect(composer).to_have_count(1 if draft else 0)
     if draft:
         expect(composer).to_have_value(words)
-    assert errors == []
 
 
 def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
@@ -863,7 +855,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
             "text": "keep discussing this",
         },
     )
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     thread = page.locator(
         f'#proposal > .lf-conversation > [data-thread="{root["id"]}"]'
     )
@@ -893,8 +885,8 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
             serve.page_dir,
             {"kind": "resolve", "author": "claude", "parent": root["id"]},
         )
-    assert fault.value.text in errors
-    errors.remove(fault.value.text)
+    assert fault.value.text in page.lf_errors
+    page.lf_errors.remove(fault.value.text)
 
     expect(reply).to_have_value("keep this inline reply")
     expect(reply).to_be_focused()
@@ -907,7 +899,6 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     told(page)
     expect(thread.locator(":scope > .lf-say textarea")).to_have_count(0)
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
-    assert errors == []
 
 
 def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
@@ -923,7 +914,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
             "text": "which host answers?",
         },
     )
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     draft = page.locator(".lf-thread textarea")
     draft.fill("keep this unfinished reply")
@@ -952,8 +943,8 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
             {"kind": "resolve", "author": "claude", "parent": root["id"]},
         )
 
-    assert fault.value.text in errors
-    errors.remove(fault.value.text)
+    assert fault.value.text in page.lf_errors
+    page.lf_errors.remove(fault.value.text)
     expect(page.locator(".lf-thread textarea")).to_have_value(
         "keep this unfinished reply"
     )
@@ -966,14 +957,13 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     nudge(page_dir)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     expect(page.locator(".lf-thread textarea")).to_have_count(0)
-    assert errors == []
 
 
 def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     """Rollback preserves an unchanged chooser subtree and its focused row."""
     url = serve(TWIN_V1)
     d = serve.page_dir
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     (d / ".fixture-versions" / "v2.html").write_text(TWIN_V2)
     stamp_version_file(d, 2, "a twin")
     wait_for_revision(page, 2)
@@ -1002,13 +992,12 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
         nudge(d)
     expect(menu).to_be_visible()
     expect(row).to_be_focused()
-    assert fault.value.text in errors
-    errors.remove(fault.value.text)
+    assert fault.value.text in page.lf_errors
+    page.lf_errors.remove(fault.value.text)
 
     page.unroute("**/api/state*")
     nudge(d)
     told(page)
-    assert errors == []
 
 
 def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
@@ -1024,7 +1013,7 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     assert registry["lf-diagram"]["x-visual"], "this test needs the shipped declaration"
     registry["lf-tree"]["x-visual"] = "whole"  # a widget core has never heard of
     (serve.page_dir / "registry.json").write_text(json.dumps(registry))
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
 
     # The inner svg belongs to the renderer and carries generated ids; the anchor
     # belongs to the widget that holds it, which is the element the page gave a name.
@@ -1057,7 +1046,6 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
         page.locator(".lf-fab-input"),
         "a click on prose was read as a click on a picture",
     ).not_to_be_visible()
-    assert errors == []
 
 
 def _edge_ink_changes(quiet, painted, target, clip, ink):
@@ -1123,7 +1111,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     down both sides. The projected contour remains visible above all four edges.
     """
     example = next(path for path in EXAMPLES if path.stem == "release-notes")
-    page, errors = open_page(browser, serve(example))
+    page = open_page(browser, serve(example))
     shot = page.locator("#rn-console-shot")
     shot.scroll_into_view_if_needed()
     box = shot.bounding_box()
@@ -1154,8 +1142,6 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
         f"the screenshot frame covered part of its annotation contour: {changed}"
     )
 
-    assert errors == []
-
 
 def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, serve):
     """The selected thread may strengthen its contour, but its overlay stays hollow.
@@ -1178,7 +1164,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
             "anchor": {"section": "lp-k-checks"},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.locator(".lf-thread .lf-quote").click()
@@ -1202,13 +1188,12 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
         "the selected comment painted inside the metric card instead of only around it"
     )
     mark.evaluate("element => { element.style.removeProperty('visibility'); }")
-    assert errors == []
 
 
 def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, serve):
     """A margin control traces a visual target above its edge-to-edge children."""
     example = next(path for path in EXAMPLES if path.stem == "release-notes")
-    page, errors = open_page(browser, serve(example))
+    page = open_page(browser, serve(example))
     resized(page, 1200, 900)
     margins_laid_out(page)
     shot = page.locator("#rn-console-shot")
@@ -1251,12 +1236,10 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
     toggle.click()
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
-    assert errors == []
-
 
 def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
     """The SVG keeps Leaf's theme variables, so a scheme flip repaints it live."""
-    page, errors = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
+    page = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
     node = page.locator("#flow svg .node rect").first
     expect(node).to_be_visible()
     fill = "el => getComputedStyle(el).fill"
@@ -1276,7 +1259,6 @@ def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
     assert node.evaluate(fill) != light, (
         "a diagram's node surface must follow the page's scheme"
     )
-    assert errors == []
 
 
 def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve):
@@ -1286,7 +1268,7 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
     result. Leaf normalizes both at the widget boundary before the markup reaches the
     document, so several diagrams remain independent and the page stays self-contained.
     """
-    page, errors = open_page(browser, serve(TYPED_PARTS_PAGE))
+    page = open_page(browser, serve(TYPED_PARTS_PAGE))
     readings = page.evaluate(
         r"""() => {
           const svgs = [...document.querySelectorAll('lf-diagram svg')];
@@ -1332,7 +1314,6 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
     assert set(readings["fonts"]) == {readings["expectedFont"]}
     assert readings["monoFonts"], "class and ER literal rows exercise the mono face"
     assert set(readings["monoFonts"]) == {readings["expectedMonoFont"]}
-    assert errors == []
 
 
 def test_a_diagram_label_cannot_inject_markup_into_the_rendered_svg(browser, serve):
@@ -1347,14 +1328,13 @@ flowchart LR
 </pre></lf-diagram>
 """,
     )
-    page, errors = open_page(browser, serve(hostile))
+    page = open_page(browser, serve(hostile))
 
     expect(page.locator('#flow g[data-id="A"] text')).to_have_text(
         "<img src=x onerror=window.lfInjected=true>"
     )
     expect(page.locator("#flow img, #flow script")).to_have_count(0)
     assert not page.evaluate("() => !!window.lfInjected")
-    assert errors == []
 
 
 def test_unsupported_directives_fail_without_rejecting_keyword_nodes(browser, serve):
@@ -1388,7 +1368,7 @@ flowchart LR
 </pre></lf-diagram>
 """,
     )
-    page, _ = open_page(browser, serve(directives))
+    page = open_page(browser, serve(directives))
 
     for diagram, source in (
         ("click-directive", "click A href"),
@@ -1452,7 +1432,7 @@ flowchart LR
 </pre></lf-diagram>
 """,
     )
-    page, _ = open_page(browser, serve(labels))
+    page = open_page(browser, serve(labels))
 
     for diagram, label in (
         ("cut-rectangle", "names: list[str]"),
@@ -1489,7 +1469,7 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
 
     Past the room there is nothing left to give, and the answer is the theme's for any
     wide content: the widget's own box scrolls sideways and the document does not."""
-    page, errors = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
+    page = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
 
     # This width leaves the complete drawing room on both supported font platforms.
     resized(page, 1920, 900)
@@ -1528,7 +1508,6 @@ def test_a_diagram_takes_the_room_and_scrolls_only_past_it(browser, serve):
     )
     assert narrow["scrolls"], "a drawing wider than the room must scroll inside its box"
     assert narrow["sideways"] == 0, "nor may the page scroll sideways for it"
-    assert errors == []
 
 
 def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve):
@@ -1545,7 +1524,7 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
             "anchor": {"section": "flow"},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     resized(page, 760, 900)
     diagram = page.locator("#flow")
     expect(diagram).to_have_attribute("tabindex", "0")
@@ -1565,7 +1544,6 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     expect(diagram).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(diagram).to_have_css("outline-style", "none")
     expect(mark).to_have_class(re.compile(r"\blf-visual-mark-here\b"))
-    assert errors == []
 
 
 def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
@@ -1574,7 +1552,7 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve):
     is prose and belongs in the measure the page's prose is set to. Taking the room
     anyway put a parse error across the whole window with its message on one line."""
     # The console carries the renderer's refusal, which is what the fixture is for.
-    page, _ = open_page(browser, serve(BROKEN_DIAGRAM_PAGE))
+    page = open_page(browser, serve(BROKEN_DIAGRAM_PAGE))
     resized(page, 1600, 900)
     at = page.evaluate("""() => {
         const box = document.getElementById('bad').querySelector('.lf-error');
@@ -1664,7 +1642,7 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     runs short, the box scrolls, and the overflow must be laid out where the scroll can
     reach it: an overflow off the start edge is unreachable in any direction, and the
     drawing's first node is the one a reader follows the graph from."""
-    page, errors = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
+    page = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
     # Linux's DejaVu labels draw this graph at 1217px. Use a width where the drawing
     # fits after the control rail and a classic scrollbar have both been taken.
     resized(page, 1920, 900)
@@ -1713,7 +1691,6 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
         f"{at['flow']['box']['left']:.0f}px"
     )
     assert at["sideways"] == 0, "the page must not scroll sideways for either"
-    assert errors == []
 
 
 def test_available_space_uses_the_free_side_of_a_margin_resident(browser, serve):
@@ -1738,7 +1715,7 @@ graph LR
 <h2 id="after">After</h2><p>The drawing precedes this section.</p>
 """,
     )
-    page, errors = open_page(browser, serve(source))
+    page = open_page(browser, serve(source))
     resized(page, 1726, 900)
     at = page.evaluate("""() => {
       const main = document.querySelector('main');
@@ -1774,8 +1751,6 @@ graph LR
     assert at["box"]["left"] < at["column"]["left"] - 300, at
     assert at["sideways"] == 0, at
 
-    assert errors == []
-
 
 def test_available_space_is_a_generic_package_capacity(browser, serve):
     """An available surface with no sidebar receives the page room even when it is
@@ -1804,7 +1779,7 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
 <lf-roomy id="roomy"><section>One</section><section>Two</section></lf-roomy>
 """,
     )
-    page, errors = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
+    page = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
     resized(page, 1726, 900)
     at = page.locator("#roomy").evaluate("""el => {
       const box = el.getBoundingClientRect();
@@ -1827,7 +1802,6 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
     assert abs(at["children"][0] - at["children"][1]) <= 1, at
     assert at["children"][0] > 750, at
     assert at["sideways"] == 0, at
-    assert errors == []
     page.close()
 
     source = leaf_page(
@@ -1845,7 +1819,7 @@ lf-roomy > section { min-height: 300px; border: 1px solid currentColor; }
 <lf-roomy id="roomy"><section>One</section><section>Two</section></lf-roomy>
 """,
     )
-    page, errors = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
+    page = open_page(browser, serve(source, layer_registry={"lf-roomy": entry}))
     resized(page, 1726, 900)
     at = page.evaluate("""() => {
       const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
@@ -1862,7 +1836,6 @@ lf-roomy > section { min-height: 300px; border: 1px solid currentColor; }
     assert at["surface"]["left"] >= at["sidebar"]["right"] + 23, at
     assert at["surface"]["width"] > 1080, at
     assert at["sideways"] == 0, at
-    assert errors == []
 
 
 def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
@@ -1878,7 +1851,7 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     its lines are written to a width source already fits, so it stays in the column: a
     rule that reached every widget, or one naming lf-board, would pass every other
     assertion here and fail this one."""
-    page, errors = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
+    page = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
 
     wide = page.evaluate(ROOM_GEOMETRY)
     assert wide["board"]["width"] > wide["column"]["width"], (
@@ -1923,7 +1896,6 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
         f"{narrow['board']['width']:.0f}px, column {narrow['column']['width']:.0f}px"
     )
     assert narrow["sideways"] == 0, "nor scroll sideways on a narrow window"
-    assert errors == []
 
 
 def test_paper_keeps_the_column(browser, serve):
@@ -1936,7 +1908,7 @@ def test_paper_keeps_the_column(browser, serve):
     drops rather than how wide it sets what it keeps: a board printed at a screen's width
     loses its right-hand columns off the edge of the sheet, and every word of it is still
     in the document for that gate to find."""
-    page, errors = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
+    page = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
     on_screen = page.evaluate(
         "() => document.getElementById('sprint').getBoundingClientRect().width"
     )
@@ -1957,7 +1929,6 @@ def test_paper_keeps_the_column(browser, serve):
         f"paper set the board to {printed:.0f}px, past a {column:.0f}px column: a sheet "
         "has no window to take the room from, so what runs past it is off the page"
     )
-    assert errors == []
 
 
 def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
@@ -1976,7 +1947,7 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     nothing is covered either way today, so an assertion about the last block would pass
     with the reservation deleted. The room is what the runtime answers for; the column's
     padding is the theme's to change."""
-    page, errors = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(LONG_PAGE))
     room = page.evaluate(CHROME_ROOM)
     assert room["banner"] > 0 and room["line"] > 0, (
         f"neither bar is standing, so there is nothing here to reserve for: {room}"
@@ -2008,7 +1979,6 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
         f"a sheet held {printed['head']:.0f}px over the first line and "
         f"{printed['foot']:.0f}px under the last, for chrome it does not print"
     )
-    assert errors == []
 
 
 def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
@@ -2035,7 +2005,7 @@ def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     expect(page.locator(".lf-sug-actions")).to_have_count(0)
@@ -2048,7 +2018,6 @@ def test_a_copy_keeps_a_wide_widget_inside_its_standing_reaction_rail(
         f"the copied board stands {fit['past']:.0f}px outside the page's own box, "
         f"using {fit['widget']:.0f}px inside {fit['content']:.0f}px of content"
     )
-    assert errors == []
 
 
 def test_the_room_is_measured_after_a_late_rail(browser, serve):
@@ -2075,7 +2044,7 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
     moment it makes the claim."""
     url = serve(RAIL_AND_WIDE_PAGE)
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.add_init_script(AT_THE_HANDOVER)
 
     laid_out = []
@@ -2108,7 +2077,6 @@ def test_the_room_is_measured_after_a_late_rail(browser, serve):
         f"the one it is on: {fit['widget']:.0f}px of widget in {fit['content']:.0f}px "
         "of page"
     )
-    assert errors == []
 
 
 def test_the_room_follows_a_margin_taken_after_the_handover(
@@ -2135,7 +2103,7 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(LATE_MARGIN_WIDGET)
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.add_init_script(AT_THE_HANDOVER)
     answered = []
 
@@ -2185,7 +2153,6 @@ def test_the_room_follows_a_margin_taken_after_the_handover(
         f"handover, {fit['room']} now): {fit['widget']:.0f}px of widget in "
         f"{fit['content']:.0f}px of page"
     )
-    assert errors == []
 
 
 def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
@@ -2212,7 +2179,7 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
     controls are for is being pressed, so anything over them is the change undecidable —
     the page's own loop, stopped by its own exhibit."""
     url = serve(RAIL_BAND_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
 
     for width in (1000, 1200, 1400, 1600):
         resized(page, width, 900)
@@ -2260,7 +2227,6 @@ def test_a_wide_widget_leaves_the_rail_its_controls(browser, serve):
         "a board with no row anywhere near it is held to the column's right edge: a "
         "row claims the margin at its own height, not down the whole page"
     )
-    assert errors == []
 
 
 def test_a_compact_spine_and_right_rail_leave_the_middle_room(browser, serve):
@@ -2272,7 +2238,7 @@ def test_a_compact_spine_and_right_rail_leave_the_middle_room(browser, serve):
         '<aside class="sidebar"><lf-toc id="rail-toc"></lf-toc></aside>'
         '<h1 id="t">Release</h1><h2 id="change">Change</h2>',
     )
-    page, errors = open_page(browser, serve(source))
+    page = open_page(browser, serve(source))
     resized(page, 1726, 900)
     margins_laid_out(page)
     at = page.evaluate(RAIL_BANDS)
@@ -2289,7 +2255,6 @@ def test_a_compact_spine_and_right_rail_leave_the_middle_room(browser, serve):
         down = plan["top"] < row["bottom"] and plan["bottom"] > row["top"]
         assert not (across and down), at
     assert at["sideways"] == 0
-    assert errors == []
 
 
 def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
@@ -2309,7 +2274,7 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
     column and narrower than the room, and the resident crosses the drawing's band
     without crossing the column."""
     url = serve(DRAWN_PAST_A_RAIL_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     # The shell owns --lf-room in CSS, so its computed value is the unresolved
     # expression and only a probe answers in the width a wide exhibit would receive.
     fit = page.evaluate("""() => {
@@ -2336,7 +2301,6 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
         f"drawing, and still shows {fit['shows']:.0f}px of its {fit['drawn']:.0f}px"
     )
     assert render_checks_model.evaluate_probe(page, "withheldRoom") == []
-    assert errors == []
     page.close()
 
     capped = DRAWN_PAST_A_RAIL_PAGE.replace(
@@ -2355,7 +2319,7 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
         "#fixed-margin { position: fixed; inset: 0 auto 0 0; width: 40px }</style>"
         '<div id="fixed-margin">A fixed page tool.</div>',
     )
-    page, errors = open_page(browser, serve(occupied))
+    page = open_page(browser, serve(occupied))
     premise = page.evaluate("""() => {
         const flow = document.getElementById('flow');
         const f = flow.getBoundingClientRect();
@@ -2377,7 +2341,6 @@ def test_a_drawing_scrolls_only_for_room_the_page_truly_lacks(browser, serve):
     assert premise["scrolls"] > 1 and premise["hasRoom"], premise
     assert premise["clear"] and premise["overlap"] > 1, premise
     assert render_checks_model.evaluate_probe(page, "withheldRoom") == []
-    assert errors == []
 
 
 def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, serve):
@@ -2401,7 +2364,7 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
     keyboard stop, and the reading names the box rather than the rule, there being one
     rule and many callers who owe it a sweep."""
     url = serve(CUT_BOXES_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     marks = page.evaluate("""() => {
         const read = (id) => {
             const el = document.getElementById(id);
@@ -2467,7 +2430,6 @@ def test_a_box_that_shows_less_than_it_holds_says_so_and_the_gate_asks(browser, 
         f"a box hiding {grown['short']}px with no mark on it went unreported: "
         f"{found or 'nothing'}"
     )
-    assert errors == []
     page.close()
 
     assert render_gate_model.render_version(browser, url) == []
@@ -2536,7 +2498,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "graph LR\n  R[request] --> C{cookie}\n  C --> S[session]\n</pre></lf-diagram>",
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator("#fallback-flow svg")).to_be_visible()
@@ -2556,7 +2518,6 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
         f"{fit['past']:.0f}px — widget {fit['widget']:.0f}px in a "
         f"{fit['message']:.0f}px panel"
     )
-    assert errors == []
 
 
 def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
@@ -2594,7 +2555,7 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
             "markup": INLINE_REPLY_MARKUP,
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator("#rp-terse")).to_be_visible()
@@ -2618,7 +2579,6 @@ def test_a_widget_in_a_reply_is_still_set_among_the_words(browser, serve):
         "block",
         "flow-root",
     ), f"the stacking rule never reached the panel at all: {forms['rp-argued']}"
-    assert errors == []
 
 
 def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
@@ -2661,7 +2621,7 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         '<aside class="sidebar"><lf-toc id="frame-toc"></lf-toc></aside>'
         '<h1 id="t">Framed</h1>',
     )
-    page, errors = open_page(browser, serve(source))
+    page = open_page(browser, serve(source))
     boxes = page.evaluate("""() => {
         const box = (sel) => {
             const r = document.querySelector(sel).getBoundingClientRect();
@@ -2761,7 +2721,6 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         "project declaring the frame does not get the room held in: diagram out to "
         f"{boxes['inOwnBox']['right']:.0f}, box ends at {boxes['ownBox']['right']:.0f}"
     )
-    assert errors == []
 
 
 def test_the_render_gate_names_a_wide_widget_that_escapes_a_frame_that_scrolls(
@@ -2799,7 +2758,7 @@ def test_a_wide_widget_gives_the_panel_its_strip(browser, serve):
     the same 1080px either side of a room read wrongly, so what says the room moved is
     the exhibit coming down to fit a window that is 420px narrower than the one it was
     laid out in."""
-    page, errors = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
+    page = open_page(browser, serve(WIDE_AND_NARROW_PAGE))
     closed = page.evaluate(ROOM_GEOMETRY)
     assert closed["board"]["width"] > closed["column"]["width"], (
         "the board must start wider than the column, or the shrink proves nothing"
@@ -2837,7 +2796,6 @@ def test_a_wide_widget_gives_the_panel_its_strip(browser, serve):
         f"{closed_again['board']['width']:.0f}px, was {closed['board']['width']:.0f}px"
     )
     assert closed_again["sideways"] == 0
-    assert errors == []
 
 
 def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
@@ -2865,7 +2823,7 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
     page = browser.new_page(viewport={"width": 1400, "height": 900})
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
 
     stated = page.evaluate("() => document.documentElement.getAttribute('style') ?? ''")
@@ -2893,7 +2851,6 @@ def test_a_copy_reads_the_room_from_its_own_window(browser, serve, tmp_path):
         f"{narrow['column']['width']:.0f}px"
     )
     assert narrow["sideways"] == 0, "nor on a narrow one"
-    assert errors == []
 
 
 def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
@@ -2919,7 +2876,7 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
     out = tmp_path / "standalone.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     resized(page, NOTE_BAND, 900)
     live = page.evaluate(ROOM_GEOMETRY)
 
@@ -2966,8 +2923,6 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve, tmp_path):
             f"board {wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
         )
 
-    assert errors == []
-    assert copy_errors == []
     copy.close()
 
 
@@ -2986,7 +2941,7 @@ def test_a_note_sets_the_page_axis_at_every_roomy_width(browser, serve):
     instead of what it is about: green wherever scrollbars overlay, red on the runner,
     and in both a note painted out in the gutter counted as a note still on the page."""
     url = serve(NOTE_AND_WIDE_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
 
     strip = 384
     for width in (1190, 1600):
@@ -3004,8 +2959,6 @@ def test_a_note_sets_the_page_axis_at_every_roomy_width(browser, serve):
             f"page: {at['note']['right']:.0f}px"
         )
         assert at["sideways"] == 0
-
-    assert errors == []
 
 
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
@@ -3032,7 +2985,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
             '<section id="rn-cli-section">',
         )
     )
-    page, errors = open_page(browser, serve(example))
+    page = open_page(browser, serve(example))
     sidebar = page.locator("aside.sidebar")
 
     reading = """() => {
@@ -3251,10 +3204,9 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert cramped["float"] == "none" and cramped["position"] == "static"
     assert abs(cramped["sidebar"]["left"] - cramped["column"]["left"]) <= 1
     assert page.evaluate(sideways) == 0
-    assert errors == []
     page.close()
 
-    page, errors = open_page(browser, serve(example))
+    page = open_page(browser, serve(example))
     resized(page, 700, 900)
     narrow = page.evaluate(reading)
     assert narrow["strip"] == 0
@@ -3268,7 +3220,6 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert printed["strip"] == 0
     assert printed["float"] == "none" and printed["position"] == "static"
     assert abs(printed["sidebar"]["left"] - printed["column"]["left"]) <= 1
-    assert errors == []
 
 
 def test_opposite_margin_residents_wait_for_the_room_they_need(
@@ -3335,7 +3286,7 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
       };
     }"""
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     resized(page, 1200, 800)
     tight = page.evaluate(reading)
     assert [side["float"] for side in tight["sidebars"]] == ["none", "none"]
@@ -3394,7 +3345,6 @@ def test_opposite_margin_residents_wait_for_the_room_they_need(
     assert [side["float"] for side in repeated["sidebars"]] == ["none", "none"]
     assert repeated["noteFloat"] == "right"
     assert repeated["column"]["width"] == 720
-    assert errors == []
     page.close()
 
     copy = browser.new_page(viewport={"width": 1200, "height": 800})
@@ -3418,7 +3368,7 @@ def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     url = serve(INLINE_PAGE)
     root = url.rsplit("/versions/", 1)[0] + f"/?t={TOKEN}"
 
-    page, errors = open_page(browser, root)
+    page = open_page(browser, root)
 
     expect(page).to_have_url(root)
     expect(page.locator(".lf-banner")).to_be_visible()
@@ -3431,8 +3381,6 @@ def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     page.evaluate("() => { location.href = '/' }")
     page.wait_for_url(root.rsplit("?", 1)[0])
     expect(page.locator(".lf-banner")).to_be_visible()
-
-    assert errors == []
 
 
 # Everything an injected control still draws once the medium has taken the press away.
@@ -3490,7 +3438,7 @@ def test_paper_takes_the_press_off_everything_it_cannot_press(browser, serve):
     everywhere would pass the assertions below while proving nothing about the medium.
     """
     example = next(e for e in EXAMPLES if e.stem == "corpus")
-    page, errors = open_page(browser, serve(example))
+    page = open_page(browser, serve(example))
 
     page.get_by_role("tab", name="Command", exact=True).click()
     expect(page.locator("#corpus-command-hub")).to_be_visible()
@@ -3526,7 +3474,6 @@ def test_paper_takes_the_press_off_everything_it_cannot_press(browser, serve):
         f"to open it: {[d for d in on_paper if not d['shown']]}"
     )
     page.emulate_media(media="screen")
-    assert errors == []
 
 
 def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):

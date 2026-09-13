@@ -92,7 +92,7 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     # group's last option they cross straight into #p, whose full-width lines have a
     # word at any x the option's prose can end on.
     url = serve(INLINE_PAGE, anchored=[("opt-b", "quietly puts one back")])
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     # Vacuous otherwise: the gate has to be looking at a page that has the line on it.
     page.wait_for_function(
         "() => document.querySelectorAll('.lf-mark-note').length === 1"
@@ -110,7 +110,6 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     reported = render_checks_model.evaluate_probe(
         page, "coveredWords", {"holdFloating": False}
     )
-    assert errors == []
     page.close()
     assert render_gate_model.render_version(browser, url) == []
     assert held == []
@@ -131,7 +130,7 @@ def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser,
     Opening the row and closing it again settles it: the cards lay out for real, and the
     boxes they keep afterwards are that layout."""
     url = serve(SETTLED_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     row = page.locator("#transport .lf-settled")
     card = page.locator("#transport #opt-lax")
 
@@ -147,7 +146,6 @@ def test_the_gate_passes_a_page_whose_collapsed_cards_lie_on_each_other(browser,
         render_checks_model.evaluate_probe(page, "coveredWords"),
         render_checks_model.evaluate_probe(page, "coveredWords", {"holdHidden": False}),
     )
-    assert errors == []
     assert held == []
     assert any("opt-" in found for found in reported), (
         "the cards fell on nobody, so a gate that never looked would pass this too"
@@ -169,11 +167,10 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     any layout. Both halves are asserted, because a floor deleted outright passes the
     first on its own."""
     url = serve(SHORT_CHIP_PAGE)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     widths = page.locator("lf-chip").evaluate_all(
         "els => els.map(el => Math.round(el.getBoundingClientRect().width))"
     )
-    assert errors == []
     assert widths and max(widths) < 40, (
         f"these chips are {widths}px, so they clear the floor and prove nothing"
     )
@@ -490,7 +487,7 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     )
     assert render_gate_model.render_version(browser, url) == []
 
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     rail = page.locator("lf-shot .lf-shotrail")
     expect(rail).to_have_count(1)
     expect(rail.locator(".lf-shotcap")).to_have_text(["before", "after"])
@@ -668,7 +665,6 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     # to have rounded them, so the ring's corners are asked against the rail's top and
     # the frame's foot — the card's own outer corners.
     assert ring["corners"] == ring["card_corners"] != ["0px", "0px"]
-    assert errors == []
 
 
 def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser, serve):
@@ -680,7 +676,7 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
         SHOT_PAGE,
         media={SHOT_SRC["before"]: before, SHOT_SRC["after"]: after},
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     box = page.locator("lf-shot > input.lf-shotflip")
     expect(box).to_have_accessible_name(
         "Compare before and after — the navigation rail"
@@ -712,8 +708,6 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
             abs(page.evaluate("document.scrollingElement.scrollTop") - scroll_before)
             <= 1
         )
-
-    assert errors == []
 
 
 def test_a_shot_still_flips_with_every_script_removed(

@@ -119,7 +119,7 @@ def painted(page, glyphs):
 
 def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, serve):
     """Passive information may join the RHS after presentation without claiming space."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1440, 900)
     column = page.locator("main").evaluate(
         "el => { const box = el.getBoundingClientRect(); return [box.left, box.right]; }"
@@ -150,7 +150,6 @@ def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, ser
         page.locator("html").evaluate("el => el.style.getPropertyValue('--rail')")
         == rail
     ), "a passive reading widened the page rail"
-    assert errors == []
 
 
 def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
@@ -165,7 +164,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     a conversation. Pressing the glyph reveals a separately named remove control;
     pressing that sends the ordinary undo naming the event, and the paint goes with the
     gesture."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
@@ -328,12 +327,11 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
     assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
-    assert errors == []
 
 
 def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, serve):
     """The shortcut unfolds the comment's reactions before digits become live."""
-    page, errors = open_page(browser, serve(FEATURE_GALLERY))
+    page = open_page(browser, serve(FEATURE_GALLERY))
     settled = page.locator(
         '[data-lf-margin-for="bg-react-ok"] .lf-react-mark[data-token="keep"]'
     )
@@ -364,13 +362,12 @@ def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "change"
     assert sent["anchor"]["section"] == "bg-react-ok"
-    assert errors == []
 
 
 def test_comment_reaction_digits_stop_at_nine_for_a_larger_vocabulary(browser, serve):
     """Every declared reaction remains visible, but only real single-digit keys bind."""
     extra = {f"extra-{index}": {"glyph": str(index)} for index in range(1, 6)}
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(PANEL_PAGE, layer_registry={"$reactions": {"tokens": extra}}),
     )
@@ -386,7 +383,6 @@ def test_comment_reaction_digits_stop_at_nine_for_a_larger_vocabulary(browser, s
         page.keyboard.press("9")
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "extra-3"
-    assert errors == []
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
@@ -398,7 +394,7 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     second witness on top of itself. Hover lays down the same fill; the readings here
     therefore move the pointer away before distinguishing standing from idle.
     """
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(
             leaf_page(
@@ -469,7 +465,6 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
     assert_selected_face(
         item.locator('.lf-react[data-token="keep"]'), open_margin_reactions
     )
-    assert errors == []
 
 
 def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
@@ -480,7 +475,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     dismissed, `e` is no longer a live page command; page-wide reactions remain explicit
     in Threads.
     """
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
@@ -554,14 +549,13 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread-panel-foot .lf-react-strip")).to_have_count(0)
-    assert errors == []
 
 
 def test_a_target_hint_opens_comment_and_a_token_outlines_the_element(browser, serve):
     """Keyboard target choosing opens Comment. Choosing a token puts an
     element anchor in the log, which paints as a solid hairline on the element's boxes
     and a glyph seated at its first line."""
-    page, errors = open_page(browser, serve(TARGETS_PAGE))
+    page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.type(hint_code(page, "#prose", 3))
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
@@ -574,7 +568,6 @@ def test_a_target_hint_opens_comment_and_a_token_outlines_the_element(browser, s
     assert sent["token"] == "prioritize" and sent["anchor"] == {"section": "prose"}
     shown = painted(page, [["prose", "prioritize"]])
     assert shown["outlined"] and shown["washed"] == "", shown
-    assert errors == []
 
 
 @pytest.mark.parametrize("width", [1440, 390])
@@ -588,7 +581,7 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
     displacing tokens or adding an overflow detour. Pointer and keyboard activation
     still press the original reaction with its target intact.
     """
-    page, errors = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(SUGGESTION_PAGE))
     resized(page, width, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
     item.locator(".lf-sug-accept").focus()
@@ -617,7 +610,6 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
         {"section": "sug-refill"},
     )
     expect(item.locator(".lf-margin-reactions")).to_have_count(0)
-    assert errors == []
 
 
 @pytest.mark.parametrize(
@@ -627,7 +619,7 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(
     browser, serve, target, action
 ):
     """A target's own action can retire its words without leaving a reaction mode."""
-    page, errors = open_page(browser, serve(PROPOSED_PAGE))
+    page = open_page(browser, serve(PROPOSED_PAGE))
     item = page.locator(f'[data-lf-margin-for="{target}"]')
     item.locator(".lf-sug-accept").focus()
     page.keyboard.press("e")
@@ -648,7 +640,6 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(
     assert (sent["kind"], sent["widget"], sent["action"]) == ("action", target, action)
     expect(page.locator(".lf-margin-reactions")).to_have_count(0)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    assert errors == []
 
 
 def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
@@ -673,7 +664,7 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
             "text": "Because the finches take it through the cold.",
         },
     )["id"]
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
@@ -720,14 +711,13 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     page.keyboard.press("Escape")
     expect(surface).to_have_count(0)
     expect(more).to_be_visible()
-    assert errors == []
 
 
 def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser, serve):
     """Disarming a response does not redirect focus or a press to its former target."""
     url = serve(SUGGESTION_PAGE)
     panel_comment(serve.page_dir, "Why refill?", {"section": "sug-refill"})
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     refill = page.locator('[data-lf-margin-for="sug-refill"]')
     thistle = page.locator('[data-lf-margin-for="sug-thistle"]')
     thistle_accept = thistle.locator(".lf-sug-accept")
@@ -759,7 +749,6 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
         "sug-thistle",
         "accept",
     )
-    assert errors == []
 
 
 @pytest.mark.parametrize("width", [390, 1280])
@@ -772,7 +761,7 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
         "</head>",
         "<style>body > main { max-width: 320px; margin-inline: 24px; }</style></head>",
     )
-    page, errors = open_page(browser, serve(source))
+    page = open_page(browser, serve(source))
     resized(page, width, 900)
     select_paragraph(page, "#how-cap")
     bar = page.locator(".lf-fab-bar")
@@ -891,7 +880,6 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     expect(field).to_have_value("Keep this draft, still anchored 3 lines")
     page.keyboard.press("Escape")
     expect(bar).to_be_hidden()
-    assert errors == []
 
 
 def test_comment_more_keeps_the_field_when_suggest_is_the_only_secondary_response(
@@ -902,7 +890,7 @@ def test_comment_more_keeps_the_field_when_suggest_is_the_only_secondary_respons
         (ROOT / "skills/leaf/packages/default/registry.json").read_text()
     )
     tokens = {name: None for name in registry["$reactions"]["tokens"]}
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(PANEL_PAGE, layer_registry={"$reactions": {"tokens": tokens}}),
     )
@@ -920,7 +908,6 @@ def test_comment_more_keeps_the_field_when_suggest_is_the_only_secondary_respons
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
     expect(bar.locator(".lf-response-more")).to_be_visible()
-    assert errors == []
 
 
 # The field's box, with its corner as the platform draws it. `over` is
@@ -955,7 +942,7 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     standing inside that band — and the corner stays fixed through all of that. On a
     narrow screen the same room caps the bar and the field is what gives, so the
     ellipsis beside it keeps its room."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
     field = bar.locator(".lf-fab-input")
@@ -1019,7 +1006,6 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
         narrow_field,
         trigger,
     )
-    assert errors == []
 
 
 @pytest.mark.parametrize("covered_width", [390, 450])
@@ -1032,7 +1018,7 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     widths. Resizing between those postures preserves the draft, withdraws its unavailable
     surface, and hands the keyboard to the visible Thread panel.
     """
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(browser, serve(PANEL_PAGE))
     initial_events = events_model.read_events(serve.page_dir)
     # Start with Threads beside the page. A covering panel makes the background inert,
     # even when some of the page remains visible beyond its edge.
@@ -1102,14 +1088,13 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     field.press("ArrowRight")
     field.press_sequentially(" It is visible again.")
     expect(field).to_have_value(draft + " It is visible again.")
-    assert errors == []
 
 
 def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, serve):
     """A declared visual part is the same anchor for a reaction and a comment. The
     send announcement names the part's declared label, while replay paints only the
     part's resolved box rather than the diagram that owns its stable id."""
-    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     start = diagram.locator('g[data-id="S"]')
     start.click(modifiers=["Alt"])
@@ -1146,7 +1131,6 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
         re.compile(r"\blf-visual-mark-reaction\b")
     )
     expect(diagram).not_to_have_class(re.compile(r"\blf-react-el\b"))
-    assert errors == []
 
 
 def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, serve):
@@ -1163,12 +1147,11 @@ def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, ser
             "anchor": {"section": "flow"},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator('#flow g[data-id="S"]').click(modifiers=["Alt"])
     expect(
         page.locator('.lf-fab-bar .lf-react[data-token="prioritize"]')
     ).to_have_attribute("aria-pressed", "false")
-    assert errors == []
 
 
 def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_reflow(
@@ -1177,13 +1160,12 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     """The target, not the point inside it, places the action bar. A layout change
     resolves that same target again, and the quiet outline stays on it until an
     outside press dismisses both."""
-    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     start = page.locator('#flow g[data-id="S"]')
     bar = page.locator(".lf-fab-bar")
 
     box = start.bounding_box()
     start.click(position={"x": 4, "y": box["height"] / 2}, modifiers=["Alt"])
-    assert errors == []
     expect(bar).to_be_visible()
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     first = bar.bounding_box()
@@ -1229,7 +1211,6 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     page.locator("h1").click()
     expect(bar).to_be_hidden()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
-    assert errors == []
 
 
 def test_a_declared_visual_and_its_figure_keep_their_own_targets(browser, serve):
@@ -1245,7 +1226,7 @@ def test_a_declared_visual_and_its_figure_keep_their_own_targets(browser, serve)
         '</lf-diagram><figcaption id="caption">Request path caption</figcaption></figure>',
         1,
     )
-    page, errors = open_page(browser, serve(wrapped))
+    page = open_page(browser, serve(wrapped))
     start = page.locator('#flow g[data-id="S"]')
 
     page.locator("#caption").click(modifiers=["Alt"])
@@ -1272,7 +1253,6 @@ def test_a_declared_visual_and_its_figure_keep_their_own_targets(browser, serve)
         "aria-label", re.compile("Start request")
     )
     expect(page.get_by_role("button", name="Respond to Start request")).to_have_count(1)
-    assert errors == []
 
 
 def test_plain_clicks_stay_native_and_explicit_gestures_comment_on_visuals(
@@ -1300,7 +1280,7 @@ graph LR
 <p id="destination">Destination</p>
 """,
     )
-    page, errors = open_page(browser, serve(page_markup))
+    page = open_page(browser, serve(page_markup))
     field = page.locator(".lf-fab-input")
     start = page.locator('#flow g[data-id="S"]')
 
@@ -1327,8 +1307,6 @@ graph LR
     page.keyboard.press("Escape")
     expect(control).to_be_focused()
 
-    assert errors == []
-
 
 def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, serve):
     """A generic picture supplies its box only when nothing more precise names the hit.
@@ -1349,7 +1327,7 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
 <section id="source"><figure id="projected-source"><pre>Current instructions.</pre></figure></section>
 """,
     )
-    page, errors = open_page(browser, serve(page_markup))
+    page = open_page(browser, serve(page_markup))
     field = page.locator(".lf-fab-input")
     page.locator("#projected-source").evaluate(
         """figure => Object.assign(figure.dataset, {
@@ -1387,7 +1365,6 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
         "section": "source",
         "datum": "document",
     }
-    assert errors == []
 
 
 def test_native_controls_keep_visual_gestures_they_already_own(browser, serve):
@@ -1402,7 +1379,7 @@ def test_native_controls_keep_visual_gestures_they_already_own(browser, serve):
 <p id="after">Destination</p>
 """,
     )
-    page, errors = open_page(browser, serve(page_markup))
+    page = open_page(browser, serve(page_markup))
 
     expect(page.locator(".lf-visual-action")).to_have_count(0)
     page.locator("#linked-picture").click()
@@ -1410,7 +1387,6 @@ def test_native_controls_keep_visual_gestures_they_already_own(browser, serve):
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.locator("#button-picture").click()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    assert errors == []
 
 
 def test_custom_controls_keep_visual_gestures_they_already_own(browser, serve):
@@ -1425,12 +1401,11 @@ def test_custom_controls_keep_visual_gestures_they_already_own(browser, serve):
 </div>
 """,
     )
-    page, errors = open_page(browser, serve(page_markup))
+    page = open_page(browser, serve(page_markup))
 
     expect(page.locator(".lf-visual-action")).to_have_count(0)
     page.locator("#gain-picture").click()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
-    assert errors == []
 
 
 def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
@@ -1439,7 +1414,7 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     """A declared visual part is a keyboard target as well as a pointer target.
     Enter uses the click path and wins over an older text selection, just as a fresh
     pointer activation does."""
-    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     title = page.locator("h1")
     box = title.bounding_box()
     select(
@@ -1490,7 +1465,6 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     expect(control).to_be_focused()
-    assert errors == []
 
 
 def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
@@ -1507,7 +1481,7 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
 </section>
 """,
     )
-    page, errors = open_page(browser, serve(page_markup))
+    page = open_page(browser, serve(page_markup))
     controls = page.locator(".lf-visual-action")
 
     expect(controls).to_have_count(1)
@@ -1517,7 +1491,6 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("Escape")
     expect(control).to_be_focused()
-    assert errors == []
 
 
 def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser, serve):
@@ -1528,7 +1501,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
         '<details id="folded" open><summary>Flow</summary><lf-diagram id="flow"',
         1,
     ).replace("</lf-diagram>", "</lf-diagram></details>", 1)
-    page, errors = open_page(browser, serve(folded))
+    page = open_page(browser, serve(folded))
     control = page.locator(".lf-visual-action").filter(
         has_text=re.compile(r"^Respond to Start request$")
     )
@@ -1552,13 +1525,12 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(control).to_be_focused()
     expect(page.locator("#folded")).to_have_attribute("open", "")
     assert page.evaluate("() => window.lfScrolledPart") == "new"
-    assert errors == []
 
 
 def test_a_visual_proxy_keeps_focus_when_a_provider_changes_its_label(browser, serve):
     """A provider can update one part's current label without replacing the proxy for
     that stable anchor. The focused control changes its name and remains focused."""
-    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.locator(".lf-visual-action").filter(
         has_text=re.compile(r"^Respond to Start request$")
     )
@@ -1580,7 +1552,6 @@ def test_a_visual_proxy_keeps_focus_when_a_provider_changes_its_label(browser, s
         """() => window.lfRetainedVisualControl.isConnected &&
           document.activeElement === window.lfRetainedVisualControl"""
     )
-    assert errors == []
 
 
 def test_visual_proxies_keep_focus_when_one_shadow_host_is_repainted(browser, serve):
@@ -1600,7 +1571,7 @@ diff --git a/value.txt b/value.txt
 </pre></lf-diff>
 """,
     )
-    page, errors = open_page(browser, serve(page_markup))
+    page = open_page(browser, serve(page_markup))
     page.evaluate(
         """() => {
           const root = document.querySelector('#patch').shadowRoot;
@@ -1622,7 +1593,6 @@ diff --git a/value.txt b/value.txt
 
     page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-projection'))")
     expect(second).to_be_focused()
-    assert errors == []
 
 
 def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
@@ -1630,7 +1600,7 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
 ):
     """The shared placement path listens to nested scroll boxes, clips target
     geometry to what is actually shown, and retracts the bar once none remains."""
-    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     diagram = page.locator("#flow")
     start = diagram.locator('g[data-id="S"]')
     bar = page.locator(".lf-fab-bar")
@@ -1672,7 +1642,6 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     expect(bar).to_be_hidden()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     assert page.evaluate("() => document.activeElement === document.body")
-    assert errors == []
 
 
 def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it(
@@ -1683,7 +1652,7 @@ def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it
     A later plain click collapses that native selection without turning the diagram node
     into a Comment control.
     """
-    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     start = page.locator('#flow g[data-id="S"]')
     label = start.get_by_text("Start request", exact=True)
     box = label.bounding_box()
@@ -1722,7 +1691,6 @@ def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it
     assert page.evaluate("() => getSelection().toString()") == ""
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
-    assert errors == []
 
 
 def test_the_response_surface_preserves_a_backward_drag(browser, serve):
@@ -1730,7 +1698,7 @@ def test_the_response_surface_preserves_a_backward_drag(browser, serve):
 
     Its direction decides which end a subsequent Shift-click extends.
     """
-    page, errors = open_page(
+    page = open_page(
         browser,
         serve(
             leaf_page(
@@ -1762,13 +1730,12 @@ def test_the_response_surface_preserves_a_backward_drag(browser, serve):
             && selection.anchorOffset === range.endOffset;
         }"""
     ), "the response pass reversed a backward drag before its next extension"
-    assert errors == []
 
 
 def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
     """When a keyboard-raised action completes, focus returns to the proxy that named
     the target instead of remaining inside a hidden action bar."""
-    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
     page.keyboard.press("Enter")
@@ -1789,14 +1756,13 @@ def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
         """() => window.lfReturnedVisualControl.isConnected &&
           document.activeElement === window.lfReturnedVisualControl"""
     )
-    assert errors == []
 
 
 def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     """Selection changes can come from touch handles and browser commands without a
     mouseup or keyup in the page. The new passage replaces the visual target, and
     clearing that passage dismisses the shared action surface."""
-    page, errors = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
     start = page.locator('#flow g[data-id="S"]')
     control.focus()
@@ -1823,7 +1789,6 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
         "() => { document.activeElement.blur(); getSelection().removeAllRanges(); }"
     )
     expect(bar).to_be_hidden()
-    assert errors == []
 
 
 def test_a_copy_drops_visual_action_controls_without_rewriting_the_provider(
@@ -1835,7 +1800,7 @@ def test_a_copy_drops_visual_action_controls_without_rewriting_the_provider(
     out = tmp_path / "diagram-copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     assert page.evaluate(
         """() => ({
@@ -1845,7 +1810,6 @@ def test_a_copy_drops_visual_action_controls_without_rewriting_the_provider(
           ).length,
         })"""
     ) == {"controls": 0, "rewritten": 0}
-    assert errors == []
 
 
 def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
@@ -1884,7 +1848,7 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
             "text": "And nothing stands on the earlier answer here.",
         },
     )["id"]
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
 
@@ -1979,8 +1943,6 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
         first,
     )
 
-    assert errors == []
-
 
 def _thread(page_dir):
     """A thread the agent spoke in last: the reader's question and Claude's answer."""
@@ -2009,7 +1971,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     narrowing being a reading of the log. A token without the flag settles nothing."""
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
@@ -2054,7 +2016,6 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
     expect(strip.locator('.lf-react[data-token="keep"]')).to_have_attribute(
         "aria-pressed", "false"
     )
-    assert errors == []
 
 
 @pytest.mark.parametrize("removal", ["resolve", "filter"], ids=["fold", "filter"])
@@ -2064,7 +2025,7 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
     a later key cannot react to a message that is no longer on screen."""
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     if removal == "filter":
@@ -2097,7 +2058,6 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
     page.wait_for_timeout(100)
     assert len(events_model.read_events(serve.page_dir)) == count
     assert "1–6" not in shortcut_bar_text(page)
-    assert errors == []
 
 
 def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, serve):
@@ -2117,7 +2077,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
             "anchor": {"section": "merge-both", "quote": "one document offline"},
         },
     )
-    page, errors = open_page(browser, url)
+    page = open_page(browser, url)
     painted(page, [["merge-both", "change"]])
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
 
@@ -2142,13 +2102,12 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     told(page)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
-    assert errors == []
 
 
 def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):
     """Escape gives back the selected target and its action layer together. The keyup
     half of the same press must not immediately raise the bar again."""
-    page, errors = open_page(browser, serve(PANEL_PAGE))
+    page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
@@ -2158,7 +2117,6 @@ def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):
     page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
     assert not bar.is_visible()
     assert page.evaluate("() => getSelection().toString()") == ""
-    assert errors == []
 
 
 def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
@@ -2186,7 +2144,7 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     out = tmp_path / "copy.html"
     out.write_text(exporting_model.export_page(browser, url, serve.page_dir, "v1.html"))
     page = browser.new_page()
-    errors = watched(page)
+    watched(page)
     page.goto(out.as_uri(), wait_until="load")
     copy = page.evaluate(
         """() => ({
@@ -2216,4 +2174,3 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     mark.hover()
     assert mark.evaluate("el => getComputedStyle(el).backgroundColor") == resting
     assert mark.evaluate(PAINTS_STATE_MARK) is False
-    assert errors == []

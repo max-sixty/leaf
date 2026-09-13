@@ -1055,7 +1055,7 @@ def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
     finally:
         host.close()
 
-    page, errors = open_page(browser, live_url(url))
+    page = open_page(browser, live_url(url))
     try:
         expect(page.locator(".lf-thread")).to_have_count(3)
         expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
@@ -1091,7 +1091,6 @@ def test_the_snapshot_posts_the_passage_the_version_holds_not_the_one_it_paints(
             [1, 1],
             [1, 1],
         ], f"the marks did not land on the passages ({landed})"
-        assert errors == []
     finally:
         page.close()
 

@@ -406,8 +406,14 @@ which browser error channels count.
 `navigate` handles the one browser notice that needs confirmation: a
 ResizeObserver-loop notice raised during handover is repeated with a complete
 second navigation; a recurring notice is a failure, a one-off platform notice is
-not. Tests assert `errors == []` after the behavior they drive, not just after
-load.
+not. The function-scoped browser fixture rejects every collected problem after the
+journey, then closes its remaining contexts. Context closure can cancel an outstanding
+request, so it is cleanup rather than part of the health reading. A test that
+intentionally produces a known class of problem uses `consume_browser_errors` at the
+causal point; every collected entry must match one of its named fragments. Use
+`take_browser_errors` only when the test itself asserts the exact list or partitions
+every entry. Filtering the collector or leaving expected noise behind is not an
+assertion.
 
 ## A wait consumes a fact the system states
 
@@ -554,6 +560,8 @@ Enabling interception on an already-running page can let that POST reach the
 server without a route callback. `open_page` arms each page it makes on a
 pattern nothing ever asks for, so a route a test registers later only adds to a
 list the browser is already consulting; a page made another way is unarmed.
+`held_events` also owns the server fixture ordering: its finalizer releases held
+requests before server shutdown rather than resuming them into a closed socket.
 
 A handler that appends a route to `held` has established only that the browser
 made the request. Before reading that list — indexing it, asserting its length,
@@ -606,8 +614,8 @@ produces an HTTP error, assert the enriched status-and-URL entry collected by
 
 A test that stops the page's own server has no way to keep the browser quiet
 about it. Bracket the span that makes the noise instead of listing what it says.
-`restarting` drops what the page said inside the block, so the reading everywhere
-else is `errors == []`, and a diagnostic the test means to produce is asserted
+`restarting` drops what the page said inside the block, so the fixture's reading
+everywhere else remains clean, and a diagnostic the test means to produce is asserted
 inside the block that produces it. A filter stated over a whole test's output
 takes a new member every time a fetch moves, and it ends up describing the test's
 own noise. `test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back`
@@ -742,11 +750,11 @@ that distinguish causes. `open_page` enriches HTTP failures with status and URL;
 `round_trip` reports both ends of its wait; a fixture cleanup failure names the
 server or process it could not stop.
 
-At the end of a browser journey, assert the collected problems after all gestures,
-polls, reloads, and route releases. The `browser` fixture closes every context the
-test leaves open; close one explicitly only when the lifecycle or an earlier release
-matters to the journey. If an earlier fault is intentionally induced, assert and remove
-that exact expected entry at the point it occurs.
+The `browser` fixture checks collected problems after all gestures, polls, reloads, and
+route releases, then closes the remaining contexts. Close a page explicitly only when
+the lifecycle or an earlier release matters to the journey. If an earlier fault is
+intentionally induced, assert and consume that exact expected entry at the point it
+occurs.
 
 Assert durable output as meaning rather than formatter layout. Collapse
 whitespace when testing what a page says, use `spoken` when the registry-backed

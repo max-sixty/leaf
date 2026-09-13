@@ -342,12 +342,19 @@ def browser(_browser):
     """The shared browser process, with context ownership scoped to one test.
 
     `Browser.new_page` opens a fresh context, so local and session storage remain
-    isolated. Closing every remaining context at teardown makes that lifetime a
-    fixture guarantee instead of a convention repeated at the end of each journey.
+    isolated. Rejecting browser problems and then closing every remaining context at
+    teardown makes health and lifetime fixture guarantees instead of conventions
+    repeated at the end of each journey. Closing may itself cancel outstanding requests,
+    so it happens after the health reading.
     """
-    yield _browser
-    for context in reversed(_browser.contexts):
-        context.close()
+    from render_harness import clean_browser
+
+    try:
+        with clean_browser():
+            yield _browser
+    finally:
+        for context in reversed(_browser.contexts):
+            context.close()
 
 
 @pytest.fixture(scope="session")

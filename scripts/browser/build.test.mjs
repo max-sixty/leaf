@@ -8,13 +8,14 @@ import { createApplicationPublisher } from "./snapshot.ts";
 
 const outputs = await buildOutputs();
 const outputRoot = "skills/leaf/assets/vendor";
+const diagnosticsRoot = "scripts/browser/generated";
 
 test("locked source reproduces the complete committed output", async () => {
   const rebuilt = await buildOutputs();
   assert.deepEqual(rebuilt, outputs);
   await checkOutputs(outputs);
   const manifest = JSON.parse(
-    outputs.get(`${outputRoot}/browser-runtime.manifest.json`),
+    outputs.get(`${diagnosticsRoot}/browser-runtime.manifest.json`),
   );
   assert.deepEqual(manifest.exports, [
     "LitElement",
@@ -25,7 +26,13 @@ test("locked source reproduces the complete committed output", async () => {
     "repeat",
   ]);
   assert.deepEqual(manifest.externalizedModules, []);
-  const map = JSON.parse(outputs.get(`${outputRoot}/browser-runtime.js.map`));
+  assert.ok(outputs.has(`${outputRoot}/browser-runtime.LICENSES.txt`));
+  assert.ok(
+    !outputs.get(`${outputRoot}/browser-runtime.js`).includes("sourceMappingURL"),
+  );
+  assert.ok(!outputs.has(`${outputRoot}/browser-runtime.js.map`));
+  assert.ok(!outputs.has(`${outputRoot}/browser-runtime.manifest.json`));
+  const map = JSON.parse(outputs.get(`${diagnosticsRoot}/browser-runtime.js.map`));
   assert.ok(map.sources.some((name) => name.endsWith("scripts/browser/snapshot.ts")));
   assert.equal(map.sources.length, map.sourcesContent.length);
   assert.ok(map.sources.every((name) => !path.isAbsolute(name)));
@@ -34,8 +41,11 @@ test("locked source reproduces the complete committed output", async () => {
 test("checking stale output refuses it without changing any bytes", async (context) => {
   const scratch = await mkdtemp(path.join(tmpdir(), "leaf-browser-build-"));
   context.after(() => rm(scratch, { recursive: true }));
-  await mkdir(path.join(scratch, outputRoot), { recursive: true });
-  for (const [name, bytes] of outputs) await writeFile(path.join(scratch, name), bytes);
+  for (const [name, bytes] of outputs) {
+    const destination = path.join(scratch, name);
+    await mkdir(path.dirname(destination), { recursive: true });
+    await writeFile(destination, bytes);
+  }
   await checkOutputs(outputs, scratch);
   const module = path.join(scratch, outputRoot, "browser-runtime.js");
   const stale = Buffer.from("export const stale = true;\n");

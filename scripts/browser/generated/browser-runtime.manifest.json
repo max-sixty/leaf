@@ -53,13 +53,13 @@
   "externalizedModules": [],
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
-    "skills/leaf/assets/vendor/browser-runtime.js.map": {
+    "skills/leaf/assets/vendor/browser-runtime.js": {
+      "bytes": 42509,
+      "sha256": "ec9333660d4594ee5bf2b2eed3ea7c6a7eb3bb4895ee21eaa65654489bb77d2d"
+    },
+    "scripts/browser/generated/browser-runtime.js.map": {
       "bytes": 373370,
       "sha256": "d6ecaef5428f8b5dbd987e3cb2082f2266925be5faecf4bf16e2119530c395c7"
-    },
-    "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 42553,
-      "sha256": "6c93eaf9b02701fb4b965fd49e8364999899e8d62a8a43bd8706373633f46283"
     },
     "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
       "bytes": 7267,

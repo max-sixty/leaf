@@ -120,7 +120,13 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert artifact.resources["/page/app.js"].mime == "application/javascript"
     assert artifact.registry == first.check.registry
     assert artifact.implementations["lf-options"]["path"] == "/widgets/lf-options.js"
-    assert not revisioning_model.activate_source(page_dir, []).created
+    assert "/vendor/browser-runtime.LICENSES.txt" in artifact.resources
+    assert "/vendor/browser-runtime.js.map" not in artifact.resources
+    assert "/vendor/browser-runtime.manifest.json" not in artifact.resources
+    assert artifact_model.read_artifact(page_dir, first.revision) is artifact
+    unchanged = revisioning_model.activate_source(page_dir, [])
+    assert not unchanged.created
+    assert unchanged.check.artifact is first.check.artifact
 
     (authored / "value.js").write_text("export const value = 2;")
     second = revisioning_model.activate_source(page_dir, [])
@@ -225,6 +231,23 @@ def test_an_interrupted_capture_never_publishes_a_partial_revision(
         artifact_model.read_artifact(page_dir, recovered.revision).html
         == (page_dir / "index.html").read_bytes()
     )
+
+
+def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
+    revision = files_model.latest_revision(page_dir)
+    first = artifact_model.read_artifact(page_dir, revision)
+    assert artifact_model.read_artifact(page_dir, revision) is first
+    manifest_path = (
+        files_model.revision_path(page_dir, revision).with_suffix("") / "manifest.json"
+    )
+    manifest = json.loads(manifest_path.read_text())
+    manifest["implementations"] = {}
+    files_model.replace_files(
+        [(manifest_path, json.dumps(manifest, sort_keys=True).encode(), False)]
+    )
+
+    with pytest.raises(artifact_model.ArtifactError, match="manifest digest"):
+        artifact_model.read_artifact(page_dir, revision)
 
 
 def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):

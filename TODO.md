@@ -75,6 +75,17 @@ authoring evaluation until Leaf's shape is stable enough for the comparison to l
 
 ## Later
 
+- **Share immutable revision resources by digest.** Two minimal default-layer
+  revisions currently store 3,200,741 and 3,200,749 bytes, with 179 identical
+  resource digests copied into both bundles. Put captured bytes in a page-local
+  `objects/sha256/<digest>` store and let each immutable manifest retain the logical
+  path, MIME type, dependency edges, and digest. Publication must write, verify, and
+  fsync collision-checked objects before the revision manifest and HTML marker become
+  discoverable. Historical HTTP routes, standalone export, and static-site output must
+  continue to materialize the revision's logical paths. Prove crash recovery, digest
+  collision refusal, revision replacement, repeated media, and a hundred-revision size
+  profile before cutting over and deleting the per-revision resource copies.
+
 - **Find a specific first task for the public home page.** The current page starts
   with the comment-and-revise loop: a visitor asks Leaf guide to edit their private copy.
   Replace that interim prompt only after testing a task a new visitor would actually

@@ -1254,6 +1254,7 @@ def test_page_registry_reads_candidate_changes_without_mutating_the_layer(page_d
     declaration = element_declaration("lf-local")
     source.write_text(json.dumps({"lf-local": declaration}))
     first = registry_storage.read_page_registry(page_dir)
+    assert registry_storage.read_page_registry(page_dir) is first
     declaration["description"] = "The next authored declaration."
     source.write_text(json.dumps({"lf-local": declaration}))
 
@@ -1262,6 +1263,51 @@ def test_page_registry_reads_candidate_changes_without_mutating_the_layer(page_d
     assert second.registry["lf-local"] == declaration
     assert first.registry["lf-local"]["description"] != declaration["description"]
     assert "lf-local" not in registry_storage.load_registry(page_dir)
+
+
+def test_page_registry_cache_follows_layer_and_widget_files(page_dir):
+    first = registry_storage.read_page_registry(page_dir)
+    assert registry_storage.read_page_registry(page_dir) is first
+
+    layer_path = page_dir / "registry.json"
+    layer = json.loads(layer_path.read_text())
+    layer["lf-options"]["description"] = "Re-vendored options."
+    files_model.replace_files([(layer_path, json.dumps(layer).encode(), False)])
+    revendored = registry_storage.read_page_registry(page_dir)
+    assert revendored is not first
+    assert revendored.registry["lf-options"]["description"] == "Re-vendored options."
+
+    widgets = page_dir / "page" / "widgets"
+    widgets.mkdir(exist_ok=True)
+    implementation = widgets / "lf-options.js"
+    implementation.write_text("export function upgrade() {}\n")
+    overlaid = registry_storage.read_page_registry(page_dir)
+    assert overlaid is not revendored
+    assert overlaid.widget_sources["lf-options"] == "page/widgets/lf-options.js"
+
+    implementation.write_text("export function upgrade() { return true; }\n")
+    changed = registry_storage.read_page_registry(page_dir)
+    assert changed is not overlaid
+    assert changed.widget_sources == overlaid.widget_sources
+
+
+def test_page_registry_cache_does_not_outlive_a_page_at_the_same_path(tmp_path):
+    page = tmp_path / "reused"
+    runner = CliRunner()
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    first = registry_storage.read_page_registry(page)
+
+    shutil.rmtree(page)
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    second = registry_storage.read_page_registry(page)
+
+    assert second is not first
+    assert (
+        second.registry["$layer"]["generation"]
+        != first.registry["$layer"]["generation"]
+    )
 
 
 def _stateful_page_declaration(page_dir, tag="lf-local"):

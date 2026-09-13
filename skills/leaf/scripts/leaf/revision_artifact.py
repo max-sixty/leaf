@@ -17,10 +17,11 @@ import hashlib
 import json
 import os
 import posixpath
+import stat as stat_type
 import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import unquote, urlsplit
@@ -88,15 +89,15 @@ class RevisionArtifact:
     resources: Mapping[str, Resource]
     manifest: bytes
 
-    @property
+    @cached_property
     def digest(self) -> str:
         return _digest(self.manifest)
 
-    @property
+    @cached_property
     def registry(self) -> dict:
         return json.loads(self.resources["/registry.json"].data)
 
-    @property
+    @cached_property
     def implementations(self) -> dict:
         return json.loads(self.manifest)["implementations"]
 
@@ -258,6 +259,30 @@ def _css_dependencies(source: str, declarations: bool = False) -> tuple[str, ...
     return tuple(_css_urls(parse(source)))
 
 
+def _path_stamp(path: Path) -> tuple | None:
+    """Identify a directory entry and the file it currently resolves to."""
+    try:
+        stat = path.lstat()
+    except OSError:
+        return None
+    target = file_stamp(path) if stat_type.S_ISLNK(stat.st_mode) else None
+    return (stat.st_ino, stat.st_mtime_ns, stat.st_size, stat.st_mode, target)
+
+
+def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple | None], ...]:
+    """Name every mutable filesystem input from which a capture may read."""
+    paths = [page_dir / name for name in VENDORED_FILES]
+    for name in (*BROWSER_DIRS, "page", "media"):
+        root = page_dir / name
+        paths.append(root)
+        if root.is_dir() and not root.is_symlink():
+            paths.extend(root.rglob("*"))
+    return tuple(
+        (path.relative_to(page_dir).as_posix(), _path_stamp(path))
+        for path in sorted(set(paths))
+    )
+
+
 def capture_artifact(
     page_dir: Path,
     document: SourceDocument,
@@ -267,6 +292,47 @@ def capture_artifact(
     widget_sources: Mapping[str, str] | None = None,
 ) -> RevisionArtifact:
     """Capture the candidate's complete inputs without executing authored code."""
+    page_dir = page_dir.absolute()
+    return _capture_artifact_stamped(
+        page_dir,
+        document.data,
+        _json(registry),
+        _json(dict(declaration_sources or {})),
+        _json(dict(widget_sources or {})) if widget_sources is not None else None,
+        _capture_input_stamps(page_dir),
+    )
+
+
+@lru_cache(maxsize=32)
+def _capture_artifact_stamped(
+    page_dir: Path,
+    html: bytes,
+    registry_json: bytes,
+    declaration_sources_json: bytes,
+    widget_sources_json: bytes | None,
+    input_stamps: tuple[tuple[str, tuple | None], ...],
+) -> RevisionArtifact:
+    """Retain one complete capture while every mutable input has the same stamp."""
+    return _capture_artifact(
+        page_dir,
+        SourceDocument(html.decode("utf-8")),
+        json.loads(registry_json),
+        declaration_sources=json.loads(declaration_sources_json),
+        widget_sources=(
+            None if widget_sources_json is None else json.loads(widget_sources_json)
+        ),
+    )
+
+
+def _capture_artifact(
+    page_dir: Path,
+    document: SourceDocument,
+    registry: dict,
+    *,
+    declaration_sources: Mapping[str, str] | None = None,
+    widget_sources: Mapping[str, str] | None = None,
+) -> RevisionArtifact:
+    """Build a capture after its public wrapper has identified every input."""
     resources = {}
 
     def capture(path: str):
@@ -446,9 +512,30 @@ def write_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
 
 def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
     """Read exact captured inputs, never substituting a mutable page file."""
-    path = revision_path(page_dir, revision)
+    path = revision_path(page_dir, revision).absolute()
     bundle = path.with_suffix("")
-    manifest_bytes = _read(bundle / "manifest.json")
+    manifest_path = bundle / "manifest.json"
+    manifest_stamp = file_stamp(manifest_path)
+    return _read_artifact_stamped(
+        path,
+        bundle,
+        file_stamp(path),
+        file_stamp(bundle),
+        manifest_stamp,
+    )
+
+
+@lru_cache(maxsize=128)
+def _read_artifact_stamped(
+    path: Path,
+    bundle: Path,
+    marker_stamp: tuple | None,
+    bundle_stamp: tuple | None,
+    manifest_stamp: tuple | None,
+) -> RevisionArtifact:
+    """Materialize one immutable revision until any captured file changes."""
+    manifest_path = bundle / "manifest.json"
+    manifest_bytes = _read_stamped(manifest_path, manifest_stamp)
     manifest = json.loads(manifest_bytes)
     resources = {
         logical: Resource(
@@ -458,7 +545,13 @@ def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
         )
         for logical, record in manifest["resources"].items()
     }
-    return RevisionArtifact(_read(path), MappingProxyType(resources), manifest_bytes)
+    html = _read_stamped(path, marker_stamp)
+    artifact = RevisionArtifact(html, MappingProxyType(resources), manifest_bytes)
+    if not path.stem.endswith(artifact.digest.removeprefix("sha256:")[:16]):
+        raise ArtifactError(
+            f"{bundle}: captured manifest digest does not match revision"
+        )
+    return artifact
 
 
 def rewrite_module(data: bytes, logical_path: str, prefix: str) -> bytes:

@@ -16,9 +16,11 @@ import { parse } from "acorn";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const outputRoot = "skills/leaf/assets/vendor";
+const diagnosticsRoot = "scripts/browser/generated";
 const entry = "scripts/browser/index.ts";
 const modulePath = `${outputRoot}/browser-runtime.js`;
-const manifestPath = `${outputRoot}/browser-runtime.manifest.json`;
+const sourceMapPath = `${diagnosticsRoot}/browser-runtime.js.map`;
+const manifestPath = `${diagnosticsRoot}/browser-runtime.manifest.json`;
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const relative = (file) => path.relative(root, file).split(path.sep).join("/");
 
@@ -87,7 +89,7 @@ export async function buildOutputs() {
     target: "es2022",
     bundle: true,
     minify: true,
-    sourcemap: "linked",
+    sourcemap: "external",
     sourcesContent: true,
     legalComments: "eof",
     metafile: true,
@@ -99,6 +101,8 @@ export async function buildOutputs() {
   const outputs = new Map(
     result.outputFiles.map((file) => [relative(file.path), Buffer.from(file.contents)]),
   );
+  outputs.set(sourceMapPath, outputs.get(`${modulePath}.map`));
+  outputs.delete(`${modulePath}.map`);
   checkModule(outputs.get(modulePath).toString());
 
   const packagePaths = [
@@ -191,8 +195,11 @@ async function main(args) {
   const outputs = await buildOutputs();
   if (args[0] === "--check") await checkOutputs(outputs);
   else {
-    await mkdir(path.join(root, outputRoot), { recursive: true });
-    for (const [name, bytes] of outputs) await writeFile(path.join(root, name), bytes);
+    for (const [name, bytes] of outputs) {
+      const destination = path.join(root, name);
+      await mkdir(path.dirname(destination), { recursive: true });
+      await writeFile(destination, bytes);
+    }
   }
 }
 

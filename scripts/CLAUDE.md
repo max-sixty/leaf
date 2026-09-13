@@ -82,9 +82,10 @@ rules a new or changed example has to meet.
 ## Vendored bundles
 
 `browser/build.mjs` owns the TypeScript sources under `scripts/browser/` and the
-committed `skills/leaf/assets/vendor/browser-runtime.*` outputs: one self-contained
-ES module, its source map with embedded sources, dependency licenses, and a build
-manifest recording inputs, exports, dependencies, and byte hashes. Run `npm ci`,
+committed outputs: one self-contained ES module and its dependency licenses under
+`skills/leaf/assets/vendor/`, plus a source map and build manifest under
+`scripts/browser/generated/` for contributors. The manifest records inputs, exports,
+dependencies, and byte hashes. Run `npm ci`,
 then `npm run build:browser` to regenerate them. `npm run check:browser` typechecks
 and rebuilds in memory, failing if committed outputs are missing or differ;
 `npm run test:browser` exercises reproducibility, stale-output refusal, the import

@@ -192,10 +192,10 @@ live activation,
 version-comparison state, its marks and chooser paint, the inline text diff a
 marked block discloses, version document loading, the one activation door and the two
 installs behind it — the authored page patched in place, or a fresh document — which
-the arriving revision's executable identity decides, the served revision's own authored
-source that decides which widgets a patch may keep, the persisted semantic reading
-landmarks carried across either, and the page-block reading directional walks start
-from;
+the arriving revision's executable identity decides, the per-widget digests each
+revision's delivery states that decide which widgets a patch may keep, the persisted
+semantic reading landmarks carried across either, and the page-block reading
+directional walks start from;
 `runtime/widget-upgrade.js` owns widget upgrade guards, data bodies, fail-soft
 rendering, and async settlement;
 `runtime/validation.js` is the private adapter through which render checks inspect

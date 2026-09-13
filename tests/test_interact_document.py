@@ -248,6 +248,42 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     assert reissued.executable != restamped.executable
 
 
+def test_the_captured_widget_digests_say_which_widgets_a_reader_may_keep(page_dir):
+    """One digest per declared widget, over what its author wrote.
+
+    A reader's open document keeps the widgets a revision did not rewrite, and only the
+    capture still holds the markup to say which those are: after upgrade a controller
+    owns every widget's children. Digested from the parsed tree, so two revisions of one
+    widget differ where the author changed it and nowhere else.
+    """
+    document = PAGE
+
+    def activate():
+        (page_dir / "index.html").write_text(document)
+        activated = revisioning_model.activate_source(page_dir, [])
+        assert activated.error is None, activated.error
+        return artifact_model.read_artifact(page_dir, activated.revision)
+
+    base = activate()
+    # Only elements the vocabulary says carry a module, and only where an id names one:
+    # a widget the patch cannot address is a widget it can only replace. The options
+    # group here has no id, and neither it nor its options declares a module.
+    assert set(base.widgets) == {"plan-choice-decision", "flow"}
+
+    document = document.replace("The cutoff lives in", "The cutoff now lives in")
+    reworded = activate()
+    assert reworded.digest != base.digest, "the prose edit made no new revision"
+    assert reworded.widgets == base.widgets
+
+    document = document.replace("Which plan should lead?", "Which plan leads?")
+    rewritten = activate()
+    assert (
+        rewritten.widgets["plan-choice-decision"]
+        != base.widgets["plan-choice-decision"]
+    )
+    assert rewritten.widgets["flow"] == base.widgets["flow"]
+
+
 def test_a_revision_saved_before_the_executable_digest_says_so(page_dir):
     """A page whose history predates this field still serves its own version list.
 

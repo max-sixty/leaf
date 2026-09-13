@@ -1,6 +1,7 @@
 """HTTP event and service-address tests."""
 
 import errno
+import html
 import http.client
 import http.cookiejar
 import json
@@ -736,10 +737,14 @@ def test_server_round_trip(server, page_dir):
     peer.close()
     status = arrived.status
     assert status == 200 and b"lf-options" in body
-    executable = artifact_model.read_artifact(page_dir, 2).executable
+    artifact = artifact_model.read_artifact(page_dir, 2)
+    widgets = html.escape(
+        json.dumps(artifact.widgets, separators=(",", ":")), quote=True
+    )
     marker = (
         '<meta name="lf-revision" data-lf-runtime content="2">'
-        f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
+        f'<meta name="lf-executable" data-lf-runtime content="{artifact.executable}">'
+        f'<meta name="lf-widgets" data-lf-runtime content="{widgets}">'
         '<meta name="lf-version" data-lf-runtime content="1">'
     ).encode()
     artifact_root = f"/revisions/{files_model.revision_path(page_dir, 2).stem}"
@@ -1182,10 +1187,14 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
 
     body = fetch(f"{server}/")[1].decode()
 
-    executable = artifact_model.read_artifact(page_dir, 1).executable
+    artifact = artifact_model.read_artifact(page_dir, 1)
+    widgets = html.escape(
+        json.dumps(artifact.widgets, separators=(",", ":")), quote=True
+    )
     marker = (
         '<meta name="lf-revision" data-lf-runtime content="1">'
-        f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
+        f'<meta name="lf-executable" data-lf-runtime content="{artifact.executable}">'
+        f'<meta name="lf-widgets" data-lf-runtime content="{widgets}">'
         '<meta name="lf-version" data-lf-runtime content="1">'
     )
     assert body.count(marker) == 1

@@ -73,7 +73,9 @@ def app_snapshot(page: str) -> tuple[dict, dict]:
         return resource
 
     document = inline_assets(
-        runtime_document(source, revision, artifact.executable).decode(),
+        runtime_document(
+            source, revision, artifact.executable, widgets=artifact.widgets
+        ).decode(),
         read_resource=read_resource,
     )
     title = parsed.title.strip() or page_dir.name

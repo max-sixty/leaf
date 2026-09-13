@@ -88,10 +88,12 @@
  * is never restored because it was never lost, and standing is put back only where the
  * replaced control dropped it.
  *
- * Served identity is read before boot mutates the document, and so is the served
- * revision's own authored markup, because after upgrade a controller owns each widget's
- * children and no copy of what it was built from remains. Comparing that source with an
- * arriving revision's is what says which widgets the reader may keep.
+ * Served identity is read before boot mutates the document, and it includes what each
+ * declared widget in this page was written as, one digest per id, decided by the capture
+ * that wrote the revision. A patch keeps the widgets the arriving revision spells the
+ * same way. The page cannot answer that for itself — after upgrade a controller owns
+ * every widget's children — and does not have to: both maps arrive in a document head,
+ * this one at boot and the other inside the revision document a patch already fetches.
  *
  * A layer also owes a way out at all, over the same page the way in is live on.
  * `versionsOffered` (there is a menu) answers for the destination, the chooser standing over
@@ -209,6 +211,15 @@ servedStampMarker?.remove();
 export const servedExecutable = document.querySelector(
   'meta[name="lf-executable"][data-lf-runtime]',
 )?.content;
+// What each declared widget in this document's page was written as, one digest per id,
+// decided by the capture that wrote the revision. A patch keeps the widgets whose
+// digest the arriving revision repeats, and the arriving revision's map is in the head
+// of the document a patch already fetches, so neither reading costs a request.
+const widgetDigests = (doc) => {
+  const stated = doc.querySelector('meta[name="lf-widgets"][data-lf-runtime]')?.content;
+  return stated ? JSON.parse(stated) : {};
+};
+const servedWidgets = widgetDigests(document);
 
 // The document roots may carry authored classes, data attributes, and inline custom
 // properties that page-local styles read. The live document also paints its own facts
@@ -251,12 +262,6 @@ const initialDocument = {
   authoredBodyAttributes: authoredAttributes(document.body),
   authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
   authoredHtmlAttributes: authoredAttributes(document.documentElement),
-  // The revision this document was served, kept as source. After upgrade the page is
-  // no longer its own markup — a controller owns each widget's children — so the one
-  // remaining copy of what each widget was built from is this one. Taken here because
-  // this module evaluates before the widget modules import, and taken whole because
-  // which tags are declared is a registry reading the page has not made yet.
-  source: document.querySelector("body > main")?.cloneNode(true) ?? null,
 };
 
 /* Passive version destinations shared with banner and layout. */
@@ -294,7 +299,8 @@ export function createVersionController({
 }) {
   let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes } =
     initialDocument;
-  let authoredSource = initialDocument.source;
+  // What this document's widgets were written as, replaced by each revision it takes on.
+  let authoredWidgets = servedWidgets;
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
   const HANDOFF_KEY = "lf-revision-handoff";
@@ -1359,38 +1365,7 @@ export function createVersionController({
     marker.content = String(revision.revision);
   }
 
-  // Every revision is addressed under its own `/revisions/rN-<digest>/` root, so the
-  // same media file, page module, or stylesheet is written differently in two revisions
-  // that are otherwise identical. Comparing authored markup means comparing it without
-  // the address it happened to be delivered at.
-  const REVISION_ROOT = /\/revisions\/r[1-9][0-9]*-[0-9a-f]{16}\//g;
-  const sourceMarkup = (element) =>
-    element.outerHTML.replace(REVISION_ROOT, "/revisions/");
   const upgraded = (element) => Boolean(registry[element.localName]?.["x-upgrade"]);
-
-  // Whether a widget's authored markup survived the revision word for word, read from
-  // the two source documents because neither element's authored markup is in the page
-  // any more: a controller owns its children from the moment it upgrades. This answers
-  // one question — may the patch keep this element — and nothing else. What actually
-  // left the document is the patch's to say, because structure decides it too: a widget
-  // nobody touched still goes when the wrapper around it is replaced.
-  function rewrittenWidgets(before, after) {
-    const rewritten = new Set();
-    for (const element of before.querySelectorAll("[id]")) {
-      if (!upgraded(element) || rewritten.has(element.id)) continue;
-      const arriving = after.querySelector(`#${CSS.escape(element.id)}`);
-      if (
-        arriving &&
-        arriving.localName === element.localName &&
-        sourceMarkup(arriving) === sourceMarkup(element)
-      )
-        continue;
-      rewritten.add(element.id);
-      for (const inner of element.querySelectorAll("[id]"))
-        if (upgraded(inner)) rewritten.add(inner.id);
-    }
-    return rewritten;
-  }
 
   // The revision arriving in the document the reader is standing in. Their caret,
   // selection, parked pointer, focus and armed key sequence live on the nodes they are
@@ -1405,7 +1380,7 @@ export function createVersionController({
     if (comparedFrom !== null) setDiff(false);
     const live = document.querySelector("body > main");
     const source = doc.querySelector("body > main");
-    const rewritten = rewrittenWidgets(authoredSource, source);
+    const arrivingWidgets = widgetDigests(doc);
     retireProjectionCoverage();
     // Step 5 of the startup order, on an inert copy of the whole arriving revision. The
     // patch below moves these very nodes into the page, so what is read here is read
@@ -1436,7 +1411,14 @@ export function createVersionController({
         patchTree(live, arriving, {
           generated: (node) => !isAuthored(node),
           declared: upgraded,
-          unchanged: (element) => Boolean(element.id) && !rewritten.has(element.id),
+          // The capture that wrote each revision said what every declared widget in
+          // it was written as. A widget the arriving revision spells the same way is
+          // the widget the reader is holding, so it stays; the digests decide it, and
+          // the page keeps no copy of its own markup to decide it from.
+          unchanged: (element) =>
+            Boolean(element.id) &&
+            Boolean(authoredWidgets[element.id]) &&
+            arrivingWidgets[element.id] === authoredWidgets[element.id],
           share: authoredAttributes,
           // What the patch takes out, as it takes it out. Predicting this from the two
           // sources gets it wrong in the direction that leaves a lie behind: a widget
@@ -1468,7 +1450,7 @@ export function createVersionController({
         pruneScopedElements();
       },
     });
-    authoredSource = source;
+    authoredWidgets = arrivingWidgets;
     await settlePageInterface();
     syncLayout();
     restoreView(view);

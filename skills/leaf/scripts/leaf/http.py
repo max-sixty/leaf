@@ -257,17 +257,32 @@ def head_open_end_offset(document: SourceDocument) -> int:
     return document.head_open_end
 
 
-def _delivery_prelude(revision: int, version: int | None, executable: str) -> str:
+def _delivery_prelude(
+    revision: int, version: int | None, executable: str, widgets: dict
+) -> str:
     """Declare the delivery's encoding and immutable Leaf identity first.
 
     A later revision reaches an open document as a state reading. That document
     compares the new revision's executable digest with the one stamped here to
     decide whether it can take the revision on or needs a fresh document, so the
     digest travels in the head where the answer costs no request.
+
+    The widget digests answer the next question in the same breath: which widgets
+    the reader may keep. A patch needs two of these maps, its own document's and
+    the arriving revision's, and both arrive without asking — this one at boot,
+    and the other inside the revision document a patch already fetches. Serving
+    them anywhere else buys nothing: a resource of their own would be a request
+    on the activation path, and `/api/state` would repeat them on every read of a
+    page most of whose readers never see a revision at all. Measured against that,
+    the bytes are noise: the largest public example declares 49 widgets, and the
+    map replaces a clone of the whole authored page that the browser was holding
+    for the document's lifetime.
     """
     identity = (
         f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
         f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
+        f'<meta name="lf-widgets" data-lf-runtime '
+        f'content="{html.escape(json.dumps(widgets, separators=(",", ":")), quote=True)}">'
     )
     return (
         DELIVERY_ENCODING_META
@@ -295,13 +310,21 @@ def script_hash(body: str) -> str:
 
 
 def runtime_document(
-    source: str, revision: int, executable: str, version: int | None = None
+    source: str,
+    revision: int,
+    executable: str,
+    version: int | None = None,
+    widgets: dict | None = None,
 ) -> bytes:
     """Give a clean authored document its runtime head and immutable identity."""
     document = SourceDocument(source)
     offset = head_open_end_offset(document)
     theme_head, entry_head = _runtime_assets()
-    runtime = _delivery_prelude(revision, version, executable) + theme_head + entry_head
+    runtime = (
+        _delivery_prelude(revision, version, executable, widgets or {})
+        + theme_head
+        + entry_head
+    )
     return (UTF8_BOM + source[:offset] + runtime + source[offset:]).encode()
 
 
@@ -311,6 +334,7 @@ def supervised_document(
     version: int | None,
     *,
     executable: str,
+    widgets: dict,
     server_id: str,
     layer_id: str,
     bootstrap: str,
@@ -361,7 +385,7 @@ def supervised_document(
         f'data-lf-probe="{asset_path}/registry.json">{bootstrap}</script>'
     )
     supervised = (
-        _delivery_prelude(revision, version, executable)
+        _delivery_prelude(revision, version, executable, widgets)
         + f'<meta http-equiv="Content-Security-Policy" content="{html.escape(csp, quote=True)}">'
         + bootstrap_head
         + theme_head
@@ -814,6 +838,7 @@ class Handler(BaseHTTPRequestHandler):
                 revision,
                 version,
                 executable=artifact.executable,
+                widgets=artifact.widgets,
                 server_id=self.server_id,
                 layer_id=artifact.registry["$layer"]["generation"],
                 bootstrap=artifact.resources["/runtime/bootstrap.js"].data.decode(

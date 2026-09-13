@@ -30,6 +30,7 @@ from urllib.parse import unquote, urlsplit
 
 import tinycss2
 import tree_sitter_javascript
+import turbohtml
 from tree_sitter import Language, Parser
 
 from leaf.files import file_stamp, fsync_parents, list_revisions, revision_path
@@ -107,6 +108,11 @@ class RevisionArtifact:
     def executable(self) -> str:
         """This revision's identity as executable code, decided once at capture."""
         return manifest_executable(json.loads(self.manifest))
+
+    @cached_property
+    def widgets(self) -> dict:
+        """What each declared widget in this revision's page was written as."""
+        return json.loads(self.manifest).get("widgets", {})
 
 
 def manifest_executable(manifest: dict) -> str:
@@ -504,11 +510,28 @@ def _capture_artifact(
             }
         )
     )
+    # What each declared widget in the authored page was written as, one digest per id.
+    # A reader's open document keeps the widgets a revision did not rewrite, and only
+    # the capture still holds the markup to say which those are: after upgrade a
+    # controller owns every widget's children, so the page cannot answer for itself and
+    # the browser had been keeping a clone of the whole authored `main` for the
+    # document's lifetime to have something to compare. Digested from the parsed tree
+    # before delivery rewrites resource URLs, so two revisions of one widget differ only
+    # where its author changed it.
+    main = document.tree.select_one("main")
+    widgets = {
+        element.attrs["id"]: _digest(element.html.encode("utf-8"))
+        for element in (main.descendants if main is not None else ())
+        if isinstance(element, turbohtml.Element)
+        and element.attrs.get("id")
+        and registry.get(element.tag, {}).get("x-upgrade")
+    }
     manifest = _canonical_json(
         {
             "html": _digest(document.data),
             "entries": sorted(set(entries)),
             "executable": executable,
+            "widgets": widgets,
             "public_modules": list(PUBLIC_MODULES),
             "layer": layer,
             "declarations": dict(declaration_sources or {}),

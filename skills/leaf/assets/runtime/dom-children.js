@@ -42,9 +42,11 @@ export function setChildren(parent, nodes, remove = detach) {
      markup a widget was written as has to be read here. It is called for the nodes that
      arrive and for nothing else, because a node that stays has already been read.
 
-   Matching is by id first and by position second, and a positional match needs the same
-   node type, the same tag, and no id on either side: an element the source names is that
-   element or is new, never whichever unnamed element stands in its place. */
+   Matching is by id first and by position second. A positional match needs the same node
+   type and the same tag, and refuses two elements that carry different ids: an element
+   the source names is the element of that name or is new, never whichever other named
+   element stands in its place. An id on one side only is that name being given or taken
+   away, which is a thing to do to an element rather than a reason to replace it. */
 export function patchTree(live, source, rules) {
   patchAttributes(live, source, rules.share);
   patchChildren(live, source, rules);
@@ -133,7 +135,7 @@ function matchNodes(held, wanted) {
 const interchangeable = (held, wanted) =>
   held.nodeType === wanted.nodeType &&
   (held.nodeType !== Node.ELEMENT_NODE ||
-    (held.localName === wanted.localName && !held.id && !wanted.id));
+    (held.localName === wanted.localName && !(held.id && wanted.id)));
 
 // The ordering pass of `setChildren`, walking past what the runtime put here. A node
 // already standing in its place is left alone, which is the whole point: the common

@@ -2875,8 +2875,10 @@ def test_the_page_marks_the_comment_the_reader_is_standing_in(browser, serve):
     )
 
 
-def test_a_hovered_thread_rebinds_after_fresh_revision_activation(browser, serve):
-    """A parked pointer resolves the replacement document without another gesture."""
+def test_a_hovered_thread_rebinds_to_a_replaced_anchor(browser, serve):
+    """A live revision replaces the authored nodes but keeps the thread and its anchor.
+    With the pointer parked on that card, the semantic hover id does not change; its
+    Range still must move from the detached v1 text node onto the connected v2 one."""
     url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
     page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
@@ -2884,6 +2886,10 @@ def test_a_hovered_thread_rebinds_after_fresh_revision_activation(browser, serve
     point = card_body(page, "About this bit.")
     page.mouse.move(*point)
     wait_hovered(page, "bold text")
+    page.evaluate(
+        "() => { window.__lfOldHoverNode = "
+        "[...CSS.highlights.get('lf-mark-hover')][0].startContainer; }"
+    )
     v2 = INLINE_PAGE.replace(
         "<strong>bold text</strong>", '<span data-v2="true">bold text</span>'
     )
@@ -2895,7 +2901,9 @@ def test_a_hovered_thread_rebinds_after_fresh_revision_activation(browser, serve
     state = page.evaluate("""() => {
         const range = [...CSS.highlights.get('lf-mark-hover')][0];
         return {
+            oldConnected: window.__lfOldHoverNode.isConnected,
             text: range?.toString() ?? null,
+            rebound: Boolean(range && range.startContainer !== window.__lfOldHoverNode),
             connected: Boolean(range?.startContainer.isConnected),
             inV2: Boolean(document.querySelector('[data-v2="true"]')
               ?.contains(range?.startContainer)),
@@ -2903,11 +2911,13 @@ def test_a_hovered_thread_rebinds_after_fresh_revision_activation(browser, serve
         };
     }""")
     assert state == {
+        "oldConnected": False,
         "text": "bold text",
+        "rebound": True,
         "connected": True,
         "inV2": True,
         "card": True,
-    }, f"the fresh hover did not resolve against the v2 anchor: {state}"
+    }, f"the parked hover did not move from the detached v1 anchor to v2: {state}"
     expect(page.locator(".lf-thread")).to_have_class(re.compile(r"\blf-mark-hover\b"))
 
 
@@ -5909,16 +5919,11 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     (d / ".fixture-versions" / "v2.html").write_text(without_passage)
     stamp_version_file(d, 2, "remove the quoted passage")
     wait_for_revision(page, 2)
-    # Narrowing is interaction-local heap state, not part of the revision handoff. The
-    # fresh document starts at Open; choosing Resolved again reveals the durable thread.
-    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+    # Narrowing is interaction-local heap state, and nothing executable changed, so the
+    # reader keeps this document and the Resolved narrowing they chose stands in it.
+    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
-        "aria-pressed", "false"
-    )
-    page.locator(".lf-thread-filter-toggle").click()
-    page.locator('[data-filter-value="resolved"]').click()
     resolved_quote = page.locator(".lf-thread:not([hidden]) .lf-quote")
     expect(resolved_quote).to_have_class(re.compile(r"\bdetached\b"))
     expect(resolved_quote).to_have_attribute("aria-disabled", "true")
@@ -8327,12 +8332,9 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(page.locator(".lf-version-menu")).to_have_attribute(
         "aria-keyshortcuts", "ArrowUp ArrowDown 1 2 Enter Space v"
     )
-    # A fresh document does not inherit the prior runtime's expanded shortcut shelf.
-    # The first press expands it; the second opens the current document's reference.
-    expect(line).to_have_attribute("data-lf-shelf-open", "false")
-    page.keyboard.press("?")
+    # Nothing executable changed, so the reader keeps this document and the shelf they
+    # opened stays open. The next press opens the reference over the current version.
     expect(line).to_have_attribute("data-lf-shelf-open", "true")
-    expect(help_el).to_be_hidden()
     page.keyboard.press("?")
     expect(help_el).to_contain_text("In the versions menu")
     expect(help_el).to_contain_text("Later version")

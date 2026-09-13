@@ -19,8 +19,6 @@ import importlib.util
 import json
 import re
 import shutil
-import threading
-import time
 import urllib.request
 from pathlib import Path
 
@@ -42,6 +40,7 @@ from render_harness import (
     consume_browser_errors,
     navigate,
     open_page,
+    running_http_server,
     select,
     sending,
     watched,
@@ -146,14 +145,8 @@ def hosted(site, tmp_path_factory):
     httpd = hosting_model.server_at(
         "127.0.0.1", 0, website_server.handler_for(session_site)
     )
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
-    try:
+    with running_http_server(httpd):
         yield f"http://127.0.0.1:{httpd.server_address[1]}"
-    finally:
-        httpd.shutdown()
-        httpd.server_close()
-        thread.join(timeout=2)
 
 
 @pytest.fixture
@@ -169,8 +162,6 @@ def served_example(site, tmp_path):
     httpd = hosting_model.server_at(
         "127.0.0.1", 0, website_server.handler_for(session_site)
     )
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
-    thread.start()
     origin = f"http://127.0.0.1:{httpd.server_address[1]}"
 
     def serve(name):
@@ -178,10 +169,8 @@ def served_example(site, tmp_path):
         shutil.copytree(site / "examples" / name, page_dir)
         return page_dir, f"{origin}/examples/{name}/"
 
-    yield serve
-    httpd.shutdown()
-    httpd.server_close()
-    thread.join(timeout=2)
+    with running_http_server(httpd):
+        yield serve
 
 
 def product_url(hosted, name):
@@ -1466,18 +1455,31 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
     watched(page)
-    delayed = []
+    held = []
+    held_once = False
 
-    def delay_contained_state(route):
-        if route.request.frame.parent_frame and not delayed:
-            delayed.append(route.request.url)
-            time.sleep(5)
+    def hold_first_contained_state(route):
+        nonlocal held_once
+        if route.request.frame.parent_frame and not held_once:
+            held_once = True
+            held.append(route)
+            return
         route.continue_()
 
-    page.route("**/api/state*", delay_contained_state)
+    page.route("**/api/state*", hold_first_contained_state)
     try:
-        navigate(page, f"{url}#bg-interactions")
+        with page.expect_request(
+            lambda request: (
+                request.frame.parent_frame is not None and "/api/state" in request.url
+            )
+        ):
+            page.goto(f"{url}#bg-interactions", wait_until="domcontentloaded")
         gallery = page.locator("#bg-interactions")
+        expect(gallery.locator("[data-interaction-status]")).to_have_text("Loading")
+        assert held, "no contained state read was held"
+        held.pop().continue_()
+        page.wait_for_load_state("load")
+        page.wait_for_function(BOTH_STAMPS)
         expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
             4, timeout=20_000
         )
@@ -1489,18 +1491,29 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
             )"""
         )
         page.evaluate("sessionStorage.setItem('lf-view', 'outer reading')")
-        contained = next(frame for frame in page.frames if frame.parent_frame)
-        assert contained.evaluate(
-            """async () => {
-                const {LIVE_ROOT, PAGE_SCOPE} = await window.__lfRuntimeImport('/runtime/storage.js');
+        storage_url = page.locator("script[data-lf-entry]").evaluate(
+            "entry => new URL('runtime/storage.js', "
+            "new URL(entry.dataset.lfEntry, location.href)).href"
+        )
+        contained = gallery.locator(
+            "iframe[data-interaction-ready]"
+        ).first.content_frame
+        contained_document = contained.locator("html")
+        assert contained_document.evaluate(
+            """async (_document, storageUrl) => {
+                const {LIVE_ROOT, PAGE_SCOPE} = await import(storageUrl);
                 return {liveRoot: LIVE_ROOT, pageScope: PAGE_SCOPE};
-            }"""
+            }""",
+            storage_url,
         ) == {"liveRoot": False, "pageScope": "srcdoc"}
-        contained.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
+        contained_document.evaluate(
+            "dispatchEvent(new PageTransitionEvent('pagehide'))"
+        )
         assert page.evaluate("sessionStorage.getItem('lf-view')") == "outer reading"
         assert page.evaluate("sessionStorage.getItem('srcdoclf-view')") is not None
-        assert delayed, "no contained state read was held"
     finally:
+        for route in held:
+            route.abort()
         context.close()
 
 

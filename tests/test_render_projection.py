@@ -1951,6 +1951,120 @@ def test_a_revision_reaches_the_markup_held_inside_a_template(browser, serve):
     )
 
 
+def test_a_same_kind_sibling_inserted_above_an_edited_one_keeps_the_page_whole(
+    browser, serve
+):
+    """The one shape the gap cannot decide, and what it still owes the reader.
+
+    Insert a paragraph above one the same revision rewrote and there is nothing to
+    decide it on: both are paragraphs, neither carries a name, and the words that would
+    have paired them are the words that changed. The reader's node survives either way,
+    so nothing is torn out from under them, but which of the two the words land in is
+    not something this can promise — and it is the diff's answer, not a walk's, so the
+    page itself is whole and in order whichever way it falls.
+    """
+    first = leaf_page(
+        "Twins first",
+        "<h1 id='tw-title'>Twins</h1>\n<p>The cutover has not started.</p>",
+    )
+    second = first.replace("Twins first", "Twins second").replace(
+        "<p>The cutover has not started.</p>",
+        "<p>A finding above it.</p>\n<p>The cutover finished on the second attempt.</p>",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.evaluate(
+        """() => {
+          const paragraph = document.querySelector('main p');
+          window.__twParagraph = paragraph;
+          window.__twNode = paragraph.firstChild;
+        }"""
+    )
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Twins second")
+
+    standing = page.evaluate(
+        """() => {
+          const paragraphs = [...document.querySelectorAll('main p')];
+          return {
+            words: paragraphs.map((p) => p.textContent),
+            kept: paragraphs.includes(window.__twParagraph),
+            connected: window.__twNode.isConnected,
+          };
+        }"""
+    )
+    assert standing == {
+        "words": [
+            "A finding above it.",
+            "The cutover finished on the second attempt.",
+        ],
+        "kept": True,
+        "connected": True,
+    }, f"the page did not come out whole: {standing}"
+
+
+def test_another_kind_of_sibling_above_an_edited_paragraph_keeps_the_reader_on_it(
+    browser, serve
+):
+    """The gap between pinned siblings is diffed, not walked in step.
+
+    A stretch the revision edited also holds whatever it inserted, and a cursor meets an
+    insertion in the way that costs the reader their node: a heading above the paragraph
+    they are reading is nothing the cursor can pair with, so it spends the cursor, and
+    the paragraph is left with no partner and removed. Nothing is pinned here — the
+    revision rewrote the only paragraph in the gap — so the whole answer comes from the
+    gap's own diff.
+    """
+    first = leaf_page(
+        "Kinds first",
+        "<h1 id='kd-title'>Kinds</h1>\n<p>The cutover has not started.</p>",
+    )
+    second = first.replace("Kinds first", "Kinds second").replace(
+        "<p>The cutover has not started.</p>",
+        "<h2>Progress</h2>\n<p>The cutover finished on the second attempt.</p>",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    held = page.evaluate(
+        """() => {
+          const node = document.querySelector('main p').firstChild;
+          const range = document.createRange();
+          range.setStart(node, 4);
+          range.setEnd(node, 11);
+          const selection = getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          window.__kdNode = node;
+          window.__kdParagraph = node.parentElement;
+          return selection.toString();
+        }"""
+    )
+    assert held == "cutover", f"the selection did not land on the word: {held!r}"
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Kinds first")
+    page.evaluate("() => { window.__kdFocus = document.activeElement; }")
+    page.locator(".lf-latest-chip").evaluate("el => el.click()")
+    expect(page).to_have_title("Kinds second")
+
+    expect(page.locator("main h2")).to_have_text("Progress")
+    standing = page.evaluate(
+        """() => ({
+          words: document.querySelector('main p').textContent,
+          sameParagraph: window.__kdParagraph === document.querySelector('main p'),
+          sameNode: getSelection().anchorNode === window.__kdNode,
+          selection: getSelection().toString(),
+        })"""
+    )
+    assert standing == {
+        "words": "The cutover finished on the second attempt.",
+        "sameParagraph": True,
+        "sameNode": True,
+        "selection": "cutover",
+    }, f"the inserted heading took the reader's paragraph with it: {standing}"
+
+
 def test_a_paragraph_inserted_above_the_reader_does_not_shift_the_ones_below(
     browser, serve
 ):

@@ -156,7 +156,13 @@ and the bodies of its inline modules. Where that is unchanged, the arriving mark
 patched onto the page the reader is standing in. They keep their caret, selection,
 hover, scroll and focus, every widget whose authored markup you did not touch keeps its
 element and the state the log gave it, and a key sequence they were part-way through
-goes on naming the page in front of them. Where it differs, the stable live address
+goes on naming the page in front of them. Their selection covers the words it covered,
+including in a paragraph you edited around it; only where you rewrote the selected
+words themselves does it have nothing left to hold. One shape cannot be decided at all:
+insert a sibling of the same kind directly above an unnamed element you also rewrote,
+and nothing distinguishes the two, so the words may land in either — the reader loses
+no node and the page is in order, but give either element an `id` if which is which
+matters. Where it differs, the stable live address
 opens a fresh document, because a running document cannot evaluate a module twice or
 redefine an element; reading position, recoverable drafts, comparison, and a still-valid
 authored standing are restored explicitly, while element instances and arbitrary module

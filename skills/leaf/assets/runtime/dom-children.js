@@ -101,6 +101,32 @@ function patchAttributes(live, source, share) {
 
 const tokens = (value) => value.split(" ").filter(Boolean);
 
+// Only the run of words that actually changed. Assigning `data` replaces the node's
+// whole content, and the platform's replace-data step collapses every Range endpoint
+// inside what it replaced — which is the reader's own selection, in exactly the
+// paragraph a revision rewrote while they were reading it. Trimming to the differing
+// middle leaves every offset on either side of it where it was, so a selection over
+// words the revision kept survives the words beside it changing.
+function writeText(node, next) {
+  const held = node.data;
+  if (held === next) return;
+  let prefix = 0;
+  while (prefix < held.length && prefix < next.length && held[prefix] === next[prefix])
+    prefix += 1;
+  let suffix = 0;
+  while (
+    suffix < held.length - prefix &&
+    suffix < next.length - prefix &&
+    held[held.length - suffix - 1] === next[next.length - suffix - 1]
+  )
+    suffix += 1;
+  node.replaceData(
+    prefix,
+    held.length - prefix - suffix,
+    next.slice(prefix, next.length - suffix),
+  );
+}
+
 // Everything leaving, told to the caller before it goes. The element itself and every
 // element under it: a widget inside a replaced wrapper is as gone as the wrapper.
 function retire(node, rules) {
@@ -128,9 +154,7 @@ function patchChildren(live, source, rules) {
       continue;
     }
     if (match.nodeType !== Node.ELEMENT_NODE) {
-      // The same node, so the browser carries every Range boundary inside it across the
-      // edit rather than collapsing a selection the reader is still holding.
-      if (match.data !== node.data) match.data = node.data;
+      writeText(match, node.data);
       placed.push(match);
     } else if (!rules.declared(match)) {
       patchTree(match, node, rules);
@@ -200,7 +224,7 @@ function alignRest(held, wanted, matches, rules) {
   let gapHeld = [];
   let gapWanted = [];
   const closeGap = () => {
-    pairInOrder(gapHeld, gapWanted, matches);
+    pairInGap(gapHeld, gapWanted, matches);
     gapHeld = [];
     gapWanted = [];
   };
@@ -222,15 +246,32 @@ function alignRest(held, wanted, matches, rules) {
   closeGap();
 }
 
-// Inside one edited stretch, where walking in step is the right answer: these are the
-// siblings the revision rewrote, and a rewrite is still the element it rewrote.
-function pairInOrder(held, wanted, matches) {
-  let cursor = 0;
-  for (const node of wanted) {
-    while (cursor < held.length && !interchangeable(held[cursor], node)) cursor += 1;
-    if (cursor >= held.length) break;
-    matches.set(node, held[cursor]);
-    cursor += 1;
+// Inside one edited stretch: these are the siblings the revision rewrote, and a rewrite
+// is still the element it rewrote. Diffed rather than walked in step, because a stretch
+// holds insertions too and a cursor meets them in the two ways that cost a reader their
+// node. A sibling of another kind above the one they are reading — a heading, a list,
+// an unnamed widget — is nothing the cursor can pair, so it spends the cursor and the
+// reader's own paragraph is left with no partner and removed. A sibling of the same kind
+// above it takes the pairing that belonged to the paragraph below.
+//
+// Compared rather than keyed, because what may pair here is not an equality. Two
+// elements the source names differently are never each other; an element named on one
+// side only is that name being given or taken away, which is a thing to do to an
+// element. A key can state the first or the second and not both — `p#a` would have to
+// equal `p` while `p#a` differs from `p#b` — so the rule travels as the comparator it is.
+function pairInGap(held, wanted, matches) {
+  let heldAt = 0;
+  let wantedAt = 0;
+  for (const run of diffArrays(held, wanted, { comparator: interchangeable })) {
+    const count = run.value.length;
+    if (run.added) wantedAt += count;
+    else if (run.removed) heldAt += count;
+    else {
+      for (let at = 0; at < count; at++)
+        matches.set(wanted[wantedAt + at], held[heldAt + at]);
+      heldAt += count;
+      wantedAt += count;
+    }
   }
 }
 

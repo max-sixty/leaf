@@ -6,19 +6,25 @@ import re
 import pytest
 from PIL import Image
 from playwright.sync_api import expect
-from render_support import (
-    BANNER_ORDER,
-    LONG_PAGE,
+from render_cases_interaction import (
     SUGGESTION_PAGE,
-    _publish,
+    panel_comment,
+)
+from render_cases_layout import (
+    BANNER_ORDER,
     banner_control,
     button_radius,
+    token_colour,
+)
+from render_cases_navigation import (
+    _publish,
+)
+from render_harness import (
+    LONG_PAGE,
     compare_with,
     open_page,
-    panel_comment,
     panel_settled,
     resized,
-    token_colour,
 )
 
 
@@ -60,7 +66,6 @@ def test_a_margin_reply_shares_its_conversations_opaque_surface(browser, serve, 
         expect(surround).to_have_css("background-color", surface["color"])
 
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("width", [320, 800])
@@ -204,7 +209,6 @@ def test_signoff_enabled_face_is_readable(browser, serve):
         "fill": token_colour(page, "--accent"),
     }, f"the banner's primary action lost its readable face: {paint}"
     assert errors == []
-    page.close()
 
 
 def test_a_folded_banner_control_keeps_its_active_paint(browser, serve):
@@ -254,7 +258,6 @@ def test_a_folded_banner_control_keeps_its_active_paint(browser, serve):
     door.evaluate("el => el.toggleAttribute('data-lf-news', true)")
     expect(door).to_have_css("border-top-color", token_colour(page, "--accent"))
     assert errors == []
-    page.close()
 
 
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
@@ -328,7 +331,6 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     expect(control).to_have_attribute("aria-expanded", "true")
     expect(control).to_have_css("background-color", token_colour(page, "--chip"))
     assert errors == []
-    page.close()
 
 
 def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
@@ -381,4 +383,3 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
             == accent
         ), (width, panel_open, "the notice is covered by the panel or its scrim")
     assert errors == []
-    page.close()

@@ -17,35 +17,37 @@ from leaf import render_checks as render_checks_model
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_layout import (
     BADGE_CHROME,
+    PAINTED_IN_SILENCE_PAGE,
+    PRINT_LOSS_PAGE,
+    SCROLL_SETTLE_MS,
+    SCROLL_STILL,
+    SHORT_CHIP_PAGE,
+    SHOT_PAGE,
+    SHOT_SRC,
+    SHOTS,
+    UNPARSABLE_DIAGRAM,
+    flip_point,
+    shown_frames,
+    solid_png,
+)
+from render_harness import (
     CARRIED_PAGE,
     EXAMPLE_MEDIA,
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
-    PAINTED_IN_SILENCE_PAGE,
-    PRINT_LOSS_PAGE,
     REPLY_HOST_PAGE,
-    SCROLL_SETTLE_MS,
-    SCROLL_STILL,
     SETTLED_PAGE,
-    SHORT_CHIP_PAGE,
-    SHOT_PAGE,
-    SHOT_SRC,
-    SHOTS,
     SPECIMEN_MARKUP,
     SPECIMEN_TEXT,
-    UNPARSABLE_DIAGRAM,
     author_test_widget,
-    flip_point,
     open_page,
     page_registry,
     primed,
     resized,
     shortcut_bar_text,
-    shown_frames,
-    solid_png,
 )
 
 pytestmark = pytest.mark.nightly
@@ -667,7 +669,6 @@ def test_a_shot_shows_one_frame_and_flips_between_them(browser, serve):
     # the frame's foot — the card's own outer corners.
     assert ring["corners"] == ring["card_corners"] != ["0px", "0px"]
     assert errors == []
-    page.close()
 
 
 def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser, serve):
@@ -713,7 +714,6 @@ def test_a_tall_shot_flips_where_it_was_clicked_without_moving_the_page(browser,
         )
 
     assert errors == []
-    page.close()
 
 
 def test_a_shot_still_flips_with_every_script_removed(

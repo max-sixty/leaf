@@ -8,22 +8,30 @@ from leaf import conversation as conversation_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from playwright.sync_api import expect
-from render_cases_navigation import pending_text
-from render_harness import leaf_page
-from render_support import (
+from render_cases_interaction import (
+    PANEL_PAGE,
+    PROPOSED_PAGE,
+    SUGGESTION_PAGE,
+    panel_comment,
+)
+from render_cases_layout import (
+    button_radius,
+)
+from render_cases_navigation import (
+    TARGETS_PAGE,
+    pending_text,
+)
+from render_cases_widgets import (
+    PART_DIAGRAM_PAGE,
+)
+from render_harness import (
     BOTH_STAMPS,
     FEATURE_GALLERY,
-    PANEL_PAGE,
-    PART_DIAGRAM_PAGE,
-    PROPOSED_PAGE,
     RENDERED,
     ROOT,
-    SUGGESTION_PAGE,
-    TARGETS_PAGE,
-    button_radius,
     holding,
+    leaf_page,
     open_page,
-    panel_comment,
     panel_settled,
     resized,
     round_trip,
@@ -143,7 +151,6 @@ def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, ser
         == rail
     ), "a passive reading widened the page rail"
     assert errors == []
-    page.close()
 
 
 def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
@@ -322,7 +329,6 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"]
     assert painted(page, []) == {"washed": "", "glyphs": [], "outlined": []}
     assert errors == []
-    page.close()
 
 
 def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, serve):
@@ -359,7 +365,6 @@ def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
     assert sent["kind"] == "comment" and sent["token"] == "change"
     assert sent["anchor"]["section"] == "bg-react-ok"
     assert errors == []
-    page.close()
 
 
 def test_comment_reaction_digits_stop_at_nine_for_a_larger_vocabulary(browser, serve):
@@ -382,7 +387,6 @@ def test_comment_reaction_digits_stop_at_nine_for_a_larger_vocabulary(browser, s
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["kind"] == "comment" and sent["token"] == "extra-3"
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
@@ -466,7 +470,6 @@ def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme
         item.locator('.lf-react[data-token="keep"]'), open_margin_reactions
     )
     assert errors == []
-    page.close()
 
 
 def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
@@ -552,7 +555,6 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve):
     panel_settled(page)
     expect(page.locator(".lf-thread-panel-foot .lf-react-strip")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_a_target_hint_opens_comment_and_a_token_outlines_the_element(browser, serve):
@@ -573,7 +575,6 @@ def test_a_target_hint_opens_comment_and_a_token_outlines_the_element(browser, s
     shown = painted(page, [["prose", "prioritize"]])
     assert shown["outlined"] and shown["washed"] == "", shown
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("width", [1440, 390])
@@ -617,7 +618,6 @@ def test_reactions_keep_all_six_buttons_on_an_occupied_target(
     )
     expect(item.locator(".lf-margin-reactions")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize(
@@ -649,7 +649,6 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(
     expect(page.locator(".lf-margin-reactions")).to_have_count(0)
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
@@ -722,7 +721,6 @@ def test_putting_a_reaction_down_folds_back_only_the_cluster_it_unfolded(
     expect(surface).to_have_count(0)
     expect(more).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser, serve):
@@ -762,7 +760,6 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_readers_focus(browser,
         "accept",
     )
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("width", [390, 1280])
@@ -895,7 +892,6 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     page.keyboard.press("Escape")
     expect(bar).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_comment_more_keeps_the_field_when_suggest_is_the_only_secondary_response(
@@ -925,7 +921,6 @@ def test_comment_more_keeps_the_field_when_suggest_is_the_only_secondary_respons
     expect(field).to_be_focused()
     expect(bar.locator(".lf-response-more")).to_be_visible()
     assert errors == []
-    page.close()
 
 
 # The field's box, with its corner as the platform draws it. `over` is
@@ -1025,7 +1020,6 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
         trigger,
     )
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("covered_width", [390, 450])
@@ -1109,7 +1103,6 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     field.press_sequentially(" It is visible again.")
     expect(field).to_have_value(draft + " It is visible again.")
     assert errors == []
-    page.close()
 
 
 def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, serve):
@@ -1154,7 +1147,6 @@ def test_a_reaction_on_a_visual_part_names_and_outlines_only_that_part(browser, 
     )
     expect(diagram).not_to_have_class(re.compile(r"\blf-react-el\b"))
     assert errors == []
-    page.close()
 
 
 def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, serve):
@@ -1177,7 +1169,6 @@ def test_a_whole_visual_reaction_does_not_stand_on_one_of_its_parts(browser, ser
         page.locator('.lf-fab-bar .lf-react[data-token="prioritize"]')
     ).to_have_attribute("aria-pressed", "false")
     assert errors == []
-    page.close()
 
 
 def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_reflow(
@@ -1239,7 +1230,6 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     expect(bar).to_be_hidden()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     assert errors == []
-    page.close()
 
 
 def test_a_declared_visual_and_its_figure_keep_their_own_targets(browser, serve):
@@ -1283,7 +1273,6 @@ def test_a_declared_visual_and_its_figure_keep_their_own_targets(browser, serve)
     )
     expect(page.get_by_role("button", name="Respond to Start request")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_plain_clicks_stay_native_and_explicit_gestures_comment_on_visuals(
@@ -1339,7 +1328,6 @@ graph LR
     expect(control).to_be_focused()
 
     assert errors == []
-    page.close()
 
 
 def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, serve):
@@ -1400,7 +1388,6 @@ def test_a_visual_fallback_yields_to_stable_targets_inside_the_picture(browser, 
         "datum": "document",
     }
     assert errors == []
-    page.close()
 
 
 def test_native_controls_keep_visual_gestures_they_already_own(browser, serve):
@@ -1424,7 +1411,6 @@ def test_native_controls_keep_visual_gestures_they_already_own(browser, serve):
     page.locator("#button-picture").click()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_custom_controls_keep_visual_gestures_they_already_own(browser, serve):
@@ -1445,7 +1431,6 @@ def test_custom_controls_keep_visual_gestures_they_already_own(browser, serve):
     page.locator("#gain-picture").click()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
@@ -1506,7 +1491,6 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     expect(control).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
@@ -1534,7 +1518,6 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
     page.keyboard.press("Escape")
     expect(control).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser, serve):
@@ -1570,7 +1553,6 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(page.locator("#folded")).to_have_attribute("open", "")
     assert page.evaluate("() => window.lfScrolledPart") == "new"
     assert errors == []
-    page.close()
 
 
 def test_a_visual_proxy_keeps_focus_when_a_provider_changes_its_label(browser, serve):
@@ -1599,7 +1581,6 @@ def test_a_visual_proxy_keeps_focus_when_a_provider_changes_its_label(browser, s
           document.activeElement === window.lfRetainedVisualControl"""
     )
     assert errors == []
-    page.close()
 
 
 def test_visual_proxies_keep_focus_when_one_shadow_host_is_repainted(browser, serve):
@@ -1642,7 +1623,6 @@ diff --git a/value.txt b/value.txt
     page.evaluate("() => document.dispatchEvent(new CustomEvent('lf-projection'))")
     expect(second).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
@@ -1693,7 +1673,6 @@ def test_a_visual_action_follows_its_own_scroller_until_the_target_is_gone(
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     assert page.evaluate("() => document.activeElement === document.body")
     assert errors == []
-    page.close()
 
 
 def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it(
@@ -1744,7 +1723,6 @@ def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     assert errors == []
-    page.close()
 
 
 def test_the_response_surface_preserves_a_backward_drag(browser, serve):
@@ -1785,7 +1763,6 @@ def test_the_response_surface_preserves_a_backward_drag(browser, serve):
         }"""
     ), "the response pass reversed a backward drag before its next extension"
     assert errors == []
-    page.close()
 
 
 def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
@@ -1813,7 +1790,6 @@ def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
           document.activeElement === window.lfReturnedVisualControl"""
     )
     assert errors == []
-    page.close()
 
 
 def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
@@ -1848,7 +1824,6 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     )
     expect(bar).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_a_copy_drops_visual_action_controls_without_rewriting_the_provider(
@@ -1871,7 +1846,6 @@ def test_a_copy_drops_visual_action_controls_without_rewriting_the_provider(
         })"""
     ) == {"controls": 0, "rewritten": 0}
     assert errors == []
-    page.close()
 
 
 def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
@@ -2006,7 +1980,6 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     )
 
     assert errors == []
-    page.close()
 
 
 def _thread(page_dir):
@@ -2082,7 +2055,6 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
         "aria-pressed", "false"
     )
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize("removal", ["resolve", "filter"], ids=["fold", "filter"])
@@ -2126,7 +2098,6 @@ def test_removing_an_open_reply_list_disarms_its_keyboard_mode(browser, serve, r
     assert len(events_model.read_events(serve.page_dir)) == count
     assert "1–6" not in shortcut_bar_text(page)
     assert errors == []
-    page.close()
 
 
 def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, serve):
@@ -2172,7 +2143,6 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
     assert page.evaluate("() => CSS.highlights.get('lf-mark').size") == 0
     assert errors == []
-    page.close()
 
 
 def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):
@@ -2189,7 +2159,6 @@ def test_escape_clears_selection_and_keeps_actions_dismissed(browser, serve):
     assert not bar.is_visible()
     assert page.evaluate("() => getSelection().toString()") == ""
     assert errors == []
-    page.close()
 
 
 def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
@@ -2248,4 +2217,3 @@ def test_a_copy_keeps_a_standing_reaction_as_a_mark_and_drops_the_press(
     assert mark.evaluate("el => getComputedStyle(el).backgroundColor") == resting
     assert mark.evaluate(PAINTS_STATE_MARK) is False
     assert errors == []
-    page.close()

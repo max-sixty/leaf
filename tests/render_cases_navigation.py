@@ -795,11 +795,9 @@ def one_reader(browser):
     `Browser.new_page` opens each page in a context of its own, so two of them are two
     readers with no storage between them — and a draft lives in the reader's store now,
     which is the whole of what these tests are about."""
-    context = browser.new_context(
+    return browser.new_context(
         viewport={"width": 1200, "height": 900}, color_scheme="light"
     )
-    yield context
-    context.close()
 
 
 def compose(page, passage, text=None):

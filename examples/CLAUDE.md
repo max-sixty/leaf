@@ -125,7 +125,7 @@ A thread-bearing log opens mid-conversation; an action-only log replays a page-o
 decision without inventing a thread. Every place that builds a page directory out of
 an example lays the log in: `scripts/preview.py`,
 `publish_pages`, `test_page_fixtures_pass_check`, and `serve` in
-`tests/render_support.py`. `serve` seeds when handed an example rather than
+`tests/render_harness.py`. `serve` seeds when handed an example rather than
 markup, and sets the cursor past the seed as `preview.py` does. The anchor sweep
 opts out, because it writes its own anchors and compares the whole painted mark
 against exactly those. `ship-review.jsonl` carries a thread. Under

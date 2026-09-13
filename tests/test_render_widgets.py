@@ -15,7 +15,7 @@ from leaf import service as service_model
 from leaf import session as session_model
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
     ASK_IN_A_CARD_PAGE,
     ASK_ROW_SAYS,
@@ -23,53 +23,63 @@ from render_support import (
     ASKS_IN_A_ROW_PAGE,
     ASKS_IN_ORDER,
     ASKS_PAGE,
-    BAD_CHART_PAGE,
-    BINDING_BADGE_PAGE,
-    BOARD_PAGE,
-    BOTH_STAMPS,
     CHANGE_SHAPES_PAGE,
+    CHIP_PAGE,
+    COLLAPSED_PAGE,
+    CONVERSATION_DIFF_PAGE,
+    HOLD_MOTION,
+    MESSAGE_ROOM_PAGE,
+    PROPOSED_PAGE,
+    REBUILT_INLINE_PAGE,
+    ROOM_HELD,
+    ROOM_WIDGETS,
+    ROOMS,
+    SCROLL_SETTLED,
+    SHORT_SUGGESTION,
+    STANDING_ASK,
+    SUGGESTION_IN_CONTEXT_PAGE,
+    SUGGESTION_PAGE,
+    SWAP_PAGE,
+    live_url,
+    sent_events,
+)
+from render_cases_layout import (
+    SCROLL_SETTLE_MS,
+    banner_control,
+    unfolded_button,
+)
+from render_cases_navigation import (
+    BINDING_BADGE_PAGE,
+    actions,
+)
+from render_cases_widgets import (
+    BAD_CHART_PAGE,
     CHART_COLLISIONS,
     CHART_IN_A_MESSAGE_PAGE,
     CHART_MARKS,
     CHART_MARKUP,
     CHART_PAGE,
-    CHIP_PAGE,
-    COLLAPSED_PAGE,
-    CONVERSATION_DIFF_PAGE,
     CROWDED_CHART_PAGE,
     DIFF_CLIPPING,
     DIFF_LANDING,
     DIFF_PRESS,
     DIFF_ROW_PLACEMENT,
-    FEATURE_GALLERY,
-    HOLD_MOTION,
     LONG_LINE_DIFF_PAGE,
-    LONG_PAGE,
     MANIFEST_DIFF_PAGE,
-    MESSAGE_ROOM_PAGE,
     MULTI_HUNK_PATCH,
-    PROPOSED_PAGE,
-    REBUILT_INLINE_PAGE,
+    SQUEEZED_BOARD_PAGE,
+)
+from render_harness import (
+    BOARD_PAGE,
+    BOTH_STAMPS,
+    FEATURE_GALLERY,
+    LONG_PAGE,
     RENDERED,
     REPLY_HOST_PAGE,
-    ROOM_HELD,
-    ROOM_WIDGETS,
-    ROOMS,
-    SCROLL_SETTLE_MS,
-    SCROLL_SETTLED,
-    SHORT_SUGGESTION,
-    SQUEEZED_BOARD_PAGE,
-    STANDING_ASK,
-    SUGGESTION_IN_CONTEXT_PAGE,
-    SUGGESTION_PAGE,
-    SWAP_PAGE,
     CutOff,
-    actions,
-    banner_control,
     compare_with,
     holding,
     leaf_page,
-    live_url,
     open_page,
     panel_settled,
     post_event,
@@ -78,13 +88,11 @@ from render_support import (
     round_trip,
     select,
     sending,
-    sent_events,
     shortcut_bar_text,
     stamp_page,
     stamp_version_file,
     told,
     undo,
-    unfolded_button,
     wait_for_revision,
     watched,
 )
@@ -179,7 +187,6 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     expect(queue).not_to_have_attribute("data-lf-more-below", "")
     expect(detail).not_to_have_attribute("data-lf-more-below", "")
     assert errors == []
-    page.close()
 
 
 # A root whose furniture answers the width it is given: four fixed badges stand on one
@@ -383,7 +390,6 @@ def test_root_room_is_read_in_the_candidate_posture(browser, serve):
     resized(page, 620, 900)
     assert page.evaluate(SETTLED_POSTURE) == "bounded"
     assert errors == []
-    page.close()
 
 
 def test_root_room_is_the_candidate_main_content_box(browser, serve):
@@ -394,7 +400,6 @@ def test_root_room_is_the_candidate_main_content_box(browser, serve):
     resized(page, 660, 900)
     assert page.evaluate(SETTLED_POSTURE) == "bounded"
     assert errors == []
-    page.close()
 
 
 def test_root_height_is_the_candidate_main_content_box(browser, serve):
@@ -405,7 +410,6 @@ def test_root_height_is_the_candidate_main_content_box(browser, serve):
     resized(page, 1200, 700)
     assert page.evaluate(SETTLED_POSTURE) == "bounded"
     assert errors == []
-    page.close()
 
 
 def test_reading_a_root_minimum_leaves_the_reader_where_they_had_scrolled_to(
@@ -435,7 +439,6 @@ def test_reading_a_root_minimum_leaves_the_reader_where_they_had_scrolled_to(
         == styles
     )
     assert errors == []
-    page.close()
 
 
 def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_content(
@@ -509,7 +512,6 @@ def test_a_delayed_custom_arrangement_propagates_furniture_and_rejects_loose_con
     )
     expect(workspace).to_have_attribute("data-lf-reading-posture", "bounded")
     assert errors == []
-    page.close()
 
 
 def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
@@ -534,7 +536,6 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
         }"""
     )
     assert errors == []
-    page.close()
 
 
 def test_a_direct_embedded_workspace_keeps_the_root_in_document_flow(browser, serve):
@@ -562,7 +563,6 @@ def test_a_direct_embedded_workspace_keeps_the_root_in_document_flow(browser, se
         "document.documentElement.scrollHeight > document.documentElement.clientHeight"
     )
     assert errors == []
-    page.close()
 
 
 CUSTOM_WORKSPACE_LAYER = {
@@ -720,7 +720,6 @@ def test_a_package_workspace_root_receives_the_available_page_while_embedded_one
         "document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_monitoring_root_fits_its_release_regions_and_returns_from_flow(
@@ -819,8 +818,6 @@ def test_the_monitoring_root_fits_its_release_regions_and_returns_from_flow(
             "bodies => bodies.every(body => getComputedStyle(body).overflowY === 'visible')"
         )
     assert errors == []
-    page.close()
-    context.close()
 
 
 def test_release_rollback_is_a_bound_host_request_not_local_page_state(browser, serve):
@@ -848,7 +845,6 @@ def test_release_rollback_is_a_bound_host_request_not_local_page_state(browser, 
     expect(button).to_have_attribute("aria-disabled", "true")
     expect(page.locator(".lf-asks-row")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
@@ -960,7 +956,6 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     expect(page.locator("#lp-check-finance .release-check-result")).to_have_text("Pass")
     expect(log).to_contain_text("14:24:49 observer  checkout remains healthy")
     assert errors == []
-    page.close()
 
 
 def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser, serve):
@@ -994,7 +989,6 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser,
     expect(page.locator(".lf-thread .lf-quote").first).to_contain_text("src/summary.rs")
 
     assert errors == []
-    page.close()
 
 
 SWIPE_PAGE = leaf_page(
@@ -1147,7 +1141,6 @@ def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
     assert centres["titleLines"] >= 2, centres
     assert centres["marker"] == pytest.approx(centres["title"], abs=0.5), centres
     assert errors == []
-    page.close()
 
 
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
@@ -1202,7 +1195,6 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
             page.keyboard.press("Tab")
     assert walked == ["first-change", "second-change", "third-change"]
     assert errors == []
-    page.close()
 
 
 def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
@@ -1577,7 +1569,6 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
         ["h4", None, None],
     ]
     assert errors == []
-    page.close()
 
 
 def test_generated_page_interface_reconciles_before_semantic_interaction(
@@ -1762,7 +1753,6 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
     assert arrival["eyebrow"] == pytest.approx(arrival["clear"], abs=1)
     assert arrival["heading"] > arrival["eyebrow"]
     assert errors == []
-    page.close()
 
 
 def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
@@ -1826,7 +1816,6 @@ def test_table_of_contents_history_is_native_back_and_forward(browser, serve):
     )
     expect(page.locator(":target")).to_have_attribute("id", "move")
     assert errors == []
-    page.close()
 
 
 def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it(
@@ -2338,7 +2327,6 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_reader_enters_it
     )
     assert coarse_errors == []
     coarse.close()
-    context.close()
 
 
 def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve):
@@ -2407,7 +2395,6 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     )
     assert rows() == laid, "the map came back without its rows"
     assert errors == []
-    page.close()
 
 
 def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
@@ -2479,7 +2466,6 @@ def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
     first.click()
     expect(page).to_have_url(re.compile(rf"{re.escape(href)}$"))
     assert errors == []
-    page.close()
 
 
 def test_co_located_headings_share_the_current_title_and_lens_position(browser, serve):
@@ -2515,7 +2501,6 @@ def test_co_located_headings_share_the_current_title_and_lens_position(browser, 
     )
     assert alignment["lens"] == pytest.approx(alignment["label"], abs=2), alignment
     assert errors == []
-    page.close()
 
 
 def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
@@ -2570,7 +2555,6 @@ def test_a_route_taller_than_the_map_returns_to_an_open_outline(browser, serve):
         "rgba(0, 0, 0, 0)"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
@@ -2635,7 +2619,6 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
     expect(second).to_have_attribute("aria-current", "location")
     expect(first).not_to_have_attribute("aria-current", "location")
     assert errors == []
-    page.close()
 
 
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):
@@ -2751,7 +2734,6 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     expect(touch_bubble).to_be_hidden()
     assert touch_errors == []
     touch.close()
-    context.close()
 
 
 def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
@@ -2776,7 +2758,6 @@ def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
     page.locator("body").focus()
     expect(bubble).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
@@ -2800,7 +2781,6 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     expect(bubble).to_be_visible()
 
     assert errors == []
-    page.close()
 
 
 def test_a_board_says_which_column_each_card_is_in(browser, serve):
@@ -2858,7 +2838,6 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         "    - 'button \"Move: Squirrel baffle — Done\"': ⠿"
     )
     assert errors == []
-    page.close()
 
 
 @pytest.mark.parametrize(
@@ -2945,7 +2924,6 @@ def test_a_keyboard_move_keeps_the_card_in_view(
     expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
     expect(grip).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
@@ -3006,7 +2984,6 @@ def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
     )
     expect(grip).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
@@ -3072,7 +3049,6 @@ def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
         f"and broke {', '.join(sorted(set(measured['broken'])))} across two lines"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable(
@@ -3136,8 +3112,6 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
         to_lane_0.tap()
     expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
     assert errors == []
-    page.close()
-    context.close()
 
 
 def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
@@ -3221,7 +3195,6 @@ def test_a_playground_keeps_one_typed_working_state_until_the_reader_chooses(
     expect(page.locator("#card-instruction")).to_contain_text("12px radius")
     assert playground.evaluate("root => root.values")["compact"] is False
     assert errors == []
-    page.close()
 
 
 def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narrow(
@@ -3422,7 +3395,6 @@ def test_notification_playground_uses_shared_bounded_regions_and_flows_when_narr
         "askDisplay": "block",
     }
     assert errors == []
-    page.close()
 
 
 def test_composed_corpus_runs_authored_page_modules(browser, serve):
@@ -3434,7 +3406,6 @@ def test_composed_corpus_runs_authored_page_modules(browser, serve):
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
 
     assert errors == []
-    page.close()
 
 
 def test_notification_configuration_becomes_a_commentable_local_artifact(
@@ -3669,7 +3640,6 @@ body { font-family: system-ui, sans-serif; }
     assert " ".join(marked.split()) == ("Version 2.8.0 passed all 18 release checks.")
     assert artifact.read_text(encoding="utf-8") == second_artifact
     assert errors == []
-    page.close()
 
 
 def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
@@ -3694,7 +3664,6 @@ def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
     expect(choose).not_to_have_attribute("aria-busy", "true")
     assert len(actions(serve.page_dir)) == 1
     assert errors == []
-    page.close()
 
 
 def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
@@ -3754,7 +3723,6 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "root => getComputedStyle(root).gridTemplateColumns"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_playground_rejects_restored_values_that_do_not_match_its_controls(
@@ -3790,7 +3758,6 @@ def test_a_playground_rejects_restored_values_that_do_not_match_its_controls(
     assert any(
         "configuration needs exactly these controls" in error for error in errors
     ), errors
-    page.close()
 
 
 def test_a_playground_rejects_range_values_that_do_not_land_on_its_step(browser, serve):
@@ -3801,7 +3768,6 @@ def test_a_playground_rejects_range_values_that_do_not_land_on_its_step(browser,
         "control radius has a value off its step"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_playground_export_keeps_the_chosen_preview_and_instruction(
@@ -3926,7 +3892,6 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
         }"""
     )
     assert errors == []
-    page.close()
 
 
 def test_targeting_selects_names_previews_reverts_and_submits_structured_changes(
@@ -4085,7 +4050,6 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     assert page.locator("#hero").evaluate("element => element.style.padding") == "24px"
     expect(workbench.locator(".lf-targeting-change")).to_have_count(2)
     assert errors == []
-    page.close()
 
 
 def test_a_swipe_deck_reflows_with_its_parent_allocation(browser, serve):
@@ -4132,7 +4096,6 @@ def test_a_swipe_deck_reflows_with_its_parent_allocation(browser, serve):
     assert wide["passed"]["right"] < wide["kept"]["left"], wide
 
     assert errors == []
-    page.close()
 
 
 def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
@@ -4239,7 +4202,6 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     page.keyboard.press("a")
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     assert errors == []
-    page.close()
 
 
 def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
@@ -4357,8 +4319,6 @@ def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
     round_trip(page)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "done"
     assert errors == []
-    page.close()
-    context.close()
 
 
 def test_an_unchanged_swipe_projection_repaints_nothing(browser, serve):
@@ -4385,7 +4345,6 @@ def test_an_unchanged_swipe_projection_repaints_nothing(browser, serve):
     )
     assert mutations == []
     assert errors == []
-    page.close()
 
 
 def test_clearing_an_answer_optimistically_restores_the_approval_gate(browser, serve):
@@ -4427,7 +4386,6 @@ def test_clearing_an_answer_optimistically_restores_the_approval_gate(browser, s
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     expect(approve).to_be_disabled()
     assert errors == []
-    page.close()
 
 
 def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve):
@@ -4479,7 +4437,6 @@ def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve)
         },
     ]
     assert errors == []
-    page.close()
 
 
 def test_a_classification_can_return_before_its_send_finishes(browser, serve):
@@ -4529,7 +4486,6 @@ def test_a_classification_can_return_before_its_send_finishes(browser, serve):
         ("undo", action["id"]),
     ]
     assert errors == []
-    page.close()
 
 
 def test_return_disappears_with_a_refused_pending_classification(browser, serve):
@@ -4565,7 +4521,6 @@ def test_return_disappears_with_a_refused_pending_classification(browser, serve)
     expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
     assert actions(serve.page_dir) == []
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_a_refused_return_restores_the_classification(browser, serve):
@@ -4600,7 +4555,6 @@ def test_a_refused_return_restores_the_classification(browser, serve):
     expect(page.locator("#session-pass > #swipe-a")).to_have_count(1)
     assert len(actions(serve.page_dir)) == 1
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
@@ -4657,7 +4611,6 @@ def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     expect(second).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_a_crafted_finish_cannot_close_a_swipe_ask_with_an_unknown_card(browser, serve):
@@ -4699,7 +4652,6 @@ def test_a_crafted_finish_cannot_close_a_swipe_ask_with_an_unknown_card(browser,
     expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
     assert actions(serve.page_dir) == []
     assert errors == []
-    page.close()
 
 
 def test_a_newer_swipe_survives_an_older_swipe_refusal(browser, serve):
@@ -4753,7 +4705,6 @@ def test_a_newer_swipe_survives_an_older_swipe_refusal(browser, serve):
         "swipe-a",
     ]
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_a_stale_rapid_finish_is_refused_when_an_earlier_card_returns(browser, serve):
@@ -4796,7 +4747,6 @@ def test_a_stale_rapid_finish_is_refused_when_an_earlier_card_returns(browser, s
         "swipe-c",
     ]
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
@@ -4903,7 +4853,6 @@ def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
     round_trip(touch)
     assert touch_errors == []
     touch.close()
-    context.close()
 
 
 def test_swipe_deck_exit_echo_starts_at_the_dragged_card_box(browser, serve):
@@ -4932,7 +4881,6 @@ def test_swipe_deck_exit_echo_starts_at_the_dragged_card_box(browser, serve):
     expect(echo).to_have_count(0)
     round_trip(page)
     assert errors == []
-    page.close()
 
 
 def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serve):
@@ -4967,7 +4915,6 @@ def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serv
     expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
     expect(page.locator(".lf-swipe-exit")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser, serve):
@@ -4997,7 +4944,6 @@ def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser,
     expect(page.locator("#session-keep > #swipe-a")).to_have_count(1)
     expect(page.locator(".lf-swipe-exit")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_swipe_deck_reloads_replays_and_undoes_absolute_placement(browser, serve):
@@ -5034,7 +4980,6 @@ def test_swipe_deck_reloads_replays_and_undoes_absolute_placement(browser, serve
         "window.swipeCards.every(card => document.getElementById(card.id) === card)"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
@@ -5064,7 +5009,6 @@ def test_a_quoted_swipe_deck_is_a_static_labeled_exhibit(browser, serve):
     kept = page.locator("#session-keep").bounding_box()
     assert passed and kept and passed["y"] + passed["height"] <= kept["y"]
     assert errors == []
-    page.close()
 
 
 def test_an_empty_quoted_swipe_queue_says_it_is_empty(browser, serve):
@@ -5073,7 +5017,6 @@ def test_an_empty_quoted_swipe_queue_says_it_is_empty(browser, serve):
 
     assert labels.all_inner_texts() == ["QUEUE · 0", "PASSED · 0", "KEPT · 1"]
     assert errors == []
-    page.close()
 
 
 def test_a_swipe_deck_export_is_a_static_labeled_copy(browser, serve, tmp_path):
@@ -5106,8 +5049,6 @@ def test_a_reduced_motion_swipe_moves_without_an_exit_animation(browser, serve):
     expect(page.locator(".lf-swipe-exit")).to_have_count(0)
     round_trip(page)
     assert errors == []
-    page.close()
-    context.close()
 
 
 def test_composer_grows_with_its_text_without_script(browser, serve):
@@ -5148,7 +5089,6 @@ def test_composer_grows_with_its_text_without_script(browser, serve):
     )
     assert shrunk["h"] == empty["h"], "and it must shrink back"
     assert page.evaluate("window.__styled") == 0, "nothing may size the box from script"
-    page.close()
 
 
 @pytest.mark.parametrize("reduced_motion", ["no-preference", "reduce"])
@@ -5245,7 +5185,6 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
             page.locator(f"[data-lf-for='{widget}']").evaluate(box)["top"]
             >= page.locator(block).evaluate(box)["bottom"]
         ), "a docked row belongs under the block whose change it decides"
-    page.close()
 
 
 def test_a_copy_says_a_change_is_only_proposed(browser, serve, tmp_path):
@@ -5338,7 +5277,6 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     row.locator(".lf-sug-accept").click()
     expect(page.locator("#sug-in-card lf-old")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 # A change the reader hasn't opened yet. The row hangs off an anchor in the
@@ -5366,7 +5304,6 @@ def test_a_terse_compare_keeps_its_side_by_side_grid(browser, serve):
         "#bg-variant-screen-detail"
     ).evaluate(top), "block-content variants must stack"
     assert errors == []
-    page.close()
 
 
 def test_an_undone_suggestion_stays_inline_among_the_words(browser, serve):
@@ -5386,7 +5323,6 @@ def test_an_undone_suggestion_stays_inline_among_the_words(browser, serve):
         "the rebuilt suggestion lost its inline mark, so the exhibition stacked"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_block_change_emphasizes_the_words_that_moved(browser, serve):
@@ -5411,7 +5347,6 @@ def test_a_block_change_emphasizes_the_words_that_moved(browser, serve):
         "lf-sug-ins": 0,
     }, "deciding must clear the emphasis with the slot it retires"
     assert errors == []
-    page.close()
 
 
 def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
@@ -5437,7 +5372,6 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
         "the authored change's emphasis crossed into the Ask's generated key hints"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_whole_swap_paints_no_emphasis(browser, serve):
@@ -5451,7 +5385,6 @@ def test_a_whole_swap_paints_no_emphasis(browser, serve):
     )
     assert total == 0, "unrelated old and new text must not be word-marked"
     assert errors == []
-    page.close()
 
 
 def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
@@ -5477,7 +5410,6 @@ def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
         abs(row["top"] - page.locator("#sug-boxes lf-new").evaluate(box)["top"]) <= 5
     ), "and on the line of the change it decides"
     assert errors == []
-    page.close()
 
 
 def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serve):
@@ -5498,7 +5430,6 @@ def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serv
     # is not.
     expect(page.locator("[data-lf-for='sug-boxes'] .lf-sug-accept")).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_the_rail_survives_every_script_being_removed(browser, serve, tmp_path):
@@ -5614,7 +5545,6 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     assert [(e["widget"], e["action"], e["author"]) for e in logged] == [
         ("sug-refill", "accept", "user")
     ]
-    page.close()
 
 
 def test_a_pointer_decision_announces_without_needing_button_focus(browser, serve):
@@ -5633,7 +5563,6 @@ def test_a_pointer_decision_announces_without_needing_button_focus(browser, serv
     expect(page.locator(".lf-notice")).to_have_text("")
     expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
     assert errors == []
-    page.close()
 
 
 def test_a_settled_deletion_keeps_undo_on_the_containing_passage(browser, serve):
@@ -5649,7 +5578,6 @@ def test_a_settled_deletion_keeps_undo_on_the_containing_passage(browser, serve)
     ).not_to_have_class(re.compile(r"\blf-withheld\b"))
     expect(page.locator(".lf-margin-receipt")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_rejecting_a_suggestion_promotes_the_surviving_button(browser, serve):
@@ -5672,7 +5600,6 @@ def test_rejecting_a_suggestion_promotes_the_surviving_button(browser, serve):
     )
     expect(page.locator("[data-lf-for='sug'] .lf-sug-accept")).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_a_settled_boxless_suggestion_keeps_its_own_margin_identity(browser, serve):
@@ -5692,7 +5619,6 @@ def test_a_settled_boxless_suggestion_keeps_its_own_margin_identity(browser, ser
     expect(item.locator(".lf-margin-receipt")).to_have_count(0)
     assert item.evaluate("row => row.lfEntry.target.id") == "sug"
     assert errors == []
-    page.close()
 
 
 def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
@@ -5724,7 +5650,6 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
         decision["id"]
     ]
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 # `folded` is the layer's own division of the pair rather than a convenience: accept
@@ -5757,7 +5682,6 @@ def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(
     expect(page.locator(".lf-notice")).to_have_text("")
     expect(page.locator(".lf-notice")).not_to_have_class(re.compile(r"\bshow\b"))
     assert errors == []
-    page.close()
 
 
 def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
@@ -5838,7 +5762,6 @@ def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
         "the page never gave back the room the retired paragraph was holding"
     )
     assert errors == []
-    page.close()
 
 
 def test_an_inline_change_is_swapped_rather_than_folded(browser, serve):
@@ -5855,7 +5778,6 @@ def test_an_inline_change_is_swapped_rather_than_folded(browser, serve):
         "a few words swapped inside a line were given a fold, and a block box to do it in"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_reader_who_asked_for_less_motion_gets_the_collapse_at_once(browser, serve):
@@ -5927,7 +5849,6 @@ def test_accept_all_decides_every_pending_suggestion(browser, serve):
         ("sug-in-card", "accept"),
     ]
     assert errors == []
-    page.close()
 
 
 def test_a_refused_decision_returns_to_pending_with_failure_controls(
@@ -5997,7 +5918,6 @@ def test_a_refused_decision_returns_to_pending_with_failure_controls(
     undo(page)
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     assert errors and all("400" in error for error in errors)
-    page.close()
 
 
 def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
@@ -6043,7 +5963,6 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
     undo(page)
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, serve):
@@ -6074,7 +5993,6 @@ def test_a_second_press_inside_the_round_trip_adds_no_second_decision(browser, s
         if e["kind"] == "action"
     ] == [("sug-refill", "accept")]
     assert errors == []
-    page.close()
 
 
 def test_an_optimistic_decision_stays_plain_while_delivery_waits(held_events, serve):
@@ -6103,7 +6021,6 @@ def test_an_optimistic_decision_stays_plain_while_delivery_waits(held_events, se
     expect(page.locator("#sug-refill[data-lf-state='accept']")).to_have_count(1)
     expect(page.locator("#sug-refill")).not_to_have_attribute("aria-busy", "true")
     assert errors == []
-    page.close()
 
 
 def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, serve):
@@ -6197,7 +6114,6 @@ def test_the_banner_counts_completed_asks_against_the_active_total(browser, serv
     page.locator("#lq-token").click()
     expect(decisions).to_have_text("Asks 2/5")
     assert errors == []
-    page.close()
 
 
 def test_a_key_walks_the_page_s_open_asks(browser, serve):
@@ -6280,7 +6196,6 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     expect(page.locator("#t-baffles-decision")).to_be_focused()
     expect(decisions).to_have_text("Asks 2/5")
     assert errors == []
-    page.close()
 
 
 def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
@@ -6384,7 +6299,6 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("#storage-decision")).not_to_have_attribute("tabindex", "-1")
     assert errors == []
-    page.close()
 
 
 def test_the_ask_itself_binds_each_contributed_action(browser, serve):
@@ -6429,7 +6343,6 @@ def test_the_ask_itself_binds_each_contributed_action(browser, serve):
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "reject")
 
     assert errors == []
-    page.close()
 
 
 def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, serve):
@@ -6535,7 +6448,6 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     expect(focused_inspect.locator("kbd")).to_have_text("3")
 
     assert errors == []
-    page.close()
 
 
 def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
@@ -6580,7 +6492,6 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
     expect(inspect).not_to_have_attribute("data-activated", "1")
 
     assert errors == []
-    page.close()
 
 
 def test_an_ask_alias_preserves_the_original_commands_return_frame(browser, serve):
@@ -6623,7 +6534,6 @@ def test_an_ask_alias_preserves_the_original_commands_return_frame(browser, serv
     expect(page.locator("#sug")).to_be_focused()
 
     assert errors == []
-    page.close()
 
 
 def test_ask_action_name_functions_must_return_text(browser, serve):
@@ -6667,7 +6577,6 @@ def test_ask_action_name_functions_must_return_text(browser, serve):
         ),
     }
     assert errors == []
-    page.close()
 
 
 def test_every_ask_decision_consumes_one_contextual_binding_slot(browser, serve):
@@ -6749,7 +6658,6 @@ def test_every_ask_decision_consumes_one_contextual_binding_slot(browser, serve)
     )
 
     assert errors == []
-    page.close()
 
 
 def test_ask_action_binding_badges_stay_aligned_when_focus_enters_a_card(
@@ -6805,7 +6713,6 @@ def test_ask_action_binding_badges_stay_aligned_when_focus_enters_a_card(
     assert submit_box["x"] + submit_box["width"] < badge_box["x"]
 
     assert errors == []
-    page.close()
 
 
 def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve):
@@ -6892,7 +6799,6 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
         ).to_have_count(1)
 
     assert errors == []
-    page.close()
 
 
 def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
@@ -6951,7 +6857,6 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
     ), geometry
 
     assert errors == []
-    page.close()
 
 
 def test_a_needed_draft_contributes_its_current_ask_action(browser, serve):
@@ -6973,7 +6878,6 @@ def test_a_needed_draft_contributes_its_current_ask_action(browser, serve):
     expect(page.get_by_role("textbox", name="Edit copy")).to_be_focused()
 
     assert errors == []
-    page.close()
 
 
 def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
@@ -7031,7 +6935,6 @@ def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
     )
     assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
     assert errors == []
-    page.close()
 
 
 def test_an_arrival_does_not_reach_back_into_the_ask_before_it(browser, serve):
@@ -7089,7 +6992,6 @@ def test_an_arrival_does_not_reach_back_into_the_ask_before_it(browser, serve):
     )
     assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
     assert errors == []
-    page.close()
 
 
 def test_an_ask_inside_a_card_is_brought_into_that_card(browser, serve):
@@ -7149,7 +7051,6 @@ def test_an_ask_inside_a_card_is_brought_into_that_card(browser, serve):
     # is promised is the change, in the window and in its card's band at once.
     assert seen["onScreen"], "the change is in its card's band but off the window"
     assert errors == []
-    page.close()
 
 
 def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serve):
@@ -7198,7 +7099,6 @@ def test_an_ask_already_in_front_of_the_reader_is_not_travelled_to(browser, serv
         "the walk travelled to an ask the reader could already see"
     )
     assert errors == []
-    page.close()
 
 
 def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
@@ -7241,7 +7141,6 @@ def test_the_ask_walk_starts_from_where_the_reader_is(browser, serve):
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 
     assert errors == []
-    page.close()
 
 
 def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
@@ -7298,7 +7197,6 @@ def test_the_asks_tray_names_an_ask_a_message_carries(browser, serve):
     assert rows[0]["at"] == "rp-decision-region", rows
     assert rows[0]["says"].startswith("Which should I write up first?"), rows
     assert errors == []
-    page.close()
 
 
 def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, serve):
@@ -7363,7 +7261,6 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
             prop,
         )
     assert errors == []
-    page.close()
 
 
 def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
@@ -7451,7 +7348,6 @@ def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
         page.evaluate("() => new Promise((r) => setTimeout(r))")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
@@ -7522,7 +7418,6 @@ def test_a_conversation_seated_in_a_widget_is_not_a_change_to_the_document(
         "() => [...document.querySelectorAll('.lf-ins-block')].map((e) => e.id)"
     ) == ["cd-new"], "the diff read the conversation as words the base version lacked"
     assert errors == []
-    page.close()
 
 
 def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
@@ -7606,7 +7501,6 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_conversation(
     ), "the edit replaced a standing message or its frozen widget"
     assert events_model.read_events(d)[-2]["text"] == "The north bracket fit."
     assert errors == []
-    page.close()
 
 
 def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, serve):
@@ -7683,7 +7577,6 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
     assert "Sent in the conversation" in groups, groups
     assert "The page's own layer" not in groups, groups
     assert errors == []
-    page.close()
 
 
 def test_a_change_says_which_of_the_three_it_is(browser, serve):
@@ -7719,7 +7612,6 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
     assert said["sug-delete"].startswith("Retries are logged"), said
     assert said["sug-insert"].startswith("Parked jobs"), said
     assert errors == []
-    page.close()
 
 
 def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
@@ -7787,7 +7679,6 @@ def test_the_asks_control_opens_active_asks_and_answers(browser, serve):
     expect(tray).to_be_hidden()
     assert page.evaluate(ASK_ROW_SAYS) == [], "a closed tray keeps its rows"
     assert errors == []
-    page.close()
 
 
 def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
@@ -7845,7 +7736,6 @@ def test_completed_ask_progress_persists_and_its_row_can_revise_by_keyboard(
     expect(progress).to_have_text("Asks 1/1")
     expect(row.locator(".lf-asks-answer")).to_have_text("Drop the oldest documents")
     assert errors == []
-    page.close()
 
 
 def test_an_empty_option_uses_its_id_as_the_answer(browser, serve):
@@ -7865,7 +7755,6 @@ def test_an_empty_option_uses_its_id_as_the_answer(browser, serve):
     expect(page.locator(".lf-asks-answer")).to_have_text("empty")
 
     assert errors == []
-    page.close()
 
 
 def test_an_ask_rejects_two_answer_readers_even_when_their_words_match(browser, serve):
@@ -7884,7 +7773,6 @@ def test_an_ask_rejects_two_answer_readers_even_when_their_words_match(browser, 
         page.locator(".lf-asks").click()
     assert "honored-decision has more than one answer reader" in str(raised.value)
     assert any("more than one answer reader" in error for error in errors)
-    page.close()
 
 
 def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
@@ -7915,7 +7803,6 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     expect(page.locator("#sug-delete")).to_be_visible()
     expect(progress).to_have_text("Asks 0/4")
     assert errors == []
-    page.close()
 
 
 def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
@@ -7945,7 +7832,6 @@ def test_a_tray_the_reader_left_standing_comes_back_standing(browser, serve):
         """() => getComputedStyle(document.body).marginLeft !== '0px'"""
     )
     assert errors == [], errors
-    page.close()
 
 
 def test_a_row_stands_the_reader_on_the_ask_it_names(browser, serve):
@@ -7988,7 +7874,6 @@ def test_a_row_stands_the_reader_on_the_ask_it_names(browser, serve):
     )
     assert sorted(set(marked)) == ["t-bath-decision"], marked
     assert errors == []
-    page.close()
 
 
 def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve):
@@ -8030,7 +7915,6 @@ def test_the_asks_tray_takes_room_rather_than_covering_the_column(browser, serve
     )
     assert page.evaluate(geometry)["sideways"] == 0
     assert errors == []
-    page.close()
 
 
 def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
@@ -8080,7 +7964,6 @@ def test_one_tray_stands_on_the_left_edge_at_a_time(browser, serve, other_leaf):
     page.keyboard.press("Escape")
     expect(leaves).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
@@ -8175,7 +8058,6 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     }"""), "the wrapper's box does not reach round both slots"
 
     assert errors == []
-    page.close()
 
 
 def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
@@ -8235,7 +8117,6 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
     expect(page.locator(STANDING_ASK)).to_have_count(1)
 
     assert errors == []
-    page.close()
 
 
 def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
@@ -8295,7 +8176,6 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
     ], f"the ring reached past the page's own boxes: {marks}"
     expect(page.locator("#sug-refill .lf-mark-note[data-lf-ask]")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 # Charts. Every reading here is of the composed drawing rather than of the body it was
@@ -8333,7 +8213,6 @@ def test_every_number_in_a_chart_body_reaches_the_drawing(browser, serve):
                 series,
             )
     assert errors == []
-    page.close()
 
 
 def test_a_bar_s_length_is_the_number_it_stands_for(browser, serve):
@@ -8379,7 +8258,6 @@ def test_a_bar_s_length_is_the_number_it_stands_for(browser, serve):
         # one measured 137 against it, which no count of marks can see.
         assert all(w <= 49 for _, w in drew), drew
     assert errors == []
-    page.close()
 
 
 def test_no_two_of_a_chart_s_words_land_in_the_same_place(browser, serve):
@@ -8508,7 +8386,6 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
     assert [f for f in covered if all(f'"{word}"' in f for word in moved)], (
         f"two of a chart's labels stood on each other unreported: {covered}"
     )
-    page.close()
 
 
 def test_a_chart_says_its_numbers_to_a_reader_who_cannot_see_it(browser, serve):
@@ -8527,7 +8404,6 @@ def test_a_chart_says_its_numbers_to_a_reader_who_cannot_see_it(browser, serve):
     # And the drawing is one picture rather than a tree of unreachable tick labels.
     assert page.locator("#c-bars svg").get_attribute("role") == "img"
     assert errors == []
-    page.close()
 
 
 def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser, serve):
@@ -8560,7 +8436,6 @@ def test_a_chart_wears_the_page_s_colors_and_turns_over_with_the_scheme(browser,
         "the dark palette must differ, or the flip proves nothing"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
@@ -8593,7 +8468,6 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     # is about is invisible to the one reading and plain in the other.
     assert after["tick"] == before["tick"], (before, after)
     assert errors == []
-    page.close()
 
 
 def test_a_body_the_module_cannot_draw_says_which_row_stopped_it(browser, serve):
@@ -8622,7 +8496,6 @@ def test_a_body_the_module_cannot_draw_says_which_row_stopped_it(browser, serve)
     # author's to fix and nobody else's to hear about, and an error on the console is a
     # render-gate finding on every page that carries one.
     assert errors == []
-    page.close()
 
 
 def test_a_dated_column_is_read_as_the_day_the_page_wrote(browser, serve):
@@ -8649,8 +8522,6 @@ def test_a_dated_column_is_read_as_the_day_the_page_wrote(browser, serve):
     assert not any("May" in tick or "31" in tick for tick in ticks), ticks
     assert any("Jun" in tick for tick in ticks), ticks
     assert errors == []
-    page.close()
-    context.close()
 
 
 def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
@@ -8689,7 +8560,6 @@ def test_a_redraw_keeps_the_words_the_runtime_hung_on_the_chart(browser, serve):
     assert after["drawn"] < before["drawn"], (before, after)
     assert after["notes"] == before["notes"], (before, after)
     assert errors == []
-    page.close()
 
 
 def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none(
@@ -8744,7 +8614,6 @@ def test_a_chart_a_message_carries_waits_for_a_box_rather_than_drawing_into_none
     assert drawn["room"] > 100, drawn
     assert [s["shapes"] for s in drawn["series"]] == [2], drawn
     assert errors == []
-    page.close()
 
 
 def _bound_diff(browser, serve):
@@ -8819,7 +8688,6 @@ def test_a_wrapped_diff_shows_every_line_whole_and_paper_wraps_whatever_the_swit
         0,
     ), f"on paper a file's row is drawn above its own wrapper: {on_paper}"
     assert errors == []
-    page.close()
 
 
 def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_that_name(
@@ -8921,7 +8789,6 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     page.keyboard.press("Alt+ArrowDown")
     expect(page.locator(".lf-walk-position")).to_have_text("File 1 of 2 unreviewed")
     assert errors == []
-    page.close()
 
 
 def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_it(
@@ -8989,7 +8856,6 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
         f"one file's lines were needed, {len(fetched)} were fetched"
     )
     assert errors == []
-    page.close()
 
 
 # A phrase late in the diff's longest line: unwrapped it is off the right of the box, and
@@ -9212,4 +9078,3 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         f"nothing draws a named here ring where the keyboard is standing: {ring}"
     )
     assert errors == []
-    page.close()

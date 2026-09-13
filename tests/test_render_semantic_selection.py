@@ -6,15 +6,21 @@ import re
 import pytest
 from leaf import event_log as events_model
 from playwright.sync_api import expect
-from render_support import (
+from render_cases_layout import (
     DRAFT_MARK,
+)
+from render_cases_navigation import (
+    TARGETS_PAGE,
+    pending_text,
+)
+from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
+)
+from render_harness import (
     RENDERED,
     ROOT,
-    TARGETS_PAGE,
     leaf_page,
     open_page,
-    pending_text,
     resized,
     sending,
 )
@@ -57,7 +63,6 @@ def test_short_inline_code_selection_offers_comment(browser, serve):
     }
 
     assert errors == []
-    page.close()
 
 
 def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
@@ -139,7 +144,6 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     page.keyboard.press("Escape")
     expect(field).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_a_chrome_reflow_repositions_target_hints_in_its_first_layout_frame(
@@ -191,7 +195,6 @@ def test_a_chrome_reflow_repositions_target_hints_in_its_first_layout_frame(
         f"the first layout frame left target hints under the resized line: {frame}"
     )
     assert errors == []
-    page.close()
 
 
 def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, serve):
@@ -223,7 +226,6 @@ def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, se
     expect(field).to_have_value(draft)
     assert page.evaluate(DRAFT_MARK) == "prose"
     assert errors == []
-    page.close()
 
 
 def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):
@@ -259,7 +261,6 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser, serve):
@@ -289,7 +290,6 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
     expect(responses.locator(".lf-fab-suggest")).to_be_focused()
     expect(responses.locator(".lf-react")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, serve):
@@ -349,7 +349,6 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-composer .lf-suggest-row")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_nested_target_hints_show_containment_without_covering_each_other(
@@ -387,7 +386,6 @@ def test_nested_target_hints_show_containment_without_covering_each_other(
         and boxes[1]["top"] < boxes[0]["bottom"]
     ), geometry
     assert errors == []
-    page.close()
 
 
 def test_identical_nested_target_hints_choose_the_innermost_target(browser, serve):
@@ -420,7 +418,6 @@ def test_identical_nested_target_hints_choose_the_innermost_target(browser, serv
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate(DRAFT_MARK) == "inner"
     assert errors == []
-    page.close()
 
 
 def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
@@ -471,7 +468,6 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
     expect(hints).to_have_count(0)
 
     assert errors == []
-    page.close()
 
 
 def test_s_opens_the_same_comment_field_on_a_declared_visual_part(browser, serve):
@@ -505,7 +501,6 @@ def test_s_opens_the_same_comment_field_on_a_declared_visual_part(browser, serve
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     assert page.evaluate("() => getSelection().toString()") == ""
     assert errors == []
-    page.close()
 
 
 def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
@@ -529,7 +524,6 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
         "page target chooser crossed the covering auxiliary surface boundary"
     )
     assert errors == []
-    page.close()
 
 
 def test_slash_finds_page_text_without_a_target_kind(browser, serve):
@@ -607,7 +601,6 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     page.keyboard.press("n")
     expect(page.locator(".lf-walk-position")).to_have_attribute("data-lf-boundary", "")
     assert errors == []
-    page.close()
 
 
 def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, serve):
@@ -632,7 +625,6 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
     assert title["x"] <= match["x"] < title["x"] + title["width"]
     assert title["y"] <= match["y"] < title["y"] + title["height"]
     assert errors == []
-    page.close()
 
 
 def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
@@ -726,7 +718,6 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     )
     expect(position).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serve):
@@ -766,7 +757,6 @@ def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serv
         "the response bar covered the readable body of a widget-rendered passage"
     )
     assert errors == []
-    page.close()
 
 
 def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
@@ -797,7 +787,6 @@ def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
     page.keyboard.type("Comment 1")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_empty_thread_scope_keeps_slash_in_its_search(browser, serve):
@@ -815,7 +804,6 @@ def test_empty_thread_scope_keeps_slash_in_its_search(browser, serve):
     expect(page.get_by_role("searchbox", name="Find in threads")).to_be_focused()
     expect(page.locator(".lf-page-search")).to_be_hidden()
     assert errors == []
-    page.close()
 
 
 def test_selection_search_announces_context_across_inline_node_boundaries(
@@ -850,7 +838,6 @@ def test_selection_search_announces_context_across_inline_node_boundaries(
     assert "repeat" in first and "repeat" in second
     assert {"alpha", "beta"} <= set(first.split() + second.split())
     assert errors == []
-    page.close()
 
 
 def test_selection_search_brings_an_offscreen_match_into_view(browser, serve):
@@ -885,7 +872,6 @@ def test_selection_search_brings_an_offscreen_match_into_view(browser, serve):
     assert page.evaluate("() => getSelection().toString()") == "distant phrase"
     assert pending_text(page) == "distant phrase"
     assert errors == []
-    page.close()
 
 
 def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser, serve):
@@ -920,7 +906,6 @@ def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser,
     assert page.evaluate("() => getSelection().toString()") == "copper needle"
     assert pending_text(page) == "copper needle"
     assert errors == []
-    page.close()
 
 
 def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, serve):
@@ -947,7 +932,6 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
     page.keyboard.press("Enter")
     assert page.evaluate("() => getSelection().toString()") == ""
     assert errors == []
-    page.close()
 
 
 def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
@@ -999,7 +983,6 @@ def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     assert reads["rectReads"] < hidden_count, reads
     assert reads["visibilityReads"] < hidden_count * 3, reads
     assert errors == []
-    page.close()
 
 
 def test_cancelling_page_search_restores_the_control_that_opened_it(browser, serve):
@@ -1022,7 +1005,6 @@ def test_cancelling_page_search_restores_the_control_that_opened_it(browser, ser
     page.keyboard.press("Escape")
     expect(opener).to_be_focused()
     assert errors == []
-    page.close()
 
 
 def test_cancelling_selection_restores_an_opener_inside_shadow_dom(browser, serve):
@@ -1054,7 +1036,6 @@ def test_cancelling_selection_restores_an_opener_inside_shadow_dom(browser, serv
         == "inside"
     )
     assert errors == []
-    page.close()
 
 
 def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, serve):
@@ -1088,7 +1069,6 @@ def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, s
     assert page.evaluate("() => getSelection().toString()") == "phrase only appears"
     assert pending_text(page) == "phrase only appears"
     assert errors == []
-    page.close()
 
 
 def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
@@ -1145,7 +1125,6 @@ def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
     )
     assert geometry["hintBottom"] <= geometry["shortcutBarTop"], geometry
     assert errors == []
-    page.close()
 
 
 def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser, serve):
@@ -1221,7 +1200,6 @@ def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser,
         and line["top"] < mark["bottom"]
     ), (mark, line)
     assert errors == []
-    page.close()
 
 
 def test_a_partly_banner_clipped_atomic_element_keeps_its_hint_below_the_banner(
@@ -1257,4 +1235,3 @@ def test_a_partly_banner_clipped_atomic_element_keeps_its_hint_below_the_banner(
     )
     assert geometry["hintTop"] >= geometry["bannerBottom"], geometry
     assert errors == []
-    page.close()

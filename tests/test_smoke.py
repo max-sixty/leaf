@@ -2,12 +2,9 @@
 
 from pathlib import Path
 
-import render_support
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
-
-serve = render_support.serve
-open_page = render_support.open_page
+from render_harness import open_page
 
 ROOT = Path(__file__).parent.parent
 
@@ -37,4 +34,3 @@ def test_ship_review_asks_are_directly_answerable(browser, serve):
     ).not_to_have_count(0)
 
     assert errors == []
-    page.close()

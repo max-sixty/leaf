@@ -7,15 +7,19 @@ import pytest
 from leaf import data as data_model
 from leaf import event_log as events_model
 from playwright.sync_api import expect
-from render_support import (
-    BOTH_STAMPS,
+from render_cases_interaction import (
     CONVERSATION_DIFF_PAGE,
+    live_url,
+)
+from render_cases_navigation import (
+    TARGETS_PAGE,
+)
+from render_harness import (
+    BOTH_STAMPS,
     EXAMPLE_MEDIA,
     FEATURE_GALLERY,
     RENDERED,
-    TARGETS_PAGE,
     leaf_page,
-    live_url,
     nudge,
     open_page,
     panel_settled,
@@ -286,7 +290,6 @@ def test_a_drawing_can_begin_on_page_whitespace(browser, serve):
     )
     assert page.evaluate("document.documentElement.scrollWidth") == scroll_width
     assert errors == []
-    page.close()
 
 
 def test_a_page_drawing_keeps_pasted_media_already_in_the_general_draft(browser, serve):
@@ -338,7 +341,6 @@ def test_a_page_drawing_keeps_pasted_media_already_in_the_general_draft(browser,
     assert event["text"] == "![Pasted image](/media/051bee487bfb5d13.png)"
     assert event["drawing"]["format"] == "leaf-drawing/1"
     assert errors == []
-    page.close()
 
 
 def test_a_page_drawing_draft_repaints_in_another_tab(browser, serve, one_reader):
@@ -432,7 +434,6 @@ def test_page_and_anchored_drawing_drafts_keep_their_own_ink(browser, serve):
     expect(page.locator(".lf-drawing-posted")).to_have_count(1)
     expect(page.locator(".lf-drawing-pending")).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
@@ -493,7 +494,6 @@ def test_a_margin_start_uses_the_addressable_element_alongside_it_as_context(
         page.locator(f'.lf-drawing-posted[data-thread="{event["id"]}"]')
     ).to_have_count(1)
     assert errors == []
-    page.close()
 
 
 def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
@@ -525,7 +525,6 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
     expect(page.locator(".lf-live")).to_contain_text("Draw mode off")
     assert target.get_attribute("data-activated") is None
     assert errors == []
-    page.close()
 
 
 def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
@@ -541,7 +540,6 @@ def test_draw_mode_leaves_chrome_controls_usable(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
@@ -555,7 +553,6 @@ def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
 
     assert errors == []
-    page.close()
 
 
 def test_draw_mode_leaves_inline_conversation_controls_usable(browser, serve):
@@ -585,7 +582,6 @@ def test_draw_mode_leaves_inline_conversation_controls_usable(browser, serve):
     expect(page.locator("body")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     assert errors == []
-    page.close()
 
 
 def test_draw_mode_cursor_matches_the_widget_controls_it_captures(browser, serve):
@@ -615,7 +611,6 @@ def test_draw_mode_cursor_matches_the_widget_controls_it_captures(browser, serve
     )
     assert control.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     assert errors == []
-    page.close()
 
 
 def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
@@ -646,7 +641,6 @@ def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
     assert page.locator("#bg-choice-street").get_attribute("chosen") is None
     assert page.locator("#bg-choice-trail").get_attribute("chosen") is None
     assert errors == []
-    page.close()
 
 
 def test_an_active_stroke_re_resolves_a_replaced_target(browser, serve):
@@ -673,7 +667,6 @@ def test_an_active_stroke_re_resolves_a_replaced_target(browser, serve):
     )
     assert len(drawing["points"]) >= 2
     assert errors == []
-    page.close()
 
 
 def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
@@ -693,7 +686,6 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     expect(page.locator(".lf-fab-input")).to_have_value("")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
     assert errors == []
-    page.close()
 
 
 def test_a_malformed_page_drawing_draft_keeps_its_words_without_the_mark(
@@ -728,7 +720,6 @@ def test_a_malformed_page_drawing_draft_keeps_its_words_without_the_mark(
     assert event["text"] == "Keep these words."
     assert "drawing" not in event
     assert errors == []
-    page.close()
 
 
 def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
@@ -771,7 +762,6 @@ def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
     assert event["text"] == "Keep these anchored words."
     assert "drawing" not in event
     assert errors == []
-    page.close()
 
 
 def test_a_drawing_can_be_sent_without_words(browser, serve):
@@ -799,7 +789,6 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     expect(thread.locator(".lf-drawing-reference")).to_have_text("Drawing comment")
     expect(page.locator("#prose")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     assert errors == []
-    page.close()
 
 
 def test_an_inline_conversation_keeps_drawing_context_on_the_page(browser, serve):
@@ -829,7 +818,6 @@ def test_an_inline_conversation_keeps_drawing_context_on_the_page(browser, serve
     expect(page.locator(".lf-drawing-posted")).to_have_count(1)
     expect(page.locator("#cd-q")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     assert errors == []
-    page.close()
 
 
 def test_an_unsent_drawing_stands_down_when_its_data_revision_changes(browser, serve):
@@ -852,7 +840,6 @@ def test_an_unsent_drawing_stands_down_when_its_data_revision_changes(browser, s
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)
     expect(page.locator(".lf-fab-input")).to_be_visible()
     assert errors == []
-    page.close()
 
 
 def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, serve):
@@ -881,4 +868,3 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
     expect(references.first).to_have_text("Drawing comment")
     assert set(references.all_text_contents()) == {"Drawing comment"}
     assert errors == []
-    page.close()

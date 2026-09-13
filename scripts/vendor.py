@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "skills/leaf/assets"
 PACKAGES = ROOT / "skills/leaf/packages"
 MCP_APP = ROOT / "skills/leaf/mcp-app"
+PIERRE_SOURCE = ROOT / "scripts/vendor-src/pierre"
 
 
 def package_vendor(package: str) -> Path:
@@ -404,136 +405,7 @@ def build_plot(work: Path) -> list[Path]:
     return [out]
 
 
-# Shiki's public entry, cut to the languages the registry declares and to the
-# JavaScript regex engine. The oniguruma engine loads WebAssembly, which
-# `default-src 'self'` will not fetch.
-PIERRE_SHIKI = """\
-import {{
-  createBundledHighlighter,
-  createCssVariablesTheme,
-  createSingletonShorthands,
-  getTokenStyleObject,
-  stringifyTokenStyle,
-}} from "@shikijs/core";
-import {{ createJavaScriptRegexEngine }} from "@shikijs/engine-javascript";
-
-export const bundledLanguages = {{
-{languages}
-}};
-
-export const createHighlighter = createBundledHighlighter({{
-  langs: bundledLanguages,
-  themes: {{}},
-  engine: createJavaScriptRegexEngine,
-}});
-export const {{ codeToHtml }} = createSingletonShorthands(createHighlighter);
-export {{
-  createCssVariablesTheme,
-  createJavaScriptRegexEngine,
-  getTokenStyleObject,
-  stringifyTokenStyle,
-}};
-export const createOnigurumaEngine = () => {{
-  throw new Error("Leaf's Pierre bundle includes the JavaScript regex engine only");
-}};
-"""
-
-# Pierre's theme registry, cut to the two token themes lf-diff maps onto Leaf's
-# syntax roles.
-PIERRE_THEMES = """\
-import { normalizeTheme } from "@shikijs/core";
-
-const descriptors = new Map([
-  ["github-light", {
-    name: "github-light",
-    load: () => import("@shikijs/themes/github-light"),
-  }],
-  ["github-dark", {
-    name: "github-dark",
-    load: () => import("@shikijs/themes/github-dark"),
-  }],
-]);
-
-export const createTheme = ({ name, load, ...metadata }) => ({
-  name,
-  ...metadata,
-  load: async () => {
-    const loaded = await load();
-    return normalizeTheme(loaded?.default ?? loaded);
-  },
-});
-export const pierreThemes = { getThemes: () => [] };
-export const shikiThemes = { getTheme: (name) => descriptors.get(name) };
-"""
-
-PIERRE_ENTRY = """\
-export { parsePatchFiles } from "@pierre/diffs";
-export { preloadDiffHTML } from "@pierre/diffs/ssr";
-"""
-
-# esbuild resolves `shiki` and Pierre's theme registry onto the two shims above,
-# then every package that reached the bundle is read back out of the metafile so
-# its license ships beside it.
-PIERRE_BUILD = """\
-import fs from "node:fs";
-import path from "node:path";
-import { build } from "esbuild";
-
-const work = process.cwd();
-const result = await build({
-  entryPoints: [path.join(work, "entry.mjs")],
-  outfile: process.argv[2],
-  bundle: true,
-  format: "esm",
-  platform: "browser",
-  target: "chrome105",
-  minify: true,
-  legalComments: "inline",
-  banner: {
-    js: `/*! @pierre/diffs ${process.argv[4]} — Apache-2.0 — licenses: pierre-diffs.LICENSES.txt */`,
-  },
-  plugins: [{
-    name: "leaf-pierre-bounds",
-    setup(build) {
-      build.onResolve({ filter: /^shiki$/ }, () => ({
-        path: path.join(work, "shiki-leaf.mjs"),
-      }));
-      build.onResolve({ filter: /^@pierre\\/theming\\/themes$/ }, () => ({
-        path: path.join(work, "themes-leaf.mjs"),
-      }));
-    },
-  }],
-  metafile: true,
-});
-
-const packageRoots = new Set();
-for (const input of Object.keys(result.metafile.inputs)) {
-  const relative = input.split("node_modules/").at(-1);
-  if (relative === input) continue;
-  const parts = relative.split("/");
-  packageRoots.add(path.join(
-    work,
-    "node_modules",
-    ...(parts[0].startsWith("@") ? parts.slice(0, 2) : parts.slice(0, 1)),
-  ));
-}
-const notices = [...packageRoots].sort().map((root) => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(root, "package.json")));
-  const licenseFile = fs.readdirSync(root).find((name) =>
-    /^(licen[cs]e|copying)(\\.|$)/i.test(name)
-  );
-  if (licenseFile == null)
-    throw new Error(`No license file shipped by ${manifest.name}`);
-  return [
-    `===== ${manifest.name} ${manifest.version} (${manifest.license}) =====`,
-    fs.readFileSync(path.join(root, licenseFile), "utf8").trim(),
-  ].join("\\n");
-});
-fs.writeFileSync(
-  process.argv[3],
-  "Third-party licenses for pierre-diffs.esm.js\\n\\n" + notices.join("\\n\\n") + "\\n",
-);
-"""
+PIERRE_LANGUAGE_SENTINEL = "/* LEAF_PIERRE_LANGUAGES */"
 
 
 def build_pierre(work: Path) -> list[Path]:
@@ -559,18 +431,23 @@ def build_pierre(work: Path) -> list[Path]:
         spec("esbuild"),
         cwd=work,
     )
+    shiki_source = (PIERRE_SOURCE / "shiki-leaf.mjs").read_text(encoding="utf-8")
+    if shiki_source.count(PIERRE_LANGUAGE_SENTINEL) != 1:
+        raise RuntimeError("Pierre's Shiki source must contain one language sentinel")
     (work / "shiki-leaf.mjs").write_text(
-        PIERRE_SHIKI.format(
-            languages="\n".join(
+        shiki_source.replace(
+            PIERRE_LANGUAGE_SENTINEL,
+            "\n"
+            + "\n".join(
                 f'  "{name}": () => import("@shikijs/langs/{name}"),'
                 for name in languages()
             )
+            + "\n",
         ),
         encoding="utf-8",
     )
-    (work / "themes-leaf.mjs").write_text(PIERRE_THEMES, encoding="utf-8")
-    (work / "entry.mjs").write_text(PIERRE_ENTRY, encoding="utf-8")
-    (work / "build.mjs").write_text(PIERRE_BUILD, encoding="utf-8")
+    for name in ("themes-leaf.mjs", "entry.mjs", "build.mjs"):
+        shutil.copyfile(PIERRE_SOURCE / name, work / name)
     run(
         "node",
         "build.mjs",

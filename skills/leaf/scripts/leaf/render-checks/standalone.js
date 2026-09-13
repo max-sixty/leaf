@@ -104,6 +104,30 @@ export function coveredWords({
 
 // ---------- export: the page as one file ----------
 
+let exportPreparation = null;
+let exportPreparationError = null;
+let exportPreparationDone = false;
+
+export function prepareExport() {
+  if (exportPreparation) return;
+  const pending = [...document.querySelectorAll("*")]
+    .map((element) => element.lfPrepareExport?.())
+    .filter((result) => result?.then);
+  exportPreparation = Promise.all(pending).then(
+    () => {
+      exportPreparationDone = true;
+    },
+    (error) => {
+      exportPreparationError = error;
+    },
+  );
+}
+
+export function exportPrepared() {
+  if (exportPreparationError) throw exportPreparationError;
+  return exportPreparationDone;
+}
+
 // What a standalone copy drops. Scripts go because there is no server behind a file
 // and nothing left for them to reach; the runtime's own layer goes with them, since a
 // comment box that swallows what you type and a banner claiming someone is listening

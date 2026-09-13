@@ -22,8 +22,9 @@ synchronizes the Python environment, including pre-commit:
 wt setup
 ```
 
-The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer. Docker is
-additionally needed for the complete website boundary and `scripts/linux-suite.sh`.
+The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer. The
+ordinary and nightly suites run directly on the host. Docker is needed only for
+the complete website boundary.
 
 A container without IPv6 cannot run the two tests that bind the stated-host
 wildcard `::`; run those from a workstation.
@@ -64,10 +65,11 @@ CI run exercises the complete suite in one job:
 uv run pytest tests --run-nightly
 ```
 
-`scripts/linux-suite.sh` supplies the pinned headless shell, installed Chrome,
-and CI fonts. Its default reproduces the everyday job; pass a failed nightly
-file, node id, or marker selection to reproduce that surface. It needs a Docker
-daemon that can run `linux/amd64`.
+GitHub Actions is the Linux authority. It runs the commands above directly on
+Ubuntu 24.04; a local container is not the same runner, and on Apple silicon it
+must either emulate the CPU or substitute Chromium for installed Chrome. Use the
+host suite for development feedback and the candidate and base-SHA workflow runs
+for Linux-specific evidence.
 
 The developer environment comes from the one `pyproject.toml` and `uv.lock` at
 the repo root, which is also the payload project: `uv sync` installs `leaf`

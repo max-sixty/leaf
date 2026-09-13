@@ -8,8 +8,10 @@ from leaf.render_checks import (
     SERVED_TIMEOUT_MS,
     evaluate_probe,
     install_window_errors,
+    pre_upgrade_findings,
     wait_for_presentation,
     wait_for_probe,
+    wait_for_theme,
 )
 
 from .readings import _scheme_findings, _SchemeContext
@@ -166,34 +168,8 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
         )
         if page.locator('script[src$="/leaf.js"]').count() != 1:
             raise RuntimeError("the document has no single canonical Leaf entry")
-        reaching(
-            "its theme stylesheet",
-            lambda: page.wait_for_function(
-                "() => [...document.styleSheets].some((sheet) => "
-                "sheet.href?.endsWith('/theme.css'))"
-            ),
-        )
-        findings = page.evaluate(
-            """() => {
-              const main = document.querySelectorAll('body > main');
-              const custom = [...document.querySelectorAll('*')]
-                .map((element) => element.localName)
-                .filter((tag) => tag.includes('-'));
-              const upgraded = [...new Set(custom)]
-                .filter((tag) => customElements.get(tag));
-              const painted = ['lf-upgraded', 'lf-applied', 'lf-presented']
-                .filter((name) => document.body.hasAttribute('data-' + name));
-              const box = main[0]?.getBoundingClientRect();
-              return [
-                ...(main.length === 1 ? [] : ['authored document has ' + main.length + ' direct main elements']),
-                ...(upgraded.length ? ['widgets upgraded before Leaf entry ran: ' + upgraded.join(', ')] : []),
-                ...(painted.length ? ['runtime readiness appeared before Leaf entry ran: ' + painted.join(', ')] : []),
-                ...(!box || box.width <= 0 || box.height <= 0
-                  ? ['authored main has no measurable pre-upgrade layout']
-                  : []),
-              ];
-            }"""
-        )
+        reaching("its theme stylesheet", lambda: wait_for_theme(page))
+        findings = pre_upgrade_findings(page)
         if len(held) != 1:
             raise RuntimeError("the browser did not request one canonical Leaf entry")
         held[0].continue_()

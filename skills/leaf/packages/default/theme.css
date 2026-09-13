@@ -150,9 +150,21 @@ html.lf-copy .lf-pane-body {
   overflow: visible;
   height: auto;
 }
+/* A copy of a root workspace is the whole workspace at the page's width. The screen
+ * box above is stated for the bounded posture, because only a bounded root holds the
+ * window; a copy holds nothing, so the same box has to follow from being the root
+ * rather than from the posture the page happened to be drawn in. Keying it on posture
+ * would also make the copy a reading of a race: entering copy mode resizes the body,
+ * the root fit observer answers on the next frame, and the column the copy is set in
+ * would depend on which of the two landed first. */
 html.lf-copy body > main:has(> .lf-workspace-reading[data-lf-workspace-context="root"]) {
+  box-sizing: border-box;
+  width: 100cqi;
+  max-width: none;
   height: auto;
-  padding-block: 72px 96px;
+  margin: 0;
+  padding: 72px var(--col-pad) 96px;
+  left: 0;
 }
 @media print {
   :is(.lf-workspace-reading, .lf-pane-reading, .lf-partition-reading),

@@ -356,6 +356,56 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     page.close()
 
 
+def test_a_card_repaint_keeps_the_reader_on_the_control_they_reached(browser, serve):
+    """A repaint of an open card leaves the reader's press where they aimed it.
+
+    An open margin card repaints for reasons the reader never asked for — a relative
+    timestamp ageing, a receipt phase landing, a margin contribution changing — and each
+    one re-runs the whole thread render. Nothing in that render is a reason to take the
+    reader off the control they have reached, so the control they were about to press
+    has to still be the one the next key reaches.
+
+    `lf-actions` is the margin's own repaint door, and its render runs inside this call,
+    so the state the press reads is stated rather than waited out.
+    """
+    page, errors = open_page(
+        browser,
+        serve(
+            ASK_PAGE,
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Check whether these jobs can share one visit.",
+                    "anchor": {"section": "bracket"},
+                }
+            ],
+        ),
+    )
+    root = events_model.read_events(serve.page_dir)[0]["id"]
+    resized(page, 1440, 900)
+    page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
+    resolve = page.locator(".lf-margin-thread").get_by_role(
+        "button", name="Resolve thread", exact=True
+    )
+    expect(resolve).to_be_visible()
+    resolve.focus()
+    expect(resolve).to_be_focused()
+    page.evaluate("() => document.dispatchEvent(new Event('lf-actions'))")
+    expect(resolve).to_be_focused()
+    with sending(page, "the resolve the repaint could have unseated"):
+        page.keyboard.press("Enter")
+    round_trip(page)
+    assert [
+        event["parent"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "resolve"
+    ] == [root]
+    assert errors == []
+    page.close()
+
+
 def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refusal(
     held_events, serve
 ):

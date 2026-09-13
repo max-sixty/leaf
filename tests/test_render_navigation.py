@@ -320,6 +320,11 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     page.locator("#left-start .lf-mark-note").click()
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
+    # The card shows before it is placed: opening it resets the placement and leaves it
+    # transparent at the viewport origin until the next frame's measurement lands. A
+    # non-empty box is visible to Playwright whatever its opacity, so the placement
+    # attribute the runtime writes with the position is what says the card has one.
+    expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
     preview_geometry = preview.evaluate(
         """el => {
           const card = el.getBoundingClientRect();

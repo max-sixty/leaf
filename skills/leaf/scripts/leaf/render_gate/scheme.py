@@ -292,6 +292,30 @@ def _render_scheme(browser, url, scheme, viewport, served_timeout_ms, opened_pag
         # $keys spells its members in the x- keys' own names, and a sweep over
         # every declaration took it for a widget called $keys.
         declarations = {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
+        visual_provider_problems = evaluate_probe(
+            page, "invalidVisualProviders", declarations
+        )
+        if visual_provider_problems:
+            # The inventory is the boundary every runtime visual reading trusts. Once
+            # it is invalid, read and presentation errors are consequences of that
+            # same fault and the settled-page probes have no valid page to inspect.
+            page.close()
+            return (
+                [
+                    *[
+                        f"[{scheme}] console: pre-upgrade: {finding}"
+                        for finding in pre_upgrade
+                    ],
+                    *[
+                        f"[{scheme}] <{problem['tag']} id={problem['id']!r}> "
+                        "declares addressable visual parts but its module "
+                        + "; ".join(problem["problems"])
+                        for problem in visual_provider_problems
+                    ],
+                ],
+                [],
+                True,
+            )
         state = served_here("/api/state").json()
         markup = served_here(urlsplit(url).path).text()
         # Every replay and conflict check is bounded by immutable revision.

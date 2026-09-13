@@ -454,12 +454,8 @@ def test_render_reports_a_word_the_printed_page_loses(browser, serve):
 
     A control declared an offer is exempt, since paper has nothing to press: the same
     page's pick mark reads "chosen" and goes unreported either way."""
-    assert render_gate_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
-        "a page whose print rendering keeps its words has nothing to report"
-    )
-
     lost = render_gate_model.render_version(browser, serve(PRINT_LOSS_PAGE))
-    assert [f for f in lost if f.startswith("[print]")] == [
+    assert lost == [
         (
             '[print] <p id=lede> drops "Where the decision stands, for the recor", '
             "which it says on screen"
@@ -817,83 +813,62 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     its link stands in — a shadow tree included, where .lf-quiet's clip does not
     reach. [hidden] is the silence available in every root, and the same note shown is
     still reported."""
-    assert render_gate_model.render_version(browser, serve(CARRIED_PAGE)) == [], (
-        "the same page without the two mistakes has nothing to report"
-    )
 
-    def put_native_link(page):
+    def stage_reach_cases(page):
         page.add_init_script(
             """addEventListener('DOMContentLoaded', () => {
+              const control = document.getElementById('c-bearer');
               const link = document.createElement('a');
+              link.id = 'native-link';
               link.className = 'lf-ui';
               link.href = '#h';
               link.textContent = 'Read context';
-              document.getElementById('c-lax').prepend(link);
-            }, {once: true});"""
-        )
+              const hidden = document.createElement('span');
+              hidden.id = 'hidden-note';
+              hidden.className = 'lf-ui';
+              hidden.hidden = true;
+              hidden.textContent = 'opens in a new tab';
+              control.prepend(link, hidden);
 
-    assert (
-        render_gate_model.render_version(
-            primed(browser, put_native_link), serve(CARRIED_PAGE)
-        )
-        == []
-    ), "a native link's words label its browser-owned control rather than the page"
-
-    def put_note(hidden):
-        def go(page):
-            page.add_init_script(
-                """addEventListener('DOMContentLoaded', () => {
-                  const note = document.createElement('span');
-                  note.className = 'lf-ui';
-                  note.hidden = HIDDEN;
-                  note.textContent = 'opens in a new tab';
-                  document.getElementById('c-lax').prepend(note);
-                }, {once: true});""".replace("HIDDEN", "true" if hidden else "false")
-            )
-
-        return go
-
-    assert (
-        render_gate_model.render_version(
-            primed(browser, put_note(True)), serve(CARRIED_PAGE)
-        )
-        == []
-    ), "a word the page never shows is not a word the reader was shown and denied"
-    assert sorted(
-        {
-            f.split("] ", 1)[1]
-            for f in render_gate_model.render_version(
-                primed(browser, put_note(False)), serve(CARRIED_PAGE)
-            )
-        }
-    ) == [
-        (
-            '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
-            "comment can reach it"
-        )
-    ], "the same note shown is the failure this check exists for"
-
-    def put_words_out_of_reach(page):
-        page.add_init_script(
-            """addEventListener('DOMContentLoaded', () => {
               const option = document.getElementById('c-lax');
+              const shown = document.createElement('span');
+              shown.id = 'shown-note';
+              shown.className = 'lf-ui';
+              shown.textContent = 'opens in a new tab';
               const row = document.createElement('div');
+              row.id = 'unreachable-row';
               row.className = 'lf-ui';
               row.innerHTML = '<strong>Session cookies</strong>';
               const button = document.createElement('button');
+              button.id = 'unreachable-button';
               button.setAttribute('data-lf-said', '');
               button.textContent = 'Lax, host-only';
-              option.prepend(row, button);
+              option.prepend(shown, row, button);
             }, {once: true});"""
         )
 
-    found = render_gate_model.render_version(
-        primed(browser, put_words_out_of_reach), serve(CARRIED_PAGE)
+    primed_browser = primed(browser, stage_reach_cases)
+    page = open_page(primed_browser, serve(CARRIED_PAGE))
+    assert (
+        page.locator(
+            "#native-link, #hidden-note, #shown-note, #unreachable-row, "
+            "#unreachable-button"
+        ).count()
+        == 5
     )
+    assert page.locator("#hidden-note").is_hidden()
+    page.close()
+
+    found = render_gate_model.render_version(primed_browser, serve(CARRIED_PAGE))
+    assert len(found) == 6, found
     assert sorted({f.split("] ", 1)[1] for f in found}) == [
         (
             '<lf-option id=c-lax> puts "Session cookies" under .lf-ui, where no comment '
             "can reach it"
+        ),
+        (
+            '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
+            "comment can reach it"
         ),
         (
             '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where no '

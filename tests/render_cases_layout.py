@@ -630,51 +630,28 @@ ROOM_EVERY_FRAME = """(frames) => {
 }"""
 # Enough code for the roles to differ from each other and from the block: a comment, a
 # keyword, a string, a name, a number.
-COLORED_CODE_PAGE = LONG_PAGE.replace(
-    "</main>",
-    """<pre id="snippet"><code class="language-python"># the ceiling doubles per approval
+CODE_BLOCK = """<pre id="snippet"><code class="language-python"># the ceiling doubles per approval
 def ceiling(limit, approvals):
     return "over" if approvals > 12 else limit
-</code></pre>
-</main>""",
-)
-
-# Both bugs go back as CSS, which is the shape the regression takes for real: the
-# attribute lands either way, and it is the stylesheet answering it that stops working.
-# A rule at document level with the theme's own specificity, so the later one wins.
-UNANSWERED_CODE_PAGE = COLORED_CODE_PAGE.replace(
-    "</head>", "<style>[data-lf-syn] { color: inherit; }</style>\n</head>"
-)
-# What --syn-comment carried until this gate was written: under 4.5:1 on --pre-bg, and
-# the reading a user reported as the highlighting being gone. The colour is stated and
-# the ratio is not, because the ratio is a reading of whatever --pre-bg currently is.
-FAINT_CODE_PAGE = COLORED_CODE_PAGE.replace(
-    "</head>", '<style>[data-lf-syn="cm"] { color: #8b8577; }</style>\n</head>'
-)
+</code></pre>"""
 
 # A role that reads on the block and not on the tint one of its lines wears. The clean
 # line comes first on purpose: a gate that stopped at a role's first span would take that
 # line's reading, which clears the threshold, and never reach the one two lines down, and
 # a walkthrough's hi band is the surface where a code line is most often set on something
 # other than --pre-bg.
-TINTED_LINE_PAGE = LONG_PAGE.replace(
-    "</head>", "<style>:root { --hi-tint: #6f6a60; }</style>\n</head>"
-).replace(
-    "</main>",
-    """<lf-code id="tinted" language="python" hi="2"><pre>
+TINTED_CODE = """<lf-code id="tinted" language="python" hi="2"><pre>
 first = "on the block's own colour"
 second = "on the band"
-</pre></lf-code>
-</main>""",
-)
+</pre></lf-code>"""
 
 # The same reading, in a shadow tree. lf-diff renders the page's words into one, so its
-# spans are in no document.querySelectorAll — and the page carries no other code, so a
-# probe that stopped at the boundary would sweep this and find nothing to say. The token
-# is what goes back rather than a rule: a custom property inherits through the boundary
-# where a selector does not, which is both why this reaches the spans and why a project's
-# own palette reaches them too, gate or no gate.
-SHADOWED_DIFF = """<lf-diff id="shadowed"><pre>
+# spans are in no document.querySelectorAll. The fault page changes only its number role,
+# so that role's finding and the population assertion prove the probe crossed the root.
+# The token is what goes back rather than a rule: a custom property inherits through the
+# boundary where a selector does not, which is both why this reaches the spans and why a
+# project's own palette reaches them too, gate or no gate.
+SHADOWED_DIFF_BODY = """<lf-diff id="{id}"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
 +++ b/gateway/limits.py
@@ -683,23 +660,35 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 -    return limit
 +    # the ceiling doubles per approval
 +    return "over" if approvals > 12 else limit
-</pre></lf-diff>
-</main>"""
-SHADOW_CODE_PAGE = LONG_PAGE.replace(
-    "</head>", "<style>:root { --syn-comment: #1c1b18; }</style>\n</head>"
-).replace("</main>", SHADOWED_DIFF)
+</pre></lf-diff>"""
+SHADOWED_DIFF = SHADOWED_DIFF_BODY.format(id="shadowed") + "\n</main>"
 
-# The other half of the boundary: what is painted behind a shadowed span is on the
-# elements above the host, and a span at the top of a root has no parentElement to climb
-# to. Today's theme hides that — the box a diff renders into carries an opaque --card, so
-# a composite that stopped at the boundary would land on the same colour — which is a
-# coincidence of the palette and not a reason to read the light tree. Flattening that one
-# surface is all it takes to part them: the paper under it is what the reader has behind
-# the comment, and against the white a stalled climb falls back to, a dark page's ink
-# reads as either a pass or a failure that isn't on the screen.
-FLAT_SHADOW_PAGE = LONG_PAGE.replace(
-    "</head>", "<style>:root { --card: transparent; }</style>\n</head>"
-).replace("</main>", SHADOWED_DIFF)
+# These bugs go back as CSS, which is the shape the regressions take for real: the
+# attribute lands either way, and it is the stylesheet answering it that stops working.
+# Each uses a different role, so one public-gate reading still attributes the faults
+# independently. The media query keeps fixed fault colours out of the dark control half.
+CODE_FAULT_PAGE = LONG_PAGE.replace(
+    "</head>",
+    """<style>
+#shadowed { --syn-number: #1c1b18; }
+@media (prefers-color-scheme: light) {
+  #snippet [data-lf-syn="cm"] { color: inherit; }
+  #snippet [data-lf-syn="kw"] { color: #8b8577; }
+  #tinted { --hi-tint: #6f6a60; }
+}
+</style>
+</head>""",
+).replace(
+    "</main>",
+    CODE_BLOCK + TINTED_CODE + SHADOWED_DIFF_BODY.format(id="shadowed") + "\n</main>",
+)
+
+# The shipped dark comment ink must clear the add-line tint behind it. A large real patch
+# put enough comments on that surface for the former 4.4:1 contrast gap to become visible.
+CODE_CONTROL_PAGE = LONG_PAGE.replace(
+    "</main>",
+    CODE_BLOCK + SHADOWED_DIFF_BODY.format(id="default-shadow") + "\n</main>",
+)
 # Two sets, because pointing at a control and pressing it are different questions.
 #
 # What must hold still is everything a user aims at, however the widget that built

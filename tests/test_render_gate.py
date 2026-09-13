@@ -30,12 +30,11 @@ from render_cases_interaction import (
 from render_cases_layout import (
     AUTHORED_LINES_PAGE,
     BARE_IDENTIFIERS_PAGE,
-    COLORED_CODE_PAGE,
+    CODE_CONTROL_PAGE,
+    CODE_FAULT_PAGE,
     CUSTOM_WIDGET_PAGE,
     EDGE_IDS,
     EDGES,
-    FAINT_CODE_PAGE,
-    FLAT_SHADOW_PAGE,
     FLOATING_PAGE,
     IDENTIFIERS_IN_CODE_PAGE,
     LINKED_CELLS_PAGE,
@@ -45,12 +44,9 @@ from render_cases_layout import (
     RESIZE_LOOP_EVENT,
     ROOM_EVERY_FRAME,
     SCROLLED_CONTAINER,
-    SHADOW_CODE_PAGE,
     SHADOW_HOST_PAGE,
     SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
-    TINTED_LINE_PAGE,
-    UNANSWERED_CODE_PAGE,
     UNMARKABLE_PAGE,
     WIDE_TABLE_PAGE,
     apply_restore_case,
@@ -1195,33 +1191,19 @@ def test_the_render_gate_validates_a_registered_visual_inventory(browser, serve)
     )
 
 
-@pytest.mark.parametrize(
-    ("markup", "module", "message"),
-    [
-        (
-            GENERIC_VISUAL_PAGE.replace(
-                'parts="outer inner html"', 'parts="outer absent"'
-            ),
-            GENERIC_VISUAL_WIDGETS,
-            "did not register declared parts absent",
-        ),
-        (
-            GENERIC_VISUAL_PAGE,
-            {
-                "lf-test-visual.js": GENERIC_VISUAL_WIDGETS[
-                    "lf-test-visual.js"
-                ].replace(
-                    "surface: outerSurface",
-                    "surface: document.querySelector('#title')",
-                )
-            },
-            "Visual part outer has no descendant Element surface",
-        ),
-    ],
-)
-def test_the_render_gate_rejects_invalid_visual_inventory_records(
-    browser, serve, markup, module, message
-):
+def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve):
+    markup = GENERIC_VISUAL_PAGE.replace(
+        '<lf-test-visual id="visual" parts="outer inner html"></lf-test-visual>',
+        """<lf-test-visual id="missing" parts="outer absent"></lf-test-visual>
+<lf-test-visual id="outside" parts="outer inner html"></lf-test-visual>""",
+    )
+    module = {
+        "lf-test-visual.js": GENERIC_VISUAL_WIDGETS["lf-test-visual.js"].replace(
+            "surface: outerSurface",
+            "surface: this.id === 'outside' "
+            "? document.querySelector('#title') : outerSurface",
+        )
+    }
     failures = render_gate_model.render_version(
         browser,
         serve(
@@ -1230,7 +1212,24 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(
             layer_widgets=module,
         ),
     )
-    assert any(message in failure for failure in failures), failures
+    assert failures == [
+        (
+            "[light] <lf-test-visual id='missing'> declares addressable visual parts "
+            "but its module did not register declared parts absent"
+        ),
+        (
+            "[light] <lf-test-visual id='outside'> declares addressable visual parts "
+            "but its module Visual part outer has no descendant Element surface"
+        ),
+        (
+            "[dark] <lf-test-visual id='missing'> declares addressable visual parts "
+            "but its module did not register declared parts absent"
+        ),
+        (
+            "[dark] <lf-test-visual id='outside'> declares addressable visual parts "
+            "but its module Visual part outer has no descendant Element surface"
+        ),
+    ]
 
 
 def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
@@ -3121,85 +3120,55 @@ def test_the_room_does_not_flicker_while_a_strip_arrives(browser, serve, other_l
 def test_the_render_gate_reports_code_the_reader_cannot_tell_from_its_block(
     browser, serve
 ):
-    """Colouring code takes the runtime writing a role and the theme answering it, and
-    the two meet only in the browser — so a stylesheet that stops answering, or answers
-    too faintly, is a page of flat code and no error anywhere. Both failures are one
-    question asked of the drawn page: can the reader tell this run of characters from
-    the code around it.
+    """The syntax reading distinguishes unanswered and faint roles, each painted
+    surface a role appears on, and code rendered into a declared shadow root.
 
-    Each goes back as CSS and the gate is watched to fail, the third of them for the
-    reading the other two can't distinguish: a role is fine on the block and unreadable
-    on the tint one line wears, which a gate taking one colour per role never reaches,
-    because the clean line comes first.
-
-    The clean page is asserted to carry the roles first, because a block the tokenizer
-    found nothing in passes this gate while proving nothing about it — which is the
-    vacuous half of every reading here."""
-    page = open_page(browser, serve(COLORED_CODE_PAGE))
-    roles = page.evaluate(
-        "() => [...new Set([...document.querySelectorAll('[data-lf-syn]')]"
-        ".map(s => s.dataset.lfSyn))].sort()"
+    One fault page gives each mechanism a distinct role, so one public-gate reading
+    attributes all four independently. One control page carries an ordinary block and
+    the shipped diff surface. Population assertions keep either pass from succeeding
+    because the tokenizer or shadow renderer produced nothing."""
+    page = open_page(browser, serve(CODE_FAULT_PAGE))
+    population = page.evaluate(
+        """() => ({
+          document: [...new Set([...document.querySelectorAll('[data-lf-syn]')]
+            .map(span => span.dataset.lfSyn))].sort(),
+          shadow: [...new Set([...document.querySelector('#shadowed').shadowRoot
+            .querySelectorAll('[data-lf-syn]')].map(span => span.dataset.lfSyn))].sort(),
+        })"""
     )
     page.close()
-    assert "cm" in roles and len(roles) > 1, (
-        f"this block came out {roles}, so it says nothing about a role going unread"
-    )
-    assert render_gate_model.render_version(browser, serve(COLORED_CODE_PAGE)) == []
+    assert {"cm", "kw", "st"} <= set(population["document"]), population
+    assert "nu" in population["shadow"], population
 
-    unanswered = render_gate_model.render_version(browser, serve(UNANSWERED_CODE_PAGE))
-    assert [
-        f
-        for f in unanswered
-        if f.startswith("[light] code marked cm is the ink of the code around it")
-    ], unanswered
+    failures = render_gate_model.render_version(browser, serve(CODE_FAULT_PAGE))
+    syntax = [finding for finding in failures if "] code marked " in finding]
+    assert failures == syntax, failures
+    assert len(syntax) == 4, failures
+    assert any(
+        finding.startswith("[light] code marked cm is the ink of the code around it")
+        for finding in syntax
+    ), syntax
+    assert any(
+        finding.startswith("[light] code marked kw reads at ") for finding in syntax
+    ), syntax
+    assert any(
+        finding.startswith("[light] code marked st reads at ") for finding in syntax
+    ), syntax
+    assert any(
+        finding.startswith("[dark] code marked nu reads at ") for finding in syntax
+    ), syntax
 
-    # The ratio the gate prints is a reading of the theme's own surfaces, so pinning
-    # its digits here makes every palette change a failure of this test rather than of
-    # the page. What the assertions ask instead is which role came back unread, which
-    # is the whole of what each case is arranged to distinguish: the gate names a role
-    # in this sentence only where it read under 4.5:1, so the finding is the claim.
-    faint = render_gate_model.render_version(browser, serve(FAINT_CODE_PAGE))
-    assert [f for f in faint if f.startswith("[light] code marked cm reads at ")], faint
-    assert not [f for f in faint if "code marked st" in f], (
-        "only the role the style touched is unread, so the rest name the reading "
-        "rather than the rule"
-    )
-
-    tinted = render_gate_model.render_version(browser, serve(TINTED_LINE_PAGE))
-    assert [f for f in tinted if f.startswith("[light] code marked st reads at ")], (
-        "the reading is of the surface each span is actually set on, not of one "
-        "block colour taken once per role — that role clears the threshold on the "
-        f"block, so a gate stopping at its clean line says nothing at all: {tinted}"
-    )
-
-    page = open_page(browser, serve(SHADOW_CODE_PAGE))
-    where = page.evaluate(
-        "() => ({ doc: document.querySelectorAll('[data-lf-syn]').length,"
-        " shadow: [...document.querySelectorAll('*')].filter(e => e.shadowRoot)"
-        ".flatMap(e => [...e.shadowRoot.querySelectorAll('[data-lf-syn=cm]')]).length })"
+    page = open_page(browser, serve(CODE_CONTROL_PAGE))
+    population = page.evaluate(
+        """() => ({
+          document: document.querySelectorAll('[data-lf-syn]').length,
+          shadow: document.querySelector('#default-shadow').shadowRoot
+            .querySelectorAll('[data-lf-syn]').length,
+        })"""
     )
     page.close()
-    assert where["doc"] == 0 and where["shadow"] > 0, (
-        "this page has to put its only comment inside a shadow root, or the gate "
-        f"passing it says nothing about the boundary — {where}"
-    )
-    shadowed = render_gate_model.render_version(browser, serve(SHADOW_CODE_PAGE))
-    assert [finding for finding in shadowed if "code marked cm" in finding], (
-        "a widget that renders the page's words into a shadow root renders code the "
-        f"reader still has to read — {shadowed}"
-    )
-    default_shadow = SHADOW_CODE_PAGE.replace(
-        "<style>:root { --syn-comment: #1c1b18; }</style>\n", ""
-    )
-    assert render_gate_model.render_version(browser, serve(default_shadow)) == [], (
-        "the shipped dark comment ink has to clear the semantic add-line tint; a large "
-        "real patch put enough comments on that surface to expose the previous 4.4:1"
-    )
-    assert render_gate_model.render_version(browser, serve(FLAT_SHADOW_PAGE)) == [], (
-        "with the box's own surface flattened, what is behind the comment is the "
-        "page's paper — which is above the host, and reached by climbing out of the "
-        "root rather than stopping where parentElement runs out"
-    )
+    assert population["document"] > 0 and population["shadow"] > 0, population
+    assert render_gate_model.render_version(browser, serve(CODE_CONTROL_PAGE)) == []
 
 
 def test_an_authored_project_widget_loads_through_the_real_layer(

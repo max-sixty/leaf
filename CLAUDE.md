@@ -215,9 +215,9 @@ loads `worker/server.py` and `worker/reply.py` and drives their route, and pre-c
 ruff hooks take them as they take every other Python file. Nothing on either landing
 path parses `worker/src/`: pre-commit's whitespace and typos hooks take those files,
 but its prettier and eslint hooks take JavaScript and HTML rather than
-TypeScript. So a TypeScript change carries no gate until `ci`'s
-`test` job runs it, which on a `wt merge` is after main has already moved. Run
-it before landing one:
+TypeScript. A pull request runs its website gate before merge, but a direct
+`wt merge` first runs it in `publish-site`, after main has already moved. Run it
+before landing a TypeScript change directly:
 
 ```sh
 npm ci --prefix worker

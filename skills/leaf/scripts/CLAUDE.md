@@ -26,7 +26,8 @@ The main owners are:
 - `event_meaning`: admitted widget-command meaning and layer compatibility;
 - `events` and `projection`: standing event and durable state folds;
 - `thread_context` and `conversation`: thread identity, frozen markup, bounded
-  delivery context, and conversation writes;
+  delivery context, conversation writes, and the host-neutral delivery-bound reply
+  lifecycle;
 - `acknowledgments`: unsettled reader moves and their strongest delivery or
   subject-work evidence;
 - `activity`: the canonical page-level fold over acknowledgments, status, claim,
@@ -42,8 +43,8 @@ The main owners are:
 - `server` and `hosting`: server address and lifetime state, plus durable and
   process-owned HTTP servers;
 - `session` and `hooks`: direct wait delivery and host lifecycle;
-- `codex`: the private App Server terminal launcher, detached Codex queue delivery
-  and recovery, and the observer-only activity subscription;
+- `codex`: the private App Server terminal launcher, provider notification adapter,
+  detached Codex queue delivery and recovery, and observer-only subscriptions;
 - `mcp_server` and `mcp_app`: the bundled MCP transport and comments-only
   snapshot fallback;
 - `presence`: page, claim, and neighboring-leaf presence readings;

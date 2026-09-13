@@ -12,11 +12,11 @@ and requests another reading at its next deadline; it does not run a second fold
 | work declaration: state, detail, event floor, source message, typed `work` seats | `status.json` | `leaf status`, from the agent's turn or a delegate it hands the command to | a short grace after the turn that wrote it closes; about a quarter of an hour with no renewal; at once when the claimant's lifetime has ended |
 | exact delivery handling: event, target, detail, event floor | `handling` in `status.json` | `leaf delivery claim`, derived from an immutable delivery and current page state | when the move settles, another delivered move replaces it, the claim expires, or the claimant's lifetime ends |
 | live Codex activity: session, turn, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's observer-only client | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
-| live Codex reply: session, turn, exact response address, item, text, and completion state | optional `stream.reply` in `status.json` | the App Server connection bound to a delivery with one plain reply | the completed message becomes a durable reply, another operation settles it, or the stream fails or disconnects |
+| live Codex reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect; each binding clears after durable commit or terminal failure, and survives connection and turn transitions until then |
 | turn identity and open or closed state | the page's claim record | a prompt or direct delivery opens an opaque `turn`; the Stop hook stamps `turn_closed` | the next opening mints a turn; the next closing stamps it |
 | wait lease | `waiter.lock`, or `sessions/<id>.wait` for a host session | the live `leaf wait` or `leaf ack` process, held open for its life | process exit |
 | acknowledgement cursor | `cursor.json` | `leaf ack`, after the complete batch reached its durable consumer | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
-| pickup transition | a `pickup` event in `events.jsonl` | the carrier records `queued` when Codex accepts a batch; the prompt hook or a plugin-free embedded host's App Server observer records `opened` with session and turn identity when the queued turn opens; direct delivery records `opened` itself | never; each event/phase/session/turn transition is idempotent |
+| pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; an App Server observer records `opened` with session and turn identity when its direct delivery starts | never; each event/phase/session/turn transition is idempotent |
 | page claim | `~/.local/state/leaf/claims/<page>` | `server start` from an agent host; released by the hook when the session exits | `released` is set, or the lifetime it rests on is gone: the pid, the background job's directory, or — for a host that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab closes the news stream and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex queue state | the host state home's session records | the detached adapter or an embedded App Server host | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted |
@@ -77,11 +77,12 @@ that turn's ending and the next one's opening, surfaces unacknowledged user
 events at the next prompt, and releases the session's page claims when it exits.
 Its unanswered-work guard reads `activity.obligations`, the same settled
 interaction projection the browser reads; it does not reconstruct conversations
-itself. An App Server turn bound to one plain reply may finish that exact response
-with its completed final-answer item; the hook lets the provider turn close, and
-the observer commits the same text through the canonical reply writer when the
-terminal notification arrives. Every other turn records its explicit Leaf reply,
-version, or request receipt before Stop can consider the obligation answered.
+itself. The App Server adapter presents at most one plain reply in each turn's
+chronological delivery slice. Its completed final-answer item finishes that exact
+response; the hook lets the provider turn close, and the observer commits the same text
+through the canonical reply writer when the terminal notification arrives. Version
+and request obligations still record their explicit resolution or receipt before Stop
+can consider them answered.
 When the prompt hook opens a turn, it records a new `opened` transition for its
 acknowledged, unanswered moves. A plugin-free embedded host records the same
 transition from the queued turn's App Server `turn/started` notification. A
@@ -115,13 +116,15 @@ each pass, and produce the same `leaf-delivery-v1` envelope. Each batch names it
 page, monotonic `through_seq`, conversation context, layer handling, and complete
 ordered events.
 
-In Codex, the adapter collects available input, then freezes the delivery before
-handing its bounded id-only `leaf-delivery` pointer to Codex's durable same-task queue.
-Input collected after that boundary belongs to a later delivery. A failed or
-uncertain queue call retries the same frozen pointer while the session owns a page;
-losing its final page leaves the collecting or offering record standing but inactive
-until the same session claims a page again. A successful call marks only that delivery
-accepted. Acceptance has crossed the external-effect boundary, so its remaining page
+In Codex, the adapter collects available input, then freezes the delivery. Input
+collected after that boundary belongs to a later delivery. Without an App Server
+observer, it hands the bounded id-only `leaf-delivery` pointer to Codex's durable
+same-task queue. A failed or uncertain queue call retries the same frozen pointer while
+the session owns a page. With an observer, Leaf retains the frozen delivery in its own
+offering state until the task is idle, then starts it directly; it does not also copy
+the delivery into App Server's queue. Losing the session's final page leaves the
+collecting or offering record standing but inactive until the same session claims a
+page again. Acceptance has crossed the external-effect boundary, so its remaining page
 receipts are reconciled before the adapter checks ownership and retires.
 If every website startup retry fails, its deterministic fallback settles the
 triggering event and removes the unaccepted queue record. The immutable payload
@@ -135,14 +138,11 @@ Once a cursor advances, the
 queue record records that receipt so
 reinitializing the same page path cannot revive old transport work; a
 reinitialized page whose events no longer match retires its old batch. The
-adapter has a second lease because a generic wait lease cannot prove its output
-can enter a later Codex turn. Leaf's queue
-command never calls `turn/start`. While the App Server observer is connected, queueing
-targets the same server as the CLI; after it disconnects, queueing returns to Codex's
-durable local task queue. The observer's second connection resumes the task only to
-subscribe to notifications. That subscription keeps the task loaded, so the App
-Server dispatches queued input when the task is idle or its active turn completes.
-The CLI remains the interactive client for every approval and user-input request.
+adapter has a second lease because a generic wait lease cannot prove its output can
+enter a later Codex turn. Leaf's unobserved queue command never calls `turn/start`. An
+App Server observer instead resumes the task, subscribes to notifications, and waits
+for the active turn to complete before starting the frozen delivery itself. The CLI
+remains the interactive client for every approval and user-input request.
 Once every batch is acknowledged, only the queue record moves under `history/`;
 `leaf delivery read <id>` continues to resolve the immutable envelope.
 
@@ -154,18 +154,20 @@ keeps the initiating connection for activity notifications. The pickup names
 Leaf's claim turn, while streamed activity names App Server's task and turn; each
 projection reads the identity its own fold compares. A retry reads the durable
 pickup instead of starting the event again. If the task is active, the host queues
-the same delivery for a later turn instead of using page input as steering. Its
-subscription spans the active turn, the queued turn's opening, and that turn's
-terminal notification, recording both `opened` and the exact turn close. A host
+the same delivery locally for a later direct start instead of using page input as
+steering or adding it to App Server's queue. Its subscription spans the active turn,
+the delivery turn's opening, and that turn's terminal notification, recording both
+`opened` and the exact turn close. A host
 that owns a starting connection closes only the matching Leaf claim turn on its
 terminal notification. A direct start carries the delivery id as its client message id
-and retains the structured delivery in the transcript; a queued turn carries the id in
-its exact pointer. The transcript therefore restores the same binding after a lost
-subscription. When the bound delivery has exactly one plain reply, the connection
-streams the assistant final message into that thread and commits the completed message
-through the ordinary reply operation. The delivery address survives a turn close or a
-later turn opening; those turn transitions govern activity, not response ownership.
-Every other response shape remains explicit. This is another carrier over the same
+and retains the structured delivery in the transcript. The transcript therefore
+restores the same binding after a lost subscription. The adapter keeps the delivery's
+chronological prefix through the first
+plain reply and leaves any later plain reply for the next turn. The connection streams
+the assistant final message into that thread and commits the completed message through
+the ordinary reply operation. The delivery address survives a turn close or a later
+turn opening; those turn transitions govern activity, not response ownership. Version
+and request responses remain explicit. This is another carrier over the same
 delivery, page claim, event log, and activity projection, not another conversation
 store or response policy.
 

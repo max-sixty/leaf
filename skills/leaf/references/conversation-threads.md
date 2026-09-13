@@ -127,7 +127,7 @@ that bar by itself; when uncertain, leave the thread open. Reply before resolvin
 leaf resolve <page> --to <thread-id>
 ```
 
-An acknowledged reader message still requires a reply: acknowledgement only
-removes it from future deliveries. For a directly started App Server turn with exactly
-one plain reply, the normal assistant final message is that reply. A queued Codex
-pointer and every other response shape write the explicit Leaf operation.
+An acknowledged reader message still requires a reply: acknowledgement only removes it
+from future deliveries. When the active host binds the delivery's reply to its turn,
+the normal assistant final message is that reply; otherwise write the explicit Leaf
+operation. Version and request responses always use their explicit Leaf operations.

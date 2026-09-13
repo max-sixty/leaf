@@ -1051,12 +1051,15 @@ export function createAskView({
     // before the reveal and focus land; otherwise the correct navigation happens
     // invisibly behind the very sheet that offered it.
     if (!inChrome(next) && trayIsOpen("asks") && trayCovers()) setOpenTray(null);
-    const mayArrive = retainReaderIntent();
+    const mayArrive = retainReaderIntent({
+      source: focused(),
+      available: () => next.isConnected,
+    });
     await reveal(next); // a settled group or an inactive tab has no geometry until it opens
-    if (!mayArrive() || !next.isConnected) return false;
+    if (!mayArrive()) return false;
     const source = askSource(next);
     if (source !== next) await reveal(source); // let the answering widget settle its own chrome
-    if (!mayArrive() || !next.isConnected || !source.isConnected) return false;
+    if (!mayArrive() || !source.isConnected) return false;
     landed = next;
     // The ring follows: the focus move is what paints it, so the walk says where to stand
     // and markHere says where the reader is standing, rather than both saying the second.

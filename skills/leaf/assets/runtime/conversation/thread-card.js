@@ -190,8 +190,13 @@ export function threadNode(t, grow, commands) {
         return {
           optimistic: async () => {
             if (!mayLand()) return false;
-            await travel.showThread(liveId());
+            // revealThread clears the retained Resolved/search view synchronously, before
+            // its keyed list has finished presenting. Capture that transition-owned
+            // replacement now: a search the reader types while presentation is pending
+            // is newer intent, not the replacement a refusal may erase.
+            const arriving = travel.showThread(liveId());
             narrowing.replaced();
+            if (!(await arriving)) return false;
             const destination = shownCard();
             if (destination) mayRestore = travel.retainPanelLanding(destination);
             return Boolean(destination);

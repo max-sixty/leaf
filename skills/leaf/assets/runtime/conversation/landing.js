@@ -145,15 +145,7 @@ function prepareLanding({ held = null, box, route = null }) {
 }
 
 const retainLanding = (source, available, fallback = null) => {
-  const retained = retainReaderIntent();
-  return () => {
-    const at = focused();
-    return (
-      available() &&
-      retained() &&
-      (at === document.body || at === fallback || source.contains(at))
-    );
-  };
+  return retainReaderIntent({ source, available, fallback });
 };
 
 export const retainPanelLanding = (source, panelIsOpen) =>
@@ -290,6 +282,11 @@ const listNode = (id) => {
 // focus at its own words so Tab reaches its controls. Sending a reply stays with its
 // editor through revealConversation instead.
 async function showThreadNow(id, focus, revealThread) {
+  const mayArrive = retainReaderIntent({
+    source: focused(),
+    available: () => threadsBox.isConnected,
+    fallback: threadsBox,
+  });
   // A direct arrival owns the target's one transition cue. Remove a retained arrival
   // animation before an asynchronous reveal gives the browser a frame to start it.
   threadsBox
@@ -302,16 +299,18 @@ async function showThreadNow(id, focus, revealThread) {
   if (going) {
     finishFold(going.dataset.id);
     const revealed = revealThread(id);
-    if (!revealed) return;
+    if (!revealed) return false;
     await revealed;
+    if (!mayArrive()) return false;
     node = listNode(id);
   } else if (!node) {
     const revealed = revealThread(id);
-    if (!revealed) return;
+    if (!revealed) return false;
     await revealed;
+    if (!mayArrive()) return false;
     node = listNode(id);
   }
-  if (!node) return;
+  if (!node || !mayArrive()) return false;
   const thread = node.closest(".lf-thread");
   if (focus) {
     const destination =
@@ -337,6 +336,7 @@ async function showThreadNow(id, focus, revealThread) {
   target.classList.remove("grow");
   target.classList.add("flash");
   setTimeout(() => target.classList.remove("flash"), 1300);
+  return true;
 }
 
 export function createConversationLanding({ setPanel, scrollToThread, revealThread }) {
@@ -358,7 +358,7 @@ export function createConversationLanding({ setPanel, scrollToThread, revealThre
     // coordinator reports its one failure; the landing result keeps that rejection out
     // of both discarded event-handler promises and callers that continue a delivery.
     return ready.then(
-      () => true,
+      (arrived) => arrived,
       () => false,
     );
   };

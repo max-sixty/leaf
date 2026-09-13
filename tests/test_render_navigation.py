@@ -1706,8 +1706,8 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
         page.close()
 
 
-def test_a_delayed_ask_reveal_yields_to_the_readers_new_destination(browser, serve):
-    """A completed old reveal cannot steal focus or register an Ask arrival."""
+def test_a_delayed_ask_reveal_yields_to_programmatic_reader_focus(browser, serve):
+    """A completed old reveal cannot steal accessibility focus or register an arrival."""
     page = open_page(browser, serve(ASKS_PAGE))
     position = page.locator(".lf-walk-position")
     page.keyboard.press("a")
@@ -1726,7 +1726,9 @@ def test_a_delayed_ask_reveal_yields_to_the_readers_new_destination(browser, ser
 
     page.keyboard.press("a")
     page.wait_for_function("window.askRevealStarted === true", timeout=3000)
-    page.locator(".lf-threads-toggle").click()
+    # Assistive technology and focus-management code can move the reader without a
+    # pointer, key, or input event. The retained navigation must read focus itself.
+    page.locator(".lf-threads-toggle").focus()
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     page.evaluate("releaseAskReveal()")
     page.wait_for_function("window.askRevealSettled === true", timeout=3000)
@@ -1735,6 +1737,59 @@ def test_a_delayed_ask_reveal_yields_to_the_readers_new_destination(browser, ser
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     assert position.text_content() == "Ask 1 of 4 open"
     assert position.get_attribute("data-lf-boundary") is None
+
+
+def test_a_delayed_thread_reveal_reports_that_new_reader_focus_cancelled_it(
+    browser, serve
+):
+    """A held direct thread arrival neither steals focus nor claims false success."""
+    page = open_page(
+        browser,
+        serve(INLINE_PAGE, anchored=[("p", "bold text")]),
+    )
+    page.evaluate(
+        """async () => {
+          const {createConversationLanding} = await window.__lfRuntimeImport(
+            '/runtime/conversation/landing.js');
+          const thread = document.querySelector('.lf-threads > .lf-thread');
+          thread.hidden = true;
+          const source = document.createElement('button');
+          source.id = 'held-thread-arrival';
+          source.textContent = 'Open held thread';
+          document.querySelector('main').append(source);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          const landing = createConversationLanding({
+            setPanel: () => {},
+            scrollToThread: () => {},
+            revealThread: () => {
+              window.threadRevealStarted = true;
+              return held.then(() => { thread.hidden = false; });
+            },
+          });
+          source.onclick = () => {
+            window.threadArrival = landing.showThread(thread.dataset.id);
+            window.threadArrival.then(arrived => {
+              window.threadArrived = arrived;
+              window.threadArrivalSettled = true;
+            });
+          };
+          window.releaseThreadReveal = release;
+        }"""
+    )
+
+    page.locator("#held-thread-arrival").click()
+    page.wait_for_function("window.threadRevealStarted === true", timeout=3000)
+    page.locator(".lf-threads-toggle").focus()
+    expect(page.locator(".lf-threads-toggle")).to_be_focused()
+    page.evaluate("releaseThreadReveal()")
+    page.wait_for_function("window.threadArrivalSettled === true", timeout=3000)
+
+    expect(page.locator(".lf-threads-toggle")).to_be_focused()
+    assert page.evaluate("window.threadArrived") is False
+    expect(page.locator(".lf-threads > .lf-thread")).not_to_have_class(
+        re.compile(r"\bflash\b")
+    )
 
 
 def test_a_questions_digits_are_drawn_whole(browser, serve):
@@ -5865,6 +5920,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
         "aria-pressed", "false"
     )
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     resolved_quote = page.locator(".lf-thread:not([hidden]) .lf-quote")
     expect(resolved_quote).to_have_class(re.compile(r"\bdetached\b"))

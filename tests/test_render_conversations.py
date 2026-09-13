@@ -65,6 +65,29 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 
+def hold_visible_thread_presentation(page, thread_id):
+    """Hold the list candidate that reveals one named thread."""
+    page.evaluate(
+        """(threadId) => {
+          const list = document.querySelector('.lf-threads');
+          const present = list.present.bind(list);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          let used = false;
+          list.present = (model) => {
+            const reveals = model.rows.some(row =>
+              row.kind === 'thread' && row.thread.root.id === threadId && row.visible);
+            if (!reveals || used) return present(model);
+            used = true;
+            window.visibleThreadPresentationHeld = true;
+            return held.then(() => present(model));
+          };
+          window.releaseVisibleThreadPresentation = release;
+        }""",
+        thread_id,
+    )
+
+
 def test_a_durable_reply_repaints_an_empty_stream_placeholder(browser, serve, request):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Answer me here", {"section": "h-how"})
@@ -195,6 +218,48 @@ def test_an_inline_reply_link_reveals_its_conversation(browser, serve, resolved)
     assert sizes["destination"] < sizes["list"], sizes
     page.keyboard.press("Tab")
     expect(page.locator("#mounts [role=checkbox]")).to_be_focused()
+
+
+def test_a_held_inline_reply_reveal_yields_to_new_reader_focus(browser, serve):
+    """The production reply link cannot retake focus after its list reveal settles."""
+    url = serve(SEATED_QUESTION_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Which job should come first?", {"section": "jobs"}
+    )
+    reply = conversation_model.cmd_reply(
+        serve.page_dir,
+        root,
+        "Choose the first job.",
+        '<lf-ask id="held-job-decision"><h3>Which job first?</h3>'
+        '<lf-options id="held-job" choose>'
+        '<lf-option id="held-mounts">Put the mounts back</lf-option>'
+        '<lf-option id="held-camera">Install the camera</lf-option>'
+        "</lf-options></lf-ask>",
+        for_event=root,
+    )
+    events_model.append_event(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+    )
+    page = open_page(browser, url)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    destination = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
+    expect(thread).to_be_hidden()
+    hold_visible_thread_presentation(page, root)
+
+    page.locator(
+        f'#jobs .lf-conversation-thread[data-thread="{root}"] .lf-conversation-open'
+    ).click()
+    page.wait_for_function(
+        "window.visibleThreadPresentationHeld === true", timeout=3000
+    )
+    page.locator(".lf-threads-toggle").focus()
+    expect(page.locator(".lf-threads-toggle")).to_be_focused()
+    page.evaluate("releaseVisibleThreadPresentation()")
+    expect(thread).to_be_visible()
+    page.evaluate(RENDERED)
+
+    expect(page.locator(".lf-threads-toggle")).to_be_focused()
+    expect(destination).not_to_have_class(re.compile(r"\bflash\b"))
 
 
 @pytest.mark.parametrize("response", ["reply", "version"])
@@ -474,6 +539,45 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     held.pop().continue_()
     round_trip(page)
     expect(reply).to_be_focused()
+
+
+def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
+    held_events, serve
+):
+    """A later reader search is not the transition state that refusal may restore."""
+    browser, held = held_events
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Keep the later search in view.")
+    events_model.append_event(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
+    page.locator('[data-filter-value="resolved"]').click()
+    find = page.locator(".lf-find-box")
+    find.fill("later search")
+    card = page.locator(f'.lf-thread[data-id="{root}"]:not([hidden])')
+    expect(card).to_be_visible()
+    hold_visible_thread_presentation(page, root)
+
+    card.get_by_role("button", name="Reopen", exact=True).click()
+    holding(page, held, 1, "the refused reopen with a held reveal")
+    page.wait_for_function(
+        "window.visibleThreadPresentationHeld === true", timeout=3000
+    )
+    find.fill("newer reader search")
+    expect(find).to_be_focused()
+    page.evaluate("releaseVisibleThreadPresentation()")
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    round_trip(page)
+
+    expect(find).to_have_value("newer reader search")
+    expect(find).to_be_focused()
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
 
 
 def test_settlement_controls_share_one_request_across_page_and_panel(
@@ -1050,10 +1154,10 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
-    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
-        "Showing 1 of 2"
-    )
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("1 resolved thread")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (1)")
     page.evaluate(
         """async (id) => {
@@ -1102,9 +1206,8 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         "=== committedThread",
         root,
     )
-    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
-        "Showing 2 of 2"
-    )
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("2 resolved threads")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: injected thread-list failure"
@@ -1119,9 +1222,8 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     expect(recovered).to_be_visible()
     expect(recovered).to_have_attribute("data-resolved", "true")
     expect(recovered.locator("textarea")).to_have_count(0)
-    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text(
-        "Showing 2 of 2"
-    )
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("2 resolved threads")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads (0)")
     assert page.evaluate(
         'id => document.querySelector(`.lf-thread[data-id="${id}"]`) '
@@ -1188,6 +1290,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
     page.evaluate(
         """() => {
